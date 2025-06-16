@@ -298,6 +298,8 @@ class SqlCounter(QueryListener):
         """
         sql = sql.upper()
         sql = re.sub(r"\s+", " ", sql)
+        sql = re.sub(r"\(\s+", "(", sql)
+        sql = re.sub(r"\s+\)", ")", sql)
         return sql
 
     def _get_actual_queries(self):

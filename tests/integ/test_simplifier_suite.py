@@ -135,10 +135,9 @@ def test_set_same_operator(session, set_operator):
         result1 = df1.intersect(df2).intersect(df3.intersect(df4))
         Utils.check_answer(result1, [], sort=False)
 
-    query1 = result1._plan.queries[-1].sql
-    assert (
-        query1
-        == f"(SELECT 1 as a, 2 as b){set_operator}(SELECT 2 as a, 2 as b){set_operator}((SELECT 3 as a, 2 as b){set_operator}(SELECT 4 as a, 2 as b))"
+    query1 = Utils.normalize_sql(result1._plan.queries[-1].sql)
+    assert query1 == Utils.normalize_sql(
+        f"( SELECT 1 as a, 2 as b ){set_operator}( SELECT 2 as a, 2 as b ){set_operator}( ( SELECT 3 as a, 2 as b ){set_operator}( SELECT 4 as a, 2 as b ) )"
     )
 
 
@@ -170,7 +169,7 @@ def test_distinct_set_operator(session, distinct_table, action, operator):
 
         df = action(df1, df2).distinct()
         assert Utils.normalize_sql(df.queries["queries"][0]) == Utils.normalize_sql(
-            f"""SELECT DISTINCT * FROM ( ( SELECT * FROM {distinct_table}){operator}( SELECT * FROM {distinct_table}) )"""
+            f"""SELECT DISTINCT * FROM ( ( SELECT * FROM {distinct_table} ){operator}( SELECT * FROM {distinct_table} ) )"""
         )
 
         df = action(df1, df2.distinct()).distinct()
@@ -200,36 +199,42 @@ def test_union_and_other_operators(session, set_operator):
     if SET_UNION_ALL == set_operator:
         result1 = df1.union(df2).union_all(df3)
         result2 = df1.union(df2.union_all(df3))
-        assert (
+        assert Utils.normalize_sql(
             result1._plan.queries[-1].sql
-            == f"(SELECT 1 as a) UNION (SELECT 2 as a){set_operator}((SELECT 3 as a))"
+        ) == Utils.normalize_sql(
+            f"( SELECT 1 as a ) UNION ( SELECT 2 as a ){set_operator}( ( SELECT 3 as a ) )"
         )
-        assert (
+        assert Utils.normalize_sql(
             result2._plan.queries[-1].sql
-            == f"(SELECT 1 as a) UNION ((SELECT 2 as a){set_operator}(SELECT 3 as a))"
+        ) == Utils.normalize_sql(
+            f"( SELECT 1 as a ) UNION ( ( SELECT 2 as a ){set_operator}( SELECT 3 as a ) )"
         )
     elif SET_EXCEPT == set_operator:
         result1 = df1.union(df2).except_(df3)
         result2 = df1.union(df2.except_(df3))
-        assert (
+        assert Utils.normalize_sql(
             result1._plan.queries[-1].sql
-            == f"(SELECT 1 as a) UNION (SELECT 2 as a){set_operator}((SELECT 3 as a))"
+        ) == Utils.normalize_sql(
+            f"( SELECT 1 as a ) UNION ( SELECT 2 as a ){set_operator}( ( SELECT 3 as a ) )"
         )
-        assert (
+        assert Utils.normalize_sql(
             result2._plan.queries[-1].sql
-            == f"(SELECT 1 as a) UNION ((SELECT 2 as a){set_operator}(SELECT 3 as a))"
+        ) == Utils.normalize_sql(
+            f"( SELECT 1 as a ) UNION ( ( SELECT 2 as a ){set_operator}( SELECT 3 as a ) )"
         )
     else:  # intersect
         # intersect has higher precedence than union and other set operators
         result1 = df1.union(df2).intersect(df3)
         result2 = df1.union(df2.intersect(df3))
-        assert (
+        assert Utils.normalize_sql(
             result1._plan.queries[-1].sql
-            == f"((SELECT 1 as a) UNION (SELECT 2 as a)){set_operator}((SELECT 3 as a))"
+        ) == Utils.normalize_sql(
+            f"( ( SELECT 1 as a ) UNION ( SELECT 2 as a ) ){set_operator}( ( SELECT 3 as a ) )"
         )
-        assert (
+        assert Utils.normalize_sql(
             result2._plan.queries[-1].sql
-            == f"(SELECT 1 as a) UNION ((SELECT 2 as a){set_operator}(SELECT 3 as a))"
+        ) == Utils.normalize_sql(
+            f"( SELECT 1 as a ) UNION ( ( SELECT 2 as a ){set_operator}( SELECT 3 as a ) )"
         )
 
 
@@ -912,7 +917,6 @@ def test_limit_offset(session, simplifier_table):
     )
 
     df3 = df.limit(5, offset=2)
-    print(df3.queries)
     assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
         f"SELECT * FROM ( SELECT * FROM {simplifier_table} LIMIT 10 OFFSET 1 ) LIMIT 5 OFFSET 2"
     )
@@ -1117,6 +1121,11 @@ def test_join_dataframes(session, simplifier_table):
 
 def test_sample(session, simplifier_table):
     df = session.table(simplifier_table)
+    df_table_row_sample = session.table(simplifier_table).sample(n=3)
+    assert Utils.normalize_sql(
+        df_table_row_sample.queries["queries"][-1]
+    ) == Utils.normalize_sql(f"SELECT * FROM {simplifier_table} SAMPLE (3 ROWS)")
+
     df_table_sample = df.sample(
         0.5, sampling_method="BERNOULLI", seed=1
     )  # SQL is generated from Table's sample method.
@@ -1133,14 +1142,14 @@ def test_sample(session, simplifier_table):
         0.5
     )  # SQL is generated from DataFrame's sample method..
     df3 = df_query_sample.select("a").select("a").select("a")
-    assert df3.queries["queries"][-1].count("SELECT") == 3
+    assert df3.queries["queries"][-1].count("SELECT") == 2
 
     df4 = (
         df_query_sample.select((col("a") + 1).as_("a"))
         .select((col("a") + 1).as_("a"))
         .select((col("a") + 1).as_("a"))
     )
-    assert df4.queries["queries"][-1].count("SELECT") == 5
+    assert df4.queries["queries"][-1].count("SELECT") == 4
 
 
 def test_unpivot(session, simplifier_table):
@@ -1265,30 +1274,30 @@ def test_drop_using_exclude(session, large_simplifier_table, df_from):
 
         # test we generate correct select * exclude query
         df1 = df.drop("a")
-        assert (
-            Utils.normalize_sql(df1.queries["queries"][0]) == drop_a_query
+        assert Utils.normalize_sql(df1.queries["queries"][0]) == Utils.normalize_sql(
+            drop_a_query
         ), df1.queries["queries"][0]
 
         # repeated drop should not generate new query
         df2 = df.drop("a").drop("a")
-        assert (
-            Utils.normalize_sql(df2.queries["queries"][0]) == drop_a_query
+        assert Utils.normalize_sql(df2.queries["queries"][0]) == Utils.normalize_sql(
+            drop_a_query
         ), df2.queries["queries"][0]
 
         # dropping non-existing column should not generate new query
         df3 = df.drop("a").drop("f").drop("g")
-        assert (
-            Utils.normalize_sql(df3.queries["queries"][0]) == drop_a_query
+        assert Utils.normalize_sql(df3.queries["queries"][0]) == Utils.normalize_sql(
+            drop_a_query
         ), df3.queries["queries"][0]
 
         # dropping multiple columns are flattened
         df4 = df.drop("a", "b")
-        assert (
-            Utils.normalize_sql(df4.queries["queries"][0]) == drop_ab_query
+        assert Utils.normalize_sql(df4.queries["queries"][0]) == Utils.normalize_sql(
+            drop_ab_query
         ), df4.queries["queries"][0]
         df5 = df.drop("a").drop("b")
-        assert (
-            Utils.normalize_sql(df5.queries["queries"][0]) == drop_ab_query
+        assert Utils.normalize_sql(df5.queries["queries"][0]) == Utils.normalize_sql(
+            drop_ab_query
         ), df5.queries["queries"][0]
     finally:
         session.conf.set("use_simplified_query_generation", original)
@@ -1481,7 +1490,9 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
     simplified_query = Utils.normalize_sql(simplified_query)
 
     Utils.check_answer(operation(df1), operation(df2))
-    assert Utils.normalize_sql(operation(df2).queries["queries"][0]) == simplified_query
+    assert Utils.normalize_sql(
+        operation(df2).queries["queries"][0]
+    ) == Utils.normalize_sql(simplified_query)
 
 
 @pytest.mark.parametrize(
@@ -1549,7 +1560,9 @@ def test_select_after_orderby(
     simplified_query = simplified_query.format_map({"POSTFIX": integer_literal_postfix})
     simplified_query = Utils.normalize_sql(simplified_query)
 
-    assert Utils.normalize_sql(operation(df2).queries["queries"][0]) == simplified_query
+    assert Utils.normalize_sql(
+        operation(df2).queries["queries"][0]
+    ) == Utils.normalize_sql(simplified_query)
     if execute_sql:
         Utils.check_answer(operation(df1), operation(df2))
 
