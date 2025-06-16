@@ -7,6 +7,7 @@
 #### Improvements
 
 - Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
+- Improved SQL generation for `session.table().sample()` to generate a flat sql statement.
 
 ### Snowpark Local Testing Updates
 
