@@ -40,6 +40,13 @@ class SnowparkPandasTelemetryField(Enum):
     TYPE_SNOWPARK_PANDAS_FUNCTION_USAGE = "snowpark_pandas_function_usage"
     # function categories
     FUNC_CATEGORY_SNOWPARK_PANDAS = "snowpark_pandas"
+    FUNC_CATEGORY_MODIN = "modin"
+
+    # modin telemetry events
+    MODIN_EVENT = "modin_event"
+    MODIN_VALUE = "modin_value"
+    MODIN_VALUE_AGGREGATABLE = "modin_event_aggregatable"
+
     # keyword argument
     ARGS = "argument"
     # fallback flag
@@ -57,6 +64,36 @@ class PropertyMethodType(Enum):
     FGET = "get"
     FSET = "set"
     FDEL = "delete"
+
+
+@safe_telemetry
+def _send_modin_api_telemetry(
+    session: Session, event: str, value: Union[int, float], aggregatable: bool
+) -> None:
+    """
+    Send telemetry for Modin API calls.
+
+    Args:
+        session: The Snowpark session.
+        event: The event name.
+        value: The value of the event.
+        aggregatable: Whether the value is aggregatable, either client side or server side.
+
+    Returns:
+        None
+    """
+    data: dict[str, Union[str, list[dict[str, Any]], list[str], Optional[str]]] = {
+        SnowparkPandasTelemetryField.MODIN_EVENT.value: event,
+        SnowparkPandasTelemetryField.MODIN_VALUE.value: str(value),
+        SnowparkPandasTelemetryField.MODIN_VALUE_AGGREGATABLE.value: str(aggregatable),
+        TelemetryField.KEY_CATEGORY.value: SnowparkPandasTelemetryField.FUNC_CATEGORY_MODIN.value,
+    }
+
+    message: dict = {
+        TelemetryField.KEY_DATA.value: data,
+        PCTelemetryField.KEY_SOURCE.value: "modin",
+    }
+    session._conn._telemetry_client.send(message)
 
 
 @safe_telemetry
@@ -608,20 +645,33 @@ class TelemetryMeta(type):
         return type.__new__(cls, name, bases, attrs)
 
 
-# List naively tracking API calls
-modin_api_call_history: list[str] = []
-
-
-def snowpark_pandas_api_watcher(api_name: str, _time: Union[int, float]) -> None:
+def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -> None:
     """
-    Telemetry hook that records all Modin API calls, regardless of whether they were performed with
-    the Snowpark pandas backend.
-    Ideally, we would be able to distinguish backends for individual API calls, but such a change
-    would need to be made upstream. For now we naively record all API calls.
+    Telemetry hook that collects modin telemetry events of interest for
+    transmission to Snowflake.
     """
-    tokens = api_name.split(".")
-    if len(tokens) >= 2 and tokens[0] == "pandas-api":
-        modin_api_call_history.append(tokens[1])
+    useful_metrics = (
+        "modin.hybrid.merge.decision",
+        "modin.pandas-api",
+        "modin.query-compiler",
+        "modin.hybrid.auto.decision",
+    )
+    is_useful = False
+    for useful_metric in useful_metrics:
+        if metric_name.startswith(useful_metric):
+            is_useful = True
+            break
+    if is_useful:
+        try:
+            session = snowflake.snowpark.session._get_active_session()
+            _send_modin_api_telemetry(
+                session=session,
+                event=metric_name,
+                value=metric_value,
+                aggregatable=False,
+            )
+        except Exception:
+            pass
 
 
 if MODIN_IS_AT_LEAST_0_33_0:
@@ -648,7 +698,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
             location = frame_before_snowpandas.code_context[0].replace("\n", "")
         return {"group": group, "source": location}
 
-    def hybrid_metrics_watcher(
+    def hybrid_describe_telemetry_watcher(
         metric_name: str, metric_value: Union[int, float]
     ) -> None:
         global hybrid_switch_log
@@ -680,5 +730,5 @@ if MODIN_IS_AT_LEAST_0_33_0:
 
     def connect_modin_telemetry() -> None:
         MetricsMode.enable()
-        add_metric_handler(snowpark_pandas_api_watcher)
-        add_metric_handler(hybrid_metrics_watcher)
+        add_metric_handler(modin_telemetry_watcher)
+        add_metric_handler(hybrid_describe_telemetry_watcher)
