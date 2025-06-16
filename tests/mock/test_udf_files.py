@@ -4,6 +4,7 @@
 
 import pytest
 import io
+import os
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col, udf, sproc
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
@@ -48,7 +49,8 @@ def _generate_and_write_lines(
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_read_snowflakefile_local(read_mode, write_mode, temp_file, session):
+def test_read_snowflakefile_local(read_mode, write_mode, tmp_path, session):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = _write_test_msg(write_mode, temp_file)
 
     @udf
@@ -65,7 +67,8 @@ def test_read_snowflakefile_local(read_mode, write_mode, temp_file, session):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_read_sproc_snowflakefile_local(read_mode, write_mode, temp_file, session):
+def test_read_sproc_snowflakefile_local(read_mode, write_mode, tmp_path, session):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = _write_test_msg(write_mode, temp_file)
 
     @udf
@@ -87,7 +90,10 @@ def test_read_sproc_snowflakefile_local(read_mode, write_mode, temp_file, sessio
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_isatty_snowflakefile_local(read_mode, write_mode, temp_file, session):
+def test_isatty_snowflakefile_local(read_mode, write_mode, tmp_path, session):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg(write_mode, temp_file)
+
     @udf
     def get_atty_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
@@ -110,7 +116,10 @@ def test_isatty_snowflakefile_local(read_mode, write_mode, temp_file, session):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_readable_snowflakefile_local(read_mode, write_mode, temp_file, session):
+def test_readable_snowflakefile_local(read_mode, write_mode, tmp_path, session):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg(write_mode, temp_file)
+
     @udf
     def is_readable_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
@@ -133,7 +142,8 @@ def test_readable_snowflakefile_local(read_mode, write_mode, temp_file, session)
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_readline_snowflakefile_local(read_mode, write_mode, temp_file, session):
+def test_readline_snowflakefile_local(read_mode, write_mode, tmp_path, session):
+    temp_file = os.path.join(tmp_path, "test.txt")
     num_lines = 5
     lines = _generate_and_write_lines(num_lines, write_mode, temp_file)
 
@@ -158,8 +168,9 @@ def test_readline_snowflakefile_local(read_mode, write_mode, temp_file, session)
     ],
 )
 def test_seek_snowflakefile_local(
-    read_mode, write_mode, offset, whence, temp_file, session
+    read_mode, write_mode, offset, whence, tmp_path, session
 ):
+    temp_file = os.path.join(tmp_path, "test.txt")
     _write_test_msg(write_mode, temp_file)
 
     @udf
@@ -178,7 +189,10 @@ def test_seek_snowflakefile_local(
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_seekable_snowflakefile_local(read_mode, write_mode, temp_file, session):
+def test_seekable_snowflakefile_local(read_mode, write_mode, tmp_path, session):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg(write_mode, temp_file)
+
     @udf
     def is_seekable_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
@@ -201,7 +215,8 @@ def test_seekable_snowflakefile_local(read_mode, write_mode, temp_file, session)
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_tell_snowflakefile_local(read_mode, write_mode, temp_file, session):
+def test_tell_snowflakefile_local(read_mode, write_mode, tmp_path, session):
+    temp_file = os.path.join(tmp_path, "test.txt")
     _write_test_msg(write_mode, temp_file)
 
     @udf
@@ -221,7 +236,10 @@ def test_tell_snowflakefile_local(read_mode, write_mode, temp_file, session):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_writable_snowflakefile_local(read_mode, write_mode, temp_file, session):
+def test_writable_snowflakefile_local(read_mode, write_mode, tmp_path, session):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg(write_mode, temp_file)
+
     @udf
     def is_writable_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
@@ -256,8 +274,9 @@ def test_writable_snowflakefile_local(read_mode, write_mode, temp_file, session)
         ("rb", "wb", 10),
     ],
 )
-def test_readinto_snowflakefile_local(read_mode, write_mode, size, temp_file, session):
+def test_readinto_snowflakefile_local(read_mode, write_mode, size, tmp_path, session):
     test_msg = generate_random_alphanumeric(size)
+    temp_file = os.path.join(tmp_path, "test.txt")
     _write_test_msg(write_mode, temp_file, test_msg)
     encoded_test_msg = test_msg.encode()
 

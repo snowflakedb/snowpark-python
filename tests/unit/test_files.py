@@ -54,7 +54,10 @@ def _generate_and_write_lines(
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_create_snowflakefile(read_mode, write_mode, temp_file):
+def test_create_snowflakefile(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg(write_mode, temp_file)
+
     def sf_open_new_result(mode: str) -> None:
         with SnowflakeFile.open_new_result(mode) as f:
             assert f._file_location is not None
@@ -91,7 +94,10 @@ def test_invalid_mode_snowflakefile():
         sf_open("test", "rw")
 
 
-def test_default_mode_snowflakefile(temp_file):
+def test_default_mode_snowflakefile(tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg("w", temp_file)
+
     def sf_open_new_result() -> None:
         with SnowflakeFile.open_new_result() as f:
             assert f._file_location is not None
@@ -106,7 +112,10 @@ def test_default_mode_snowflakefile(temp_file):
     sf_open(temp_file)
 
 
-def test_snowflake_file_attribute(temp_file):
+def test_snowflake_file_attribute(tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg("w", temp_file)
+
     def sf_open_new_result() -> None:
         with SnowflakeFile.open_new_result() as f:
             assert f.buffer is None
@@ -124,10 +133,11 @@ def test_snowflake_file_attribute(temp_file):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_read_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_read_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = _write_test_msg(write_mode, temp_file)
 
-    def read_file(file_location: str, mode: str) -> str | bytes:
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.read()
 
@@ -135,8 +145,11 @@ def test_read_snowflakefile_local(read_mode, write_mode, temp_file):
 
 
 @pytest.mark.parametrize("mode", ["r", "rb"])
-def test_read_empty_file_snowflakefile_local(mode, temp_file):
-    def read_file(file_location: str, mode: str) -> str | bytes:
+def test_read_empty_file_snowflakefile_local(mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg("w", temp_file, "")
+
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.read()
 
@@ -158,10 +171,11 @@ def test_read_empty_file_snowflakefile_local(mode, temp_file):
         ("rb", "wb", -1),
     ],
 )
-def test_read_with_size_snowflakefile_local(read_mode, write_mode, size, temp_file):
+def test_read_with_size_snowflakefile_local(read_mode, write_mode, size, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = _write_test_msg(write_mode, temp_file)
 
-    def read_file(file_location: str, mode: str, size: int) -> str | bytes:
+    def read_file(file_location: str, mode: str, size: int) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.read(size)
 
@@ -178,7 +192,7 @@ def test_read_non_existent_snowflakefile_local(mode):
         with pytest.raises(FileNotFoundError):
             not_found_file_path = os.path.join(temp_dir, "non_existent_file.txt")
 
-            def read_file(file_location: str, mode: str) -> str | bytes:
+            def read_file(file_location: str, mode: str) -> Union[str, bytes]:
                 with SnowflakeFile.open(file_location, mode) as f:
                     return f.read()
 
@@ -219,11 +233,12 @@ def test_read_api_in_write_mode_snowflakefile_local(mode):
     ],
 )
 def test_read_special_msg_snowflakefile_local(
-    read_mode, write_mode, test_msg, temp_file
+    read_mode, write_mode, test_msg, tmp_path
 ):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = _write_test_msg(write_mode, temp_file, test_msg)
 
-    def read_file(file_location: str, mode: str) -> str | bytes:
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.read()
 
@@ -231,10 +246,8 @@ def test_read_special_msg_snowflakefile_local(
 
 
 @pytest.mark.parametrize("mode", ["w", "wb"])
-def test_read_deleted_snowflakefile_local(mode):
-    temp_file = (
-        tempfile.NamedTemporaryFile().name
-    )  # fixture error when using temp_file and deleting it
+def test_read_deleted_snowflakefile_local(mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     _write_test_msg(mode, temp_file)
     os.remove(temp_file)
 
@@ -250,7 +263,9 @@ def test_read_deleted_snowflakefile_local(mode):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_detach_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_detach_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg(write_mode, temp_file)
     detach_error = "Detaching stream from file is unsupported"
 
     def sf_detach_write(mode: str) -> None:
@@ -269,7 +284,9 @@ def test_detach_snowflakefile_local(read_mode, write_mode, temp_file):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_fileno_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_fileno_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg(write_mode, temp_file)
     fileno_error = "This object does not use a file descriptor"
 
     def sf_fileno_write(mode: str) -> int:
@@ -295,7 +312,10 @@ def test_flush_snowflakefile():
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_isatty_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_isatty_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg(write_mode, temp_file)
+
     def get_atty_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
             return f.isatty()
@@ -309,7 +329,8 @@ def test_isatty_snowflakefile_local(read_mode, write_mode, temp_file):
 
 
 @pytest.mark.parametrize("mode", ["r", "rb"])
-def test_truncate_read_mode_snowflakefile_local(mode, temp_file):
+def test_truncate_read_mode_snowflakefile_local(mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     _write_test_msg("w", temp_file)
 
     def sf_truncate(file_location: str, mode: str) -> int:
@@ -333,7 +354,10 @@ def test_truncate_write_mode_snowflakefile_local(mode):
 
 
 @pytest.mark.parametrize("mode", ["r", "rb"])
-def test_methods_closed_snowflakefile_local(temp_file, mode):
+def test_methods_closed_snowflakefile_local(tmp_path, mode):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg("w", temp_file)
+
     def sf_closed(file_location: str, mode: str) -> None:
         with SnowflakeFile.open(file_location, mode) as f:
             f.close()
@@ -365,7 +389,10 @@ def test_methods_closed_snowflakefile_local(temp_file, mode):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_readable_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_readable_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg("w", temp_file)
+
     def is_readable_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
             return f.readable()
@@ -379,7 +406,8 @@ def test_readable_snowflakefile_local(read_mode, write_mode, temp_file):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_readall_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_readall_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     num_lines = 5
     lines = _generate_and_write_lines(num_lines, write_mode, temp_file)
 
@@ -395,11 +423,12 @@ def test_readall_snowflakefile_local(read_mode, write_mode, temp_file):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_readline_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_readline_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     num_lines = 5
     lines = _generate_and_write_lines(num_lines, write_mode, temp_file)
 
-    def sf_readline(file_location: str, mode: str) -> str | bytes:
+    def sf_readline(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.readline()
 
@@ -430,11 +459,14 @@ def test_readline_snowflakefile_local(read_mode, write_mode, temp_file):
         ("rb", "wb", -1),
     ],
 )
-def test_readline_with_size_snowflakefile_local(read_mode, write_mode, size, temp_file):
+def test_readline_with_size_snowflakefile_local(read_mode, write_mode, size, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     num_lines = 5
     lines = _generate_and_write_lines(num_lines, write_mode, temp_file)
 
-    def sf_readline_with_size(file_location: str, mode: str, size: int) -> str | bytes:
+    def sf_readline_with_size(
+        file_location: str, mode: str, size: int
+    ) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.readline(size)
 
@@ -446,7 +478,8 @@ def test_readline_with_size_snowflakefile_local(read_mode, write_mode, size, tem
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_readlines_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_readlines_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     num_lines = 5
     lines = _generate_and_write_lines(num_lines, write_mode, temp_file)
 
@@ -472,9 +505,8 @@ def test_readlines_snowflakefile_local(read_mode, write_mode, temp_file):
         ("rb", "wb", -1),
     ],
 )
-def test_readlines_with_hint_snowflakefile_local(
-    read_mode, write_mode, hint, temp_file
-):
+def test_readlines_with_hint_snowflakefile_local(read_mode, write_mode, hint, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     num_lines = 5
     lines = _generate_and_write_lines(num_lines, write_mode, temp_file)
 
@@ -508,7 +540,8 @@ def test_readlines_with_hint_snowflakefile_local(
         ("rb", "wb", -3, io.SEEK_END),
     ],
 )
-def test_seek_snowflakefile_local(read_mode, write_mode, offset, whence, temp_file):
+def test_seek_snowflakefile_local(read_mode, write_mode, offset, whence, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = _write_test_msg(write_mode, temp_file)
 
     def sf_seek(
@@ -541,8 +574,9 @@ def test_seek_snowflakefile_local(read_mode, write_mode, offset, whence, temp_fi
     ],
 )
 def test_seek_error_snowflakefile_local(
-    read_mode, write_mode, offset, whence, temp_file
+    read_mode, write_mode, offset, whence, tmp_path
 ):
+    temp_file = os.path.join(tmp_path, "test.txt")
     _write_test_msg(write_mode, temp_file)
 
     def sf_seek(file_location: str, mode: str, offset: int, whence: int) -> int:
@@ -560,7 +594,10 @@ def test_seek_error_snowflakefile_local(
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_seekable_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_seekable_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg(write_mode, temp_file)
+
     def is_seekable_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
             return f.seekable()
@@ -574,7 +611,8 @@ def test_seekable_snowflakefile_local(read_mode, write_mode, temp_file):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_tell_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_tell_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = generate_random_alphanumeric(9) + "\n"
     length = len(test_msg)
     if write_mode == "wb":
@@ -631,7 +669,10 @@ def test_tell_snowflakefile_local(read_mode, write_mode, temp_file):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_writable_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_writable_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    _write_test_msg(write_mode, temp_file)
+
     def is_writable_write(mode: str) -> bool:
         with SnowflakeFile.open_new_result(mode) as f:
             return f.writable()
@@ -645,7 +686,8 @@ def test_writable_snowflakefile_local(read_mode, write_mode, temp_file):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_read1_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_read1_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = _write_test_msg(write_mode, temp_file)
     if type(test_msg) is str:
         test_msg = test_msg.encode()
@@ -668,7 +710,8 @@ def test_read1_snowflakefile_local(read_mode, write_mode, temp_file):
         ("rb", "wb", -1),
     ],
 )
-def test_read1_with_size_snowflakefile_local(read_mode, write_mode, size, temp_file):
+def test_read1_with_size_snowflakefile_local(read_mode, write_mode, size, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = _write_test_msg(write_mode, temp_file)
     if type(test_msg) is str:
         test_msg = test_msg.encode()
@@ -697,7 +740,8 @@ def test_read1_with_size_snowflakefile_local(read_mode, write_mode, size, temp_f
         ("rb", "wb", 10),
     ],
 )
-def test_readinto_snowflakefile_local(read_mode, write_mode, size, temp_file):
+def test_readinto_snowflakefile_local(read_mode, write_mode, size, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = generate_random_alphanumeric(size)
     _write_test_msg(write_mode, temp_file, test_msg)
     encoded_test_msg = test_msg.encode()
@@ -719,7 +763,8 @@ def test_readinto_snowflakefile_local(read_mode, write_mode, size, temp_file):
 
 
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
-def test_readinto_escape_chars_snowflakefile_local(read_mode, write_mode, temp_file):
+def test_readinto_escape_chars_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
     test_msg = "This is a test message with escape characters: \n\t"
     _write_test_msg(write_mode, temp_file, test_msg)
     encoded_test_msg = test_msg.encode()
@@ -752,8 +797,9 @@ def test_readinto_escape_chars_snowflakefile_local(read_mode, write_mode, temp_f
         ("rb", "wb", 10),
     ],
 )
-def test_readinto1_snowflakefile_local(read_mode, write_mode, size, temp_file):
+def test_readinto1_snowflakefile_local(read_mode, write_mode, size, tmp_path):
     test_msg = generate_random_alphanumeric(size)
+    temp_file = os.path.join(tmp_path, "test.txt")
     _write_test_msg(write_mode, temp_file, test_msg)
     encoded_test_msg = test_msg.encode()
 

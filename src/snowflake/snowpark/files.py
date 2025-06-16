@@ -299,7 +299,7 @@ class SnowflakeFile(RawIOBase):
 
         Read and return one line from the stream. If size is specified, at most size bytes will be read.
 
-        The line terminator is always b'\n' for binary files; for text files, the newline argument to open() can be used to
+        The line terminator is always b\'\\n\' for binary files; for text files, the newline argument to open() can be used to
         select the line terminator(s) recognized.
         """
         self._raise_if_closed()
