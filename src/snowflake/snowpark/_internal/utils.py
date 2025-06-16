@@ -2031,7 +2031,7 @@ def get_plan_from_line_numbers(
     while stack:
         node, line_number = stack.pop()
         if isinstance(node, Selectable):
-            node = node.get_snowflake_plan(skip_schema_query=True)
+            node = node.get_snowflake_plan(skip_schema_query=False)
         query_line_intervals = node.queries[-1].query_line_intervals
         idx = find_interval_containing_line(query_line_intervals, line_number)
         if idx >= 0:

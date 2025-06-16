@@ -188,7 +188,6 @@ def get_df_transform_trace_message(
     )
 
     debug_info_lines = [
-        "\n\n--- Additional Debug Information ---\n",
         f"Trace of the most recent dataframe operations associated with the error (total {df_transform_trace_length}):\n",
     ]
     for node in df_transform_trace_nodes[:show_trace_length]:
@@ -202,7 +201,7 @@ def get_df_transform_trace_message(
     return "\n".join(debug_info_lines)
 
 
-def find_python_source_from_sql_error(error_msg: str, args: tuple) -> Optional[str]:
+def get_python_source_from_sql_error(error_msg: str, args: tuple) -> Optional[str]:
     """
     Extract SQL error line number and map it back to Python source code. We use the
     helper function get_plan_from_line_numbers to get the plan from the line number
@@ -230,13 +229,16 @@ def find_python_source_from_sql_error(error_msg: str, args: tuple) -> Optional[s
                 )
 
                 plan = get_plan_from_line_numbers(arg, sql_line_number)
+                ast_id = None
+                bind_stmt = None
                 if isinstance(plan, Selectable) and plan.df_ast_ids is not None:
                     ast_id = plan.df_ast_ids[-1]
-                else:
+                    bind_stmt = plan._session._ast_batch._bind_stmt_cache.get(ast_id)
+                elif isinstance(plan, SnowflakePlan) and plan.df_ast_id is not None:
                     ast_id = plan.df_ast_id
+                    bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
                 if not ast_id:
                     continue
-                bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
                 if not bind_stmt:
                     continue
                 src = extract_src_from_expr(bind_stmt.bind.expr)

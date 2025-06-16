@@ -36,7 +36,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.debug_utils import (
     get_df_transform_trace_message,
-    find_python_source_from_sql_error,
+    get_python_source_from_sql_error,
 )
 
 if TYPE_CHECKING:
@@ -182,7 +182,7 @@ class SnowflakePlan(LogicalPlan):
                     assert e.msg is not None
                     python_debug_context = ""
                     if "SQL compilation error:" in e.msg and "error line" in e.msg:
-                        python_source_info = find_python_source_from_sql_error(
+                        python_source_info = get_python_source_from_sql_error(
                             e.msg, args
                         )
                         python_debug_context = (
@@ -217,7 +217,12 @@ class SnowflakePlan(LogicalPlan):
                         )
                         pass
 
-                    debug_context = python_debug_context + df_transform_debug_trace
+                    debug_header = "\n\n--- Additional Debug Information ---\n"
+                    debug_context = (
+                        debug_header + df_transform_debug_trace + python_debug_context
+                    )
+                    if debug_context == debug_header:
+                        debug_context = ""
 
                     if "unexpected 'as'" in e.msg.lower():
                         ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
