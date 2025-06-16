@@ -211,9 +211,9 @@ def test_read_api_in_write_mode_snowflakefile_local(mode):
 @pytest.mark.parametrize(
     ["read_mode", "write_mode", "test_msg"],
     [
-        ("r", "w", generate_random_alphanumeric(1)),
+        ("r", "w", "a"),
         ("r", "w", "This is a test message with escape characters: \n\t"),
-        ("rb", "wb", generate_random_alphanumeric(1)),
+        ("rb", "wb", "a"),
         ("rb", "wb", "This is a test message with escape characters: \n\t"),
     ],
 )
