@@ -29,7 +29,9 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
-_NON_LOCAL_PATH_ERR_MSG = "SnowflakeFile currently only supports relative paths."
+_NON_LOCAL_PATH_ERR_MSG = (
+    "SnowflakeFile currently only supports relative paths locally."
+)
 _WRITE_MODE_ERR_MSG = "SnowflakeFile currently doesn't support writing locally."
 _DEFER_IMPLEMENTATION_ERR_MSG = "Not yet supported in UDF and Stored Procedures."
 _logger = logging.getLogger(__name__)
