@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
 from typing import Any, Tuple, Iterator, Union, List
 
 from snowflake.snowpark.types import StructType

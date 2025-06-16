@@ -1429,60 +1429,6 @@ class DataFrameReader:
             statements_params_for_telemetry,
         )
 
-        # try:
-        #     processes = []
-        #
-        #     # Determine the number of processes to use
-        #     max_workers = max_workers or mp.cpu_count()
-        #
-        #     # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
-        #     partition_queue = mp.Queue()
-        #     # a queue of parquet BytesIO objects to be uploaded
-        #     # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
-        #     # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
-        #     parquet_queue = mp.Queue(_MAX_WORKER_SCALE * max_workers)
-        #     for partition_idx, query in enumerate(partitioned_queries):
-        #         partition_queue.put((partition_idx, query))
-        #
-        #     # Start worker processes
-        #     logger.debug(
-        #         f"Starting {max_workers} worker processes to fetch data from the data source."
-        #     )
-        #     for _worker_id in range(max_workers):
-        #         process = mp.Process(
-        #             target=worker_process,
-        #             args=(partition_queue, parquet_queue, partitioner.reader()),
-        #         )
-        #         process.start()
-        #         processes.append(process)
-        #
-        #     # Process BytesIO objects from queue and upload them using utility method
-        #     process_parquet_queue_with_threads(
-        #         session=self._session,
-        #         parquet_queue=parquet_queue,
-        #         processes=processes,
-        #         total_partitions=len(partitioned_queries),
-        #         snowflake_stage_name=snowflake_stage_name,
-        #         snowflake_table_name=snowflake_table_name,
-        #         max_workers=max_workers,
-        #         statements_params=statements_params_for_telemetry,
-        #         on_error="abort_statement",
-        #     )
-        #
-        # except BaseException as exc:
-        #     # Graceful shutdown - terminate all processes
-        #     for process in processes:
-        #         if process.is_alive():
-        #             process.terminate()
-        #             process.join(timeout=5)
-        #
-        #     if isinstance(exc, SnowparkDataframeReaderException):
-        #         raise exc
-        #
-        #     raise SnowparkDataframeReaderException(
-        #         f"Error occurred while ingesting data from the data source: {exc!r}"
-        #     )
-
         logger.debug("All data has been successfully loaded into the Snowflake table.")
         self._session._conn._telemetry_client.send_data_source_perf_telemetry(
             DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
@@ -1505,6 +1451,9 @@ class DataFrameReader:
 
     def _custom_data_source(self, data_source: str) -> DataFrame:
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
+        start_time = time.perf_counter()
+        _emit_ast = self._cur_options.get("_emit_ast", True)
+
         if "UDTF_CONFIGS" in self._cur_options:
             # udtf ingestion
             external_access_integrations = self._cur_options["UDTF_CONFIGS"].get(
@@ -1571,14 +1520,38 @@ class DataFrameReader:
         data_source_class = self._custom_data_sources[data_source]
         data_source_instance = data_source_class()
         partitions = data_source_instance._partitions()
+        if partitions is None:
+            partitions = [None]
+
         schema = convert_custom_schema_to_structtype(data_source_instance.schema())
+        max_workers = self._cur_options.get("max_workers", None)
 
         snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
 
         create_data_source_table_and_stage(
             self._session,
+            schema,
             snowflake_table_name,
             snowflake_stage_name,
             statements_params_for_telemetry,
         )
+
+        local_ingestion(
+            self._session,
+            max_workers,
+            partitions,
+            schema,
+            data_source_instance,
+            snowflake_table_name,
+            snowflake_stage_name,
+            statements_params_for_telemetry,
+        )
+        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+            DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
+        )
+
+        res_df = self._session.table(snowflake_table_name, _emit_ast=_emit_ast)
+
+        set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
+        return res_df
