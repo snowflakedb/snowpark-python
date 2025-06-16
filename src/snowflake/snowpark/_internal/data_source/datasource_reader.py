@@ -7,7 +7,7 @@ from enum import Enum
 
 from typing import List, Any, Iterator, Type, Callable, Optional
 
-from snowflake.data_source import DataSourceReader
+from snowflake.snowpark.data_source import DataSourceReader
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark._internal.data_source.utils import data_source_data_to_pandas_df

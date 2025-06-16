@@ -10,7 +10,7 @@ import logging
 import pytz
 from dateutil import parser
 
-from snowflake.data_source import DataSource
+from snowflake.snowpark.data_source import DataSource
 from snowflake.snowpark._internal.data_source.dbms_dialects import BaseDialect
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
 from snowflake.snowpark._internal.data_source.utils import (

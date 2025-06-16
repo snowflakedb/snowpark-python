@@ -14,7 +14,7 @@ from typing import Any, Tuple, Optional, Callable, Dict, List, Union, TYPE_CHECK
 from snowflake.connector.options import pandas as pd
 import logging
 
-from snowflake.data_source import DataSourceReader, DataSource
+from snowflake.snowpark.data_source import DataSourceReader, DataSource
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
