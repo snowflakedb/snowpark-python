@@ -7,10 +7,12 @@ import os
 import sys
 from typing import Dict, List, Optional
 import itertools
+import re
 
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark._internal.ast.utils import extract_src_from_expr
 
 UNKNOWN_FILE = "__UNKNOWN_FILE__"
 SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH = (
@@ -198,3 +200,52 @@ def get_df_transform_trace_message(
             "environment variable."
         )
     return "\n".join(debug_info_lines)
+
+
+def find_python_source_from_sql_error(error_msg: str, args: tuple) -> Optional[str]:
+    """
+    Extract SQL error line number and map it back to Python source code. We use the
+    helper function get_plan_from_line_numbers to get the plan from the line number
+    found in the SQL compilation error message. We then extract the source lines
+    and columns using the ast_id associated with the plan.
+    """
+    sql_compilation_error_regex = re.compile(
+        r""".*SQL compilation error:\s*error line (\d+) at position (\d+).*""",
+    )
+    match = sql_compilation_error_regex.match(error_msg)
+    if not match:
+        return None
+
+    sql_line_number = int(match.group(1)) - 1
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        Selectable,
+    )
+
+    for arg in args:
+        if isinstance(arg, SnowflakePlan) or isinstance(arg, Selectable):
+            try:
+                from snowflake.snowpark._internal.utils import (
+                    get_plan_from_line_numbers,
+                )
+
+                plan = get_plan_from_line_numbers(arg, sql_line_number)
+                if isinstance(plan, Selectable) and plan.df_ast_ids is not None:
+                    ast_id = plan.df_ast_ids[-1]
+                else:
+                    ast_id = plan.df_ast_id
+                if not ast_id:
+                    continue
+                bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
+                if not bind_stmt:
+                    continue
+                src = extract_src_from_expr(bind_stmt.bind.expr)
+                if src and hasattr(src, "start_line"):
+                    return (
+                        f"\nSQL compilation error corresponds to Python source at lines {src.start_line}"
+                        f"{f'-{src.end_line}' if src.end_line and src.end_line != src.start_line else ''}"
+                        f"{f', columns {src.start_column}-{src.end_column}' if src.start_column and src.end_column else ''}.\n"
+                    )
+            except Exception:
+                continue
+    return None

@@ -673,6 +673,20 @@ class DataFrame:
         if self._select_statement is not None:
             self._select_statement.add_df_ast_id(value)
 
+    def _propagate_ast_id_to_select_sql(self, plan, ast_id: Optional[int]) -> None:
+        """
+        Propagate df_ast_id to associated SelectSQL instances.
+        """
+        from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+
+        if (
+            hasattr(plan, "children_plan_nodes")
+            and plan.children_plan_nodes is not None
+        ):
+            for child in plan.children_plan_nodes:
+                if isinstance(child, SelectSQL):
+                    child.add_df_ast_id(ast_id)
+
     @publicapi
     @overload
     def collect(
