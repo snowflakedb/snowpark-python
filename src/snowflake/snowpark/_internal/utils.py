@@ -1948,7 +1948,7 @@ def get_line_numbers(
         To do so, we split the commented_sql_query into lines and check for comments associated with child uuids. We find all
         intervals associated with child uuids and associate the remaining lines with the parent uuid.
     """
-    from snowflake.snowpark._internal.analyzer.select_statement import QueryLineInterval
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import QueryLineInterval
     from snowflake.snowpark._internal.analyzer import analyzer_utils
 
     sql_lines = commented_sql_query.split("\n")
