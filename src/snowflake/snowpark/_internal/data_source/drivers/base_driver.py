@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from enum import Enum
-import time
 from typing import List, Callable, Any, Optional, TYPE_CHECKING
 from snowflake.connector.options import pandas as pd
 
@@ -10,13 +9,10 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
     Cursor,
 )
-from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark._internal.utils import get_sorted_key_for_version
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
     StructType,
-    StructField,
-    VariantType,
 )
 import snowflake.snowpark
 import logging
@@ -89,28 +85,18 @@ class BaseDriver:
         packages: Optional[List[str]] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
-        from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
+        from snowflake.snowpark._internal.data_source.utils import udtf_ingestion
 
-        udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
-        start = time.time()
-        session.udtf.register(
+        res = udtf_ingestion(
+            session,
             self.udtf_class_builder(fetch_size=fetch_size, schema=schema),
-            name=udtf_name,
-            output_schema=StructType(
-                [
-                    StructField(field.name, VariantType(), field.nullable)
-                    for field in schema.fields
-                ]
-            ),
-            external_access_integrations=[external_access_integrations],
-            packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
-            imports=imports,
+            schema,
+            external_access_integrations,
+            packages,
+            imports,
+            partition_table,
+            self.dbms_type,
         )
-        logger.debug(f"register ingestion udtf takes: {time.time() - start} seconds")
-        call_udtf_sql = f"""
-            select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
-            """
-        res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
         return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
 
     def udtf_class_builder(
