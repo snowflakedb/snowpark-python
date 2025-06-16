@@ -66,7 +66,6 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     random_name_for_temp_object,
     warning,
-    generate_random_alphanumeric,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -1486,30 +1485,17 @@ class DataFrameReader:
                             yield from list(reader.read(partition))
                             break
 
-            from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
+            from snowflake.snowpark._internal.data_source.utils import udtf_ingestion
 
-            udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
-            start = time.time()
-            self._session.udtf.register(
+            res = udtf_ingestion(
+                self._session,
                 UDTFIngestion,
-                name=udtf_name,
-                output_schema=StructType(
-                    [
-                        StructField(field.name, VariantType(), field.nullable)
-                        for field in schema.fields
-                    ]
-                ),
-                external_access_integrations=[external_access_integrations],
-                packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
-                imports=imports,
+                schema,
+                external_access_integrations,
+                packages,
+                imports,
+                partitions_table,
             )
-            logger.debug(
-                f"register ingestion udtf takes: {time.time() - start} seconds"
-            )
-            call_udtf_sql = f"""
-                        select * from {partitions_table}, table({udtf_name}(partition))
-                        """
-            res = self._session.sql(call_udtf_sql, _emit_ast=True)
             cols = [
                 res[field.name].cast(field.datatype).alias(field.name)
                 for field in schema.fields

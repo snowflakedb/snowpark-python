@@ -10,7 +10,17 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
 from io import BytesIO
 from enum import Enum
-from typing import Any, Tuple, Optional, Callable, Dict, List, Union, TYPE_CHECKING
+from typing import (
+    Any,
+    Tuple,
+    Optional,
+    Callable,
+    Dict,
+    List,
+    Union,
+    TYPE_CHECKING,
+    Type,
+)
 from snowflake.connector.options import pandas as pd
 import logging
 
@@ -39,6 +49,7 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
+    generate_random_alphanumeric,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -48,6 +59,8 @@ from snowflake.snowpark.types import (
     DateType,
     BinaryType,
     BooleanType,
+    StructField,
+    VariantType,
 )
 
 if TYPE_CHECKING:
@@ -64,6 +77,7 @@ DATA_SOURCE_SQL_COMMENT = (
 )
 PARTITION_TASK_COMPLETE_SIGNAL_PREFIX = "PARTITION_COMPLETE_"
 PARTITION_TASK_ERROR_SIGNAL = "ERROR"
+PARTITION_TABLE_COLUMN_NAME = "partition"
 
 
 class DBMS_TYPE(Enum):
@@ -618,3 +632,38 @@ def local_ingestion(
         raise SnowparkDataframeReaderException(
             f"Error occurred while ingesting data from the data source: {exc!r}"
         )
+
+
+def udtf_ingestion(
+    session: "Session",
+    udtf_class: Type,
+    schema: StructType,
+    external_access_integrations: str,
+    packages: List[str],
+    imports: List[str],
+    partition_table_name: str,
+    dbms_type: Optional[Enum] = None,
+    _emit_ast: bool = True,
+):
+
+    udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
+    start = time.time()
+    session.udtf.register(
+        udtf_class,
+        name=udtf_name,
+        output_schema=StructType(
+            [
+                StructField(field.name, VariantType(), field.nullable)
+                for field in schema.fields
+            ]
+        ),
+        external_access_integrations=[external_access_integrations],
+        packages=packages or UDTF_PACKAGE_MAP.get(dbms_type),
+        imports=imports,
+    )
+    logger.debug(f"register ingestion udtf takes: {time.time() - start} seconds")
+    call_udtf_sql = f"""
+                select * from {partition_table_name}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
+                """
+    res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
+    return res
