@@ -4,7 +4,9 @@
 
 import os
 import sys
+
 import pytest
+
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import call_udf, col, lit
 from snowflake.snowpark.mock._udf import MockUDFRegistration

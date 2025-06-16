@@ -4,6 +4,7 @@
 import os
 
 import pytest
+
 from snowflake.snowpark import Session
 from snowflake.snowpark.mock._connection import MockServerConnection
 

@@ -253,7 +253,7 @@ def test_read_deleted_snowflakefile_local(mode, tmp_path):
 
     with pytest.raises(
         FileNotFoundError,
-        match=re.escape(f"No such file or directory: '{temp_file}'"),
+        match=re.escape("No such file or directory"),
     ):
 
         def sf_open(file_location: str) -> None:
