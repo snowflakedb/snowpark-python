@@ -706,13 +706,19 @@ class PandasOnSnowflakeIO(BaseIO):
         pass  # pragma: no cover
 
     @classmethod
-    @pandas_module_level_function_not_implemented()
-    def read_feather(
-        cls,
-        path,
-        **kwargs,
-    ):
-        pass  # pragma: no cover
+    def read_feather(cls, **kwargs) -> SnowflakeQueryCompiler:
+        """
+        Load a feather-format object from the file path into a query compiler.
+        """
+        path = kwargs["path"]
+        if is_snowflake_stage_path(path):
+            with _file_from_stage(path) as local_filepath:
+                kwargs["path"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls.from_pandas(pandas.read_feather(**kwargs))
+
+        return cls.from_pandas(pandas.read_feather(**kwargs))
 
     @classmethod
     @pandas_module_level_function_not_implemented()

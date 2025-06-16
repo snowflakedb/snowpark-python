@@ -12,6 +12,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.type_utils import convert_metadata_to_sp_type
+from snowflake.snowpark._internal.utils import ttl_cache
 from snowflake.snowpark.types import DecimalType, LongType, StringType
 
 if TYPE_CHECKING:
@@ -102,6 +103,13 @@ def analyze_attributes(
     )
 
     return attributes
+
+
+@ttl_cache(ttl_seconds=15)
+def cached_analyze_attributes(
+    sql: str, session: "snowflake.snowpark.session.Session"  # type: ignore
+) -> List[Attribute]:
+    return analyze_attributes(sql, session)
 
 
 def convert_result_meta_to_attribute(

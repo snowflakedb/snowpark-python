@@ -436,7 +436,7 @@ def test_unpivot(session: Session):
 
 
 def test_sample(session: Session, sample_table):
-    df = session.table(sample_table)
+    df = session.table(sample_table).select("*")
     df_sample_frac = df.sample(0.5)
     # SELECT  *  FROM ( SELECT  *  FROM (sample_table)) SAMPLE (50.0)
     assert_df_subtree_query_complexity(

@@ -279,6 +279,29 @@ def read_json(
     )
 
 
+@_inherit_docstrings(native_pd.read_feather, apilink="pandas.read_feather")
+@register_pd_accessor("read_feather")
+def read_feather(
+    path: FilePath,
+    columns: Sequence[Hashable] | None = None,
+    use_threads: bool = True,
+    storage_options: StorageOptions = None,
+    dtype_backend: DtypeBackend | NoDefault = no_default,
+) -> pd.DataFrame:
+    _pd_read_feather_signature = {
+        val.name
+        for val in inspect.signature(native_pd.read_feather).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_feather_signature}
+
+    return DataFrame(
+        query_compiler=PandasOnSnowflakeIO.read_feather(
+            **kwargs,
+        )
+    )
+
+
 @_inherit_docstrings(native_pd.read_parquet, apilink="pandas.read_parquet")
 @register_pd_accessor("read_parquet")
 def read_parquet(

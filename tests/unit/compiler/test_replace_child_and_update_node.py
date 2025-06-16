@@ -72,6 +72,7 @@ def mock_snowflake_plan() -> SnowflakePlan:
     fake_snowflake_plan._is_valid_for_replacement = True
     fake_snowflake_plan._metadata = mock.create_autospec(PlanMetadata)
     fake_snowflake_plan._metadata.attributes = {}
+    fake_snowflake_plan.query_line_intervals = []
     return fake_snowflake_plan
 
 

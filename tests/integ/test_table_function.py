@@ -167,7 +167,7 @@ def test_table_function(session):
         schema=["text", "partition", "seq"],
     )
     df1 = df.join_table_function(["test", "name"])
-    assert "JOIN TABLE (test.name() )" in Utils.normalize_sql(df1.queries["queries"][0])
+    assert "JOIN TABLE (test.name())" in Utils.normalize_sql(df1.queries["queries"][0])
 
 
 def test_table_function_negative(session):

@@ -482,6 +482,7 @@ def test_process_xml_range_charset(charset):
                     null_value="",
                     charset=charset,
                     ignore_surrounding_whitespace=True,
+                    row_validation_xsd_path="",
                 )
             )
 
@@ -524,6 +525,7 @@ def test_process_xml_range_charset_decode_error():
                 null_value="",
                 charset="ascii",  # This will cause decode errors
                 ignore_surrounding_whitespace=True,
+                row_validation_xsd_path="",
             )
         )
 

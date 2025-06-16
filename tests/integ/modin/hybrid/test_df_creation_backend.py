@@ -39,9 +39,10 @@ raisin,-1
 # When automatic backend switching is enabled, read_csv should end up in native pandas.
 @sql_count_checker(query_count=0)
 def test_read_csv_local():
-    with tempfile.NamedTemporaryFile(mode="w") as f:
+    # delete=False is necessary to allow re-opening the file for reading on windows
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
         f.write(CSV_CONTENT)
-        f.flush()
+        f.close()
         fruits = pd.read_csv(f.name)
         assert fruits.get_backend() == "Pandas"
 
