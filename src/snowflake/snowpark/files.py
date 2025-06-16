@@ -275,7 +275,7 @@ class SnowflakeFile(RawIOBase):
                     return 0
                 content = self.read(buffer_len).encode()
                 size = memoryview(content)
-                self._pos += size
+                self._pos += size.nbytes
                 b[:buffer_len] = content
                 return size.nbytes
             return self._file_stream.raw.readinto(b)
@@ -300,7 +300,7 @@ class SnowflakeFile(RawIOBase):
                     return 0
                 content = self.read1(buffer_len)
                 size = memoryview(content)
-                self._pos += size
+                self._pos += size.nbytes
                 b[:buffer_len] = content
                 return size.nbytes
             return self._file_stream.readinto1(b)
