@@ -32,7 +32,7 @@ def _write_test_msg(
 
 def _generate_and_write_lines(
     num_lines: int, write_mode: str, file_location: str
-) -> list[Union[str | bytes]]:
+) -> list[Union[str, bytes]]:
     """
     Generates a list of test messages and writes them to the specified file location.
     """
