@@ -80,6 +80,11 @@ class SnowflakeFile(RawIOBase):
         else:
             # need to still open a file stream for testing
             self._file_stream = open(self._file_location, self._mode)
+        self._is_local_file = (
+            True
+            if self._file_location.startswith((RELATIVE_PATH_PREFIX, "C:"))
+            else False
+        )
 
     @classmethod
     def open(
@@ -211,7 +216,7 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         self._raise_if_not_read()
-        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+        if self._is_local_file:
             return self._file_stream.raw.read(size)
         raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
@@ -225,7 +230,7 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         self._raise_if_not_read()
-        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+        if self._is_local_file:
             if self._mode == "r":
                 return self.read(size).encode()
             return self._file_stream.read1(size)
@@ -257,7 +262,7 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         self._raise_if_not_read()
-        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+        if self._is_local_file:
             if self._mode == "r":
                 buffer_len = len(b)
                 if buffer_len == 0:
@@ -281,7 +286,7 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         self._raise_if_not_read()
-        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+        if self._is_local_file:
             if self._mode == "r":
                 buffer_len = len(b)
                 if buffer_len == 0:
@@ -304,7 +309,7 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         self._raise_if_not_read()
-        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+        if self._is_local_file:
             return self._file_stream.raw.readline(size)
         raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
@@ -321,7 +326,7 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         self._raise_if_not_read()
-        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+        if self._is_local_file:
             return self._file_stream.raw.readlines(hint)
         raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
@@ -338,7 +343,7 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         self._raise_if_not_read()
-        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+        if self._is_local_file:
             if whence == SEEK_SET:
                 pos = offset
             elif whence == SEEK_CUR:
@@ -359,7 +364,7 @@ class SnowflakeFile(RawIOBase):
         Returns whether or not the stream is seekable.
         """
         self._raise_if_closed()
-        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+        if self._is_local_file:
             return self._mode in ("r", "rb")
         raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
@@ -371,7 +376,7 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         self._raise_if_not_read()
-        if self._file_location.startswith(RELATIVE_PATH_PREFIX):
+        if self._is_local_file:
             return self._file_stream.tell()
         raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
