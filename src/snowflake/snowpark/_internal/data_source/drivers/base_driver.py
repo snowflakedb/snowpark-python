@@ -2,28 +2,17 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from enum import Enum
-import time
-import datetime
 from typing import List, Callable, Any, Optional, TYPE_CHECKING
 from snowflake.connector.options import pandas as pd
 
-from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
     Cursor,
 )
-from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark._internal.utils import get_sorted_key_for_version
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
     StructType,
-    StructField,
-    VariantType,
-    TimestampType,
-    IntegerType,
-    BinaryType,
-    DateType,
-    BooleanType,
 )
 import snowflake.snowpark
 import logging
@@ -96,28 +85,18 @@ class BaseDriver:
         packages: Optional[List[str]] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
-        from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
+        from snowflake.snowpark._internal.data_source.utils import udtf_ingestion
 
-        udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
-        start = time.time()
-        session.udtf.register(
+        res = udtf_ingestion(
+            session,
             self.udtf_class_builder(fetch_size=fetch_size, schema=schema),
-            name=udtf_name,
-            output_schema=StructType(
-                [
-                    StructField(field.name, VariantType(), field.nullable)
-                    for field in schema.fields
-                ]
-            ),
-            external_access_integrations=[external_access_integrations],
-            packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
-            imports=imports,
+            schema,
+            external_access_integrations,
+            packages,
+            imports,
+            partition_table,
+            self.dbms_type,
         )
-        logger.debug(f"register ingestion udtf takes: {time.time() - start} seconds")
-        call_udtf_sql = f"""
-            select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
-            """
-        res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
         return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
 
     def udtf_class_builder(
@@ -161,42 +140,6 @@ class BaseDriver:
             if get_sorted_key_for_version(str(pd.__version__)) < (2, 1, 0)
             else pandas_df.map
         )
-
-    @staticmethod
-    def data_source_data_to_pandas_df(
-        data: List[Any], schema: StructType
-    ) -> "pd.DataFrame":
-        # unquote column name because double quotes stored in parquet file create column mismatch during copy into table
-        columns = [unquote_if_quoted(col.name) for col in schema.fields]
-        # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
-        df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
-
-        for field in schema.fields:
-            name = unquote_if_quoted(field.name)
-            if isinstance(field.datatype, IntegerType):
-                # 'Int64' is a pandas dtype while 'int64' is a numpy dtype, as stated here:
-                # https://github.com/pandas-dev/pandas/issues/27731
-                # https://pandas.pydata.org/docs/reference/api/pandas.Int64Dtype.html
-                # https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.int64
-                df[name] = df[name].astype("Int64")
-            elif isinstance(field.datatype, (TimestampType, DateType)):
-                df[name] = df[name].map(
-                    lambda x: x.isoformat()
-                    if isinstance(x, (datetime.datetime, datetime.date))
-                    else x
-                )
-            # astype below is meant to address copy into failure when the column contain only None value,
-            # pandas would infer wrong type for that column in that situation, thus we convert them to corresponding type.
-            elif isinstance(field.datatype, BinaryType):
-                # we convert all binary to hex, so it is safe to astype to string
-                df[name] = (
-                    df[name]
-                    .map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
-                    .astype("string")
-                )
-            elif isinstance(field.datatype, BooleanType):
-                df[name] = df[name].astype("boolean")
-        return df
 
     @staticmethod
     def to_result_snowpark_df(

@@ -3,11 +3,13 @@
 #
 
 __all__ = [
-    "DataSourceReader",
-    "DataSourcePartitioner",
+    "DbapiDataSourceReader",
+    "DbapiDataSource",
 ]
 
-from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
+from snowflake.snowpark._internal.data_source.datasource_reader import (
+    DbapiDataSourceReader,
+)
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
-    DataSourcePartitioner,
+    DbapiDataSource,
 )
