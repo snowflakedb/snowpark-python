@@ -7,6 +7,7 @@
 # existing code originally distributed by the Apache Software Foundation as part of the
 # Apache Spark project, under the Apache License, Version 2.0.
 import ast
+import copy
 import ctypes
 import datetime
 import decimal
@@ -1253,6 +1254,53 @@ def type_string_to_type_object(type_str: str) -> DataType:
         return DATA_TYPE_STRING_OBJECT_MAPPINGS[type_str]()
     except KeyError:
         raise ValueError(f"'{type_str}' is not a supported type")
+
+
+def most_permissive_type(datatype: DataType) -> DataType:
+    """
+    Coerces a datatype to the most permissive type that can hold similar data. String types have
+    length removed. Numerics are cast to DoubleType.
+    """
+    if isinstance(datatype, StructType):
+        return StructType(
+            None
+            if datatype.fields is None
+            else [
+                StructField(
+                    field.name,
+                    most_permissive_type(field.datatype),
+                    field.nullable,
+                    _is_column=field._is_column,
+                )
+                for field in datatype.fields
+            ],
+            structured=datatype.structured,
+        )
+    elif isinstance(datatype, ArrayType):
+        return ArrayType(
+            None
+            if datatype.element_type is None
+            else most_permissive_type(datatype.element_type),
+            structured=datatype.structured,
+            contains_null=datatype.contains_null,
+        )
+    elif isinstance(datatype, MapType):
+        return MapType(
+            None
+            if datatype.key_type is None
+            else most_permissive_type(datatype.key_type),
+            None
+            if datatype.value_type is None
+            else most_permissive_type(datatype.value_type),
+            structured=datatype.structured,
+            value_contains_null=datatype.value_contains_null,
+        )
+    elif isinstance(datatype, StringType):
+        return StringType()
+    elif isinstance(datatype, _NumericType):
+        return DoubleType()
+    else:
+        return copy.deepcopy(datatype)
 
 
 # Type hints
