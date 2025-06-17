@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import (
     PymysqlTypeCode,
 )
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
+from tests.resources.test_data_source_dir.test_data_source_data import post_process
 from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_real_data,
     MysqlType,
@@ -242,3 +243,17 @@ def test_pymysql_driver_udtf_class_builder():
     # Verify we got data with the right structure (2 columns)
     assert len(column_result_rows) > 0
     assert len(column_result_rows[0]) == 2  # Two columns
+
+
+def test_custom_data_handling(session):
+    df = session.read.dbapi(
+        create_connection_mysql, table='"UserProfile"', post_process=post_process
+    )
+    assert df.collect() == [
+        Row(
+            ID=1,
+            FULLNAME="JOHN DOE",
+            COUNTRY="USA",
+            NOTES="THIS IS A CASE-SENSITIVE EXAMPLE.",
+        )
+    ]

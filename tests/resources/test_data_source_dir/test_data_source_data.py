@@ -82,6 +82,11 @@ class FakeConnectionWithException(FakeConnection):
             return self
 
 
+def post_process(row):
+    new_row = [col.upper() if isinstance(col, str) else col for col in row]
+    return tuple(new_row)
+
+
 oracledb_real_data = [
     Row(
         ID=1,
