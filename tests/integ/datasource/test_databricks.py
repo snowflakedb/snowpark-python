@@ -28,6 +28,7 @@ from snowflake.snowpark.types import (
     MapType,
 )
 from tests.parameters import DATABRICKS_CONNECTION_PARAMETERS
+from tests.resources.test_data_source_dir.test_data_source_data import post_process
 from tests.resources.test_data_source_dir.test_databricks_data import (
     EXPECTED_TEST_DATA,
     EXPECTED_TYPE,
@@ -209,3 +210,12 @@ def test_unit_udtf_ingestion():
             else:
                 # Keep other types as is
                 assert value == expected_row[index]
+
+
+def test_custom_data_handling(session):
+    df = session.read.dbapi(
+        create_databricks_connection, table="User_profile", post_process=post_process
+    )
+    assert df.collect() == [
+        Row(id=1, name="YAMADA TARO", country="JAPAN", remarks="THIS IS A TEST REMARK")
+    ]

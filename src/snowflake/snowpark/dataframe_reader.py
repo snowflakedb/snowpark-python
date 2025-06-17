@@ -1262,7 +1262,7 @@ class DataFrameReader:
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
         udtf_configs: Optional[dict] = None,
-        custom_data_handling: Optional[Callable[[Tuple], Tuple]] = None,
+        post_process: Optional[Callable[[Any], Any]] = None,
         fetch_merge_count: int = 1,
         _emit_ast: bool = True,
     ) -> DataFrame:
@@ -1333,7 +1333,7 @@ class DataFrameReader:
 
                 - packages (List[str], optional): A list of package names (with optional version numbers)
                     required as dependencies for your `create_connection()` function.
-            custom_data_handling: A function applied on each row of raw data fetched from external data source.
+            post_process: A function applied on each row of raw data fetched from external data source.
                 The function take one row of data as input and output one row data of same length. When this function
                 is not null, default data handling is skipped.
             fetch_merge_count: The number of fetched batches to merge into a single Parquet file
@@ -1375,7 +1375,7 @@ class DataFrameReader:
             predicates,
             session_init_statement,
             fetch_merge_count,
-            custom_data_handling,
+            post_process,
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions

@@ -10,8 +10,11 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
 from io import BytesIO
 from enum import Enum
-from typing import Any, Tuple, Optional, Callable, Dict
+from typing import Any, Tuple, Optional, Callable, Dict, List
+from snowflake.connector.options import pandas as pd
 import logging
+
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
     OracledbDialect,
@@ -159,7 +162,10 @@ def _task_fetch_data_from_source(
     """
 
     def convert_to_parquet_bytesio(fetched_data, fetch_idx):
-        df = worker.data_source_data_to_pandas_df(fetched_data)
+        if worker.post_process is not None:
+            df = apply_post_process(fetched_data, worker, worker.post_process)
+        else:
+            df = worker.data_source_data_to_pandas_df(fetched_data)
         if df.empty:
             logger.debug(
                 f"The DataFrame is empty, no parquet BytesIO is generated for partition {partition_idx} fetch {fetch_idx}."
@@ -440,3 +446,15 @@ def process_parquet_queue_with_threads(
             raise SnowparkDataframeReaderException(
                 f"Partition {idx} data fetching process failed with exit code {process.exitcode}"
             )
+
+
+def apply_post_process(
+    data: List[Any],
+    worker: DataSourceReader,
+    post_process: Optional[Callable[[Any], Any]],
+):
+    processed_data = [post_process(row) for row in data]
+    columns = [unquote_if_quoted(col.name) for col in worker.schema.fields]
+    return pd.DataFrame(
+        [list(row) for row in processed_data], columns=columns, dtype=object
+    )
