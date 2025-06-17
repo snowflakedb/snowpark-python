@@ -7,22 +7,15 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
-from snowflake.connector.errors import DatabaseError
-from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
-from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
-from snowflake.snowpark._internal.utils import (
-    is_in_stored_procedure,
-    result_set_to_iter,
-    result_set_to_rows,
-)
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col
-from snowflake.snowpark.row import Row
+
 
 if TYPE_CHECKING:
     from snowflake.connector.options import pandas
     import snowflake.snowpark.dataframe
     import snowflake.snowpark.session
+    from snowflake.snowpark.row import Row
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 
 _logger = getLogger(__name__)
 
@@ -170,7 +163,7 @@ class AsyncJob:
         query: Optional[str],
         session: "snowflake.snowpark.session.Session",
         result_type: _AsyncResultType = _AsyncResultType.ROW,
-        post_actions: Optional[List[Query]] = None,
+        post_actions: Optional[List["Query"]] = None,
         log_on_exception: bool = False,
         case_sensitive: bool = True,
         num_statements: Optional[int] = None,
@@ -203,9 +196,11 @@ class AsyncJob:
             error_message = f"query cannot be retrieved from query ID {self.query_id}"
             if not self._query:
                 try:
+                    df = self._session.table_function(
+                        "information_schema.query_history"
+                    )
                     result = (
-                        self._session.table_function("information_schema.query_history")
-                        .where(col("query_id") == self.query_id)
+                        df.where(df.col("query_id") == self.query_id)
                         .select("query_text")
                         ._internal_collect_with_tag_no_telemetry()
                     )
@@ -228,6 +223,10 @@ class AsyncJob:
         """
         Returns a :class:`DataFrame` built from the result of this asynchronous job.
         """
+        from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+            result_scan_statement,
+        )
+
         return self._session.sql(result_scan_statement(self.query_id))
 
     def is_done(self) -> bool:
@@ -242,6 +241,11 @@ class AsyncJob:
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
+        from snowflake.connector.errors import DatabaseError
+        from snowflake.snowpark._internal.utils import (
+            is_in_stored_procedure,
+        )
+
         if (
             is_in_stored_procedure()
             and self._session._conn._get_client_side_session_parameter(
@@ -292,8 +296,8 @@ class AsyncJob:
             Literal["row", "row_iterator", "pandas", "pandas_batches", "no_result"]
         ] = None,
     ) -> Union[
-        List[Row],
-        Iterator[Row],
+        List["Row"],
+        Iterator["Row"],
         "pandas.DataFrame",
         Iterator["pandas.DataFrame"],
         int,
@@ -333,6 +337,11 @@ class AsyncJob:
                 corresponding type. If you still provide a value for it, this value will overwrite
                 the original result data type.
         """
+        from snowflake.snowpark._internal.utils import (
+            result_set_to_iter,
+            result_set_to_rows,
+        )
+
         async_result_type = (
             _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )

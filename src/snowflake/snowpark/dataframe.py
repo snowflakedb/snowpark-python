@@ -122,7 +122,6 @@ from snowflake.snowpark._internal.ast.utils import (
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.lazy_import_utils import (
-    get_installed_pandas,
     get_pandas,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
@@ -222,6 +221,7 @@ else:
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
     from table import Table  # pragma: no cover
+    import pandas
 
 _logger = getLogger(__name__)
 
@@ -984,9 +984,6 @@ class DataFrame:
             _emit_ast=self._session.ast_enabled,
         )
 
-    if get_installed_pandas():
-        pandas = get_pandas()  # pragma: no cover
-
         @publicapi
         @overload
         def to_pandas(
@@ -1083,9 +1080,6 @@ class DataFrame:
                 return pandas.DataFrame(result)
 
         return result
-
-    if get_installed_pandas():
-        pandas = get_pandas()
 
         @publicapi
         @overload

@@ -80,7 +80,6 @@
 - Improved `DataFrameReader.dbapi` (PrPr) to use in-memory Parquet-based ingestion for better performance and security.
 - Improved `DataFrameReader.dbapi` (PrPr) to use `MATCH_BY_COLUMN_NAME=CASE_SENSITIVE` in copy into table operation.
 - Added lazy import of pandas to avoid eager dependency loading during initialization.
->>>>>>> f163c31a (Implement lazy import to Pandas only)
 ### Snowpark Local Testing Updates
 
 #### New Features

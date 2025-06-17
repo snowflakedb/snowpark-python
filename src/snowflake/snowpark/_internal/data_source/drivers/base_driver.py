@@ -5,7 +5,6 @@ from enum import Enum
 import time
 import datetime
 from typing import List, Callable, Any, Optional, TYPE_CHECKING
-from snowflake.connector.options import pandas as pd
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.data_source.datasource_typing import (
@@ -35,6 +34,7 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session
     from snowflake.snowpark.dataframe import DataFrame
+    from snowflake.connector.options import pandas as pd
 
 
 class BaseDriver:
@@ -156,6 +156,8 @@ class BaseDriver:
     # 'map' is introduced in pandas 2.1.0, before that it is 'applymap'
     @staticmethod
     def df_map_method(pandas_df):
+        from snowflake.connector.options import pandas as pd
+
         return (
             pandas_df.applymap
             if get_sorted_key_for_version(str(pd.__version__)) < (2, 1, 0)
@@ -169,6 +171,8 @@ class BaseDriver:
         # unquote column name because double quotes stored in parquet file create column mismatch during copy into table
         columns = [unquote_if_quoted(col.name) for col in schema.fields]
         # this way handles both list of object and list of tuples and avoid implicit pandas type conversion
+        from snowflake.connector.options import pandas as pd
+
         df = pd.DataFrame([list(row) for row in data], columns=columns, dtype=object)
 
         for field in schema.fields:
