@@ -670,7 +670,7 @@ class DataFrame:
         self.__ast_id = value
         if self._plan is not None:
             self._plan.df_ast_ids = [value]
-            self._plan._propagate_ast_id_to_select_sql(value)
+            self._plan.propagate_ast_id_to_select_sql(value)
         if self._select_statement is not None:
             self._select_statement.add_df_ast_id(value)
 

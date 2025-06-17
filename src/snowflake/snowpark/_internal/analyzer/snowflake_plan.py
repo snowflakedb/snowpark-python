@@ -757,7 +757,7 @@ class SnowflakePlan(LogicalPlan):
         else:
             self.expr_to_alias = {**self.expr_to_alias, **to_add}
 
-    def _propagate_ast_id_to_select_sql(self, ast_id: int) -> None:
+    def propagate_ast_id_to_select_sql(self, ast_id: int) -> None:
         """Propagate df_ast_id to associated SelectSQL instances."""
         from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
 
