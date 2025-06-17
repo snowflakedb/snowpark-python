@@ -589,31 +589,27 @@ class Session:
         self.version = get_version()
         self._session_stage = None
 
-        from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
-        from snowflake.snowpark.mock._connection import MockServerConnection
-        from snowflake.snowpark.mock._udf import MockUDFRegistration
-        from snowflake.snowpark.mock._udtf import MockUDTFRegistration
-        from snowflake.snowpark.mock._udaf import MockUDAFRegistration
-        from snowflake.snowpark.mock._stored_procedure import (
-            MockStoredProcedureRegistration,
-        )
-
-        if isinstance(conn, MockServerConnection):
-            self._udf_registration = MockUDFRegistration(self)
-            self._udtf_registration = MockUDTFRegistration(self)
-            self._udaf_registration = MockUDAFRegistration(self)
-            self._sp_registration = MockStoredProcedureRegistration(self)
-        else:
+        if isinstance(conn, ServerConnection):
             self._udf_registration = UDFRegistration(self)
             self._sp_registration = StoredProcedureRegistration(self)
             self._udtf_registration = UDTFRegistration(self)
             self._udaf_registration = UDAFRegistration(self)
+            self._plan_builder = SnowflakePlanBuilder(self)
+        else:
+            from snowflake.snowpark.mock._plan_builder import MockSnowflakePlanBuilder
+            from snowflake.snowpark.mock._udf import MockUDFRegistration
+            from snowflake.snowpark.mock._udtf import MockUDTFRegistration
+            from snowflake.snowpark.mock._udaf import MockUDAFRegistration
+            from snowflake.snowpark.mock._stored_procedure import (
+                MockStoredProcedureRegistration,
+            )
 
-        self._plan_builder = (
-            SnowflakePlanBuilder(self)
-            if isinstance(self._conn, ServerConnection)
-            else MockSnowflakePlanBuilder(self)
-        )
+            self._udf_registration = MockUDFRegistration(self)
+            self._udtf_registration = MockUDTFRegistration(self)
+            self._udaf_registration = MockUDAFRegistration(self)
+            self._sp_registration = MockStoredProcedureRegistration(self)
+            self._plan_builder = MockSnowflakePlanBuilder(self)
+
         self._last_action_id = 0
         self._last_canceled_id = 0
         self._use_scoped_temp_objects: bool = (
