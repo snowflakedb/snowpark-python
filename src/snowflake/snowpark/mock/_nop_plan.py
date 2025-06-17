@@ -232,5 +232,11 @@ class NopExecutionPlan(MockExecutionPlan):
         }
         return output_dict
 
+    def add_df_ast_id(self, ast_id: int) -> None:
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [ast_id]
+        elif self.df_ast_ids[-1] != ast_id:
+            self.df_ast_ids.append(ast_id)
+
     def propagate_ast_id_to_select_sql(self, ast_id: int) -> None:
         pass
