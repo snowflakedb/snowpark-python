@@ -775,8 +775,7 @@ class SelectSnowflakePlan(Selectable):
                 self._query_params.extend(query.params)
 
         # Copy the df ast ids from the snowflake plan.
-        if (df_ast_ids := self._snowflake_plan.df_ast_ids) is not None:
-            self.df_ast_ids = df_ast_ids
+        self.df_ast_ids = self._snowflake_plan.df_ast_ids
 
     def __deepcopy__(self, memodict={}) -> "SelectSnowflakePlan":  # noqa: B006
         copied = SelectSnowflakePlan(

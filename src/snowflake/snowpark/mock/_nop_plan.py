@@ -231,6 +231,3 @@ class NopExecutionPlan(MockExecutionPlan):
             attr.name: (attr.datatype, attr.nullable) for attr in self.output
         }
         return output_dict
-
-    def propagate_ast_id_to_select_sql(self, ast_id: int) -> None:
-        pass
