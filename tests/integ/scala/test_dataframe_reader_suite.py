@@ -2232,7 +2232,10 @@ def test_use_relaxed_types(session):
 
     def write_csv(data):
         with tempfile.NamedTemporaryFile(
-            mode="w+", delete=False, suffix=".csv"
+            mode="w+",
+            delete=False,
+            suffix=".csv",
+            newline="",
         ) as file:
             writer = csv.writer(file)
             writer.writerow(header)
@@ -2347,7 +2350,10 @@ def test_try_cast(session):
 
     def write_csv(data):
         with tempfile.NamedTemporaryFile(
-            mode="w+", delete=False, suffix=".csv"
+            mode="w+",
+            delete=False,
+            suffix=".csv",
+            newline="",
         ) as file:
             writer = csv.writer(file)
             writer.writerow(header)
