@@ -71,7 +71,7 @@ def mock_snowflake_plan(mock_query) -> Analyzer:
 def mock_analyzer(mock_snowflake_plan) -> Analyzer:
     def mock_resolve(x):
         mock_snowflake_plan.source_plan = x
-        mock_snowflake_plan.df_ast_id = None
+        mock_snowflake_plan.df_ast_ids = None
         return mock_snowflake_plan
 
     fake_analyzer = mock.create_autospec(Analyzer)
