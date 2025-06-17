@@ -21,6 +21,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     OracleDBType,
     oracledb_real_data,
     oracledb_real_data_small,
+    post_process,
 )
 from tests.utils import Utils, RUNNING_ON_JENKINS
 
@@ -190,5 +191,19 @@ def test_double_quoted_column_name_oracledb(session):
             FullName="John Doe",
             Country="USA",
             Notes="This is a case-sensitive example.",
+        )
+    ]
+
+
+def test_custom_data_handling(session):
+    df = session.read.dbapi(
+        create_connection_oracledb, table='"UserProfile"', post_process=post_process
+    )
+    assert df.collect() == [
+        Row(
+            ID=1,
+            FULLNAME="JOHN DOE",
+            COUNTRY="USA",
+            NOTES="THIS IS A CASE-SENSITIVE EXAMPLE.",
         )
     ]

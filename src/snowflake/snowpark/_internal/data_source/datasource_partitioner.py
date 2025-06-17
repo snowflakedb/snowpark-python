@@ -5,7 +5,7 @@
 import datetime
 import decimal
 from functools import cached_property
-from typing import Optional, Union, List, Callable
+from typing import Optional, Union, List, Callable, Any
 import logging
 import pytz
 from dateutil import parser
@@ -47,6 +47,7 @@ class DataSourcePartitioner:
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
+        post_process: Optional[Callable[[Any], Any]] = None,
     ) -> None:
         self.create_connection = create_connection
         self.table_or_query = table_or_query
@@ -61,6 +62,7 @@ class DataSourcePartitioner:
         self.predicates = predicates
         self.session_init_statement = session_init_statement
         self.fetch_merge_count = fetch_merge_count
+        self.post_process = post_process
         conn = create_connection()
         dbms_type, driver_type = detect_dbms(conn)
         self.dbms_type = dbms_type
@@ -79,6 +81,7 @@ class DataSourcePartitioner:
             self.query_timeout,
             self.session_init_statement,
             self.fetch_merge_count,
+            self.post_process,
         )
 
     @cached_property

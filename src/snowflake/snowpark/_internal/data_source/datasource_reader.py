@@ -28,6 +28,7 @@ class DataSourceReader:
         query_timeout: Optional[int] = 0,
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
+        post_process: Optional[Callable[[Any], Any]] = None,
     ) -> None:
         # we use cloudpickle to pickle the callback function so that local function and function defined in
         # __main__ can be pickled and unpickled in subprocess
@@ -42,6 +43,7 @@ class DataSourceReader:
         self.query_timeout = query_timeout
         self.session_init_statement = session_init_statement
         self.fetch_merge_count = fetch_merge_count
+        self.post_process = post_process
 
     def read(self, partition: str) -> Iterator[List[Any]]:
         self.driver = self.driver_class(
