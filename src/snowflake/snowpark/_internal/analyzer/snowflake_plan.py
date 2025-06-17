@@ -774,6 +774,7 @@ class SnowflakePlan(LogicalPlan):
             self.df_ast_ids = [ast_id]
         elif self.df_ast_ids[-1] != ast_id:
             self.df_ast_ids.append(ast_id)
+        self.propagate_ast_id_to_select_sql(ast_id)
 
 
 class SnowflakePlanBuilder:
