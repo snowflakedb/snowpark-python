@@ -147,7 +147,6 @@ def infer_metadata(
         SelectStatement,
         SelectTableFunction,
         SelectableEntity,
-        SetStatement,
         ColumnChangeState,
     )
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -219,17 +218,23 @@ def infer_metadata(
             def extract_attributes(
                 current_plan: LogicalPlan,
             ) -> Optional[List[Attribute]]:
+                """Extracts known attributes from a LogicalPlan. Uses the plans attributes if available, otherwise
+                attempts to extract all known attributes from child plans."""
                 attributes: Optional[List[Attribute]] = None
                 if isinstance(current_plan, SelectStatement):
                     # When attributes is cached on source_plan, just use it
                     if current_plan.attributes is not None:
                         attributes = current_plan.attributes
                     else:
+                        # Get the attributes from the child plan
                         from_attributes = extract_attributes(current_plan.from_)
                         (
                             expected_attributes,
                             new_attributes,
+                            # Extract expected attributes and knowable new attributes
+                            # from current plan
                         ) = _extract_inferable_attribute_names(current_plan.projection)
+                        # Check that the expected attributes match the attributes from the child plan
                         if (
                             from_attributes is not None
                             and expected_attributes is not None
@@ -240,25 +245,27 @@ def infer_metadata(
                             } - {attr.name for attr in from_attributes}
                             if not missing_attrs and all(
                                 isinstance(attr, (Attribute, Alias))
-                                and type(attr.datatype) != DataType
+                                # If the attribute datatype is specifically DataType then it is not fully resolved
+                                and type(attr.datatype) is not DataType
                                 for attr in current_plan.projection or []
                             ):
                                 attributes = current_plan.projection  # type: ignore
-                elif isinstance(
-                    current_plan, (SelectSnowflakePlan, SelectTableFunction)
+                elif (
+                    isinstance(
+                        current_plan,
+                        (SelectSnowflakePlan, SelectTableFunction, SelectSQL),
+                    )
+                    and current_plan._snowflake_plan is not None
                 ):
+                    # These types have a source snowflake plan.
+                    # Use its metadata if available.
                     attributes = current_plan._snowflake_plan._metadata.attributes
                 elif isinstance(current_plan, SelectableEntity):
-                    if current_plan.attributes:
+                    # Similar to the previous case, but could have attributes defined already
+                    if current_plan.attributes is not None:
                         attributes = current_plan.attributes
                     elif current_plan._snowflake_plan is not None:
                         attributes = current_plan._snowflake_plan._metadata.attributes
-                elif isinstance(current_plan, SelectSQL):
-                    if current_plan._snowflake_plan is not None:
-                        attributes = current_plan._snowflake_plan._metadata.attributes
-                elif isinstance(current_plan, SetStatement) and current_plan._nodes:
-                    # Union usues the schema from the first child
-                    attributes = extract_attributes(current_plan._nodes[0])
                 return attributes
 
             attributes = extract_attributes(source_plan)
@@ -270,6 +277,8 @@ def infer_metadata(
                 quoted_identifiers = [
                     c.name for c in source_plan._column_states.projection
                 ]
+
+                # Columns that are neither new or dropped should be references to earlier datafames
                 for state in source_plan._column_states.values():
                     if state.change_state not in {
                         ColumnChangeState.NEW,
@@ -306,6 +315,8 @@ def infer_metadata(
                 ):
                     attributes = source_plan.from_.attributes
 
+        # Check that the referenced identifiers references attributes that are available
+        # in either the current plan or child plans.
         available_identifiers = {a.name for a in attributes or []}
         if available_identifiers and (
             missing := set(referenced_identifiers) - available_identifiers

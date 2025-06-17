@@ -49,17 +49,6 @@ param_list = [False, True]
 temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
 
 
-class LessThanOrEq:
-    def __init__(self, val) -> None:
-        self.val = val
-
-    def __repr__(self):
-        return repr(self.val)
-
-    def __eq__(self, other):
-        return self.val >= other
-
-
 @pytest.fixture(params=param_list, autouse=True, scope="module")
 def setup(request, session):
     # set eliminate_numeric_sql_value_cast_enabled to True for quoted identifier comparison
@@ -262,7 +251,7 @@ def has_star_in_projection(df: DataFrame) -> bool:
 )
 def test_metadata_no_change(session, action, create_df_func):
     df = create_df_func(session)
-    with SqlCounter(query_count=0, describe_count=LessThanOrEq(1)):
+    with SqlCounter(query_count=0, describe_count=1, strict=False):
         attributes = df._plan.attributes
         quoted_identifiers = df._plan.quoted_identifiers
 
