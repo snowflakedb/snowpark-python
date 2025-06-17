@@ -631,7 +631,6 @@ def test_telemetry_interchange_call_count(send_mock):
         message = call.args[0]
         if message.get("source") != "SnowparkPandas":
             continue
-        print(message)
         data = message.get("data", {})
         if data["func_name"] == "DataFrame.__dataframe__":
             telemetry_data.append(data)
