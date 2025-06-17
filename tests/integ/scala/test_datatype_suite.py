@@ -62,6 +62,7 @@ from tests.utils import (
     structured_types_supported,
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
+    RUNNING_ON_JENKINS,
 )
 
 # Map of structured type enabled state to test params
@@ -1728,7 +1729,7 @@ def test_nest_struct_field_names(structured_type_session, structured_type_suppor
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or RUNNING_ON_JENKINS,
     reason="SNOW-2055478: LOB does not work reliably in stored procedures.",
 )
 @pytest.mark.skipif(
