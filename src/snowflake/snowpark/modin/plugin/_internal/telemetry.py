@@ -656,12 +656,7 @@ def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -
         "modin.query-compiler",
         "modin.hybrid.auto.decision",
     )
-    is_useful = False
-    for useful_metric in useful_metrics:
-        if metric_name.startswith(useful_metric):
-            is_useful = True
-            break
-    if is_useful:
+    if metric_name.startswith(useful_metrics):
         try:
             session = snowflake.snowpark.session._get_active_session()
             _send_modin_api_telemetry(
