@@ -8,7 +8,11 @@ import pytest
 from unittest import mock
 
 from snowflake.snowpark._internal.ast.batch import AstBatch
-from snowflake.snowpark._internal.debug_utils import DataFrameTraceNode
+from snowflake.snowpark._internal.debug_utils import (
+    DataFrameTraceNode,
+    _format_source_location,
+)
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 
 curr_file_path = os.path.dirname(os.path.abspath(__file__))
@@ -53,3 +57,29 @@ def test_read_file(
             end_column=end_column,
         )
         assert result == expected
+
+
+@pytest.mark.parametrize(
+    "start_line, end_line, start_column, end_column, expected",
+    [
+        (0, 0, 0, 0, "test_debug_utils.py: line 0"),
+        (1000, 1500, 50, 100, "test_debug_utils.py: lines 1000-1500"),
+        (42, 42, 1, 20, "test_debug_utils.py: line 42"),
+        (20, 25, 15, 15, "test_debug_utils.py: lines 20-25"),
+    ],
+)
+def test_format_source_location(
+    start_line, end_line, start_column, end_column, expected
+):
+    from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
+
+    __STRING_INTERNING_MAP__["test_debug_utils.py"] = 1
+    src = proto.SrcPosition()
+    src.file = 1
+    src.start_line = start_line
+    src.end_line = end_line
+    src.start_column = start_column
+    src.end_column = end_column
+
+    result = _format_source_location(src)
+    assert result == expected

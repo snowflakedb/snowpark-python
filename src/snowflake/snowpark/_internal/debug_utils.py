@@ -8,11 +8,14 @@ import sys
 from typing import Dict, List, Optional
 import itertools
 import re
-
+from typing import TYPE_CHECKING
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.ast.utils import extract_src_from_expr
+
+if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
 
 UNKNOWN_FILE = "__UNKNOWN_FILE__"
 SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH = (
@@ -168,7 +171,7 @@ def _get_df_transform_trace(
 
 def get_df_transform_trace_message(
     df_ast_id: int, stmt_cache: Dict[int, proto.Stmt]
-) -> Optional[str]:
+) -> str:
     """Get the transform trace message for the dataframe involved in the exception.
 
     Args:
@@ -176,11 +179,11 @@ def get_df_transform_trace_message(
         stmt_cache: The statement cache of the session.
 
     Returns:
-        A string representing the transform trace message.
+        A string representing the transform trace message, empty if the dataframe is not found.
     """
     df_transform_trace_nodes = _get_df_transform_trace(df_ast_id, stmt_cache)
     if len(df_transform_trace_nodes) == 0:  # pragma: no cover
-        return None
+        return ""
 
     df_transform_trace_length = len(df_transform_trace_nodes)
     show_trace_length = int(
@@ -201,53 +204,69 @@ def get_df_transform_trace_message(
     return "\n".join(debug_info_lines)
 
 
-def get_python_source_from_sql_error(error_msg: str, args: tuple) -> Optional[str]:
+def _format_source_location(src: proto.SrcPosition) -> str:
+    from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
+
+    filename_map = {v: k for k, v in __STRING_INTERNING_MAP__.items()}
+    """Helper function to format source location information."""
+    lines_info = f"{filename_map[src.file]}: line {src.start_line}"
+    if src.end_line != src.start_line:
+        lines_info = f"{filename_map[src.file]}: lines {src.start_line}-{src.end_line}"
+    return lines_info
+
+
+def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) -> str:
     """
     Extract SQL error line number and map it back to Python source code. We use the
     helper function get_plan_from_line_numbers to get the plan from the line number
     found in the SQL compilation error message. We then extract the source lines
-    and columns using the ast_id associated with the plan.
+    and columns using the ast_id associated with the plan. We return a message with
+    the affected Python lines if found, otherwise an empty string.
+
+    Args:
+        plan: The top level SnowflakePlan object that contains the SQL compilation error.
+        error_msg: The error message from the SQL compilation error.
+
+    Returns:
+        Error message with the affected Python lines numbers if found, otherwise an empty string.
     """
     sql_compilation_error_regex = re.compile(
         r""".*SQL compilation error:\s*error line (\d+) at position (\d+).*""",
     )
     match = sql_compilation_error_regex.match(error_msg)
     if not match:
-        return None
+        return ""
 
     sql_line_number = int(match.group(1)) - 1
-    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-    from snowflake.snowpark._internal.analyzer.select_statement import (
-        Selectable,
-    )
 
-    for arg in args:
-        if isinstance(arg, SnowflakePlan) or isinstance(arg, Selectable):
-            try:
-                from snowflake.snowpark._internal.utils import (
-                    get_plan_from_line_numbers,
-                )
+    try:
+        from snowflake.snowpark._internal.utils import (
+            get_plan_from_line_numbers,
+        )
+        from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+        from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
-                plan = get_plan_from_line_numbers(arg, sql_line_number)
-                ast_id = None
-                bind_stmt = None
-                if isinstance(plan, Selectable) and plan.df_ast_ids is not None:
-                    ast_id = plan.df_ast_ids[-1]
+        plan = get_plan_from_line_numbers(top_plan, sql_line_number)
+        source_locations = []
+        found_locations = set()
+        if plan.df_ast_ids is not None:
+            for ast_id in plan.df_ast_ids:
+                if isinstance(plan, Selectable):
                     bind_stmt = plan._session._ast_batch._bind_stmt_cache.get(ast_id)
-                elif isinstance(plan, SnowflakePlan) and plan.df_ast_id is not None:
-                    ast_id = plan.df_ast_id
+                elif isinstance(plan, SnowflakePlan):
                     bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
-                if not ast_id:
-                    continue
-                if not bind_stmt:
-                    continue
-                src = extract_src_from_expr(bind_stmt.bind.expr)
-                if src and hasattr(src, "start_line"):
-                    return (
-                        f"\nSQL compilation error corresponds to Python source at lines {src.start_line}"
-                        f"{f'-{src.end_line}' if src.end_line and src.end_line != src.start_line else ''}"
-                        f"{f', columns {src.start_column}-{src.end_column}' if src.start_column and src.end_column else ''}.\n"
-                    )
-            except Exception:
-                continue
-    return None
+                if bind_stmt is not None:
+                    src = extract_src_from_expr(bind_stmt.bind.expr)
+                    location = _format_source_location(src)
+                    if location not in found_locations:
+                        found_locations.add(location)
+                        source_locations.append(location)
+        if source_locations:
+            if len(source_locations) == 1:
+                return f"\nSQL compilation error corresponds to Python source at {source_locations[0]}.\n"
+            else:
+                locations_str = "\n  - ".join(source_locations)
+                return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
+    except Exception:
+        return ""
+    return ""

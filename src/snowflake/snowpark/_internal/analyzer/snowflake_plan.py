@@ -180,22 +180,23 @@ class SnowflakePlan(LogicalPlan):
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
-                    python_debug_context = ""
-                    if "SQL compilation error:" in e.msg and "error line" in e.msg:
-                        python_source_info = get_python_source_from_sql_error(
-                            e.msg, args
-                        )
-                        python_debug_context = (
-                            python_source_info if python_source_info is not None else ""
-                        )
-
-                    # extract df_ast_id, stmt_cache from args
-                    df_ast_id, stmt_cache = None, None
+                    # extract top_plan, df_ast_id, stmt_cache from args
+                    top_plan, df_ast_id, stmt_cache = None, None, None
                     for arg in args:
                         if isinstance(arg, SnowflakePlan) and arg.df_ast_ids:
+                            top_plan = arg
                             df_ast_id = arg.df_ast_ids[-1]
                             stmt_cache = arg.session._ast_batch._bind_stmt_cache
                             break
+                    error_source_context = ""
+                    if (
+                        "SQL compilation error:" in e.msg
+                        and "error line" in e.msg
+                        and top_plan is not None
+                    ):
+                        error_source_context = get_python_source_from_sql_error(
+                            top_plan, e.msg
+                        )
                     df_transform_debug_trace = ""
                     try:
                         if (
@@ -203,11 +204,8 @@ class SnowflakePlan(LogicalPlan):
                             and df_ast_id is not None
                             and stmt_cache is not None
                         ):
-                            trace_result = get_df_transform_trace_message(
+                            df_transform_debug_trace = get_df_transform_trace_message(
                                 df_ast_id, stmt_cache
-                            )
-                            df_transform_debug_trace = (
-                                trace_result if trace_result is not None else ""
                             )
                     except Exception as trace_error:
                         # If we encounter an error when getting the df_transform_debug_trace,
@@ -219,7 +217,7 @@ class SnowflakePlan(LogicalPlan):
 
                     debug_header = "\n\n--- Additional Debug Information ---\n"
                     debug_context = (
-                        debug_header + df_transform_debug_trace + python_debug_context
+                        debug_header + df_transform_debug_trace + error_source_context
                     )
                     if debug_context == debug_header:
                         debug_context = ""

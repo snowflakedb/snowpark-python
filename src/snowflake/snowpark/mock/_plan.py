@@ -251,9 +251,6 @@ class MockExecutionPlan(LogicalPlan):
         elif self.df_ast_ids[-1] != ast_id:
             self.df_ast_ids.append(ast_id)
 
-    def propagate_ast_id_to_select_sql(self, ast_id: int) -> None:
-        pass
-
 
 class MockFileOperation(MockExecutionPlan):
     class Operator(str, Enum):
