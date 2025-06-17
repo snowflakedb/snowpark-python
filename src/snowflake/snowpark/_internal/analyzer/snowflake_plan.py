@@ -765,6 +765,16 @@ class SnowflakePlan(LogicalPlan):
             if isinstance(child, SelectSQL):
                 child.add_df_ast_id(ast_id)
 
+    def add_df_ast_id(self, ast_id: int) -> None:
+        """Method to add a df ast id to SnowflakePlan.
+        This is used to track the df ast ids that are used in creating the
+        sql for this SnowflakePlan.
+        """
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [ast_id]
+        elif self.df_ast_ids[-1] != ast_id:
+            self.df_ast_ids.append(ast_id)
+
 
 class SnowflakePlanBuilder:
     def __init__(
