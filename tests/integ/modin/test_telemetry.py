@@ -612,11 +612,9 @@ def test_telemetry_repr():
     ]
 
 
+@patch.object(TelemetryClient, "send")
 @sql_count_checker(query_count=6, join_count=4)
-def test_telemetry_interchange_call_count():
-    # test is sensitive to adding new log lines.
-    old_log_size = pd.session._conn._telemetry_client.telemetry._flush_size
-    pd.session._conn._telemetry_client.telemetry._flush_size = 10000
+def test_telemetry_interchange_call_count(send_mock):
     s = pd.DataFrame([1, 2, 3, 4])
     t = pd.DataFrame([5])
     s.__dataframe__()
@@ -628,20 +626,18 @@ def test_telemetry_interchange_call_count():
     s.__dataframe__()
     t.__dataframe__()
 
-    def _get_data(call):
-        try:
-            return call.to_dict()["message"][TelemetryField.KEY_DATA.value]
-        except Exception:
-            return None
+    telemetry_data = []
+    for call in send_mock.call_args_list:
+        message = call.args[0]
+        if message.get("source") != "SnowparkPandas":
+            continue
+        print(message)
+        data = message.get("data", {})
+        if data["func_name"] == "DataFrame.__dataframe__":
+            telemetry_data.append(data)
 
-    telemetry_data = [
-        _get_data(call)
-        for call in pd.session._conn._telemetry_client.telemetry._log_batch
-        if _get_data(call) is not None
-        and "func_name" in _get_data(call)
-        and _get_data(call)["func_name"] == "DataFrame.__dataframe__"
-    ]
     assert len(telemetry_data) == 6
+
     # s calls __dataframe__() for the first time.
     assert telemetry_data[0]["call_count"] == 1
     # s calls __dataframe__() for the second time.
@@ -654,7 +650,6 @@ def test_telemetry_interchange_call_count():
     assert telemetry_data[4]["call_count"] == 2
     # t calls __dataframe__() for the second time.
     assert telemetry_data[5]["call_count"] == 2
-    pd.session._conn._telemetry_client.telemetry._flush_size = old_log_size
 
 
 def test_telemetry_func_call_count(session):
