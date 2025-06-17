@@ -278,7 +278,9 @@ class SnowflakeFile(RawIOBase):
                 self._pos += size.nbytes
                 b[:buffer_len] = content
                 return size.nbytes
-            return self._file_stream.raw.readinto(b)
+            size = self._file_stream.raw.readinto(b)
+            self._pos += size
+            return size
         raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
     def readinto1(self, b: bytes | bytearray | array.array) -> int:
@@ -303,7 +305,9 @@ class SnowflakeFile(RawIOBase):
                 self._pos += size.nbytes
                 b[:buffer_len] = content
                 return size.nbytes
-            return self._file_stream.readinto1(b)
+            size = self._file_stream.readinto1(b)
+            self._pos += size
+            return size
         raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
     def readline(self, size: int = -1) -> Sequence:
