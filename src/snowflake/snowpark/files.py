@@ -389,7 +389,7 @@ class SnowflakeFile(RawIOBase):
         self._raise_if_closed()
         self._raise_if_not_read()
         if self._is_local_file:
-            return self._file_stream.tell()
+            return self._pos
         raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
     def truncate(self, size: int | None = None) -> int:
