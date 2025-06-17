@@ -15,6 +15,12 @@
 
 - Fixed a bug when processing windowed functions that lead to incorrect indexing in results.
 
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `DataFrame.to_excel` and `Series.to_excel`.
+
 ## 1.33.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
