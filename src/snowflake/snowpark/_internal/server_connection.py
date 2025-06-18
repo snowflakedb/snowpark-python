@@ -30,7 +30,6 @@ from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
-from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
@@ -50,6 +49,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
 )
 from snowflake.snowpark._internal.ast.utils import DATAFRAME_AST_PARAMETER
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.lazy_import_utils import get_pandas
 from snowflake.snowpark._internal.telemetry import (
     TelemetryClient,
     get_plan_telemetry_metrics,
@@ -74,6 +74,9 @@ from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from snowflake.snowpark.row import Row
 
 if TYPE_CHECKING:
+    # Import pandas for type checking only
+    from snowflake.connector.options import pandas
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -615,6 +618,9 @@ class ServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+        if to_pandas:
+            get_pandas()
+
         if (
             is_in_stored_procedure()
             and not block
@@ -676,6 +682,9 @@ class ServerConnection:
         ],
         Union[List[ResultMetadata], List["ResultMetadataV2"]],
     ]:
+        if to_pandas:
+            get_pandas()
+
         action_id = plan.session._generate_new_action_id()
         plan_queries = plan.execution_queries
         result, result_meta = None, None
@@ -862,6 +871,8 @@ def _fix_pandas_df_fixed_type(
 
     We need to get rid of this workaround because this causes a performance hit.
     """
+    pandas = get_pandas()
+
     for column_metadata, pandas_dtype, pandas_col_name in zip(
         results_cursor.description, pd_df.dtypes, pd_df.columns
     ):
