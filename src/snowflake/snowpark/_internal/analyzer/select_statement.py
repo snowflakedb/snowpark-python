@@ -429,7 +429,7 @@ class Selectable(LogicalPlan, ABC):
             if self.df_ast_ids is not None:
                 # Add the last df ast id to the snowflake plan as the most recent
                 # dataframe operation to create this plan.
-                self._snowflake_plan.df_ast_id = self.df_ast_ids[-1]
+                self._snowflake_plan.df_ast_ids = self.df_ast_ids
         return self._snowflake_plan
 
     @property
@@ -775,8 +775,7 @@ class SelectSnowflakePlan(Selectable):
                 self._query_params.extend(query.params)
 
         # Copy the df ast ids from the snowflake plan.
-        if (df_ast_id := self._snowflake_plan.df_ast_id) is not None:
-            self.df_ast_ids = [df_ast_id]
+        self.df_ast_ids = self._snowflake_plan.df_ast_ids
 
     def __deepcopy__(self, memodict={}) -> "SelectSnowflakePlan":  # noqa: B006
         copied = SelectSnowflakePlan(
