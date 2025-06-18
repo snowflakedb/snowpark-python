@@ -25,7 +25,7 @@ import snowflake.snowpark.context as context
 
 @pytest.fixture(autouse=True)
 def setup(request):
-    context.onfigure_development_features(
+    context.configure_development_features(
         enable_trace_sql_errors_to_dataframe=True, enable_eager_schema_validation=False
     )
     yield
