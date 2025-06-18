@@ -213,13 +213,13 @@ def test_send_modin_api_telemetry(send_mock):
     )
     send_mock.assert_called_with(
         {
-            "source": "modin",
             "data": {
                 "modin_event": "test_event",
                 "modin_value": 123.45,
                 "modin_event_aggregatable": True,
                 "category": "modin",
             },
+            "source": "modin",
         }
     )
 

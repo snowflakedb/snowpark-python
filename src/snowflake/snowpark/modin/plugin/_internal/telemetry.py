@@ -82,10 +82,12 @@ def _send_modin_api_telemetry(
     Returns:
         None
     """
-    data: dict[str, Union[str, list[dict[str, Any]], list[str], Optional[str]]] = {
+    data: dict[
+        str, Union[str, float, int, list[dict[str, Any]], list[str], Optional[str]]
+    ] = {
         SnowparkPandasTelemetryField.MODIN_EVENT.value: event,
-        SnowparkPandasTelemetryField.MODIN_VALUE.value: str(value),
-        SnowparkPandasTelemetryField.MODIN_VALUE_AGGREGATABLE.value: str(aggregatable),
+        SnowparkPandasTelemetryField.MODIN_VALUE.value: value,
+        SnowparkPandasTelemetryField.MODIN_VALUE_AGGREGATABLE.value: aggregatable,
         TelemetryField.KEY_CATEGORY.value: SnowparkPandasTelemetryField.FUNC_CATEGORY_MODIN.value,
     }
 
