@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 from snowflake.snowpark.types import DataType
 
-from snowflake.snowpark.exceptions import SnowparkSQLInvalidIdException
 from snowflake.snowpark._internal.analyzer.expression import (
     Attribute,
     Expression,
@@ -106,11 +105,8 @@ def _extract_inferable_attribute_names(
         if isinstance(attr, Alias):
             # If the first non-aliased child of an Alias node is Literal or Attribute
             # the column can be inferred.
-            root_attr = attr
-            while isinstance(root_attr.child, Alias):
-                root_attr = root_attr.child
-            if isinstance(root_attr.child, (Literal, Attribute)) and root_attr.datatype:
-                attr = Attribute(attr.name, root_attr.datatype, root_attr.nullable)
+            if isinstance(attr.child, (Literal, Attribute)) and attr.datatype:
+                attr = Attribute(attr.name, attr.datatype, attr.nullable)
         elif isinstance(attr, Literal) and type(attr.datatype) != DataType:
             # Names of literal values can be inferred
             attr = Attribute(
@@ -147,7 +143,6 @@ def infer_metadata(
         SelectStatement,
         SelectTableFunction,
         SelectableEntity,
-        ColumnChangeState,
     )
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
     from snowflake.snowpark._internal.analyzer.unary_plan_node import (
@@ -163,7 +158,6 @@ def infer_metadata(
 
     attributes = None
     quoted_identifiers = None
-    referenced_identifiers = []
     if analyzer.session.reduce_describe_query_enabled and source_plan is not None:
         # If source_plan is a LogicalPlan, SQL simplifier is not enabled
         # so we can try to infer the metadata from its child (SnowflakePlan)
@@ -278,14 +272,6 @@ def infer_metadata(
                     c.name for c in source_plan._column_states.projection
                 ]
 
-                # Columns that are neither new or dropped should be references to earlier datafames
-                for state in source_plan._column_states.values():
-                    if state.change_state not in {
-                        ColumnChangeState.NEW,
-                        ColumnChangeState.DROPPED,
-                    }:
-                        referenced_identifiers.append(state.col_name)
-
             # When source_plan doesn't have a projection, it's a simple `SELECT * from ...`,
             # which means source_plan has the same metadata as its child plan, we can use it directly
             if not source_plan.has_projection:
@@ -314,16 +300,6 @@ def infer_metadata(
                     and source_plan.from_.attributes is not None
                 ):
                     attributes = source_plan.from_.attributes
-
-        # Check that the referenced identifiers references attributes that are available
-        # in either the current plan or child plans.
-        available_identifiers = {a.name for a in attributes or []}
-        if available_identifiers and (
-            missing := set(referenced_identifiers) - available_identifiers
-        ):
-            raise SnowparkSQLInvalidIdException(
-                f"DataFrame references column(s) that are not present {missing}"
-            )
 
         # If attributes is available, we always set quoted_identifiers to None
         # as it can be retrieved later from attributes
