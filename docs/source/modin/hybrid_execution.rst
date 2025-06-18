@@ -9,7 +9,7 @@ data are dominated by dataset size.
 
 For Snowflake, specific API calls will trigger hybrid backend evaluation. These are registered 
 as either a pre-operation switch point or a post-operation switch point. These switch points
-may change over time.
+may change over time as the feature matures and as APIs updated.
 
 Example Pre-Operation Switchpoints:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -35,15 +35,23 @@ Enabling Hybrid Execution
     from modin.config import AutoSwitchBackend
     from snowflake.snowpark import Session
     
-    # Enable hybrid execution
     Session.builder.create()
     df = pd.DataFrame([1, 2, 3])
     print(df.get_backend()) # 'Snowflake'
 
+   # Enable hybrid execution
     AutoSwitchBackend().enable()
     df = pd.DataFrame([4, 5, 6])
     # DataFrame should use local execution backend, 'Pandas'
+    # because the data frame is already small and in memory
     print(df.get_backend()) # 'Pandas'
+
+    # Using a configuration context to change behavior
+    # within a specific code block
+    from modin.config import context as config_context
+    with config_context(AutoSwitchBackend=False):
+        # perform operations with no switching
+        df = pd.DataFrame([[1, 2], [3, 4]])
 
     # Disable hybrid execution ( All DataFrames say on existing engine )
     AutoSwitchBackend().disable()
@@ -64,6 +72,15 @@ Manually Changing DataFrame Backends
     # "unpin" the current backend, preventing data movement
     df.unpin_backend(inplace=True)
 
+    from modin.config import context as config_context
+    with config_context(Backend="Pandas"):
+        # Operations only performed using the Pandas backend
+        df = pd.DataFrame([4, 5, 6])
+
+    with config_context(Backend="Snowflake"):
+        # Operations only performed using the Snowflake backend
+        df = pd.DataFrame([4, 5, 6])
+
 Configuring Local Pandas Backend
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -75,4 +92,11 @@ backend is 10M rows. This can be configured through the modin environment variab
 
     # Change row threshold to 500k
     from modin.config.envvars import NativePandasMaxRows
+    from modin.config import context as config_context
+
     NativePandasMaxRows.put(500_000)
+
+    # Use a config context to set the Pandas backend parameters
+    with config_context(NativePandasMaxRows=1234):
+        # Operations only performed using the Pandas backend
+        df = pd.DataFrame([4, 5, 6])
