@@ -8,7 +8,6 @@ from __future__ import annotations
 import array
 import sys
 import tempfile
-import os
 from io import (
     RawIOBase,
     UnsupportedOperation,
@@ -17,8 +16,12 @@ from io import (
     SEEK_END,
     SEEK_CUR,
 )
-from snowflake.snowpark._internal.utils import RELATIVE_PATH_PREFIX
+from snowflake.snowpark._internal.utils import (
+    RELATIVE_PATH_PREFIX,
+    SNOWFLAKE_PATH_PREFIXES,
+)
 from typing import Sequence
+from snowflake.snowpark.context import get_active_session
 import logging
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -29,9 +32,6 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
-_NON_LOCAL_PATH_ERR_MSG = (
-    "SnowflakeFile currently only supports relative paths locally."
-)
 _WRITE_MODE_ERR_MSG = "SnowflakeFile currently doesn't support writing locally."
 _DEFER_IMPLEMENTATION_ERR_MSG = "Not yet supported in UDF and Stored Procedures."
 _logger = logging.getLogger(__name__)
@@ -72,20 +72,47 @@ class SnowflakeFile(RawIOBase):
 
         # Attributes required for local testing functionality
         _DEFAULT_READ_BUFFER_SIZE = 32 * 1024
-        if mode in ("r", "rb"):
-            # Buffered Reader used to support BufferedIOBase methods such as read1 and readinto1
-            self._file_stream = BufferedReader(
-                open(self._file_location, self._mode), _DEFAULT_READ_BUFFER_SIZE
-            )
-        else:
-            # need to still open a file stream for testing
-            self._file_stream = open(self._file_location, self._mode)
         self._pos = 0
         self._is_local_file = (
             True
             if self._file_location.startswith((RELATIVE_PATH_PREFIX, "C:"))
             else False
         )
+        self._is_stage_file = (
+            True
+            if self._file_location.startswith(tuple(SNOWFLAKE_PATH_PREFIXES))
+            else False
+        )
+
+        # Validate the file location
+        if not self._is_local_file and not self._is_stage_file:
+            raise ValueError(
+                f"Invalid file location '{self._file_location}'. "
+                "File location must be a local file path or a stage file URL."
+            )
+
+        # Need to open a file stream for local testing to ensure APIs work in write mode
+        self._file_size = 0
+
+        if self._is_local_file and mode in ("r", "rb"):
+            # Buffered Reader used to support BufferedIOBase methods such as read1 and readinto1
+            self._file_stream = BufferedReader(
+                open(self._file_location, self._mode), _DEFAULT_READ_BUFFER_SIZE
+            )
+
+            # SEEK_CUR and SEEK_END are only supported in binary mode for Python IO so we must obtain the size of the file
+            # in a different way. We can use the raw stream to get the size of the file.
+            temp_file = open(self._file_location, "rb")
+            self._file_size = temp_file.seek(0, SEEK_END)
+            temp_file.close()
+        elif self._is_stage_file and mode in ("r", "rb"):
+            self._file_stream = get_active_session().file.get_stream(
+                self._file_location
+            )
+            self._file_size = self._file_stream.seek(0, SEEK_END)
+            self._file_stream.seek(0, SEEK_SET)
+        elif mode in ("w", "wb"):
+            self._file_stream = open(self._file_location, self._mode)
 
     @classmethod
     def open(
@@ -219,9 +246,12 @@ class SnowflakeFile(RawIOBase):
         self._raise_if_not_read()
         if self._is_local_file:
             content = self._file_stream.raw.read(size)
-            self._pos += len(content)
-            return content
-        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
+        elif self._is_stage_file:
+            content = self._file_stream.read(size)
+            if self._mode == "r":
+                content = content.decode()
+        self._pos += len(content)
+        return content
 
     def read1(self, size: int = -1) -> Sequence:
         """
@@ -236,11 +266,12 @@ class SnowflakeFile(RawIOBase):
         if self._is_local_file:
             if self._mode == "r":
                 content = self.read(size).encode()
-            else:
+            elif self._mode == "rb":
                 content = self._file_stream.read1(size)
-            self._pos += len(content)
-            return content
-        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
+        elif self._is_stage_file:
+            content = self._file_stream.read1(size)
+        self._pos += len(content)
+        return content
 
     def readable(self) -> bool:
         """
@@ -274,14 +305,14 @@ class SnowflakeFile(RawIOBase):
                 if buffer_len == 0:
                     return 0
                 content = self.read(buffer_len).encode()
-                size = memoryview(content)
-                self._pos += size.nbytes
+                size = memoryview(content).nbytes
                 b[:buffer_len] = content
-                return size.nbytes
-            size = self._file_stream.raw.readinto(b)
-            self._pos += size
-            return size
-        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
+            else:
+                size = self._file_stream.raw.readinto(b)
+        elif self._is_stage_file:
+            size = self._file_stream.readinto(b)
+        self._pos += size
+        return size
 
     def readinto1(self, b: bytes | bytearray | array.array) -> int:
         """
@@ -301,14 +332,14 @@ class SnowflakeFile(RawIOBase):
                 if buffer_len == 0:
                     return 0
                 content = self.read1(buffer_len)
-                size = memoryview(content)
-                self._pos += size.nbytes
+                size = memoryview(content).nbytes
                 b[:buffer_len] = content
-                return size.nbytes
+            elif self._mode == "rb":
+                size = self._file_stream.readinto1(b)
+        elif self._is_stage_file:
             size = self._file_stream.readinto1(b)
-            self._pos += size
-            return size
-        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
+        self._pos += size
+        return size
 
     def readline(self, size: int = -1) -> Sequence:
         """
@@ -323,9 +354,12 @@ class SnowflakeFile(RawIOBase):
         self._raise_if_not_read()
         if self._is_local_file:
             content = self._file_stream.raw.readline(size)
-            self._pos += len(content)
-            return content
-        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
+        elif self._is_stage_file:
+            content = self._file_stream.readline(size)
+            if self._mode == "r":
+                content = content.decode()
+        self._pos += len(content)
+        return content
 
     def readlines(self, hint: int = -1) -> list[Sequence]:
         """
@@ -342,9 +376,12 @@ class SnowflakeFile(RawIOBase):
         self._raise_if_not_read()
         if self._is_local_file:
             content = self._file_stream.raw.readlines(hint)
-            self._pos += sum(len(line) for line in content)
-            return content
-        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
+        elif self._is_stage_file:
+            content = self._file_stream.readlines(hint)
+            if self._mode == "r":
+                content = [line.decode() for line in content]
+        self._pos += sum(len(line) for line in content)
+        return content
 
     def seek(self, offset: int, whence: int = SEEK_SET) -> int:
         """
@@ -359,19 +396,18 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         self._raise_if_not_read()
-        if self._is_local_file:
-            if whence == SEEK_SET:
-                self._pos = offset
-            elif whence == SEEK_CUR:
-                self._pos = self._file_stream.tell() + offset
-            elif whence == SEEK_END:
-                self._pos = os.path.getsize(self._file_location) + offset
-            else:
-                raise NotImplementedError(f"Unsupported whence value {whence}")
-            if self._pos < 0:
-                raise ValueError(f"Negative seek position {self._pos}")
-            return self._file_stream.seek(self._pos, SEEK_SET)
-        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
+        if whence == SEEK_SET:
+            pos = offset
+        elif whence == SEEK_CUR:
+            pos = self._file_stream.tell() + offset
+        elif whence == SEEK_END:
+            pos = self._file_size + offset
+        else:
+            raise NotImplementedError(f"Unsupported whence value {whence}")
+        if pos < 0:
+            raise ValueError(f"Negative seek position {pos}")
+        self._pos = pos
+        return self._file_stream.seek(self._pos, SEEK_SET)
 
     def seekable(self) -> bool:
         """
@@ -380,9 +416,7 @@ class SnowflakeFile(RawIOBase):
         Returns whether or not the stream is seekable.
         """
         self._raise_if_closed()
-        if self._is_local_file:
-            return self._mode in ("r", "rb")
-        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
+        return self._mode in ("r", "rb")
 
     def tell(self) -> int:
         """
@@ -392,9 +426,7 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         self._raise_if_not_read()
-        if self._is_local_file:
-            return self._pos
-        raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
+        return self._pos
 
     def truncate(self, size: int | None = None) -> int:
         """
