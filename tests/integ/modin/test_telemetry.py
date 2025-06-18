@@ -231,7 +231,7 @@ def test_modin_telemetry(send_telemetry_mock, session):
     Tests that a call to a pandas-api method triggers a call to _send_modin_api_telemetry
     """
     if not MODIN_IS_AT_LEAST_0_33_0:
-        return
+        pytest.skip("Only modin>=0.33.0 is supported")
 
     df = pd.DataFrame(BASIC_TYPE_DATA1)
     # to_string is an eager API that will trigger telemetry immediately
@@ -829,7 +829,7 @@ def test_modin_e2e_telemetry(send_mock, session):
     Tests that a DataFrame operation triggers a call to TelemetryClient.send with the correct modin telemetry.
     """
     if not MODIN_IS_AT_LEAST_0_33_0:
-        return
+        pytest.skip("Only modin>=0.33.0 is supported")
 
     df = pd.DataFrame(BASIC_TYPE_DATA1)
     df.value_counts().to_string()
