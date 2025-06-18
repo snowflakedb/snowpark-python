@@ -204,14 +204,19 @@ def get_df_transform_trace_message(
     return "\n".join(debug_info_lines)
 
 
-def _format_source_location(src: proto.SrcPosition) -> str:
+def _format_source_location(src: Optional[proto.SrcPosition]) -> str:
+    """Helper function to format source location information."""
+    if src is None:
+        return ""
+
     from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 
     filename_map = {v: k for k, v in __STRING_INTERNING_MAP__.items()}
-    """Helper function to format source location information."""
-    lines_info = f"{filename_map[src.file]}: line {src.start_line}"
-    if src.end_line != src.start_line:
-        lines_info = f"{filename_map[src.file]}: lines {src.start_line}-{src.end_line}"
+    # if we cannot find the file, we use a placeholder
+    filename = filename_map.get(src.file, "UNKNOWN_FILE")
+    lines_info = f"{filename}: line {src.start_line}"
+    if src.end_line > src.start_line:
+        lines_info = f"{filename}: lines {src.start_line}-{src.end_line}"
     return lines_info
 
 
@@ -251,6 +256,7 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
         found_locations = set()
         if plan.df_ast_ids is not None:
             for ast_id in plan.df_ast_ids:
+                bind_stmt = None
                 if isinstance(plan, Selectable):
                     bind_stmt = plan._session._ast_batch._bind_stmt_cache.get(ast_id)
                 elif isinstance(plan, SnowflakePlan):
@@ -258,7 +264,7 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
                 if bind_stmt is not None:
                     src = extract_src_from_expr(bind_stmt.bind.expr)
                     location = _format_source_location(src)
-                    if location not in found_locations:
+                    if location != "" and location not in found_locations:
                         found_locations.add(location)
                         source_locations.append(location)
         if source_locations:
