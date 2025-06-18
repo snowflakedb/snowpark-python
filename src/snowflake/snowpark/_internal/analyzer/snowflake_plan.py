@@ -183,8 +183,8 @@ class SnowflakePlan(LogicalPlan):
                     # extract df_ast_id, stmt_cache from args
                     df_ast_id, stmt_cache = None, None
                     for arg in args:
-                        if isinstance(arg, SnowflakePlan):
-                            df_ast_id = arg.df_ast_id
+                        if isinstance(arg, SnowflakePlan) and arg.df_ast_ids:
+                            df_ast_id = arg.df_ast_ids[-1]
                             stmt_cache = arg.session._ast_batch._bind_stmt_cache
                             break
                     df_transform_debug_trace = None
@@ -459,7 +459,7 @@ class SnowflakePlan(LogicalPlan):
         self._plan_state: Optional[Dict[PlanState, Any]] = None
         # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
         # we will store the ast_id here.
-        self.df_ast_id: Optional[int] = None
+        self.df_ast_ids: Optional[List[int]] = None
 
     @property
     def uuid(self) -> str:
@@ -713,7 +713,7 @@ class SnowflakePlan(LogicalPlan):
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
             )
-        plan.df_ast_id = self.df_ast_id
+        plan.df_ast_ids = self.df_ast_ids
         return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -747,7 +747,7 @@ class SnowflakePlan(LogicalPlan):
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
-        copied_plan.df_ast_id = self.df_ast_id
+        copied_plan.df_ast_ids = self.df_ast_ids
 
         return copied_plan
 
@@ -756,6 +756,25 @@ class SnowflakePlan(LogicalPlan):
             self.expr_to_alias.update(to_add)
         else:
             self.expr_to_alias = {**self.expr_to_alias, **to_add}
+
+    def propagate_ast_id_to_select_sql(self, ast_id: int) -> None:
+        """Propagate df_ast_id to associated SelectSQL instances."""
+        from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+
+        for child in self.children_plan_nodes:
+            if isinstance(child, SelectSQL):
+                child.add_df_ast_id(ast_id)
+
+    def add_df_ast_id(self, ast_id: int) -> None:
+        """Method to add a df ast id to SnowflakePlan.
+        This is used to track the df ast ids that are used in creating the
+        sql for this SnowflakePlan.
+        """
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [ast_id]
+        elif self.df_ast_ids[-1] != ast_id:
+            self.df_ast_ids.append(ast_id)
+        self.propagate_ast_id_to_select_sql(ast_id)
 
 
 class SnowflakePlanBuilder:
