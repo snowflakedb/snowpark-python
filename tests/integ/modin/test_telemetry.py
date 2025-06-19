@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.telemetry import TelemetryClient, TelemetryFie
 from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     _not_equal_to_default,
+    _send_modin_api_telemetry,
     _send_snowpark_pandas_telemetry_helper,
     _try_get_kwargs_telemetry,
 )
@@ -198,6 +199,45 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
             },
         }
     )
+
+
+@patch.object(TelemetryClient, "send")
+@sql_count_checker(query_count=0)
+def test_send_modin_api_telemetry(send_mock):
+    session = snowflake.snowpark.session._get_active_session()
+    _send_modin_api_telemetry(
+        session=session,
+        event="test_event",
+        value=123.45,
+        aggregatable=True,
+    )
+    send_mock.assert_called_with(
+        {
+            "data": {
+                "modin_event": "test_event",
+                "modin_value": 123.45,
+                "modin_event_aggregatable": True,
+                "category": "modin",
+            },
+            "source": "modin",
+        }
+    )
+
+
+@patch("snowflake.snowpark.modin.plugin._internal.telemetry._send_modin_api_telemetry")
+@sql_count_checker(query_count=2, union_count=8)
+def test_modin_telemetry(send_telemetry_mock, session):
+    """
+    Tests that a call to a pandas-api method triggers a call to _send_modin_api_telemetry
+    """
+    if not MODIN_IS_AT_LEAST_0_33_0:
+        pytest.skip("Only modin>=0.33.0 is supported")
+
+    df = pd.DataFrame(BASIC_TYPE_DATA1)
+    # to_string is an eager API that will trigger telemetry immediately
+    df.describe().to_string()
+
+    send_telemetry_mock.assert_called()
 
 
 @sql_count_checker(query_count=0)
@@ -572,8 +612,9 @@ def test_telemetry_repr():
     ]
 
 
+@patch.object(TelemetryClient, "send")
 @sql_count_checker(query_count=6, join_count=4)
-def test_telemetry_interchange_call_count():
+def test_telemetry_interchange_call_count(send_mock):
     s = pd.DataFrame([1, 2, 3, 4])
     t = pd.DataFrame([5])
     s.__dataframe__()
@@ -585,20 +626,17 @@ def test_telemetry_interchange_call_count():
     s.__dataframe__()
     t.__dataframe__()
 
-    def _get_data(call):
-        try:
-            return call.to_dict()["message"][TelemetryField.KEY_DATA.value]
-        except Exception:
-            return None
+    telemetry_data = []
+    for call in send_mock.call_args_list:
+        message = call.args[0]
+        if message.get("source") != "SnowparkPandas":
+            continue
+        data = message.get("data", {})
+        if data["func_name"] == "DataFrame.__dataframe__":
+            telemetry_data.append(data)
 
-    telemetry_data = [
-        _get_data(call)
-        for call in pd.session._conn._telemetry_client.telemetry._log_batch
-        if _get_data(call) is not None
-        and "func_name" in _get_data(call)
-        and _get_data(call)["func_name"] == "DataFrame.__dataframe__"
-    ]
     assert len(telemetry_data) == 6
+
     # s calls __dataframe__() for the first time.
     assert telemetry_data[0]["call_count"] == 1
     # s calls __dataframe__() for the second time.
@@ -782,3 +820,32 @@ def test_telemetry_read_json(tmp_path):
             "name": "io_overrides.read_json",
         }
     ]
+
+
+@patch.object(TelemetryClient, "send")
+@sql_count_checker(query_count=2)
+def test_modin_e2e_telemetry(send_mock, session):
+    """
+    Tests that a DataFrame operation triggers a call to TelemetryClient.send with the correct modin telemetry.
+    """
+    if not MODIN_IS_AT_LEAST_0_33_0:
+        pytest.skip("Only modin>=0.33.0 is supported")
+
+    df = pd.DataFrame(BASIC_TYPE_DATA1)
+    df.value_counts().to_string()
+
+    found_modin_telemetry = False
+    for call in send_mock.call_args_list:
+        message = call.args[0]
+
+        if message.get("source") != "modin":
+            continue
+        data = message.get("data", {})
+        assert data.get("category") == "modin"
+        assert data.get("modin_event_aggregatable") is False
+        if (
+            data.get("modin_event")
+            == "modin.query-compiler.snowflakequerycompiler.value_counts"
+        ):
+            found_modin_telemetry = True
+    assert found_modin_telemetry, "Modin API telemetry for was not sent."
