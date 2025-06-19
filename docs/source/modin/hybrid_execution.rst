@@ -9,7 +9,7 @@ data are dominated by dataset size.
 
 For Snowflake, specific API calls will trigger hybrid backend evaluation. These are registered 
 as either a pre-operation switch point or a post-operation switch point. These switch points
-may change over time as the feature matures and as APIs updated.
+may change over time as the feature matures and as APIs are updated.
 
 Example Pre-Operation Switchpoints:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
