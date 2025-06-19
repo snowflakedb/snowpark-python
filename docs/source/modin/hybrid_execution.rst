@@ -53,7 +53,7 @@ Enabling Hybrid Execution
         # perform operations with no switching
         df = pd.DataFrame([[1, 2], [3, 4]])
 
-    # Disable hybrid execution ( All DataFrames say on existing engine )
+    # Disable hybrid execution ( All DataFrames stay on existing engine )
     AutoSwitchBackend().disable()
 
 Manually Changing DataFrame Backends
