@@ -83,3 +83,6 @@ def test_format_source_location(
 
     result = _format_source_location(src)
     assert result == expected
+
+    src = None
+    assert _format_source_location(src) == ""

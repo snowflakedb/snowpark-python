@@ -1998,7 +1998,7 @@ def get_line_numbers(
 def get_plan_from_line_numbers(
     plan_node: Union["SnowflakePlan", "Selectable"],
     line_number: int,
-) -> Union["SnowflakePlan", "Selectable"]:
+) -> "SnowflakePlan":
     """
     Given a parent plan node and a line number, return the plan node that contains the line number.
     Each parent node has a list of disjoint query line intervals, which are sorted by start line number,

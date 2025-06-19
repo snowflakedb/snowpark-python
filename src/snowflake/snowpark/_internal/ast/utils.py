@@ -1661,5 +1661,7 @@ def extract_src_from_expr(expr: proto.Expr) -> Optional[Any]:
         if field.name == "src":
             return value
         else:
-            return extract_src_from_expr(value)
+            result = extract_src_from_expr(value)
+            if result is not None:
+                return result
     return None

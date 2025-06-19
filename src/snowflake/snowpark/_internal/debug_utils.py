@@ -248,19 +248,13 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
         from snowflake.snowpark._internal.utils import (
             get_plan_from_line_numbers,
         )
-        from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
-        from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
         plan = get_plan_from_line_numbers(top_plan, sql_line_number)
         source_locations = []
         found_locations = set()
         if plan.df_ast_ids is not None:
             for ast_id in plan.df_ast_ids:
-                bind_stmt = None
-                if isinstance(plan, Selectable):
-                    bind_stmt = plan._session._ast_batch._bind_stmt_cache.get(ast_id)
-                elif isinstance(plan, SnowflakePlan):
-                    bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
+                bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
                 if bind_stmt is not None:
                     src = extract_src_from_expr(bind_stmt.bind.expr)
                     location = _format_source_location(src)
