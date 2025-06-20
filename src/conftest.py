@@ -89,7 +89,9 @@ def pytest_collection_modifyitems(config, items):
     This function is used to skip some doctests on certain conditions.
     For example, some functions in PrPr might not be available on Azure and GCP.
     """
-    host = conn_params.get("host") or conn_params.get("HOST")
+    host = (
+        conn_params.get("host") or conn_params.get("HOST") or conn_params.get("account")
+    )
     if any(platform in host.split(".") for platform in ["gcp", "azure"]):
         skip = pytest.mark.skip(reason="Skipping doctest for Azure and GCP deployment")
         disabled_doctests = ["ai_classify"]  # Add any test names that should be skipped
