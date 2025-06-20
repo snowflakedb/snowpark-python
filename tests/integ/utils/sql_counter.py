@@ -123,6 +123,8 @@ class SqlCounter(QueryListener):
     query_count is 0 through the sql_count_checker decorator.  If we do not check at all then if the underlying code
     changes, and later introduce queries we would not catch this.  In the rare case where we need to ensure that no
     query validation happens (as opposed to validating no query happens) we can use the no_check=True argument.
+
+    When strict=False the expected query counts are used as upper bounds.
     """
 
     _record_mode = False
@@ -133,6 +135,7 @@ class SqlCounter(QueryListener):
         log_stack_trace=True,
         high_count_expected=False,
         high_count_reason=None,
+        strict=True,
         **kwargs,
     ) -> "SqlCounter":
         from tests.conftest import SKIP_SQL_COUNT_CHECK
@@ -162,6 +165,10 @@ class SqlCounter(QueryListener):
 
         # Record mode is used when auto-annotating step runs.
         self._record_mode = False
+
+        # Strict mode checks that query counts are exactly as expected. Non-strict
+        # checks that queries are at most the expected counts.
+        self._strict = strict
 
         self._log_stack_trace = log_stack_trace
 
@@ -253,7 +260,9 @@ class SqlCounter(QueryListener):
                 expected_count = 0
             failed = failed or expected_count != actual_count
             pytest.assume(
-                expected_count == actual_count,
+                (expected_count == actual_count)
+                if self._strict
+                else (expected_count <= actual_count),
                 f"Sql count check '{key}' failed.  expected_{key}={expected_count}, actual_{key}={actual_count}{stack_trace}",
             )
 
