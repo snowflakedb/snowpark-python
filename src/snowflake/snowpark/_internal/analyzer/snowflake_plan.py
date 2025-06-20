@@ -188,17 +188,17 @@ class SnowflakePlan(LogicalPlan):
                             df_ast_id = arg.df_ast_ids[-1]
                             stmt_cache = arg.session._ast_batch._bind_stmt_cache
                             break
-                    error_source_context = ""
-                    if (
-                        "SQL compilation error:" in e.msg
-                        and "error line" in e.msg
-                        and top_plan is not None
-                    ):
-                        error_source_context = get_python_source_from_sql_error(
-                            top_plan, e.msg
-                        )
                     df_transform_debug_trace = ""
+                    error_source_context = ""
                     try:
+                        if (
+                            "SQL compilation error:" in e.msg
+                            and "error line" in e.msg
+                            and top_plan is not None
+                        ):
+                            error_source_context = get_python_source_from_sql_error(
+                                top_plan, e.msg
+                            )
                         if (
                             _enable_dataframe_trace_on_error
                             and df_ast_id is not None

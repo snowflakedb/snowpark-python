@@ -244,29 +244,26 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
 
     sql_line_number = int(match.group(1)) - 1
 
-    try:
-        from snowflake.snowpark._internal.utils import (
-            get_plan_from_line_numbers,
-        )
+    from snowflake.snowpark._internal.utils import (
+        get_plan_from_line_numbers,
+    )
 
-        plan = get_plan_from_line_numbers(top_plan, sql_line_number)
-        source_locations = []
-        found_locations = set()
-        if plan.df_ast_ids is not None:
-            for ast_id in plan.df_ast_ids:
-                bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
-                if bind_stmt is not None:
-                    src = extract_src_from_expr(bind_stmt.bind.expr)
-                    location = _format_source_location(src)
-                    if location != "" and location not in found_locations:
-                        found_locations.add(location)
-                        source_locations.append(location)
-        if source_locations:
-            if len(source_locations) == 1:
-                return f"\nSQL compilation error corresponds to Python source at {source_locations[0]}.\n"
-            else:
-                locations_str = "\n  - ".join(source_locations)
-                return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
-    except Exception:
-        return ""
+    plan = get_plan_from_line_numbers(top_plan, sql_line_number)
+    source_locations = []
+    found_locations = set()
+    if plan.df_ast_ids is not None:
+        for ast_id in plan.df_ast_ids:
+            bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
+            if bind_stmt is not None:
+                src = extract_src_from_expr(bind_stmt.bind.expr)
+                location = _format_source_location(src)
+                if location != "" and location not in found_locations:
+                    found_locations.add(location)
+                    source_locations.append(location)
+    if source_locations:
+        if len(source_locations) == 1:
+            return f"\nSQL compilation error corresponds to Python source at {source_locations[0]}.\n"
+        else:
+            locations_str = "\n  - ".join(source_locations)
+            return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
