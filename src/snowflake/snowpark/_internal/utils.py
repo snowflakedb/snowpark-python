@@ -55,7 +55,6 @@ from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.context import _should_use_structured_type_semantics
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
@@ -760,6 +759,8 @@ def _parse_result_meta(
     an expected format. For example StructType columns are returned as dict objects, but are better
     represented as Row objects.
     """
+    from snowflake.snowpark.context import _should_use_structured_type_semantics
+
     if not result_meta:
         return None, None
     col_names = []
