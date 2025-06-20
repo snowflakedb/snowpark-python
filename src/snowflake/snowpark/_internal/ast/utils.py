@@ -1645,3 +1645,23 @@ def clear_line_no_in_request(request: proto.Request) -> None:
     fixes in determining better line_no info for chained python code, etc."""
     for stmt in request.body:
         clear_line_no_in_ast(stmt)
+
+
+def extract_src_from_expr(expr: proto.Expr) -> Optional[Any]:
+    """
+    Recursively extract 'src' field from any expression type in the AST.
+    """
+    if not hasattr(expr, "ListFields"):
+        return None
+    if hasattr(expr, "src"):
+        return expr.src
+
+    #  recursively search for src
+    for field, value in expr.ListFields():
+        if field.name == "src":
+            return value
+        else:
+            result = extract_src_from_expr(value)
+            if result is not None:
+                return result
+    return None
