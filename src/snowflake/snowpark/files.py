@@ -29,11 +29,13 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
-_NON_LOCAL_PATH_ERR_MSG = (
-    "SnowflakeFile currently only supports relative paths locally."
+_NON_LOCAL_PATH_ERR_MSG = "SnowflakeFile currently supports only relative paths and read apis in local testing."
+_WRITE_MODE_ERR_MSG = (
+    "SnowflakeFile currently doesn't support write APIs in local testing."
 )
-_WRITE_MODE_ERR_MSG = "SnowflakeFile currently doesn't support writing locally."
 _DEFER_IMPLEMENTATION_ERR_MSG = "Not yet supported in UDF and Stored Procedures."
+READ_MODES = ["r", "rb"]
+WRITE_MODES = ["w", "wb"]
 _logger = logging.getLogger(__name__)
 
 
@@ -44,6 +46,48 @@ class SnowflakeFile(RawIOBase):
     A SnowflakeFile object can be used as a Python IOBase object.
 
     The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create a read-only SnowflakeFile object, and call :meth:`~snowflake.snowpark.file.SnowflakeFile.open_new_result` to create a write-only SnowflakeFile object.
+
+    This class is used to read and write files in UDFs and stored procedures. On Snowflake, it is used to read and write files from scoped URLs, stages, and versioned stages. It also
+    supports Python IOBase and BufferedBase methods such as :meth:`close`, :meth:`read1`, :meth:`readinto`, :meth:`readinto1`, :meth:`readline`, :meth:`readlines`, :meth:`seek`, :meth:`tell`, :meth:`readable`, :meth:`writable`, :meth:`seekable`.
+    To read from a SnowflakeFile object opened from :meth:`~snowflake.snowpark.file.SnowflakeFile.open_new_result`, you can return the object in the UDF or scoped procedure and receive a
+    scoped URL, which can then be passed as the file location to :meth:`~snowflake.snowpark.file.SnowflakeFile.open`.
+
+    Snowflake Example:
+        >>> from snowflake.snowpark.file import SnowflakeFile
+        >>> @udf
+        >>> def write_file(content: str) -> str:
+        ...     file = SnowflakeFile.open_new_result("w")
+        ...     file.write(content)
+        ...     return file
+        >>> @udf
+        >>> def read_file(url: str) -> str:
+        ...     file = SnowflakeFile.open(url, "r")
+        ...     return file.read()
+        >>> read_file(write_file("Hello World!"));
+
+    Locally, SnowflakeFile currently only supports reading files from relative paths. Write APIs are not supported in local testing.
+    Stage and versioned stage support is currently being implemented.
+
+    Local Testing Example:
+        >>> from snowflake.snowpark.file import SnowflakeFile
+        >>> from snowflake.snowpark.functions import udf
+        >>> # Write APIs are not supported in local testing so Python IO should be used instead.
+        >>> file_location = "relative/path/to/file.txt"
+        >>> with open(file_location, "w") as f:
+        ...     f.write("Hello World!")
+        >>> @udf
+        >>> def read_file(file_location: str) -> str:
+        ...     with SnowflakeFile.open("relative/path/to/file.txt", "r") as f:
+        ...     return f.read()
+        >>> print(read_file(file_location))
+
+    Note:
+        1. All of the implementation in this file is for local testing purposes.
+
+        2. There may be slight implementation differences between local testing and Snowflake execution environments. If
+        you encounter any issues, please file a bug report at <TODO: ADD EMAIL>.
+
+        3. UDF implementation is dependent on the Snowflake release.
     """
 
     def __init__(
@@ -72,12 +116,12 @@ class SnowflakeFile(RawIOBase):
 
         # Attributes required for local testing functionality
         _DEFAULT_READ_BUFFER_SIZE = 32 * 1024
-        if mode in ("r", "rb"):
+        if mode in READ_MODES:
             # Buffered Reader used to support BufferedIOBase methods such as read1 and readinto1
             self._file_stream = BufferedReader(
                 open(self._file_location, self._mode), _DEFAULT_READ_BUFFER_SIZE
             )
-        else:
+        elif mode in WRITE_MODES:
             # need to still open a file stream for testing
             self._file_stream = open(self._file_location, self._mode)
         self._pos = 0
@@ -114,7 +158,7 @@ class SnowflakeFile(RawIOBase):
             is_owner_file: (Deprecated) A boolean value, if True, the API is intended to access owner's files and all URI/URL are allowed. If False, the API is intended to access files passed into the function by the caller and only scoped URL is allowed.
             require_scoped_url: A boolean value, if True, file_location must be a scoped URL. A scoped URL ensures that the caller cannot access the UDF owners files that the caller does not have access to.
         """
-        if mode not in ("r", "rb"):
+        if mode not in READ_MODES:
             raise ValueError(
                 f"Invalid mode '{mode}' for SnowflakeFile.open. Supported modes are 'r' and 'rb'."
             )
@@ -132,7 +176,7 @@ class SnowflakeFile(RawIOBase):
         Args:
             mode: A string used to mark the type of an IO stream. Supported modes are "w" for text write and "wb" for binary write.
         """
-        if mode not in ("w", "wb"):
+        if mode not in WRITE_MODES:
             raise ValueError(
                 f"Invalid mode '{mode}' for SnowflakeFile.open_new_result. Supported modes are 'w' and 'wb'."
             )
@@ -147,14 +191,14 @@ class SnowflakeFile(RawIOBase):
         """
         Internal function to validate read mode of the file object before performing an IO operation.
         """
-        if self._mode not in ("r", "rb"):
+        if self._mode not in READ_MODES:
             raise UnsupportedOperation(f"Not readable mode={self._mode}")
 
     def _raise_if_not_write(self) -> None:
         """
         Internal function to validate write mode of the file object before performing a IO operation.
         """
-        if self._mode not in ("w", "wb"):
+        if self._mode not in WRITE_MODES:
             raise UnsupportedOperation(f"Not writable mode={self._mode}")
 
     def _raise_if_closed(self) -> None:
@@ -163,6 +207,20 @@ class SnowflakeFile(RawIOBase):
         """
         if self._file_stream.closed:
             raise ValueError("I/O operation on closed file.")
+
+    def _read_into_buffer(self, b: bytes | bytearray | array.array) -> int:
+        """
+        Internal function to read bytes into a pre-allocated, writable bytes-like object buffer.
+        This is used by readinto and readinto1 methods.
+        """
+        buffer_len = len(b)
+        if buffer_len == 0:
+            return 0
+        content = self.read1(buffer_len)
+        size = memoryview(content)
+        self._pos += size.nbytes
+        b[:buffer_len] = content
+        return size.nbytes
 
     def close(self) -> None:
         """
@@ -193,7 +251,7 @@ class SnowflakeFile(RawIOBase):
         Fail if the stream is closed. Does nothing in read mode, not implemented in write mode.
         """
         self._raise_if_closed()
-        if self._mode in ("r", "rb"):
+        if self._mode in READ_MODES:
             pass
         raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
 
@@ -270,14 +328,7 @@ class SnowflakeFile(RawIOBase):
         self._raise_if_not_read()
         if self._is_local_file:
             if self._mode == "r":
-                buffer_len = len(b)
-                if buffer_len == 0:
-                    return 0
-                content = self.read(buffer_len).encode()
-                size = memoryview(content)
-                self._pos += size.nbytes
-                b[:buffer_len] = content
-                return size.nbytes
+                return self._read_into_buffer(b)
             size = self._file_stream.raw.readinto(b)
             self._pos += size
             return size
@@ -297,14 +348,7 @@ class SnowflakeFile(RawIOBase):
         self._raise_if_not_read()
         if self._is_local_file:
             if self._mode == "r":
-                buffer_len = len(b)
-                if buffer_len == 0:
-                    return 0
-                content = self.read1(buffer_len)
-                size = memoryview(content)
-                self._pos += size.nbytes
-                b[:buffer_len] = content
-                return size.nbytes
+                return self._read_into_buffer(b)
             size = self._file_stream.readinto1(b)
             self._pos += size
             return size
@@ -381,7 +425,7 @@ class SnowflakeFile(RawIOBase):
         """
         self._raise_if_closed()
         if self._is_local_file:
-            return self._mode in ("r", "rb")
+            return self._mode in READ_MODES
         raise NotImplementedError(_NON_LOCAL_PATH_ERR_MSG)
 
     def tell(self) -> int:
