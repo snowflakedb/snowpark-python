@@ -27,6 +27,7 @@ from pandas._typing import (
     AnyArrayLike,
     ArrayLike,
     Axis,
+    FilePath,
     FillnaOptions,
     IgnoreRaise,
     IndexKeyFunc,
@@ -35,6 +36,8 @@ from pandas._typing import (
     NaPosition,
     Renamer,
     Scalar,
+    StorageOptions,
+    WriteExcelBuffer,
 )
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
@@ -395,6 +398,48 @@ def searchsorted(self, value, side="left", sorter=None):  # noqa: PR01, RT01, D2
 @register_series_not_implemented()
 def swaplevel(self, i=-2, j=-1, copy=True):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
+
+
+def to_excel(
+    self,
+    excel_writer: FilePath | WriteExcelBuffer | pd.ExcelWriter,
+    sheet_name: str = "Sheet1",
+    na_rep: str = "",
+    float_format: str | None = None,
+    columns: Sequence[Hashable] | None = None,
+    header: Sequence[Hashable] | bool = True,
+    index: bool = True,
+    index_label: IndexLabel | None = None,
+    startrow: int = 0,
+    startcol: int = 0,
+    engine: Literal["openpyxl", "xlsxwriter"] | None = None,
+    merge_cells: bool = True,
+    inf_rep: str = "inf",
+    freeze_panes: tuple[int, int] | None = None,
+    storage_options: StorageOptions | None = None,
+    engine_kwargs: dict[str, Any] | None = None,
+):  # noqa: PR01, RT01, D200
+    WarningMessage.single_warning(
+        "Series.to_excel materializes data to the local machine."
+    )
+    return self._to_pandas().to_excel(
+        excel_writer=excel_writer,
+        sheet_name=sheet_name,
+        na_rep=na_rep,
+        float_format=float_format,
+        columns=columns,
+        header=header,
+        index=index,
+        index_label=index_label,
+        startrow=startrow,
+        startcol=startcol,
+        engine=engine,
+        merge_cells=merge_cells,
+        inf_rep=inf_rep,
+        freeze_panes=freeze_panes,
+        storage_options=storage_options,
+        engine_kwargs=engine_kwargs,
+    )
 
 
 @register_series_not_implemented()

@@ -19,6 +19,12 @@
 
 - Fixed a bug when processing windowed functions that lead to incorrect indexing in results.
 
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `DataFrame.to_excel` and `Series.to_excel`.
+
 ## 1.33.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -91,6 +97,7 @@
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 - Added `iceberg_version` option to table creation functions.
 - Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
+- Added modin telemetry on API calls and hybrid engine switches.
 - Show more helpful error messages to Snowflake Notebook users when Modin or pandas version does not match our requirements.
 
 #### Bug Fixes
