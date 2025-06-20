@@ -11,6 +11,7 @@ from collections.abc import Hashable
 from enum import Enum, auto
 from typing import Any, Callable, Literal, Optional, Tuple, Union
 from datetime import datetime
+from dataclasses import dataclass
 
 import cloudpickle
 import numpy as np
@@ -128,6 +129,57 @@ try:
 except ImportError:
     SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = set()
     ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple()
+
+
+@dataclass(eq=True, frozen=True)
+class UDFPersistParams:
+    """
+    Parameters describing persistence properties of a UDF.
+
+    If udf_name is unspecified, then it will be automatically generated.
+    """
+
+    udf_name: Optional[str]
+    stage_name: str
+
+
+def process_persist_params(
+    f: Callable, kwargs_dict: dict
+) -> Optional[UDFPersistParams]:
+    """
+    Remove params from an apply function's **kwargs dictionary that are used to describe UDF persistence.
+    """
+    # TODO change name parameters to something less likely to collide with real function args
+    PERMANENT_KEY = "is_permanent"
+    STAGE_KEY = "stage_location"
+    NAME_KEY = "name"
+    if PERMANENT_KEY in kwargs_dict:
+        del kwargs_dict[PERMANENT_KEY]
+        if STAGE_KEY not in kwargs_dict:
+            raise ValueError(
+                f"`{STAGE_KEY}` must be set when calling apply/map/transform with the `is_permanent` flag."
+            )
+        # TODO autogenerate name if f doesn't have one (e.g. is a lambda)
+        return UDFPersistParams(
+            kwargs_dict.pop(NAME_KEY, f.__name__), kwargs_dict.pop(STAGE_KEY)
+        )
+    return None
+
+
+# Reuse UDFs that have already been constructed in each session.
+@dataclass(eq=True, frozen=True)
+class UDFCacheParams:
+    func_id: int  # The result of calling id() on the function passed to apply
+    return_type: DataType  # The inferred return type of the column
+    input_type: DataType
+    strict: bool
+    persist_params: Optional[UDFPersistParams]
+    # No packages param in the key; we assume packages will be the same for the UDF every time
+
+
+session_udf_cache: dict[
+    Session, dict[UDFCacheParams, UserDefinedFunction]
+] = defaultdict(dict)
 
 
 class GroupbyApplySortMethod(Enum):
@@ -1161,42 +1213,54 @@ def create_udf_for_series_apply(
         # Below the function func is wrapped again, extract here the underlying Python function.
         func = func.func
 
-    if isinstance(return_type, VariantType):
+    strict = na_action == "ignore"
+    params = UDFCacheParams(
+        id(func),
+        return_type,
+        input_type,
+        strict,
+        process_persist_params(func, kwargs),
+    )
+    if params not in session_udf_cache[session]:
+        if isinstance(return_type, VariantType):
 
-        def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
-            result = []
-            # When the return type is Variant, the return value must be json-serializable
-            # Calling tolist() convert np.int*, np.bool*, etc. (which is not
-            # json-serializable) to python native values
-            for e in x.apply(func, args=args, **kwargs).tolist():
-                result.append(
-                    handle_missing_value_in_variant(convert_numpy_int_result_to_int(e))
-                )
-            return result
+            def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
+                result = []
+                # When the return type is Variant, the return value must be json-serializable
+                # Calling tolist() convert np.int*, np.bool*, etc. (which is not
+                # json-serializable) to python native values
+                for e in x.apply(func, args=args, **kwargs).tolist():
+                    result.append(
+                        handle_missing_value_in_variant(
+                            convert_numpy_int_result_to_int(e)
+                        )
+                    )
+                return result
 
-    else:
+        else:
 
-        def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
-            # TODO SNOW-1874779: Add verification here to ensure inferred type matches
-            #  actual type.
-            return x.apply(func, args=args, **kwargs)
+            def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
+                # TODO SNOW-1874779: Add verification here to ensure inferred type matches
+                #  actual type.
+                return x.apply(func, args=args, **kwargs)
 
-    try:
-        func_udf = sp_func.udf(
-            apply_func,
-            return_type=PandasSeriesType(return_type),
-            input_types=[PandasSeriesType(input_type)],
-            strict=bool(na_action == "ignore"),
-            session=session,
-            packages=packages,
-            statement_params=get_default_snowpark_pandas_statement_params(),
-        )
-        return func_udf
-    except NotImplementedError:
-        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
-        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
-        # catch this exception and return a more user-friendly error message.
-        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
+        try:
+            func_udf = sp_func.udf(
+                apply_func,
+                return_type=PandasSeriesType(return_type),
+                input_types=[PandasSeriesType(input_type)],
+                strict=strict,
+                session=session,
+                packages=packages,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+            session_udf_cache[session][params] = func_udf
+        except NotImplementedError:
+            # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+            # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+            # catch this exception and return a more user-friendly error message.
+            raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
+    return session_udf_cache[session][params]
 
 
 def handle_missing_value_in_variant(value: Any) -> Any:
