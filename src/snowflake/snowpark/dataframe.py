@@ -136,6 +136,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
     LiteralType,
     snow_type_to_dtype_str,
+    type_string_to_type_object,
 )
 from snowflake.snowpark._internal.udf_utils import add_package_to_existing_packages
 from snowflake.snowpark._internal.utils import (
@@ -6679,3 +6680,80 @@ def map(
     return dataframe.join_table_function(
         map_udtf(*df_columns).over(partition_by=partition_by)
     ).select(*output_columns)
+
+
+def map_in_pandas(
+    dataframe: DataFrame,
+    func: Callable,
+    schema: Union[StructType, str],
+):
+    """Returns a new DataFrame with the result of applying `func` to each batch of data in
+    the dataframe. Func is expected to be a python function that takes an iterator of pandas
+    DataFrames as both input and provides them as output. Number of input and output DataFrame
+    batches can be different.
+
+    This function registers a temporary `UDTF
+    <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_
+
+    Args:
+        dataframe: The DataFrame instance.
+        func: A function to be applied to the batches of rows.
+        output_types: A list of DataType or type string that represents the expected output columns
+            of the ``func`` parameter.
+
+    Example 1::
+    >>> from snowflake.snowpark.dataframe import map_in_pandas
+    >>> df = session.create_dataframe([(1, 21), (2, 30)], schema=["ID", "AGE"])
+    >>> def filter_func(iterator):
+    ...     for pdf in iterator:
+    ...         yield pdf[pdf.ID == 1]
+    ...
+    >>> map_in_pandas(df, filter_func, df.schema).show()
+    ----------------
+    |"ID"  |"AGE"  |
+    ----------------
+    |1     |21     |
+    ----------------
+    <BLANKLINE>
+
+    Example 2::
+    >>> def mean_age(iterator):
+    ...     for pdf in iterator:
+    ...         yield pdf.groupby("ID").mean().reset_index()
+    ...
+    >>> map_in_pandas(df, mean_age, "ID: bigint, AGE: double").show()
+    ----------------
+    |"ID"  |"AGE"  |
+    ----------------
+    |2     |30.0   |
+    |1     |21.0   |
+    ----------------
+    <BLANKLINE>
+
+    Example 3::
+    >>> def double_age(iterator):
+    ...     for pdf in iterator:
+    ...         pdf["DOUBLE_AGE"] = pdf["AGE"] * 2
+    ...         yield pdf
+    ...
+    >>> map_in_pandas(df, double_age, "ID: bigint, AGE: bigint, DOUBLE_AGE: bigint").show()
+    -------------------------------
+    |"ID"  |"AGE"  |"DOUBLE_AGE"  |
+    -------------------------------
+    |2     |30     |60            |
+    |1     |21     |42            |
+    -------------------------------
+    <BLANKLINE>
+    """
+    if isinstance(schema, str):
+        schema = type_string_to_type_object(schema)
+
+    def wrapped_func(input):
+        import pandas
+
+        return pandas.concat(func([input]))
+
+    return dataframe.group_by(dataframe.columns).applyInPandas(wrapped_func, schema)
+
+
+mapInPandas = map_in_pandas

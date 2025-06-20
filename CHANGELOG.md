@@ -7,6 +7,7 @@
 #### New Features
 
 - Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
+- Added a new function `snowflake.snowpark.dataframe.map_in_pandas` that allows users map a function across a dataframe. The mapping function takes an iterator of pandas dataframes as input and provides one as output.
 
 #### Improvements
 

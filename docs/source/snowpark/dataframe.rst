@@ -120,6 +120,7 @@ DataFrame
     DataFrameAnalyticsFunctions.compute_lead
     DataFrameAnalyticsFunctions.time_series_agg
     dataframe.map
+    dataframe.map_in_pandas
 
 
 
