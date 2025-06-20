@@ -85,7 +85,7 @@ class SnowflakeFile(RawIOBase):
         1. All of the implementation in this file is for local testing purposes.
 
         2. There may be slight implementation differences between local testing and Snowflake execution environments. If
-        you encounter any issues, please file a bug report at <TODO: ADD EMAIL>.
+        you encounter any issues, please file a bug report at https://github.com/snowflakedb/snowpark-python.
 
         3. UDF implementation is dependent on the Snowflake release.
     """
