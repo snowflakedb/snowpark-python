@@ -163,7 +163,6 @@ def test_timedelta_value_scalar(test_fillna_df):
     )
 
 
-
 @sql_count_checker(query_count=1)
 def test_value_scalar_none_index(test_fillna_df_none_index):
     # note: none in index should not be filled
@@ -709,7 +708,9 @@ def test_df_fillna_timestamp_no_numeric():
 # to fillna. Pandas will replace these with the value, and update the dtype for the
 # column.
 @sql_count_checker(query_count=1)
-@pytest.mark.xfail(reason="Pandas will replace the np.nan in a timestamp column with 0, and upcast the dtype")
+@pytest.mark.xfail(
+    reason="Pandas will replace the np.nan in a timestamp column with 0, and upcast the dtype"
+)
 def test_df_fillna_timestamp_no_numeric_with_nans():
     native_df = native_pd.DataFrame(
         [
