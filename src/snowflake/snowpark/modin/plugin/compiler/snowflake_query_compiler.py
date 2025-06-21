@@ -11635,7 +11635,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             # prepare label_to_value_map
             if is_scalar(value):
-                label_to_value_map = {label: value for label in self.columns}
+                if isinstance(value, (int, float, complex)):
+                    label_to_value_map = {}
+                    for i, r in enumerate(self.dtypes):
+                        if is_numeric_dtype(r):
+                            label_to_value_map[self.columns[i]] = value
+                else:
+                    label_to_value_map = {label: value for label in self.columns}
             elif isinstance(value, dict):
                 label_to_value_map = fillna_label_to_value_map(value, self.columns)
             else:

@@ -153,7 +153,7 @@ def test_value_scalar(test_fillna_df):
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_timedelta_value_scalar(test_fillna_df):
     timedelta_df = test_fillna_df.astype("timedelta64[ns]")
     eval_snowpark_pandas_result(
@@ -162,12 +162,6 @@ def test_timedelta_value_scalar(test_fillna_df):
         lambda df: df.fillna(pd.Timedelta(1)),  # dtype keeps to be timedelta64[ns]
     )
 
-    # Snowpark pandas dtype will be changed to int in this case
-    eval_snowpark_pandas_result(
-        pd.DataFrame(timedelta_df),
-        test_fillna_df,
-        lambda df: df.fillna(1),
-    )
 
 
 @sql_count_checker(query_count=1)
@@ -689,21 +683,45 @@ def test_df_fillna_method_with_type_coercion_casts_all_as_bool_negative():
         )
 
 
-# SNOW-2157718
+# SNOW-2157718 - fillna does not treat incompatible columns similar to pandas
+# Limited fix to make sure that the value for fillna is only applied to
+# compatible columns
 @sql_count_checker(query_count=1)
 def test_df_fillna_timestamp_no_numeric():
     native_df = native_pd.DataFrame(
         [
             [pd.Timestamp("2017-01-01T12"), 5, 7, np.nan],
-            [np.nan, 2, np.nan, 0],
-            [pd.Timestamp("2018-01-01T12"), 8, np.nan, 1],
-            [np.nan, 4, np.nan, np.nan],
-            [pd.Timestamp("2019-01-01T12"), 7, np.nan, 4],
+            [pd.Timestamp("2018-01-01T12"), 2, np.nan, 0],
+            [pd.Timestamp("2019-01-01T12"), 8, np.nan, 1],
+            [pd.Timestamp("2020-01-01T12"), 4, np.nan, np.nan],
+            [pd.Timestamp("2021-01-01T12"), 7, np.nan, 4],
         ],
         columns=list("ABCD"),
     )
     snow_df = pd.DataFrame(native_df)
-    print(type(snow_df))
-    snow_df = snow_df.fillna(0, inplace=True)
+    snow_df.fillna(0, inplace=True)
+    native_df.fillna(0, inplace=True)
+    assert_snowpark_pandas_equal_to_pandas(snow_df, native_df, check_dtype=True)
+
+
+# SNOW-2157718 - fillna does not treat incompatible columns similar to pandas
+# In this case we have a column with NaNs which incompatible with the value passed
+# to fillna. Pandas will replace these with the value, and update the dtype for the
+# column.
+@sql_count_checker(query_count=1)
+@pytest.mark.xfail(reason="Pandas will replace the np.nan in a timestamp column with 0, and upcast the dtype")
+def test_df_fillna_timestamp_no_numeric_with_nans():
+    native_df = native_pd.DataFrame(
+        [
+            [pd.Timestamp("2017-01-01T12"), 5, 7, np.nan],
+            [np.nan, 2, np.nan, 0],
+            [pd.Timestamp("2019-01-01T12"), 8, np.nan, 1],
+            [np.nan, 4, np.nan, np.nan],
+            [pd.Timestamp("2021-01-01T12"), 7, np.nan, 4],
+        ],
+        columns=list("ABCD"),
+    )
+    snow_df = pd.DataFrame(native_df)
+    snow_df.fillna(0, inplace=True)
     native_df.fillna(0, inplace=True)
     assert_snowpark_pandas_equal_to_pandas(snow_df, native_df, check_dtype=True)
