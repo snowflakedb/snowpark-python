@@ -11,7 +11,10 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.integ.modin.utils import eval_snowpark_pandas_result
+from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equal_to_pandas,
+    eval_snowpark_pandas_result,
+)
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
@@ -684,3 +687,23 @@ def test_df_fillna_method_with_type_coercion_casts_all_as_bool_negative():
             native_df,
             check_which_values_filled,
         )
+
+
+# SNOW-2157718
+@sql_count_checker(query_count=1)
+def test_df_fillna_timestamp_no_numeric():
+    native_df = native_pd.DataFrame(
+        [
+            [pd.Timestamp("2017-01-01T12"), 5, 7, np.nan],
+            [np.nan, 2, np.nan, 0],
+            [pd.Timestamp("2018-01-01T12"), 8, np.nan, 1],
+            [np.nan, 4, np.nan, np.nan],
+            [pd.Timestamp("2019-01-01T12"), 7, np.nan, 4],
+        ],
+        columns=list("ABCD"),
+    )
+    snow_df = pd.DataFrame(native_df)
+    print(type(snow_df))
+    snow_df = snow_df.fillna(0, inplace=True)
+    native_df.fillna(0, inplace=True)
+    assert_snowpark_pandas_equal_to_pandas(snow_df, native_df, check_dtype=True)
