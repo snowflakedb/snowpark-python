@@ -53,7 +53,7 @@ class SnowflakeFile(RawIOBase):
     scoped URL, which can then be passed as the file location to :meth:`~snowflake.snowpark.file.SnowflakeFile.open`.
 
     Snowflake Example:
-        >>> from snowflake.snowpark.file import SnowflakeFile
+        >>> from snowflake.snowpark.files import SnowflakeFile
         >>> @udf
         >>> def write_file(content: str) -> str:
         ...     file = SnowflakeFile.open_new_result("w")
@@ -69,7 +69,7 @@ class SnowflakeFile(RawIOBase):
     Stage and versioned stage support is currently being implemented.
 
     Local Testing Example:
-        >>> from snowflake.snowpark.file import SnowflakeFile
+        >>> from snowflake.snowpark.files import SnowflakeFile
         >>> from snowflake.snowpark.functions import udf
         >>> # Write APIs are not supported in local testing so Python IO should be used instead.
         >>> file_location = "relative/path/to/file.txt"
