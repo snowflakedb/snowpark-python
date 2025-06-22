@@ -1758,13 +1758,13 @@ class Session:
             package_req = Requirement(package)
             # get the standard package name if there is no underscore
             # underscores are discouraged in package names, but are still used in Anaconda channel
-            # pkg_resources.Requirement.parse will convert all underscores to dashes
+            # packaging.requirements.Requirement will convert all underscores to dashes
             # the regexp is to deal with case that "_" is in the package requirement as well as version restrictions
             # we only extract the valid package name from the string by following:
             # https://packaging.python.org/en/latest/specifications/name-normalization/
             # A valid name consists only of ASCII letters and numbers, period, underscore and hyphen.
             # It must start and end with a letter or number.
-            # however, we don't validate the pkg name as this is done by pkg_resources.Requirement.parse
+            # however, we don't validate the pkg name as this is done by packaging.requirements.Requirement
             # find the index of the first char which is not an valid package name character
             package_name = package_req.name.lower()
             if not use_local_version and "_" in package:
@@ -2089,7 +2089,7 @@ class Session:
                 been added explicitly so far using add_packages() or other such methods.
 
         Returns:
-            List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
+            List[packaging.requirements.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
             to the package dictionary.
 
         Raises:
@@ -2258,7 +2258,7 @@ class Session:
             environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
             a sorted tuple of unsupported package requirements (package versioning included).
         Returns:
-            Optional[List[pkg_resources.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
+            Optional[List[packaging.requirements.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
         """
         # Ensure that metadata file exists
         metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
