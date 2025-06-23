@@ -52,8 +52,9 @@ class SnowflakeFile(RawIOBase):
     To read from a SnowflakeFile object opened from :meth:`~snowflake.snowpark.file.SnowflakeFile.open_new_result`, you can return the object in the UDF or scoped procedure and receive a
     scoped URL, which can then be passed as the file location to :meth:`~snowflake.snowpark.file.SnowflakeFile.open`.
 
-    Snowflake Example:
+    Snowflake Example::
         >>> from snowflake.snowpark.files import SnowflakeFile
+        >>> from snowflake.snowpark.functions import udf
         >>> @udf
         >>> def write_file(content: str) -> str:
         ...     file = SnowflakeFile.open_new_result("w")
@@ -68,7 +69,7 @@ class SnowflakeFile(RawIOBase):
     Locally, SnowflakeFile currently only supports reading files from relative paths. Write APIs are not supported in local testing.
     Stage and versioned stage support is currently being implemented.
 
-    Local Testing Example:
+    Local Testing Example::
         >>> from snowflake.snowpark.files import SnowflakeFile
         >>> from snowflake.snowpark.functions import udf
         >>> # Write APIs are not supported in local testing so Python IO should be used instead.
