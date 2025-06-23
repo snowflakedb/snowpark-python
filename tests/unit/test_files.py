@@ -30,15 +30,14 @@ def _write_test_msg(
 
     Used to create a test message for reading in SnowflakeFile tests.
     """
-    file_name = generate_random_alphanumeric()
-    file_location = os.path.join(file_location, f"{file_name}.txt")
+    file_location = os.path.join(file_location, "test.txt")
     if test_msg is None:
         test_msg = generate_random_alphanumeric()
     if write_mode == "wb":
         test_msg = test_msg.encode()
     with open(file_location, write_mode) as f:
         f.write(test_msg)
-    return test_msg, file_location, file_name
+    return test_msg, file_location
 
 
 def _write_test_msg_to_stage(
@@ -48,11 +47,9 @@ def _write_test_msg_to_stage(
     session: Session,
     test_msg: str = None,
 ) -> tuple[bytes, str]:
-    test_msg, file_location, file_name = _write_test_msg(
-        write_mode, file_location, test_msg
-    )
+    test_msg, file_location = _write_test_msg(write_mode, file_location, test_msg)
     Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
-    return test_msg, f"@{tmp_stage}/{file_name}.txt"
+    return test_msg, f"@{tmp_stage}/test.txt"
 
 
 def _generate_and_write_lines(
