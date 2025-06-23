@@ -1999,7 +1999,7 @@ def get_line_numbers(
 def get_plan_from_line_numbers(
     plan_node: Union["SnowflakePlan", "Selectable"],
     line_number: int,
-) -> Union["SnowflakePlan", "Selectable"]:
+) -> "SnowflakePlan":
     """
     Given a parent plan node and a line number, return the plan node that contains the line number.
     Each parent node has a list of disjoint query line intervals, which are sorted by start line number,
@@ -2032,7 +2032,7 @@ def get_plan_from_line_numbers(
     while stack:
         node, line_number = stack.pop()
         if isinstance(node, Selectable):
-            node = node.get_snowflake_plan(skip_schema_query=True)
+            node = node.get_snowflake_plan(skip_schema_query=False)
         query_line_intervals = node.queries[-1].query_line_intervals
         idx = find_interval_containing_line(query_line_intervals, line_number)
         if idx >= 0:
