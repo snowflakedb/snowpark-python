@@ -31,7 +31,7 @@ else:
 
 _NON_LOCAL_PATH_ERR_MSG = "SnowflakeFile currently supports only relative paths and read apis in local testing."
 _WRITE_MODE_ERR_MSG = (
-    "SnowflakeFile currently doesn't support write APIs in local testing."
+    "SnowflakeFile currently doesn't support write APIs in local testing mode."
 )
 _DEFER_IMPLEMENTATION_ERR_MSG = "Not yet supported in UDF and Stored Procedures."
 READ_MODES = ["r", "rb"]
@@ -47,12 +47,22 @@ class SnowflakeFile(RawIOBase):
 
     The constructor of this class is not supposed to be called directly. Call :meth:`~snowflake.snowpark.file.SnowflakeFile.open` to create a read-only SnowflakeFile object, and call :meth:`~snowflake.snowpark.file.SnowflakeFile.open_new_result` to create a write-only SnowflakeFile object.
 
-    This class is used to read and write files in UDFs and stored procedures. On Snowflake, it is used to read and write files from scoped URLs, stages, and versioned stages. It also
-    supports Python IOBase and BufferedBase methods such as :meth:`close`, :meth:`read1`, :meth:`readinto`, :meth:`readinto1`, :meth:`readline`, :meth:`readlines`, :meth:`seek`, :meth:`tell`, :meth:`readable`, :meth:`writable`, :meth:`seekable`.
-    To read from a SnowflakeFile object opened from :meth:`~snowflake.snowpark.file.SnowflakeFile.open_new_result`, you can return the object in the UDF or scoped procedure and receive a
-    scoped URL, which can then be passed as the file location to :meth:`~snowflake.snowpark.file.SnowflakeFile.open`.
+    This class is used to read and write files in UDFs and stored procedures. On Snowflake, it is used to read and write stage files. It also
+    supports Python IOBase and BufferedBase methods such as :meth:`read`, :meth:`write`, :meth:`close`.
 
-    Snowflake Example::
+    To read from a staged file, use the following API:
+
+    Example::
+        >>> from snowflake.snowpark.files import SnowflakeFile
+        >>> from snowflake.snowpark.functions import udf
+        >>> @udf
+        >>> def read_file(url: str) -> str:
+        ...     file = SnowflakeFile.open(url, "r")
+        ...     return file.read()
+
+    To write to a staged file, use the following API:
+
+    Example::
         >>> from snowflake.snowpark.files import SnowflakeFile
         >>> from snowflake.snowpark.functions import udf
         >>> @udf
@@ -60,35 +70,36 @@ class SnowflakeFile(RawIOBase):
         ...     file = SnowflakeFile.open_new_result("w")
         ...     file.write(content)
         ...     return file
+
+    A typical workflow would be as follows:
+
+    Example::
+        >>> from snowflake.snowpark.files import SnowflakeFile
+        >>> from snowflake.snowpark.functions import udf
         >>> @udf
         >>> def read_file(url: str) -> str:
         ...     file = SnowflakeFile.open(url, "r")
         ...     return file.read()
-        >>> read_file(write_file("Hello World!"));
-
-    Locally, SnowflakeFile currently only supports reading files from relative paths. Write APIs are not supported in local testing.
-    Stage and versioned stage support is currently being implemented.
-
-    Local Testing Example::
-        >>> from snowflake.snowpark.files import SnowflakeFile
-        >>> from snowflake.snowpark.functions import udf
-        >>> # Write APIs are not supported in local testing so Python IO should be used instead.
-        >>> file_location = "relative/path/to/file.txt"
-        >>> with open(file_location, "w") as f:
-        ...     f.write("Hello World!")
         >>> @udf
-        >>> def read_file(file_location: str) -> str:
-        ...     with SnowflakeFile.open("relative/path/to/file.txt", "r") as f:
-        ...     return f.read()
-        >>> print(read_file(file_location))
+        >>> def write_file(content: str) -> str:
+        ...     file = SnowflakeFile.open_new_result("w")
+        ...     file.write(content)
+        ...     return file
+        >>> scoped_url = write_file("Hello World!")
+        >>> read_file(scoped_url)
+
+    These example are using the client, but this same pattern can be used inside SQL-defined UDFs.
+
+    We provide a local implementation of SnowflakeFile to aid in local testing. This currently only supports using read APIs on relative paths.
+    Local testing to Snowflake stages is not yet supported.
 
     Note:
         1. All of the implementation in this file is for local testing purposes.
 
-        2. There may be slight implementation differences between local testing and Snowflake execution environments. If
-        you encounter any issues, please file a bug report at https://github.com/snowflakedb/snowpark-python/issues.
+        2. There may be slight implementation differences between local testing and Snowflake execution environments, which we call out below when we can.
+        If any issues or these differences block your testing workflow, please file a bug report at https://github.com/snowflakedb/snowpark-python/issues.
 
-        3. UDF implementation is dependent on the Snowflake release.
+        3. UDF implementation is dependent on the Snowflake release. Therefore, this documentation may not always be up to date.
     """
 
     def __init__(
@@ -115,7 +126,6 @@ class SnowflakeFile(RawIOBase):
         self.encoding = None
         self.errors = None
 
-        # Attributes required for local testing functionality
         _DEFAULT_READ_BUFFER_SIZE = 32 * 1024
         if mode in READ_MODES:
             # Buffered Reader used to support BufferedIOBase methods such as read1 and readinto1
@@ -123,7 +133,7 @@ class SnowflakeFile(RawIOBase):
                 open(self._file_location, self._mode), _DEFAULT_READ_BUFFER_SIZE
             )
         elif mode in WRITE_MODES:
-            # need to still open a file stream for testing
+            # need to still open a file stream
             self._file_stream = open(self._file_location, self._mode)
         self._pos = 0
         self._is_local_file = (
@@ -227,7 +237,7 @@ class SnowflakeFile(RawIOBase):
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.close
 
-        Closes the underlying IO Stream of the SnowflakeFile
+        Closes the underlying IO Stream of the SnowflakeFile.
         """
         self._file_stream.close()
 
@@ -249,12 +259,10 @@ class SnowflakeFile(RawIOBase):
 
     def flush(self) -> None:
         """
-        Fail if the stream is closed. Does nothing in read mode, not implemented in write mode.
+        Fail if the stream is closed. Does nothing
         """
         self._raise_if_closed()
-        if self._mode in READ_MODES:
-            pass
-        raise NotImplementedError(_DEFER_IMPLEMENTATION_ERR_MSG)
+        pass
 
     def isatty(self) -> bool:
         """
@@ -268,11 +276,10 @@ class SnowflakeFile(RawIOBase):
         From https://docs.python.org/3/library/io.html#io.RawIOBase.read
 
         Read up to size bytes from the object and return them. As a convenience, if size is unspecified or -1,
-        all bytes until EOF are returned. Otherwise, only one system call is ever made.
-        Fewer than size bytes may be returned if the operating system call returns fewer than size bytes.
+        all bytes until EOF are returned.
+        Fewer than size bytes may be returned.
 
-        If 0 bytes are returned, and size was not 0, this indicates end of file. If the object is in non-blocking mode
-        and no bytes are available, None is returned.
+        If 0 bytes are returned, and size was not 0, this indicates end of file.
         """
         self._raise_if_closed()
         self._raise_if_not_read()
@@ -323,7 +330,7 @@ class SnowflakeFile(RawIOBase):
         From https://docs.python.org/3/library/io.html#io.RawIOBase.readinto
 
         Read bytes into a pre-allocated, writable bytes-like object b, and return the number of bytes read. For example, b might
-        be a bytearray. If the object is in non-blocking mode and no bytes are available, None is returned.
+        be a bytearray.
         """
         self._raise_if_closed()
         self._raise_if_not_read()
@@ -339,11 +346,7 @@ class SnowflakeFile(RawIOBase):
         """
         From https://docs.python.org/3/library/io.html#io.BufferedIOBase.readinto1
 
-        Read bytes into a pre-allocated, writable bytes-like object b, using at most one call to the underlying raw stream’s
-        read() (or readinto()) method. Return the number of bytes read.
-
-        A BlockingIOError is raised if the underlying raw stream is in non blocking-mode, and has no data available at the
-        moment.
+        Read bytes into a pre-allocated, writable bytes-like object b. Return the number of bytes read.
         """
         self._raise_if_closed()
         self._raise_if_not_read()
@@ -360,9 +363,6 @@ class SnowflakeFile(RawIOBase):
         From https://docs.python.org/3/library/io.html#io.IOBase.readline
 
         Read and return one line from the stream. If size is specified, at most size bytes will be read.
-
-        The line terminator is always b\'\\n\' for binary files; for text files, the newline argument to open() can be used to
-        select the line terminator(s) recognized.
         """
         self._raise_if_closed()
         self._raise_if_not_read()
@@ -400,7 +400,7 @@ class SnowflakeFile(RawIOBase):
         to the current stream position. SEEK_END/2 indicates a position relative to the end of the file.
         Only supported in read mode.
 
-        Returns the new stream position.
+        Returns the new stream position. Not supported in write mode.
         """
         self._raise_if_closed()
         self._raise_if_not_read()
@@ -433,7 +433,7 @@ class SnowflakeFile(RawIOBase):
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.tell
 
-        Gets the current stream position.
+        Gets the current stream position. Not supported in write mode.
         """
         self._raise_if_closed()
         self._raise_if_not_read()
@@ -463,7 +463,9 @@ class SnowflakeFile(RawIOBase):
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.writable
 
-        Returns whether or not the stream is writable.
+        Returns whether or not the stream is writable. In Snowflake, this method still works
+        even if the underlying file stream is closed. In local testing, we check that the file stream
+        is closed before returning whether or not the stream is writable.
         """
         self._raise_if_closed()
         return self._file_stream.writable()
