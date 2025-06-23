@@ -14,6 +14,7 @@ from typing import Union
 
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
+from snowflake.snowpark import Session
 from tests.utils import Utils
 import logging
 
@@ -42,7 +43,7 @@ def _write_test_msg_to_stage(
     write_mode: str,
     file_location: str,
     tmp_stage: str,
-    session,
+    session: Session,
     test_msg: str = None,
 ) -> tuple[bytes, str]:
     test_msg, file_location = _write_test_msg(write_mode, file_location, test_msg)
@@ -185,6 +186,18 @@ def test_read_snowflakefile(
             return f.read()
 
     assert read_file(temp_file, read_mode) == test_msg
+
+
+def test_read_snowurl_snowflakefile(tmp_path, session):
+    test_msg, temp_file = _write_test_msg("w", tmp_path)
+    snowurl = "snow://"
+    session.file.put(temp_file, snowurl, auto_compress=False)
+
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.read()
+
+    assert read_file(f"{snowurl}{temp_file}", "r") == test_msg
 
 
 @pytest.mark.parametrize(

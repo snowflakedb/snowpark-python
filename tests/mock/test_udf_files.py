@@ -121,6 +121,24 @@ def test_read_sproc_snowflakefile(
     Utils.check_answer(result, [Row(test_msg)])
 
 
+def test_read_snowurl_snowflakefile(tmp_path, session):
+    test_msg, temp_file = _write_test_msg("w", tmp_path)
+    snowurl = "snow://"
+    session.file.put(temp_file, snowurl, auto_compress=False)
+
+    @udf
+    def read_file(file_location: str, mode: str) -> str:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.read()
+
+    df = session.create_dataframe(
+        [["r", f"{snowurl}{temp_file}"]],
+        schema=["read_mode", "temp_file"],
+    )
+    result = df.select(read_file(col("temp_file"), col("read_mode"))).collect()
+    Utils.check_answer(result, [Row(test_msg)])
+
+
 @pytest.mark.parametrize(
     ["read_mode", "write_mode", "use_stage"],
     [("r", "w", True), ("r", "w", False), ("rb", "wb", True), ("rb", "wb", False)],
