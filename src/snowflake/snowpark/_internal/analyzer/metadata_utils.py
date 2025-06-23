@@ -121,6 +121,68 @@ def _extract_inferable_attribute_names(
     return old_attributes, new_attributes
 
 
+def _extract_selectable_attributes(
+    current_plan: LogicalPlan,
+) -> Optional[List[Attribute]]:
+    from snowflake.snowpark._internal.analyzer.select_statement import (
+        SelectSQL,
+        SelectSnowflakePlan,
+        SelectStatement,
+        SelectTableFunction,
+        SelectableEntity,
+    )
+
+    """Extracts known attributes from a LogicalPlan. Uses the plans attributes if available, otherwise
+    attempts to extract all known attributes from child plans."""
+    attributes: Optional[List[Attribute]] = None
+    if isinstance(current_plan, SelectStatement):
+        # When attributes is cached on source_plan, just use it
+        if current_plan.attributes is not None:
+            attributes = current_plan.attributes
+        else:
+            # Get the attributes from the child plan
+            from_attributes = _extract_selectable_attributes(current_plan.from_)
+            (
+                expected_attributes,
+                new_attributes,
+                # Extract expected attributes and knowable new attributes
+                # from current plan
+            ) = _extract_inferable_attribute_names(current_plan.projection)
+            # Check that the expected attributes match the attributes from the child plan
+            if (
+                from_attributes is not None
+                and expected_attributes is not None
+                and new_attributes is not None
+            ):
+                missing_attrs = {attr.name for attr in expected_attributes} - {
+                    attr.name for attr in from_attributes
+                }
+                if not missing_attrs and all(
+                    isinstance(attr, (Attribute, Alias))
+                    # If the attribute datatype is specifically DataType then it is not fully resolved
+                    and type(attr.datatype) is not DataType
+                    for attr in current_plan.projection or []
+                ):
+                    attributes = current_plan.projection  # type: ignore
+    elif (
+        isinstance(
+            current_plan,
+            (SelectSnowflakePlan, SelectTableFunction, SelectSQL),
+        )
+        and current_plan._snowflake_plan is not None
+    ):
+        # These types have a source snowflake plan.
+        # Use its metadata if available.
+        attributes = current_plan._snowflake_plan._metadata.attributes
+    elif isinstance(current_plan, SelectableEntity):
+        # Similar to the previous case, but could have attributes defined already
+        if current_plan.attributes is not None:
+            attributes = current_plan.attributes
+        elif current_plan._snowflake_plan is not None:
+            attributes = current_plan._snowflake_plan._metadata.attributes
+    return attributes
+
+
 def infer_metadata(
     source_plan: Optional[LogicalPlan],
     analyzer: "Analyzer",
@@ -138,10 +200,7 @@ def infer_metadata(
         LeftSemi,
     )
     from snowflake.snowpark._internal.analyzer.select_statement import (
-        SelectSQL,
-        SelectSnowflakePlan,
         SelectStatement,
-        SelectTableFunction,
         SelectableEntity,
     )
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -153,8 +212,6 @@ def infer_metadata(
         Sort,
         Distinct,
     )
-
-    from snowflake.snowpark.types import DataType
 
     attributes = None
     quoted_identifiers = None
@@ -208,61 +265,7 @@ def infer_metadata(
             if source_plan.attributes is not None:
                 attributes = source_plan.attributes
         elif isinstance(source_plan, SelectStatement):
-
-            def extract_attributes(
-                current_plan: LogicalPlan,
-            ) -> Optional[List[Attribute]]:
-                """Extracts known attributes from a LogicalPlan. Uses the plans attributes if available, otherwise
-                attempts to extract all known attributes from child plans."""
-                attributes: Optional[List[Attribute]] = None
-                if isinstance(current_plan, SelectStatement):
-                    # When attributes is cached on source_plan, just use it
-                    if current_plan.attributes is not None:
-                        attributes = current_plan.attributes
-                    else:
-                        # Get the attributes from the child plan
-                        from_attributes = extract_attributes(current_plan.from_)
-                        (
-                            expected_attributes,
-                            new_attributes,
-                            # Extract expected attributes and knowable new attributes
-                            # from current plan
-                        ) = _extract_inferable_attribute_names(current_plan.projection)
-                        # Check that the expected attributes match the attributes from the child plan
-                        if (
-                            from_attributes is not None
-                            and expected_attributes is not None
-                            and new_attributes is not None
-                        ):
-                            missing_attrs = {
-                                attr.name for attr in expected_attributes
-                            } - {attr.name for attr in from_attributes}
-                            if not missing_attrs and all(
-                                isinstance(attr, (Attribute, Alias))
-                                # If the attribute datatype is specifically DataType then it is not fully resolved
-                                and type(attr.datatype) is not DataType
-                                for attr in current_plan.projection or []
-                            ):
-                                attributes = current_plan.projection  # type: ignore
-                elif (
-                    isinstance(
-                        current_plan,
-                        (SelectSnowflakePlan, SelectTableFunction, SelectSQL),
-                    )
-                    and current_plan._snowflake_plan is not None
-                ):
-                    # These types have a source snowflake plan.
-                    # Use its metadata if available.
-                    attributes = current_plan._snowflake_plan._metadata.attributes
-                elif isinstance(current_plan, SelectableEntity):
-                    # Similar to the previous case, but could have attributes defined already
-                    if current_plan.attributes is not None:
-                        attributes = current_plan.attributes
-                    elif current_plan._snowflake_plan is not None:
-                        attributes = current_plan._snowflake_plan._metadata.attributes
-                return attributes
-
-            attributes = extract_attributes(source_plan)
+            attributes = _extract_selectable_attributes(source_plan)
             # When _column_states.projection is available, we can just use it,
             # which is either (only one happen):
             # 1) cached on self._snowflake_plan._quoted_identifiers
