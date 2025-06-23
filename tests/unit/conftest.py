@@ -92,7 +92,7 @@ def mock_session(mock_analyzer) -> Session:
     return fake_session
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def session():
     with Session.builder.config("local_testing", True).create() as s:
         yield s
