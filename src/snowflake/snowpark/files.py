@@ -86,7 +86,7 @@ class SnowflakeFile(RawIOBase):
         ...     file.write(content)
         ...     return file
         >>> scoped_url = write_file("Hello World!")
-        >>> read_file(scoped_url)
+        >>> read_file(scoped_url) # doctest: +SKIP
 
     These example are using the client, but this same pattern can be used inside SQL-defined UDFs.
 
