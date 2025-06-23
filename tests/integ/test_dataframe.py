@@ -17,6 +17,7 @@ from textwrap import dedent
 from typing import Tuple
 from unittest import mock
 
+import snowflake.snowpark.context as context
 from snowflake.snowpark.dataframe import map
 from snowflake.snowpark.session import Session
 from tests.conftest import local_testing_mode
@@ -49,6 +50,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
+    array_construct,
     col,
     column,
     concat,
@@ -803,6 +805,24 @@ def test_explode(session):
     Utils.check_answer(
         df.select(df.strs, explode(df.maps).as_("primo", "secundo")), expected_result
     )
+
+    # with input as array construct
+    Utils.check_answer(
+        session.range(1).select(explode(array_construct(lit(1), lit(2), lit(3)))),
+        [Row(VALUE="1"), Row(VALUE="2"), Row(VALUE="3")],
+    )
+
+    try:
+        context._use_structured_type_semantics = True
+        # with input as array construct and cast
+        Utils.check_answer(
+            session.range(1).select(
+                explode(array_construct(lit(1), lit(2)).cast(ArrayType(LongType())))
+            ),
+            [Row(VALUE=1), Row(VALUE=2)],
+        )
+    finally:
+        context._use_structured_type_semantics = False
 
 
 @pytest.mark.skipif(
