@@ -463,9 +463,7 @@ class SnowflakeFile(RawIOBase):
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.writable
 
-        Returns whether or not the stream is writable. In Snowflake, this method still works
-        even if the underlying file stream is closed. In local testing, we check that the file stream
-        is closed before returning whether or not the stream is writable.
+        Returns whether or not the stream is writable.
         """
         self._raise_if_closed()
         return self._file_stream.writable()
