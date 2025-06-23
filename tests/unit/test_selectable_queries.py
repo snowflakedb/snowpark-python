@@ -25,9 +25,13 @@ import snowflake.snowpark.context as context
 
 @pytest.fixture(autouse=True)
 def setup(request):
-    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
+    context.configure_development_features(
+        enable_trace_sql_errors_to_dataframe=True, enable_eager_schema_validation=False
+    )
     yield
-    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
+    context.configure_development_features(
+        enable_trace_sql_errors_to_dataframe=False, enable_eager_schema_validation=False
+    )
 
 
 def test_select_statement_sql_query(mock_session, mock_analyzer):

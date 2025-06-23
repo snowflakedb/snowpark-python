@@ -5,13 +5,16 @@
 ### Snowpark Python API Updates
 
 #### New Features
+
 - Added a new option `TRY_CAST` to `DataFrameReader`. When `TRY_CAST` is True columns are wrapped in a `TRY_CAST` statement rather than a hard cast when loading data.
 - Added a new option `USE_RELAXED_TYPES` to the `INFER_SCHEMA_OPTIONS` of `DataFrameReader`. When set to True this option casts all strings to max length strings and all numeric types to `DoubleType`.
+- Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
 
 #### Improvements
 
 - Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
 - Improved SQL generation for `session.table().sample()` to generate a flat sql statement.
+- Added debuggability improvements to show which Python lines an SQL compilation error corresponds to. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
 
 ### Snowpark Local Testing Updates
 

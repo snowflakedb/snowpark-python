@@ -55,7 +55,6 @@ from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.context import _should_use_structured_type_semantics
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
@@ -761,6 +760,8 @@ def _parse_result_meta(
     an expected format. For example StructType columns are returned as dict objects, but are better
     represented as Row objects.
     """
+    from snowflake.snowpark.context import _should_use_structured_type_semantics
+
     if not result_meta:
         return None, None
     col_names = []
@@ -1999,7 +2000,7 @@ def get_line_numbers(
 def get_plan_from_line_numbers(
     plan_node: Union["SnowflakePlan", "Selectable"],
     line_number: int,
-) -> Union["SnowflakePlan", "Selectable"]:
+) -> "SnowflakePlan":
     """
     Given a parent plan node and a line number, return the plan node that contains the line number.
     Each parent node has a list of disjoint query line intervals, which are sorted by start line number,
@@ -2032,7 +2033,7 @@ def get_plan_from_line_numbers(
     while stack:
         node, line_number = stack.pop()
         if isinstance(node, Selectable):
-            node = node.get_snowflake_plan(skip_schema_query=True)
+            node = node.get_snowflake_plan(skip_schema_query=False)
         query_line_intervals = node.queries[-1].query_line_intervals
         idx = find_interval_containing_line(query_line_intervals, line_number)
         if idx >= 0:
