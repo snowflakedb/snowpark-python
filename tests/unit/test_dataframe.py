@@ -278,7 +278,6 @@ def test_same_joins_should_generate_same_queries(join_type, mock_server_connecti
     df2 = session.create_dataframe([[2, 2, "2"], [3, 3, "4"]]).to_df(
         ["a2", "b2", "str2"]
     )
-
     assert df1.join(df2, how=join_type).queries == df1.join(df2, how=join_type).queries
 
 

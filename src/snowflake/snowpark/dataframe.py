@@ -27,6 +27,7 @@ from typing import (
 )
 
 import snowflake.snowpark
+import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 
@@ -645,6 +646,11 @@ class DataFrame:
 
         self._alias: Optional[str] = None
 
+        if context._debug_eager_schema_validation:
+            # Getting the plan attributes may run a describe query
+            # and populates the schema for the dataframe.
+            self._plan.attributes
+
     def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:
         """
         Given a field builder expression of the AST type Expr, points the builder to reference this dataframe.
@@ -669,7 +675,7 @@ class DataFrame:
     def _ast_id(self, value: Optional[int]) -> None:
         self.__ast_id = value
         if self._plan is not None:
-            self._plan.df_ast_id = value
+            self._plan.add_df_ast_id(value)
         if self._select_statement is not None:
             self._select_statement.add_df_ast_id(value)
 
