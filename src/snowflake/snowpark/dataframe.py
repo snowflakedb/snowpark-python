@@ -6698,7 +6698,7 @@ def map_in_pandas(
     Args:
         dataframe: The DataFrame instance.
         func: A function to be applied to the batches of rows.
-        output_types: A list of DataType or type string that represents the expected output columns
+        schema: A StructType or type string that represents the expected output schema
             of the `func` parameter.
 
     Example 1::
