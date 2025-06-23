@@ -56,7 +56,7 @@ class SnowflakeFile(RawIOBase):
         >>> from snowflake.snowpark.files import SnowflakeFile
         >>> from snowflake.snowpark.functions import udf
         >>> @udf
-        >>> def read_file(url: str) -> str:
+        ... def read_file(url: str) -> str:
         ...     file = SnowflakeFile.open(url, "r")
         ...     return file.read()
 
@@ -66,7 +66,7 @@ class SnowflakeFile(RawIOBase):
         >>> from snowflake.snowpark.files import SnowflakeFile
         >>> from snowflake.snowpark.functions import udf
         >>> @udf
-        >>> def write_file(content: str) -> str:
+        ... def write_file(content: str) -> str:
         ...     file = SnowflakeFile.open_new_result("w")
         ...     file.write(content)
         ...     return file
@@ -77,11 +77,11 @@ class SnowflakeFile(RawIOBase):
         >>> from snowflake.snowpark.files import SnowflakeFile
         >>> from snowflake.snowpark.functions import udf
         >>> @udf
-        >>> def read_file(url: str) -> str:
+        ... def read_file(url: str) -> str:
         ...     file = SnowflakeFile.open(url, "r")
         ...     return file.read()
         >>> @udf
-        >>> def write_file(content: str) -> str:
+        ... def write_file(content: str) -> str:
         ...     file = SnowflakeFile.open_new_result("w")
         ...     file.write(content)
         ...     return file
