@@ -288,7 +288,7 @@ def test_read_with_size_snowflakefile(
 @pytest.mark.parametrize(
     ["mode", "use_stage"], [("r", True), ("r", False), ("rb", True), ("rb", False)]
 )
-def test_read_non_existent_snowflakefile(mode, use_stage, tmp_path, tmp_stage):
+def test_read_non_existent_snowflakefile(mode, use_stage, tmp_path, tmp_stage, session):
     def read_file(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.read()
