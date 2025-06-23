@@ -7,6 +7,7 @@
 #### New Features
 
 - Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
+- Added local testing support for reading files with `SnowflakeFile` using stage paths and snowurls.
 
 #### Improvements
 
