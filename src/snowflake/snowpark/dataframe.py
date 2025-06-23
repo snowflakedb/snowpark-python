@@ -6699,56 +6699,59 @@ def map_in_pandas(
         dataframe: The DataFrame instance.
         func: A function to be applied to the batches of rows.
         output_types: A list of DataType or type string that represents the expected output columns
-            of the ``func`` parameter.
+            of the `func` parameter.
 
     Example 1::
-    >>> from snowflake.snowpark.dataframe import map_in_pandas
-    >>> df = session.create_dataframe([(1, 21), (2, 30)], schema=["ID", "AGE"])
-    >>> def filter_func(iterator):
-    ...     for pdf in iterator:
-    ...         yield pdf[pdf.ID == 1]
-    ...
-    >>> map_in_pandas(df, filter_func, df.schema).show()
-    ----------------
-    |"ID"  |"AGE"  |
-    ----------------
-    |1     |21     |
-    ----------------
-    <BLANKLINE>
+
+        >>> from snowflake.snowpark.dataframe import map_in_pandas
+        >>> df = session.create_dataframe([(1, 21), (2, 30)], schema=["ID", "AGE"])
+        >>> def filter_func(iterator):
+        ...     for pdf in iterator:
+        ...         yield pdf[pdf.ID == 1]
+        ...
+        >>> map_in_pandas(df, filter_func, df.schema).show()
+        ----------------
+        |"ID"  |"AGE"  |
+        ----------------
+        |1     |21     |
+        ----------------
+        <BLANKLINE>
 
     Example 2::
-    >>> def mean_age(iterator):
-    ...     for pdf in iterator:
-    ...         yield pdf.groupby("ID").mean().reset_index()
-    ...
-    >>> map_in_pandas(df, mean_age, "ID: bigint, AGE: double").show()
-    ----------------
-    |"ID"  |"AGE"  |
-    ----------------
-    |2     |30.0   |
-    |1     |21.0   |
-    ----------------
-    <BLANKLINE>
+
+        >>> def mean_age(iterator):
+        ...     for pdf in iterator:
+        ...         yield pdf.groupby("ID").mean().reset_index()
+        ...
+        >>> map_in_pandas(df, mean_age, "ID: bigint, AGE: double").order_by("ID").show()
+        ----------------
+        |"ID"  |"AGE"  |
+        ----------------
+        |1     |21.0   |
+        |2     |30.0   |
+        ----------------
+        <BLANKLINE>
 
     Example 3::
-    >>> def double_age(iterator):
-    ...     for pdf in iterator:
-    ...         pdf["DOUBLE_AGE"] = pdf["AGE"] * 2
-    ...         yield pdf
-    ...
-    >>> map_in_pandas(df, double_age, "ID: bigint, AGE: bigint, DOUBLE_AGE: bigint").show()
-    -------------------------------
-    |"ID"  |"AGE"  |"DOUBLE_AGE"  |
-    -------------------------------
-    |2     |30     |60            |
-    |1     |21     |42            |
-    -------------------------------
-    <BLANKLINE>
+
+        >>> def double_age(iterator):
+        ...     for pdf in iterator:
+        ...         pdf["DOUBLE_AGE"] = pdf["AGE"] * 2
+        ...         yield pdf
+        ...
+        >>> map_in_pandas(df, double_age, "ID: bigint, AGE: bigint, DOUBLE_AGE: bigint").order_by("ID").show()
+        -------------------------------
+        |"ID"  |"AGE"  |"DOUBLE_AGE"  |
+        -------------------------------
+        |1     |21     |42            |
+        |2     |30     |60            |
+        -------------------------------
+        <BLANKLINE>
     """
     if isinstance(schema, str):
         schema = type_string_to_type_object(schema)
 
-    def wrapped_func(input):
+    def wrapped_func(input):  # pragma: no cover
         import pandas
 
         return pandas.concat(func([input]))
