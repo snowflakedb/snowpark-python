@@ -25,9 +25,13 @@ import snowflake.snowpark.context as context
 
 @pytest.fixture(autouse=True)
 def setup(request):
-    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
+    context.configure_development_features(
+        enable_trace_sql_errors_to_dataframe=True, enable_eager_schema_validation=False
+    )
     yield
-    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
+    context.configure_development_features(
+        enable_trace_sql_errors_to_dataframe=False, enable_eager_schema_validation=False
+    )
 
 
 def test_select_statement_sql_query(mock_session, mock_analyzer):
@@ -166,7 +170,7 @@ def test_select_snowflake_plan_commented_sql(mock_session, mock_analyzer):
     mock_snowflake_plan.schema_query = "SELECT A, B FROM test_table WHERE A > 10"
     mock_snowflake_plan.expr_to_alias = {}
     mock_snowflake_plan.df_aliased_col_name_to_real_col_name = {}
-    mock_snowflake_plan.df_ast_id = None
+    mock_snowflake_plan.df_ast_ids = None
     select_snowflake_plan = SelectSnowflakePlan(
         snowflake_plan=mock_snowflake_plan,
         analyzer=mock_analyzer,

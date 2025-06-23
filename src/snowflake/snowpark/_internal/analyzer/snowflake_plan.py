@@ -36,6 +36,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 )
 from snowflake.snowpark._internal.debug_utils import (
     get_df_transform_trace_message,
+    get_python_source_from_sql_error,
 )
 
 if TYPE_CHECKING:
@@ -179,16 +180,25 @@ class SnowflakePlan(LogicalPlan):
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
-
-                    # extract df_ast_id, stmt_cache from args
-                    df_ast_id, stmt_cache = None, None
+                    # extract top_plan, df_ast_id, stmt_cache from args
+                    top_plan, df_ast_id, stmt_cache = None, None, None
                     for arg in args:
-                        if isinstance(arg, SnowflakePlan):
-                            df_ast_id = arg.df_ast_id
+                        if isinstance(arg, SnowflakePlan) and arg.df_ast_ids:
+                            top_plan = arg
+                            df_ast_id = arg.df_ast_ids[-1]
                             stmt_cache = arg.session._ast_batch._bind_stmt_cache
                             break
-                    df_transform_debug_trace = None
+                    df_transform_debug_trace = ""
+                    error_source_context = ""
                     try:
+                        if (
+                            "SQL compilation error:" in e.msg
+                            and "error line" in e.msg
+                            and top_plan is not None
+                        ):
+                            error_source_context = get_python_source_from_sql_error(
+                                top_plan, e.msg
+                            )
                         if (
                             _enable_dataframe_trace_on_error
                             and df_ast_id is not None
@@ -205,9 +215,16 @@ class SnowflakePlan(LogicalPlan):
                         )
                         pass
 
+                    debug_header = "\n\n--- Additional Debug Information ---\n"
+                    debug_context = (
+                        debug_header + df_transform_debug_trace + error_source_context
+                    )
+                    if debug_context == debug_header:
+                        debug_context = ""
+
                     if "unexpected 'as'" in e.msg.lower():
                         ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
-                            query, debug_context=df_transform_debug_trace
+                            query, debug_context=debug_context
                         )
                         raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
@@ -218,7 +235,7 @@ class SnowflakePlan(LogicalPlan):
                         )
                         if not match:  # pragma: no cover
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e, debug_context=df_transform_debug_trace
+                                e, debug_context=debug_context
                             )
                             raise ne.with_traceback(tb) from None
                         col = match.group(1)
@@ -242,7 +259,7 @@ class SnowflakePlan(LogicalPlan):
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
                                 orig_col_name,
                                 query,
-                                debug_context=df_transform_debug_trace,
+                                debug_context=debug_context,
                             )
                             raise ne.with_traceback(tb) from None
                         elif (
@@ -259,7 +276,7 @@ class SnowflakePlan(LogicalPlan):
                             > 1
                         ):
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
-                                col, col, query, debug_context=df_transform_debug_trace
+                                col, col, query, debug_context=debug_context
                             )
                             raise ne.with_traceback(tb) from None
                         else:
@@ -269,7 +286,7 @@ class SnowflakePlan(LogicalPlan):
                             )
                             if not match:  # pragma: no cover
                                 ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                    e, debug_context=df_transform_debug_trace
+                                    e, debug_context=debug_context
                                 )
                                 raise ne.with_traceback(tb) from None
                             col = match.group(1)
@@ -331,7 +348,7 @@ class SnowflakePlan(LogicalPlan):
 
                             e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e, debug_context=df_transform_debug_trace
+                                e, debug_context=debug_context
                             )
                             raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42601" and "SELECT with no columns" in e.msg:
@@ -378,7 +395,7 @@ class SnowflakePlan(LogicalPlan):
                                     raise ne.with_traceback(tb) from None
 
                     ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                        e, debug_context=df_transform_debug_trace
+                        e, debug_context=debug_context
                     )
                     raise ne.with_traceback(tb) from None
 
@@ -459,7 +476,7 @@ class SnowflakePlan(LogicalPlan):
         self._plan_state: Optional[Dict[PlanState, Any]] = None
         # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
         # we will store the ast_id here.
-        self.df_ast_id: Optional[int] = None
+        self.df_ast_ids: Optional[List[int]] = None
 
     @property
     def uuid(self) -> str:
@@ -713,7 +730,7 @@ class SnowflakePlan(LogicalPlan):
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
             )
-        plan.df_ast_id = self.df_ast_id
+        plan.df_ast_ids = self.df_ast_ids
         return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
@@ -747,7 +764,7 @@ class SnowflakePlan(LogicalPlan):
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
-        copied_plan.df_ast_id = self.df_ast_id
+        copied_plan.df_ast_ids = self.df_ast_ids
 
         return copied_plan
 
@@ -756,6 +773,25 @@ class SnowflakePlan(LogicalPlan):
             self.expr_to_alias.update(to_add)
         else:
             self.expr_to_alias = {**self.expr_to_alias, **to_add}
+
+    def propagate_ast_id_to_select_sql(self, ast_id: int) -> None:
+        """Propagate df_ast_id to associated SelectSQL instances."""
+        from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+
+        for child in self.children_plan_nodes:
+            if isinstance(child, SelectSQL):
+                child.add_df_ast_id(ast_id)
+
+    def add_df_ast_id(self, ast_id: int) -> None:
+        """Method to add a df ast id to SnowflakePlan.
+        This is used to track the df ast ids that are used in creating the
+        sql for this SnowflakePlan.
+        """
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [ast_id]
+        elif self.df_ast_ids[-1] != ast_id:
+            self.df_ast_ids.append(ast_id)
+        self.propagate_ast_id_to_select_sql(ast_id)
 
 
 class SnowflakePlanBuilder:
@@ -1007,9 +1043,11 @@ class SnowflakePlanBuilder:
                 project_list,
                 x,
                 is_distinct=is_distinct,
-                child_uuid=child.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -1027,9 +1065,11 @@ class SnowflakePlanBuilder:
                 grouping_exprs,
                 aggregate_exprs,
                 x,
-                child_uuid=child.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -1045,9 +1085,11 @@ class SnowflakePlanBuilder:
             lambda x: filter_statement(
                 condition,
                 x,
-                child_uuid=child.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -1066,9 +1108,11 @@ class SnowflakePlanBuilder:
                 x,
                 probability_fraction=probability_fraction,
                 row_count=row_count,
-                child_uuid=child.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -1098,9 +1142,11 @@ class SnowflakePlanBuilder:
             lambda x: sort_statement(
                 order,
                 x,
-                child_uuid=child.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -1138,12 +1184,14 @@ class SnowflakePlanBuilder:
                 join_condition,
                 match_condition,
                 use_constant_subquery_alias,
-                left_uuid=left.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
-                right_uuid=right.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                left_uuid=(
+                    left.uuid if context._enable_trace_sql_errors_to_dataframe else None
+                ),
+                right_uuid=(
+                    right.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             left,
             right,
@@ -1374,9 +1422,11 @@ class SnowflakePlanBuilder:
                 offset_expr,
                 x,
                 on_top_of_oder_by,
-                child_uuid=child.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -1400,9 +1450,11 @@ class SnowflakePlanBuilder:
                 default_on_null,
                 x,
                 should_alias_column_with_agg,
-                child_uuid=child.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -1424,9 +1476,11 @@ class SnowflakePlanBuilder:
                 column_list,
                 include_nulls,
                 x,
-                child_uuid=child.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -2159,9 +2213,11 @@ class SnowflakePlanBuilder:
             lambda x: lateral_statement(
                 table_function,
                 x,
-                child_uuid=child.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -2193,9 +2249,11 @@ class SnowflakePlanBuilder:
                 left_cols,
                 right_cols,
                 use_constant_subquery_alias,
-                child_uuid=child.uuid
-                if context._enable_trace_sql_errors_to_dataframe
-                else None,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,

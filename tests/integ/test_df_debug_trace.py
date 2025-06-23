@@ -30,12 +30,16 @@ pytestmark = [
 @pytest.fixture(autouse=True)
 def setup(request, session):
     original = session.ast_enabled
-    context.configure_development_features(enable_dataframe_trace_on_error=True)
+    context.configure_development_features(
+        enable_dataframe_trace_on_error=True, enable_eager_schema_validation=False
+    )
     set_ast_state(AstFlagSource.TEST, True)
     if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
         del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
     yield
-    context.configure_development_features(enable_dataframe_trace_on_error=False)
+    context.configure_development_features(
+        enable_dataframe_trace_on_error=False, enable_eager_schema_validation=False
+    )
     set_ast_state(AstFlagSource.TEST, original)
     if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
         del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
@@ -209,19 +213,34 @@ def test_env_variable(session):
 
     with pytest.raises(SnowparkSQLException) as exc_info:
         df.select("does_not_exist").collect()
-    assert str(exc_info.value).count("--- Additional Debug Information ---") == 1
+    assert (
+        str(exc_info.value).count(
+            "Trace of the most recent dataframe operations associated with the error"
+        )
+        == 1
+    )
     base_len = len(str(exc_info.value).split("\n"))
 
     os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH] = "0"
     with pytest.raises(SnowparkSQLException) as exc_info:
         df.select("does_not_exist").collect()
-    assert str(exc_info.value).count("--- Additional Debug Information ---") == 1
+    assert (
+        str(exc_info.value).count(
+            "Trace of the most recent dataframe operations associated with the error"
+        )
+        == 1
+    )
     assert len(str(exc_info.value).split("\n")) == base_len - 5
 
     os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH] = "10"
     with pytest.raises(SnowparkSQLException) as exc_info:
         df.select("does_not_exist").collect()
-    assert str(exc_info.value).count("--- Additional Debug Information ---") == 1
+    assert (
+        str(exc_info.value).count(
+            "Trace of the most recent dataframe operations associated with the error"
+        )
+        == 1
+    )
     assert len(str(exc_info.value).split("\n")) == base_len + 5
 
 
@@ -265,21 +284,33 @@ def test_error_in_lineage_extraction_is_safe(session):
     ):
         with pytest.raises(SnowparkSQLException) as exc_info:
             err_df.collect()
-        assert "--- Additional Debug Information ---" not in str(exc_info.value)
+        assert (
+            "Trace of the most recent dataframe operations associated with the error"
+            not in str(exc_info.value)
+        )
 
         with pytest.raises(SnowparkSQLException) as exc_info:
             DataFrameGenerator1(session).dataframe_with_join_on_bad_col()
 
-        assert "--- Additional Debug Information ---" not in str(exc_info.value)
+        assert (
+            "Trace of the most recent dataframe operations associated with the error"
+            not in str(exc_info.value)
+        )
 
 
 def test_enable_and_disable_extract_debug_trace(session):
     context.configure_development_features(enable_dataframe_trace_on_error=True)
     with pytest.raises(SnowparkSQLException) as exc_info:
         DataFrameGenerator1(session).simple_dataframe().select("does_not_exist").show()
-    assert "--- Additional Debug Information ---" in str(exc_info.value)
+    assert (
+        "Trace of the most recent dataframe operations associated with the error"
+        in str(exc_info.value)
+    )
 
     context.configure_development_features(enable_dataframe_trace_on_error=False)
     with pytest.raises(SnowparkSQLException) as exc_info:
         DataFrameGenerator1(session).simple_dataframe().select("does_not_exist").show()
-    assert "--- Additional Debug Information ---" not in str(exc_info.value)
+    assert (
+        "Trace of the most recent dataframe operations associated with the error"
+        not in str(exc_info.value)
+    )
