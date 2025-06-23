@@ -24,7 +24,7 @@ _logger = logging.getLogger(__name__)
 
 def _write_test_msg(
     write_mode: str, file_location: str, test_msg: str = None
-) -> tuple[Union[str, bytes], str, str]:
+) -> tuple[Union[str, bytes], str]:
     """
     Generates a test message or uses the provided message and writes it to the specified file location.
 
@@ -46,7 +46,7 @@ def _write_test_msg_to_stage(
     tmp_stage: str,
     session: Session,
     test_msg: str = None,
-) -> tuple[bytes, str]:
+) -> tuple[Union[str, bytes], str]:
     test_msg, file_location = _write_test_msg(write_mode, file_location, test_msg)
     Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
     return test_msg, f"@{tmp_stage}/test.txt"
