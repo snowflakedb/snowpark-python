@@ -20,6 +20,9 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
+from snowflake.snowpark.modin.plugin._internal.apply_utils import (
+    clear_session_udf_cache,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
 from snowflake.snowpark.types import DoubleType, StringType, VariantType
@@ -33,6 +36,14 @@ from tests.integ.modin.utils import (
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import RUNNING_ON_GH
+
+
+@pytest.fixture(autouse=True)
+def clear_udf_cache():
+    # UDFs are persisted across the entire session for performance reasons. To ensure tests
+    # remain independent from each other, we must clear the UDF cache between runs.
+    clear_session_udf_cache()
+
 
 BASIC_DATA_FUNC_RETURN_TYPE_MAP = [
     ([1, 2, 3, None], lambda x: x + 1, "int"),

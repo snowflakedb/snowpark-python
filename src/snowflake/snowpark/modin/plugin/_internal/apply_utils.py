@@ -182,6 +182,14 @@ session_udf_cache: dict[
 ] = defaultdict(dict)
 
 
+def clear_session_udf_cache() -> None:
+    """
+    Clear all cached UDFs. If any UDFs were persisted to the server, they are unaffected by
+    this function.
+    """
+    session_udf_cache.clear()
+
+
 class GroupbyApplySortMethod(Enum):
     """
     A rule for sorting the rows resulting from groupby.apply.
