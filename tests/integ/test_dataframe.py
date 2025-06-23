@@ -859,7 +859,7 @@ def test_explode_negative(session):
     with pytest.raises(ValueError, match="Invalid column type for explode"):
         df.select(explode(df.idx))
 
-    with pytest.raises(ValueError, match="Invalid column type for explode"):
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         df.select(explode(col("DOES_NOT_EXIST")))
 
 
