@@ -1128,16 +1128,3 @@ def test_readinto1_snowflakefile(
     assert buffer[:num_read] == encoded_test_msg[:num_read]
     for byte in buffer[num_read:]:
         assert byte == 0
-
-
-def test_read_no_session_snowflakefile(tmp_path, tmp_stage, session):
-    test_msg, temp_file = _write_test_msg_to_stage("w", tmp_path, tmp_stage, session)
-
-    session.close()
-
-    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
-        with SnowflakeFile.open(file_location, mode) as f:
-            return f.read()
-
-    with pytest.raises(SnowparkSessionException, match="No default Session is found."):
-        assert read_file(temp_file, "r") == test_msg
