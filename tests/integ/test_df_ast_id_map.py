@@ -33,7 +33,8 @@ def test_table(session):
 
 def verify_ast_id_consistency(df):
     assert df._ast_id is not None
-    assert df._ast_id == df._plan.df_ast_id
+    assert df._plan.df_ast_ids
+    assert df._ast_id == df._plan.df_ast_ids[-1]
     assert df._select_statement.df_ast_ids is not None
     assert df._select_statement.df_ast_ids[-1] == df._ast_id
 

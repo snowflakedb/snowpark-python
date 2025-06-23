@@ -211,7 +211,7 @@ class MockExecutionPlan(LogicalPlan):
         )
         self.api_calls = []
         self._attributes = None
-        self.df_ast_id = None
+        self.df_ast_ids = None
 
     @property
     def attributes(self) -> List[Attribute]:
@@ -244,6 +244,12 @@ class MockExecutionPlan(LogicalPlan):
 
     def add_aliases(self, to_add: Dict) -> None:
         self.expr_to_alias.update(to_add)
+
+    def add_df_ast_id(self, ast_id: int) -> None:
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [ast_id]
+        elif self.df_ast_ids[-1] != ast_id:
+            self.df_ast_ids.append(ast_id)
 
 
 class MockFileOperation(MockExecutionPlan):
