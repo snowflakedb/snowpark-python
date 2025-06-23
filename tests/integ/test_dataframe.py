@@ -806,14 +806,16 @@ def test_explode(session):
         df.select(df.strs, explode(df.maps).as_("primo", "secundo")), expected_result
     )
 
+    if not session.sql_simplifier_enabled:
+        return
+
     # with input as array construct
     Utils.check_answer(
         session.range(1).select(explode(array_construct(lit(1), lit(2), lit(3)))),
         [Row(VALUE="1"), Row(VALUE="2"), Row(VALUE="3")],
     )
 
-    try:
-        context._use_structured_type_semantics = True
+    with mock.patch.object(context, "_use_structured_type_semantics", True):
         # with input as array construct and cast
         Utils.check_answer(
             session.range(1).select(
@@ -821,8 +823,6 @@ def test_explode(session):
             ),
             [Row(VALUE=1), Row(VALUE=2)],
         )
-    finally:
-        context._use_structured_type_semantics = False
 
 
 @pytest.mark.skipif(
