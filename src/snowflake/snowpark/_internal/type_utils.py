@@ -1259,7 +1259,7 @@ def type_string_to_type_object(type_str: str) -> DataType:
 def most_permissive_type(datatype: DataType) -> DataType:
     """
     Coerces a datatype to the most permissive type that can hold similar data. String types have
-    length removed. Numerics are cast to DoubleType.
+    length removed. Numerics are cast to DoubleType. All relevant types will allow nulls.
     """
     if isinstance(datatype, StructType):
         return StructType(
@@ -1269,7 +1269,7 @@ def most_permissive_type(datatype: DataType) -> DataType:
                 StructField(
                     field.name,
                     most_permissive_type(field.datatype),
-                    field.nullable,
+                    True,
                     _is_column=field._is_column,
                 )
                 for field in datatype.fields
@@ -1282,7 +1282,7 @@ def most_permissive_type(datatype: DataType) -> DataType:
             if datatype.element_type is None
             else most_permissive_type(datatype.element_type),
             structured=datatype.structured,
-            contains_null=datatype.contains_null,
+            contains_null=True,
         )
     elif isinstance(datatype, MapType):
         return MapType(
@@ -1293,7 +1293,7 @@ def most_permissive_type(datatype: DataType) -> DataType:
             if datatype.value_type is None
             else most_permissive_type(datatype.value_type),
             structured=datatype.structured,
-            value_contains_null=datatype.value_contains_null,
+            value_contains_null=True,
         )
     elif isinstance(datatype, StringType):
         return StringType()
