@@ -14,6 +14,7 @@ from typing import Union
 
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
+from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark import Session
 from tests.utils import Utils
 import logging
@@ -186,6 +187,44 @@ def test_read_snowflakefile(
             return f.read()
 
     assert read_file(temp_file, read_mode) == test_msg
+
+
+def test_read_no_stage_snowflakefile(tmp_path, tmp_stage, session):
+    test_msg, temp_file = _write_test_msg_to_stage("w", tmp_path, tmp_stage, session)
+
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.read()
+
+    with pytest.raises(SnowparkLocalTestingException, match="the file does not exist:"):
+        assert read_file(f"@nostage/{temp_file}", "r") == test_msg
+
+
+def test_read_multiple_sessions_snowflakefile(tmp_path, tmp_stage, session):
+    Session.builder.config("local_testing", True).create()
+    test_msg, temp_file = _write_test_msg_to_stage("w", tmp_path, tmp_stage, session)
+
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.read()
+
+    with pytest.raises(
+        SnowparkSessionException, match="More than one active session is detected."
+    ):
+        assert read_file(f"@nostage/{temp_file}", "r") == test_msg
+
+
+def test_read_no_session_snowflakefile(tmp_path, tmp_stage, session):
+    test_msg, temp_file = _write_test_msg_to_stage("w", tmp_path, tmp_stage, session)
+
+    session.close()
+
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.read()
+
+    with pytest.raises(SnowparkSessionException, match="No default Session is found."):
+        assert read_file(temp_file, "r") == test_msg
 
 
 def test_read_snowurl_snowflakefile(tmp_path, session):
