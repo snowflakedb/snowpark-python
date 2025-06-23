@@ -24,20 +24,21 @@ _logger = logging.getLogger(__name__)
 
 def _write_test_msg(
     write_mode: str, file_location: str, test_msg: str = None
-) -> tuple[Union[str, bytes], str]:
+) -> tuple[Union[str, bytes], str, str]:
     """
     Generates a test message or uses the provided message and writes it to the specified file location.
 
     Used to create a test message for reading in SnowflakeFile tests.
     """
-    file_location = os.path.join(file_location, "test.txt")
+    file_name = generate_random_alphanumeric()
+    file_location = os.path.join(file_location, f"{file_name}.txt")
     if test_msg is None:
         test_msg = generate_random_alphanumeric()
     if write_mode == "wb":
         test_msg = test_msg.encode()
     with open(file_location, write_mode) as f:
         f.write(test_msg)
-    return test_msg, file_location
+    return test_msg, file_location, file_name
 
 
 def _write_test_msg_to_stage(
@@ -47,9 +48,11 @@ def _write_test_msg_to_stage(
     session: Session,
     test_msg: str = None,
 ) -> tuple[bytes, str]:
-    test_msg, file_location = _write_test_msg(write_mode, file_location, test_msg)
+    test_msg, file_location, file_name = _write_test_msg(
+        write_mode, file_location, test_msg
+    )
     Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
-    return test_msg, f"@{tmp_stage}/test.txt"
+    return test_msg, f"@{tmp_stage}/{file_name}.txt"
 
 
 def _generate_and_write_lines(
