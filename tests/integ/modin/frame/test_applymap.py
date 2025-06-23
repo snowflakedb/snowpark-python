@@ -8,6 +8,9 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.plugin._internal.apply_utils import (
+    clear_session_udf_cache,
+)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.series.test_apply_and_map import (
     BASIC_DATA_FUNC_RETURN_TYPE_MAP,
@@ -31,8 +34,15 @@ def method(request):
     return request.param
 
 
+@pytest.fixture(autouse=True)
+def clear_udf_cache():
+    # UDFs are persisted across the entire session for performance reasons. To ensure tests
+    # remain independent from each other, we must clear the UDF cache between runs.
+    clear_session_udf_cache()
+
+
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
-@sql_count_checker(query_count=7, udf_count=1)
+@sql_count_checker(query_count=4, udf_count=1)
 def test_applymap_basic_without_type_hints(data, func, return_type, method):
     frame_data = {0: data, 1: data}
     native_df = native_pd.DataFrame(frame_data)
@@ -41,7 +51,7 @@ def test_applymap_basic_without_type_hints(data, func, return_type, method):
 
 
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
-@sql_count_checker(query_count=7, udf_count=1)
+@sql_count_checker(query_count=4, udf_count=1)
 def test_applymap_basic_with_type_hints(data, func, return_type, method):
     func_with_type_hint = create_func_with_return_type_hint(func, return_type)
 
@@ -57,7 +67,7 @@ def test_applymap_basic_with_type_hints(data, func, return_type, method):
     "data,func,return_type,expected_result",
     DATE_TIME_TIMESTAMP_DATA_FUNC_RETURN_TYPE_MAP,
 )
-@sql_count_checker(query_count=7, udf_count=1)
+@sql_count_checker(query_count=4, udf_count=1)
 def test_applymap_date_time_timestamp(data, func, return_type, expected_result):
     func_with_type_hint = create_func_with_return_type_hint(func, return_type)
 
@@ -149,7 +159,7 @@ def test_preserve_order():
     native_df = native_pd.DataFrame([[10, 2.12], [3.356, 4.567]])
     df = pd.DataFrame(native_df)
 
-    with SqlCounter(query_count=7, udf_count=1):
+    with SqlCounter(query_count=4, udf_count=1):
         eval_snowpark_pandas_result(df, native_df, lambda x: x.applymap(lambda y: -y))
 
     native_df = native_df.sort_values(0)
@@ -166,15 +176,13 @@ def test_preserve_order():
     1  -3.356 -4.567
     0 -10.000 -2.120
     """
-    with SqlCounter(query_count=7, udf_count=1):
+    with SqlCounter(query_count=4, udf_count=1):
         eval_snowpark_pandas_result(df, native_df, lambda x: x.applymap(lambda y: -y))
 
 
 @sql_count_checker(
-    query_count=10,
+    query_count=7,
     udf_count=1,
-    high_count_expected=True,
-    high_count_reason="udf creation",
 )
 def test_applymap_variant_json_null():
     def f(x):
