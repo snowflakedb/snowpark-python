@@ -327,7 +327,8 @@ def _get_cols_after_explode_join(
         plan = select_statement.select([func.col._named()]).snowflake_plan
         explode_col_type = plan.output[0].datatype
     else:
-        explode_col_type = plan.output_dict.get(func.col, [None])[0]
+        col_name = func.col._expression.name
+        explode_col_type = plan.output_dict.get(col_name, [None])[0]
 
     cols = []
     aliases = func._aliases
