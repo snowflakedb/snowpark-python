@@ -25,6 +25,7 @@ from tests.utils import (
     running_on_jenkins,
     running_on_public_ci,
 )
+import snowflake.snowpark.context as context
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
@@ -177,6 +178,10 @@ def db_parameters(local_testing_mode) -> Dict[str, str]:
     else:
         CONNECTION_PARAMETERS["schema_with_secret"] = CONNECTION_PARAMETERS["schema"]
     CONNECTION_PARAMETERS["local_testing"] = local_testing_mode
+    CONNECTION_PARAMETERS["session_parameters"] = {
+        "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES": True
+    }
+
     return CONNECTION_PARAMETERS
 
 

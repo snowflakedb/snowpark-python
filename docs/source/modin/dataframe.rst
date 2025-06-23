@@ -239,5 +239,6 @@ DataFrame
     :toctree: pandas_api/
 
     DataFrame.to_csv
+    DataFrame.to_excel
     DataFrame.to_html
     DataFrame.to_string

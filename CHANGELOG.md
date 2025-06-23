@@ -7,6 +7,7 @@
 #### New Features
 
 - Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
+- Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
 
 #### Improvements
 
@@ -25,6 +26,7 @@
 #### New Features
 
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
+- Added support for `pd.read_feather`.
 
 ## 1.33.0 (2025-06-19)
 
@@ -53,7 +55,6 @@
 - Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
 - Added support for retrieving `Edge.properties` when retrieving lineage from `DGQL` in `DataFrame.lineage.trace`.
 - Added a parameter `table_exists` to `DataFrameWriter.save_as_table` that allows specifying if a table already exists. This allows skipping a table lookup that can be expensive.
-
 
 #### Bug Fixes
 
@@ -89,6 +90,7 @@
 - Updated `modin` dependency constraint from 0.32.0 to >=0.32.0, <0.34.0. The latest version tested with Snowpark pandas is `modin` 0.33.1.
 
 #### New Features
+
 - Added support for **Hybrid Execution (PrPr)**. By running `from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()`, Snowpark pandas will automatically choose whether to run certain pandas operations locally or on Snowflake. This feature is disabled by default.
 
 #### Improvements
@@ -96,6 +98,13 @@
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 - Added `iceberg_version` option to table creation functions.
 - Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
+- Added modin telemetry on API calls and hybrid engine switches.
+- Show more helpful error messages to Snowflake Notebook users when Modin or pandas version does not match our requirements.
+
+#### Bug Fixes
+
+- Fixed a bug in `Series.where` when the `other` parameter is an unnamed `Series`.
+
 
 #### Bug Fixes
 

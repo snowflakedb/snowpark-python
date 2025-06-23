@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     NOT,
     OR,
     REPLACE,
+    format_uuid,
     convert_value_to_sql_option,
     create_file_format_statement,
     create_or_replace_dynamic_table_statement,

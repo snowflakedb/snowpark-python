@@ -742,8 +742,7 @@ def with_src_position(
         # Once we've stepped out of the snowpark package, we should be in the code of interest.
         # However, the code of interest may execute in an environment that is not accessible via the filesystem.
         # e.g. Jupyter notebooks, REPLs, calls to exec, etc.
-        filename = frame.f_code.co_filename if frame is not None else ""
-        if frame is None or not Path(filename).is_file():
+        if frame is None:
             src.file = __intern_string("")
             return expr_ast
 
@@ -1646,3 +1645,23 @@ def clear_line_no_in_request(request: proto.Request) -> None:
     fixes in determining better line_no info for chained python code, etc."""
     for stmt in request.body:
         clear_line_no_in_ast(stmt)
+
+
+def extract_src_from_expr(expr: proto.Expr) -> Optional[Any]:
+    """
+    Recursively extract 'src' field from any expression type in the AST.
+    """
+    if not hasattr(expr, "ListFields"):
+        return None
+    if hasattr(expr, "src"):
+        return expr.src
+
+    #  recursively search for src
+    for field, value in expr.ListFields():
+        if field.name == "src":
+            return value
+        else:
+            result = extract_src_from_expr(value)
+            if result is not None:
+                return result
+    return None

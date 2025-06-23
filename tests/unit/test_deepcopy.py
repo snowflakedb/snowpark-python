@@ -141,6 +141,7 @@ def test_select_sql(mock_session, mock_analyzer):
     copied_selectable = copy.deepcopy(select_sql)
     verify_copied_selectable(copied_selectable, select_sql)
     assert copied_selectable.convert_to_select == select_sql.convert_to_select
+    assert copied_selectable.commented_sql == select_sql.commented_sql
     assert copied_selectable.original_sql == select_sql.original_sql
 
 
