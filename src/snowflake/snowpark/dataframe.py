@@ -1421,7 +1421,7 @@ class DataFrame:
             has_existing_ddl_dml_queries = True
             warning(
                 "enforce_ordering_ddl",
-                "enforce_ordering is disabled when using DML/DDL operations",
+                "enforce_ordering is enabled when using DML/DDL operations regardless of user setting",
                 warning_times=1,
             )
 
