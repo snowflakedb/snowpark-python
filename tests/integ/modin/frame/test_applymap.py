@@ -8,9 +8,6 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.apply_utils import (
-    clear_session_udf_cache,
-)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from tests.integ.modin.series.test_apply_and_map import (
     BASIC_DATA_FUNC_RETURN_TYPE_MAP,
@@ -32,13 +29,6 @@ def method(request):
     method name to test.
     """
     return request.param
-
-
-@pytest.fixture(autouse=True)
-def clear_udf_cache():
-    # UDFs are persisted across the entire session for performance reasons. To ensure tests
-    # remain independent from each other, we must clear the UDF cache between runs.
-    clear_session_udf_cache()
 
 
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
@@ -202,3 +192,26 @@ def test_applymap_variant_json_null():
     df = pd.DataFrame([[1, 2, None], [3, 4, pd.NA]])
     native_df = native_pd.DataFrame([[1, 2, None], [3, 4, pd.NA]])
     eval_snowpark_pandas_result(df, native_df, lambda x: x.applymap(f).isna())
+
+
+def test_map_udf_caching():
+    # Reusing the same function reference in multiple frames should hit the local UDF cache
+    # instead of creating a new UDF on each call.
+    # The cache should not be hit when the function is called on columns with different datatypes.
+    test_data = {
+        "int_col_1": [1, 2, 3],
+        "int_col_2": [4, 5, 6],
+        "str_col_1": ["a", "b", "c"],
+        "str_col_2": ["x", "y", "z"],
+    }
+    operation = lambda x: x * 2  # noqa: E731
+    with SqlCounter(query_count=7, udf_count=1):
+        # This call issues 2 CREATE TEMPORARY FUNCTION calls: 1 for the int columns, and 1 for the str columns.
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.map(operation)
+        )
+    with SqlCounter(query_count=1):
+        # A second call to a frame with the same column signatures does not create any new UDFs.
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.map(operation)
+        )
