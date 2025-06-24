@@ -698,6 +698,14 @@ def test_df_fillna_timestamp_no_numeric():
         columns=list("ABCD"),
     )
     snow_df = pd.DataFrame(native_df)
+    # Native pandas will eagerly fillna for all columns, including ones where
+    # the dtype does not match, and it will convert those columns to object type
+    # In contrast, snow pandas previously deferred most error checking to the sql compiler
+    # which can result in a SQL error. We are moving away from this towards a model
+    # where the client can perform more type checking to avoid surprising SQL issues.
+    # In the current implementation we will fillna for only numeric columns, which simply
+    # prevents us from throwing uncessary SQL errors, even though the type handling of
+    # fillna is still not aligned with pandas.
     snow_df.fillna(0, inplace=True)
     native_df.fillna(0, inplace=True)
     assert_snowpark_pandas_equal_to_pandas(snow_df, native_df, check_dtype=True)

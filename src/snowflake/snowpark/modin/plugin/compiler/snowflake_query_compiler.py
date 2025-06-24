@@ -11640,9 +11640,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     label_to_value_map: dict[
                         str, Union[Hashable, Mapping[Any, Any], Any, Any, None]
                     ] = {}
-                    for i, r in enumerate(self.dtypes):
-                        if is_numeric_dtype(r) or is_object_dtype(r):
-                            label_to_value_map[self.columns[i]] = value
+                    label_to_value_map = {
+                        column: value
+                        for column, dtype in self.dtypes.items()
+                        if is_numeric_dtype(dtype) or is_object_dtype(dtype)
+                    }
                 else:
                     label_to_value_map = {label: value for label in self.columns}
             elif isinstance(value, dict):
