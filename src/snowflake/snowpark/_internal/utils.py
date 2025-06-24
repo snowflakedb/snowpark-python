@@ -55,7 +55,6 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
-    from snowflake.connector.options import ModuleLikeObject
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (
         SnowflakePlan,
         QueryLineInterval,
@@ -1588,13 +1587,23 @@ def check_agg_exprs(
                 )
 
 
-class MissingModin("MissingOptionalDependency"):
-    """The class is specifically for modin optional dependency."""
-
-    _dep_name = "modin"
-
-
-def import_or_missing_modin_pandas() -> Tuple["ModuleLikeObject", bool]:
+# class MissingModin(MissingOptionalDependency):
+#     """The class is specifically for modin optional dependency."""
+#
+#     _dep_name = "modin"
+#
+#
+# def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
+#     """This function tries importing the following packages: modin.pandas
+#
+#     If available it returns modin package with a flag of whether it was imported.
+#     """
+#     try:
+#         modin = importlib.import_module("modin.pandas")
+#         return modin, True
+#     except ImportError:
+#         return MissingModin(), False
+def import_or_missing_modin_pandas() -> Tuple[object, bool]:
     """This function tries importing the following packages: modin.pandas
 
     If available it returns modin package with a flag of whether it was imported.
@@ -1603,6 +1612,13 @@ def import_or_missing_modin_pandas() -> Tuple["ModuleLikeObject", bool]:
         modin = importlib.import_module("modin.pandas")
         return modin, True
     except ImportError:
+        from snowflake.connector.options import MissingOptionalDependency
+
+        class MissingModin(MissingOptionalDependency):
+            """The class is specifically for modin optional dependency."""
+
+            _dep_name = "modin"
+
         return MissingModin(), False
 
 
