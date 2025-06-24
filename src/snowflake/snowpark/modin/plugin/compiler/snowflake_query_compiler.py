@@ -62,6 +62,7 @@ from pandas.api.types import (
     is_integer_dtype,
     is_named_tuple,
     is_numeric_dtype,
+    is_object_dtype,
     is_re_compilable,
     is_scalar,
     is_string_dtype,
@@ -11632,7 +11633,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     "Currently only can fill with dict/Series column by column"
                 )
             from modin.pandas.utils import is_scalar
-
             # prepare label_to_value_map
             if is_scalar(value):
                 if isinstance(value, (int, float, complex)):
@@ -11640,7 +11640,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         str, Union[Hashable, Mapping[Any, Any], Any, Any, None]
                     ] = {}
                     for i, r in enumerate(self.dtypes):
-                        if is_numeric_dtype(r):
+                        if is_numeric_dtype(r) or is_object_dtype(r):
                             label_to_value_map[self.columns[i]] = value
                 else:
                     label_to_value_map = {label: value for label in self.columns}
