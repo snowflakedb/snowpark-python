@@ -20,9 +20,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.modin.plugin._internal.apply_utils import (
-    clear_session_udf_cache,
-)
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.functions import udf
 from snowflake.snowpark.types import DoubleType, StringType, VariantType
@@ -36,13 +33,6 @@ from tests.integ.modin.utils import (
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import RUNNING_ON_GH
-
-
-@pytest.fixture(autouse=True)
-def clear_udf_cache():
-    # UDFs are persisted across the entire session for performance reasons. To ensure tests
-    # remain independent from each other, we must clear the UDF cache between runs.
-    clear_session_udf_cache()
 
 
 BASIC_DATA_FUNC_RETURN_TYPE_MAP = [
@@ -841,6 +831,27 @@ class TestMapOnly:
         # Attempt to convert "abc" to int will raise an exception.
         with pytest.raises(SnowparkSQLException):
             s.map(lambda x: "abc" if x == 17 else x).to_pandas()
+
+    def test_map_udf_caching(self):
+        # Reusing the same function reference in multiple frames should hit the local UDF cache
+        # instead of creating a new UDF on each call.
+        # The cache should not be hit when the function is called on a Series with a different datatype.
+        test_series_int_1 = create_test_series([1, 2, 3])
+        test_series_int_2 = create_test_series([4, 5, 6, 7])
+        test_series_str = create_test_series(["a", "b", "c", "d"])
+        operation = lambda x: x * 2  # noqa: E731
+        with SqlCounter(query_count=4, udf_count=1):
+            # This call creates a new UDF.
+            eval_snowpark_pandas_result(*test_series_int_1, lambda s: s.map(operation))
+        with SqlCounter(query_count=1):
+            # This call reuses the same UDF on the same original series.
+            eval_snowpark_pandas_result(*test_series_int_1, lambda s: s.map(operation))
+        with SqlCounter(query_count=1):
+            # This call reuses the same UDF, despite being on a different series object.
+            eval_snowpark_pandas_result(*test_series_int_2, lambda s: s.map(operation))
+        with SqlCounter(query_count=4, udf_count=1):
+            # This call should create a new UDF since the input type is different.
+            eval_snowpark_pandas_result(*test_series_str, lambda s: s.map(operation))
 
 
 # NOTE: Please add test cases to one of TestApplyOrMapCallable, TestApplyOnly,
