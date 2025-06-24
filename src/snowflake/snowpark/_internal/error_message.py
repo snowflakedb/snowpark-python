@@ -4,8 +4,7 @@
 #
 
 from typing import Optional, Set
-
-from snowflake.connector import OperationalError, ProgrammingError
+from typing import TYPE_CHECKING
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
     SnowparkCreateDynamicTableException,
@@ -29,6 +28,9 @@ from snowflake.snowpark.exceptions import (
     SnowparkUploadUdfFileException,
     _SnowparkInternalException,
 )
+
+if TYPE_CHECKING:
+    from snowflake.connector import OperationalError, ProgrammingError
 
 
 class SnowparkClientExceptionMessages:
@@ -342,7 +344,7 @@ class SnowparkClientExceptionMessages:
 
     @staticmethod
     def SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-        pe: ProgrammingError,
+        pe: "ProgrammingError",
         debug_context: Optional[str] = None,
     ) -> SnowparkSQLException:
         return SnowparkSQLException(
@@ -351,7 +353,7 @@ class SnowparkClientExceptionMessages:
 
     @staticmethod
     def SQL_EXCEPTION_FROM_OPERATIONAL_ERROR(
-        oe: OperationalError,
+        oe: "OperationalError",
     ) -> SnowparkSQLException:
         return SnowparkSQLException(oe.msg, error_code="1305", conn_error=oe)
 
