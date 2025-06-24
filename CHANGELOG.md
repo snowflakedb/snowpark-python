@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Added a new option `TRY_CAST` to `DataFrameReader`. When `TRY_CAST` is True columns are wrapped in a `TRY_CAST` statement rather than a hard cast when loading data.
+- Added a new option `USE_RELAXED_TYPES` to the `INFER_SCHEMA_OPTIONS` of `DataFrameReader`. When set to True this option casts all strings to max length strings and all numeric types to `DoubleType`.
 - Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
 
 #### Improvements
