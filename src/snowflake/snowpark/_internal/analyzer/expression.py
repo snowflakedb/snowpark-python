@@ -348,6 +348,7 @@ class Literal(Expression):
                 type(value)
             )
         self.value = value
+        self.nullable = value is None
 
         self.datatype: DataType
         # check datatype
