@@ -6686,6 +6686,9 @@ def map_in_pandas(
     dataframe: DataFrame,
     func: Callable,
     schema: Union[StructType, str],
+    *,
+    partition_by: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
+    **kwargs,
 ):
     """Returns a new DataFrame with the result of applying `func` to each batch of data in
     the dataframe. Func is expected to be a python function that takes an iterator of pandas
@@ -6700,11 +6703,14 @@ def map_in_pandas(
         func: A function to be applied to the batches of rows.
         schema: A StructType or type string that represents the expected output schema
             of the `func` parameter.
+        partition_by: A column or list of columns that will be used to partition the data
+            before passing it to the func.
+        kwargs: Additional key word arguments are passed to the underlying UDTF registration.
 
     Example 1::
 
         >>> from snowflake.snowpark.dataframe import map_in_pandas
-        >>> df = session.create_dataframe([(1, 21), (2, 30)], schema=["ID", "AGE"])
+        >>> df = session.create_dataframe([(1, 21), (2, 30), (3, 30)], schema=["ID", "AGE"])
         >>> def filter_func(iterator):
         ...     for pdf in iterator:
         ...         yield pdf[pdf.ID == 1]
@@ -6729,6 +6735,7 @@ def map_in_pandas(
         ----------------
         |1     |21.0   |
         |2     |30.0   |
+        |3     |30.0   |
         ----------------
         <BLANKLINE>
 
@@ -6745,18 +6752,40 @@ def map_in_pandas(
         -------------------------------
         |1     |21     |42            |
         |2     |30     |60            |
+        |3     |30     |60            |
         -------------------------------
+        <BLANKLINE>
+
+    Example 4::
+
+        >>> def count(iterator):
+        ...     for pdf in iterator:
+        ...         rows, _ = pdf.shape
+        ...         pdf["COUNT"] = rows
+        ...         yield pdf
+        >>> map_in_pandas(df, count, "ID: bigint, AGE: bigint, COUNT: bigint", partition_by="AGE", max_batch_size=2).order_by("ID").show()
+        --------------------------
+        |"ID"  |"AGE"  |"COUNT"  |
+        --------------------------
+        |1     |21     |1        |
+        |2     |30     |2        |
+        |3     |30     |2        |
+        --------------------------
         <BLANKLINE>
     """
     if isinstance(schema, str):
         schema = type_string_to_type_object(schema)
+
+    partition_by = partition_by or dataframe.columns
 
     def wrapped_func(input):  # pragma: no cover
         import pandas
 
         return pandas.concat(func([input]))
 
-    return dataframe.group_by(dataframe.columns).applyInPandas(wrapped_func, schema)
+    return dataframe.group_by(partition_by).applyInPandas(
+        wrapped_func, schema, **kwargs
+    )
 
 
 mapInPandas = map_in_pandas
