@@ -48,6 +48,7 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark._internal.utils import (
+    SNOWURL_PREFIX,
     STAGE_PREFIX,
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
@@ -989,10 +990,13 @@ class DataFrameReader:
 
         # When pattern is set we should only consider files that match the pattern during schema inference
         # If no files match fallback to trying to read all files.
+        # snow:// paths are not yet supported
         infer_path = path
         if (
-            pattern := self._cur_options.get("PATTERN", None)
-        ) and "FILES" not in infer_schema_options:
+            (pattern := self._cur_options.get("PATTERN", None))
+            and "FILES" not in infer_schema_options
+            and not path.startswith(SNOWURL_PREFIX)
+        ):
             # matches has schema (name, size, md5, last_modified)
             # Name is fully qualified with stage path
             matches = self._session._conn.run_query(
