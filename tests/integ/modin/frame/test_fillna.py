@@ -717,8 +717,8 @@ def test_df_fillna_timestamp_no_numeric():
 # column.
 @sql_count_checker(query_count=1)
 @pytest.mark.xfail(
-	strict=True,
-    reason="Pandas will replace the np.nan in a timestamp column with 0, and upcast the dtype"
+    strict=True,
+    reason="Pandas will replace the np.nan in a timestamp column with 0, and upcast the dtype",
 )
 def test_df_fillna_timestamp_no_numeric_with_nans():
     native_df = native_pd.DataFrame(
