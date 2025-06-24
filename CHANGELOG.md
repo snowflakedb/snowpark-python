@@ -16,6 +16,7 @@
 - Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
 - Improved SQL generation for `session.table().sample()` to generate a flat sql statement.
 - Added debuggability improvements to show which Python lines an SQL compilation error corresponds to. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
+- Set enforce_ordering=True when calling `to_snowpark_pandas()` from a snowpark dataframe containing DML/DDL queries instead of throwing a NotImplementedError.
 
 ### Snowpark Local Testing Updates
 
