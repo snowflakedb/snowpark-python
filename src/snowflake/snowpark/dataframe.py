@@ -165,6 +165,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     global_counter,
     string_half_width,
+    warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -1418,6 +1419,11 @@ class DataFrame:
         has_existing_ddl_dml_queries = False
         if not enforce_ordering and len(self.queries["queries"]) > 1:
             has_existing_ddl_dml_queries = True
+            warning(
+                "enforce_ordering_ddl",
+                "enforce_ordering is disabled when using DML/DDL operations",
+                warning_times=1,
+            )
 
         if enforce_ordering or has_existing_ddl_dml_queries:
             # create a temporary table out of the current snowpark dataframe
