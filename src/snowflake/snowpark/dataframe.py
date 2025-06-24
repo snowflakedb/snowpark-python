@@ -1333,7 +1333,7 @@ class DataFrame:
             enforce_ordering: If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
                 DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. Please refer to the
                 documentation of :func:`~modin.pandas.read_snowflake` for more details. If DDL or DML queries have been
-                used in this query this parameter is ignored.
+                used in this query this parameter is ignored and ordering is enforced.
 
 
         Returns:
