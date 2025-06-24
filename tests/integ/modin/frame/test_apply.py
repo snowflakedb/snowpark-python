@@ -610,17 +610,17 @@ def test_apply_bug_1650918(data, apply_func):
 
 
 TRANSFORM_TEST_MAP = [
-    [[[0, 1, 2], [1, 2, 3]], lambda x: x + 1, 16],
+    [[[0, 1, 2], [1, 2, 3]], lambda x: x + 1, 10],
     [[[0, 1, 2], [1, 2, 3]], np.exp, 1],
     [[[0, 1, 2], [1, 2, 3]], "exp", None],
-    [[["Leonhard", "Jianzhun"]], lambda x: x + " is awesome!!", 11],
+    [[["Leonhard", "Jianzhun"]], lambda x: x + " is awesome!!", 8],
     [[[1.3, 2.5]], np.sqrt, 1],
     [[[1.3, 2.5]], "sqrt", None],
     [[[1.3, 2.5]], np.log, 1],
     [[[1.3, 2.5]], "log", None],
     [[[1.3, 2.5]], np.square, 1],
     [[[1.3, 2.5]], "square", None],
-    [[[1.5, float("nan")]], lambda x: np.sqrt(x), 11],
+    [[[1.5, float("nan")]], lambda x: np.sqrt(x), 8],
 ]
 
 
