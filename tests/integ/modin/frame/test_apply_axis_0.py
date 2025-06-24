@@ -85,11 +85,9 @@ def test_axis_0_basic_types_without_type_hints(data, func, return_type):
     snow_df = pd.DataFrame(data, columns=["A", "b"])
     # np.min is mapped to builtin function so no UDTF is required.
     with SqlCounter(
-        query_count=1 if func == np.min else 11,
+        query_count=1 if func == np.min else 8,
         join_count=0 if func == np.min else 2,
         udtf_count=0 if func == np.min else 2,
-        high_count_expected=func != np.min,
-        high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func, axis=0))
 
@@ -105,11 +103,9 @@ def test_axis_0_basic_types_with_type_hints(data, func, return_type):
     func_with_type_hint = create_func_with_return_type_hint(func, return_type)
     #  Invoking a single UDF typically requires 3 queries (package management, code upload, UDF registration) upfront.
     with SqlCounter(
-        query_count=11,
+        query_count=8,
         join_count=2,
         udtf_count=2,
-        high_count_expected=True,
-        high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
         eval_snowpark_pandas_result(
             snow_df, native_df, lambda x: x.apply(func_with_type_hint, axis=0)
@@ -168,11 +164,9 @@ def test_axis_0_index_passed_as_name(df, row_label):
 
 
 @sql_count_checker(
-    query_count=11,
+    query_count=8,
     join_count=3,
     udtf_count=2,
-    high_count_expected=True,
-    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
 )
 def test_axis_0_return_series():
     snow_df = pd.DataFrame([[1, 2], [3, 4]], columns=["A", "b"])
@@ -185,11 +179,9 @@ def test_axis_0_return_series():
 
 
 @sql_count_checker(
-    query_count=11,
+    query_count=8,
     join_count=3,
     udtf_count=2,
-    high_count_expected=True,
-    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
 )
 def test_axis_0_return_series_with_different_label_results():
     df = native_pd.DataFrame([[1, 2], [3, 4]], columns=["A", "b"])
@@ -309,7 +301,7 @@ def test_axis_0_series_basic(apply_func, expected_join_count, expected_union_cou
     )
     snow_df = pd.DataFrame(native_df)
     with SqlCounter(
-        query_count=11,
+        query_count=8,
         join_count=expected_join_count,
         udtf_count=2,
         union_count=expected_union_count,
@@ -339,11 +331,9 @@ def test_groupby_apply_constant_output():
 
 
 @sql_count_checker(
-    query_count=11,
+    query_count=8,
     join_count=3,
     udtf_count=2,
-    high_count_expected=True,
-    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
 )
 def test_axis_0_return_list():
     snow_df = pd.DataFrame([[1, 2], [3, 4]])
@@ -365,7 +355,7 @@ def test_axis_0_return_list():
     ],
 )
 @sql_count_checker(
-    query_count=21,
+    query_count=12,
     join_count=7,
     udtf_count=4,
     high_count_expected=True,
@@ -384,7 +374,7 @@ def test_axis_0_multi_index_column_labels(apply_func):
 
 @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
 @sql_count_checker(
-    query_count=21,
+    query_count=12,
     join_count=7,
     udtf_count=4,
     high_count_expected=True,
@@ -477,12 +467,10 @@ def test_axis_0_date_time_timestamp_type(data, func, expected_result):
     ],
 )
 @sql_count_checker(
-    query_count=11,
+    query_count=8,
     join_count=2,
     udtf_count=2,
     union_count=1,
-    high_count_expected=True,
-    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
 )
 def test_axis_0_index_labels(native_df, func):
     snow_df = pd.DataFrame(native_df)
@@ -490,12 +478,10 @@ def test_axis_0_index_labels(native_df, func):
 
 
 @sql_count_checker(
-    query_count=11,
+    query_count=8,
     join_count=2,
     udtf_count=2,
     union_count=1,
-    high_count_expected=True,
-    high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
 )
 def test_axis_0_raw():
     snow_df = pd.DataFrame([[1, 2], [3, 4]])
@@ -565,11 +551,9 @@ def test_apply_axis_0_with_if_where_duplicates_not_executed(data):
         )
 
     with SqlCounter(
-        query_count=11,
+        query_count=8,
         join_count=3,
         udtf_count=2,
-        high_count_expected=True,
-        high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=0))
 
@@ -621,11 +605,9 @@ def test_apply_nested_series_negative():
     snow_df = pd.DataFrame([[1, 2], [3, 4]])
 
     with SqlCounter(
-        query_count=10,
+        query_count=7,
         join_count=2,
         udtf_count=2,
-        high_count_expected=True,
-        high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
         with pytest.raises(
             NotImplementedError,
@@ -638,11 +620,9 @@ def test_apply_nested_series_negative():
     snow_df2 = pd.DataFrame([[1, 2, 3]])
 
     with SqlCounter(
-        query_count=15,
+        query_count=9,
         join_count=3,
         udtf_count=3,
-        high_count_expected=True,
-        high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
         with pytest.raises(
             NotImplementedError,
@@ -663,8 +643,8 @@ import scipy.stats  # noqa: E402
 @pytest.mark.parametrize(
     "packages,expected_query_count",
     [
-        (["scipy", "numpy"], 26),
-        (["scipy>1.1", "numpy<2.0"], 26),
+        (["scipy", "numpy"], 17),
+        (["scipy>1.1", "numpy<2.0"], 17),
         # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
         # [scipy, np], 9),
     ],
