@@ -11633,6 +11633,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     "Currently only can fill with dict/Series column by column"
                 )
             from modin.pandas.utils import is_scalar
+
             # prepare label_to_value_map
             if is_scalar(value):
                 if isinstance(value, (int, float, complex)):

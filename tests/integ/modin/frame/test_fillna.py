@@ -726,3 +726,24 @@ def test_df_fillna_timestamp_no_numeric_with_nans():
     snow_df.fillna(0, inplace=True)
     native_df.fillna(0, inplace=True)
     assert_snowpark_pandas_equal_to_pandas(snow_df, native_df, check_dtype=True)
+
+
+# SNOW-2157718 - fillna should fill object/variant columns
+@sql_count_checker(query_count=1)
+def test_df_fillna_objects():
+    # object/variant types should be filled with the value
+    # Column 'D' should have an object dtype
+    native_df = native_pd.DataFrame(
+        [
+            [pd.Timestamp("2017-01-01T12"), 5, 7, None],
+            [pd.Timestamp("2017-01-01T12"), 2, np.nan, None],
+            [pd.Timestamp("2019-01-01T12"), 8, np.nan, None],
+            [pd.Timestamp("2017-01-01T12"), 4, np.nan, None],
+            [pd.Timestamp("2021-01-01T12"), 7, np.nan, None],
+        ],
+        columns=list("ABCD"),
+    )
+    snow_df = pd.DataFrame(native_df)
+    snow_df.fillna(0, inplace=True)
+    native_df.fillna(0, inplace=True)
+    assert_snowpark_pandas_equal_to_pandas(snow_df, native_df, check_dtype=False)
