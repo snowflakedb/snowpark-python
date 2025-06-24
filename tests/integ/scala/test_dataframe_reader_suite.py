@@ -2196,3 +2196,239 @@ def test_enforce_existing_file_format_object_doesnt_exist(session):
         match="File format 'NON_EXISTENT_FILE_FORMAT' does not exist or not authorized.",
     ):
         df.collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
+def test_use_relaxed_types(session):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    header = ("A", "B", "C")
+    short_data = [
+        ("A", 1.1, True),
+        ("B", 1.2, True),
+    ]
+    long_data = [
+        ("CCCCCCCCCC", 3.9999999993, False),
+        ("DDDDDDDDDD", 4.9999999994, False),
+    ]
+
+    schema = StructType(
+        [
+            StructField("A", StringType(), True),
+            StructField("B", DecimalType(2, 1), True),
+            StructField("C", BooleanType(), True),
+        ]
+    )
+
+    relaxed_schema = StructType(
+        [
+            StructField("A", StringType(), True),
+            StructField("B", DoubleType(), True),
+            StructField("C", BooleanType(), True),
+        ]
+    )
+
+    def write_csv(data):
+        with tempfile.NamedTemporaryFile(
+            mode="w+",
+            delete=False,
+            suffix=".csv",
+            newline="",
+        ) as file:
+            writer = csv.writer(file)
+            writer.writerow(header)
+            for row in data:
+                writer.writerow(row)
+            return file.name
+
+    short_path = write_csv(short_data)
+    long_path = write_csv(long_data)
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        short_result = session.file.put(
+            short_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        session.file.put(
+            long_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        # Infer schema from only the short file
+        constrained_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {"FILES": [short_result[0].target]},
+                "PARSE_HEADER": True,
+                # Only load the short file
+                "PATTERN": f".*{short_result[0].target}",
+            }
+        )
+
+        # df1 uses constrained types
+        df1 = constrained_reader.csv(f"@{stage_name}/")
+        assert df1.schema == schema
+        # Load both files
+        constrained_reader.option("PATTERN", None)
+
+        # Data is truncated if loading the higher prescion file
+        df1_both = constrained_reader.csv(f"@{stage_name}/")
+        Utils.check_answer(
+            df1_both,
+            [
+                Row("CCCCCCCCCC", Decimal("4.0"), False),
+                Row("DDDDDDDDDD", Decimal("5.0"), False),
+                Row("A", Decimal("1.1"), True),
+                Row("B", Decimal("1.2"), True),
+            ],
+        )
+
+        # Relaxed reader uses more permissive types
+        relaxed_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {
+                    "FILES": [short_result[0].target],
+                    "USE_RELAXED_TYPES": True,
+                },
+                "PARSE_HEADER": True,
+                "PATTERN": f".*{short_result[0].target}",
+            }
+        )
+
+        # df2 users relaxed types
+        df2 = relaxed_reader.csv(f"@{stage_name}/")
+        assert df2.schema == relaxed_schema
+        relaxed_reader.option("PATTERN", None)
+
+        # Data is no longer truncated
+        df2_both = relaxed_reader.csv(f"@{stage_name}/")
+        Utils.check_answer(
+            df2_both,
+            [
+                Row("CCCCCCCCCC", 3.9999999993, False),
+                Row("DDDDDDDDDD", 4.9999999994, False),
+                Row("A", 1.1, True),
+                Row("B", 1.2, True),
+            ],
+        )
+    finally:
+        Utils.drop_stage(session, stage_name)
+        if os.path.exists(short_path):
+            os.remove(short_path)
+        if os.path.exists(long_path):
+            os.remove(long_path)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
+def test_try_cast(session):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    header = ("A", "B", "C")
+    valid_data = [
+        ("A", 1.1, True),
+        ("B", 1.2, True),
+    ]
+    invalid_data = [
+        ("C", "invalid", False),
+        ("D", 4.9999999994, "invalid"),
+        (0, 5, "invalid"),
+        (1, "invalid", "invalid"),
+    ]
+
+    schema = StructType(
+        [
+            StructField("A", StringType(), True),
+            StructField("B", DecimalType(2, 1), True),
+            StructField("C", BooleanType(), True),
+        ]
+    )
+
+    def write_csv(data):
+        with tempfile.NamedTemporaryFile(
+            mode="w+",
+            delete=False,
+            suffix=".csv",
+            newline="",
+        ) as file:
+            writer = csv.writer(file)
+            writer.writerow(header)
+            for row in data:
+                writer.writerow(row)
+            return file.name
+
+    valid_path = write_csv(valid_data)
+    invalid_data_path = write_csv(invalid_data)
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        valid_result = session.file.put(
+            valid_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        session.file.put(
+            invalid_data_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        # Infer schema from only the valid file
+        default_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {"FILES": [valid_result[0].target]},
+                "PARSE_HEADER": True,
+                # Only load the valid file
+                "PATTERN": f".*{valid_result[0].target}",
+                # Files that fail to parse are skipped
+                "COPY_OPTIONS": {"ON_ERROR": "SKIP_FILE"},
+            }
+        )
+
+        # df1 uses constrained types
+        df1 = default_reader.csv(f"@{stage_name}/")
+        assert df1.schema == schema
+        # Try to load both files
+        default_reader.option("PATTERN", None)
+
+        # Only the data for the valid file is available
+        df1_both = default_reader.csv(f"@{stage_name}/")
+        Utils.check_answer(
+            df1_both, [Row("A", Decimal("1.1"), True), Row("B", Decimal("1.2"), True)]
+        )
+
+        # try_cast reader attempts to recover as much data as possible
+        try_cast_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {
+                    "FILES": [valid_result[0].target],
+                },
+                "TRY_CAST": True,
+                "PARSE_HEADER": True,
+                # Files that fail to parse are skipped
+                "COPY_OPTIONS": {"ON_ERROR": "SKIP_FILE"},
+            }
+        )
+
+        # Valid data is available, invalid data is null
+        df2 = try_cast_reader.csv(f"@{stage_name}/")
+        Utils.check_answer(
+            df2,
+            [
+                Row("A", Decimal("1.1"), True),
+                Row("B", Decimal("1.2"), True),
+                Row("C", None, False),
+                Row("D", Decimal("5.0"), None),
+                Row("0", Decimal("5.0"), None),
+                Row("1", None, None),
+            ],
+        )
+    finally:
+        Utils.drop_stage(session, stage_name)
+        if os.path.exists(valid_path):
+            os.remove(valid_path)
+        if os.path.exists(invalid_data_path):
+            os.remove(invalid_data_path)
