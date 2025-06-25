@@ -6,14 +6,6 @@ import importlib
 
 from snowflake.connector.options import MissingOptionalDependency, MissingPandas
 
-try:
-    import pandas
-
-    installed_pandas = True
-except ImportError:
-    pandas = MissingPandas()
-    installed_pandas = False
-
 
 class MissingNumpy(MissingOptionalDependency):
     """The class is specifically for numpy optional dependency."""
@@ -27,3 +19,25 @@ try:
 except ImportError:
     numpy = MissingNumpy()
     installed_numpy = False
+
+
+def installed_pandas():
+    """Check if pandas is installed."""
+    try:
+        importlib.import_module("pandas")
+        return True
+    except ImportError:
+        return False
+
+
+def __getattr__(name):
+    if name == "pandas":
+        try:
+            return importlib.import_module("pandas")
+        except ImportError:
+            return MissingPandas()
+
+    elif name == "installed_pandas":
+        return installed_pandas()
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
