@@ -25,6 +25,7 @@
 #### New Features
 
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
+- Added support for `pd.explain_switch()` to return debugging information on hybrid execution decisions.
 
 ## 1.33.0 (YYYY-MM-DD)
 

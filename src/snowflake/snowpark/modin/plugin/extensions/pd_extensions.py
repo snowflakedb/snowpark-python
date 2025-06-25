@@ -9,9 +9,11 @@ under the `pd` namespace, such as `pd.read_snowflake`.
 from typing import Any, Iterable, Literal, Optional, Union
 
 from modin.pandas import DataFrame, Series
+
+from snowflake.snowpark.modin.plugin import MODIN_IS_AT_LEAST_0_33_0
 from .general_overrides import register_pd_accessor
 from pandas._typing import IndexLabel
-
+import pandas as native_pd
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin.plugin.extensions.datetime_index import (  # noqa: F401
     DatetimeIndex,
@@ -632,3 +634,79 @@ def to_pandas(
     """
     _snowpark_pandas_obj_check(obj)
     return obj.to_pandas(statement_params=statement_params, *kwargs)
+
+
+@register_pd_accessor("explain_switch")
+def explain_switch(simple=True) -> native_pd.DataFrame:
+    """
+    Shows a log of all backend switching decisions made by Snowpark pandas.
+
+    Display information where Snowpark pandas considered switching execution
+    backends. There can be multiple switch decisions per line of code. The output
+    of this method may change in the future and this is to be used for debugging
+    purposes.
+
+    "source" is the user code where the switch point occurred, if it is available.
+    "api" is the top level api call which initiated the switch point
+    "mode" is either "merge" for decisions involving multiple DataFrames or "auto"
+        for decisions involving a single DataFrame
+    "decision" is the decision on which engine to use for that switch point.
+
+    Args:
+        simple: bool, default True
+            If False, this will display the raw hybrid switch point information
+            including costing calculations and dataset size estimates.
+
+    Returns:
+        pandas.DataFrame:
+            A native pandas DataFrame containing the log of backend switches.
+
+    Examples:
+
+        >>> df = pd.DataFrame({'Animal': ['Falcon', 'Falcon',
+        ...                               'Parrot', 'Parrot'],
+        ...                    'Max Speed': [380., 370., 24., 26.]})
+        >>> pd.explain_switch(df)
+        ...                                                                             decision
+        ... source                                            api                mode
+        ... df = pd.DataFrame({'Animal': ['Falcon', 'Falcon', DataFrame.__init__ auto
+        ...                                                                      auto   Pandas
+    """
+    if not MODIN_IS_AT_LEAST_0_33_0:
+        raise NotImplementedError("explain_switch requires modin >= 0.33.0")
+    if simple:
+        return explain_switch_simple()
+    return explain_switch_complex()
+
+
+def explain_switch_simple():
+    from snowflake.snowpark.modin.plugin._internal.telemetry import (
+        get_hybrid_switch_log,
+    )
+
+    stats = get_hybrid_switch_log()
+    stats["decision"] = stats.groupby(["group", "mode"]).ffill()["decision"]
+    stats["api"] = stats.groupby(["source", "group", "mode"]).ffill()["api"]
+    stats["mode"] = stats.groupby(["source", "group"]).ffill()["mode"]
+    stats = (
+        stats[
+            [
+                "source",
+                "mode",
+                "decision",
+                "api",
+            ]
+        ]
+        .fillna("")
+        .drop_duplicates()
+        .set_index(["source", "api", "mode"])
+    )
+    return stats
+
+
+def explain_switch_complex():
+    from snowflake.snowpark.modin.plugin._internal.telemetry import (
+        get_hybrid_switch_log,
+    )
+
+    return get_hybrid_switch_log()
