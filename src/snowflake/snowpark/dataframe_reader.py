@@ -1491,3 +1491,55 @@ class DataFrameReader:
         )
         set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
         return res_df
+
+    @publicapi
+    def file(self, path: str, _emit_ast: bool = True) -> DataFrame:
+        """Returns a DataFrame containing a list of files in the specified Snowflake stage location.
+
+        This method uses the Snowflake LIST command to retrieve file information from a stage
+        and returns a DataFrame with a single column "FILE" containing the file paths.
+
+        Args:
+            path: The stage location to list files from (e.g., "@mystage", "@mystage/path/").
+
+        Returns:
+            a :class:`DataFrame` with a single column "FILE" containing the file paths from the stage.
+
+        Example::
+            >>> # List all files in a stage
+            >>> df = session.read.file("@mystage")
+            >>> df.show()
+
+            >>> # List files matching a pattern
+            >>> df = session.read.option("pattern", ".*\\.csv").file("@mystage")
+            >>> df.show()
+        """
+        from snowflake.snowpark.functions import col, concat, lit, to_file
+
+        path = _validate_stage_path(path)
+
+        # Build the LIST command
+        list_query = f"LIST {path}"
+
+        # Add pattern option if specified
+        if "PATTERN" in self._cur_options:
+            pattern = self._cur_options["PATTERN"]
+            list_query += f" PATTERN = '{pattern}'"
+
+        # Execute the LIST command and create DataFrame
+        # LIST returns columns: name, size, md5, last_modified
+        # We only want the 'name' column renamed to 'FILE'
+        df = self._session.sql(list_query, _emit_ast=False).select(
+            to_file(concat(lit("@"), col('"name"'))).alias("file")
+        )
+
+        # AST handling
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_file, stmt)
+            ast.path = path
+            ast.reader.CopyFrom(self._ast)
+            df._ast_id = stmt.uid
+
+        set_api_call_source(df, "DataFrameReader.file")
+        return df

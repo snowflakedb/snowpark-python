@@ -670,6 +670,46 @@ class RelationalGroupedDataFrame:
 
     builtin = function
 
+    @relational_group_df_api_usage
+    @publicapi
+    def ai_agg(
+        self,
+        prompt: str,
+        input_column: ColumnOrName,
+        *,
+        output_column: str = None,
+        _emit_ast: bool = True,
+        **kwargs,
+    ) -> DataFrame:
+        """
+        Performs AI-based aggregation using Snowflake Cortex AI_AGG function on grouped data.
+
+        Args:
+            prompt: The task description for the AI aggregation.
+            input_column: The column to aggregate.
+            output_column: Name for the output column. Defaults to "AI_AGG_RESULT".
+            **kwargs: Additional parameters for the AI aggregation function.
+
+        Returns:
+            DataFrame with aggregated results for each group.
+        """
+        from snowflake.snowpark.functions import ai_agg
+        from snowflake.snowpark._internal.analyzer.unary_expression import Alias
+
+        input_column = (
+            input_column if isinstance(input_column, Column) else Column(input_column)
+        )
+
+        # Call AI_AGG function
+        agg_expr = ai_agg(input_column, prompt, _emit_ast=False, **kwargs)._expression
+
+        # If output_column is specified, alias the result
+        agg_expr = Alias(agg_expr, output_column or "AI_AGG_RESULT")
+
+        df = self._to_df([agg_expr], _emit_ast=False)
+
+        return df
+
     @publicapi
     def _function(
         self, agg_name: str, *cols: ColumnOrName, _emit_ast: bool = True

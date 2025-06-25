@@ -1746,3 +1746,45 @@ def test_lob_collect_max_size(session, server_side_max_string, type_string, data
     )
     assert df.schema == StructType([StructField("DATA", datatype, nullable=False)])
     assert len(df.collect()[0][0]) >= server_side_max_string - 16
+
+
+def test_file(session, resources_path):
+    stage_name = "test_stage_sse"
+    df = session.read.option("pattern", ".*\\.pdf").file(f"@{stage_name}")
+    df.show()
+    df = df.parse_document(col("file"), output_column="text")
+    df = df.cache_result()
+    df.show()
+    df = df.clean_text(col("text"), output_column="cleaned_text")
+    df.show()
+    df = df.chunk(
+        col("cleaned_text"),
+        output_column="chunk",
+        format="none",
+        chunk_size=1024,
+        overlap=100,
+        explode=True,
+    )
+    df = df.cache_result()
+    df.show()
+    print(df.count())
+    df = df.ai_filter(
+        "The following passage {chunk} is part of the 'Probable Cause' section?",
+        input_columns={"chunk": col("chunk")},
+    )
+    df.show()
+    print(df.count())
+    df = df.ai_classify(
+        col("chunk"),
+        list_of_categories=["ACCIDENT", "INCIDENT"],
+        output_column="accident_type",
+        task_description="identify whether it is an ACCIDENT or an INCIDENT",
+        output_mode="single",
+    )
+    df.show()
+    df = df.group_by(col("accident_type")).ai_agg(
+        "Given the cause_summary values below, produce a concise 5-bullet synthesis of the most common contributing factors for this accident_type group.",
+        input_column=df["chunk"],
+        output_column="cause_summary",
+    )
+    df.show()

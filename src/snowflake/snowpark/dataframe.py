@@ -6422,6 +6422,178 @@ Query List:
         """
         print(self._format_schema(level))  # noqa: T201: we need to print here.
 
+    def parse_document(
+        self,
+        input_column: ColumnOrName,
+        *,
+        output_column: str | None = None,
+        mode: str = "OCR",
+    ) -> "DataFrame":
+        from snowflake.snowpark.functions import (
+            fl_get_relative_path,
+            function,
+        )
+
+        input_column = _to_col_if_str(input_column, "DataFrame.parse_document")
+        stage_col = lit(
+            "@test_stage_sse"
+        )  # TODO: parse_document support stage not as a constant
+        relative_path_col = fl_get_relative_path(input_column)
+        mode_col = sql_expr(f"{{'mode': '{mode}'}}")
+        return self.with_column(
+            output_column or "PARSED_DOCUMENT_RESULT",
+            function("snowflake.cortex.parse_document")(
+                stage_col, relative_path_col, mode_col
+            )["content"].cast("string"),
+        ).cache_result()
+
+    def clean_text(
+        self, input_column: ColumnOrName, *, output_column: str | None = None
+    ) -> "DataFrame":
+        return self.with_column(
+            output_column or "CLEANED_TEXT_RESULT",
+            _to_col_if_str(input_column, "DataFrame.clean_text"),
+        )
+
+    def ai_filter(
+        self, prompt: str, input_columns: Dict[str, ColumnOrName], **kwargs
+    ) -> "DataFrame":
+        """
+        Filters rows using AI-based filtering with Snowflake Cortex AI_FILTER function.
+
+        Args:
+            prompt: The prompt template with placeholders (e.g., "The following passage {chunk} is part of the 'Probable Cause' section?")
+            input_columns: Dictionary mapping placeholder names to column references
+            **kwargs: Additional parameters for the AI filter function
+
+        Returns:
+            DataFrame filtered based on the AI evaluation of the prompt.
+        """
+        from snowflake.snowpark.functions import ai_filter, prompt as prompt_func
+
+        # Convert named placeholders to ordinal placeholders for PROMPT function
+        ordinal_prompt = prompt
+        columns = []
+        placeholder_index = 0
+
+        for placeholder, column_ref in input_columns.items():
+            # Replace named placeholder {placeholder} with ordinal {0}, {1}, etc.
+            ordinal_prompt = ordinal_prompt.replace(
+                f"{{{placeholder}}}", f"{{{placeholder_index}}}"
+            )
+            columns.append(_to_col_if_str(column_ref, "DataFrame.ai_filter"))
+            placeholder_index += 1
+
+        # Use the prompt function to format the template with column values
+        formatted_prompt = prompt_func(ordinal_prompt, *columns, _emit_ast=False)
+
+        # Build the AI filter predicate
+        predicate = ai_filter(formatted_prompt, _emit_ast=False)
+
+        return self.filter(predicate, _emit_ast=False)
+
+    def ai_classify(
+        self,
+        input_column: ColumnOrName,
+        list_of_categories: List[str],
+        *,
+        output_column: str | None = None,
+        task_description: str = None,
+        output_mode: str = "single",
+        **kwargs,
+    ) -> "DataFrame":
+        """
+        Classifies data using AI-based classification with Snowflake Cortex AI_CLASSIFY function.
+
+        Args:
+            input_column: The column containing data to be classified.
+            list_of_categories: List of categories to classify into.
+            output_column: Name for the output column. Defaults to "AI_CLASSIFY_RESULT".
+            task_description: Optional description of the classification task.
+            **kwargs: Additional parameters for the AI classify function.
+
+        Returns:
+            DataFrame with an additional column containing the classification results.
+        """
+        from snowflake.snowpark.functions import ai_classify
+
+        input_column = _to_col_if_str(input_column, "DataFrame.ai_classify")
+
+        # Prepare kwargs for ai_classify function
+        classify_kwargs = kwargs.copy()
+        if task_description:
+            classify_kwargs["task_description"] = task_description
+        if output_mode:
+            classify_kwargs["output_mode"] = output_mode
+
+        # Call AI_CLASSIFY function
+        classify_result = (
+            ai_classify(
+                input_column, list_of_categories, _emit_ast=False, **classify_kwargs
+            )["labels"][0]
+            .cast("string")
+            .alias(output_column or "AI_CLASSIFY_RESULT")
+        )
+
+        return self.with_column(output_column or "AI_CLASSIFY_RESULT", classify_result)
+
+    def chunk(
+        self,
+        input_column: ColumnOrName,
+        *,
+        output_column: str | None = None,
+        format: str,
+        chunk_size: int,
+        overlap: int = 0,
+        explode: bool = False,
+        **kwargs,
+    ) -> "DataFrame":
+        """
+        Splits text into chunks using Snowflake Cortex SPLIT_TEXT_RECURSIVE_CHARACTER function.
+
+        Args:
+            input_column: The column containing text to be chunked.
+            output_column: Name for the output column. Defaults to "CHUNKS" or "CHUNK" if explode=True.
+            format: The format of the input text ('none' or 'markdown').
+            chunk_size: Maximum number of characters in each chunk.
+            overlap: Number of characters to overlap between consecutive chunks.
+            explode: If True, explodes the array of chunks into separate rows.
+            **kwargs: Additional parameters like 'separators' for the split function.
+
+        Returns:
+            DataFrame with chunks either as an array column or exploded into rows.
+        """
+        from snowflake.snowpark.functions import function
+
+        input_column = _to_col_if_str(input_column, "DataFrame.chunk")
+
+        # Prepare arguments for SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER
+        args = [input_column, lit(format), lit(chunk_size), lit(overlap)]
+
+        # Handle optional separators parameter from kwargs
+        if "separators" in kwargs:
+            args.append(lit(kwargs["separators"]))
+
+        # Call SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER
+        split_result = function("snowflake.cortex.split_text_recursive_character")(
+            *args
+        )
+
+        if explode:
+            # Use flatten to explode the array into rows
+            temp_column_name = "_temp_chunks_array"
+            temp_df = self.with_column(temp_column_name, split_result)
+            flattened_df = temp_df.flatten(temp_column_name)
+            chunk_column = (
+                col("VALUE").cast("string").alias(output_column or "CHUNK_RESULT")
+            )
+            return flattened_df.select(chunk_column).cache_result()
+        else:
+            # Just add the array column
+            return self.with_column(
+                output_column or "CHUNK_RESULT", split_result
+            ).cache_result()
+
     where = filter
 
     # Add the following lines so API docs have them
