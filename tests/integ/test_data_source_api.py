@@ -104,10 +104,14 @@ ORACLEDB_TABLE_NAME_SMALL = "ALL_TYPE_TABLE_SMALL"
 ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integration"
 
 
-def test_dbapi_with_temp_table(session, caplog):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_dbapi_with_temp_table(session, caplog, multi_processing):
     with caplog.at_level(logging.DEBUG):
         df = session.read.dbapi(
-            sql_server_create_connection, table=SQL_SERVER_TABLE_NAME, max_workers=4
+            sql_server_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            multi_processing=multi_processing,
         )
         # default fetch size is 1k, so we should only see 1 parquet file generated as the data is less than 1k
         assert caplog.text.count("Retrieved BytesIO parquet from queue") == 1
@@ -1142,6 +1146,7 @@ def test_graceful_shutdown_on_worker_process_error(session):
                     num_partitions=2,
                     max_workers=2,
                     custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                    multi_processing=True,
                 )
 
             # Verify that processes were created
