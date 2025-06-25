@@ -22,6 +22,7 @@
 #### Bug Fixes
 
 - Fixed a bug caused by redundant validation when creating an iceberg table.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where closing the cursor or connection could unexpectedly raise an error and terminate the program.
 
 ### Snowpark Local Testing Updates
 
