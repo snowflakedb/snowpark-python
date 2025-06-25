@@ -100,3 +100,11 @@ backend is 10M rows. This can be configured through the modin environment variab
     with config_context(NativePandasMaxRows=1234):
         # Operations only performed using the Pandas backend
         df = pd.DataFrame([4, 5, 6])
+
+
+Debugging Hybrid Execution
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+`pd.explain_switch()` is provided to give information on how execution engine Decisions
+are made. This method prints a simplified version of the command unless `simple=False` is
+passed as an argument.
