@@ -153,7 +153,7 @@ def test_read_large_file_snowflakefile_local(read_mode, write_mode, tmp_path):
 
     def read_file(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
-            return f.read()
+            return f.readall()
 
     assert read_file(temp_file, read_mode) == test_msg
 
