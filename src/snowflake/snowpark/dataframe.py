@@ -1628,7 +1628,9 @@ class DataFrame:
                 func_expr = _create_table_function_expression(func=table_func)
 
                 if isinstance(e, _ExplodeFunctionCall):
-                    new_cols, alias_cols = _get_cols_after_explode_join(e, self._plan)
+                    new_cols, alias_cols = _get_cols_after_explode_join(
+                        e, self._plan, self._select_statement
+                    )
                 else:
                     # this join plan is created here to extract output columns after the join. If a better way
                     # to extract this information is found, please update this function.
