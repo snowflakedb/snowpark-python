@@ -1,6 +1,7 @@
 {% set name = "snowflake-snowpark-python" %}
 {% set version = "1.33.0" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
+{% set build_number = os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) %}
 
 package:
   name: {{ name|lower }}
@@ -11,17 +12,17 @@ source:
   path: ../
 
 build:
-  number: {{ os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) }}
+  number: {{ build_number }}
   skip: True  # [py<38 or win32 or s390x]
   script: {{ PYTHON }} -m pip install . --no-deps -vvv
   script_env:
     - SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1
 {% if noarch_build %}
   noarch: python
-  string: "py39_0"  # [py==39]
-  string: "py310_0"  # [py==310]
-  string: "py311_0"  # [py==311]
-  string: "py312_0"  # [py==312]
+  string: "py39_{{ build_number }}"  # [py==39]
+  string: "py310_{{ build_number }}"  # [py==310]
+  string: "py311_{{ build_number }}"  # [py==311]
+  string: "py312_{{ build_number }}"  # [py==312]
 {% endif %}
 
 {% if noarch_build and py not in [39, 310, 311, 312] %}
