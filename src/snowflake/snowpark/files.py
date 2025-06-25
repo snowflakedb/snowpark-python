@@ -74,7 +74,7 @@ class SnowflakeFile(RawIOBase):
         ...     file.write(content)
         ...     return file # file must be returned to be accessible
 
-    These example are using the client, but this same pattern can be used inside SQL-defined UDFs.
+    These examples are using the client, but this same pattern can be used inside SQL-defined UDFs.
 
     We provide a local implementation of SnowflakeFile to aid in local testing. This currently only supports using read APIs on relative paths.
     Local testing to Snowflake stages is not yet supported.
