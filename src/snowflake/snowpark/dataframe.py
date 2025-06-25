@@ -6688,7 +6688,10 @@ def map_in_pandas(
     schema: Union[StructType, str],
     *,
     partition_by: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
-    **kwargs,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    immutable: bool = False,
+    max_batch_size: Optional[int] = None,
 ):
     """Returns a new DataFrame with the result of applying `func` to each batch of data in
     the dataframe. Func is expected to be a python function that takes an iterator of pandas
@@ -6705,7 +6708,12 @@ def map_in_pandas(
             of the `func` parameter.
         partition_by: A column or list of columns that will be used to partition the data
             before passing it to the func.
-        kwargs: Additional key word arguments are passed to the underlying UDTF registration.
+        imports: A list of imports that are required to run the function. This argument is passed
+            on when registering the UDTF.
+        packages: A list of packages that are required to run the function. This argument is passed
+            on when registering the UDTF.
+        immutable: A flag to specify if the result of the func is deterministic for the same input.
+        max_batch_size: The maximum number of rows per input pandas DataFrame when using vectorized option.
 
     Example 1::
 
@@ -6784,7 +6792,12 @@ def map_in_pandas(
         return pandas.concat(func([input]))
 
     return dataframe.group_by(partition_by).applyInPandas(
-        wrapped_func, schema, **kwargs
+        wrapped_func,
+        schema,
+        imports=imports,
+        packages=packages,
+        immutable=immutable,
+        max_batch_size=max_batch_size,
     )
 
 
