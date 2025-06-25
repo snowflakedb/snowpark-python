@@ -36,6 +36,10 @@
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
 - Added support for `pd.read_feather`.
 
+#### Improvements
+
+- Improved performance by deferring row position computation.
+
 ## 1.33.0 (2025-06-19)
 
 ### Snowpark Python API Updates
