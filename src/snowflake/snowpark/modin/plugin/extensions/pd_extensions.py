@@ -649,7 +649,7 @@ def explain_switch(simple=True) -> native_pd.DataFrame:
     "source" is the user code where the switch point occurred, if it is available.
     "api" is the top level api call which initiated the switch point
     "mode" is either "merge" for decisions involving multiple DataFrames or "auto"
-        for decisions involving a single DataFrame
+    for decisions involving a single DataFrame
     "decision" is the decision on which engine to use for that switch point.
 
     Args:
@@ -671,6 +671,7 @@ def explain_switch(simple=True) -> native_pd.DataFrame:
         ... source                                            api                mode
         ... df = pd.DataFrame({'Animal': ['Falcon', 'Falcon', DataFrame.__init__ auto
         ...                                                                      auto   Pandas
+
     """
     if not MODIN_IS_AT_LEAST_0_33_0:
         raise NotImplementedError("explain_switch requires modin >= 0.33.0")
