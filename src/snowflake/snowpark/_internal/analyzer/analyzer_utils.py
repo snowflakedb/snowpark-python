@@ -224,8 +224,6 @@ def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:
         return dict()
 
     iceberg_config = {k.lower(): v for k, v in iceberg_config.items()}
-    if "base_location" not in iceberg_config:
-        raise ValueError("Iceberg table configuration requires base_location be set.")
 
     return {
         EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
