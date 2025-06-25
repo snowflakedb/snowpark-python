@@ -29,7 +29,7 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
-_NON_LOCAL_PATH_ERR_MSG = "SnowflakeFile currently supports only relative paths and read apis in local testing."
+_NON_LOCAL_PATH_ERR_MSG = "SnowflakeFile currently supports only relative paths and read apis in local testing mode."
 _WRITE_MODE_ERR_MSG = (
     "SnowflakeFile currently doesn't support write APIs in local testing mode."
 )
@@ -60,7 +60,10 @@ class SnowflakeFile(RawIOBase):
         ...     file = SnowflakeFile.open(url, "r")
         ...     return file.read()
 
-    To write to a staged file, use the following API:
+    To write to a staged file first write to a result file via the following example.
+    The result file will return as a scoped URL which can be copied to a permanent stage
+    with `copy files <https://docs.snowflake.com/en/sql-reference/sql/copy-files>`_ or read directly via another call to SnowflakeFile.read() in another UDF invocation.
+    See `writing files from Snowpark Python UDFs <https://docs.snowflake.com/en/developer-guide/snowpark/python/creating-udfs#label-snowpark-python-udf-write-files>`_ for more details.
 
     Example::
         >>> from snowflake.snowpark.files import SnowflakeFile
@@ -69,24 +72,7 @@ class SnowflakeFile(RawIOBase):
         ... def write_file(content: str) -> str:
         ...     file = SnowflakeFile.open_new_result("w")
         ...     file.write(content)
-        ...     return file
-
-    A typical workflow would be as follows:
-
-    Example::
-        >>> from snowflake.snowpark.files import SnowflakeFile
-        >>> from snowflake.snowpark.functions import udf
-        >>> @udf
-        ... def read_file(url: str) -> str:
-        ...     file = SnowflakeFile.open(url, "r")
-        ...     return file.read()
-        >>> @udf
-        ... def write_file(content: str) -> str:
-        ...     file = SnowflakeFile.open_new_result("w")
-        ...     file.write(content)
-        ...     return file
-        >>> scoped_url = write_file("Hello World!")
-        >>> read_file(scoped_url) # doctest: +SKIP
+        ...     return file # file must be returned to be accessible
 
     These example are using the client, but this same pattern can be used inside SQL-defined UDFs.
 
@@ -323,7 +309,9 @@ class SnowflakeFile(RawIOBase):
 
         Read and return all the bytes from the stream until EOF, using multiple calls to the stream if necessary.
         """
-        return self.read(-1)
+        return self.read(
+            -1
+        )  # Python IO uses readall as the default implementation to read with no args, so we can just call read(-1)
 
     def readinto(self, b: bytes | bytearray | array.array) -> int:
         """
