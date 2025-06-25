@@ -5,6 +5,7 @@
 import queue
 import time
 import traceback
+import threading
 import multiprocessing as mp
 from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
@@ -152,6 +153,7 @@ def _task_fetch_data_from_source(
     partition: str,
     partition_idx: int,
     parquet_queue: mp.Queue,
+    stop_event: threading.Event = None,
 ):
     """
     Fetch data from source and convert to parquet BytesIO objects.
@@ -179,6 +181,16 @@ def _task_fetch_data_from_source(
         logger.debug(f"Added parquet BytesIO to queue: {parquet_id}")
 
     for i, result in enumerate(worker.read(partition)):
+        if stop_event and stop_event.is_set():
+            parquet_queue.put(
+                (
+                    PARTITION_TASK_ERROR_SIGNAL,
+                    SnowparkDataframeReaderException(
+                        "Data fetching stopped by thread failure"
+                    ),
+                )
+            )
+            break
         convert_to_parquet_bytesio(result, i)
 
     parquet_queue.put((f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}{partition_idx}", None))
@@ -189,6 +201,7 @@ def _task_fetch_data_from_source_with_retry(
     partition: str,
     partition_idx: int,
     parquet_queue: mp.Queue,
+    stop_event: threading.Event = None,
 ):
     _retry_run(
         _task_fetch_data_from_source,
@@ -196,6 +209,7 @@ def _task_fetch_data_from_source_with_retry(
         partition,
         partition_idx,
         parquet_queue,
+        stop_event,
     )
 
 
@@ -292,7 +306,12 @@ def _retry_run(func: Callable, *args, **kwargs) -> Any:
 
 
 # DBAPI worker function that processes multiple partitions
-def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
+def worker_process(
+    partition_queue: mp.Queue,
+    parquet_queue: mp.Queue,
+    reader,
+    stop_event: threading.Event = None,
+):
     """Worker process that fetches data from multiple partitions"""
     while True:
         try:
@@ -304,6 +323,7 @@ def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
                 query,
                 partition_idx,
                 parquet_queue,
+                stop_event,
             )
         except queue.Empty:
             # No more work available, exit gracefully
@@ -348,6 +368,7 @@ def process_parquet_queue_with_threads(
     max_workers: int,
     statements_params: Optional[Dict[str, str]] = None,
     on_error: str = "abort_statement",
+    multi_processing: bool = False,
 ) -> None:
     """
     Process parquet data from a multiprocessing queue using a thread pool.
@@ -424,19 +445,44 @@ def process_parquet_queue_with_threads(
 
             except queue.Empty:
                 backpressure_semaphore.release()  # Release semaphore if no data was fetched
-                # Check if any processes have failed
-                for i, process in enumerate(processes):
-                    if not process.is_alive() and process.exitcode != 0:
-                        raise SnowparkDataframeReaderException(
-                            f"Partition {i} data fetching process failed with exit code {process.exitcode}"
-                        )
+                if multi_processing:
+                    # Check if any processes have failed
+                    for i, process in enumerate(processes):
+                        if not process.is_alive() and process.exitcode != 0:
+                            raise SnowparkDataframeReaderException(
+                                f"Partition {i} data fetching process failed with exit code {process.exitcode}"
+                            )
+                else:
+                    # Check if any threads have failed
+                    for i, future in enumerate(processes):
+                        if future.done():
+                            try:
+                                future.result()
+                            except BaseException as e:
+                                if isinstance(e, SnowparkDataframeReaderException):
+                                    raise e
+                                raise SnowparkDataframeReaderException(
+                                    f"Partition {i} data fetching thread failed with error: {e}"
+                                )
                 time.sleep(0.1)
                 continue
 
-    # Wait for all processes to complete
-    for idx, process in enumerate(processes):
-        process.join()
-        if process.exitcode != 0:
-            raise SnowparkDataframeReaderException(
-                f"Partition {idx} data fetching process failed with exit code {process.exitcode}"
-            )
+    if multi_processing:
+        # Wait for all processes to complete
+        for idx, process in enumerate(processes):
+            process.join()
+            if process.exitcode != 0:
+                raise SnowparkDataframeReaderException(
+                    f"Partition {idx} data fetching process failed with exit code {process.exitcode}"
+                )
+    else:
+        # Wait for all threads to complete
+        for future in processes:
+            try:
+                future.result()
+            except BaseException as e:
+                if isinstance(e, SnowparkDataframeReaderException):
+                    raise e
+                raise SnowparkDataframeReaderException(
+                    f"Partition {idx} data fetching thread failed with error: {e}"
+                )
