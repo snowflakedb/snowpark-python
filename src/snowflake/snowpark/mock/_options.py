@@ -2,9 +2,61 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+# More actions
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
 import importlib
 
 from snowflake.connector.options import MissingOptionalDependency, MissingPandas
+
+
+class _LazyPandasProxy:
+    def __init__(self) -> None:  # noqa: FIR100
+        self._pandas = None
+        self._is_checked = False
+        self._is_installed = None
+
+    def _ensure_checked(self):
+        if not self._is_checked:
+            try:
+                self._pandas = importlib.import_module("pandas")
+                self._is_installed = True
+            except ImportError:
+                self._pandas = MissingPandas()
+                self._is_installed = False
+            self._is_checked = True
+
+    def __getattr__(self, name):
+        self._ensure_checked()
+        return getattr(self._pandas, name)
+
+    def __bool__(self):
+        self._ensure_checked()
+        return self._is_installed
+
+    def __repr__(self):
+        self._ensure_checked()
+        return repr(self._pandas)
+
+
+class _LazyInstalledPandas:
+    def __init__(self, pandas_proxy) -> None:  # noqa: FIR100
+        self._pandas_proxy = pandas_proxy
+
+    def __bool__(self):
+        self._pandas_proxy._ensure_checked()
+        return self._pandas_proxy._is_installed
+
+    def __eq__(self, other):
+        return bool(self) == other
+
+    def __repr__(self):
+        return str(bool(self))
+
+
+pandas = _LazyPandasProxy()
+installed_pandas = _LazyInstalledPandas(pandas)
 
 
 class MissingNumpy(MissingOptionalDependency):
@@ -19,25 +71,3 @@ try:
 except ImportError:
     numpy = MissingNumpy()
     installed_numpy = False
-
-
-def installed_pandas():
-    """Check if pandas is installed."""
-    try:
-        importlib.import_module("pandas")
-        return True
-    except ImportError:
-        return False
-
-
-def __getattr__(name):
-    if name == "pandas":
-        try:
-            return importlib.import_module("pandas")
-        except ImportError:
-            return MissingPandas()
-
-    elif name == "installed_pandas":
-        return installed_pandas()
-
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

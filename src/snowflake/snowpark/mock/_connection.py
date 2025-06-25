@@ -11,7 +11,18 @@ import uuid
 from copy import copy
 from decimal import Decimal
 from logging import getLogger
-from typing import IO, Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
+from typing import (
+    IO,
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    TYPE_CHECKING,
+)
 from unittest.mock import Mock
 
 import snowflake.snowpark.mock._constants
@@ -36,7 +47,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.exceptions import SnowparkSessionException
-from snowflake.snowpark.mock._options import pandas
 from snowflake.snowpark.mock._plan import MockExecutionPlan, execute_mock_plan
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, TableEmulator
 from snowflake.snowpark.mock._stage_registry import StageEntityRegistry
@@ -58,6 +68,9 @@ logger = getLogger(__name__)
 PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.mock._options import pandas
 
 
 class MockedSnowflakeConnection(SnowflakeConnection):
@@ -144,6 +157,8 @@ class MockServerConnection:
             mode: SaveMode,
             column_names: Optional[List[str]] = None,
         ) -> List[Row]:
+            from snowflake.snowpark.mock._options import pandas
+
             with self._lock:
                 for column in table.columns:
                     if (
@@ -704,6 +719,8 @@ class MockServerConnection:
             rows = [r for r in res]
 
         if to_pandas:
+            from snowflake.snowpark.mock._options import pandas
+
             pandas_df = pandas.DataFrame()
             for col_name in res.columns:
                 pandas_df[unquote_if_quoted(col_name)] = res[col_name].tolist()
@@ -809,6 +826,8 @@ class MockServerConnection:
 
 
 def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
+    from snowflake.snowpark.mock._options import pandas
+
     pd_df = pandas.DataFrame()
     for col_name in table_res.columns:
         col_sf_type = table_res.sf_types[col_name]
