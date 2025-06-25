@@ -166,6 +166,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     global_counter,
     string_half_width,
+    warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -1333,7 +1334,8 @@ class DataFrame:
                 all columns except ones configured in index_col.
             enforce_ordering: If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
                 DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. Please refer to the
-                documentation of :func:`~modin.pandas.read_snowflake` for more details.
+                documentation of :func:`~modin.pandas.read_snowflake` for more details. If DDL or DML queries have been
+                used in this query this parameter is ignored and ordering is enforced.
 
 
         Returns:
@@ -1415,8 +1417,16 @@ class DataFrame:
                 )
             if columns is not None:
                 ast.columns.extend(columns if isinstance(columns, list) else [columns])
+        has_existing_ddl_dml_queries = False
+        if not enforce_ordering and len(self.queries["queries"]) > 1:
+            has_existing_ddl_dml_queries = True
+            warning(
+                "enforce_ordering_ddl",
+                "enforce_ordering is enabled when using DML/DDL operations regardless of user setting",
+                warning_times=1,
+            )
 
-        if enforce_ordering:
+        if enforce_ordering or has_existing_ddl_dml_queries:
             # create a temporary table out of the current snowpark dataframe
             temporary_table_name = random_name_for_temp_object(
                 TempObjectType.TABLE
@@ -1438,11 +1448,6 @@ class DataFrame:
                 enforce_ordering=True,
             )  # pragma: no cover
         else:
-            if len(self.queries["queries"]) > 1:
-                raise NotImplementedError(
-                    "Setting 'enforce_ordering=False' in 'to_snowpark_pandas' is not supported when the input "
-                    "dataframe includes DDL or DML operations. Please use 'enforce_ordering=True' instead."
-                )
             snowpandas_df = pd.read_snowflake(
                 name_or_query=self.queries["queries"][0],
                 index_col=index_col,
