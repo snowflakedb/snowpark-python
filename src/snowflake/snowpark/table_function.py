@@ -23,6 +23,7 @@ from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.types import ArrayType, MapType
 
 from ._internal.analyzer.snowflake_plan import SnowflakePlan
+from ._internal.analyzer.select_statement import SelectStatement
 from ._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
@@ -206,12 +207,9 @@ class TableFunctionCall:
 class _ExplodeFunctionCall(TableFunctionCall):
     """Internal class to identify explode function call as a special instance of TableFunctionCall"""
 
-    def __init__(self, col: ColumnOrName, outer: Column) -> None:
+    def __init__(self, col: Column, outer: Column) -> None:
         super().__init__("flatten", input=col, outer=outer)
-        if isinstance(col, Column):
-            self.col = col._expression.name
-        else:
-            self.col = quote_name(col)
+        self.col = col
         self.user_visible_name: str = "explode"
 
 
@@ -321,9 +319,16 @@ def _get_cols_after_join_table(
 
 
 def _get_cols_after_explode_join(
-    func: _ExplodeFunctionCall, plan: SnowflakePlan
+    func: _ExplodeFunctionCall,
+    plan: SnowflakePlan,
+    select_statement: Optional[SelectStatement],
 ) -> Tuple[List, List]:
-    explode_col_type = plan.output_dict.get(func.col, [None])[0]
+    if select_statement:
+        plan = select_statement.select([func.col._named()]).snowflake_plan
+        explode_col_type = plan.output[0].datatype
+    else:
+        col_name = func.col._expression.name
+        explode_col_type = plan.output_dict.get(col_name, [None])[0]
 
     cols = []
     aliases = func._aliases
