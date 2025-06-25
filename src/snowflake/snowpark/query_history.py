@@ -53,12 +53,14 @@ class QueryHistory(QueryListener):
         include_describe: bool = False,
         include_thread_id: bool = False,
         include_error: bool = False,
+        check_exploding_joins: bool = False,
     ) -> None:
         self.session = session
         self._queries: List[QueryRecord] = []
         self._include_describe = include_describe
         self._include_thread_id = include_thread_id
         self._include_error = include_error
+        self._check_exploding_joins = check_exploding_joins
 
     def __enter__(self):
         return self
@@ -67,6 +69,16 @@ class QueryHistory(QueryListener):
         self.session._conn.remove_query_listener(self)
 
     def _notify(self, query_record: QueryRecord, **kwargs) -> None:
+        if self._check_exploding_joins:
+            from snowflake.snowpark._internal.utils import is_ast_enabled
+            from snowflake.snowpark._internal.debug_utils import (
+                analyze_query_for_exploding_joins,
+            )
+
+            top_plan = None
+            if "dataframePlan" in kwargs and is_ast_enabled():
+                top_plan = kwargs["dataframePlan"]
+            analyze_query_for_exploding_joins(self.session, query_record, top_plan)
         self._queries.append(query_record)
 
     @property

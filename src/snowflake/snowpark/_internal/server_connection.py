@@ -435,11 +435,16 @@ class ServerConnection:
         if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
 
+        # Filter out dataframePlan for cursor, but keep them for listeners
+        cursor_kwargs = {k: v for k, v in kwargs.items() if k != "dataframePlan"}
+
         try:
-            results_cursor = self._cursor.execute(query, **kwargs)
+            results_cursor = self._cursor.execute(query, **cursor_kwargs)
         except Exception as ex:
             notify_kwargs["requestId"] = None
             notify_kwargs["exception"] = ex
+            if "dataframePlan" in kwargs:
+                notify_kwargs["dataframePlan"] = kwargs["dataframePlan"]
             sfqid = ex.sfqid if isinstance(ex, Error) else None
             err_query = ex.query if isinstance(ex, Error) else query
             self.notify_query_listeners(
@@ -448,6 +453,8 @@ class ServerConnection:
             raise ex
 
         notify_kwargs["requestId"] = str(results_cursor._request_id)
+        if "dataframePlan" in kwargs:
+            notify_kwargs["dataframePlan"] = kwargs["dataframePlan"]
         self.notify_query_listeners(
             QueryRecord(results_cursor.sfqid, results_cursor.query), **notify_kwargs
         )
@@ -456,14 +463,27 @@ class ServerConnection:
     def execute_async_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
+        notify_kwargs = {}
+        if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
+            notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+
+        # Filter out dataframePlan for cursor, but keep them for listeners
+        cursor_kwargs = {k: v for k, v in kwargs.items() if k != "dataframePlan"}
+
         try:
-            results_cursor = self._cursor.execute_async(query, **kwargs)
+            results_cursor = self._cursor.execute_async(query, **cursor_kwargs)
         except Error as err:
+            if "dataframePlan" in kwargs:
+                notify_kwargs["dataframePlan"] = kwargs["dataframePlan"]
             self.notify_query_listeners(
-                QueryRecord(err.sfqid, err.query), is_error=True
+                QueryRecord(err.sfqid, err.query), is_error=True, **notify_kwargs
             )
             raise err
-        self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
+        if "dataframePlan" in kwargs:
+            notify_kwargs["dataframePlan"] = kwargs["dataframePlan"]
+        self.notify_query_listeners(
+            QueryRecord(results_cursor["queryId"], query), **notify_kwargs
+        )
         return results_cursor
 
     def execute_and_get_sfqid(
@@ -625,6 +645,10 @@ class ServerConnection:
             raise NotImplementedError(
                 "Async query is not supported in stored procedure yet"
             )
+
+        # Add dataframePlan to kwargs for query listeners
+        kwargs["dataframePlan"] = plan
+
         result_set, result_meta = self.get_result_set(
             plan,
             to_pandas,
