@@ -70,6 +70,11 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Fixed a bug in hybrid execution mode (PrPr) where calling numpy operations like `np.where` on modin objects with the Pandas backend would raise an `AttributeError`. This fix requires `modin` version 0.34.0 or newer.
 - Fixed issue when df.melt where the resulting values have an additional suffix applied
 
+#### Improvements
+
+- Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
+
+
 ## 1.33.0 (2025-06-19)
 
 ### Snowpark Python API Updates
