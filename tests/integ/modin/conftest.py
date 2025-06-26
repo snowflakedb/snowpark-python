@@ -69,7 +69,7 @@ def setup_pandas_api_coverage_generator(pytestconfig):
         PandasAPICoverageGenerator()
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def clear_udf_and_udtf_caches():
     # UDF/UDTFs are persisted across the entire session for performance reasons. To ensure tests
     # remain independent from each other, we must clear the caches between runs.

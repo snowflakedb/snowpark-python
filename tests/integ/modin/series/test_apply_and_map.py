@@ -532,7 +532,7 @@ class TestApplyOrMapCallable:
         [
             (["statsmodels", "numpy"], 4),
             (["statsmodels==0.14.0", "numpy>=1.0"], 4),
-            ([statsmodels, np], 5),
+            ([statsmodels, np], 4),
         ],
     )
     def test_3rd_party_package_with_session(
@@ -835,7 +835,8 @@ class TestMapOnly:
     def test_map_udf_caching(self):
         # Reusing the same function reference in multiple frames should hit the local UDF cache
         # instead of creating a new UDF on each call.
-        # The cache should not be hit when the function is called on a Series with a different datatype.
+        # The cache should not be hit when the function is called on a Series with a different datatype,
+        # or if the function is called with different parameters.
         test_series_int_1 = create_test_series([1, 2, 3])
         test_series_int_2 = create_test_series([4, 5, 6, 7])
         test_series_str = create_test_series(["a", "b", "c", "d"])
