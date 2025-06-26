@@ -34,7 +34,6 @@ from tests.integ.modin.utils import (
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import RUNNING_ON_GH
 
-
 BASIC_DATA_FUNC_RETURN_TYPE_MAP = [
     ([1, 2, 3, None], lambda x: x + 1, "int"),
     param(
