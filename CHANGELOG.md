@@ -25,6 +25,8 @@
 
 ### Snowpark Local Testing Updates
 
+- Added local testing support for reading files with `SnowflakeFile` using local file paths.
+
 #### Bug Fixes
 
 - Fixed a bug when processing windowed functions that lead to incorrect indexing in results.
@@ -46,7 +48,6 @@
 - Added support for PostgreSQL in `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
 - Added support for Databricks in `DataFrameWriter.dbapi` (PrPr) for UDTF-based ingestion.
 - Added support to `DataFrameReader` to enable use of `PATTERN` when reading files with `INFER_SCHEMA` enabled.
-- Added local testing support for reading files with `SnowflakeFile` using local file paths.
 - Added support for the following AI-powered functions in `functions.py`:
   - `ai_complete`
   - `ai_similarity`
