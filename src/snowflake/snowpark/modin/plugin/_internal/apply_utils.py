@@ -132,41 +132,6 @@ except ImportError:
     ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple()
 
 
-@dataclass(eq=True, frozen=True)
-class UDFPersistParams:
-    """
-    Parameters describing persistence properties of a UDF.
-
-    If udf_name is unspecified, then it will be automatically generated.
-    """
-
-    udf_name: Optional[str]
-    stage_name: str
-
-
-def process_persist_params(
-    f: Callable, kwargs_dict: dict
-) -> Optional[UDFPersistParams]:
-    """
-    Remove params from an apply function's **kwargs dictionary that are used to describe UDF persistence.
-    """
-    # TODO change name parameters to something less likely to collide with real function args
-    PERMANENT_KEY = "is_permanent"
-    STAGE_KEY = "stage_location"
-    NAME_KEY = "name"
-    if PERMANENT_KEY in kwargs_dict:
-        del kwargs_dict[PERMANENT_KEY]
-        if STAGE_KEY not in kwargs_dict:
-            raise ValueError(
-                f"`{STAGE_KEY}` must be set when calling apply/map/transform with the `is_permanent` flag."
-            )
-        # TODO autogenerate name if f doesn't have one (e.g. is a lambda)
-        return UDFPersistParams(
-            kwargs_dict.pop(NAME_KEY, f.__name__), kwargs_dict.pop(STAGE_KEY)
-        )
-    return None
-
-
 # Reuse UDFs that have already been constructed in each session.
 @dataclass(eq=True, frozen=True)
 class UDFCacheKey:
@@ -179,7 +144,6 @@ class UDFCacheKey:
     ]  # map(id, args) we can't guarantee the hashability of arguments, so just use pointer equality
     kwarg_key_ids: tuple[int, ...]  # map(id, kwargs.keys())
     kwarg_value_ids: tuple[int, ...]  # map(id, kwargs.values())
-    persist_params: Optional[UDFPersistParams]
     # No packages param in the key; we assume packages will be the same for the UDF every time
 
 
@@ -1372,7 +1336,6 @@ def create_udf_for_series_apply(
         tuple(map(id, args)),
         tuple(map(id, kwargs.keys())),
         tuple(map(id, kwargs.values())),
-        process_persist_params(func, kwargs),
     )
     cache = session_udf_cache[session]
     if cache_key not in cache:
