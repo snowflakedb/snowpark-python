@@ -3531,6 +3531,7 @@ class Session:
         for row in rows:
             converted_row = []
             for value, data_type in zip(row, data_types):
+
                 if value is None:
                     converted_row.append(None)
                 elif isinstance(value, decimal.Decimal) and isinstance(
