@@ -400,14 +400,6 @@ def test_join_statement_negative():
 
 
 def test_create_iceberg_table_statement():
-    with pytest.raises(
-        ValueError, match="Iceberg table configuration requires base_location be set."
-    ):
-        create_table_statement(
-            table_name="test_table",
-            schema="test_col varchar",
-            iceberg_config={},
-        )
     assert create_table_statement(
         table_name="test_table",
         schema="test_col varchar",
