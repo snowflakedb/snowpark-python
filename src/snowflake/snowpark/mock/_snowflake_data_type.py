@@ -1,7 +1,8 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-from typing import Any, Dict, Iterable, NamedTuple, Optional, Union, TYPE_CHECKING
+from typing import Any, Dict, Iterable, NamedTuple, Optional, Union
+from snowflake.snowpark.mock._options import installed_pandas, pandas as pd
 
 from snowflake.snowpark.mock._telemetry import LocalTestOOBTelemetryService
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
@@ -27,16 +28,10 @@ from snowflake.snowpark.types import (
     _NumericType,
 )
 
-if TYPE_CHECKING:
-    import snowflake.connector.options.installed_pandas as installed_pandas
-    import pandas as pd
-
-    PandasDataframeType = object if not installed_pandas else pd.DataFrame
-    PandasSeriesType = object if not installed_pandas else pd.Series
-
-
 # pandas is an optional requirement for local test, so make snowpark compatible with env where pandas
 # not installed, here we redefine the base class to avoid ImportError
+PandasDataframeType = object if not installed_pandas else pd.DataFrame
+PandasSeriesType = object if not installed_pandas else pd.Series
 
 # https://docs.snowflake.com/en/sql-reference/parameters#label-timestamp-type-mapping
 # SNOW-1630258 for local testing session parameters support
@@ -169,8 +164,6 @@ SNOW_DATA_TYPE_CONVERSION_DICT = {
 def isna_helper(obj: Any) -> bool:
     """Small helper function to detect whether object is considered NULL. Needed because for
     lists, tuples, ... pandas isna() does not handle correctly."""
-    from snowflake.snowpark.mock._options import pandas as pd
-
     if isinstance(obj, Iterable):
         return False
     return pd.isna(obj)
@@ -385,32 +378,7 @@ def get_coerce_result_type(c1: ColumnType, c2: ColumnType):
     return None
 
 
-class LazyPandasMeta(type):
-    def __new__(mcs, name, bases, namespace, pandas_type=None):
-        namespace["_pandas_type"] = pandas_type
-        namespace["_real_base"] = None
-        return super().__new__(mcs, name, bases, namespace)
-
-    def __call__(cls, *args, **kwargs):
-        if cls._real_base is None:
-            from snowflake.connector.options import installed_pandas
-
-            if installed_pandas and cls._pandas_type:
-                import pandas as pd
-
-                if cls._pandas_type == "DataFrame":
-                    cls._real_base = pd.DataFrame
-                elif cls._pandas_type == "Series":
-                    cls._real_base = pd.Series
-            else:
-                cls._real_base = object
-            cls.__bases__ = (cls._real_base,)
-
-        return super().__call__(*args, **kwargs)
-
-
-class TableEmulator(metaclass=LazyPandasMeta, pandas_type="DataFrame"):
-
+class TableEmulator(PandasDataframeType):
     _metadata = [
         "sf_types",
         "sf_types_by_col_index",
@@ -499,8 +467,6 @@ def get_number_precision_scale(t: DataType):
 def add_date_and_number(
     col1: "ColumnEmulator", col2: "ColumnEmulator"
 ) -> Optional["ColumnEmulator"]:
-    from snowflake.snowpark.mock._options import pandas as pd
-
     """If one column is DateType and another column is numeric, round and add the numeric to days"""
     if isinstance(col2.sf_type.datatype, DateType):
         col1, col2 = col2, col1
@@ -527,7 +493,7 @@ def broadcast_value(value: Any, len: int) -> "ColumnEmulator":
     return ColumnEmulator([value] * len)
 
 
-class ColumnEmulator(metaclass=LazyPandasMeta, pandas_type="Series"):
+class ColumnEmulator(PandasSeriesType):
     _metadata = ["sf_type", "_null_rows_idxs"]
 
     @property
