@@ -27,6 +27,7 @@ from typing import (
 )
 
 import snowflake.snowpark
+import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 
@@ -164,6 +165,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     global_counter,
     string_half_width,
+    warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -645,6 +647,11 @@ class DataFrame:
 
         self._alias: Optional[str] = None
 
+        if context._debug_eager_schema_validation:
+            # Getting the plan attributes may run a describe query
+            # and populates the schema for the dataframe.
+            self._plan.attributes
+
     def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:
         """
         Given a field builder expression of the AST type Expr, points the builder to reference this dataframe.
@@ -669,7 +676,7 @@ class DataFrame:
     def _ast_id(self, value: Optional[int]) -> None:
         self.__ast_id = value
         if self._plan is not None:
-            self._plan.df_ast_id = value
+            self._plan.add_df_ast_id(value)
         if self._select_statement is not None:
             self._select_statement.add_df_ast_id(value)
 
@@ -1326,7 +1333,8 @@ class DataFrame:
                 all columns except ones configured in index_col.
             enforce_ordering: If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
                 DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. Please refer to the
-                documentation of :func:`~modin.pandas.read_snowflake` for more details.
+                documentation of :func:`~modin.pandas.read_snowflake` for more details. If DDL or DML queries have been
+                used in this query this parameter is ignored and ordering is enforced.
 
 
         Returns:
@@ -1408,8 +1416,16 @@ class DataFrame:
                 )
             if columns is not None:
                 ast.columns.extend(columns if isinstance(columns, list) else [columns])
+        has_existing_ddl_dml_queries = False
+        if not enforce_ordering and len(self.queries["queries"]) > 1:
+            has_existing_ddl_dml_queries = True
+            warning(
+                "enforce_ordering_ddl",
+                "enforce_ordering is enabled when using DML/DDL operations regardless of user setting",
+                warning_times=1,
+            )
 
-        if enforce_ordering:
+        if enforce_ordering or has_existing_ddl_dml_queries:
             # create a temporary table out of the current snowpark dataframe
             temporary_table_name = random_name_for_temp_object(
                 TempObjectType.TABLE
@@ -1431,11 +1447,6 @@ class DataFrame:
                 enforce_ordering=True,
             )  # pragma: no cover
         else:
-            if len(self.queries["queries"]) > 1:
-                raise NotImplementedError(
-                    "Setting 'enforce_ordering=False' in 'to_snowpark_pandas' is not supported when the input "
-                    "dataframe includes DDL or DML operations. Please use 'enforce_ordering=True' instead."
-                )
             snowpandas_df = pd.read_snowflake(
                 name_or_query=self.queries["queries"][0],
                 index_col=index_col,
@@ -1617,7 +1628,9 @@ class DataFrame:
                 func_expr = _create_table_function_expression(func=table_func)
 
                 if isinstance(e, _ExplodeFunctionCall):
-                    new_cols, alias_cols = _get_cols_after_explode_join(e, self._plan)
+                    new_cols, alias_cols = _get_cols_after_explode_join(
+                        e, self._plan, self._select_statement
+                    )
                 else:
                     # this join plan is created here to extract output columns after the join. If a better way
                     # to extract this information is found, please update this function.

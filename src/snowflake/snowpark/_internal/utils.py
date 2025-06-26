@@ -55,12 +55,15 @@ from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.context import _should_use_structured_type_semantics
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
-    from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+        SnowflakePlan,
+        QueryLineInterval,
+    )
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2
@@ -198,6 +201,7 @@ NON_FORMAT_TYPE_OPTIONS = {
     "TRANSFORMATIONS",
     "COPY_OPTIONS",
     "ENFORCE_EXISTING_FILE_FORMAT",
+    "TRY_CAST",
 }
 
 XML_ROW_TAG_STRING = "ROWTAG"
@@ -756,6 +760,8 @@ def _parse_result_meta(
     an expected format. For example StructType columns are returned as dict objects, but are better
     represented as Row objects.
     """
+    from snowflake.snowpark.context import _should_use_structured_type_semantics
+
     if not result_meta:
         return None, None
     col_names = []
@@ -1900,3 +1906,153 @@ def ttl_cache(ttl_seconds: float):
         return wrapper
 
     return decorator
+
+
+def remove_comments(sql_query: str, uuids: List[str]) -> str:
+    """Removes comments associated with child uuids in a query"""
+    from snowflake.snowpark._internal.analyzer import analyzer_utils
+
+    comment_placeholders = {
+        analyzer_utils.format_uuid(uuid, with_new_line=False) for uuid in uuids
+    }
+    return "\n".join(
+        line
+        for line in sql_query.split("\n")
+        if line not in comment_placeholders and line != ""
+    )
+
+
+def get_line_numbers(
+    commented_sql_query: str,
+    child_uuids: List[str],
+    parent_uuid: str,
+) -> List["QueryLineInterval"]:
+    """
+        Helper function to get line numbers associated with child uuids in a query
+        The commented_sql_query is a sql query with comments associated with child uuids. For example, it may look like:
+        ```
+        SELECT col1
+        FROM
+    -- child-uuid-1:
+    table1
+    -- child-uuid-1:
+    WHERE col1 > 0
+    -- child-uuid-2:
+    ORDER BY col1
+    -- child-uuid-2:
+        ```
+        For this query, we want to return a list of QueryLineInterval objects with the following intervals:
+        - (0, 1, "parent-uuid")
+        - (2, 2, "child-uuid-1")
+        - (3, 3, "parent-uuid")
+        - (4, 4, "child-uuid-2")
+
+        To do so, we split the commented_sql_query into lines and check for comments associated with child uuids. We find all
+        intervals associated with child uuids and associate the remaining lines with the parent uuid.
+    """
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import QueryLineInterval
+    from snowflake.snowpark._internal.analyzer import analyzer_utils
+
+    sql_lines = commented_sql_query.split("\n")
+    comment_placeholders = {
+        analyzer_utils.format_uuid(uuid, with_new_line=False): uuid
+        for uuid in child_uuids
+    }
+
+    idx = 0
+    child_intervals = []
+    child_start = -1
+    found_start = False
+    current_child_uuid = None
+
+    for line in sql_lines:
+        if line in comment_placeholders:
+            if found_start and current_child_uuid:
+                child_intervals.append(
+                    QueryLineInterval(child_start, idx - 1, current_child_uuid)
+                )
+                found_start = False
+                current_child_uuid = None
+            elif not found_start:
+                found_start = True
+                child_start = idx
+                current_child_uuid = comment_placeholders[line]
+        elif line != "":
+            idx += 1
+
+    current_pos = 0
+    new_intervals = []
+
+    for interval in child_intervals:
+        if current_pos < interval.start:
+            new_intervals.append(
+                QueryLineInterval(current_pos, interval.start - 1, parent_uuid)
+            )
+        new_intervals.append(interval)
+        current_pos = interval.end + 1
+
+    if current_pos < idx:
+        new_intervals.append(QueryLineInterval(current_pos, idx - 1, parent_uuid))
+
+    return new_intervals
+
+
+def get_plan_from_line_numbers(
+    plan_node: Union["SnowflakePlan", "Selectable"],
+    line_number: int,
+) -> "SnowflakePlan":
+    """
+    Given a parent plan node and a line number, return the plan node that contains the line number.
+    Each parent node has a list of disjoint query line intervals, which are sorted by start line number,
+    and each interval is associated with a plan node uuid. Each node either knows it is responsible for
+    the lines in the interval if its uuid is the same as the interval's uuid, or that one of its descendants
+    is responsible otherwise. If we find that the descendant is responsible, then we subtract the offset created
+    by the parent before recursively searching the child. For example, if the parent is responsible for lines 0-10 and
+    its descendants are responsible for lines 11-20 and we are searching for line 15, we will search the child for line 4.
+    We raise ValueError if the line number does not fall within any interval.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
+    # we binary search for our line number because our intervals are sorted
+    def find_interval_containing_line(intervals, line_number):
+        left, right = 0, len(intervals) - 1
+        while left <= right:
+            mid = (left + right) // 2
+            start, end = intervals[mid].start, intervals[mid].end
+
+            if start <= line_number <= end:
+                return mid
+            elif line_number < start:
+                right = mid - 1
+            else:
+                left = mid + 1
+        return -1
+
+    # traverse the plan tree to find the plan that contains the line number
+    stack = [(plan_node, line_number)]
+    while stack:
+        node, line_number = stack.pop()
+        if isinstance(node, Selectable):
+            node = node.get_snowflake_plan(skip_schema_query=False)
+        query_line_intervals = node.queries[-1].query_line_intervals
+        idx = find_interval_containing_line(query_line_intervals, line_number)
+        if idx >= 0:
+            uuid = query_line_intervals[idx].uuid
+            if node.uuid == uuid:
+                return node
+            else:
+                for child in node.children_plan_nodes:
+                    if child.uuid == uuid:
+                        stack.append(
+                            (
+                                child,
+                                line_number - query_line_intervals[idx].start,
+                            )
+                        )
+                        break
+        else:
+            raise ValueError(
+                f"Line number {line_number} does not fall within any interval"
+            )
+
+    raise ValueError(f"Line number {line_number} does not fall within any interval")

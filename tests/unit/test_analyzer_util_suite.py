@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     NOT,
     OR,
     REPLACE,
+    format_uuid,
     convert_value_to_sql_option,
     create_file_format_statement,
     create_or_replace_dynamic_table_statement,
@@ -54,6 +55,23 @@ def setup():
     yield
     analyzer_utils.NEW_LINE = original_new_line
     analyzer_utils.TAB = original_tab
+
+
+def test_format_uuid():
+    uuid_str = "123e4567-e89b-12d3-a456-426614174000"
+    expected = f"-- {uuid_str}"
+    result = format_uuid(uuid_str, with_new_line=False)
+    assert result == expected
+
+    result_with_newline = format_uuid(uuid_str, with_new_line=True)
+    expected_with_newline = f"\n-- {uuid_str}\n"
+    assert result_with_newline == expected_with_newline
+
+    empty_result = format_uuid(None, with_new_line=False)
+    assert empty_result == ""
+
+    empty_result_with_newline = format_uuid(None, with_new_line=True)
+    assert empty_result_with_newline == ""
 
 
 def test_generate_scoped_temp_objects():
@@ -382,14 +400,6 @@ def test_join_statement_negative():
 
 
 def test_create_iceberg_table_statement():
-    with pytest.raises(
-        ValueError, match="Iceberg table configuration requires base_location be set."
-    ):
-        create_table_statement(
-            table_name="test_table",
-            schema="test_col varchar",
-            iceberg_config={},
-        )
     assert create_table_statement(
         table_name="test_table",
         schema="test_col varchar",

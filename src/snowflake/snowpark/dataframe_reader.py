@@ -44,9 +44,11 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
+    most_permissive_type,
 )
 from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
 from snowflake.snowpark._internal.utils import (
+    SNOWURL_PREFIX,
     STAGE_PREFIX,
     XML_ROW_TAG_STRING,
     XML_ROW_DATA_COLUMN_NAME,
@@ -978,12 +980,23 @@ class DataFrameReader:
         file_format_name = self._cur_options.get("FORMAT_NAME", temp_file_format_name)
         infer_schema_options = self._cur_options.get("INFER_SCHEMA_OPTIONS", {})
 
+        # When use_relaxed_types is true then ignore length or precision of infered types.
+        # Eg StringType(5) -> StringType or ShortType -> DoubleType
+        use_relaxed_types = infer_schema_options.pop("USE_RELAXED_TYPES", False)
+
+        # When try_cast is true attempt add try_cast to the schema_to_cast string so
+        # that files aren't dropped if individual rows fail to parse.
+        try_cast = self._cur_options.get("TRY_CAST", False)
+
         # When pattern is set we should only consider files that match the pattern during schema inference
         # If no files match fallback to trying to read all files.
+        # snow:// paths are not yet supported
         infer_path = path
         if (
-            pattern := self._cur_options.get("PATTERN", None)
-        ) and "FILES" not in infer_schema_options:
+            (pattern := self._cur_options.get("PATTERN", None))
+            and "FILES" not in infer_schema_options
+            and not path.startswith(SNOWURL_PREFIX)
+        ):
             # matches has schema (name, size, md5, last_modified)
             # Name is fully qualified with stage path
             matches = self._session._conn.run_query(
@@ -1045,20 +1058,27 @@ class DataFrameReader:
                     data_type = data_type_parts[0]
                     precision = int(data_type_parts[1].split(",")[0])
                     scale = int(data_type_parts[1].split(",")[1][:-1])
+                datatype = convert_sf_to_sp_type(
+                    data_type, precision, scale, 0, self._session._conn.max_string_size
+                )
+                if use_relaxed_types:
+                    datatype = most_permissive_type(datatype)
                 new_schema.append(
                     Attribute(
                         name,
-                        convert_sf_to_sp_type(
-                            data_type,
-                            precision,
-                            scale,
-                            0,
-                            self._session._conn.max_string_size,
-                        ),
+                        datatype,
                         r[2],
                     )
                 )
-                identifier = f"$1:{name}::{r[1]}" if format != "CSV" else r[3]
+
+                if try_cast:
+                    id = r[3].split(":")[0]
+                    identifier = f"TRY_CAST({id} AS {convert_sp_to_sf_type(datatype)})"
+                elif format == "CSV":
+                    identifier = r[3]
+                else:
+                    identifier = f"$1:{name}::{r[1]}"
+
                 schema_to_cast.append((identifier, r[0]))
                 transformations.append(sql_expr(identifier))
             self._user_schema = StructType._from_attributes(new_schema)
