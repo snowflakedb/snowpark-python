@@ -477,7 +477,7 @@ def process_parquet_queue_with_threads(
                 )
     else:
         # Wait for all threads to complete
-        for future in workers:
+        for idx, future in enumerate(workers):
             try:
                 future.result()
             except BaseException as e:

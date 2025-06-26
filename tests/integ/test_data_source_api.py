@@ -1232,65 +1232,6 @@ def test_graceful_shutdown_on_worker_process_error(session):
                 ), f"Process {i} should have non-zero exit code after termination"
 
 
-def test_unit_process_completed_futures_comprehensive():
-    """Comprehensive test covering all lines and branches of process_completed_futures."""
-    from concurrent.futures import Future
-
-    # Test 1: Normal successful completion path
-    successful_future = MagicMock(spec=Future)
-    successful_future.done.return_value = True
-    successful_future.result.return_value = None
-
-    # Test 2: Not done future (should remain)
-    pending_future = MagicMock(spec=Future)
-    pending_future.done.return_value = False
-
-    thread_futures = {
-        ("success.parquet", successful_future),
-        ("pending.parquet", pending_future),
-    }
-
-    # Call function - should process successfully
-    process_completed_futures(thread_futures)
-
-    # Verify: successful future removed, pending remains
-    assert len(thread_futures) == 1
-    assert ("pending.parquet", pending_future) in thread_futures
-    successful_future.result.assert_called_once()
-    pending_future.result.assert_not_called()
-
-    # Test 3: Exception handling path
-    error_future = MagicMock(spec=Future)
-    error_future.done.return_value = True
-    error_future.result.side_effect = RuntimeError("Test error")
-
-    cancellable_future = MagicMock(spec=Future)
-    cancellable_future.done.return_value = False
-
-    done_future = MagicMock(spec=Future)
-    done_future.done.return_value = True
-
-    thread_futures = {
-        ("error.parquet", error_future),
-        ("cancellable.parquet", cancellable_future),
-        ("done.parquet", done_future),
-    }
-
-    # Call function - should raise exception and cancel undone futures
-    with pytest.raises(RuntimeError, match="Test error"):
-        process_completed_futures(thread_futures)
-
-    # Verify: exception raised, undone futures cancelled, set cleared
-    assert len(thread_futures) == 0
-    cancellable_future.cancel.assert_called_once()
-    done_future.cancel.assert_not_called()  # Don't cancel already done futures
-
-    # Test 4: Empty set edge case
-    empty_set = set()
-    process_completed_futures(empty_set)  # Should not raise any exceptions
-    assert len(empty_set) == 0
-
-
 @pytest.mark.skipif(not is_pandas_available, reason="pandas not available")
 def test_case_sensitive_copy_into(session):
     temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
@@ -1463,3 +1404,221 @@ def test_threading_error_handling_with_stop_event(session):
                 assert (
                     future.cancelled() or future.done()
                 ), "Cancelled future should be in cancelled or done state"
+
+
+def test_unit_process_completed_futures_comprehensive():
+    """Comprehensive test covering all lines and branches of process_completed_futures."""
+    from concurrent.futures import Future
+
+    # Test 1: Normal successful completion path
+    successful_future = MagicMock(spec=Future)
+    successful_future.done.return_value = True
+    successful_future.result.return_value = None
+
+    # Test 2: Not done future (should remain)
+    pending_future = MagicMock(spec=Future)
+    pending_future.done.return_value = False
+
+    thread_futures = {
+        ("success.parquet", successful_future),
+        ("pending.parquet", pending_future),
+    }
+
+    # Call function - should process successfully
+    process_completed_futures(thread_futures)
+
+    # Verify: successful future removed, pending remains
+    assert len(thread_futures) == 1
+    assert ("pending.parquet", pending_future) in thread_futures
+    successful_future.result.assert_called_once()
+    pending_future.result.assert_not_called()
+
+    # Test 3: Exception handling path
+    error_future = MagicMock(spec=Future)
+    error_future.done.return_value = True
+    error_future.result.side_effect = RuntimeError("Test error")
+
+    cancellable_future = MagicMock(spec=Future)
+    cancellable_future.done.return_value = False
+
+    done_future = MagicMock(spec=Future)
+    done_future.done.return_value = True
+
+    thread_futures = {
+        ("error.parquet", error_future),
+        ("cancellable.parquet", cancellable_future),
+        ("done.parquet", done_future),
+    }
+
+    # Call function - should raise exception and cancel undone futures
+    with pytest.raises(RuntimeError, match="Test error"):
+        process_completed_futures(thread_futures)
+
+    # Verify: exception raised, undone futures cancelled, set cleared
+    assert len(thread_futures) == 0
+    cancellable_future.cancel.assert_called_once()
+    done_future.cancel.assert_not_called()  # Don't cancel already done futures
+
+    # Test 4: Empty set edge case
+    empty_set = set()
+    process_completed_futures(empty_set)  # Should not raise any exceptions
+    assert len(empty_set) == 0
+
+
+@pytest.mark.parametrize(
+    "exception, match_message",
+    [
+        (ValueError("Generic thread error"), "Generic thread error"),
+        (
+            SnowparkDataframeReaderException("Original snowpark error"),
+            "Original snowpark error",
+        ),
+    ],
+)
+def test_thread_worker_exception(exception, match_message):
+    """Test that thread worker exceptions are properly wrapped in SnowparkDataframeReaderException."""
+    from snowflake.snowpark._internal.data_source.utils import (
+        process_parquet_queue_with_threads,
+    )
+    from concurrent.futures import Future
+    import queue
+
+    # Create a mock session
+    mock_session = MagicMock()
+
+    mock_future = MagicMock(spec=Future)
+    mock_future.done.return_value = True
+    mock_future.result.side_effect = exception
+
+    # Create test parameters
+    parquet_queue = queue.Queue()
+    workers = [mock_future]  # Single worker that will fail
+    total_partitions = 0  # No partitions to complete
+
+    with pytest.raises(SnowparkDataframeReaderException, match=match_message):
+        process_parquet_queue_with_threads(
+            session=mock_session,
+            parquet_queue=parquet_queue,
+            workers=workers,
+            total_partitions=total_partitions,
+            snowflake_stage_name="test_stage",
+            snowflake_table_name="test_table",
+            max_workers=1,
+            multi_processing=False,  # Use threading mode to trigger the exception path
+        )
+
+
+def test_process_worker_non_zero_exitcode():
+    """Test that process worker with non-zero exit code raises SnowparkDataframeReaderException."""
+    from snowflake.snowpark._internal.data_source.utils import (
+        process_parquet_queue_with_threads,
+    )
+    import queue
+
+    # Create a mock session
+    mock_session = MagicMock()
+
+    # Create a mock process with non-zero exit code
+    mock_process = MagicMock()
+    mock_process.join.return_value = None
+    mock_process.exitcode = 1  # Non-zero exit code to trigger the error path
+
+    # Create test parameters
+    parquet_queue = queue.Queue()
+    workers = [mock_process]  # Single worker that will fail
+    total_partitions = 0  # No partitions to complete
+
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="Partition 0 data fetching process failed with exit code 1",
+    ):
+        process_parquet_queue_with_threads(
+            session=mock_session,
+            parquet_queue=parquet_queue,
+            workers=workers,
+            total_partitions=total_partitions,
+            snowflake_stage_name="test_stage",
+            snowflake_table_name="test_table",
+            max_workers=1,
+            multi_processing=True,  # Use multiprocessing mode to trigger the exitcode path
+        )
+
+
+def test_queue_empty_process_failure():
+    """Test that failed process is detected during queue.Empty handling in multiprocessing mode."""
+    from snowflake.snowpark._internal.data_source.utils import (
+        process_parquet_queue_with_threads,
+    )
+    import queue
+
+    # Create a mock session
+    mock_session = MagicMock()
+
+    # Create a mock process that appears dead with non-zero exit code
+    mock_process = MagicMock()
+    mock_process.is_alive.return_value = False
+    mock_process.exitcode = 1
+
+    # Create empty queue to trigger queue.Empty exception
+    parquet_queue = queue.Queue()
+    workers = [mock_process]
+    total_partitions = 1  # Set to 1 so the loop continues
+
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="Partition 0 data fetching process failed with exit code 1",
+    ):
+        process_parquet_queue_with_threads(
+            session=mock_session,
+            parquet_queue=parquet_queue,
+            workers=workers,
+            total_partitions=total_partitions,
+            snowflake_stage_name="test_stage",
+            snowflake_table_name="test_table",
+            max_workers=1,
+            multi_processing=True,
+        )
+
+
+@pytest.mark.parametrize(
+    "exception, match_message",
+    [
+        (ValueError("Generic thread error"), "Generic thread error"),
+        (
+            SnowparkDataframeReaderException("Original snowpark error"),
+            "Original snowpark error",
+        ),
+    ],
+)
+def test_queue_empty_thread_failure(exception, match_message):
+    """Test that failed thread is detected during queue.Empty handling in threading mode."""
+    from snowflake.snowpark._internal.data_source.utils import (
+        process_parquet_queue_with_threads,
+    )
+    from concurrent.futures import Future
+    import queue
+
+    # Create a mock session
+    mock_session = MagicMock()
+
+    # Create a mock future that is done and raises an exception
+    mock_future = MagicMock(spec=Future)
+    mock_future.done.return_value = True
+    mock_future.result.side_effect = exception
+
+    # Create empty queue to trigger queue.Empty exception
+    parquet_queue = queue.Queue()
+    workers = [mock_future]
+    total_partitions = 1  # Set to 1 so the loop continues
+
+    with pytest.raises(SnowparkDataframeReaderException, match=match_message):
+        process_parquet_queue_with_threads(
+            session=mock_session,
+            parquet_queue=parquet_queue,
+            workers=workers,
+            total_partitions=total_partitions,
+            snowflake_stage_name="test_stage",
+            snowflake_table_name="test_table",
+            max_workers=1,
+            multi_processing=False,
+        )
