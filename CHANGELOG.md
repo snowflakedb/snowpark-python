@@ -36,6 +36,10 @@
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
 - Added support for `pd.read_feather`.
 
+#### Improvements
+
+- Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
+
 ## 1.33.0 (2025-06-19)
 
 ### Snowpark Python API Updates
