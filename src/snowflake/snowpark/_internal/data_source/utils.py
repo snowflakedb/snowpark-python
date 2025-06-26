@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
 from io import BytesIO
 from enum import Enum
-from typing import Any, Tuple, Optional, Callable, Dict
+from typing import Any, Tuple, Optional, Callable, Dict, Union
 import logging
 from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
@@ -152,7 +152,7 @@ def _task_fetch_data_from_source(
     worker: DataSourceReader,
     partition: str,
     partition_idx: int,
-    parquet_queue: mp.Queue,
+    parquet_queue: Union[mp.Queue, queue.Queue],
     stop_event: threading.Event = None,
 ):
     """
@@ -200,7 +200,7 @@ def _task_fetch_data_from_source_with_retry(
     worker: DataSourceReader,
     partition: str,
     partition_idx: int,
-    parquet_queue: mp.Queue,
+    parquet_queue: Union[mp.Queue, queue.Queue],
     stop_event: threading.Event = None,
 ):
     _retry_run(
@@ -307,8 +307,8 @@ def _retry_run(func: Callable, *args, **kwargs) -> Any:
 
 # DBAPI worker function that processes multiple partitions
 def worker_process(
-    partition_queue: mp.Queue,
-    parquet_queue: mp.Queue,
+    partition_queue: Union[mp.Queue, queue.Queue],
+    parquet_queue: Union[mp.Queue, queue.Queue],
     reader,
     stop_event: threading.Event = None,
 ):
@@ -360,8 +360,8 @@ def process_completed_futures(thread_futures):
 
 def process_parquet_queue_with_threads(
     session: "snowflake.snowpark.Session",
-    parquet_queue: mp.Queue,
-    processes: list,
+    parquet_queue: Union[mp.Queue, queue.Queue],
+    workers: list,
     total_partitions: int,
     snowflake_stage_name: str,
     snowflake_table_name: str,
@@ -382,7 +382,7 @@ def process_parquet_queue_with_threads(
     Args:
         session: Snowflake session for database operations
         parquet_queue: Multiprocessing queue containing parquet data
-        processes: List of worker processes to monitor
+        workers: List of worker processes or thread futures to monitor
         total_partitions: Total number of partitions expected
         snowflake_stage_name: Name of the Snowflake stage for uploads
         snowflake_table_name: Name of the target Snowflake table
@@ -447,14 +447,14 @@ def process_parquet_queue_with_threads(
                 backpressure_semaphore.release()  # Release semaphore if no data was fetched
                 if multi_processing:
                     # Check if any processes have failed
-                    for i, process in enumerate(processes):
+                    for i, process in enumerate(workers):
                         if not process.is_alive() and process.exitcode != 0:
                             raise SnowparkDataframeReaderException(
                                 f"Partition {i} data fetching process failed with exit code {process.exitcode}"
                             )
                 else:
                     # Check if any threads have failed
-                    for i, future in enumerate(processes):
+                    for i, future in enumerate(workers):
                         if future.done():
                             try:
                                 future.result()
@@ -469,7 +469,7 @@ def process_parquet_queue_with_threads(
 
     if multi_processing:
         # Wait for all processes to complete
-        for idx, process in enumerate(processes):
+        for idx, process in enumerate(workers):
             process.join()
             if process.exitcode != 0:
                 raise SnowparkDataframeReaderException(
@@ -477,7 +477,7 @@ def process_parquet_queue_with_threads(
                 )
     else:
         # Wait for all threads to complete
-        for future in processes:
+        for future in workers:
             try:
                 future.result()
             except BaseException as e:

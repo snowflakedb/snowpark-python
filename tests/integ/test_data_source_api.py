@@ -16,6 +16,7 @@ from io import BytesIO
 from textwrap import dedent
 from unittest import mock
 from unittest.mock import patch, MagicMock, PropertyMock
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from decimal import Decimal
@@ -129,13 +130,24 @@ def test_dbapi_with_temp_table(session, caplog, multi_processing):
         ),
     ],
 )
+@pytest.mark.parametrize("multi_processing", [True, False])
 @pytest.mark.parametrize("fetch_size", [1, 3])
 def test_dbapi_batch_fetch(
-    session, create_connection, table_name, expected_result, fetch_size, caplog
+    session,
+    create_connection,
+    table_name,
+    expected_result,
+    fetch_size,
+    caplog,
+    multi_processing,
 ):
     with caplog.at_level(logging.DEBUG):
         df = session.read.dbapi(
-            create_connection, table=table_name, max_workers=4, fetch_size=fetch_size
+            create_connection,
+            table=table_name,
+            max_workers=4,
+            fetch_size=fetch_size,
+            multi_processing=multi_processing,
         )
         # we only expect math.ceil(len(expected_result) / fetch_size) parquet files to be generated
         # for example, 5 rows, fetch size 2, we expect 3 parquet files
@@ -145,13 +157,14 @@ def test_dbapi_batch_fetch(
         assert df.order_by("ID").collect() == expected_result
 
 
-def test_dbapi_retry(session):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_dbapi_retry(session, multi_processing):
     with mock.patch(
         "snowflake.snowpark._internal.data_source.utils._task_fetch_data_from_source",
         side_effect=RuntimeError("Test error"),
     ) as mock_task:
         mock_task.__name__ = "_task_fetch_from_data_source"
-        parquet_queue = multiprocessing.Queue()
+        parquet_queue = multiprocessing.Queue() if multi_processing else queue.Queue()
         with pytest.raises(
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
@@ -181,7 +194,7 @@ def test_dbapi_retry(session):
                 parquet_id="test.parquet",
                 parquet_buffer=BytesIO(b"test data"),
                 snowflake_stage_name="fake_stage",
-                backpressure_semaphore=threading.Semaphore(),
+                backpressure_semaphore=threading.BoundedSemaphore(),
                 snowflake_table_name="fake_table",
             )
         assert mock_task.call_count == _MAX_RETRY_TIME
@@ -191,8 +204,9 @@ def test_dbapi_retry(session):
     IS_WINDOWS,
     reason="sqlite3 file can not be shared across processes on windows",
 )
+@pytest.mark.parametrize("multi_processing", [True, False])
 @pytest.mark.parametrize("upper_bound, expected_upload_cnt", [(5, 3), (100, 1)])
-def test_parallel(session, upper_bound, expected_upload_cnt):
+def test_parallel(session, upper_bound, expected_upload_cnt, multi_processing):
     num_partitions = 3
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -212,6 +226,7 @@ def test_parallel(session, upper_bound, expected_upload_cnt):
                 num_partitions=num_partitions,
                 max_workers=4,
                 custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                multi_processing=multi_processing,
             )
             assert mock_upload_and_copy.call_count == expected_upload_cnt
             assert df.order_by("ID").collect() == assert_data
@@ -346,7 +361,8 @@ def test_partition_unsupported_type(session):
             partitioner.partitions
 
 
-def test_telemetry_tracking(caplog, session):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_telemetry_tracking(caplog, session, multi_processing):
     original_func = session._conn.run_query
     called, comment_showed = 0, 0
 
@@ -372,7 +388,9 @@ def test_telemetry_tracking(caplog, session):
         "snowflake.snowpark._internal.telemetry.TelemetryClient.send_performance_telemetry"
     ) as mock_telemetry:
         df = session.read.dbapi(
-            sql_server_create_connection, table=SQL_SERVER_TABLE_NAME
+            sql_server_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+            multi_processing=multi_processing,
         )
     assert df._plan.api_calls == [{"name": DATA_SOURCE_DBAPI_SIGNATURE}]
     assert (
@@ -409,7 +427,8 @@ def test_telemetry_tracking(caplog, session):
     "custom_schema",
     [SQLITE3_DB_CUSTOM_SCHEMA_STRING, SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE],
 )
-def test_custom_schema(session, custom_schema):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_custom_schema(session, custom_schema, multi_processing):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, columns, example_data, assert_data = sqlite3_db(dbpath)
@@ -418,6 +437,7 @@ def test_custom_schema(session, custom_schema):
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             table=table_name,
             custom_schema=custom_schema,
+            multi_processing=multi_processing,
         )
         assert df.columns == [col.upper() for col in columns]
         assert df.collect() == assert_data
@@ -460,7 +480,8 @@ def test_predicates():
     IS_WINDOWS,
     reason="sqlite3 file can not be shared across processes on windows",
 )
-def test_session_init_statement(session):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_session_init_statement(session, multi_processing):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, columns, example_data, assert_data = sqlite3_db(dbpath)
@@ -473,6 +494,7 @@ def test_session_init_statement(session):
             table=table_name,
             custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
             session_init_statement=f"insert into {table_name} (int_col, var_col) values (100, '123');",
+            multi_processing=multi_processing,
         )
         assert df.collect() == assert_data + [new_data1]
 
@@ -496,10 +518,12 @@ def test_session_init_statement(session):
                 table=table_name,
                 custom_schema="id INTEGER",
                 session_init_statement="SELECT FROM NOTHING;",
+                multi_processing=multi_processing,
             )
 
 
-def test_negative_case(session):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_negative_case(session, multi_processing):
     # error happening in fetching
     with pytest.raises(
         SnowparkDataframeReaderException, match="RuntimeError: Fake exception"
@@ -518,7 +542,9 @@ def test_negative_case(session):
             SnowparkDataframeReaderException, match="ValueError: Ingestion exception"
         ):
             session.read.dbapi(
-                sql_server_create_connection_small_data, table=SQL_SERVER_TABLE_NAME
+                sql_server_create_connection_small_data,
+                table=SQL_SERVER_TABLE_NAME,
+                multi_processing=multi_processing,
             )
 
 
@@ -526,8 +552,9 @@ def test_negative_case(session):
     "fetch_size, partition_idx, expected_error",
     [(0, 1, False), (2, 100, False), (10, 2, False), (-1, 1001, True)],
 )
+@pytest.mark.parametrize("multi_processing", [True, False])
 def test_task_fetch_from_data_source_with_fetch_size(
-    fetch_size, partition_idx, expected_error
+    fetch_size, partition_idx, expected_error, multi_processing
 ):
     partitioner = DataSourcePartitioner(
         sql_server_create_connection_small_data,
@@ -542,7 +569,7 @@ def test_task_fetch_from_data_source_with_fetch_size(
         else 1
     )
 
-    parquet_queue = multiprocessing.Queue()
+    parquet_queue = multiprocessing.Queue() if multi_processing else queue.Queue()
 
     params = {
         "worker": DataSourceReader(
@@ -640,13 +667,15 @@ def test_type_conversion():
         ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
 
 
-def test_custom_schema_false(session):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_custom_schema_false(session, multi_processing):
     with pytest.raises(ValueError, match="Invalid schema string: timestamp_tz."):
         session.read.dbapi(
             sql_server_create_connection,
             table=SQL_SERVER_TABLE_NAME,
             max_workers=4,
             custom_schema="timestamp_tz",
+            multi_processing=multi_processing,
         )
     with pytest.raises(ValueError, match="Invalid schema type: <class 'int'>."):
         session.read.dbapi(
@@ -654,16 +683,21 @@ def test_custom_schema_false(session):
             table=SQL_SERVER_TABLE_NAME,
             max_workers=4,
             custom_schema=1,
+            multi_processing=multi_processing,
         )
 
 
-def test_partition_wrong_input(session, caplog):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_partition_wrong_input(session, caplog, multi_processing):
     with pytest.raises(
         ValueError,
         match="when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None",
     ):
         session.read.dbapi(
-            sql_server_create_connection, table=SQL_SERVER_TABLE_NAME, lower_bound=0
+            sql_server_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+            lower_bound=0,
+            multi_processing=multi_processing,
         )
 
     with pytest.raises(
@@ -671,7 +705,10 @@ def test_partition_wrong_input(session, caplog):
         match="when column is specified, lower_bound, upper_bound, num_partitions must be specified",
     ):
         session.read.dbapi(
-            sql_server_create_connection, table=SQL_SERVER_TABLE_NAME, column="id"
+            sql_server_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+            column="id",
+            multi_processing=multi_processing,
         )
     with pytest.raises(
         ValueError, match="Specified column non_exist_column does not exist"
@@ -684,6 +721,7 @@ def test_partition_wrong_input(session, caplog):
             upper_bound=10,
             num_partitions=2,
             custom_schema=StructType([StructField("ID", IntegerType(), False)]),
+            multi_processing=multi_processing,
         )
 
     with pytest.raises(ValueError, match="unsupported type BooleanType()"):
@@ -695,6 +733,7 @@ def test_partition_wrong_input(session, caplog):
             upper_bound=10,
             num_partitions=2,
             custom_schema=StructType([StructField("ID", BooleanType(), False)]),
+            multi_processing=multi_processing,
         )
     with patch.object(
         DataSourcePartitioner, "schema", new_callable=PropertyMock
@@ -736,7 +775,8 @@ def test_partition_wrong_input(session, caplog):
     IS_WINDOWS,
     reason="sqlite3 file can not be shared across processes on windows",
 )
-def test_query_parameter(session):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_query_parameter(session, multi_processing):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, columns, example_data, assert_data = sqlite3_db(dbpath)
@@ -747,12 +787,14 @@ def test_query_parameter(session):
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
                 table=table_name,
                 query=f"(SELECT * FROM PrimitiveTypes WHERE id > {filter_idx}) as t",
+                multi_processing=multi_processing,
             )
 
         df = session.read.dbapi(
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             query=f"(SELECT * FROM PrimitiveTypes WHERE id > {filter_idx}) as t",
             custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+            multi_processing=multi_processing,
         )
         assert df.columns == [col.upper() for col in columns]
         assert df.collect() == assert_data[filter_idx:]
@@ -780,6 +822,7 @@ def test_query_parameter(session):
             df = session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
                 query=f"({query}) as t",
+                multi_processing=multi_processing,
             )
             assert df.columns == ["INT_COL", "TEXT_COL"]
             assert (
@@ -792,13 +835,15 @@ def test_query_parameter(session):
     "config.getoption('enable_ast', default=False)",
     reason="SNOW-1961756: Data source APIs not supported by AST",
 )
-def test_option_load(session):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_option_load(session, multi_processing):
     df = (
         session.read.format("dbapi")
         .option("create_connection", sql_server_create_connection)
         .option("table", SQL_SERVER_TABLE_NAME)
         .option("max_workers", 4)
         .option("fetch_size", 2)
+        .option("multi_processing", multi_processing)
         .load()
     )
     assert df.order_by("ID").collect() == sql_server_all_type_data
@@ -815,9 +860,12 @@ def test_option_load(session):
         session.read.format("dbapi").load()
 
 
-def test_empty_table(session):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_empty_table(session, multi_processing):
     df = session.read.dbapi(
-        sql_server_create_connection_empty_data, table=SQL_SERVER_TABLE_NAME
+        sql_server_create_connection_empty_data,
+        table=SQL_SERVER_TABLE_NAME,
+        multi_processing=multi_processing,
     )
     assert df.collect() == []
 
@@ -925,7 +973,8 @@ def test_sql_server_udtf_ingestion(session):
     Utils.check_answer(df, sql_server_udtf_ingestion_data)
 
 
-def test_unknown_driver_with_custom_schema(session):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_unknown_driver_with_custom_schema(session, multi_processing):
     with pytest.raises(
         SnowparkDataframeReaderException,
         match="Failed to infer Snowpark DataFrame schema",
@@ -933,6 +982,7 @@ def test_unknown_driver_with_custom_schema(session):
         session.read.dbapi(
             unknown_dbms_create_connection,
             table=SQL_SERVER_TABLE_NAME,
+            multi_processing=multi_processing,
         )
 
     df = session.read.dbapi(
@@ -941,6 +991,7 @@ def test_unknown_driver_with_custom_schema(session):
         custom_schema=",".join(
             [f"col_{i} Variant" for i in range(len(sql_server_all_type_schema))]
         ),
+        multi_processing=multi_processing,
     )
     assert len(df.collect()) == len(sql_server_all_type_small_data)
 
@@ -970,7 +1021,8 @@ def test_fetch_merge_count_unit(fetch_size, fetch_merge_count, expected_batch_cn
         assert all_fetched_data == example_data and batch_cnt == expected_batch_cnt
 
 
-def test_fetch_merge_count_integ(session, caplog):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_fetch_merge_count_integ(session, caplog, multi_processing):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, _, _, assert_data = sqlite3_db(dbpath)
@@ -981,20 +1033,29 @@ def test_fetch_merge_count_integ(session, caplog):
                 custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
                 fetch_size=2,
                 fetch_merge_count=2,
+                multi_processing=multi_processing,
             )
             assert df.order_by("ID").collect() == assert_data
             # 2 batch + 2 fetch size = 2 parquet file
             assert caplog.text.count("Retrieved BytesIO parquet from queue") == 2
 
 
-def test_unicode_column_name_sql_server(session):
-    df = session.read.dbapi(sql_server_create_connection_unicode_data, table='"用户资料"')
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_unicode_column_name_sql_server(session, multi_processing):
+    df = session.read.dbapi(
+        sql_server_create_connection_unicode_data,
+        table='"用户资料"',
+        multi_processing=multiprocessing,
+    )
     assert df.collect() == [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")]
 
 
-def test_double_quoted_column_name_sql_server(session):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_double_quoted_column_name_sql_server(session, multi_processing):
     df = session.read.dbapi(
-        sql_server_create_connection_double_quoted_data, table='"UserProfile"'
+        sql_server_create_connection_double_quoted_data,
+        table='"UserProfile"',
+        multi_processing=multiprocessing,
     )
     assert df.collect() == [
         Row(Id=1, FullName="John Doe", Country="USA", Notes="Fake note")
@@ -1005,7 +1066,8 @@ def test_double_quoted_column_name_sql_server(session):
     IS_WINDOWS,
     reason="sqlite3 file can not be shared across processes on windows",
 )
-def test_local_create_connection_function(session, db_parameters):
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_local_create_connection_function(session, db_parameters, multi_processing):
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, _, _, assert_data = sqlite3_db(dbpath)
@@ -1020,6 +1082,7 @@ def test_local_create_connection_function(session, db_parameters):
             local_create_connection,
             table=table_name,
             custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+            multi_processing=multi_processing,
         )
         assert df.order_by("ID").collect() == assert_data
 
@@ -1051,7 +1114,8 @@ def test_local_create_connection_function(session, db_parameters):
     IS_WINDOWS,
     reason="sqlite3 file can not be shared across processes on windows",
 )
-def test_worker_process_unit():
+@pytest.mark.parametrize("multi_processing", [True, False])
+def test_worker_process_unit(multi_processing):
     """Test worker_process function with sqlite3 database."""
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
@@ -1066,8 +1130,8 @@ def test_worker_process_unit():
             fetch_size=2,
         )
 
-        partition_queue = multiprocessing.Queue()
-        parquet_queue = multiprocessing.Queue()
+        partition_queue = multiprocessing.Queue() if multi_processing else queue.Queue()
+        parquet_queue = multiprocessing.Queue() if multi_processing else queue.Queue()
 
         # Set up partition_queue to return test data, then raise queue.Empty
         partition_queue.put((0, f"SELECT * FROM {table_name} WHERE id <= 3"))
@@ -1270,3 +1334,132 @@ def test_case_sensitive_copy_into(session):
     finally:
         # proactively close the buffer to release memory
         parquet_buffer.close()
+
+
+def test_threading_error_handling_with_stop_event(session):
+    """Test that when one thread fails, it properly sets stop event and cancels other threads."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, _, _, _ = sqlite3_db(dbpath)
+
+        # Track which partitions have been processed to simulate error on specific partition
+        processed_partitions = set()
+        original_task_fetch = _task_fetch_data_from_source_with_retry
+
+        def mock_task_fetch_with_selective_error(
+            worker, partition, partition_idx, parquet_queue, stop_event=None
+        ):
+            assert stop_event
+            processed_partitions.add(partition_idx)
+
+            # Simulate error on the second partition (partition_idx=1)
+            if partition_idx == 1:
+                assert not stop_event.is_set()
+                # Add a small delay to ensure other threads have started
+                import time
+
+                time.sleep(0.05)
+                # Raise an error that should trigger the stop event mechanism
+                raise RuntimeError("Simulated thread error in partition 1")
+
+            # For other partitions, add delay to simulate longer-running work
+            # This ensures they will still be running when partition 1 fails
+            if partition_idx in [0, 2]:
+                import time
+
+                time.sleep(
+                    0.1
+                )  # Longer delay to ensure they're still running when error occurs
+
+            # For other partitions, check stop event and exit gracefully if set
+            if stop_event and stop_event.is_set():
+                parquet_queue.put(
+                    (
+                        PARTITION_TASK_ERROR_SIGNAL,
+                        SnowparkDataframeReaderException(
+                            "Data fetching stopped by thread failure"
+                        ),
+                    )
+                )
+                return
+
+            # Otherwise proceed normally
+            return original_task_fetch(
+                worker, partition, partition_idx, parquet_queue, stop_event
+            )
+
+        # Track futures and their cancel calls to verify cancellation behavior
+        created_futures = []
+        cancelled_futures = []
+        original_submit = ThreadPoolExecutor.submit
+
+        def track_submit(self, fn, *args, **kwargs):
+            future = original_submit(self, fn, *args, **kwargs)
+
+            # Mock the cancel method to track calls
+            original_cancel = future.cancel
+
+            def track_cancel():
+                cancelled_futures.append(future)
+                return original_cancel()
+
+            future.cancel = track_cancel
+
+            created_futures.append(future)
+            return future
+
+        with mock.patch(
+            "snowflake.snowpark._internal.data_source.utils._task_fetch_data_from_source_with_retry",
+            side_effect=mock_task_fetch_with_selective_error,
+        ), mock.patch.object(ThreadPoolExecutor, "submit", track_submit):
+            # This should trigger threading error handling
+            with pytest.raises(
+                SnowparkDataframeReaderException,
+                match="Error occurred while ingesting data from the data source: RuntimeError",
+            ):
+                session.read.dbapi(
+                    functools.partial(create_connection_to_sqlite3_db, dbpath),
+                    table=table_name,
+                    column="id",
+                    upper_bound=10,
+                    lower_bound=0,
+                    num_partitions=3,  # Create 3 partitions to test multi-threading
+                    max_workers=3,
+                    custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                    multi_processing=False,  # Use threading mode
+                )
+            # Verify that futures were created (confirming threading mode was used)
+            assert len(created_futures) == 3, "Should have created 3 thread futures"
+
+            # Give threads a moment to be cancelled/complete
+            import time
+
+            time.sleep(0.2)
+
+            # Verify that at least one partition was processed before error
+            assert (
+                len(processed_partitions) >= 1
+            ), "At least one partition should have been processed"
+
+            # Verify that partition 1 was the one that caused the error
+            assert (
+                1 in processed_partitions
+            ), "Partition 1 should have been processed and caused error"
+
+            # Verify that cancel() was called on some futures
+            # Due to timing, at least some futures should have been cancelled
+            assert (
+                len(cancelled_futures) > 0
+            ), f"Expected some futures to be cancelled, but got {len(cancelled_futures)}"
+
+            # Verify that not all futures were cancelled (the one that errored should complete, not be cancelled)
+            assert len(cancelled_futures) < len(
+                created_futures
+            ), "Not all futures should be cancelled"
+
+            # Additional verification: check that cancelled futures were indeed not done when cancelled
+            for future in cancelled_futures:
+                # The future should either be cancelled or done by now
+                assert (
+                    future.cancelled() or future.done()
+                ), "Cancelled future should be in cancelled or done state"

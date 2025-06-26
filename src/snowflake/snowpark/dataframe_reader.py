@@ -1449,10 +1449,10 @@ class DataFrameReader:
 
         data_fetching_thread_pool_executor = None
         data_fetching_thread_stop_event = None
-        processes = []
+        workers = []
         try:
-            # Determine the number of processes to use
-            max_workers = max_workers or mp.cpu_count()
+            # Determine the number of processes or threads to use
+            max_workers = max_workers or os.cpu_count()
             queue_class = mp.Queue if multi_processing else queue.Queue
             # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
             partition_queue = queue_class()
@@ -1475,27 +1475,28 @@ class DataFrameReader:
                         args=(partition_queue, parquet_queue, partitioner.reader()),
                     )
                     process.start()
-                    processes.append(process)
+                    workers.append(process)
             else:
                 data_fetching_thread_pool_executor = ThreadPoolExecutor(
                     max_workers=max_workers
                 )
                 data_fetching_thread_stop_event = threading.Event()
-                for _worker_id in range(max_workers):
-                    future = data_fetching_thread_pool_executor.submit(
+                workers = [
+                    data_fetching_thread_pool_executor.submit(
                         worker_process,
                         partition_queue,
                         parquet_queue,
                         partitioner.reader(),
                         data_fetching_thread_stop_event,
                     )
-                    processes.append(future)
+                    for _worker_id in range(max_workers)
+                ]
 
             # Process BytesIO objects from queue and upload them using utility method
             process_parquet_queue_with_threads(
                 session=self._session,
                 parquet_queue=parquet_queue,
-                processes=processes,
+                workers=workers,
                 total_partitions=len(partitioned_queries),
                 snowflake_stage_name=snowflake_stage_name,
                 snowflake_table_name=snowflake_table_name,
@@ -1508,14 +1509,14 @@ class DataFrameReader:
         except BaseException as exc:
             if multi_processing:
                 # Graceful shutdown - terminate all processes
-                for process in processes:
+                for process in workers:
                     if process.is_alive():
                         process.terminate()
                         process.join(timeout=5)
             else:
                 if data_fetching_thread_stop_event:
                     data_fetching_thread_stop_event.set()
-                for future in processes:
+                for future in workers:
                     if not future.done():
                         future.cancel()
                         logger.debug(
