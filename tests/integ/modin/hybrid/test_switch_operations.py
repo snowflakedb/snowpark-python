@@ -47,7 +47,7 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
 
     # DataFrame with an incompatible dtype.
     df_incompatible = df_compatible.astype("category")
-    
+
     caplog.clear()
     WarningMessage.printed_warnings.clear()
     with caplog.at_level(logging.WARNING):
@@ -60,7 +60,7 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
     # Verify that attempting to move the incompatible DataFrame to Snowflake
     # issues an exception.
     with pytest.raises(NotImplementedError):
-        moved_df = df_incompatible.move_to("Snowflake")
+        df_incompatible.move_to("Snowflake")
 
 
 @sql_count_checker(query_count=1)
