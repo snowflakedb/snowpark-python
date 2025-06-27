@@ -5,9 +5,11 @@ import multiprocessing as mp
 import os
 import sys
 import time
-
+import queue
+from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
+import threading
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -1283,6 +1285,7 @@ class DataFrameReader:
         session_init_statement: Optional[Union[str, List[str]]] = None,
         udtf_configs: Optional[dict] = None,
         fetch_merge_count: int = 1,
+        fetch_with_process: bool = False,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1356,6 +1359,11 @@ class DataFrameReader:
                 before uploading it. This improves performance by reducing the number of
                 small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
                 Parquet file and uploaded separately.
+            fetch_with_process: Whether to use multiprocessing for data fetching and parquet file generation.
+                By default, this is set to False, which means multithreading is used to fetch data in parallel.
+                Setting this to True enables multiprocessing, which may offer better performance for CPU-bound tasks
+                such as Parquet file generation. When using multiprocessing, ensure that your script is guarded with
+                `if __name__ == "__main__":` and call `multiprocessing.freeze_support()` on Windows if needed.
 
         Example::
             .. code-block:: python
@@ -1444,18 +1452,19 @@ class DataFrameReader:
             statement_params=statements_params_for_telemetry, _emit_ast=False
         )
 
+        data_fetching_thread_pool_executor = None
+        data_fetching_thread_stop_event = None
+        workers = []
         try:
-            processes = []
-
-            # Determine the number of processes to use
-            max_workers = max_workers or mp.cpu_count()
-
+            # Determine the number of processes or threads to use
+            max_workers = max_workers or os.cpu_count()
+            queue_class = mp.Queue if fetch_with_process else queue.Queue
             # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
-            partition_queue = mp.Queue()
+            partition_queue = queue_class()
             # a queue of parquet BytesIO objects to be uploaded
             # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
             # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
-            parquet_queue = mp.Queue(_MAX_WORKER_SCALE * max_workers)
+            parquet_queue = queue_class(_MAX_WORKER_SCALE * max_workers)
             for partition_idx, query in enumerate(partitioned_queries):
                 partition_queue.put((partition_idx, query))
 
@@ -1463,33 +1472,61 @@ class DataFrameReader:
             logger.debug(
                 f"Starting {max_workers} worker processes to fetch data from the data source."
             )
-            for _worker_id in range(max_workers):
-                process = mp.Process(
-                    target=worker_process,
-                    args=(partition_queue, parquet_queue, partitioner.reader()),
+
+            if fetch_with_process:
+                for _worker_id in range(max_workers):
+                    process = mp.Process(
+                        target=worker_process,
+                        args=(partition_queue, parquet_queue, partitioner.reader()),
+                    )
+                    process.start()
+                    workers.append(process)
+            else:
+                data_fetching_thread_pool_executor = ThreadPoolExecutor(
+                    max_workers=max_workers
                 )
-                process.start()
-                processes.append(process)
+                data_fetching_thread_stop_event = threading.Event()
+                workers = [
+                    data_fetching_thread_pool_executor.submit(
+                        worker_process,
+                        partition_queue,
+                        parquet_queue,
+                        partitioner.reader(),
+                        data_fetching_thread_stop_event,
+                    )
+                    for _worker_id in range(max_workers)
+                ]
 
             # Process BytesIO objects from queue and upload them using utility method
             process_parquet_queue_with_threads(
                 session=self._session,
                 parquet_queue=parquet_queue,
-                processes=processes,
+                workers=workers,
                 total_partitions=len(partitioned_queries),
                 snowflake_stage_name=snowflake_stage_name,
                 snowflake_table_name=snowflake_table_name,
                 max_workers=max_workers,
                 statements_params=statements_params_for_telemetry,
                 on_error="abort_statement",
+                fetch_with_process=fetch_with_process,
             )
 
         except BaseException as exc:
-            # Graceful shutdown - terminate all processes
-            for process in processes:
-                if process.is_alive():
-                    process.terminate()
-                    process.join(timeout=5)
+            if fetch_with_process:
+                # Graceful shutdown - terminate all processes
+                for process in workers:
+                    if process.is_alive():
+                        process.terminate()
+                        process.join(timeout=5)
+            else:
+                if data_fetching_thread_stop_event:
+                    data_fetching_thread_stop_event.set()
+                for future in workers:
+                    if not future.done():
+                        future.cancel()
+                        logger.debug(
+                            f"Cancelled a remaining data fetching future {future} due to error in another thread."
+                        )
 
             if isinstance(exc, SnowparkDataframeReaderException):
                 raise exc
@@ -1497,6 +1534,9 @@ class DataFrameReader:
             raise SnowparkDataframeReaderException(
                 f"Error occurred while ingesting data from the data source: {exc!r}"
             )
+        finally:
+            if data_fetching_thread_pool_executor:
+                data_fetching_thread_pool_executor.shutdown(wait=True)
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
         self._session._conn._telemetry_client.send_data_source_perf_telemetry(
