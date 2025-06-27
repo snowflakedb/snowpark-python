@@ -42,6 +42,12 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark.mock._udf_utils import coerce_variant_input, remove_null_wrapper
 from snowflake.snowpark.mock._util import ImportContext, get_fully_qualified_name
+from snowflake.snowpark.mock._window_utils import (
+    EntireWindowIndexer,
+    RowFrameIndexer,
+    is_rank_related_window_function,
+)
+
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 if TYPE_CHECKING:
@@ -142,6 +148,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.mock._functions import MockedFunctionRegistry, cast_column_to
+from snowflake.snowpark.mock._options import pandas as pd
 from snowflake.snowpark.mock._select_statement import (
     MockSelectable,
     MockSelectableEntity,
@@ -177,9 +184,6 @@ from snowflake.snowpark.types import (
     VariantType,
     _NumericType,
 )
-
-if TYPE_CHECKING:
-    from snowflake.snowpark.mock._options import pandas as pd
 
 
 class MockExecutionPlan(LogicalPlan):
@@ -427,12 +431,6 @@ def handle_range_frame_indexing(
         return idx
 
     if order_spec:
-        from snowflake.snowpark.mock._options import pandas as pd
-
-        # Use factory function to get proper indexer class
-        from snowflake.snowpark.mock._window_utils import _get_entire_window_indexer
-
-        EntireWindowIndexer = _get_entire_window_indexer()
         ordered_windows = [
             handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
             for win in res.rolling(EntireWindowIndexer())
@@ -518,10 +516,6 @@ def handle_range_frame_indexing(
 
                 windows.append(win[start_idx : end_idx + 1])
     else:  # If order by is not specified, just use the entire window
-        # Use factory function to get proper indexer class
-        from snowflake.snowpark.mock._window_utils import _get_entire_window_indexer
-
-        EntireWindowIndexer = _get_entire_window_indexer()
         windows = res.rolling(EntireWindowIndexer())
     return windows
 
@@ -838,7 +832,6 @@ def handle_udtf_expression(
 ):
 
     # TODO: handle and support imports + other udtf attributes.
-    from snowflake.snowpark.mock._options import pandas as pd
 
     udtf_registry = analyzer.session.udtf
     udtf_name = exp.func_name
@@ -1031,7 +1024,6 @@ def execute_mock_plan(
     expr_to_alias: Optional[Dict[str, str]] = None,
 ) -> Union[TableEmulator, List[Row]]:
     import numpy as np
-    from snowflake.snowpark.mock._options import pandas as pd
 
     if expr_to_alias is None:
         expr_to_alias = plan.expr_to_alias
@@ -2212,7 +2204,6 @@ def calculate_expression(
     setting keep_literal to false returns a ColumnEmulator wrapping the Python datatype of a Literal
     """
     import numpy as np
-    from snowflake.snowpark.mock._options import pandas as pd
 
     registry = MockedFunctionRegistry.get_or_create()
 
@@ -2571,13 +2562,6 @@ def calculate_expression(
 
         return output_data
     if isinstance(exp, WindowExpression):
-        # Lazy import to avoid importing pandas at module level
-        from snowflake.snowpark.mock._window_utils import (
-            _get_entire_window_indexer,
-            _get_row_frame_indexer,
-            is_rank_related_window_function,
-        )
-
         window_function = exp.window_function
         window_spec = exp.window_spec
 
@@ -2642,8 +2626,6 @@ def calculate_expression(
                 if not isinstance(windows, list):
                     pd_index = list(windows.count().index)
             else:
-                # Create indexer class dynamically to avoid module-level pandas import
-                EntireWindowIndexer = _get_entire_window_indexer()
                 indexer = EntireWindowIndexer()
                 rolling = res.rolling(indexer)
                 windows = [ordered.loc[w.index] for w in rolling]
@@ -2652,8 +2634,6 @@ def calculate_expression(
                 pd_index = list(rolling.count().index)
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
-            # Create indexer class dynamically to avoid module-level pandas import
-            RowFrameIndexer = _get_row_frame_indexer()
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
             res = res.rolling(indexer)
             res_index = list(res.count().index)
