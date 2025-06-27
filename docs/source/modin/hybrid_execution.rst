@@ -11,6 +11,10 @@ For Snowflake, specific API calls will trigger hybrid backend evaluation. These 
 as either a pre-operation switch point or a post-operation switch point. These switch points
 may change over time as the feature matures and as APIs are updated.
 
+Only Dataframes with data types that are compatible with Snowflake can be moved to the Snowflake
+backend, and if a Dataframe backed by pandas contains such a type ('categorical' for example)
+then astype should be used to coerce that type before the backend can be changed.
+
 Example Pre-Operation Switchpoints:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 apply, iterrows, itertuples, items, plot, quantile, __init__, plot, quantile, T, read_csv, read_json, concat, merge 
