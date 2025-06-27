@@ -36,6 +36,9 @@
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
 - Added support for `pd.read_feather`.
 
+#### Improvements
+- Add a data type guard to the cost functions for hybrid execution which checks for data type compatibility
+
 ## 1.33.0 (2025-06-19)
 
 ### Snowpark Python API Updates
