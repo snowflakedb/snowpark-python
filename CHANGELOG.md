@@ -29,6 +29,7 @@
 #### Bug Fixes
 
 - Fixed a bug when processing windowed functions that lead to incorrect indexing in results.
+- When a scalar numeric is passed to fillna we will ignore non-numeric columns instead of producing an error.
 
 ### Snowpark pandas API Updates
 
