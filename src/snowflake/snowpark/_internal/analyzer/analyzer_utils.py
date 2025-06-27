@@ -204,6 +204,8 @@ ADD_FIELDS = " ADD FIELDS"
 NEW_LINE = "\n"
 TAB = "    "
 UUID_COMMENT = "-- {}"
+MODEL = "MODEL"
+EXCLAMATION_MARK = "!"
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -252,6 +254,20 @@ def result_scan_statement(uuid_place_holder: str) -> str:
         + RIGHT_PARENTHESIS
         + RIGHT_PARENTHESIS
     )
+
+
+def model_expression(
+    model_name: str,
+    version_or_alias_name: str | None,
+    method_name: str,
+    children: List[str],
+) -> str:
+    model_args_str = (
+        f"{model_name}{COMMA}{version_or_alias_name}"
+        if version_or_alias_name
+        else model_name
+    )
+    return f"{MODEL}{LEFT_PARENTHESIS}{model_args_str}{RIGHT_PARENTHESIS}{EXCLAMATION_MARK}{method_name}{LEFT_PARENTHESIS}{COMMA.join(children)}{RIGHT_PARENTHESIS}"
 
 
 def function_expression(name: str, children: List[str], is_distinct: bool) -> str:
