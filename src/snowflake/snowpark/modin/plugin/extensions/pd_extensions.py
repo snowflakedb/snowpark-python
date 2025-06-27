@@ -668,10 +668,10 @@ def explain_switch(simple=True) -> Union[native_pd.DataFrame, None]:
         ...         'Parrot', 'Parrot'],
         ...         'Max Speed': [380., 370., 24., 26.]})
         >>> pd.explain_switch()  # doctest: +NORMALIZE_WHITESPACE
-                                                                                 decision
-        source                                           api                mode
-        exec(compile(example.source, filename, "single", DataFrame.__init__ auto
-                                                                            auto   Pandas
+                                          decision
+        source    api                mode         
+        <unknown> DataFrame.__init__ auto         
+                                     auto   Pandas
 
     """
     if not MODIN_IS_AT_LEAST_0_33_0:
