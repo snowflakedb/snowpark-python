@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 import pytest
 
 import numpy as np
@@ -13,6 +14,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
@@ -26,10 +28,11 @@ def skip(pytestconfig):
 
 
 @sql_count_checker(query_count=0)
-def test_move_to_me_cost_with_incompatible_dtype():
+def test_move_to_me_cost_with_incompatible_dtype(caplog):
     """
     Tests that the move_to_me cost is impossible when the DataFrame has a dtype
-    that is incompatible with Snowpark pandas.
+    that is incompatible with Snowpark pandas, and that a warning is issued
+    when attempting to convert it.
     """
     from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 
@@ -44,10 +47,20 @@ def test_move_to_me_cost_with_incompatible_dtype():
 
     # DataFrame with an incompatible dtype.
     df_incompatible = df_compatible.astype("category")
-    cost_incompatible = SnowflakeQueryCompiler.move_to_me_cost(
-        df_incompatible._query_compiler
-    )
-    assert cost_incompatible == QCCoercionCost.COST_IMPOSSIBLE
+    
+    caplog.clear()
+    WarningMessage.printed_warnings.clear()
+    with caplog.at_level(logging.WARNING):
+        cost_incompatible = SnowflakeQueryCompiler.move_to_me_cost(
+            df_incompatible._query_compiler
+        )
+        assert cost_incompatible == QCCoercionCost.COST_IMPOSSIBLE
+        assert "not directly compatible with the Snowflake backend" in caplog.text
+
+    # Verify that attempting to move the incompatible DataFrame to Snowflake
+    # issues an exception.
+    with pytest.raises(NotImplementedError):
+        moved_df = df_incompatible.move_to("Snowflake")
 
 
 @sql_count_checker(query_count=1)

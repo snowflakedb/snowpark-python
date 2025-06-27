@@ -810,8 +810,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 TypeMapper.to_snowflake(dtype)
             except NotImplementedError:
                 WarningMessage.single_warning(
-                    f"The {compiler.get_backend()} dtype {dtype} is not directly compatible with the Snowflake backend. ",
-                    "Use astype to convert the dtype to allow for automatic switching of engines.",
+                    f"The {compiler.get_backend()} dtype {dtype} is not directly compatible with the Snowflake backend. "
+                    "Use astype to convert the dtype to allow for automatic switching of engines."
                 )
                 return False
         return True
