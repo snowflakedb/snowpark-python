@@ -1101,6 +1101,7 @@ def test_local_create_connection_function(session, db_parameters, fetch_with_pro
                 local_create_connection,
                 table='{table_name}',
                 custom_schema='{SQLITE3_DB_CUSTOM_SCHEMA_STRING}',
+                fetch_with_process={fetch_with_process},
             )
             assert df.collect()
             print("successful ingestion")
