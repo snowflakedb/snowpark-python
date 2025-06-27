@@ -675,7 +675,28 @@ def python_type_str_to_object(
     elif tp_str in ["DataFrame", "pd.DataFrame"] and get_installed_pandas():
         return pandas.DataFrame
     else:
-        return eval(tp_str)
+        # PandasSeries and other pandas types were no longer globally imported due to the lazy loading implementation.When
+        # python_type_str_to_object("PandasSeries") was called, it would fall through to eval("PandasSeries") which caused
+        # the NameError, like name 'PandasSeries' is not defined
+        try:
+            return eval(tp_str)
+        except NameError:
+            eval_globals = {
+                "Dict": typing.Dict,
+                "List": typing.List,
+                "Optional": typing.Optional,
+                "Union": typing.Union,
+                "datetime": datetime,
+            }
+            if get_installed_pandas():
+                snowpark_types = get_snowpark_types()
+                eval_globals.update(
+                    {
+                        "PandasSeries": snowpark_types.PandasSeries,
+                        "PandasDataFrame": snowpark_types.PandasDataFrame,
+                    }
+                )
+            return eval(tp_str, eval_globals)
 
 
 def python_type_to_snow_type(
@@ -1355,5 +1376,5 @@ def most_permissive_type(datatype: DataType) -> DataType:
 ColumnOrName = Union["snowflake.snowpark.column.Column", str]
 ColumnOrLiteralStr = Union["snowflake.snowpark.column.Column", str]
 ColumnOrSqlExpr = Union["snowflake.snowpark.column.Column", str]
-LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
+LiteralType = Union[get_valid_python_types_for_literal_value()]
 ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]
