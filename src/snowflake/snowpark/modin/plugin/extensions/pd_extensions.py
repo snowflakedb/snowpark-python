@@ -637,7 +637,7 @@ def to_pandas(
 
 
 @register_pd_accessor("explain_switch")
-def explain_switch(simple=True) -> native_pd.DataFrame:
+def explain_switch(simple=True) -> Union[native_pd.DataFrame, None]:
     """
     Shows a log of all backend switching decisions made by Snowpark pandas.
 
@@ -662,15 +662,16 @@ def explain_switch(simple=True) -> native_pd.DataFrame:
             A native pandas DataFrame containing the log of backend switches.
 
     Examples:
-
-        >>> df = pd.DataFrame({'Animal': ['Falcon', 'Falcon',
-        ...                               'Parrot', 'Parrot'],
-        ...                    'Max Speed': [380., 370., 24., 26.]})
-        >>> pd.explain_switch(df)
-        ...                                                                             decision
-        ... source                                            api                mode
-        ... df = pd.DataFrame({'Animal': ['Falcon', 'Falcon', DataFrame.__init__ auto
-        ...                                                                      auto   Pandas
+        >>> from modin.config import context as config_context
+        >>> with config_context(AutoSwitchBackend=True):
+        ...     df = pd.DataFrame({'Animal': ['Falcon', 'Falcon',
+        ...         'Parrot', 'Parrot'],
+        ...         'Max Speed': [380., 370., 24., 26.]})
+        >>> pd.explain_switch()
+                                                                                 decision
+        source                                           api                mode         
+        exec(compile(example.source, filename, "single", DataFrame.__init__ auto         
+                                                                            auto   Pandas
 
     """
     if not MODIN_IS_AT_LEAST_0_33_0:
@@ -680,12 +681,14 @@ def explain_switch(simple=True) -> native_pd.DataFrame:
     return explain_switch_complex()
 
 
-def explain_switch_simple():
+def explain_switch_simple() -> Union[native_pd.DataFrame, None]:
     from snowflake.snowpark.modin.plugin._internal.telemetry import (
         get_hybrid_switch_log,
     )
 
     stats = get_hybrid_switch_log()
+    if len(stats) <= 0:
+        return None
     stats["decision"] = stats.groupby(["group", "mode"]).ffill()["decision"]
     stats["api"] = stats.groupby(["source", "group", "mode"]).ffill()["api"]
     stats["mode"] = stats.groupby(["source", "group"]).ffill()["mode"]
@@ -705,7 +708,7 @@ def explain_switch_simple():
     return stats
 
 
-def explain_switch_complex():
+def explain_switch_complex() -> Union[native_pd.DataFrame, None]:
     from snowflake.snowpark.modin.plugin._internal.telemetry import (
         get_hybrid_switch_log,
     )
