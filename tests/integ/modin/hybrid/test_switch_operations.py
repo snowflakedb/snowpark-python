@@ -10,6 +10,9 @@ import modin.pandas as pd
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    SnowflakeQueryCompiler,
+)
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
@@ -20,6 +23,31 @@ def skip(pytestconfig):
             "backend switching tests only work on newer modin versions",
             allow_module_level=True,
         )
+
+
+@sql_count_checker(query_count=0)
+def test_move_to_me_cost_with_incompatible_dtype():
+    """
+    Tests that the move_to_me cost is impossible when the DataFrame has a dtype
+    that is incompatible with Snowpark pandas.
+    """
+    from modin.core.storage_formats.base.query_compiler import QCCoercionCost
+
+    # DataFrame with a compatible dtype.
+    df_compatible = pd.DataFrame({"A": [1, 2, 3]})
+    df_compatible.move_to("Pandas")
+
+    cost_compatible = SnowflakeQueryCompiler.move_to_me_cost(
+        df_compatible._query_compiler
+    )
+    assert cost_compatible < QCCoercionCost.COST_IMPOSSIBLE
+
+    # DataFrame with an incompatible dtype.
+    df_incompatible = df_compatible.astype("category")
+    cost_incompatible = SnowflakeQueryCompiler.move_to_me_cost(
+        df_incompatible._query_compiler
+    )
+    assert cost_incompatible == QCCoercionCost.COST_IMPOSSIBLE
 
 
 @sql_count_checker(query_count=1)
