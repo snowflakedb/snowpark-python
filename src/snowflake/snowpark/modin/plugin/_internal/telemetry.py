@@ -674,6 +674,14 @@ def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -
 if MODIN_IS_AT_LEAST_0_33_0:
     hybrid_switch_log = native_pd.DataFrame({})
 
+    def clear_hybrid_switch_log() -> None:
+        global hybrid_switch_log
+        hybrid_switch_log = native_pd.DataFrame({})
+
+    def get_hybrid_switch_log() -> native_pd.DataFrame:
+        global hybrid_switch_log
+        return hybrid_switch_log.copy()
+
     @functools.cache
     def get_user_source_location(group: str) -> dict[str, str]:
         import inspect
@@ -723,7 +731,7 @@ if MODIN_IS_AT_LEAST_0_33_0:
         source = get_user_source_location(entry["group"])
         entry["source"] = source["source"]
         new_row = native_pd.DataFrame(entry, index=[0])
-        hybrid_switch_log = native_pd.concat([hybrid_switch_log, new_row])
+        hybrid_switch_log = native_pd.concat([hybrid_switch_log, new_row]).tail(1000)
 
     def connect_modin_telemetry() -> None:
         MetricsMode.enable()

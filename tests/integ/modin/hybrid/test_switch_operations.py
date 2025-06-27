@@ -155,3 +155,19 @@ def test_groupby_agg_post_op_switch(operation, small_snow_df):
     series_groupby_result = getattr(small_snow_df.groupby(0)[1], operation)()
     assert series_groupby_result.get_backend() == "Pandas"
     assert small_snow_df.get_backend() == "Snowflake"
+
+
+@sql_count_checker(query_count=1)
+def test_explain_switch(us_holidays_data):
+    from snowflake.snowpark.modin.plugin._internal.telemetry import (
+        clear_hybrid_switch_log,
+    )
+
+    clear_hybrid_switch_log()
+    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
+    pd.merge(df_us_holidays, df_transactions, left_on="Date", right_on="DATE")
+    assert "decision" in str(pd.explain_switch())
+    assert "decision" in str(pd.explain_switch(simple=False))
+    assert "DataFrame.__init__" in str(pd.explain_switch())
+    assert "rows" in str(pd.explain_switch(simple=False))

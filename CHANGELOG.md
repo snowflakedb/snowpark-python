@@ -38,6 +38,7 @@
 
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
 - Added support for `pd.read_feather`.
+- Added support for `pd.explain_switch()` to return debugging information on hybrid execution decisions.
 
 ## 1.33.0 (2025-06-19)
 
