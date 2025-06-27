@@ -7,7 +7,6 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
-from snowflake.connector.errors import DatabaseError
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
 
@@ -242,6 +241,7 @@ class AsyncJob:
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
+        from snowflake.connector.errors import DatabaseError
         from snowflake.snowpark._internal.utils import (
             is_in_stored_procedure,
         )
