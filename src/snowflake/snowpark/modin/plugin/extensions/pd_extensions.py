@@ -667,10 +667,10 @@ def explain_switch(simple=True) -> Union[native_pd.DataFrame, None]:
         ...     df = pd.DataFrame({'Animal': ['Falcon', 'Falcon',
         ...         'Parrot', 'Parrot'],
         ...         'Max Speed': [380., 370., 24., 26.]})
-        >>> pd.explain_switch()
+        >>> pd.explain_switch()  # doctest: +NORMALIZE_WHITESPACE
                                                                                  decision
-        source                                           api                mode         
-        exec(compile(example.source, filename, "single", DataFrame.__init__ auto         
+        source                                           api                mode
+        exec(compile(example.source, filename, "single", DataFrame.__init__ auto
                                                                             auto   Pandas
 
     """
