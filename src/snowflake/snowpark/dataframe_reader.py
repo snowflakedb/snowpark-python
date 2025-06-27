@@ -1285,7 +1285,7 @@ class DataFrameReader:
         session_init_statement: Optional[Union[str, List[str]]] = None,
         udtf_configs: Optional[dict] = None,
         fetch_merge_count: int = 1,
-        multi_processing: bool = False,
+        fetch_with_process: bool = False,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1359,6 +1359,11 @@ class DataFrameReader:
                 before uploading it. This improves performance by reducing the number of
                 small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
                 Parquet file and uploaded separately.
+            fetch_with_process: Whether to use multiprocessing for data fetching and parquet file generation.
+                By default, this is set to False, which means multithreading is used to fetch data in parallel.
+                Setting this to True enables multiprocessing, which may offer better performance for CPU-bound tasks
+                such as Parquet file generation. When using multiprocessing, ensure that your script is guarded with
+                `if __name__ == "__main__":` and call `multiprocessing.freeze_support()` on Windows if needed.
 
         Example::
             .. code-block:: python
@@ -1453,7 +1458,7 @@ class DataFrameReader:
         try:
             # Determine the number of processes or threads to use
             max_workers = max_workers or os.cpu_count()
-            queue_class = mp.Queue if multi_processing else queue.Queue
+            queue_class = mp.Queue if fetch_with_process else queue.Queue
             # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
             partition_queue = queue_class()
             # a queue of parquet BytesIO objects to be uploaded
@@ -1468,7 +1473,7 @@ class DataFrameReader:
                 f"Starting {max_workers} worker processes to fetch data from the data source."
             )
 
-            if multi_processing:
+            if fetch_with_process:
                 for _worker_id in range(max_workers):
                     process = mp.Process(
                         target=worker_process,
@@ -1503,11 +1508,11 @@ class DataFrameReader:
                 max_workers=max_workers,
                 statements_params=statements_params_for_telemetry,
                 on_error="abort_statement",
-                multi_processing=multi_processing,
+                fetch_with_process=fetch_with_process,
             )
 
         except BaseException as exc:
-            if multi_processing:
+            if fetch_with_process:
                 # Graceful shutdown - terminate all processes
                 for process in workers:
                     if process.is_alive():

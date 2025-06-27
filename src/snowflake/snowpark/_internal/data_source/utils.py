@@ -368,7 +368,7 @@ def process_parquet_queue_with_threads(
     max_workers: int,
     statements_params: Optional[Dict[str, str]] = None,
     on_error: str = "abort_statement",
-    multi_processing: bool = False,
+    fetch_with_process: bool = False,
 ) -> None:
     """
     Process parquet data from a multiprocessing queue using a thread pool.
@@ -445,7 +445,7 @@ def process_parquet_queue_with_threads(
 
             except queue.Empty:
                 backpressure_semaphore.release()  # Release semaphore if no data was fetched
-                if multi_processing:
+                if fetch_with_process:
                     # Check if any processes have failed
                     for i, process in enumerate(workers):
                         if not process.is_alive() and process.exitcode != 0:
@@ -467,7 +467,7 @@ def process_parquet_queue_with_threads(
                 time.sleep(0.1)
                 continue
 
-    if multi_processing:
+    if fetch_with_process:
         # Wait for all processes to complete
         for idx, process in enumerate(workers):
             process.join()
