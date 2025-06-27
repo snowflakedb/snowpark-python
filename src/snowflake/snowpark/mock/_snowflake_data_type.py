@@ -383,31 +383,27 @@ def get_coerce_result_type(c1: ColumnType, c2: ColumnType):
     return None
 
 
-class LazyPandasMeta(type):
-    def __new__(mcs, name, bases, namespace, pandas_type=None):
-        namespace["_pandas_type"] = pandas_type
-        namespace["_real_base"] = None
-        return super().__new__(mcs, name, bases, namespace)
-
-    def __call__(cls, *args, **kwargs):
-        if cls._real_base is None:
-            from snowflake.connector.options import installed_pandas
-
-            if installed_pandas and cls._pandas_type:
-                import pandas as pd
-
-                if cls._pandas_type == "DataFrame":
-                    cls._real_base = pd.DataFrame
-                elif cls._pandas_type == "Series":
-                    cls._real_base = pd.Series
-            else:
-                cls._real_base = object
-            cls.__bases__ = (cls._real_base,)
-
-        return super().__call__(*args, **kwargs)
+# Late pandas detection - avoid importing pandas at module level
+# Set up base classes that will be resolved when actually needed
 
 
-class TableEmulator(metaclass=LazyPandasMeta, pandas_type="DataFrame"):
+def _get_base_classes():
+    """Get the appropriate base classes for TableEmulator and ColumnEmulator"""
+    try:
+        from snowflake.snowpark.mock._options import pandas as pd, installed_pandas
+
+        if installed_pandas:
+            return pd.DataFrame, pd.Series
+    except Exception:
+        pass
+    return object, object
+
+
+# Get base classes once when needed
+DataFrameBase, SeriesBase = _get_base_classes()
+
+
+class TableEmulator(DataFrameBase):
     _metadata = [
         "sf_types",
         "sf_types_by_col_index",
@@ -430,7 +426,9 @@ class TableEmulator(metaclass=LazyPandasMeta, pandas_type="DataFrame"):
         sf_types_by_col_index: Optional[Dict[int, ColumnType]] = None,
         **kwargs,
     ) -> None:
-        if TableEmulator.__base__ == object:
+        from snowflake.snowpark.mock._options import installed_pandas
+
+        if not installed_pandas:
             raise RuntimeError(
                 "Local Testing requires pandas as dependency, "
                 "please make sure pandas is installed in the environment.\n"
@@ -524,7 +522,7 @@ def broadcast_value(value: Any, len: int) -> "ColumnEmulator":
     return ColumnEmulator([value] * len)
 
 
-class ColumnEmulator(metaclass=LazyPandasMeta, pandas_type="Series"):
+class ColumnEmulator(SeriesBase):
     _metadata = ["sf_type", "_null_rows_idxs"]
 
     @property
@@ -536,7 +534,9 @@ class ColumnEmulator(metaclass=LazyPandasMeta, pandas_type="Series"):
         return TableEmulator
 
     def __init__(self, *args, **kwargs) -> None:
-        if ColumnEmulator.__base__ == object:
+        from snowflake.snowpark.mock._options import installed_pandas
+
+        if not installed_pandas:
             raise RuntimeError(
                 "Local Testing requires pandas as dependency, "
                 "please make sure pandas is installed in the environment.\n"
