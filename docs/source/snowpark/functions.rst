@@ -265,6 +265,7 @@ Functions
     min_by
     minute
     mode
+    model
     monotonically_increasing_id
     month
     monthname
