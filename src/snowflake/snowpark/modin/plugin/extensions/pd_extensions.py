@@ -669,8 +669,8 @@ def explain_switch(simple=True) -> Union[native_pd.DataFrame, None]:
         ...         'Max Speed': [380., 370., 24., 26.]})
         >>> pd.explain_switch()  # doctest: +NORMALIZE_WHITESPACE
                                           decision
-        source    api                mode         
-        <unknown> DataFrame.__init__ auto         
+        source    api                mode
+        <unknown> DataFrame.__init__ auto
                                      auto   Pandas
 
     """
