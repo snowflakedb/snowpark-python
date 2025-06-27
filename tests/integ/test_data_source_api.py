@@ -1045,7 +1045,7 @@ def test_unicode_column_name_sql_server(session, fetch_with_process):
     df = session.read.dbapi(
         sql_server_create_connection_unicode_data,
         table='"用户资料"',
-        fetch_with_process=multiprocessing,
+        fetch_with_process=fetch_with_process,
     )
     assert df.collect() == [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")]
 
@@ -1055,7 +1055,7 @@ def test_double_quoted_column_name_sql_server(session, fetch_with_process):
     df = session.read.dbapi(
         sql_server_create_connection_double_quoted_data,
         table='"UserProfile"',
-        fetch_with_process=multiprocessing,
+        fetch_with_process=fetch_with_process,
     )
     assert df.collect() == [
         Row(Id=1, FullName="John Doe", Country="USA", Notes="Fake note")
