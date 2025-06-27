@@ -62,6 +62,7 @@ from pandas.api.types import (
     is_integer_dtype,
     is_named_tuple,
     is_numeric_dtype,
+    is_object_dtype,
     is_re_compilable,
     is_scalar,
     is_string_dtype,
@@ -11660,7 +11661,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             # prepare label_to_value_map
             if is_scalar(value):
-                label_to_value_map = {label: value for label in self.columns}
+                if isinstance(value, (int, float, complex)):
+                    label_to_value_map: dict[
+                        str, Union[Hashable, Mapping[Any, Any], Any, Any, None]
+                    ] = {}
+                    label_to_value_map = {
+                        column: value
+                        for column, dtype in self.dtypes.items()
+                        if is_numeric_dtype(dtype) or is_object_dtype(dtype)
+                    }
+                else:
+                    label_to_value_map = {label: value for label in self.columns}
             elif isinstance(value, dict):
                 label_to_value_map = fillna_label_to_value_map(value, self.columns)
             else:

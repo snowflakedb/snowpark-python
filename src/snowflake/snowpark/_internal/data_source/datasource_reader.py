@@ -83,8 +83,18 @@ class DataSourceReader:
             else:
                 raise ValueError("fetch size cannot be smaller than 0")
         finally:
-            cursor.close()
-            conn.close()
+            try:
+                cursor.close()
+            except BaseException as exc:
+                logger.debug(
+                    f"Failed to close cursor after reading data due to error: {exc!r}"
+                )
+            try:
+                conn.close()
+            except BaseException as exc:
+                logger.debug(
+                    f"Failed to close connection after reading data due to error: {exc!r}"
+                )
 
     def data_source_data_to_pandas_df(self, data: List[Any]) -> "pd.DataFrame":
         # self.driver is guaranteed to be initialized in self.read() which is called prior to this method
