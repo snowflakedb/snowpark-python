@@ -839,6 +839,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return super().stay_cost(api_cls_name, operation, arguments)
 
     @classmethod
+    def _are_dtypes_compatible(cls, compiler: BaseQueryCompiler) -> bool:    
+        """
+        Inspects the dtypes in a BaseQueryCompiler object to ensure that they are
+        compatible with Snowpark pandas.
+
+        Args:
+            compiler: The BaseQueryCompiler object to inspect.
+
+        Returns:
+            True if all dtypes are compatible, False otherwise.
+        """
+        for dtype in compiler.dtypes:
+            try:
+                TypeMapper.to_snowflake(dtype)
+            except NotImplementedError:
+                return False
+        return True
+
+    @classmethod
     def move_to_me_cost(
         cls,
         other_qc: BaseQueryCompiler,
@@ -865,6 +884,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         # in-memory intialization should not move to Snowflake
         if cls._is_in_memory_init(api_cls_name, operation, arguments):
+            return QCCoercionCost.COST_IMPOSSIBLE
+        if not cls._are_dtypes_compatible(other_qc):
             return QCCoercionCost.COST_IMPOSSIBLE
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
