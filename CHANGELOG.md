@@ -10,6 +10,7 @@
 - Added a new option `USE_RELAXED_TYPES` to the `INFER_SCHEMA_OPTIONS` of `DataFrameReader`. When set to True this option casts all strings to max length strings and all numeric types to `DoubleType`.
 - Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
 - Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
+- Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr), which allows enable multiprocessing for parallel data fetching. By default, multithreading is used. Multiprocessing may offer better performance for CPU-bound tasks such as Parquet file generation.
 
 #### Improvements
 
