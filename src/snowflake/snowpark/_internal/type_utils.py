@@ -1376,5 +1376,5 @@ def most_permissive_type(datatype: DataType) -> DataType:
 ColumnOrName = Union["snowflake.snowpark.column.Column", str]
 ColumnOrLiteralStr = Union["snowflake.snowpark.column.Column", str]
 ColumnOrSqlExpr = Union["snowflake.snowpark.column.Column", str]
-LiteralType = Union[get_valid_python_types_for_literal_value()]
+LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
 ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]
