@@ -1,13 +1,15 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import multiprocessing as mp
 import os
 import sys
 import time
+from collections import defaultdict
 
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
+
+import cloudpickle
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -27,16 +29,15 @@ from snowflake.snowpark._internal.ast.utils import (
     with_src_position,
 )
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
-    DataSourcePartitioner,
+    DbapiDataSource,
 )
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.utils import (
-    worker_process,
-    process_parquet_queue_with_threads,
     STATEMENT_PARAMS_DATA_SOURCE,
-    DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
-    _MAX_WORKER_SCALE,
+    convert_custom_schema_to_structtype,
+    create_data_source_table_and_stage,
+    local_ingestion,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -61,7 +62,6 @@ from snowflake.snowpark._internal.utils import (
     get_aliased_option_name,
     get_copy_into_table_options,
     get_stage_parts,
-    get_temp_type_for_object,
     is_in_stored_procedure,
     parse_positional_args_to_list_variadic,
     private_preview,
@@ -419,6 +419,7 @@ class DataFrameReader:
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
         self.__format: Optional[str] = None
+        self._custom_data_sources = defaultdict()
 
         self._ast = None
         if _emit_ast:
@@ -552,7 +553,10 @@ class DataFrameReader:
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
         allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
-        if canon_format not in allowed_formats:
+        if (
+            canon_format not in allowed_formats
+            and canon_format not in self._custom_data_sources
+        ):
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
             )
@@ -595,16 +599,24 @@ class DataFrameReader:
             )
 
         format_str = self._format.lower()
-        if format_str == "dbapi" and path is not None:
+        if (
+            format_str == "dbapi" or format_str in self._custom_data_sources
+        ) and path is not None:
             raise ValueError(
-                "The 'path' parameter is not supported for the dbapi format. Please omit this parameter when calling."
+                f"The 'path' parameter is not supported for the {format_str} format. Please omit this parameter when calling."
             )
-        if format_str != "dbapi" and path is None:
+        if (
+            format_str != "dbapi"
+            and format_str not in self._custom_data_sources
+            and path is None
+        ):
             raise TypeError(
                 "DataFrameReader.load() missing 1 required positional argument: 'path'"
             )
         if format_str == "dbapi":
             return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
+        if format_str in self._custom_data_sources:
+            return self._custom_data_source(format_str)
 
         loader = getattr(self, self._format, None)
         if loader is not None:
@@ -1377,7 +1389,7 @@ class DataFrameReader:
         start_time = time.perf_counter()
         if session_init_statement and isinstance(session_init_statement, str):
             session_init_statement = [session_init_statement]
-        partitioner = DataSourcePartitioner(
+        partitioner = DbapiDataSource(
             create_connection,
             table_or_query,
             is_query,
@@ -1393,7 +1405,7 @@ class DataFrameReader:
             fetch_merge_count,
         )
         struct_schema = partitioner.schema
-        partitioned_queries = partitioner.partitions
+        partitioned_queries = partitioner._partitions
 
         # udtf ingestion
         if udtf_configs is not None:
@@ -1419,84 +1431,27 @@ class DataFrameReader:
             return df
 
         # parquet ingestion
-        snowflake_table_type = "TEMPORARY"
         snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-        create_table_sql = (
-            "CREATE "
-            f"{snowflake_table_type} "
-            "TABLE "
-            f"identifier(?) "
-            f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
-            f"""{DATA_SOURCE_SQL_COMMENT}"""
-        )
-        params = (snowflake_table_name,)
-        logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
-        self._session.sql(create_table_sql, params=params, _emit_ast=False).collect(
-            statement_params=statements_params_for_telemetry, _emit_ast=False
-        )
-        # create temp stage
         snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
-        sql_create_temp_stage = (
-            f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
-            f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+
+        create_data_source_table_and_stage(
+            self._session,
+            struct_schema,
+            snowflake_table_name,
+            snowflake_stage_name,
+            statements_params_for_telemetry,
         )
-        self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
-            statement_params=statements_params_for_telemetry, _emit_ast=False
+
+        local_ingestion(
+            self._session,
+            max_workers,
+            partitioned_queries,
+            struct_schema,
+            partitioner,
+            snowflake_table_name,
+            snowflake_stage_name,
+            statements_params_for_telemetry,
         )
-
-        try:
-            processes = []
-
-            # Determine the number of processes to use
-            max_workers = max_workers or mp.cpu_count()
-
-            # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
-            partition_queue = mp.Queue()
-            # a queue of parquet BytesIO objects to be uploaded
-            # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
-            # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
-            parquet_queue = mp.Queue(_MAX_WORKER_SCALE * max_workers)
-            for partition_idx, query in enumerate(partitioned_queries):
-                partition_queue.put((partition_idx, query))
-
-            # Start worker processes
-            logger.debug(
-                f"Starting {max_workers} worker processes to fetch data from the data source."
-            )
-            for _worker_id in range(max_workers):
-                process = mp.Process(
-                    target=worker_process,
-                    args=(partition_queue, parquet_queue, partitioner.reader()),
-                )
-                process.start()
-                processes.append(process)
-
-            # Process BytesIO objects from queue and upload them using utility method
-            process_parquet_queue_with_threads(
-                session=self._session,
-                parquet_queue=parquet_queue,
-                processes=processes,
-                total_partitions=len(partitioned_queries),
-                snowflake_stage_name=snowflake_stage_name,
-                snowflake_table_name=snowflake_table_name,
-                max_workers=max_workers,
-                statements_params=statements_params_for_telemetry,
-                on_error="abort_statement",
-            )
-
-        except BaseException as exc:
-            # Graceful shutdown - terminate all processes
-            for process in processes:
-                if process.is_alive():
-                    process.terminate()
-                    process.join(timeout=5)
-
-            if isinstance(exc, SnowparkDataframeReaderException):
-                raise exc
-
-            raise SnowparkDataframeReaderException(
-                f"Error occurred while ingesting data from the data source: {exc!r}"
-            )
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
         self._session._conn._telemetry_client.send_data_source_perf_telemetry(
@@ -1509,5 +1464,105 @@ class DataFrameReader:
         res_df = partitioner.driver.to_result_snowpark_df(
             self, snowflake_table_name, struct_schema, _emit_ast=_emit_ast
         )
+        set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
+        return res_df
+
+    def register_custom_data_source(
+        self,
+        data_source,
+    ) -> None:
+        self._custom_data_sources[data_source.name()] = data_source
+
+    def _custom_data_source(self, data_source: str) -> DataFrame:
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
+        start_time = time.perf_counter()
+        _emit_ast = self._cur_options.get("_emit_ast", True)
+
+        if "UDTF_CONFIGS" in self._cur_options:
+            # udtf ingestion
+            external_access_integrations = self._cur_options["UDTF_CONFIGS"].get(
+                "external_access_integration", None
+            )
+            imports = self._cur_options["UDTF_CONFIGS"].get("imports", None)
+            packages = self._cur_options["UDTF_CONFIGS"].get("packages", None)
+
+            data_source_class = self._custom_data_sources[data_source]
+            data_source_instance = data_source_class()
+            partitions = data_source_instance._partitions()
+            schema = convert_custom_schema_to_structtype(data_source_instance.schema())
+
+            pickled_partitions = [cloudpickle.dumps(par) for par in partitions]
+            partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+            self._session.create_dataframe(
+                [[par] for par in pickled_partitions], schema=["partition"]
+            ).write.save_as_table(partitions_table, table_type="temp")
+
+            class UDTFIngestion:
+                def process(self, pickled_partition: bytearray):
+                    import cloudpickle
+
+                    partition = cloudpickle.loads(pickled_partition)
+                    reader = data_source_instance.reader(schema)
+                    for result in reader.read(partition):
+                        if isinstance(result, list):
+                            yield from result
+                        else:
+                            yield from list(reader.read(partition))
+                            break
+
+            from snowflake.snowpark._internal.data_source.utils import udtf_ingestion
+
+            res = udtf_ingestion(
+                self._session,
+                UDTFIngestion,
+                schema,
+                external_access_integrations,
+                packages,
+                imports,
+                partitions_table,
+            )
+            cols = [
+                res[field.name].cast(field.datatype).alias(field.name)
+                for field in schema.fields
+            ]
+            return res.select(cols, _emit_ast=True)
+
+        # parquet ingestion
+        data_source_class = self._custom_data_sources[data_source]
+        data_source_instance = data_source_class()
+        partitions = data_source_instance._partitions()
+        if partitions is None:
+            partitions = [None]
+
+        schema = convert_custom_schema_to_structtype(data_source_instance.schema())
+        max_workers = self._cur_options.get("max_workers", None)
+
+        snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+
+        create_data_source_table_and_stage(
+            self._session,
+            schema,
+            snowflake_table_name,
+            snowflake_stage_name,
+            statements_params_for_telemetry,
+        )
+
+        local_ingestion(
+            self._session,
+            max_workers,
+            partitions,
+            schema,
+            data_source_instance,
+            snowflake_table_name,
+            snowflake_stage_name,
+            statements_params_for_telemetry,
+        )
+        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+            DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
+        )
+
+        res_df = self._session.table(snowflake_table_name, _emit_ast=_emit_ast)
+
         set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
         return res_df
