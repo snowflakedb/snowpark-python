@@ -53,7 +53,6 @@ from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMe
 from snowflake.snowpark._internal.lazy_import_utils import get_pandas
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
-from snowflake.connector.description import PLATFORM
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -725,6 +724,8 @@ def get_stage_file_prefix_length(stage_location: str) -> int:
 
 
 def is_in_stored_procedure():
+    from snowflake.connector.description import PLATFORM
+
     return PLATFORM == "XP"
 
 
