@@ -2376,7 +2376,7 @@ def rename_axis(
 
 # Snowpark pandas has custom dispatch logic for ufuncs, while modin defaults to pandas.
 # TODO delete this method once 0.33.x is no longer supported
-if MODIN_IS_AT_LEAST_0_34_0:
+if not MODIN_IS_AT_LEAST_0_34_0:
 
     @register_base_override("__array_ufunc__")
     def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
