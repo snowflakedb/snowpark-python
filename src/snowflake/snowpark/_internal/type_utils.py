@@ -675,28 +675,29 @@ def python_type_str_to_object(
     elif tp_str in ["DataFrame", "pd.DataFrame"] and get_installed_pandas():
         return pandas.DataFrame
     else:
-        # PandasSeries and other pandas types were no longer globally imported due to the lazy loading implementation.When
-        # python_type_str_to_object("PandasSeries") was called, it would fall through to eval("PandasSeries") which caused
-        # the NameError, like name 'PandasSeries' is not defined
-        try:
-            return eval(tp_str)
-        except NameError:
-            eval_globals = {
-                "Dict": typing.Dict,
-                "List": typing.List,
-                "Optional": typing.Optional,
-                "Union": typing.Union,
-                "datetime": datetime,
-            }
-            if get_installed_pandas():
-                snowpark_types = get_snowpark_types()
-                eval_globals.update(
-                    {
-                        "PandasSeries": snowpark_types.PandasSeries,
-                        "PandasDataFrame": snowpark_types.PandasDataFrame,
-                    }
-                )
-            return eval(tp_str, eval_globals)
+        return eval(tp_str)
+        # # PandasSeries and other pandas types were no longer globally imported due to the lazy loading implementation.When
+        # # python_type_str_to_object("PandasSeries") was called, it would fall through to eval("PandasSeries") which caused
+        # # the NameError, like name 'PandasSeries' is not defined
+        # try:
+        #     return eval(tp_str)
+        # except NameError:
+        #     eval_globals = {
+        #         "Dict": typing.Dict,
+        #         "List": typing.List,
+        #         "Optional": typing.Optional,
+        #         "Union": typing.Union,
+        #         "datetime": datetime,
+        #     }
+        #     if get_installed_pandas():
+        #         snowpark_types = get_snowpark_types()
+        #         eval_globals.update(
+        #             {
+        #                 "PandasSeries": snowpark_types.PandasSeries,
+        #                 "PandasDataFrame": snowpark_types.PandasDataFrame,
+        #             }
+        #         )
+        #     return eval(tp_str, eval_globals)
 
 
 def python_type_to_snow_type(
