@@ -675,7 +675,6 @@ def python_type_str_to_object(
     elif tp_str in ["DataFrame", "pd.DataFrame"] and get_installed_pandas():
         return pandas.DataFrame
     else:
-        return eval(tp_str)
         # PandasSeries and other pandas types were no longer globally imported due to the lazy loading implementation.When
         # python_type_str_to_object("PandasSeries") was called, it would fall through to eval("PandasSeries") which caused
         # the NameError, like name 'PandasSeries' is not defined
