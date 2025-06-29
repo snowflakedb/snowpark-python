@@ -2060,14 +2060,14 @@ def write_arrow(
         )
 
         parquet_columns = "$1:" + ",$1:".join(
-            f"{quote}{snowflake_col}{quote}::{column_type_mapping[col]}"
+            f"{quote}{snowflake_col}{quote}::{column_type_mapping[snowflake_col]}"
             for snowflake_col, col in zip(snowflake_column_names, table.schema.names)
         )
 
         if auto_create_table:
             create_table_columns = ", ".join(
                 [
-                    f"{quote}{snowflake_col}{quote} {column_type_mapping[col]}"
+                    f"{quote}{snowflake_col}{quote} {column_type_mapping[snowflake_col]}"
                     for snowflake_col, col in zip(
                         snowflake_column_names, table.schema.names
                     )

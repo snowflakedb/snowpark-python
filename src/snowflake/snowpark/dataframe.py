@@ -1077,7 +1077,13 @@ class DataFrame:
         if block:
             pandas = get_pandas()
             if not isinstance(result, pandas.DataFrame):
-                return pandas.DataFrame(result)
+                # For non-SELECT commands, create pandas DataFrame with proper column names
+                try:
+                    column_names = self.columns
+                    return pandas.DataFrame(result, columns=column_names)
+                except (ValueError, IndexError):
+                    # Fallback to basic DataFrame creation if column mismatch
+                    return pandas.DataFrame(result)
 
         return result
 
