@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+import ast
 from snowflake.snowpark._internal.ast.utils import extract_src_from_expr
 
 if TYPE_CHECKING:
@@ -220,6 +221,32 @@ def _format_source_location(src: Optional[proto.SrcPosition]) -> str:
     return lines_info
 
 
+def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
+    """
+    Extract source locations from a SnowflakePlan's AST IDs.
+
+    Args:
+        plan: The SnowflakePlan object to extract source locations from
+
+    Returns:
+        List of unique source location strings (e.g., "file.py: line 42")
+    """
+    source_locations = []
+    found_locations = set()
+
+    if plan.df_ast_ids is not None:
+        for ast_id in plan.df_ast_ids:
+            bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
+            if bind_stmt is not None:
+                src = extract_src_from_expr(bind_stmt.bind.expr)
+                location = _format_source_location(src)
+                if location and location not in found_locations:
+                    found_locations.add(location)
+                    source_locations.append(location)
+
+    return source_locations
+
+
 def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) -> str:
     """
     Extract SQL error line number and map it back to Python source code. We use the
@@ -249,17 +276,8 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
     )
 
     plan = get_plan_from_line_numbers(top_plan, sql_line_number)
-    source_locations = []
-    found_locations = set()
-    if plan.df_ast_ids is not None:
-        for ast_id in plan.df_ast_ids:
-            bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
-            if bind_stmt is not None:
-                src = extract_src_from_expr(bind_stmt.bind.expr)
-                location = _format_source_location(src)
-                if location != "" and location not in found_locations:
-                    found_locations.add(location)
-                    source_locations.append(location)
+    source_locations = _extract_source_locations_from_plan(plan)
+
     if source_locations:
         if len(source_locations) == 1:
             return f"\nSQL compilation error corresponds to Python source at {source_locations[0]}.\n"
@@ -267,3 +285,158 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
             locations_str = "\n  - ".join(source_locations)
             return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
+
+
+def build_operator_tree(operators_data):
+    nodes = {}
+    children = {}
+    root_nodes = set()
+    for row in operators_data:
+        operator_id = row["OPERATOR_ID"]
+        parent_operators = row["PARENT_OPERATORS"]
+        node_info = {
+            "id": operator_id,
+            "type": row["OPERATOR_TYPE"] if row["OPERATOR_TYPE"] else "N/A",
+            "input_rows": row["INPUT_ROWS"] if row["INPUT_ROWS"] else 0,
+            "output_rows": row["OUTPUT_ROWS"] if row["OUTPUT_ROWS"] else 0,
+            "row_multiple": row["ROW_MULTIPLE"] if row["ROW_MULTIPLE"] else 0,
+            "exec_time": row["OVERALL_PERCENTAGE"] if row["OVERALL_PERCENTAGE"] else 0,
+            "attributes": row["OPERATOR_ATTRIBUTES"],
+        }
+
+        nodes[operator_id] = node_info
+        children[operator_id] = []
+
+        if parent_operators is None or len(parent_operators) == 0:
+            root_nodes.add(operator_id)
+        else:
+            x = ast.literal_eval(parent_operators)
+            for parent_id in x:
+                if parent_id not in children:
+                    children[parent_id] = []
+                children[parent_id].append(operator_id)
+
+    return nodes, children, root_nodes
+
+
+def _write_output(message: str, file_handle=None) -> None:
+    """Helper function to write output to either console or file."""
+    if file_handle:
+        file_handle.write(message + "\n")
+    else:
+        import sys
+
+        sys.stdout.write(message + "\n")
+
+
+def print_operator_tree(nodes, children, node_id, prefix="", is_last=True, file=None):
+    node = nodes[node_id]
+
+    connector = "└── " if is_last else "├── "
+
+    node_info = (
+        f"[{node['id']}] {node['type']} "
+        f"(In: {node['input_rows']:,}, Out: {node['output_rows']:,}, "
+        f"Mult: {node['row_multiple']:.2f}, Time: {node['exec_time']:.2f}%)"
+    )
+
+    _write_output(f"{prefix}{connector}{node_info}", file)
+
+    extension = "    " if is_last else "│   "
+    new_prefix = prefix + extension
+
+    child_list = children.get(node_id, [])
+    for i, child_id in enumerate(child_list):
+        is_last_child = i == len(child_list) - 1
+        print_operator_tree(
+            nodes, children, child_id, new_prefix, is_last_child, file=file
+        )
+
+
+def profile_query(session, query_id: str, output_file: Optional[str] = None) -> None:
+    """
+    Profile a query and save the results to a file.
+
+    Args:
+        session: The Snowpark session to use for querying operator stats
+        query_id: The query ID to profile
+        output_file: The file to save the results to. If not provided, the results will be printed to the console.
+
+    Returns:
+        None - output either to the console or to the file specified by output_file
+    """
+
+    stats_query = f"""
+        SELECT
+            operator_id,
+            operator_type,
+            operator_attributes,
+            operator_statistics:input_rows::number as input_rows,
+            operator_statistics:output_rows::number as output_rows,
+            CASE
+                WHEN operator_statistics:input_rows::number > 0
+                THEN operator_statistics:output_rows::number / operator_statistics:input_rows::number
+                ELSE NULL
+            END as row_multiple,
+            execution_time_breakdown:overall_percentage::number as overall_percentage
+        FROM TABLE(get_query_operator_stats('{query_id}'))
+        ORDER BY step_id, operator_id
+        """
+    stats_connection = session._conn._conn.cursor()
+    stats_connection.execute(stats_query)
+    stats_result = stats_connection.fetchall()
+    nodes, children, root_nodes = build_operator_tree(stats_result)
+
+    # Determine output destination
+    file_handle = None
+    if output_file:
+        file_handle = open(output_file, "w")
+
+    try:
+        _write_output(f"\n=== Analyzing Query {query_id} ===", file_handle)
+        _write_output(f"\n{'='*80}", file_handle)
+        _write_output("QUERY OPERATOR TREE", file_handle)
+        _write_output(f"{'='*80}", file_handle)
+
+        root_list = sorted(list(root_nodes))
+        for i, root_id in enumerate(root_list):
+            is_last_root = i == len(root_list) - 1
+            print_operator_tree(
+                nodes, children, root_id, "", is_last_root, file=file_handle
+            )
+
+        _write_output(f"\n{'='*160}", file_handle)
+        _write_output("DETAILED OPERATOR STATISTICS", file_handle)
+        _write_output(f"{'='*160}", file_handle)
+        _write_output(
+            f"{'Operator':<15} {'Type':<15} {'Input Rows':<12} {'Output Rows':<12} {'Row Multiple':<12} {'Overall %':<12} {'Attributes':<50}",
+            file_handle,
+        )
+        _write_output(f"{'='*160}", file_handle)
+
+        total_input = 0
+        total_output = 0
+
+        for row in stats_result:
+            operator_id = row["OPERATOR_ID"] if row["OPERATOR_ID"] else 0
+            operator_type = row["OPERATOR_TYPE"] if row["OPERATOR_TYPE"] else "N/A"
+            input_rows = row["INPUT_ROWS"] if row["INPUT_ROWS"] else 0
+            output_rows = row["OUTPUT_ROWS"] if row["OUTPUT_ROWS"] else 0
+            row_multiple = row["ROW_MULTIPLE"] if row["ROW_MULTIPLE"] else 0
+            exec_time = row["OVERALL_PERCENTAGE"] if row["OVERALL_PERCENTAGE"] else 0
+            operator_attrs = (
+                row["OPERATOR_ATTRIBUTES"] if row["OPERATOR_ATTRIBUTES"] else "N/A"
+            )
+
+            _write_output(
+                f"{operator_id:<15} {operator_type:<15} {input_rows:<12} {output_rows:<12} {row_multiple:<12.2f} {exec_time:<12} {operator_attrs:<50}",
+                file_handle,
+            )
+            total_input += input_rows
+            total_output += output_rows
+
+        _write_output(f"{'='*160}", file_handle)
+
+    finally:
+        if file_handle:
+            file_handle.close()
