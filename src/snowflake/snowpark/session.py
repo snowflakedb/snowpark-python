@@ -812,8 +812,7 @@ class Session:
         return (
             isinstance(version, str)
             and version != ""
-            and parse_version(self.version)
-            >= parse_version(version)
+            and parse_version(self.version) >= parse_version(version)
         )
 
     def _generate_new_action_id(self) -> int:
@@ -1725,11 +1724,15 @@ class Session:
 
         packages = []
         for package in importlib.metadata.distributions():
-            if package.metadata['Name'].lower() in ignore_packages:
-                _logger.info(f"{package.metadata['Name'].lower()} found in environment, ignoring...")
+            if package.metadata["Name"].lower() in ignore_packages:
+                _logger.info(
+                    f"{package.metadata['Name'].lower()} found in environment, ignoring..."
+                )
                 continue
-            if package.metadata['Name'].lower() in DEFAULT_PACKAGES:
-                _logger.info(f"{package.metadata['Name'].lower()} is available by default, ignoring...")
+            if package.metadata["Name"].lower() in DEFAULT_PACKAGES:
+                _logger.info(
+                    f"{package.metadata['Name'].lower()} is available by default, ignoring..."
+                )
                 continue
             version_text = (
                 "==" + package.version if package.version and not relax else ""
@@ -1826,7 +1829,6 @@ class Session:
                         and not self._is_anaconda_terms_acknowledged()
                     ):
                         errors.append(
-
                             RuntimeError(
                                 f"Cannot add package {package_name}{version_text} because Anaconda terms must be accepted "
                                 "by ORGADMIN to use Anaconda 3rd party packages. Please follow the instructions at "
@@ -2292,8 +2294,7 @@ class Session:
         }
 
         dependency_packages = [
-            Requirement(package)
-            for package in metadata[environment_signature]
+            Requirement(package) for package in metadata[environment_signature]
         ]
         _logger.info(
             f"Loading dependency packages list - {metadata[environment_signature]}."
