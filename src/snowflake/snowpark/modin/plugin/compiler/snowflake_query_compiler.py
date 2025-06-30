@@ -1202,7 +1202,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method: str,
         *inputs: Any,
         **kwargs: Any,
-    ) -> Union[DataFrame, Series, Any]:
+    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
         """
         Apply the provided NumPy ufunc to the underlying data.
 
@@ -1266,7 +1266,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         types: tuple,
         args: tuple,
         kwargs: dict,
-    ) -> Union[DataFrame, Series, Any]:
+    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
         """
         Apply the provided NumPy array function to the underlying data.
 
