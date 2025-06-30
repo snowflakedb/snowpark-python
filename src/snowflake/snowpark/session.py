@@ -484,15 +484,16 @@ class Session:
 
         def create(self) -> "Session":
             """Creates a new Session."""
-            from snowflake.snowpark.mock._connection import MockServerConnection
-            from snowflake.snowpark.mock._nop_connection import NopConnection
-
             if self._options.get("local_testing", False):
+                from snowflake.snowpark.mock._connection import MockServerConnection
+
                 session = Session(MockServerConnection(self._options), self._options)
                 if "password" in self._options:
                     self._options["password"] = None
                 _add_session(session)
             elif self._options.get("nop_testing", False):
+                from snowflake.snowpark.mock._nop_connection import NopConnection
+
                 session = Session(NopConnection(self._options), self._options)
                 if "password" in self._options:
                     self._options["password"] = None
