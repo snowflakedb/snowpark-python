@@ -21,6 +21,8 @@ from types import MappingProxyType
 from typing import Any, Callable, List, Literal, Optional, TypeVar, Union, get_args
 
 import modin.pandas as pd
+from modin.pandas import Series, DataFrame
+from modin.pandas.base import BasePandasDataset
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
@@ -836,6 +838,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             or (
                 is_dict_like(data)
                 and not isinstance(data, native_pd.DataFrame)
+                and not isinstance(data, native_pd.Series)
                 and all(
                     isinstance(v, pd.Series)
                     and isinstance(v._query_compiler, type(self))
@@ -1215,6 +1218,119 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 message="copy is ignored in Snowflake backend",
             )
         return self.to_pandas().to_numpy(dtype=dtype, na_value=na_value, **kwargs)
+
+    # modin 0.34 and above
+    def do_array_ufunc_implementation(
+        self,
+        frame: BasePandasDataset,
+        ufunc: np.ufunc,
+        method: str,
+        *inputs: Any,
+        **kwargs: Any,
+    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
+        """
+        Apply the provided NumPy ufunc to the underlying data.
+
+        This method is called by the ``__array_ufunc__`` dispatcher on BasePandasDataset.
+
+        Unlike other query compiler methods, this function directly operates on the input DataFrame/Series
+        to allow for easier argument processing. The default implementation defaults to pandas, but
+        a query compiler sub-class may override this method to provide a distributed implementation.
+
+        See NumPy docs: https://numpy.org/doc/stable/user/basics.subclassing.html#array-ufunc-for-ufuncs
+
+        Parameters
+        ----------
+        frame : BasePandasDataset
+            The DataFrame or Series on which the ufunc was called. Its query compiler must match ``self``.
+
+        ufunc : np.ufunc
+            The function to apply.
+
+        method : str
+            The name of the function to apply.
+
+        *inputs : Any
+            Positional arguments to pass to ``ufunc``.
+
+        **kwargs : Any
+            Keyword arguments to pass to ``ufunc``.
+
+        Returns
+        -------
+        DataFrame, Series, or Any
+            The result of applying the ufunc to ``frame``.
+        """
+        assert (
+            self is frame._query_compiler
+        ), "array ufunc called with mismatched query compiler and input frame"
+        # Use pandas version of ufunc if it exists
+        if method != "__call__":
+            # Return sentinel value NotImplemented
+            return NotImplemented  # pragma: no cover
+        from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
+            numpy_to_pandas_universal_func_map,
+        )
+
+        if ufunc.__name__ in numpy_to_pandas_universal_func_map:
+            ufunc = numpy_to_pandas_universal_func_map[ufunc.__name__]
+            if ufunc == NotImplemented:
+                return NotImplemented
+            # We cannot support the out argument
+            if kwargs.get("out") is not None:
+                return NotImplemented
+            return ufunc(frame, inputs[1:])
+        # return the sentinel NotImplemented if we do not support this function
+        return NotImplemented  # pragma: no cover
+
+    # modin 0.34 and above
+    def do_array_function_implementation(
+        self,
+        frame: BasePandasDataset,
+        func: Callable,
+        types: tuple,
+        args: tuple,
+        kwargs: dict,
+    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
+        """
+        Apply the provided NumPy array function to the underlying data.
+
+        This method is called by the ``__array_function__`` dispatcher on BasePandasDataset.
+
+        Unlike other query compiler methods, this function directly operates on the input DataFrame/Series
+        to allow for easier argument processing. The default implementation defaults to pandas, but
+        a query compiler sub-class may override this method to provide a distributed implementation.
+
+        See NumPy docs: https://numpy.org/neps/nep-0018-array-function-protocol.html#nep18
+
+        Parameters
+        ----------
+        frame : BasePandasDataset
+            The DataFrame or Series on which the ufunc was called. Its query compiler must match ``self``.
+        func : np.func
+            The NumPy func to apply.
+        types : tuple
+            The types of the args.
+        args : tuple
+            The args to the func.
+        kwargs : dict
+            Additional keyword arguments.
+
+        Returns
+        -------
+        DataFrame | Series | Any
+            The result of applying the function to this dataset. Unlike modin, which returns a
+            numpy array by default, this will return a DataFrame/Series object or NotImplemented.
+        """
+        from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
+            numpy_to_pandas_func_map,
+        )
+
+        if func.__name__ in numpy_to_pandas_func_map:
+            return numpy_to_pandas_func_map[func.__name__](*args, **kwargs)
+        else:
+            # per NEP18 we raise NotImplementedError so that numpy can intercept
+            return NotImplemented  # pragma: no cover
 
     def repartition(self, axis: Any = None) -> "SnowflakeQueryCompiler":
         # let Snowflake handle partitioning, it makes no sense to repartition the dataframe.
@@ -2356,7 +2472,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 If data in both corresponding DataFrame locations is missing the result will be missing.
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
-        from modin.pandas import Series
 
         # Step 1: Convert other to a Series and join on the row position with self.
         other_qc = Series(other)._query_compiler
@@ -2506,8 +2621,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Native pandas does not support binary operations between a Series and a list-like object.
 
-        from modin.pandas import Series
-        from modin.pandas.dataframe import DataFrame
         from modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios
@@ -10763,8 +10876,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
             New QueryCompiler that contains specified rows.
         """
-
-        from modin.pandas import Series
 
         # convert key to internal frame via Series
         key_frame = None
