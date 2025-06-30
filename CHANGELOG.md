@@ -6,27 +6,40 @@
 
 #### New Features
 
+- Added a new option `TRY_CAST` to `DataFrameReader`. When `TRY_CAST` is True columns are wrapped in a `TRY_CAST` statement rather than a hard cast when loading data.
+- Added a new option `USE_RELAXED_TYPES` to the `INFER_SCHEMA_OPTIONS` of `DataFrameReader`. When set to True this option casts all strings to max length strings and all numeric types to `DoubleType`.
 - Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
+- Added a new function `snowflake.snowpark.dataframe.map_in_pandas` that allows users map a function across a dataframe. The mapping function takes an iterator of pandas dataframes as input and provides one as output.
+- Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
 
 #### Improvements
 
 - Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
 - Improved SQL generation for `session.table().sample()` to generate a flat sql statement.
+- Added support for complex column expression as input for `functions.explode`.
 - Added debuggability improvements to show which Python lines an SQL compilation error corresponds to. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
+- Set enforce_ordering=True when calling `to_snowpark_pandas()` from a snowpark dataframe containing DML/DDL queries instead of throwing a NotImplementedError.
+
+#### Bug Fixes
+
+- Fixed a bug caused by redundant validation when creating an iceberg table.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where closing the cursor or connection could unexpectedly raise an error and terminate the program.
 
 ### Snowpark Local Testing Updates
 
 #### Bug Fixes
 
 - Fixed a bug when processing windowed functions that lead to incorrect indexing in results.
+- When a scalar numeric is passed to fillna we will ignore non-numeric columns instead of producing an error.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
+- Added support for `pd.read_feather`.
 
-## 1.33.0 (YYYY-MM-DD)
+## 1.33.0 (2025-06-19)
 
 ### Snowpark Python API Updates
 
@@ -41,7 +54,18 @@
   - `ai_similarity`
   - `ai_summarize_agg` (originally `summarize_agg`)
   - different config options for `ai_classify`
-- Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
+- Added support for more options when reading XML files with a row tag using `rowTag` option:
+  - Added support for removing namespace prefixes from col names using `ignoreNamespace` option.
+  - Added support for specifying the prefix for the attribute column in the result table using `attributePrefix` option.
+  - Added support for excluding attributes from the XML element using `excludeAttributes` option.
+  - Added support for specifying the column name for the value when there are attributes in an element that has no child elements using `valueTag` option.
+  - Added support for specifying the value to treat as a ``null`` value using `nullValue` option.
+  - Added support for specifying the character encoding of the XML file using `charset` option.
+  - Added support for ignoring surrounding whitespace in the XML element using `ignoreSurroundingWhitespace` option.
+- Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
+- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
+- Added support for retrieving `Edge.properties` when retrieving lineage from `DGQL` in `DataFrame.lineage.trace`.
+- Added a parameter `table_exists` to `DataFrameWriter.save_as_table` that allows specifying if a table already exists. This allows skipping a table lookup that can be expensive.
 
 #### Bug Fixes
 
@@ -54,20 +78,7 @@
 
 #### Improvements
 
-- Added support for more options when reading XML files with a row tag using `rowTag` option:
-  - Added support for removing namespace prefixes from col names using `ignoreNamespace` option.
-  - Added support for specifying the prefix for the attribute column in the result table using `attributePrefix` option.
-  - Added support for excluding attributes from the XML element using `excludeAttributes` option.
-  - Added support for specifying the column name for the value when there are attributes in an element that has no child elements using `valueTag` option.
-  - Added support for specifying the value to treat as a ``null`` value using `nullValue` option.
-  - Added support for specifying the character encoding of the XML file using `charset` option.
-  - Added support for ignoring surrounding whitespace in the XML element using `ignoreSurroundingWhitespace` option.
-- Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
-- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
-- Added debuggability improvements to show a trace of most recent dataframe transformations if an operation leads to a `SnowparkSQLException`. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
 - Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
-- Added support for retrieving `Edge.properties` when retrieving lineage from `DGQL` in `DataFrame.lineage.trace`.
-- Added a parameter `table_exists` to `DataFrameWriter.save_as_table` that allows specifying if a table already exists. This allows skipping a table lookup that can be expensive.
 - Improved `DataFrame.select` when the arguments contain a table function with output columns that collide with columns of current dataframe. With the improvement, if user provides non-colliding columns in `df.select("col1", "col2", table_func(...))` as string arguments, then the query generated by snowpark client will not raise ambiguous column error.
 - Improved `DataFrameReader.dbapi` (PrPr) to use in-memory Parquet-based ingestion for better performance and security.
 - Improved `DataFrameReader.dbapi` (PrPr) to use `MATCH_BY_COLUMN_NAME=CASE_SENSITIVE` in copy into table operation.
@@ -90,8 +101,8 @@
 - Updated `modin` dependency constraint from 0.32.0 to >=0.32.0, <0.34.0. The latest version tested with Snowpark pandas is `modin` 0.33.1.
 
 #### New Features
+
 - Added support for **Hybrid Execution (PrPr)**. By running `from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()`, Snowpark pandas will automatically choose whether to run certain pandas operations locally or on Snowflake. This feature is disabled by default.
-- Added support for `pd.read_feather`.
 
 #### Improvements
 
@@ -100,6 +111,11 @@
 - Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
 - Added modin telemetry on API calls and hybrid engine switches.
 - Show more helpful error messages to Snowflake Notebook users when Modin or pandas version does not match our requirements.
+
+#### Bug Fixes
+
+- Fixed a bug in `Series.where` when the `other` parameter is an unnamed `Series`.
+
 
 #### Bug Fixes
 

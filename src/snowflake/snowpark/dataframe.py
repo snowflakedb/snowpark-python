@@ -136,6 +136,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
     LiteralType,
     snow_type_to_dtype_str,
+    type_string_to_type_object,
 )
 from snowflake.snowpark._internal.udf_utils import add_package_to_existing_packages
 from snowflake.snowpark._internal.utils import (
@@ -165,6 +166,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     global_counter,
     string_half_width,
+    warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -1332,7 +1334,8 @@ class DataFrame:
                 all columns except ones configured in index_col.
             enforce_ordering: If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
                 DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. Please refer to the
-                documentation of :func:`~modin.pandas.read_snowflake` for more details.
+                documentation of :func:`~modin.pandas.read_snowflake` for more details. If DDL or DML queries have been
+                used in this query this parameter is ignored and ordering is enforced.
 
 
         Returns:
@@ -1414,8 +1417,16 @@ class DataFrame:
                 )
             if columns is not None:
                 ast.columns.extend(columns if isinstance(columns, list) else [columns])
+        has_existing_ddl_dml_queries = False
+        if not enforce_ordering and len(self.queries["queries"]) > 1:
+            has_existing_ddl_dml_queries = True
+            warning(
+                "enforce_ordering_ddl",
+                "enforce_ordering is enabled when using DML/DDL operations regardless of user setting",
+                warning_times=1,
+            )
 
-        if enforce_ordering:
+        if enforce_ordering or has_existing_ddl_dml_queries:
             # create a temporary table out of the current snowpark dataframe
             temporary_table_name = random_name_for_temp_object(
                 TempObjectType.TABLE
@@ -1437,11 +1448,6 @@ class DataFrame:
                 enforce_ordering=True,
             )  # pragma: no cover
         else:
-            if len(self.queries["queries"]) > 1:
-                raise NotImplementedError(
-                    "Setting 'enforce_ordering=False' in 'to_snowpark_pandas' is not supported when the input "
-                    "dataframe includes DDL or DML operations. Please use 'enforce_ordering=True' instead."
-                )
             snowpandas_df = pd.read_snowflake(
                 name_or_query=self.queries["queries"][0],
                 index_col=index_col,
@@ -1623,7 +1629,9 @@ class DataFrame:
                 func_expr = _create_table_function_expression(func=table_func)
 
                 if isinstance(e, _ExplodeFunctionCall):
-                    new_cols, alias_cols = _get_cols_after_explode_join(e, self._plan)
+                    new_cols, alias_cols = _get_cols_after_explode_join(
+                        e, self._plan, self._select_statement
+                    )
                 else:
                     # this join plan is created here to extract output columns after the join. If a better way
                     # to extract this information is found, please update this function.
@@ -6679,3 +6687,125 @@ def map(
     return dataframe.join_table_function(
         map_udtf(*df_columns).over(partition_by=partition_by)
     ).select(*output_columns)
+
+
+def map_in_pandas(
+    dataframe: DataFrame,
+    func: Callable,
+    schema: Union[StructType, str],
+    *,
+    partition_by: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    immutable: bool = False,
+    max_batch_size: Optional[int] = None,
+):
+    """Returns a new DataFrame with the result of applying `func` to each batch of data in
+    the dataframe. Func is expected to be a python function that takes an iterator of pandas
+    DataFrames as both input and provides them as output. Number of input and output DataFrame
+    batches can be different.
+
+    This function registers a temporary `UDTF
+    <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_
+
+    Args:
+        dataframe: The DataFrame instance.
+        func: A function to be applied to the batches of rows.
+        schema: A StructType or type string that represents the expected output schema
+            of the `func` parameter.
+        partition_by: A column or list of columns that will be used to partition the data
+            before passing it to the func.
+        imports: A list of imports that are required to run the function. This argument is passed
+            on when registering the UDTF.
+        packages: A list of packages that are required to run the function. This argument is passed
+            on when registering the UDTF.
+        immutable: A flag to specify if the result of the func is deterministic for the same input.
+        max_batch_size: The maximum number of rows per input pandas DataFrame when using vectorized option.
+
+    Example 1::
+
+        >>> from snowflake.snowpark.dataframe import map_in_pandas
+        >>> df = session.create_dataframe([(1, 21), (2, 30), (3, 30)], schema=["ID", "AGE"])
+        >>> def filter_func(iterator):
+        ...     for pdf in iterator:
+        ...         yield pdf[pdf.ID == 1]
+        ...
+        >>> map_in_pandas(df, filter_func, df.schema).show()
+        ----------------
+        |"ID"  |"AGE"  |
+        ----------------
+        |1     |21     |
+        ----------------
+        <BLANKLINE>
+
+    Example 2::
+
+        >>> def mean_age(iterator):
+        ...     for pdf in iterator:
+        ...         yield pdf.groupby("ID").mean().reset_index()
+        ...
+        >>> map_in_pandas(df, mean_age, "ID: bigint, AGE: double").order_by("ID").show()
+        ----------------
+        |"ID"  |"AGE"  |
+        ----------------
+        |1     |21.0   |
+        |2     |30.0   |
+        |3     |30.0   |
+        ----------------
+        <BLANKLINE>
+
+    Example 3::
+
+        >>> def double_age(iterator):
+        ...     for pdf in iterator:
+        ...         pdf["DOUBLE_AGE"] = pdf["AGE"] * 2
+        ...         yield pdf
+        ...
+        >>> map_in_pandas(df, double_age, "ID: bigint, AGE: bigint, DOUBLE_AGE: bigint").order_by("ID").show()
+        -------------------------------
+        |"ID"  |"AGE"  |"DOUBLE_AGE"  |
+        -------------------------------
+        |1     |21     |42            |
+        |2     |30     |60            |
+        |3     |30     |60            |
+        -------------------------------
+        <BLANKLINE>
+
+    Example 4::
+
+        >>> def count(iterator):
+        ...     for pdf in iterator:
+        ...         rows, _ = pdf.shape
+        ...         pdf["COUNT"] = rows
+        ...         yield pdf
+        >>> map_in_pandas(df, count, "ID: bigint, AGE: bigint, COUNT: bigint", partition_by="AGE", max_batch_size=2).order_by("ID").show()
+        --------------------------
+        |"ID"  |"AGE"  |"COUNT"  |
+        --------------------------
+        |1     |21     |1        |
+        |2     |30     |2        |
+        |3     |30     |2        |
+        --------------------------
+        <BLANKLINE>
+    """
+    if isinstance(schema, str):
+        schema = type_string_to_type_object(schema)
+
+    partition_by = partition_by or dataframe.columns
+
+    def wrapped_func(input):  # pragma: no cover
+        import pandas
+
+        return pandas.concat(func([input]))
+
+    return dataframe.group_by(partition_by).applyInPandas(
+        wrapped_func,
+        schema,
+        imports=imports,
+        packages=packages,
+        immutable=immutable,
+        max_batch_size=max_batch_size,
+    )
+
+
+mapInPandas = map_in_pandas
