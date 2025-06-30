@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+import ast
 from snowflake.snowpark._internal.ast.utils import extract_src_from_expr
 
 if TYPE_CHECKING:
@@ -220,6 +221,32 @@ def _format_source_location(src: Optional[proto.SrcPosition]) -> str:
     return lines_info
 
 
+def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
+    """
+    Extract source locations from a SnowflakePlan's AST IDs.
+
+    Args:
+        plan: The SnowflakePlan object to extract source locations from
+
+    Returns:
+        List of unique source location strings (e.g., "file.py: line 42")
+    """
+    source_locations = []
+    found_locations = set()
+
+    if plan.df_ast_ids is not None:
+        for ast_id in plan.df_ast_ids:
+            bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
+            if bind_stmt is not None:
+                src = extract_src_from_expr(bind_stmt.bind.expr)
+                location = _format_source_location(src)
+                if location and location not in found_locations:
+                    found_locations.add(location)
+                    source_locations.append(location)
+
+    return source_locations
+
+
 def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) -> str:
     """
     Extract SQL error line number and map it back to Python source code. We use the
@@ -249,17 +276,8 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
     )
 
     plan = get_plan_from_line_numbers(top_plan, sql_line_number)
-    source_locations = []
-    found_locations = set()
-    if plan.df_ast_ids is not None:
-        for ast_id in plan.df_ast_ids:
-            bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
-            if bind_stmt is not None:
-                src = extract_src_from_expr(bind_stmt.bind.expr)
-                location = _format_source_location(src)
-                if location != "" and location not in found_locations:
-                    found_locations.add(location)
-                    source_locations.append(location)
+    source_locations = _extract_source_locations_from_plan(plan)
+
     if source_locations:
         if len(source_locations) == 1:
             return f"\nSQL compilation error corresponds to Python source at {source_locations[0]}.\n"
