@@ -22,7 +22,7 @@ def _write_test_msg(
 
     Used to create a test message for reading in SnowflakeFile tests.
     """
-    file_location = os.path.join(file_location, "test.txt")
+    file_location = os.path.join(file_location, f"{generate_random_alphanumeric()}.txt")
     if test_msg is None:
         test_msg = generate_random_alphanumeric()
     if write_mode == "wb":
@@ -36,12 +36,12 @@ def _write_test_msg_to_stage(
     write_mode: str,
     file_location: str,
     tmp_stage: str,
-    session,
+    session: Session,
     test_msg: str = None,
-) -> tuple[bytes, str]:
+) -> tuple[Union[str, bytes], str]:
     test_msg, file_location = _write_test_msg(write_mode, file_location, test_msg)
     Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
-    return test_msg, f"@{tmp_stage}/test.txt"
+    return test_msg, f"@{tmp_stage}/{file_location.split('/')[-1]}"
 
 
 def _generate_and_write_lines(
