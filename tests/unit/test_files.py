@@ -366,7 +366,7 @@ def test_read_special_msg_snowflakefile(
 
     assert (
         read_file(temp_file, read_mode) == test_msg
-        or read_file(temp_file, read_mode) == test_msg[:-3] + "\r\n\t"
+        or read_file(temp_file, read_mode) == test_msg[:-3] + " \r\n\t"
     )  # Windows adds a \r before the \n when we read a file
 
 
@@ -1041,7 +1041,10 @@ def test_readinto_escape_chars_snowflakefile(
     assert (
         length == len(encoded_test_msg) or length == len(encoded_test_msg) + 1
     )  # Windows adds a \r before the \n when we read a file
-    assert buffer[:length] == encoded_test_msg[:length]
+    assert (
+        buffer[:length] == encoded_test_msg[:length]
+        or buffer[:length] == encoded_test_msg[: length - 3] + " \r\n\t"
+    )
     for byte in buffer[length:]:
         assert byte == 0
 
