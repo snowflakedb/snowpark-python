@@ -44,6 +44,7 @@
 #### Bug Fixes
 - Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
 - Fixed a bug in hybrid execution mode (PrPr) where calling numpy operations like `np.where` on modin objects with the Pandas backend would raise an `AttributeError`. This fix requires `modin` version 0.34.0 or newer.
+- Fixed issue when df.melt where the resulting values have an additional suffix applied
 
 ## 1.33.0 (2025-06-19)
 
