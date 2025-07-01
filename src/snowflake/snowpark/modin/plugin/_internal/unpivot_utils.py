@@ -769,9 +769,9 @@ def _simple_unpivot(
         )
         renamed_quoted_unpivot_cols.append(renamed_quoted_unpivot_col)
         # create the column name mapper which is passed to unpivot
-        suffix_to_unpivot_map[renamed_quoted_unpivot_col] = (
-            '"' + unpivot_pandas_columns[i] + '"'
-        )
+        suffix_to_unpivot_map[
+            renamed_quoted_unpivot_col
+        ] = quote_name_without_upper_casing(unpivot_pandas_columns[i])
 
     # select a subset of casted columns
     normalized_projection = unpivot_columns_normalized_types + id_col_quoted_identifiers
