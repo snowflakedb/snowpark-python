@@ -128,9 +128,9 @@ def test_write_output_to_stdout(message, expected_output):
     ],
 )
 def test_write_output_to_file(message, expected_content):
-    with open(test_write_file_path, "w") as test_file:
+    with open(test_write_file_path, "w", encoding="utf-8") as test_file:
         _write_output(message, test_file)
-    with open(test_write_file_path) as test_file:
+    with open(test_write_file_path, encoding="utf-8") as test_file:
         actual_content = test_file.read()
         assert actual_content == expected_content
 
@@ -208,10 +208,10 @@ def test_print_operator_tree_single_node():
     children = {1: []}
 
     # Write to file and verify content
-    with open(test_operator_tree_output_path, "w") as test_file:
+    with open(test_operator_tree_output_path, "w", encoding="utf-8") as test_file:
         print_operator_tree(nodes, children, 1, file=test_file)
 
-    with open(test_operator_tree_output_path) as test_file:
+    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
         content = test_file.read()
         expected_content = (
             "└── [1] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 100.00%)\n"
@@ -240,10 +240,10 @@ def test_print_operator_tree_with_children():
     }
     children = {1: [2], 2: []}
 
-    with open(test_operator_tree_output_path, "w") as test_file:
+    with open(test_operator_tree_output_path, "w", encoding="utf-8") as test_file:
         print_operator_tree(nodes, children, 1, file=test_file)
 
-    with open(test_operator_tree_output_path) as test_file:
+    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
         content = test_file.read()
         expected_content = (
             "└── [1] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 50.00%)\n"
@@ -282,10 +282,10 @@ def test_print_operator_tree_multiple_children():
     }
     children = {1: [2, 3], 2: [], 3: []}
 
-    with open(test_operator_tree_output_path, "w") as test_file:
+    with open(test_operator_tree_output_path, "w", encoding="utf-8") as test_file:
         print_operator_tree(nodes, children, 1, file=test_file)
 
-    with open(test_operator_tree_output_path) as test_file:
+    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
         content = test_file.read()
         expected_content = (
             "└── [1] Join (In: 2,000, Out: 1,500, Mult: 0.75, Time: 60.00%)\n"
@@ -339,10 +339,10 @@ def test_print_operator_tree_three_levels():
         },
     }
     children = {1: [2, 3], 2: [], 3: [4], 4: [5], 5: []}
-    with open(test_operator_tree_output_path, "w") as test_file:
+    with open(test_operator_tree_output_path, "w", encoding="utf-8") as test_file:
         print_operator_tree(nodes, children, 1, file=test_file)
 
-    with open(test_operator_tree_output_path) as test_file:
+    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
         content = test_file.read()
         expected_content = (
             "└── [1] Join (In: 3,000, Out: 2,000, Mult: 0.67, Time: 40.00%)\n"
@@ -384,12 +384,12 @@ def test_print_operator_tree_with_prefix(prefix, is_last, expected_content):
     }
     children = {1: []}
 
-    with open(test_operator_tree_output_path, "w") as test_file:
+    with open(test_operator_tree_output_path, "w", encoding="utf-8") as test_file:
         print_operator_tree(
             nodes, children, 1, prefix=prefix, is_last=is_last, file=test_file
         )
 
-    with open(test_operator_tree_output_path) as test_file:
+    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
         content = test_file.read()
         assert content == expected_content
 
@@ -482,11 +482,11 @@ def test_profile_query_output_to_file():
     ]
 
     query_id = "test_query_456"
-    with open(test_operator_tree_output_path, "w") as temp_file:
+    with open(test_operator_tree_output_path, "w", encoding="utf-8") as temp_file:
         temp_file.write("")  # Clear the file first
 
     profile_query(mock_session, query_id, test_operator_tree_output_path)
-    with open(test_operator_tree_output_path) as test_file:
+    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
         content = test_file.read()
         assert "=== Analyzing Query test_query_456 ===" in content
         assert "QUERY OPERATOR TREE" in content
@@ -551,12 +551,12 @@ def test_profile_query_with_complex_attributes():
 
     query_id = "complex_query_202"
 
-    with open(test_operator_tree_output_path, "w") as temp_file:
+    with open(test_operator_tree_output_path, "w", encoding="utf-8") as temp_file:
         temp_file.write("")
 
     profile_query(mock_session, query_id, test_operator_tree_output_path)
 
-    with open(test_operator_tree_output_path) as test_file:
+    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
         content = test_file.read()
         lines = content.split("\n")
         detail_section = False
@@ -597,5 +597,5 @@ def test_profile_query_file_handle_cleanup():
             with pytest.raises(Exception, match="Test exception"):
                 profile_query(mock_session, query_id, "test_output.txt")
 
-        mock_open.assert_called_once_with("test_output.txt", "w")
+        mock_open.assert_called_once_with("test_output.txt", "w", encoding="utf-8")
         mock_file.close.assert_called_once()

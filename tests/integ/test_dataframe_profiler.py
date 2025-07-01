@@ -16,6 +16,14 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 
+pytestmark = [
+    pytest.mark.xfail(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="This is a SQL test suite",
+        run=False,
+    ),
+]
+
 
 @pytest.fixture(autouse=True)
 def setup(request, session):

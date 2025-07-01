@@ -1,1 +1,2 @@
-Message with special chars: @#$%
+Multi
+line message
