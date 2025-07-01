@@ -14,6 +14,7 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.ast.utils import (
+    add_intermediate_stmt,
     build_udaf,
     build_udaf_apply,
     with_src_position,
@@ -77,6 +78,7 @@ class UserDefinedAggregateFunction:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         _ast: Optional[proto.Udaf] = None,
         _ast_id: Optional[int] = None,
+        _session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -91,6 +93,7 @@ class UserDefinedAggregateFunction:
         # If None, no ast will be emitted. Else, passed whenever udf is invoked.
         self._ast = _ast
         self._ast_id = _ast_id
+        self._session = _session
 
     @publicapi
     def __call__(
@@ -111,7 +114,11 @@ class UserDefinedAggregateFunction:
 
         udaf_expr = None
         if _emit_ast and self._ast is not None:
-            assert self._ast_id is not None, "Need to assign UDAF an ID."
+            if self._ast_id is None:
+                session = (
+                    self._session or snowflake.snowpark.session._get_active_session()
+                )
+                add_intermediate_stmt(session._ast_batch, self)
             udaf_expr = proto.Expr()
             build_udaf_apply(udaf_expr, self._ast_id, *cols)
 
@@ -706,9 +713,12 @@ class UDAFRegistration:
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.bind()
-                ast = with_src_position(stmt.expr.udaf, stmt)
-                ast_id = stmt.uid
+                if self._session is not None:
+                    stmt = self._session._ast_batch.bind()
+                    ast = with_src_position(stmt.expr.udaf, stmt)
+                    ast_id = stmt.uid
+                else:
+                    ast = proto.Udaf()
 
             return UserDefinedAggregateFunction(
                 handler,
@@ -717,6 +727,7 @@ class UDAFRegistration:
                 input_types,
                 _ast=ast,
                 _ast_id=ast_id,
+                _session=self._session,
             )
 
         # Retrieve the UDAF name, return and input types.
@@ -746,9 +757,12 @@ class UDAFRegistration:
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.bind()
-            ast = with_src_position(stmt.expr.udaf, stmt)
-            ast_id = stmt.uid
+            if self._session is not None:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.udaf, stmt)
+                ast_id = stmt.uid
+            else:
+                ast = proto.Udaf()
             build_udaf(
                 ast,
                 handler,
@@ -869,6 +883,7 @@ class UDAFRegistration:
             packages=packages,
             _ast=ast,
             _ast_id=ast_id,
+            _session=self._session,
         )
 
         return udaf

@@ -4,6 +4,8 @@
 from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
+import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+
 from snowflake.snowpark._internal.ast.utils import build_udf, with_src_position
 from snowflake.snowpark._internal.udf_utils import (
     check_python_runtime_version,
@@ -118,9 +120,12 @@ class MockUDFRegistration(UDFRegistration):
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.bind()
-                ast = with_src_position(stmt.expr.udf, stmt)
-                ast_id = stmt.uid
+                if self._session is not None:
+                    stmt = self._session._ast_batch.bind()
+                    ast = with_src_position(stmt.expr.udf, stmt)
+                    ast_id = stmt.uid
+                else:
+                    ast = proto.Udf()
 
             object_name = kwargs["_registered_object_name"]
             udf = MockUserDefinedFunction(
@@ -133,6 +138,7 @@ class MockUDFRegistration(UDFRegistration):
                 use_session_imports=imports is None,
                 _ast=ast,
                 _ast_id=ast_id,
+                _session=self._session,
             )
             self._registry[object_name] = udf
             return udf
@@ -169,9 +175,12 @@ class MockUDFRegistration(UDFRegistration):
             )
 
             if _emit_ast:
-                stmt = self._session._ast_batch.bind()
-                ast = with_src_position(stmt.expr.udf, stmt)
-                ast_id = stmt.uid
+                if self._session is not None:
+                    stmt = self._session._ast_batch.bind()
+                    ast = with_src_position(stmt.expr.udf, stmt)
+                    ast_id = stmt.uid
+                else:
+                    ast = proto.Udf()
                 build_udf(
                     ast,
                     func,
@@ -243,6 +252,7 @@ class MockUDFRegistration(UDFRegistration):
                 use_session_imports=imports is None,
                 _ast=ast,
                 _ast_id=ast_id,
+                _session=self._session,
             )
 
             if type(func) is tuple:  # update file registration
