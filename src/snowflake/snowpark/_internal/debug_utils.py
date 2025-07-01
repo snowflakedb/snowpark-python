@@ -292,16 +292,36 @@ def build_operator_tree(operators_data):
     children = {}
     root_nodes = set()
     for row in operators_data:
-        operator_id = row["OPERATOR_ID"]
-        parent_operators = row["PARENT_OPERATORS"]
+        operator_id = (
+            row["OPERATOR_ID"]
+            if "OPERATOR_ID" in row and row["OPERATOR_ID"] is not None
+            else 0
+        )
+        parent_operators = (
+            row["PARENT_OPERATORS"]
+            if "PARENT_OPERATORS" in row and row["PARENT_OPERATORS"] is not None
+            else []
+        )
         node_info = {
             "id": operator_id,
-            "type": row["OPERATOR_TYPE"] if row["OPERATOR_TYPE"] else "N/A",
-            "input_rows": row["INPUT_ROWS"] if row["INPUT_ROWS"] else 0,
-            "output_rows": row["OUTPUT_ROWS"] if row["OUTPUT_ROWS"] else 0,
-            "row_multiple": row["ROW_MULTIPLE"] if row["ROW_MULTIPLE"] else 0,
-            "exec_time": row["OVERALL_PERCENTAGE"] if row["OVERALL_PERCENTAGE"] else 0,
-            "attributes": row["OPERATOR_ATTRIBUTES"],
+            "type": row["OPERATOR_TYPE"]
+            if "OPERATOR_TYPE" in row and row["OPERATOR_TYPE"] is not None
+            else "N/A",
+            "input_rows": row["INPUT_ROWS"]
+            if "INPUT_ROWS" in row and row["INPUT_ROWS"] is not None
+            else 0,
+            "output_rows": row["OUTPUT_ROWS"]
+            if "OUTPUT_ROWS" in row and row["OUTPUT_ROWS"] is not None
+            else 0,
+            "row_multiple": row["ROW_MULTIPLE"]
+            if "ROW_MULTIPLE" in row and row["ROW_MULTIPLE"] is not None
+            else 0,
+            "exec_time": row["OVERALL_PERCENTAGE"]
+            if "OVERALL_PERCENTAGE" in row and row["OVERALL_PERCENTAGE"] is not None
+            else 0,
+            "attributes": row["OPERATOR_ATTRIBUTES"]
+            if "OPERATOR_ATTRIBUTES" in row and row["OPERATOR_ATTRIBUTES"] is not None
+            else "N/A",
         }
 
         nodes[operator_id] = node_info
@@ -324,8 +344,6 @@ def _write_output(message: str, file_handle=None) -> None:
     if file_handle:
         file_handle.write(message + "\n")
     else:
-        import sys
-
         sys.stdout.write(message + "\n")
 
 
@@ -384,10 +402,12 @@ def profile_query(session, query_id: str, output_file: Optional[str] = None) -> 
         """
     stats_connection = session._conn._conn.cursor()
     stats_connection.execute(stats_query)
-    stats_result = stats_connection.fetchall()
-    nodes, children, root_nodes = build_operator_tree(stats_result)
+    raw_results = stats_connection.fetchall()
 
-    # Determine output destination
+    column_names = [desc[0] for desc in stats_connection.description]
+    stats_result = [dict(zip(column_names, row)) for row in raw_results]
+
+    nodes, children, root_nodes = build_operator_tree(stats_result)
     file_handle = None
     if output_file:
         file_handle = open(output_file, "w")
@@ -418,15 +438,43 @@ def profile_query(session, query_id: str, output_file: Optional[str] = None) -> 
         total_output = 0
 
         for row in stats_result:
-            operator_id = row["OPERATOR_ID"] if row["OPERATOR_ID"] else 0
-            operator_type = row["OPERATOR_TYPE"] if row["OPERATOR_TYPE"] else "N/A"
-            input_rows = row["INPUT_ROWS"] if row["INPUT_ROWS"] else 0
-            output_rows = row["OUTPUT_ROWS"] if row["OUTPUT_ROWS"] else 0
-            row_multiple = row["ROW_MULTIPLE"] if row["ROW_MULTIPLE"] else 0
-            exec_time = row["OVERALL_PERCENTAGE"] if row["OVERALL_PERCENTAGE"] else 0
-            operator_attrs = (
-                row["OPERATOR_ATTRIBUTES"] if row["OPERATOR_ATTRIBUTES"] else "N/A"
+            operator_id = (
+                row["OPERATOR_ID"]
+                if "OPERATOR_ID" in row and row["OPERATOR_ID"] is not None
+                else 0
             )
+            operator_type = (
+                row["OPERATOR_TYPE"]
+                if "OPERATOR_TYPE" in row and row["OPERATOR_TYPE"] is not None
+                else "N/A"
+            )
+            input_rows = (
+                row["INPUT_ROWS"]
+                if "INPUT_ROWS" in row and row["INPUT_ROWS"] is not None
+                else 0
+            )
+            output_rows = (
+                row["OUTPUT_ROWS"]
+                if "OUTPUT_ROWS" in row and row["OUTPUT_ROWS"] is not None
+                else 0
+            )
+            row_multiple = (
+                row["ROW_MULTIPLE"]
+                if "ROW_MULTIPLE" in row and row["ROW_MULTIPLE"] is not None
+                else 0
+            )
+            exec_time = (
+                row["OVERALL_PERCENTAGE"]
+                if "OVERALL_PERCENTAGE" in row and row["OVERALL_PERCENTAGE"] is not None
+                else 0
+            )
+            operator_attrs = (
+                row["OPERATOR_ATTRIBUTES"]
+                if "OPERATOR_ATTRIBUTES" in row
+                and row["OPERATOR_ATTRIBUTES"] is not None
+                else "N/A"
+            )
+            operator_attrs = operator_attrs.replace("\n", " ").replace("  ", " ")
 
             _write_output(
                 f"{operator_id:<15} {operator_type:<15} {input_rows:<12} {output_rows:<12} {row_multiple:<12.2f} {exec_time:<12} {operator_attrs:<50}",
