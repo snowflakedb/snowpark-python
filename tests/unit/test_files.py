@@ -235,8 +235,7 @@ def test_read_empty_file_snowflakefile(mode, use_stage, tmp_path, tmp_stage, ses
         _, temp_file = _write_test_msg("w", tmp_path, "")
     else:
         _, temp_file = _write_test_msg_to_stage("w", tmp_path, tmp_stage, session, "")
-     
-    
+
     def read_file(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.read()
@@ -247,11 +246,11 @@ def test_read_empty_file_snowflakefile(mode, use_stage, tmp_path, tmp_stage, ses
     else:
         assert content == ""
 
+
 @pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
 def test_read_large_file_snowflakefile_local(read_mode, write_mode, tmp_path):
-    temp_file = os.path.join(tmp_path, "test.txt")
-    test_msg = _write_test_msg(
-        write_mode, temp_file, generate_random_alphanumeric(5000)
+    test_msg, temp_file = _write_test_msg(
+        write_mode, tmp_path, generate_random_alphanumeric(5000)
     )
 
     def read_file(file_location: str, mode: str) -> Union[str, bytes]:
@@ -503,7 +502,6 @@ def test_truncate_read_mode_snowflakefile(
 
 @pytest.mark.parametrize("mode", ["w", "wb"])
 def test_truncate_write_mode_snowflakefile(mode):
-
     def sf_truncate(mode: str) -> int:
         with SnowflakeFile.open_new_result(mode) as f:
             return f.truncate(1)

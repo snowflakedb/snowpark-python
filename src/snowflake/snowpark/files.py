@@ -8,7 +8,6 @@ from __future__ import annotations
 import array
 import sys
 import tempfile
-import os
 from io import (
     RawIOBase,
     UnsupportedOperation,
@@ -433,7 +432,7 @@ class SnowflakeFile(RawIOBase):
         to the current stream position. SEEK_END/2 indicates a position relative to the end of the file.
         Only supported in read mode.
 
-        Returns the new stream position.
+        Returns the new stream position. Not supported in write mode.
         """
         self._raise_if_closed()
         self._raise_if_not_read()
@@ -463,7 +462,7 @@ class SnowflakeFile(RawIOBase):
         """
         See https://docs.python.org/3/library/io.html#io.IOBase.tell
 
-        Gets the current stream position.
+        Gets the current stream position. Not supported in write mode.
         """
         self._raise_if_closed()
         self._raise_if_not_read()
