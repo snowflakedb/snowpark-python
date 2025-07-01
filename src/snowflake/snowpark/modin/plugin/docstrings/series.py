@@ -704,6 +704,8 @@ class Series(BasePandasDataset):
         JSON NULL, and all other pandas missing values (np.nan, pd.NA, pd.NaT) are translated to SQL NULL.
 
         4. For working with 3rd-party-packages see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
+
+        5. For creating permanent UDTfs, see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
         """
 
     def argmax():
@@ -1970,6 +1972,18 @@ class Series(BasePandasDataset):
 
         Snowpark pandas does not yet support `dict` subclasses other than
         `collections.defaultdict` that define a `__missing__` method.
+
+        To generate a permanent UDF, pass a dictionary as the `snowflake_udf_params` argument to `apply`.
+        The following example generates a permanent UDF named "permanent_double":
+
+        >>> session.sql("CREATE STAGE sample_upload_stage").collect()  # doctest: +SKIP
+        >>> def double(x: str) -> str:  # doctest: +SKIP
+        ...     return x * 2  # doctest: +SKIP
+        ...
+        >>> s.map(double, snowflake_udf_params={"name": "permanent_double", "stage_location": "@sample_upload_stage"})  # doctest: +SKIP
+
+        You may also pass `replace` and `if_not_exists` in the dictionary to overwrite or re-use existing UDFs.
+
         """
 
     def mask():
