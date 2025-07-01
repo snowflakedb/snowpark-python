@@ -434,9 +434,18 @@ class ServerConnection:
         notify_kwargs = {}
         if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        if "dataframeAstId" in kwargs:
+            notify_kwargs["dataframeAstId"] = kwargs["dataframeAstId"]
+
+        # Filter out AST parameters before passing to cursor
+        cursor_kwargs = {
+            k: v
+            for k, v in kwargs.items()
+            if k not in [DATAFRAME_AST_PARAMETER, "dataframeAstId"]
+        }
 
         try:
-            results_cursor = self._cursor.execute(query, **kwargs)
+            results_cursor = self._cursor.execute(query, **cursor_kwargs)
         except Exception as ex:
             notify_kwargs["requestId"] = None
             notify_kwargs["exception"] = ex
@@ -456,14 +465,27 @@ class ServerConnection:
     def execute_async_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
+        notify_kwargs = {}
+        if "dataframeAstId" in kwargs:
+            notify_kwargs["dataframeAstId"] = kwargs["dataframeAstId"]
+
+        # Filter out AST parameters before passing to cursor
+        cursor_kwargs = {
+            k: v
+            for k, v in kwargs.items()
+            if k not in [DATAFRAME_AST_PARAMETER, "dataframeAstId"]
+        }
+
         try:
-            results_cursor = self._cursor.execute_async(query, **kwargs)
+            results_cursor = self._cursor.execute_async(query, **cursor_kwargs)
         except Error as err:
             self.notify_query_listeners(
-                QueryRecord(err.sfqid, err.query), is_error=True
+                QueryRecord(err.sfqid, err.query), is_error=True, **notify_kwargs
             )
             raise err
-        self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
+        self.notify_query_listeners(
+            QueryRecord(results_cursor["queryId"], query), **notify_kwargs
+        )
         return results_cursor
 
     def execute_and_get_sfqid(

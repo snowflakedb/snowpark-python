@@ -175,6 +175,7 @@ from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
+from snowflake.snowpark._internal.debug_utils import profile_query
 from snowflake.snowpark.functions import (
     abs as abs_,
     col,
@@ -752,6 +753,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+            # Also pass the AST UID for query listeners
+            kwargs["dataframeAstId"] = self._ast_id
 
         with open_telemetry_context_manager(self.collect, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -800,6 +803,8 @@ class DataFrame:
 
             # Flush AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+            # Also pass the AST UID for query listeners
+            kwargs["dataframeAstId"] = self._ast_id
 
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -936,6 +941,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+            # Also pass the AST UID for query listeners
+            kwargs["dataframeAstId"] = self._ast_id
 
         return self._session._conn.execute(
             self._plan,
@@ -1056,6 +1063,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+            # Also pass the AST UID for query listeners
+            kwargs["dataframeAstId"] = self._ast_id
 
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
@@ -1162,6 +1171,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+            # Also pass the AST UID for query listeners
+            kwargs["dataframeAstId"] = self._ast_id
 
         return self._session._conn.execute(
             self._plan,
@@ -4357,6 +4368,8 @@ class DataFrame:
 
             # Flush AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+            # Also pass the AST UID for query listeners
+            kwargs["dataframeAstId"] = self._ast_id
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
@@ -4528,6 +4541,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+            # Also pass the AST UID for query listeners
+            kwargs["dataframeAstId"] = self._ast_id
 
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -4830,6 +4845,8 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+            # Also pass the AST UID for query listeners
+            kwargs["dataframeAstId"] = self._ast_id
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
@@ -5572,6 +5589,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
+            # Also pass the AST UID for query listeners
+            kwargs["dataframeAstId"] = self._ast_id
 
         if n is None:
             df = self.limit(1, _emit_ast=False)
@@ -6246,6 +6265,25 @@ class DataFrame:
                     df._ast_id = obj_stmt.uid
 
             return res_dfs
+
+    @publicapi
+    def get_execution_profile(self, output_file: Optional[str] = None) -> None:
+        """
+        Get the execution profile of the dataframe.
+        """
+        if self._session.dataframe_profiler._query_history is None:
+            _logger.warning(
+                "No query history found. Enable dataframe profiler to get execution profile."
+            )
+            return
+        query_history = self._session.dataframe_profiler._query_history
+        if self._ast_id not in query_history.dataframe_queries:
+            _logger.warning(
+                f"No queries found for dataframe with ast_id {self._ast_id}. Make sure to call collect or count to evaluate the dataframe."
+            )
+            return
+        for query_id in query_history.dataframe_queries[self._ast_id]:
+            profile_query(self._session, query_id, output_file)
 
     @property
     def queries(self) -> Dict[str, List[str]]:

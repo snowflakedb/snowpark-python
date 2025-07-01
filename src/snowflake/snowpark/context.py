@@ -39,16 +39,12 @@ _debug_eager_schema_validation = False
 # This is an internal-only global flag, used to determine whether to enable query line tracking for tracing sql compilation errors.
 _enable_trace_sql_errors_to_dataframe = False
 
-# This is an internal-only global flag, used to determine whether to enable dataframe profiling.
-_enable_dataframe_profiling = False
-
 
 def configure_development_features(
     *,
     enable_dataframe_trace_on_error: bool = True,
     enable_eager_schema_validation: bool = True,
     enable_trace_sql_errors_to_dataframe: bool = True,
-    enable_dataframe_profiling: bool = True
 ) -> None:
     """
     Configure development features for the session.
@@ -61,7 +57,6 @@ def configure_development_features(
             for column metadata after every dataframe operation. This adds additional query overhead.
         enable_trace_sql_errors_to_dataframe: If True, we will enable tracing sql compilation errors
             to the associated dataframe operations.
-        enable_dataframe_profiling: If True, we will enable dataframe profiling.
     Note:
         This feature is experimental since 1.33.0. Do not use it in production.
     """
@@ -69,11 +64,10 @@ def configure_development_features(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
     )
     global _enable_dataframe_trace_on_error, _enable_trace_sql_errors_to_dataframe
-    global _debug_eager_schema_validation, _enable_dataframe_profiling
+    global _debug_eager_schema_validation
     _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
     _debug_eager_schema_validation = enable_eager_schema_validation
     _enable_trace_sql_errors_to_dataframe = enable_trace_sql_errors_to_dataframe
-    _enable_dataframe_profiling = enable_dataframe_profiling
 
 
 def _should_use_structured_type_semantics():

@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from abc import abstractmethod
-from typing import List, NamedTuple
+from typing import Dict, List, NamedTuple
 
 import snowflake.snowpark
 
@@ -53,12 +53,16 @@ class QueryHistory(QueryListener):
         include_describe: bool = False,
         include_thread_id: bool = False,
         include_error: bool = False,
+        include_dataframe_profiling: bool = False,
     ) -> None:
         self.session = session
         self._queries: List[QueryRecord] = []
         self._include_describe = include_describe
         self._include_thread_id = include_thread_id
         self._include_error = include_error
+        self._include_dataframe_profiling = include_dataframe_profiling
+        # if dataframe profiling is enabled, we will map dataframe ast ids to query ids
+        self._dataframe_queries: Dict[int, List[str]] = {}
 
     def __enter__(self):
         return self
@@ -67,6 +71,12 @@ class QueryHistory(QueryListener):
         self.session._conn.remove_query_listener(self)
 
     def _notify(self, query_record: QueryRecord, **kwargs) -> None:
+        if self._include_dataframe_profiling:
+            if "dataframeAstId" in kwargs:
+                ast_id = kwargs["dataframeAstId"]
+                if ast_id not in self._dataframe_queries:
+                    self._dataframe_queries[ast_id] = []
+                self._dataframe_queries[ast_id].append(query_record.query_id)
         self._queries.append(query_record)
 
     @property
@@ -87,6 +97,11 @@ class QueryHistory(QueryListener):
     def include_error(self) -> bool:
         """When True, queries that have error during execution are recorded by this listener."""
         return self._include_error
+
+    @property
+    def dataframe_queries(self) -> Dict[int, List[str]]:
+        """Returns a map of dataframe ast ids to query ids."""
+        return self._dataframe_queries
 
 
 class AstListener(QueryListener):
