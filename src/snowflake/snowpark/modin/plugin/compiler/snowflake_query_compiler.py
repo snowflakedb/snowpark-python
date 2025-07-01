@@ -3532,7 +3532,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if len(index_column_pandas_labels_remained) == 0:
             index_column_snowflake_quoted_identifier = (
                 ordered_dataframe.generate_snowflake_quoted_identifiers(
-                    pandas_labels=[INDEX_LABEL],
+                    pandas_labels=[ROW_POSITION_COLUMN_LABEL],
                     wrap_double_underscore=True,
                 )[0]
             )
@@ -13570,13 +13570,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
             index_column_pandas_labels=frame.index_column_pandas_labels,
             index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
-            data_column_types=None,
-            index_column_types=None,
+            data_column_types=frame.cached_data_column_snowpark_pandas_types,
+            index_column_types=frame.cached_index_column_snowpark_pandas_types,
         )
         if len(new_frame.index_column_snowflake_quoted_identifiers) == 1 and (
             ROW_POSITION_COLUMN_LABEL
             in new_frame.index_column_snowflake_quoted_identifiers[0]
-            or "__index__" in new_frame.index_column_snowflake_quoted_identifiers[0]
         ):
             new_col = (
                 row_number().over(
@@ -13587,7 +13586,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 - 1
             )
             new_col = new_col + iff(
-                new_col < 5, 0, row_count_expr - num_rows_to_display - 1
+                new_col < num_rows_to_display // 2,
+                0,
+                row_count_expr - num_rows_to_display - 1,
             )
             new_identifier = new_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
                 pandas_labels=[
