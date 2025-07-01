@@ -13557,7 +13557,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             row_count_expr = col(frame.row_count_snowflake_quoted_identifier)
 
-        # filter frame based on num_rows.
+        # filter frame using a limit clause.
         # always return all columns as this may also result in a query.
         # in the future could analyze plan to see whether retrieving column count would trigger a query, if not
         # simply filter out based on static schema
@@ -13573,46 +13573,53 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             data_column_types=None,
             index_column_types=None,
         )
-        new_col = (
-            row_number().over(
-                Window.order_by(
-                    self._modin_frame.ordered_dataframe._ordering_snowpark_columns()
+        if len(new_frame.index_column_snowflake_quoted_identifiers) == 1 and (
+            ROW_POSITION_COLUMN_LABEL
+            in new_frame.index_column_snowflake_quoted_identifiers[0]
+            or "__index__" in new_frame.index_column_snowflake_quoted_identifiers[0]
+        ):
+            new_col = (
+                row_number().over(
+                    Window.order_by(
+                        new_frame.ordered_dataframe._ordering_snowpark_columns()
+                    )
                 )
+                - 1
             )
-            - 1
-        )
-        new_col = new_col + iff(
-            new_col < 5, 0, row_count_expr - num_rows_to_display - 1
-        )
-        new_identifier = new_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
-            pandas_labels=[
-                ROW_POSITION_COLUMN_LABEL
-                if new_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
-                is None
-                else extract_pandas_label_from_snowflake_quoted_identifier(
-                    new_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
-                )
-            ],
-            wrap_double_underscore=True,
-        )[
-            0
-        ]
-        new_col = new_col.as_(new_identifier)
-        new_ordered_dataframe = new_frame.ordered_dataframe.select("*", new_col)
-        new_ordered_dataframe.row_position_snowflake_quoted_identifier = new_identifier
-        new_ordered_dataframe = new_ordered_dataframe.sort(
-            OrderingColumn(new_identifier)
-        )
-        new_frame = InternalFrame.create(
-            ordered_dataframe=new_ordered_dataframe,
-            data_column_pandas_index_names=new_frame.data_column_pandas_index_names,
-            data_column_pandas_labels=new_frame.data_column_pandas_labels,
-            data_column_snowflake_quoted_identifiers=new_frame.data_column_snowflake_quoted_identifiers,
-            index_column_pandas_labels=new_frame.index_column_pandas_labels,
-            index_column_snowflake_quoted_identifiers=[new_identifier],
-            data_column_types=None,
-            index_column_types=None,
-        )
+            new_col = new_col + iff(
+                new_col < 5, 0, row_count_expr - num_rows_to_display - 1
+            )
+            new_identifier = new_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=[
+                    ROW_POSITION_COLUMN_LABEL
+                    if new_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
+                    is None
+                    else extract_pandas_label_from_snowflake_quoted_identifier(
+                        new_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
+                    )
+                ],
+                wrap_double_underscore=True,
+            )[
+                0
+            ]
+            new_col = new_col.as_(new_identifier)
+            new_ordered_dataframe = new_frame.ordered_dataframe.select("*", new_col)
+            new_ordered_dataframe.row_position_snowflake_quoted_identifier = (
+                new_identifier
+            )
+            new_ordered_dataframe = new_ordered_dataframe.sort(
+                OrderingColumn(new_identifier)
+            )
+            new_frame = InternalFrame.create(
+                ordered_dataframe=new_ordered_dataframe,
+                data_column_pandas_index_names=new_frame.data_column_pandas_index_names,
+                data_column_pandas_labels=new_frame.data_column_pandas_labels,
+                data_column_snowflake_quoted_identifiers=new_frame.data_column_snowflake_quoted_identifiers,
+                index_column_pandas_labels=new_frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=[new_identifier],
+                data_column_types=None,
+                index_column_types=None,
+            )
 
         # retrieve frame as pandas object
         new_qc = SnowflakeQueryCompiler(new_frame)
