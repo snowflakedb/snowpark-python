@@ -300,7 +300,10 @@ def build_operator_tree(operators_data):
         parent_operators = (
             row["PARENT_OPERATORS"]
             if "PARENT_OPERATORS" in row and row["PARENT_OPERATORS"] is not None
-            else []
+            else None
+        )
+        parent_operators = (
+            str(parent_operators) if parent_operators is not None else None
         )
         node_info = {
             "id": operator_id,
@@ -327,7 +330,7 @@ def build_operator_tree(operators_data):
         nodes[operator_id] = node_info
         children[operator_id] = []
 
-        if parent_operators is None or len(parent_operators) == 0:
+        if parent_operators is None:
             root_nodes.add(operator_id)
         else:
             x = ast.literal_eval(parent_operators)
@@ -410,7 +413,7 @@ def profile_query(session, query_id: str, output_file: Optional[str] = None) -> 
     nodes, children, root_nodes = build_operator_tree(stats_result)
     file_handle = None
     if output_file:
-        file_handle = open(output_file, "w")
+        file_handle = open(output_file, "w", encoding="utf-8")
 
     try:
         _write_output(f"\n=== Analyzing Query {query_id} ===", file_handle)
