@@ -295,7 +295,7 @@ def test_create_temp_table_no_commit(
         session.sql("begin").collect()
         assert Utils.is_active_transaction(session)
         # the following create temp table and insert data
-        # we skip tnx internally by parameter SNOWPARK_SKIP_TXN_COMMIT_IN_DDL
+        # we skip txn internally by parameter SNOWPARK_SKIP_TXN_COMMIT_IN_DDL
         df = session.table(test_table).cache_result()
         assert df.collect() == [Row(1), Row(2)]
         assert Utils.is_active_transaction(session)
