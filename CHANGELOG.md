@@ -27,6 +27,8 @@
 
 ### Snowpark Local Testing Updates
 
+- Added local testing support for reading files with `SnowflakeFile` using local file paths.
+
 #### Bug Fixes
 
 - Fixed a bug when processing windowed functions that lead to incorrect indexing in results.
@@ -39,6 +41,10 @@
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
 - Added support for `pd.read_feather`.
 - Added support for `pd.explain_switch()` to return debugging information on hybrid execution decisions.
+
+#### Bug Fixes
+- Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
+- Fixed a bug in hybrid execution mode (PrPr) where calling numpy operations like `np.where` on modin objects with the Pandas backend would raise an `AttributeError`. This fix requires `modin` version 0.34.0 or newer.
 
 ## 1.33.0 (2025-06-19)
 

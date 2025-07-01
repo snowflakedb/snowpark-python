@@ -2,13 +2,17 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import contextlib
 import pytest
 
 import numpy as np
 from numpy.testing import assert_array_equal
 import modin.pandas as pd
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    MODIN_IS_AT_LEAST_0_33_0,
+    MODIN_IS_AT_LEAST_0_34_0,
+)
 
 from tests.integ.utils.sql_counter import sql_count_checker
 
@@ -171,3 +175,24 @@ def test_explain_switch(us_holidays_data):
     assert "decision" in str(pd.explain_switch(simple=False))
     assert "DataFrame.__init__" in str(pd.explain_switch())
     assert "rows" in str(pd.explain_switch(simple=False))
+
+
+@sql_count_checker(query_count=1)
+def test_np_where_manual_switch():
+    df = pd.DataFrame([[True, False]]).set_backend("Snowflake")
+    with pytest.raises(TypeError, match=r"no implementation found for 'numpy\.where'"):
+        # Snowpark pandas currently does not support np.where with native objects
+        np.where(df, [1, 2], [3, 4])
+    df.set_backend("Pandas", inplace=True)
+    # SNOW-2173644: Prior to modin 0.34, manually switching the backend to pandas would cause lookup
+    # of the __array_function__ method to fail.
+    with (
+        pytest.raises(
+            AttributeError,
+            match=r"DataFrame object has no attribute __array_function__",
+        )
+        if not MODIN_IS_AT_LEAST_0_34_0
+        else contextlib.nullcontext()
+    ):
+        result = np.where(df, [1, 2], [3, 4])
+        assert_array_equal(result, np.array([[1, 4]]))
