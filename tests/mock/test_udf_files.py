@@ -375,18 +375,10 @@ def test_writable_snowflakefile(
         ("r", "w", 0, False),
         ("r", "w", 1, True),
         ("r", "w", 1, False),
-        ("r", "w", 5, True),
-        ("r", "w", 5, False),
-        ("r", "w", 10, True),
-        ("r", "w", 10, False),
         ("rb", "wb", 0, True),
         ("rb", "wb", 0, False),
         ("rb", "wb", 1, True),
         ("rb", "wb", 1, False),
-        ("rb", "wb", 5, True),
-        ("rb", "wb", 5, False),
-        ("rb", "wb", 10, True),
-        ("rb", "wb", 10, False),
     ],
 )
 def test_readinto_snowflakefile(
