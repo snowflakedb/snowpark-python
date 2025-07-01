@@ -235,7 +235,8 @@ def test_read_empty_file_snowflakefile(mode, use_stage, tmp_path, tmp_stage, ses
         _, temp_file = _write_test_msg("w", tmp_path, "")
     else:
         _, temp_file = _write_test_msg_to_stage("w", tmp_path, tmp_stage, session, "")
-
+     
+    
     def read_file(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
             return f.read()
@@ -245,6 +246,19 @@ def test_read_empty_file_snowflakefile(mode, use_stage, tmp_path, tmp_stage, ses
         assert content == b""
     else:
         assert content == ""
+
+@pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
+def test_read_large_file_snowflakefile_local(read_mode, write_mode, tmp_path):
+    temp_file = os.path.join(tmp_path, "test.txt")
+    test_msg = _write_test_msg(
+        write_mode, temp_file, generate_random_alphanumeric(5000)
+    )
+
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.readall()
+
+    assert read_file(temp_file, read_mode) == test_msg
 
 
 @pytest.mark.parametrize(
@@ -489,6 +503,7 @@ def test_truncate_read_mode_snowflakefile(
 
 @pytest.mark.parametrize("mode", ["w", "wb"])
 def test_truncate_write_mode_snowflakefile(mode):
+
     def sf_truncate(mode: str) -> int:
         with SnowflakeFile.open_new_result(mode) as f:
             return f.truncate(1)
@@ -1043,7 +1058,6 @@ def test_readinto_snowflakefile(
     num_read = min(size, buffer_size)
     buffer = bytes(buffer)
 
-    _logger.error("Read into buffer: %s, expected: %s", buffer, encoded_test_msg)
     assert length == num_read
     assert buffer[:num_read] == encoded_test_msg[:num_read]
     for byte in buffer[num_read:]:
@@ -1112,6 +1126,7 @@ def test_readinto1_snowflakefile(
         _, temp_file = _write_test_msg_to_stage(
             write_mode, tmp_path, tmp_stage, session, test_msg
         )
+
     encoded_test_msg = test_msg.encode()
 
     def sf_readinto1(file_location: str, mode: str, buffer: bytearray) -> int:

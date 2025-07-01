@@ -82,8 +82,20 @@ class BaseDriver:
                 f" Please check the stack trace for more details."
             ) from exc
         finally:
-            cursor.close()
-            conn.close()
+            # Best effort to close cursor and connection; failures are non-critical and can be ignored.
+            try:
+                cursor.close()
+            except BaseException as exc:
+                logger.debug(
+                    f"Failed to close cursor after inferring schema from description due to error: {exc!r}"
+                )
+
+            try:
+                conn.close()
+            except BaseException as exc:
+                logger.debug(
+                    f"Failed to close connection after inferring schema from description due to error: {exc!r}"
+                )
 
     def udtf_ingestion(
         self,
