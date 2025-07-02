@@ -21,17 +21,13 @@ import pandas as native_pd
 from modin.pandas.api.extensions import register_series_accessor
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from tests.integ.utils.sql_counter import sql_count_checker
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    EXTENSIONS_DICT = pd.Series._extensions["Snowflake"]
+EXTENSIONS_DICT = pd.Series._extensions["Snowflake"]
 
-    register_series_accessor = functools.partial(
-        register_series_accessor, backend="Snowflake"
-    )
-else:  # pragma: no branch
-    EXTENSIONS_DICT = pd.series._SERIES_EXTENSIONS_
+register_series_accessor = functools.partial(
+    register_series_accessor, backend="Snowflake"
+)
 
 
 @sql_count_checker(query_count=0)
@@ -84,10 +80,7 @@ def test_series_extension_override_method():
     method_name = "sum"
     expected_result = 100
 
-    original_method = pd.Series.sum
-
-    if MODIN_IS_AT_LEAST_0_33_0:
-        original_extension = EXTENSIONS_DICT[method_name]
+    original_extension = EXTENSIONS_DICT[method_name]
 
     try:
 
@@ -101,9 +94,4 @@ def test_series_extension_override_method():
     finally:
         # Because we're overriding a method on the Series class, we need to restore the original method
         # after we're done, or else other tests that use Series.sum will fail
-
-        if MODIN_IS_AT_LEAST_0_33_0:
-            EXTENSIONS_DICT[method_name] = original_extension
-        else:
-            register_series_accessor(method_name)(original_method)
-            del EXTENSIONS_DICT[method_name]
+        EXTENSIONS_DICT[method_name] = original_extension

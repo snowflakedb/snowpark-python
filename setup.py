@@ -14,7 +14,7 @@ from setuptools.command.build_py import build_py as _build_py
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-MODIN_DEPENDENCY_VERSION = ">=0.32.0, <0.34.0"  # Snowpark pandas requires modin 0.32.0 or 0.33.x, which are compatible with pandas 2.2.x
+MODIN_DEPENDENCY_VERSION = ">=0.33.0, <0.35.0"  # Snowpark pandas requires modin 0.33.x or 0.34.x, which are compatible with pandas 2.2.x
 CONNECTOR_DEPENDENCY_VERSION = ">=3.14.0, <4.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [

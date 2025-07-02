@@ -19,7 +19,6 @@ import pandas
 from pandas._typing import Axis, IndexLabel
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
@@ -29,23 +28,18 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 from snowflake.snowpark.row import Row
 
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    register_series_accessor = functools.partial(
-        _register_series_accessor, backend="Snowflake"
+register_series_accessor = functools.partial(
+    _register_series_accessor, backend="Snowflake"
+)
+_register_series_accessor(name="to_pandas", backend="Pandas")(pd.Series._to_pandas)
+_register_series_accessor("to_snowflake", backend="Pandas")(
+    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowflake(
+        *args, **kwargs
     )
-    _register_series_accessor(name="to_pandas", backend="Pandas")(pd.Series._to_pandas)
-    _register_series_accessor("to_snowflake", backend="Pandas")(
-        lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowflake(
-            *args, **kwargs
-        )
-    )
-    _register_series_accessor("to_snowpark", backend="Pandas")(
-        lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowpark(
-            *args, **kwargs
-        )
-    )
-else:
-    register_series_accessor = _register_series_accessor
+)
+_register_series_accessor("to_snowpark", backend="Pandas")(
+    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowpark(*args, **kwargs)
+)
 
 
 @register_series_accessor("_set_axis_name")

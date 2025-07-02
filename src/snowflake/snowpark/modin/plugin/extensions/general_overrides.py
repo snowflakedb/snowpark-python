@@ -82,17 +82,13 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     pandas_module_level_function_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    from modin.pandas.api.extensions import (
-        register_pd_accessor as _register_pd_accessor,
-    )
+from modin.pandas.api.extensions import (
+    register_pd_accessor as _register_pd_accessor,
+)
 
-    register_pd_accessor = functools.partial(_register_pd_accessor, backend="Snowflake")
-else:  # pragma: no branch
-    from modin.pandas.api.extensions import register_pd_accessor
+register_pd_accessor = functools.partial(_register_pd_accessor, backend="Snowflake")
 
 # To prevent cross-reference warnings when building documentation and prevent erroneously
 # linking to `snowflake.snowpark.DataFrame`, we need to explicitly

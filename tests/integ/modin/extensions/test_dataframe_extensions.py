@@ -22,18 +22,14 @@ import pandas as native_pd
 from modin.pandas.api.extensions import register_dataframe_accessor
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from tests.integ.modin.utils import assert_series_equal
 from tests.integ.utils.sql_counter import sql_count_checker
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    EXTENSIONS_DICT = pd.DataFrame._extensions["Snowflake"]
+EXTENSIONS_DICT = pd.DataFrame._extensions["Snowflake"]
 
-    register_dataframe_accessor = functools.partial(
-        register_dataframe_accessor, backend="Snowflake"
-    )
-else:  # pragma: no branch
-    EXTENSIONS_DICT = pd.dataframe._DATAFRAME_EXTENSIONS_
+register_dataframe_accessor = functools.partial(
+    register_dataframe_accessor, backend="Snowflake"
+)
 
 
 @sql_count_checker(query_count=0)
@@ -88,10 +84,7 @@ def test_dataframe_extension_override_method():
     method_name = "sum"
     expected_result = 100
 
-    original_method = pd.DataFrame.sum
-
-    if MODIN_IS_AT_LEAST_0_33_0:
-        original_extension = EXTENSIONS_DICT[method_name]
+    original_extension = EXTENSIONS_DICT[method_name]
 
     try:
 
@@ -105,8 +98,4 @@ def test_dataframe_extension_override_method():
     finally:
         # Because we're overriding a method on the DataFrame class, we need to restore the original method
         # after we're done, or else other tests that use DataFrame.sum will fail
-        if MODIN_IS_AT_LEAST_0_33_0:
-            EXTENSIONS_DICT[method_name] = original_extension
-        else:
-            register_dataframe_accessor(method_name)(original_method)
-            del EXTENSIONS_DICT[method_name]
+        EXTENSIONS_DICT[method_name] = original_extension
