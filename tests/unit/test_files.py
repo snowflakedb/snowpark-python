@@ -608,7 +608,7 @@ def test_readall_snowflakefile(
 
     content = sf_readall(temp_file, read_mode)
     windows_lines = [
-        line[:-2] + b"\r\n" if read_mode == "rb" else line[:-2] + "\r\n"
+        line[:-1] + b"\r\n" if read_mode == "rb" else line[:-1] + "\r\n"
         for line in lines
     ]  # need for windows testing as \r is added
     if write_mode == "wb":
@@ -640,13 +640,14 @@ def test_readline_snowflakefile(
         with SnowflakeFile.open(file_location, mode) as f:
             return [f.readline() for _ in range(num_lines + 1)]
 
-    assert sf_readline(temp_file, read_mode) == lines[0]
-    content = sf_read_num_lines(temp_file, read_mode, num_lines)
-
     windows_lines = [
-        line[:-2] + b"\r\n" if read_mode == "rb" else line[:-2] + "\r\n"
+        line[:-1] + b"\r\n" if read_mode == "rb" else line[:-1] + "\r\n"
         for line in lines
     ]  # need for windows testing as \r is added
+    first_line = sf_readline(temp_file, read_mode)
+    assert first_line == lines[0] or first_line == windows_lines[0]
+    content = sf_read_num_lines(temp_file, read_mode, num_lines)
+
     for i in range(num_lines):
         assert content[i] == lines[i] or content[i] == windows_lines[i]
 
@@ -688,7 +689,7 @@ def test_readline_with_size_snowflakefile(
 
     content = sf_readline_with_size(temp_file, read_mode, size)
     windows_lines = [
-        line[:-2] + b"\r\n" if read_mode == "rb" else line[:-2] + "\r\n"
+        line[:-1] + b"\r\n" if read_mode == "rb" else line[:-1] + "\r\n"
         for line in lines
     ]  # need for windows testing as \r is added
     if size == -1:
@@ -718,7 +719,7 @@ def test_readlines_snowflakefile(
 
     content = sf_readlines(temp_file, read_mode)
     windows_lines = [
-        line[:-2] + b"\r\n" if read_mode == "rb" else line[:-2] + "\r\n"
+        line[:-1] + b"\r\n" if read_mode == "rb" else line[:-1] + "\r\n"
         for line in lines
     ]  # need for windows testing as \r is added
     for i in range(num_lines):
@@ -755,7 +756,7 @@ def test_readlines_with_hint_snowflakefile(
 
     content = sf_readlines_with_hint(temp_file, read_mode, hint)
     windows_lines = [
-        line[:-2] + b"\r\n" if read_mode == "rb" else line[:-2] + "\r\n"
+        line[:-1] + b"\r\n" if read_mode == "rb" else line[:-1] + "\r\n"
         for line in lines
     ]  # need for windows testing as \r is added
     for i in range(min(num_lines, len(content))):
