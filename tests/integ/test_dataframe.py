@@ -2189,6 +2189,39 @@ def test_show_dataframe_spark(session):
             ),
         )
 
+        df2_col_names = ["col1"]
+        df2 = session.create_dataframe(
+            [
+                (float("inf"),),
+                (float("-inf"),),
+                (1e15,),
+                (1e-15,),
+            ],
+            df2_col_names,
+        )
+
+        assert_show_string_equals(
+            df2._show_string_spark(
+                truncate=10,
+                _spark_column_names=df2_col_names,
+            ),
+            dedent(
+                """
+            +---------+
+            |   col_1 |
+            +---------+
+            |Infinity |
+            +---------+
+            |-Infinity|
+            +---------+
+            |     1E15|
+            +---------+
+            |    1E-15|
+            +---------+
+            """
+            ),
+        )
+
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
