@@ -58,7 +58,7 @@ def _generate_and_write_lines(
     """
     Generates a list of test messages and writes them to the specified file location.
     """
-    file_location = os.path.join(file_location, "test.txt")
+    file_location = os.path.join(file_location, f"{generate_random_alphanumeric()}.txt")
     lines = [f"{generate_random_alphanumeric()}\n" for _ in range(num_lines)]
     if write_mode == "wb":
         lines = [line.encode() for line in lines]
@@ -68,6 +68,20 @@ def _generate_and_write_lines(
             f.write(line)
 
     return lines, file_location
+
+
+def _generate_and_write_lines_to_stage(
+    num_lines: int,
+    write_mode: str,
+    file_location: str,
+    tmp_stage: str,
+    session: Session,
+) -> tuple[list[Union[str, bytes]], str]:
+    lines, file_location = _generate_and_write_lines(
+        num_lines, write_mode, file_location
+    )
+    Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
+    return lines, f"@{tmp_stage}/{file_location.split('/')[-1]}"
 
 
 @pytest.mark.parametrize(
@@ -581,9 +595,12 @@ def test_readall_snowflakefile(
     read_mode, write_mode, use_stage, tmp_path, tmp_stage, session
 ):
     num_lines = 5
-    lines, temp_file = _generate_and_write_lines(num_lines, write_mode, tmp_path)
-    if use_stage:
-        Utils.upload_to_stage(session, tmp_stage, temp_file, compress=False)
+    if not use_stage:
+        lines, temp_file = _generate_and_write_lines(num_lines, write_mode, tmp_path)
+    else:
+        lines, temp_file = _generate_and_write_lines_to_stage(
+            num_lines, write_mode, tmp_path, tmp_stage, session
+        )
 
     def sf_readall(file_location: str, mode: str) -> list:
         with SnowflakeFile.open(file_location, mode) as snowflake_file:
@@ -604,9 +621,12 @@ def test_readline_snowflakefile(
     read_mode, write_mode, use_stage, tmp_path, tmp_stage, session
 ):
     num_lines = 5
-    lines, temp_file = _generate_and_write_lines(num_lines, write_mode, tmp_path)
-    if use_stage:
-        Utils.upload_to_stage(session, tmp_stage, temp_file, compress=False)
+    if not use_stage:
+        lines, temp_file = _generate_and_write_lines(num_lines, write_mode, tmp_path)
+    else:
+        lines, temp_file = _generate_and_write_lines_to_stage(
+            num_lines, write_mode, tmp_path, tmp_stage, session
+        )
 
     def sf_readline(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode) as f:
@@ -645,9 +665,12 @@ def test_readline_with_size_snowflakefile(
     read_mode, write_mode, size, use_stage, tmp_path, tmp_stage, session
 ):
     num_lines = 5
-    lines, temp_file = _generate_and_write_lines(num_lines, write_mode, tmp_path)
-    if use_stage:
-        Utils.upload_to_stage(session, tmp_stage, temp_file, compress=False)
+    if not use_stage:
+        lines, temp_file = _generate_and_write_lines(num_lines, write_mode, tmp_path)
+    else:
+        lines, temp_file = _generate_and_write_lines_to_stage(
+            num_lines, write_mode, tmp_path, tmp_stage, session
+        )
 
     def sf_readline_with_size(
         file_location: str, mode: str, size: int
@@ -670,9 +693,12 @@ def test_readlines_snowflakefile(
     read_mode, write_mode, use_stage, tmp_path, tmp_stage, session
 ):
     num_lines = 5
-    lines, temp_file = _generate_and_write_lines(num_lines, write_mode, tmp_path)
-    if use_stage:
-        Utils.upload_to_stage(session, tmp_stage, temp_file, compress=False)
+    if not use_stage:
+        lines, temp_file = _generate_and_write_lines(num_lines, write_mode, tmp_path)
+    else:
+        lines, temp_file = _generate_and_write_lines_to_stage(
+            num_lines, write_mode, tmp_path, tmp_stage, session
+        )
 
     def sf_readlines(file_location: str, mode: str) -> list:
         with SnowflakeFile.open(file_location, mode) as f:
@@ -700,9 +726,12 @@ def test_readlines_with_hint_snowflakefile(
     read_mode, write_mode, hint, use_stage, tmp_path, tmp_stage, session
 ):
     num_lines = 5
-    lines, temp_file = _generate_and_write_lines(num_lines, write_mode, tmp_path)
-    if use_stage:
-        Utils.upload_to_stage(session, tmp_stage, temp_file, compress=False)
+    if not use_stage:
+        lines, temp_file = _generate_and_write_lines(num_lines, write_mode, tmp_path)
+    else:
+        lines, temp_file = _generate_and_write_lines_to_stage(
+            num_lines, write_mode, tmp_path, tmp_stage, session
+        )
 
     def sf_readlines_with_hint(file_location: str, mode: str, hint: int) -> list:
         with SnowflakeFile.open(file_location, mode) as f:
@@ -1043,7 +1072,7 @@ def test_readinto_escape_chars_snowflakefile(
     )  # Windows adds a \r before the \n when we read a file
     assert (
         buffer[:length] == encoded_test_msg[:length]
-        or buffer[:length] == encoded_test_msg[: length - 3] + " \r\n\t"
+        or buffer[:length] == encoded_test_msg[: length - 3] + b" \r\n\t"
     )
     for byte in buffer[length:]:
         assert byte == 0
