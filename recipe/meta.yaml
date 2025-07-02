@@ -1,79 +1,69 @@
 {% set name = "snowflake-snowpark-python" %}
 {% set version = "1.33.0" %}
-{% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
-{% set build_number = os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) %}
 
 package:
   name: {{ name|lower }}
   version: {{ version }}
 
 source:
-  # need to use path to build on Jenkins
   path: ../
 
 build:
-  number: {{ build_number }}
-  skip: True  # [py<38 or win32 or s390x]
-  script: {{ PYTHON }} -m pip install . --no-deps -vvv
-  script_env:
-    - SNOWFLAKE_IS_PYTHON_RUNTIME_TEST=1
-{% if noarch_build %}
-  noarch: python
-  string: "py39_{{ build_number }}"  # [py==39]
-  string: "py310_{{ build_number }}"  # [py==310]
-  string: "py311_{{ build_number }}"  # [py==311]
-  string: "py312_{{ build_number }}"  # [py==312]
-{% endif %}
+  skip: true  # [py<38 or py>312]
+  script: {{ PYTHON }} -m pip install . -vv
+  number: 0
 
-{% if noarch_build and py not in [39, 310, 311, 312] %}
-error: "Noarch build for Python version {{ py }} is not supported. Supported versions: 3.9, 3.10, 3.11, or 3.12."
-{% else %}
 requirements:
+  build:
+    - python                                 # [build_platform != target_platform]
+    - cross-python_{{ target_platform }}     # [build_platform != target_platform]
   host:
     - python
-    {% if not noarch_build %}
-    - cross-python_{{ target_platform }}
-    {% endif %}
     - pip
     - setuptools >=40.6.0
     - wheel
     # Snowpark IR
-    - protobuf==3.20.1  # [py<=310]
-    - protobuf==4.25.3  # [py>310]
+    - protobuf ==3.20.1  # [py<=310]
+    - protobuf ==4.25.3  # [py>310]
     - mypy-protobuf
   run:
-    {% if noarch_build and py == 39 %}
-    - python >=3.9,<3.10.0a0
-    {% elif noarch_build and py == 310 %}
-    - python >=3.10,<3.11.0a0
-    {% elif noarch_build and py == 311 %}
-    - python >=3.11,<3.12.0a0
-    {% elif noarch_build and py == 312 %}
-    - python >=3.12,<3.13.0a0
-    {% else %}
     - python
-    {% endif %}
+    - setuptools >=40.6.0
+    - wheel
     - cloudpickle >=1.6.0,<=3.0.0,!=2.1.0,!=2.2.0
-    - snowflake-connector-python >=3.12.0,<4.0.0
+    - snowflake-connector-python >=3.14.0,<4.0.0
     - typing-extensions >=4.1.0,<5.0.0
-    # need to pin libffi because of problems in cryptography.
-    # This might no longer hold true but keep it just to avoid it from biting us again
-    - libffi <=3.4.4
     - pyyaml
-    # Snowpark IR
     - protobuf >=3.20,<6
     - python-dateutil
     - tzlocal
   run_constrained:
     # Snowpark pandas
-    - modin >=0.32.0,<0.34.0
-{% endif %}
+    - modin ==0.32.0
 
 test:
   imports:
-    - snowflake
     - snowflake.snowpark
+    - snowflake.snowpark._internal
+  commands:
+    - pip check
+  requires:
+    - pip
 
 about:
-  home: https://github.com/snowflakedb/snowpark-python
-  summary: Snowpark Python
+  home: https://www.snowflake.com/
+  summary: Snowflake Snowpark for Python
+  dev_url: https://github.com/snowflakedb/snowpark-python
+  license: Apache-2.0
+  license_file: LICENSE.txt
+
+extra:
+  recipe-maintainers:
+    - sfc-gh-lmukhopadhyay
+    - sfc-gh-nkumar
+    - sfc-gh-jdu
+    - sfc-gh-aling
+    - sfc-gh-aalam
+    - sfc-gh-yixie
+    - sfc-gh-mkeller
+    - sfc-gh-yuwang
