@@ -414,7 +414,7 @@ class SnowflakeFile(RawIOBase):
         self._raise_if_closed()
         self._raise_if_not_read()
         if self._is_local_file:
-            content = self._file_stream.raw.readlines(hint)
+            content = self._file_stream.readlines(hint)
         elif self._is_stage_file:
             content = self._file_stream.readlines(hint)
             if self._mode == "r":
