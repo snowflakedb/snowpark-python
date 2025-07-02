@@ -4,7 +4,6 @@
 
 import tempfile
 import pandas as native_pd
-import pytest
 
 # We're comparing an object with the native pandas backend, so we use the pandas testing utility
 # here rather than our own internal one.
@@ -13,18 +12,8 @@ from pandas.testing import assert_series_equal, assert_frame_equal
 import modin.pandas as pd
 from modin.config import context as config_context
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
 from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
-
-
-@pytest.fixture(scope="module", autouse=True)
-def skip(pytestconfig):
-    if not MODIN_IS_AT_LEAST_0_33_0:
-        pytest.skip(
-            "backend switching tests only work on newer modin versions",
-            allow_module_level=True,
-        )
 
 
 CSV_CONTENT = """fruit,score

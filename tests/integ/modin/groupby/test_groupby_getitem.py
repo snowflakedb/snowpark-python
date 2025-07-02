@@ -12,9 +12,9 @@ from pandas.core.groupby.generic import (
 )
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-    DataFrameGroupBy as snow_df_groupby,
-    SeriesGroupBy as snow_ser_groupby,
+from modin.pandas.groupby import (
+    DataFrameGroupBy as ModinDFGroupBy,
+    SeriesGroupBy as ModinSerGroupBy,
 )
 from tests.integ.utils.sql_counter import sql_count_checker
 
@@ -29,9 +29,9 @@ data_dictionary = {
 
 def check_groupby_types_same(native_groupby, snow_groupby):
     if isinstance(native_groupby, native_df_groupby):
-        assert isinstance(snow_groupby, snow_df_groupby)
+        assert isinstance(snow_groupby, ModinDFGroupBy)
     elif isinstance(native_groupby, native_ser_groupby):
-        assert isinstance(snow_groupby, snow_ser_groupby)
+        assert isinstance(snow_groupby, ModinSerGroupBy)
     else:
         raise ValueError(
             f"Unknown GroupBy type for native pandas: {type(native_groupby)}. Snowpark pandas GroupBy type: {type(snow_groupby)}"

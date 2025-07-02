@@ -10,14 +10,14 @@ from functools import update_wrapper
 
 import modin.pandas as pdi
 from modin.pandas import DataFrame as DataFrameClazz, Series as SeriesClazz
+from modin.pandas.groupby import (
+    DataFrameGroupBy as DataFrameGroupByClazz,
+    SeriesGroupBy as SeriesGroupByClazz,
+)
 from modin.pandas.plotting import Plotting as PlottingClazz
 from modin.pandas.series_utils import DatetimeProperties as DatetimePropertiesClazz
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-    DataFrameGroupBy as DataFrameGroupByClazz,
-    SeriesGroupBy as SeriesGroupByClazz,
-)
 from snowflake.snowpark.modin.plugin.extensions.resample_overrides import (
     Resampler as ResamplerClazz,
 )

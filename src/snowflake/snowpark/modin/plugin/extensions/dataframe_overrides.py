@@ -80,7 +80,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     convert_index_to_qc,
     error_checking_for_init,
     is_repr_truncated,
-    MODIN_IS_AT_LEAST_0_33_0,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -114,25 +113,17 @@ from snowflake.snowpark.modin.utils import (
 )
 from snowflake.snowpark.udf import UserDefinedFunction
 
+from modin.pandas.groupby import DataFrameGroupBy
+from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides import (
+    validate_groupby_args,
+)
+from modin.pandas.api.extensions import (
+    register_dataframe_accessor as _register_dataframe_accessor,
+)
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    from modin.pandas.groupby import DataFrameGroupBy
-    from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides import (
-        validate_groupby_args,
-    )
-    from modin.pandas.api.extensions import (
-        register_dataframe_accessor as _register_dataframe_accessor,
-    )
-
-    register_dataframe_accessor = functools.partial(
-        _register_dataframe_accessor, backend="Snowflake"
-    )
-else:  # pragma: no branch
-    from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-        DataFrameGroupBy,
-        validate_groupby_args,
-    )
-    from modin.pandas.api.extensions import register_dataframe_accessor
+register_dataframe_accessor = functools.partial(
+    _register_dataframe_accessor, backend="Snowflake"
+)
 
 
 def register_dataframe_not_implemented():
@@ -954,19 +945,20 @@ def applymap(self, func: PythonFuncType, na_action: str | None = None, **kwargs)
     return self.map(func, na_action=na_action, **kwargs)
 
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    # In older versions of Snowpark pandas, overrides to base methods would automatically override
-    # corresponding DataFrame/Series API definitions as well. For consistency between methods, this
-    # is no longer the case, and DataFrame/Series must separately apply this override.
-    def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
-        # Use a field on the query compiler instead of self to avoid any possible ambiguity with
-        # a column named "_attrs"
-        self._query_compiler._attrs = copy.deepcopy(value)
+# In older versions of Snowpark pandas, overrides to base methods would automatically override
+# corresponding DataFrame/Series API definitions as well. For consistency between methods, this
+# is no longer the case, and DataFrame/Series must separately apply this override.
+def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
+    # Use a field on the query compiler instead of self to avoid any possible ambiguity with
+    # a column named "_attrs"
+    self._query_compiler._attrs = copy.deepcopy(value)
 
-    def _get_attrs(self) -> dict:  # noqa: RT01, D200
-        return self._query_compiler._attrs
 
-    register_dataframe_accessor("attrs")(property(_get_attrs, _set_attrs))
+def _get_attrs(self) -> dict:  # noqa: RT01, D200
+    return self._query_compiler._attrs
+
+
+register_dataframe_accessor("attrs")(property(_get_attrs, _set_attrs))
 
 
 # We need to override _get_columns to satisfy

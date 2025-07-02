@@ -9,9 +9,9 @@ import pytest
 from pandas.core.groupby.generic import DataFrameGroupBy as PandasDFGroupBy
 
 import snowflake.snowpark.modin.plugin  # noqa : F401
-from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-    DataFrameGroupBy as SnowparkPandasDFGroupBy,
-    SeriesGroupBy as SnowparkPandasSerGroupBy,
+from modin.pandas.groupby import (
+    DataFrameGroupBy as ModinDFGroupBy,
+    SeriesGroupBy as ModinSerGroupBy,
 )
 from tests.integ.modin.utils import assert_frame_equal, eval_snowpark_pandas_result
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
@@ -37,9 +37,9 @@ def test_column_select(basic_snowpark_pandas_df, by, cols):
     native_grp_col = native_df.groupby(by=by)[cols]
 
     if isinstance(native_grp_col, PandasDFGroupBy):
-        assert isinstance(snow_grp_col, SnowparkPandasDFGroupBy)
+        assert isinstance(snow_grp_col, ModinDFGroupBy)
     else:
-        assert isinstance(snow_grp_col, SnowparkPandasSerGroupBy)
+        assert isinstance(snow_grp_col, ModinSerGroupBy)
 
     with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(snow_grp_col, native_grp_col, lambda grp: grp.sum())
@@ -57,9 +57,9 @@ def test_column_select_with_level(df_multi, level, cols):
     native_grp_col = native_df.groupby(level=level)[cols]
 
     if isinstance(native_grp_col, PandasDFGroupBy):
-        assert isinstance(snow_grp_col, SnowparkPandasDFGroupBy)
+        assert isinstance(snow_grp_col, ModinDFGroupBy)
     else:
-        assert isinstance(snow_grp_col, SnowparkPandasSerGroupBy)
+        assert isinstance(snow_grp_col, ModinSerGroupBy)
 
     eval_snowpark_pandas_result(snow_grp_col, native_grp_col, lambda grp: grp.sum())
 
