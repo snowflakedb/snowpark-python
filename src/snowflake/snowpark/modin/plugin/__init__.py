@@ -64,8 +64,6 @@ if not (
         + install_modin_msg
     )  # pragma: no cover
 
-MODIN_IS_AT_LEAST_0_33_0 = actual_modin_version >= version.parse("0.33.0")
-
 # === INITIALIZE EXTENSION SYSTEM ===
 # Initialize all extension modules.
 import snowflake.snowpark.modin.plugin.extensions.pd_extensions  # isort: skip  # noqa: E402,F401
@@ -79,12 +77,8 @@ import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort:
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.series_overrides  # isort: skip  # noqa: E402,F401
-
-if MODIN_IS_AT_LEAST_0_33_0:
-    import snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides  # isort: skip  # noqa: E402,F401
-    import snowflake.snowpark.modin.plugin.extensions.series_groupby_overrides  # isort: skip  # noqa: E402,F401
-else:  # pragma: no branch
-    import snowflake.snowpark.modin.plugin.extensions.groupby_overrides  # isort: skip  # noqa: E402,F401
+import snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides  # isort: skip  # noqa: E402,F401
+import snowflake.snowpark.modin.plugin.extensions.series_groupby_overrides  # isort: skip  # noqa: E402,F401
 
 # === INITIALIZE DOCSTRINGS ===
 # These imports also all need to occur after modin + pandas dependencies are validated.
@@ -126,16 +120,10 @@ for (doc_module, target_object) in inherit_modules:
 # _inherit_docstrings needs a function or class as argument, so we must explicitly iterate over
 # all members of io and general. Their override targets must be in the top-level pandas namespace
 # to resolve properly with the extensions system.
-if MODIN_IS_AT_LEAST_0_33_0:
-    function_inherit_modules = [
-        (docstrings.io, modin.pandas),
-        (docstrings.general, modin.pandas),
-    ]
-else:  # pragma: no branch
-    function_inherit_modules = [
-        (docstrings.io, modin.pandas.io),
-        (docstrings.general, modin.pandas.general),
-    ]
+function_inherit_modules = [
+    (docstrings.io, modin.pandas),
+    (docstrings.general, modin.pandas),
+]
 
 for (doc_module, target_module) in function_inherit_modules:
     for name in dir(target_module):
@@ -150,10 +138,7 @@ for (doc_module, target_module) in function_inherit_modules:
 # Configure Modin engine so it detects our Snowflake I/O classes.
 # This is necessary to define the `from_pandas` method for each Modin backend, which is called in I/O methods.
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    from modin.config import Engine, Backend, Execution  # isort: skip  # noqa: E402
-else:  # pragma: no branch
-    from modin.config import Engine  # isort: skip  # noqa: E402
+from modin.config import Engine, Backend, Execution  # isort: skip  # noqa: E402
 
 # Secretly insert our factory class into Modin so the dispatcher can find it
 from modin.core.execution.dispatching.factories import (  # isort: skip  # noqa: E402
@@ -164,115 +149,107 @@ from snowflake.snowpark.modin.plugin.io.factories import (  # isort: skip  # noq
     PandasOnSnowflakeFactory,
 )
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    modin_factories.SnowflakeOnSnowflakeFactory = PandasOnSnowflakeFactory
-    Engine.add_option("Snowflake")
-    if "Snowflake" not in Backend.get_active_backends():
-        Backend.register_backend(
-            "Snowflake", Execution(engine="Snowflake", storage_format="Snowflake")
-        )
-    Backend.put("snowflake")
-
-    from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402
-        _GENERAL_EXTENSIONS,
-        _NON_EXTENDABLE_ATTRIBUTES,
-        register_function_for_post_op_switch,
-        register_function_for_pre_op_switch,
+modin_factories.SnowflakeOnSnowflakeFactory = PandasOnSnowflakeFactory
+Engine.add_option("Snowflake")
+if "Snowflake" not in Backend.get_active_backends():
+    Backend.register_backend(
+        "Snowflake", Execution(engine="Snowflake", storage_format="Snowflake")
     )
-    from modin.config import AutoSwitchBackend  # isort: skip  # noqa: E402
+Backend.put("snowflake")
 
-    # Disable automatic backend switching by default
-    AutoSwitchBackend().disable()
+from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: skip  # noqa: E402
+    _GENERAL_EXTENSIONS,
+    _NON_EXTENDABLE_ATTRIBUTES,
+    register_function_for_post_op_switch,
+    register_function_for_pre_op_switch,
+)
+from modin.config import AutoSwitchBackend  # isort: skip  # noqa: E402
 
-    # Hybrid Mode Registration
-    # In hybrid execution mode, the client will automatically switch backends when a
-    # wholly-unimplemented method is called. Those switch points are registered separately in
-    # extensions files via the register_*_not_implemented family of methods.
-    pre_op_switch_points: list[dict[str, Union[str, None]]] = [
-        {"class_name": "DataFrame", "method": "__init__"},
-        {"class_name": "Series", "method": "__init__"},
-        {"class_name": "DataFrame", "method": "apply"},
-        {"class_name": "Series", "method": "apply"},
-        {"class_name": "Series", "method": "items"},
-        {"class_name": "DataFrame", "method": "itertuples"},
-        {"class_name": "DataFrame", "method": "iterrows"},
-        {"class_name": "DataFrame", "method": "plot"},
-        {"class_name": "DataFrame", "method": "quantile"},
-        {"class_name": "Series", "method": "plot"},
-        {"class_name": "Series", "method": "quantile"},
-        {"class_name": "DataFrame", "method": "T"},
-        {"class_name": None, "method": "read_csv"},
-        {"class_name": None, "method": "read_json"},
-        {"class_name": None, "method": "concat"},
-        {"class_name": None, "method": "merge"},
+# Disable automatic backend switching by default
+AutoSwitchBackend().disable()
+
+# Hybrid Mode Registration
+# In hybrid execution mode, the client will automatically switch backends when a
+# wholly-unimplemented method is called. Those switch points are registered separately in
+# extensions files via the register_*_not_implemented family of methods.
+pre_op_switch_points: list[dict[str, Union[str, None]]] = [
+    {"class_name": "DataFrame", "method": "__init__"},
+    {"class_name": "Series", "method": "__init__"},
+    {"class_name": "DataFrame", "method": "apply"},
+    {"class_name": "Series", "method": "apply"},
+    {"class_name": "Series", "method": "items"},
+    {"class_name": "DataFrame", "method": "itertuples"},
+    {"class_name": "DataFrame", "method": "iterrows"},
+    {"class_name": "DataFrame", "method": "plot"},
+    {"class_name": "DataFrame", "method": "quantile"},
+    {"class_name": "Series", "method": "plot"},
+    {"class_name": "Series", "method": "quantile"},
+    {"class_name": "DataFrame", "method": "T"},
+    {"class_name": None, "method": "read_csv"},
+    {"class_name": None, "method": "read_json"},
+    {"class_name": None, "method": "concat"},
+    {"class_name": None, "method": "merge"},
+]
+
+# Always auto-switch for aggregations, since if they return a 1-D frame/series it will be much smaller
+# than the original data.
+# Not all of these are currently supported in Snowpark pandas.
+# None of these need to be registered for Series because those methods always return scalars.
+aggregations = [
+    # note that head and tail are groupby-filters, not aggregations
+    "tail",
+    "var",
+    "std",
+    "sum",
+    "sem",
+    "max",
+    "mean",
+    "min",
+    "agg",
+    "aggregate",
+    "count",
+    "nunique",
+    # TODO these cumulative functions are window functions, not aggregations, right?
+    "cummax",
+    "cummin",
+    "cumprod",
+    "cumsum",
+]
+
+post_op_switch_points: list[dict[str, Union[str, None]]] = (
+    [  # type: ignore[assignment]
+        {"class_name": None, "method": "read_snowflake"},
+        {"class_name": "Series", "method": "value_counts"},
+        {"class_name": "DataFrame", "method": "value_counts"},
+        # Series.agg can return a Series if a list of aggregations is provided
+        {"class_name": "Series", "method": "agg"},
+        {"class_name": "Series", "method": "aggregate"},
     ]
-
-    # Always auto-switch for aggregations, since if they return a 1-D frame/series it will be much smaller
-    # than the original data.
-    # Not all of these are currently supported in Snowpark pandas.
-    # None of these need to be registered for Series because those methods always return scalars.
-    aggregations = [
-        # note that head and tail are groupby-filters, not aggregations
-        "tail",
-        "var",
-        "std",
-        "sum",
-        "sem",
-        "max",
-        "mean",
-        "min",
-        "agg",
-        "aggregate",
-        "count",
-        "nunique",
-        # TODO these cumulative functions are window functions, not aggregations, right?
-        "cummax",
-        "cummin",
-        "cumprod",
-        "cumsum",
+    + [{"class_name": "DataFrame", "method": agg_method} for agg_method in aggregations]
+    + [
+        {"class_name": "DataFrameGroupBy", "method": agg_method}
+        for agg_method in aggregations
     ]
+    + [
+        {"class_name": "SeriesGroupBy", "method": agg_method}
+        for agg_method in aggregations
+    ]
+)
 
-    post_op_switch_points: list[dict[str, Union[str, None]]] = (
-        [  # type: ignore[assignment]
-            {"class_name": None, "method": "read_snowflake"},
-            {"class_name": "Series", "method": "value_counts"},
-            {"class_name": "DataFrame", "method": "value_counts"},
-            # Series.agg can return a Series if a list of aggregations is provided
-            {"class_name": "Series", "method": "agg"},
-            {"class_name": "Series", "method": "aggregate"},
-        ]
-        + [
-            {"class_name": "DataFrame", "method": agg_method}
-            for agg_method in aggregations
-        ]
-        + [
-            {"class_name": "DataFrameGroupBy", "method": agg_method}
-            for agg_method in aggregations
-        ]
-        + [
-            {"class_name": "SeriesGroupBy", "method": agg_method}
-            for agg_method in aggregations
-        ]
+for point in pre_op_switch_points:
+    register_function_for_pre_op_switch(
+        class_name=point["class_name"],
+        method=point["method"],
+        backend="Snowflake",
     )
 
-    for point in pre_op_switch_points:
-        register_function_for_pre_op_switch(
-            class_name=point["class_name"],
-            method=point["method"],
-            backend="Snowflake",
-        )
-
-    for point in post_op_switch_points:
-        register_function_for_post_op_switch(
-            class_name=point["class_name"],
-            method=point["method"],
-            backend="Snowflake",
-        )
-    Backend.set_active_backends(["Snowflake", "Pandas"])
-else:  # pragma: no branch
-    modin_factories.PandasOnSnowflakeFactory = PandasOnSnowflakeFactory
-    Engine.add_option("Snowflake")
-    Engine.put("Snowflake")
+for point in post_op_switch_points:
+    register_function_for_post_op_switch(
+        class_name=point["class_name"],
+        method=point["method"],
+        backend="Snowflake",
+    )
+Backend.set_active_backends(["Snowflake", "Pandas"])
 
 
 # === SET UP TELEMETRY ===
@@ -302,173 +279,119 @@ from modin.pandas.accessor import ModinAPI  # isort: skip  # noqa: E402,F401
 
 from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip  # noqa: E402,F401
     TELEMETRY_PRIVATE_METHODS,
+    connect_modin_telemetry,
     snowpark_pandas_telemetry_standalone_function_decorator,
     try_add_telemetry_to_attribute,
 )
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    from snowflake.snowpark.modin.plugin._internal.telemetry import (  # isort: skip  # noqa: E402,F401
-        connect_modin_telemetry,
-    )
+# Telemetry is currently not recorded for the ModinAPI accessor object, which contains methods such as
+# df.modin.to_pandas() that Snowpark pandas raises NotImplementedError for.
+from modin.pandas.base import BasePandasDataset  # isort: skip  # noqa: E402,F401
+from modin.pandas.groupby import (  # isort: skip  # noqa: E402,F401
+    DataFrameGroupBy,
+    SeriesGroupBy,
+)
+from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
+    register_base_accessor,
+    register_dataframe_groupby_accessor,
+    register_series_groupby_accessor,
+)
 
-    # Telemetry is currently not recorded for the ModinAPI accessor object, which contains methods such as
-    # df.modin.to_pandas() that Snowpark pandas raises NotImplementedError for.
-    from modin.pandas.base import BasePandasDataset  # isort: skip  # noqa: E402,F401
-    from modin.pandas.groupby import (
-        DataFrameGroupBy,
-        SeriesGroupBy,
-    )  # isort: skip  # noqa: E402,F401
-    from modin.pandas.api.extensions import (  # isort: skip  # noqa: E402,F401
-        register_base_accessor,
-        register_dataframe_groupby_accessor,
-        register_series_groupby_accessor,
-    )
 
-    def _maybe_apply_telemetry(
-        cls: Union[DataFrame, Series, BasePandasDataset],
-        register_method: Callable,
-        attr_name: str,
-    ) -> Any:
-        if (
-            # Skip the `modin` accessor object.
-            attr_name != "modin"
-            and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
-            and (
-                not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
-            )
-        ):
-            # If we already defined the method via the extensions system, then we need to retrieve it from
-            # the extensions dictionary directly to circumvent modin's caster dispatch wrapper. If the
-            # method was not defined by extension, then just use the original upstream definition.
-            # Note that unlike prior versions of Snowpark pandas, we check BasePandasDataset extensions
-            # separately from child Series/DataFrame extensions.
-            attr_value = cls._extensions["Snowflake"].get(
-                attr_name, getattr(cls, attr_name)
-            )
-            # Because the QueryCompilerCaster ABC automatically wraps all methods with a dispatch to the appropriate
-            # backend, we must use the _wrapped_method_for_casting property of the originally-defined attribute to avoid
-            # infinite recursion.
-            # Do not check for _wrapped_method_for_casting if this was already defined as a Snowflake extension,
-            # since we use decorators to raise NotImplementedError and apply exceptions.
-            if attr_name not in cls._extensions["Snowflake"] and hasattr(
-                attr_value, "_wrapped_method_for_casting"
-            ):
-                attr_value = attr_value._wrapped_method_for_casting
-
-            register_method(attr_name, backend="Snowflake")(
-                try_add_telemetry_to_attribute(attr_name, attr_value)
-            )
-
-    # Iterating over __dict__ will skip over any methods defined by BasePandasDataset, while
-    # still picking up methods like to_snowflake defined via the extensions system.
-    for attr_name in Series.__dict__:
-        _maybe_apply_telemetry(Series, register_series_accessor, attr_name)
-
-    for attr_name in DataFrame.__dict__:
-        _maybe_apply_telemetry(DataFrame, register_dataframe_accessor, attr_name)
-
-    for attr_name in BasePandasDataset.__dict__:
-        # To prevent double-counting of APIs, only record telemetry if Series/DataFrame BOTH do not
-        # define the method as extensions themselves. This will create under-reporting in certain edge cases
-        # where BasePandasDataset and DataFrame both define a method but Series does not, but few APIs
-        # are affected by this.
-        if (
-            attr_name not in DataFrame._extensions["Snowflake"]
-            and attr_name not in Series._extensions["Snowflake"]
-        ):
-            _maybe_apply_telemetry(BasePandasDataset, register_base_accessor, attr_name)
-
-    for attr_name in DataFrameGroupBy.__dict__:
-        _maybe_apply_telemetry(
-            DataFrameGroupBy, register_dataframe_groupby_accessor, attr_name
+def _maybe_apply_telemetry(
+    cls: Union[DataFrame, Series, BasePandasDataset],
+    register_method: Callable,
+    attr_name: str,
+) -> Any:
+    if (
+        # Skip the `modin` accessor object.
+        attr_name != "modin"
+        and attr_name not in _NON_EXTENDABLE_ATTRIBUTES
+        and (not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS)
+    ):
+        # If we already defined the method via the extensions system, then we need to retrieve it from
+        # the extensions dictionary directly to circumvent modin's caster dispatch wrapper. If the
+        # method was not defined by extension, then just use the original upstream definition.
+        # Note that unlike prior versions of Snowpark pandas, we check BasePandasDataset extensions
+        # separately from child Series/DataFrame extensions.
+        attr_value = cls._extensions["Snowflake"].get(
+            attr_name, getattr(cls, attr_name)
         )
-
-    for attr_name in SeriesGroupBy.__dict__:
-        _maybe_apply_telemetry(
-            SeriesGroupBy, register_series_groupby_accessor, attr_name
-        )
-
-    # Apply telemetry to top-level functions in the pd namespace.
-    defined_backend = None
-    for attr_name in dir(modin.pandas):
-        # Upstream modin creates a dispatch wrapper for top-level methods, so we need to read
-        # from the extensions dict instead of directly calling getattr to prevent recursion.
-        if attr_name in _GENERAL_EXTENSIONS["Snowflake"]:
-            defined_backend = "Snowflake"
-        else:
-            # We can't call register_pd_accessor(backend="Snowflake")(attr_value) if the object was not
-            # defined on the Snowflake backend because this causes infinite mutual recursion.
-            defined_backend = None
-            continue
-        attr_value = _GENERAL_EXTENSIONS[defined_backend].get(
-            attr_name, getattr(modin.pandas, attr_name)
-        )
-        # Do not check for _wrapped_method_for_casting if this was defined as a Snowflake extension, since we use
-        # decorators to raise NotImplementedError and apply exceptions.
-        if defined_backend != "Snowflake" and hasattr(
+        # Because the QueryCompilerCaster ABC automatically wraps all methods with a dispatch to the appropriate
+        # backend, we must use the _wrapped_method_for_casting property of the originally-defined attribute to avoid
+        # infinite recursion.
+        # Do not check for _wrapped_method_for_casting if this was already defined as a Snowflake extension,
+        # since we use decorators to raise NotImplementedError and apply exceptions.
+        if attr_name not in cls._extensions["Snowflake"] and hasattr(
             attr_value, "_wrapped_method_for_casting"
         ):
             attr_value = attr_value._wrapped_method_for_casting
-        # Do not add telemetry to any method that is mirrored from native pandas
-        if (
-            inspect.isfunction(attr_value)
-            and not attr_name.startswith("_")
-            and attr_value is not getattr(pandas, attr_name, None)
-        ):
-            register_pd_accessor(attr_name, backend=defined_backend)(
-                snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
-            )
-    # enable Modin's metrics system to collect API data for hybrid execution in parallel with
-    # Snowpark-pandas specific information
-    connect_modin_telemetry()
-else:
-    # Add telemetry on the ModinAPI accessor object.
-    # modin 0.30.1 introduces the pd.DataFrame.modin accessor object for non-pandas methods,
-    # such as pd.DataFrame.modin.to_pandas and pd.DataFrame.modin.to_ray. We will automatically
-    # raise NotImplementedError for all methods on this accessor object except to_pandas, but
-    # we still want to record telemetry.
-    for attr_name in dir(ModinAPI):
-        if not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS:
-            setattr(
-                ModinAPI,
-                attr_name,
-                try_add_telemetry_to_attribute(attr_name, getattr(ModinAPI, attr_name)),
-            )
 
-    for attr_name in dir(Series):
-        # Since Series is defined in upstream Modin, all of its members were either defined upstream
-        # or overridden by extension.
-        # Skip the `modin` accessor object, since we apply telemetry to all its fields.
-        if attr_name != "modin" and (
-            not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
-        ):
-            register_series_accessor(attr_name)(
-                try_add_telemetry_to_attribute(attr_name, getattr(Series, attr_name))
-            )
+        register_method(attr_name, backend="Snowflake")(
+            try_add_telemetry_to_attribute(attr_name, attr_value)
+        )
 
-    for attr_name in dir(DataFrame):
-        # Since DataFrame is defined in upstream Modin, all of its members were either defined upstream
-        # or overridden by extension.
-        # Skip the `modin` accessor object, since we apply telemetry to all its fields.
-        if attr_name != "modin" and (
-            not attr_name.startswith("_") or attr_name in TELEMETRY_PRIVATE_METHODS
-        ):
-            register_dataframe_accessor(attr_name)(
-                try_add_telemetry_to_attribute(attr_name, getattr(DataFrame, attr_name))
-            )
 
-    # Apply telemetry to all top-level functions in the pd namespace.
+# Iterating over __dict__ will skip over any methods defined by BasePandasDataset, while
+# still picking up methods like to_snowflake defined via the extensions system.
+for attr_name in Series.__dict__:
+    _maybe_apply_telemetry(Series, register_series_accessor, attr_name)
 
-    for attr_name, attr_value in modin.pandas.__dict__.items():
-        # Do not add telemetry to any method that is mirrored from native pandas
-        if (
-            inspect.isfunction(attr_value)
-            and not attr_name.startswith("_")
-            and attr_value is not getattr(pandas, attr_name, None)
-        ):
-            register_pd_accessor(attr_name)(
-                snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
-            )
+for attr_name in DataFrame.__dict__:
+    _maybe_apply_telemetry(DataFrame, register_dataframe_accessor, attr_name)
+
+for attr_name in BasePandasDataset.__dict__:
+    # To prevent double-counting of APIs, only record telemetry if Series/DataFrame BOTH do not
+    # define the method as extensions themselves. This will create under-reporting in certain edge cases
+    # where BasePandasDataset and DataFrame both define a method but Series does not, but few APIs
+    # are affected by this.
+    if (
+        attr_name not in DataFrame._extensions["Snowflake"]
+        and attr_name not in Series._extensions["Snowflake"]
+    ):
+        _maybe_apply_telemetry(BasePandasDataset, register_base_accessor, attr_name)
+
+for attr_name in DataFrameGroupBy.__dict__:
+    _maybe_apply_telemetry(
+        DataFrameGroupBy, register_dataframe_groupby_accessor, attr_name
+    )
+
+for attr_name in SeriesGroupBy.__dict__:
+    _maybe_apply_telemetry(SeriesGroupBy, register_series_groupby_accessor, attr_name)
+
+# Apply telemetry to top-level functions in the pd namespace.
+defined_backend = None
+for attr_name in dir(modin.pandas):
+    # Upstream modin creates a dispatch wrapper for top-level methods, so we need to read
+    # from the extensions dict instead of directly calling getattr to prevent recursion.
+    if attr_name in _GENERAL_EXTENSIONS["Snowflake"]:
+        defined_backend = "Snowflake"
+    else:
+        # We can't call register_pd_accessor(backend="Snowflake")(attr_value) if the object was not
+        # defined on the Snowflake backend because this causes infinite mutual recursion.
+        defined_backend = None
+        continue
+    attr_value = _GENERAL_EXTENSIONS[defined_backend].get(
+        attr_name, getattr(modin.pandas, attr_name)
+    )
+    # Do not check for _wrapped_method_for_casting if this was defined as a Snowflake extension, since we use
+    # decorators to raise NotImplementedError and apply exceptions.
+    if defined_backend != "Snowflake" and hasattr(
+        attr_value, "_wrapped_method_for_casting"
+    ):
+        attr_value = attr_value._wrapped_method_for_casting
+    # Do not add telemetry to any method that is mirrored from native pandas
+    if (
+        inspect.isfunction(attr_value)
+        and not attr_name.startswith("_")
+        and attr_value is not getattr(pandas, attr_name, None)
+    ):
+        register_pd_accessor(attr_name, backend=defined_backend)(
+            snowpark_pandas_telemetry_standalone_function_decorator(attr_value)
+        )
+# enable Modin's metrics system to collect API data for hybrid execution in parallel with
+# Snowpark-pandas specific information
+connect_modin_telemetry()
 
 # === SESSION INITIALIZATION ===
 # Make SnowpandasSessionHolder the __class__ of modin.pandas so that we can make

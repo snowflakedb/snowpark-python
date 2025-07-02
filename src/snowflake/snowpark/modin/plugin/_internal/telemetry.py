@@ -20,14 +20,12 @@ from snowflake.snowpark._internal.telemetry import TelemetryField, safe_telemetr
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.modin.plugin._internal.utils import (
     is_snowpark_pandas_dataframe_or_series_type,
-    MODIN_IS_AT_LEAST_0_33_0,
 )
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.session import Session
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    from modin.logging.metrics import add_metric_handler
-    from modin.config import MetricsMode
+from modin.logging.metrics import add_metric_handler
+from modin.config import MetricsMode
 
 # Define ParamSpec with "_Args" as the generic parameter specification similar to Any
 _Args = ParamSpec("_Args")
@@ -611,7 +609,6 @@ class TelemetryMeta(type):
     def __new__(
         cls, name: str, bases: tuple, attrs: dict[str, Any]
     ) -> Union[
-        "snowflake.snowpark.modin.plugin.extensions.groupby_overrides.DataFrameGroupBy",
         "snowflake.snowpark.modin.plugin.extensions.resample_overrides.Resampler",
         "snowflake.snowpark.modin.plugin.extensions.window_overrides.Window",
         "snowflake.snowpark.modin.plugin.extensions.window_overrides.Rolling",
@@ -624,7 +621,6 @@ class TelemetryMeta(type):
         with ``snowpark_pandas_telemetry_api_usage`` telemetry decorator.
         Method arguments returned by _get_kwargs_telemetry are collected otherwise set telemetry_args=list().
         TelemetryMeta is only set as the metaclass of:
-         snowflake.snowpark.modin.plugin.extensions.groupby_overrides.DataFrameGroupBy,
          snowflake.snowpark.modin.plugin.extensions.resample_overrides.Resampler,
          snowflake.snowpark.modin.plugin.extensions.window_overrides.Window,
          snowflake.snowpark.modin.plugin.extensions.window_overrides.Rolling, and their subclasses.
@@ -636,8 +632,7 @@ class TelemetryMeta(type):
             attrs (Dict[str, Any]): The attributes of the class.
 
         Returns:
-            Union[snowflake.snowpark.modin.plugin.extensions.groupby_overrides.DataFrameGroupBy,
-                snowflake.snowpark.modin.plugin.extensions.resample_overrides.Resampler,
+            Union[snowflake.snowpark.modin.plugin.extensions.resample_overrides.Resampler,
                 snowflake.snowpark.modin.plugin.extensions.window_overrides.Window,
                 snowflake.snowpark.modin.plugin.extensions.window_overrides.Rolling]:
                 The modified class with decorated methods.
@@ -671,69 +666,72 @@ def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -
             pass
 
 
-if MODIN_IS_AT_LEAST_0_33_0:
+hybrid_switch_log = native_pd.DataFrame({})
+
+
+def clear_hybrid_switch_log() -> None:
+    global hybrid_switch_log
     hybrid_switch_log = native_pd.DataFrame({})
 
-    def clear_hybrid_switch_log() -> None:
-        global hybrid_switch_log
-        hybrid_switch_log = native_pd.DataFrame({})
+def get_hybrid_switch_log() -> native_pd.DataFrame:
+    global hybrid_switch_log
+    return hybrid_switch_log.copy()
 
-    def get_hybrid_switch_log() -> native_pd.DataFrame:
-        global hybrid_switch_log
-        return hybrid_switch_log.copy()
 
-    @functools.cache
-    def get_user_source_location(group: str) -> dict[str, str]:
-        import inspect
+@functools.cache
+def get_user_source_location(group: str) -> dict[str, str]:
+    import inspect
 
-        stack = inspect.stack()
-        frame_before_snowpandas = None
-        location = "<unknown>"
-        for f in reversed(stack):
-            if f.filename is None:
-                continue
-            if "snowpark" in f.filename or "modin" in f.filename:
-                break
-            else:
-                frame_before_snowpandas = f
-        if (
-            frame_before_snowpandas is not None
-            and frame_before_snowpandas.code_context is not None
-        ):
-            location = frame_before_snowpandas.code_context[0].replace("\n", "")
-        return {"group": group, "source": location}
-
-    def hybrid_describe_telemetry_watcher(
-        metric_name: str, metric_value: Union[int, float]
-    ) -> None:
-        global hybrid_switch_log
-        mode = None
-        if metric_name.startswith("modin.hybrid.auto"):
-            mode = "auto"
-        elif metric_name.startswith("modin.hybrid.merge"):
-            mode = "merge"
+    stack = inspect.stack()
+    frame_before_snowpandas = None
+    location = "<unknown>"
+    for f in reversed(stack):
+        if f.filename is None:
+            continue
+        if "snowpark" in f.filename or "modin" in f.filename:
+            break
         else:
-            return
-        tokens = metric_name.split(".")[3:]
-        entry = {"mode": mode}
-        while len(tokens) >= 2:
-            key = tokens.pop(0)
-            if key == "api":
-                value = tokens.pop(0) + "." + tokens.pop(0)
-            else:
-                value = tokens.pop(0)
-            entry[key] = value
+            frame_before_snowpandas = f
+    if (
+        frame_before_snowpandas is not None
+        and frame_before_snowpandas.code_context is not None
+    ):
+        location = frame_before_snowpandas.code_context[0].replace("\n", "")
+    return {"group": group, "source": location}
 
-        if len(tokens) == 1:
-            key = tokens.pop(0)
-            entry[key] = metric_value  # type: ignore[assignment]
 
-        source = get_user_source_location(entry["group"])
-        entry["source"] = source["source"]
-        new_row = native_pd.DataFrame(entry, index=[0])
-        hybrid_switch_log = native_pd.concat([hybrid_switch_log, new_row]).tail(1000)
+def hybrid_describe_telemetry_watcher(
+    metric_name: str, metric_value: Union[int, float]
+) -> None:
+    global hybrid_switch_log
+    mode = None
+    if metric_name.startswith("modin.hybrid.auto"):
+        mode = "auto"
+    elif metric_name.startswith("modin.hybrid.merge"):
+        mode = "merge"
+    else:
+        return
+    tokens = metric_name.split(".")[3:]
+    entry = {"mode": mode}
+    while len(tokens) >= 2:
+        key = tokens.pop(0)
+        if key == "api":
+            value = tokens.pop(0) + "." + tokens.pop(0)
+        else:
+            value = tokens.pop(0)
+        entry[key] = value
 
-    def connect_modin_telemetry() -> None:
-        MetricsMode.enable()
-        add_metric_handler(modin_telemetry_watcher)
-        add_metric_handler(hybrid_describe_telemetry_watcher)
+    if len(tokens) == 1:
+        key = tokens.pop(0)
+        entry[key] = metric_value  # type: ignore[assignment]
+
+    source = get_user_source_location(entry["group"])
+    entry["source"] = source["source"]
+    new_row = native_pd.DataFrame(entry, index=[0])
+    hybrid_switch_log = native_pd.concat([hybrid_switch_log, new_row])
+
+
+def connect_modin_telemetry() -> None:
+    MetricsMode.enable()
+    add_metric_handler(modin_telemetry_watcher)
+    add_metric_handler(hybrid_describe_telemetry_watcher)
