@@ -31,6 +31,9 @@ error: "Noarch build for Python version {{ py }} is not supported. Supported ver
 requirements:
   host:
     - python
+    {% if not noarch_build %}
+    - cross-python_{{ target_platform }}
+    {% endif %}
     - pip
     - setuptools >=40.6.0
     - wheel
