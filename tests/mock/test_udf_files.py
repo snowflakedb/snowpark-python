@@ -250,10 +250,12 @@ def test_readline_snowflakefile(
     result = df.select(get_line(col("temp_file"), col("read_mode"))).collect()
     actual_line = result[0][0]
     # used to ensure compatibility with tests on windows OS which adds \r before \n
+
     if read_mode == "rb":
-        actual_line.replace(b"\r", b"")
+        actual_line = actual_line.replace(b"\r", b"")
     else:
-        actual_line.replace("\r", "")
+        actual_line = actual_line.replace("\r", "")
+
     Utils.check_answer(Row(actual_line), Row(lines[0]))
 
 
