@@ -248,8 +248,13 @@ def test_readline_snowflakefile(
         schema=["read_mode", "temp_file"],
     )
     result = df.select(get_line(col("temp_file"), col("read_mode"))).collect()
-    length = len(lines[0])  # need for windows testing to escape the added \r in result
-    Utils.check_answer(result[: length - 2], [Row(lines[0][: length - 1])])
+    actual_line = result[0][0]
+    # used to ensure compatibility with tests on windows OS which adds \r before \n
+    if read_mode == "rb":
+        actual_line.replace(b"\r", b"")
+    else:
+        actual_line.replace("\r", "")
+    Utils.check_answer(Row(actual_line), Row(lines[0]))
 
 
 @pytest.mark.parametrize(
