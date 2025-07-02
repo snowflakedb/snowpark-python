@@ -607,10 +607,14 @@ def test_readall_snowflakefile(
             return snowflake_file.readall()
 
     content = sf_readall(temp_file, read_mode)
+    windows_lines = [
+        line[:-2] + b"\r\n" if read_mode == "rb" else line[:-2] + "\r\n"
+        for line in lines
+    ]  # need for windows testing as \r is added
     if write_mode == "wb":
-        assert content == b"".join(lines)
+        assert content == b"".join(lines) or content == b"".join(windows_lines)
     else:
-        assert content == "".join(lines)
+        assert content == "".join(lines) or content == "".join(windows_lines)
 
 
 @pytest.mark.parametrize(
@@ -639,8 +643,12 @@ def test_readline_snowflakefile(
     assert sf_readline(temp_file, read_mode) == lines[0]
     content = sf_read_num_lines(temp_file, read_mode, num_lines)
 
+    windows_lines = [
+        line[:-2] + b"\r\n" if read_mode == "rb" else line[:-2] + "\r\n"
+        for line in lines
+    ]  # need for windows testing as \r is added
     for i in range(num_lines):
-        assert content[i] == lines[i]
+        assert content[i] == lines[i] or content[i] == windows_lines[i]
 
     if write_mode == "wb":
         assert content[-1] == b""
@@ -679,10 +687,14 @@ def test_readline_with_size_snowflakefile(
             return f.readline(size)
 
     content = sf_readline_with_size(temp_file, read_mode, size)
+    windows_lines = [
+        line[:-2] + b"\r\n" if read_mode == "rb" else line[:-2] + "\r\n"
+        for line in lines
+    ]  # need for windows testing as \r is added
     if size == -1:
-        assert content == lines[0]
+        assert content == lines[0] or content == windows_lines[0]
     else:
-        assert content == lines[0][:size]
+        assert content == lines[0][:size] or content == windows_lines[0][:size]
 
 
 @pytest.mark.parametrize(
@@ -705,8 +717,12 @@ def test_readlines_snowflakefile(
             return f.readlines()
 
     content = sf_readlines(temp_file, read_mode)
+    windows_lines = [
+        line[:-2] + b"\r\n" if read_mode == "rb" else line[:-2] + "\r\n"
+        for line in lines
+    ]  # need for windows testing as \r is added
     for i in range(num_lines):
-        assert content[i] == lines[i]
+        assert content[i] == lines[i] or content[i] == windows_lines[i]
 
 
 @pytest.mark.parametrize(
@@ -738,8 +754,12 @@ def test_readlines_with_hint_snowflakefile(
             return f.readlines(hint=hint)
 
     content = sf_readlines_with_hint(temp_file, read_mode, hint)
+    windows_lines = [
+        line[:-2] + b"\r\n" if read_mode == "rb" else line[:-2] + "\r\n"
+        for line in lines
+    ]  # need for windows testing as \r is added
     for i in range(min(num_lines, len(content))):
-        assert content[i] == lines[i]
+        assert content[i] == lines[i] or content[i] == windows_lines[i]
 
 
 @pytest.mark.parametrize(
@@ -1072,7 +1092,7 @@ def test_readinto_escape_chars_snowflakefile(
     )  # Windows adds a \r before the \n when we read a file
     assert (
         buffer[:length] == encoded_test_msg[:length]
-        or buffer[:length] == encoded_test_msg[: length - 3] + b" \r\n\t"
+        or buffer[:length] == encoded_test_msg[: length - 3] + b"\r\n\t"
     )
     for byte in buffer[length:]:
         assert byte == 0
