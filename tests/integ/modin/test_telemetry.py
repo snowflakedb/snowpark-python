@@ -18,7 +18,6 @@ from pandas._libs.lib import NoDefault, no_default
 import snowflake.snowpark.modin.plugin  # noqa: F401
 import snowflake.snowpark.session
 from snowflake.snowpark._internal.telemetry import TelemetryClient, TelemetryField
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     _not_equal_to_default,
     _send_modin_api_telemetry,
@@ -230,9 +229,6 @@ def test_modin_telemetry(send_telemetry_mock, session):
     """
     Tests that a call to a pandas-api method triggers a call to _send_modin_api_telemetry
     """
-    if not MODIN_IS_AT_LEAST_0_33_0:
-        pytest.skip("Only modin>=0.33.0 is supported")
-
     df = pd.DataFrame(BASIC_TYPE_DATA1)
     # to_string is an eager API that will trigger telemetry immediately
     df.describe().to_string()
@@ -415,8 +411,6 @@ def test_telemetry_with_groupby():
     assert (
         results._query_compiler.snowpark_pandas_api_calls[0]["name"]
         == "DataFrameGroupBy.mean"
-        if MODIN_IS_AT_LEAST_0_33_0
-        else "DataFrameGroupBy.DataFrameGroupBy.mean"
     )
 
 
@@ -436,16 +430,8 @@ def test_telemetry_with_rolling():
 @sql_count_checker(query_count=2, join_count=2)
 def test_telemetry_getitem_setitem():
     # Telemetry name changed between versions due to different applications of overrides.
-    df_getitem_name = (
-        "DataFrame.BasePandasDataset.__getitem__"
-        if MODIN_IS_AT_LEAST_0_33_0
-        else "DataFrame.__getitem__"
-    )
-    series_getitem_name = (
-        "Series.BasePandasDataset.__getitem__"
-        if MODIN_IS_AT_LEAST_0_33_0
-        else "Series.__getitem__"
-    )
+    df_getitem_name = "DataFrame.BasePandasDataset.__getitem__"
+    series_getitem_name = "Series.BasePandasDataset.__getitem__"
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     s = df["a"]
     assert len(df._query_compiler.snowpark_pandas_api_calls) == 0
@@ -828,9 +814,6 @@ def test_modin_e2e_telemetry(send_mock, session):
     """
     Tests that a DataFrame operation triggers a call to TelemetryClient.send with the correct modin telemetry.
     """
-    if not MODIN_IS_AT_LEAST_0_33_0:
-        pytest.skip("Only modin>=0.33.0 is supported")
-
     df = pd.DataFrame(BASIC_TYPE_DATA1)
     df.value_counts().to_string()
 
