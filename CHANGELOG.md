@@ -26,6 +26,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 
 - Fixed a bug caused by redundant validation when creating an iceberg table.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where closing the cursor or connection could unexpectedly raise an error and terminate the program.
+- Fixed ambiguous column errors when using table functions in `DataFrame.select()` that have output columns matching the input DataFrame's columns. This improvement works when dataframe columns are provided as `Column` objects.
 
 ### Snowpark Local Testing Updates
 
@@ -1946,7 +1947,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 ### Bug Fixes
 
 - Fixed a bug that overwrote `paramstyle` to `qmark` when creating a Snowpark session.
-- Fixed a bug where `df.join(..., how="cross")` fails with `SnowparkJoinException: (1112): Unsupported using join type 'Cross'`.
+- Fixed a bug where `df.join(..., how="cross")` fails with `SnowparkJoinException: (1112): Unsupported using join type 'Cross'`.
 - Fixed a bug where querying a `DataFrame` column created from chained function calls used a wrong column name.
 
 ## 1.1.0 (2023-01-26)
