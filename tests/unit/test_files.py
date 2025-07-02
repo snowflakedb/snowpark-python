@@ -53,13 +53,19 @@ def _write_test_msg_to_stage(
 
 
 def _generate_and_write_lines(
-    num_lines: int, write_mode: str, file_location: str
+    num_lines: int,
+    write_mode: str,
+    file_location: str,
+    msg: Union[str, bytes] = None,
 ) -> tuple[list[Union[str, bytes]], str]:
     """
     Generates a list of test messages and writes them to the specified file location.
     """
     file_location = os.path.join(file_location, f"{generate_random_alphanumeric()}.txt")
-    lines = [f"{generate_random_alphanumeric()}\n" for _ in range(num_lines)]
+    lines = [
+        f"{generate_random_alphanumeric()}\n" if msg is None else f"{msg}\n"
+        for _ in range(num_lines)
+    ]
     if write_mode == "wb":
         lines = [line.encode() for line in lines]
 
@@ -76,9 +82,10 @@ def _generate_and_write_lines_to_stage(
     file_location: str,
     tmp_stage: str,
     session: Session,
+    msg: Union[str, bytes] = None,
 ) -> tuple[list[Union[str, bytes]], str]:
     lines, file_location = _generate_and_write_lines(
-        num_lines, write_mode, file_location
+        num_lines, write_mode, file_location, msg
     )
     Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
     return lines, f"@{tmp_stage}/{file_location.split('/')[-1]}"
@@ -711,6 +718,36 @@ def test_readlines_snowflakefile(
     else:
         lines, temp_file = _generate_and_write_lines_to_stage(
             num_lines, write_mode, tmp_path, tmp_stage, session
+        )
+
+    def sf_readlines(file_location: str, mode: str) -> list:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.readlines()
+
+    content = sf_readlines(temp_file, read_mode)
+    windows_lines = [
+        line[:-1] + b"\r\n" if read_mode == "rb" else line[:-1] + "\r\n"
+        for line in lines
+    ]  # need for windows testing as \r is added
+    for i in range(num_lines):
+        assert content[i] == lines[i] or content[i] == windows_lines[i]
+
+
+@pytest.mark.parametrize(
+    ["read_mode", "write_mode", "use_stage"],
+    [("r", "w", True), ("r", "w", False), ("rb", "wb", True), ("rb", "wb", False)],
+)
+def test_readlines_with_unicode_snowflakefile(
+    read_mode, write_mode, use_stage, tmp_path, tmp_stage, session
+):
+    num_lines = 5
+    if not use_stage:
+        lines, temp_file = _generate_and_write_lines(
+            num_lines, write_mode, tmp_path, "これはUnicodeテストです"
+        )
+    else:
+        lines, temp_file = _generate_and_write_lines_to_stage(
+            num_lines, write_mode, tmp_path, tmp_stage, session, "これはUnicodeテストです"
         )
 
     def sf_readlines(file_location: str, mode: str) -> list:
