@@ -2194,30 +2194,27 @@ def test_show_dataframe_spark(session):
             [
                 (float("inf"),),
                 (float("-inf"),),
-                (1e15,),
-                (1e-15,),
+                (1.000005e17,),
+                (1.000005e-17,),
             ],
             df2_col_names,
         )
 
         assert_show_string_equals(
             df2._show_string_spark(
-                truncate=10,
+                truncate=False,
                 _spark_column_names=df2_col_names,
             ),
             dedent(
                 """
-            +---------+
-            |   col_1 |
-            +---------+
-            |Infinity |
-            +---------+
-            |-Infinity|
-            +---------+
-            |     1E15|
-            +---------+
-            |    1E-15|
-            +---------+
+            +------------+
+            |        col1|
+            +------------+
+            |    Infinity|
+            |   -Infinity|
+            | 1.000005E17|
+            |1.000005E-17|
+            +------------+
             """
             ),
         )
