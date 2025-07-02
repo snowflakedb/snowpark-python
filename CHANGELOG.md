@@ -11,6 +11,8 @@
 - Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
 - Added a new function `snowflake.snowpark.dataframe.map_in_pandas` that allows users map a function across a dataframe. The mapping function takes an iterator of pandas dataframes as input and provides one as output.
 - Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
+- Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in
+local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
 
 #### Improvements
 
@@ -40,6 +42,9 @@
 
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
 - Added support for `pd.read_feather`.
+
+#### Improvements
+- Add a data type guard to the cost functions for hybrid execution which checks for data type compatibility
 
 #### Bug Fixes
 - Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
