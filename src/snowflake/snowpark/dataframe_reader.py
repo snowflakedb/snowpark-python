@@ -1359,11 +1359,12 @@ class DataFrameReader:
                 before uploading it. This improves performance by reducing the number of
                 small Parquet files. Defaults to 1, meaning each `fetch_size` batch is written to its own
                 Parquet file and uploaded separately.
-            fetch_with_process: Whether to use multiprocessing for data fetching and parquet file generation.
-                By default, this is set to False, which means multithreading is used to fetch data in parallel.
-                Setting this to True enables multiprocessing, which may offer better performance for CPU-bound tasks
-                such as Parquet file generation. When using multiprocessing, ensure that your script is guarded with
+            fetch_with_process: Whether to use multiprocessing for data fetching and Parquet file generation in local ingestion.
+                Default to `False`, which means multithreading is used to fetch data in parallel.
+                Setting this to `True` enables multiprocessing, which may improve performance for CPU-bound tasks
+                like Parquet file generation. When using multiprocessing, guard your script with
                 `if __name__ == "__main__":` and call `multiprocessing.freeze_support()` on Windows if needed.
+                This parameter has no effect in UDFT ingestion.
 
         Example::
             .. code-block:: python
@@ -1374,6 +1375,17 @@ class DataFrameReader:
                     return connection
 
                 df = session.read.dbapi(create_oracledb_connection, table=...)
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                if __name__ == "__main__":
+                    df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
