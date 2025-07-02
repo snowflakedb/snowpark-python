@@ -249,7 +249,7 @@ def test_readline_snowflakefile(
     )
     result = df.select(get_line(col("temp_file"), col("read_mode"))).collect()
     length = len(lines[0])  # need for windows testing to escape the added \r in result
-    Utils.check_answer(result[: length - 1], [Row(lines[0][: length - 2])])
+    Utils.check_answer(result[: length - 2], [Row(lines[0][: length - 1])])
 
 
 @pytest.mark.parametrize(
