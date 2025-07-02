@@ -35,7 +35,10 @@ def _write_test_msg(
         test_msg = generate_random_alphanumeric()
     if write_mode == "wb":
         test_msg = test_msg.encode()
-    with open(file_location, write_mode) as f:
+    encoding = None
+    if write_mode == "w":
+        encoding = "utf-8"
+    with open(file_location, write_mode, encoding=encoding) as f:
         f.write(test_msg)
     return test_msg, file_location
 
@@ -68,8 +71,10 @@ def _generate_and_write_lines(
     ]
     if write_mode == "wb":
         lines = [line.encode() for line in lines]
-
-    with open(file_location, write_mode) as f:
+    encoding = None
+    if write_mode == "w":
+        encoding = "utf-8"
+    with open(file_location, write_mode, encoding=encoding) as f:
         for line in lines:
             f.write(line)
 

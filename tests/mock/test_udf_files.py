@@ -27,7 +27,10 @@ def _write_test_msg(
         test_msg = generate_random_alphanumeric()
     if write_mode == "wb":
         test_msg = test_msg.encode()
-    with open(file_location, write_mode) as f:
+    encoding = None
+    if write_mode == "w":
+        encoding = "utf-8"
+    with open(file_location, write_mode, encoding=encoding) as f:
         f.write(test_msg)
     return test_msg, file_location
 
@@ -45,17 +48,25 @@ def _write_test_msg_to_stage(
 
 
 def _generate_and_write_lines(
-    num_lines: int, write_mode: str, file_location: str
+    num_lines: int,
+    write_mode: str,
+    file_location: str,
+    msg: Union[str, bytes] = None,
 ) -> tuple[list[Union[str, bytes]], str]:
     """
     Generates a list of test messages and writes them to the specified file location.
     """
     file_location = os.path.join(file_location, f"{generate_random_alphanumeric()}.txt")
-    lines = [f"{generate_random_alphanumeric()}\n" for _ in range(num_lines)]
+    lines = [
+        f"{generate_random_alphanumeric()}\n" if msg is None else f"{msg}\n"
+        for _ in range(num_lines)
+    ]
     if write_mode == "wb":
         lines = [line.encode() for line in lines]
-
-    with open(file_location, write_mode) as f:
+    encoding = None
+    if write_mode == "w":
+        encoding = "utf-8"
+    with open(file_location, write_mode, encoding=encoding) as f:
         for line in lines:
             f.write(line)
 
@@ -68,9 +79,10 @@ def _generate_and_write_lines_to_stage(
     file_location: str,
     tmp_stage: str,
     session: Session,
+    msg: Union[str, bytes] = None,
 ) -> tuple[list[Union[str, bytes]], str]:
     lines, file_location = _generate_and_write_lines(
-        num_lines, write_mode, file_location
+        num_lines, write_mode, file_location, msg
     )
     Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
     return lines, f"@{tmp_stage}/{file_location.split('/')[-1]}"
