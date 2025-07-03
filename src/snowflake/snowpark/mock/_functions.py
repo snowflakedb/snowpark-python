@@ -17,22 +17,14 @@ from decimal import Decimal
 from functools import partial, reduce
 from numbers import Real
 from random import randint
-from typing import Any, Callable, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Optional, Tuple, TypeVar, Union, TYPE_CHECKING
 
 import pytz
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.expression import FunctionExpression
 from snowflake.snowpark._internal.utils import unalias_datetime_part
-from snowflake.snowpark.mock._options import numpy, pandas
-from snowflake.snowpark.mock._snowflake_data_type import (
-    _TIMESTAMP_TYPE_MAPPING,
-    _TIMESTAMP_TYPE_TIMEZONE_MAPPING,
-    ColumnEmulator,
-    ColumnType,
-    TableEmulator,
-    get_coerce_result_type,
-)
+from snowflake.snowpark.mock._options import numpy
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     ArrayType,
@@ -62,8 +54,6 @@ from ._util import (
     process_string_time_with_fractional_seconds,
 )
 
-RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
-
 
 _DEFAULT_OUTPUT_FORMAT = {
     DateType: "YYYY-MM-DD",
@@ -72,6 +62,15 @@ _DEFAULT_OUTPUT_FORMAT = {
 }
 
 _logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.mock._snowflake_data_type import (
+        ColumnEmulator,
+        ColumnType,
+        TableEmulator,
+    )
+
+    RETURN_TYPE = Union[ColumnEmulator, TableEmulator]
 
 
 class MockedFunction:
@@ -100,6 +99,11 @@ class MockedFunction:
         # assume that the single value should be repeated instead of Null filled. This allows
         # constant expressions like current_date or current_database to fill a column instead
         # of just the first row.
+        from snowflake.snowpark.mock._snowflake_data_type import (
+            ColumnEmulator,
+            TableEmulator,
+        )
+
         if (
             not any(isinstance(arg, (ColumnEmulator, TableEmulator)) for arg in args)
             and len(result) == 1
@@ -232,7 +236,9 @@ def patch(function, *args, **kwargs):
 
 
 @patch("min")
-def mock_min(column: ColumnEmulator) -> ColumnEmulator:
+def mock_min(column: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+
     if isinstance(
         column.sf_type.datatype, _NumericType
     ):  # TODO: figure out where 5 is coming from
@@ -253,7 +259,9 @@ def mock_min(column: ColumnEmulator) -> ColumnEmulator:
 
 
 @patch("max")
-def mock_max(column: ColumnEmulator) -> ColumnEmulator:
+def mock_max(column: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+
     if isinstance(column.sf_type.datatype, _NumericType):
         res = ColumnEmulator(data=round(column.max(), 5), sf_type=column.sf_type)
     else:
@@ -271,7 +279,9 @@ def mock_max(column: ColumnEmulator) -> ColumnEmulator:
         return ColumnEmulator(data=res, sf_type=column.sf_type)
 
 
-def _sum(column: ColumnEmulator) -> ColumnEmulator:
+def _sum(column: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     all_item_is_none = True
     res = 0
     for data in column:
@@ -307,18 +317,22 @@ def _sum(column: ColumnEmulator) -> ColumnEmulator:
 
 
 @patch("sum_distinct")
-def mock_sum_distinct(column: ColumnEmulator) -> ColumnEmulator:
+def mock_sum_distinct(column: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+
     column = ColumnEmulator(data=column.unique(), sf_type=column.sf_type)
     return _sum(column)
 
 
 @patch("sum", distinct=mock_sum_distinct)
-def mock_sum(column: ColumnEmulator) -> ColumnEmulator:
+def mock_sum(column: "ColumnEmulator") -> "ColumnEmulator":
     return _sum(column)
 
 
 @patch("avg")
-def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
+def mock_avg(column: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     if not isinstance(column.sf_type.datatype, (_NumericType, NullType)):
         raise SnowparkLocalTestingException(
             f"Cannot compute avg on a column of type {column.sf_type.datatype}"
@@ -353,7 +367,9 @@ def mock_avg(column: ColumnEmulator) -> ColumnEmulator:
 
 
 @patch("stddev")
-def mock_stddev(column: ColumnEmulator) -> ColumnEmulator:
+def mock_stddev(column: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     if not isinstance(column.sf_type.datatype, (_NumericType, NullType)):
         raise SnowparkLocalTestingException(
             f"Cannot compute stddev on a column of type {column.sf_type.datatype}"
@@ -388,7 +404,9 @@ def mock_stddev(column: ColumnEmulator) -> ColumnEmulator:
 @patch("approx_percentile_accumulate")
 def mock_approx_percentile_accumulate(
     column: Union[TableEmulator, ColumnEmulator]
-) -> ColumnEmulator:
+) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
     _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
     return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
@@ -398,7 +416,9 @@ def mock_approx_percentile_accumulate(
 def mock_approx_percentile_estimate(
     column1: Union[TableEmulator, ColumnEmulator],
     column2: Union[TableEmulator, ColumnEmulator],
-) -> ColumnEmulator:
+) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
     _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
     return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
@@ -408,7 +428,9 @@ def mock_approx_percentile_estimate(
 def mock_covar_samp(
     column1: Union[TableEmulator, ColumnEmulator],
     column2: Union[TableEmulator, ColumnEmulator],
-) -> ColumnEmulator:
+) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
     _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
     return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
@@ -418,19 +440,27 @@ def mock_covar_samp(
 def mock_corr_samp(
     column1: Union[TableEmulator, ColumnEmulator],
     column2: Union[TableEmulator, ColumnEmulator],
-) -> ColumnEmulator:
+) -> "ColumnEmulator":
     # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     _logger.warning("TODO SNOW-1800512: Returns dummy value of 42 now, need to fix.")
     return ColumnEmulator(data=42, sf_type=ColumnType(FloatType(), False))
 
 
 @patch("count_distinct")
-def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
+def mock_count_distinct(*cols: "ColumnEmulator") -> "ColumnEmulator":
     """
     Snowflake does not count rows that contain NULL values, in the mocking implementation
     we iterate over each row and then each col to check if there exists NULL value, if the col is NULL,
     we do not count that row.
     """
+    from snowflake.snowpark.mock._snowflake_data_type import (
+        ColumnEmulator,
+        ColumnType,
+        TableEmulator,
+    )
+
     df = TableEmulator()
     for i in range(len(cols)):
         df[cols[i].name] = cols[i]
@@ -441,7 +471,9 @@ def mock_count_distinct(*cols: ColumnEmulator) -> ColumnEmulator:
 
 
 @patch("count", distinct=mock_count_distinct)
-def mock_count(column: Union[TableEmulator, ColumnEmulator]) -> ColumnEmulator:
+def mock_count(column: Union["TableEmulator", "ColumnEmulator"]) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     if isinstance(column, ColumnEmulator):
         count_column = column.count()
         return ColumnEmulator(data=count_column, sf_type=ColumnType(LongType(), False))
@@ -450,7 +482,9 @@ def mock_count(column: Union[TableEmulator, ColumnEmulator]) -> ColumnEmulator:
 
 
 @patch("median")
-def mock_median(column: ColumnEmulator) -> ColumnEmulator:
+def mock_median(column: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     if isinstance(column.sf_type.datatype, DecimalType):
         return_type = DecimalType(
             column.sf_type.datatype.precision + 3, column.sf_type.datatype.scale + 3
@@ -464,7 +498,11 @@ def mock_median(column: ColumnEmulator) -> ColumnEmulator:
 
 
 @patch("covar_pop")
-def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEmulator:
+def mock_covar_pop(
+    column1: "ColumnEmulator", column2: "ColumnEmulator"
+) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     non_nan_cnt = 0
     x_sum, y_sum, x_times_y_sum = 0, 0, 0
     for x, y in zip(column1, column2):
@@ -490,7 +528,9 @@ def mock_covar_pop(column1: ColumnEmulator, column2: ColumnEmulator) -> ColumnEm
 
 
 @patch("array_agg")
-def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
+def mock_array_agg(column: "ColumnEmulator", is_distinct: bool) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
     return ColumnEmulator(
         data=[list(columns_data.dropna())],
@@ -500,6 +540,9 @@ def mock_array_agg(column: ColumnEmulator, is_distinct: bool) -> ColumnEmulator:
 
 @patch("array_construct")
 def mock_array_construct(*columns):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+    from snowflake.snowpark.mock._options import pandas
+
     if len(columns) == 0:
         data = [[]]
     else:
@@ -508,7 +551,9 @@ def mock_array_construct(*columns):
 
 
 @patch("listagg")
-def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
+def mock_listagg(column: "ColumnEmulator", delimiter: str, is_distinct: bool):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     columns_data = ColumnEmulator(column.unique()) if is_distinct else column
     # nit todo: returns a string that includes all the non-NULL input values, separated by the delimiter.
     return ColumnEmulator(
@@ -518,21 +563,27 @@ def mock_listagg(column: ColumnEmulator, delimiter: str, is_distinct: bool):
 
 
 @patch("sqrt")
-def mock_sqrt(column: ColumnEmulator):
+def mock_sqrt(column: "ColumnEmulator"):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     result = column.apply(math.sqrt)
     result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
     return result
 
 
 @patch("ln")
-def mock_ln(column: ColumnEmulator):
+def mock_ln(column: "ColumnEmulator"):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     result = column.apply(math.log)
     result.sf_type = ColumnType(FloatType(), column.sf_type.nullable)
     return result
 
 
 @patch("pow")
-def mock_pow(left: ColumnEmulator, right: ColumnEmulator):
+def mock_pow(left: "ColumnEmulator", right: "ColumnEmulator"):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     result = left.combine(right, lambda l, r: l**r)
     result.sf_type = ColumnType(FloatType(), left.sf_type.nullable)
     return result
@@ -540,7 +591,7 @@ def mock_pow(left: ColumnEmulator, right: ColumnEmulator):
 
 @patch("to_date")
 def mock_to_date(
-    column: ColumnEmulator,
+    column: "ColumnEmulator",
     fmt: str = None,
     try_cast: bool = False,
 ):
@@ -565,6 +616,7 @@ def mock_to_date(
 
         [x] For all other values, a conversion error is generated.
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 
     if isinstance(column.sf_type.datatype, DateType):
         return column.copy()
@@ -638,6 +690,8 @@ def mock_to_date(
 
 @patch("current_timestamp", pass_column_index=True)
 def mock_current_timestamp(column_index):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     return ColumnEmulator(
         data=[datetime.datetime.now()] * len(column_index),
         sf_type=ColumnType(TimestampType(TimestampTimeZone.LTZ), False),
@@ -646,6 +700,8 @@ def mock_current_timestamp(column_index):
 
 @patch("current_date", pass_column_index=True)
 def mock_current_date(column_index):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     now = datetime.datetime.now()
     return ColumnEmulator(
         data=[now.date()] * len(column_index), sf_type=ColumnType(DateType(), False)
@@ -654,6 +710,8 @@ def mock_current_date(column_index):
 
 @patch("current_time", pass_column_index=True)
 def mock_current_time(column_index):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     now = datetime.datetime.now()
     return ColumnEmulator(
         data=[now.time()] * len(column_index), sf_type=ColumnType(TimeType(), False)
@@ -662,6 +720,8 @@ def mock_current_time(column_index):
 
 @patch("hour")
 def mock_hour(expr):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     return ColumnEmulator(
         data=[None if value is None else value.hour for value in expr],
         sf_type=ColumnType(LongType(), False),
@@ -670,6 +730,8 @@ def mock_hour(expr):
 
 @patch("minute")
 def mock_minute(expr):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     return ColumnEmulator(
         data=[None if value is None else value.minute for value in expr],
         sf_type=ColumnType(LongType(), False),
@@ -677,7 +739,9 @@ def mock_minute(expr):
 
 
 @patch("contains")
-def mock_contains(expr1: ColumnEmulator, expr2: ColumnEmulator):
+def mock_contains(expr1: "ColumnEmulator", expr2: "ColumnEmulator"):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     if isinstance(expr1, str) and isinstance(expr2, str):
         return ColumnEmulator(data=[bool(str(expr2) in str(expr1))])
     if isinstance(expr1, ColumnEmulator) and isinstance(expr2, ColumnEmulator):
@@ -693,7 +757,7 @@ def mock_contains(expr1: ColumnEmulator, expr2: ColumnEmulator):
 
 @patch("abs")
 def mock_abs(expr):
-    if isinstance(expr, ColumnEmulator):
+    if isinstance(expr, "ColumnEmulator"):
         result = expr.abs()
         result.sf_type = expr.sf_type
         return result
@@ -703,7 +767,7 @@ def mock_abs(expr):
 
 @patch("to_decimal")
 def mock_to_decimal(
-    e: ColumnEmulator,
+    e: "ColumnEmulator",
     precision: Optional[int] = 38,
     scale: Optional[int] = 0,
     try_cast: bool = False,
@@ -773,6 +837,8 @@ def mock_to_decimal(
         SnowparkLocalTestingException.raise_from_error(
             TypeError(f"Invalid input type to TO_DECIMAL {e.sf_type.datatype}")
         )
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     res.sf_type = ColumnType(
         DecimalType(precision, scale), nullable=e.sf_type.nullable or res.hasnans
     )
@@ -781,7 +847,7 @@ def mock_to_decimal(
 
 @patch("to_time")
 def mock_to_time(
-    column: ColumnEmulator,
+    column: "ColumnEmulator",
     fmt: Optional[str] = None,
     try_cast: bool = False,
 ):
@@ -797,6 +863,7 @@ def mock_to_time(
         [x] For this timestamp, the function gets the number of seconds after the start of the Unix epoch. The function performs a modulo operation to get the remainder from dividing this number by the number of seconds in a day (86400): number_of_seconds % 86400
 
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
     import dateutil.parser
 
     def convert_int_string_to_time(d: str):
@@ -894,8 +961,8 @@ def mock_to_time(
 
 
 def _to_timestamp(
-    column: ColumnEmulator,
-    fmt: Optional[ColumnEmulator],
+    column: "ColumnEmulator",
+    fmt: Optional["ColumnEmulator"],
     try_cast: bool = False,
     add_timezone: bool = False,
     enforce_ltz=False,
@@ -939,6 +1006,8 @@ def _to_timestamp(
 
         [x] If the value is greater than or equal to 31536000000000000, then the value is treated as nanoseconds.
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+
     if len(column) == 0:
         return []
 
@@ -1064,6 +1133,8 @@ def _to_timestamp(
             else:
                 SnowparkLocalTestingException.raise_from_error(exc)
 
+    from snowflake.snowpark.mock._options import pandas
+
     res = column.to_frame().apply(convert_timestamp, axis=1).replace({pandas.NaT: None})
     return [
         x.to_pydatetime() if x is not None and hasattr(x, "to_pydatetime") else x
@@ -1073,10 +1144,16 @@ def _to_timestamp(
 
 @patch("to_timestamp")
 def mock_to_timestamp(
-    column: ColumnEmulator,
-    fmt: Optional[ColumnEmulator] = None,
+    column: "ColumnEmulator",
+    fmt: Optional["ColumnEmulator"] = None,
     try_cast: bool = False,
 ):
+    from snowflake.snowpark.mock._snowflake_data_type import (
+        _TIMESTAMP_TYPE_MAPPING,
+        _TIMESTAMP_TYPE_TIMEZONE_MAPPING,
+    )
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     result = mock_to_timestamp_ntz(column, fmt, try_cast)
 
     result.sf_type = ColumnType(
@@ -1088,10 +1165,12 @@ def mock_to_timestamp(
 
 @patch("to_timestamp_ntz")
 def mock_to_timestamp_ntz(
-    column: ColumnEmulator,
-    fmt: Optional[ColumnEmulator] = None,
+    column: "ColumnEmulator",
+    fmt: Optional["ColumnEmulator"] = None,
     try_cast: bool = False,
 ):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     result = _to_timestamp(column, fmt, try_cast, enforce_ltz=True)
     # Cast to NTZ by removing tz data if present
     return ColumnEmulator(
@@ -1108,10 +1187,12 @@ def mock_to_timestamp_ntz(
 
 @patch("to_timestamp_ltz")
 def mock_to_timestamp_ltz(
-    column: ColumnEmulator,
-    fmt: Optional[ColumnEmulator] = None,
+    column: "ColumnEmulator",
+    fmt: Optional["ColumnEmulator"] = None,
     try_cast: bool = False,
 ):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     result = _to_timestamp(column, fmt, try_cast, add_timezone=True)
 
     # Cast to ltz by providing an empty timezone when calling astimezone
@@ -1128,10 +1209,12 @@ def mock_to_timestamp_ltz(
 
 @patch("to_timestamp_tz")
 def mock_to_timestamp_tz(
-    column: ColumnEmulator,
-    fmt: Optional[ColumnEmulator] = None,
+    column: "ColumnEmulator",
+    fmt: Optional["ColumnEmulator"] = None,
     try_cast: bool = False,
 ):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     # _to_timestamp will use the tz present in the data.
     # Otherwise it adds an appropriate one by default.
     return ColumnEmulator(
@@ -1158,10 +1241,10 @@ def try_convert(convert: Callable, try_cast: bool, val: Any):
 
 @patch("to_char")
 def mock_to_char(
-    column: ColumnEmulator,
+    column: "ColumnEmulator",
     fmt: Optional[str] = None,
     try_cast: bool = False,
-) -> ColumnEmulator:
+) -> "ColumnEmulator":
     """
     https://docs.snowflake.com/en/sql-reference/functions/to_char
     [x] expr: An expression of any data type.
@@ -1171,6 +1254,8 @@ def mock_to_char(
     [x] binary_expr: An expression of type BINARY or VARBINARY.
 
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     if isinstance(column.sf_type.datatype, StringType):
         return column.copy()
 
@@ -1299,14 +1384,14 @@ def mock_to_char(
 
 
 @patch("to_varchar")
-def mock_to_varchar(*args, **kwargs) -> ColumnEmulator:
+def mock_to_varchar(*args, **kwargs) -> "ColumnEmulator":
     return mock_to_char(*args, **kwargs)
 
 
 @patch("to_double")
 def mock_to_double(
-    column: ColumnEmulator, fmt: Optional[str] = None, try_cast: bool = False
-) -> ColumnEmulator:
+    column: "ColumnEmulator", fmt: Optional[str] = None, try_cast: bool = False
+) -> "ColumnEmulator":
     """
         [x] Fixed-point numbers are converted to floating point; the conversion cannot fail, but might result in loss of precision.
 
@@ -1326,6 +1411,8 @@ def mock_to_double(
 
     Note that conversion of decimal fractions to binary and back is not precise (i.e. printing of a floating-point number converted from decimal representation might produce a slightly diffe
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     if isinstance(column.sf_type.datatype, (FloatType, DoubleType)):
         return column.copy()
     if fmt is not None:
@@ -1350,7 +1437,9 @@ def mock_to_double(
 
 
 @patch("to_boolean")
-def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmulator:
+def mock_to_boolean(
+    column: "ColumnEmulator", try_cast: bool = False
+) -> "ColumnEmulator":
     """
     [x] For a text expression, the string must be:
 
@@ -1372,6 +1461,8 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
 
 
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     if isinstance(column.sf_type.datatype, BooleanType):
         return column.copy()
     if isinstance(column.sf_type.datatype, StringType):
@@ -1419,12 +1510,14 @@ def mock_to_boolean(column: ColumnEmulator, try_cast: bool = False) -> ColumnEmu
 
 @patch("to_binary")
 def mock_to_binary(
-    column: ColumnEmulator, fmt: str = None, try_cast: bool = False
-) -> ColumnEmulator:
+    column: "ColumnEmulator", fmt: str = None, try_cast: bool = False
+) -> "ColumnEmulator":
     """
     [x] TO_BINARY( <string_expr> [, '<format>'] )
     [x] TO_BINARY( <variant_expr> )
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     if isinstance(column.sf_type.datatype, BinaryType):
         return column.copy()
 
@@ -1450,10 +1543,14 @@ def mock_to_binary(
 
 @patch("coalesce")
 def mock_coalesce(*exprs):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+
     if len(exprs) < 2:
         raise SnowparkLocalTestingException(
             f"not enough arguments for function [COALESCE], got {len(exprs)}, expected at least two"
         )
+    from snowflake.snowpark.mock._options import pandas
+
     res = pandas.Series(
         exprs[0]
     )  # workaround because sf_type is not inherited properly
@@ -1464,8 +1561,12 @@ def mock_coalesce(*exprs):
 
 @patch("substring")
 def mock_substring(
-    base_expr: ColumnEmulator, start_expr: ColumnEmulator, length_expr: ColumnEmulator
+    base_expr: "ColumnEmulator",
+    start_expr: "ColumnEmulator",
+    length_expr: "ColumnEmulator",
 ):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     res = [
         None if string is None else string[start : start + length]
         for string, start, length in zip(
@@ -1479,7 +1580,9 @@ def mock_substring(
 
 
 @patch("startswith")
-def mock_startswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
+def mock_startswith(expr1: "ColumnEmulator", expr2: "ColumnEmulator"):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     res = [x.startswith(y) if x is not None else None for x, y in zip(expr1, expr2)]
     res = ColumnEmulator(
         res, sf_type=ColumnType(BooleanType(), expr1.sf_type.nullable), dtype=bool
@@ -1488,7 +1591,9 @@ def mock_startswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
 
 
 @patch("endswith")
-def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
+def mock_endswith(expr1: "ColumnEmulator", expr2: "ColumnEmulator"):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     res = [x.endswith(y) if x is not None else None for x, y in zip(expr1, expr2)]
     res = ColumnEmulator(
         res, sf_type=ColumnType(BooleanType(), expr1.sf_type.nullable), dtype=bool
@@ -1498,13 +1603,16 @@ def mock_endswith(expr1: ColumnEmulator, expr2: ColumnEmulator):
 
 @patch("row_number", pass_row_index=True)
 def mock_row_number(row_index: int):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     res = ColumnEmulator(data=[row_index + 1], sf_type=ColumnType(LongType(), False))
     return res
 
 
 @patch("parse_json")
-def mock_parse_json(expr: ColumnEmulator):
+def mock_parse_json(expr: "ColumnEmulator"):
     from snowflake.snowpark.mock import CUSTOM_JSON_DECODER
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
 
     if isinstance(expr.sf_type.datatype, StringType):
         res = expr.apply(
@@ -1519,7 +1627,7 @@ def mock_parse_json(expr: ColumnEmulator):
 
 
 @patch("to_array")
-def mock_to_array(expr: ColumnEmulator):
+def mock_to_array(expr: "ColumnEmulator"):
     """
     [x] If the input is an ARRAY, or VARIANT containing an array value, the result is unchanged.
 
@@ -1527,6 +1635,8 @@ def mock_to_array(expr: ColumnEmulator):
 
     [x] For any other value, the result is a single-element array containing this value.
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     if isinstance(expr.sf_type.datatype, ArrayType):
         return expr.copy()
     if isinstance(expr.sf_type.datatype, VariantType):
@@ -1548,7 +1658,9 @@ def mock_to_array(expr: ColumnEmulator):
 
 
 @patch("strip_null_value")
-def mock_strip_null_value(expr: ColumnEmulator):
+def mock_strip_null_value(expr: "ColumnEmulator"):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     return ColumnEmulator(
         [None if x == "null" else x for x in expr],
         sf_type=ColumnType(expr.sf_type.datatype, True),
@@ -1556,7 +1668,7 @@ def mock_strip_null_value(expr: ColumnEmulator):
 
 
 @patch("to_object")
-def mock_to_object(expr: ColumnEmulator):
+def mock_to_object(expr: "ColumnEmulator"):
     """
     [x] For a VARIANT value containing an OBJECT, returns the OBJECT.
 
@@ -1566,6 +1678,8 @@ def mock_to_object(expr: ColumnEmulator):
 
     [x] For all other input values, reports an error.
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     if isinstance(expr.sf_type.datatype, (MapType, NullType)):
         res = expr.copy()
     elif isinstance(expr.sf_type.datatype, VariantType):
@@ -1591,13 +1705,17 @@ def mock_to_object(expr: ColumnEmulator):
 
 
 @patch("to_variant")
-def mock_to_variant(expr: ColumnEmulator):
+def mock_to_variant(expr: "ColumnEmulator"):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     res = expr.copy()
     res.sf_type = ColumnType(VariantType(), expr.sf_type.nullable)
     return res
 
 
 def _object_construct(exprs, drop_nulls):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+
     expr_count = len(exprs)
     if expr_count % 2 != 0:
         SnowparkLocalTestingException.raise_from_error(
@@ -1616,19 +1734,25 @@ def _object_construct(exprs, drop_nulls):
             if x[i] is not None and not (drop_nulls and x[i + 1] is None)
         }
 
+    from snowflake.snowpark.mock._options import pandas
+
     combined = pandas.concat(exprs, axis=1, ignore_index=True)
     return combined.apply(construct_dict, axis=1)
 
 
 @patch("object_construct")
-def mock_object_construct(*exprs: ColumnEmulator) -> ColumnEmulator:
+def mock_object_construct(*exprs: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     result = _object_construct(exprs, True)
     result.sf_type = ColumnType(MapType(StringType(), StringType()), False)
     return result
 
 
 @patch("object_construct_keep_null")
-def mock_object_construct_keep_null(*exprs: ColumnEmulator) -> ColumnEmulator:
+def mock_object_construct_keep_null(*exprs: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     result = _object_construct(exprs, False)
     result.sf_type = ColumnType(MapType(StringType(), StringType()), True)
     return result
@@ -1645,6 +1769,8 @@ def add_years(date, duration):
 
 
 def add_months(scalar, date, duration):
+    from snowflake.snowpark.mock._options import pandas
+
     res = (
         pandas.to_datetime(date) + pandas.DateOffset(months=scalar * duration)
     ).to_pydatetime()
@@ -1663,8 +1789,10 @@ def add_timedelta(unit, date, duration, scalar=1):
 
 @patch("dateadd")
 def mock_dateadd(
-    part: str, value_expr: ColumnEmulator, datetime_expr: ColumnEmulator
-) -> ColumnEmulator:
+    part: str, value_expr: "ColumnEmulator", datetime_expr: "ColumnEmulator"
+) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     # Extract a standardized name
     part = unalias_datetime_part(part)
     sf_type = datetime_expr.sf_type
@@ -1706,11 +1834,14 @@ def mock_dateadd(
 
 
 @patch("date_part")
-def mock_date_part(part: str, datetime_expr: ColumnEmulator):
+def mock_date_part(part: str, datetime_expr: "ColumnEmulator"):
     """
     SNOW-1183874: Add support for relevant session parameters.
     https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+    from snowflake.snowpark.mock._options import pandas
+
     unaliased = unalias_datetime_part(part)
     datatype = datetime_expr.sf_type.datatype
 
@@ -1785,11 +1916,14 @@ def mock_date_part(part: str, datetime_expr: ColumnEmulator):
 
 
 @patch("date_trunc")
-def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
+def mock_date_trunc(part: str, datetime_expr: "ColumnEmulator") -> "ColumnEmulator":
     """
     SNOW-1183874: Add support for relevant session parameters.
     https://docs.snowflake.com/en/sql-reference/functions/date_part#usage-notes
     """
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+    from snowflake.snowpark.mock._options import pandas
+
     # Map snowflake time unit to pandas rounding alias
     # Not all units have an alias so handle those with a special case
     SUPPORTED_UNITS = {
@@ -1853,8 +1987,9 @@ def mock_date_trunc(part: str, datetime_expr: ColumnEmulator) -> ColumnEmulator:
 
 @patch("datediff")
 def mock_datediff(
-    part: str, col1: ColumnEmulator, col2: ColumnEmulator
-) -> ColumnEmulator:
+    part: str, col1: "ColumnEmulator", col2: "ColumnEmulator"
+) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
     from dateutil import relativedelta
 
     time_unit = unalias_datetime_part(part)
@@ -1890,6 +2025,7 @@ def mock_datediff(
     data = []
     for x, y in zip(col1, col2):
         data.append(None if x is None or y is None else func(x, y))
+    from snowflake.snowpark.mock._options import pandas
 
     return ColumnEmulator(
         pandas.Series(data, dtype=object),
@@ -1934,31 +2070,33 @@ def _greatest(x: CompareType, y: Any) -> Union[CompareType, float]:
 
 
 @patch("greatest")
-def mock_greatest(*exprs: ColumnEmulator):
+def mock_greatest(*exprs: "ColumnEmulator"):
     result = reduce(lambda x, y: x.combine(y, _greatest), exprs)
     result.sf_type = exprs[0].sf_type
     return result
 
 
 @patch("least")
-def mock_least(*exprs: ColumnEmulator):
+def mock_least(*exprs: "ColumnEmulator"):
     result = reduce(lambda x, y: x.combine(y, _least), exprs)
     result.sf_type = exprs[0].sf_type
     return result
 
 
 @patch("upper")
-def mock_upper(expr: ColumnEmulator):
+def mock_upper(expr: "ColumnEmulator"):
     return expr.str.upper()
 
 
 @patch("lower")
-def mock_lower(expr: ColumnEmulator):
+def mock_lower(expr: "ColumnEmulator"):
     return expr.str.lower()
 
 
 @patch("length")
-def mock_length(expr: ColumnEmulator):
+def mock_length(expr: "ColumnEmulator"):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     result = expr.str.len()
     result.sf_type = ColumnType(LongType(), nullable=expr.sf_type.nullable)
     return result
@@ -1986,7 +2124,7 @@ def _initcap(value: Optional[str], delimiters: Optional[str]) -> str:
 
 
 @patch("initcap")
-def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
+def mock_initcap(values: "ColumnEmulator", delimiters: "ColumnEmulator"):
     result = values.combine(delimiters, _initcap)
     result.sf_type = values.sf_type
     return result
@@ -1994,13 +2132,14 @@ def mock_initcap(values: ColumnEmulator, delimiters: ColumnEmulator):
 
 @patch("convert_timezone")
 def mock_convert_timezone(
-    *args: ColumnEmulator,
-) -> ColumnEmulator:
+    *args: "ColumnEmulator",
+) -> "ColumnEmulator":
     """Converts the given source_time to the target timezone.
 
     For timezone information, refer to the `Snowflake SQL convert_timezone notes <https://docs.snowflake.com/en/sql-reference/functions/convert_timezone.html#usage-notes>`_
     """
     import dateutil
+    from snowflake.snowpark.mock._options import pandas
 
     # mock_convert_timezone matches the sql function call semantics.
     # It has different parameters when called with 2 or 3 args.
@@ -2041,6 +2180,7 @@ def mock_convert_timezone(
         return result
 
     res = combined.apply(_convert, axis=1)
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 
     return ColumnEmulator(
         res,
@@ -2053,6 +2193,8 @@ def mock_convert_timezone(
 
 @patch("current_session", pass_column_index=True)
 def mock_current_session(column_index):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     session = snowflake.snowpark.session._get_active_session()
     return ColumnEmulator(
         data=[str(hash(session))] * len(column_index),
@@ -2062,6 +2204,8 @@ def mock_current_session(column_index):
 
 @patch("current_database", pass_column_index=True)
 def mock_current_database(column_index):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     session = snowflake.snowpark.session._get_active_session()
     return ColumnEmulator(
         data=[session.get_current_database()] * len(column_index),
@@ -2071,8 +2215,8 @@ def mock_current_database(column_index):
 
 @patch("get")
 def mock_get(
-    column_expression: ColumnEmulator, value_expression: ColumnEmulator
-) -> ColumnEmulator:
+    column_expression: "ColumnEmulator", value_expression: "ColumnEmulator"
+) -> "ColumnEmulator":
     def get(obj, key):
         try:
             if isinstance(obj, list) and key < len(obj):
@@ -2088,6 +2232,7 @@ def mock_get(
     result = []
     for exp, k in zip(column_expression, value_expression):
         result.append(get(exp, k))
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 
     return ColumnEmulator(
         result,
@@ -2097,7 +2242,10 @@ def mock_get(
 
 
 @patch("concat")
-def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
+def mock_concat(*columns: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+    from snowflake.snowpark.mock._options import pandas
+
     if len(columns) < 1:
         SnowparkLocalTestingException.raise_from_error(
             ValueError("concat expects one or more column(s) to be passed in.")
@@ -2111,7 +2259,10 @@ def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
 
 
 @patch("concat_ws")
-def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
+def mock_concat_ws(*columns: "ColumnEmulator") -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+    from snowflake.snowpark.mock._options import pandas
+
     if len(columns) < 2:
         SnowparkLocalTestingException.raise_from_error(
             ValueError(
@@ -2129,8 +2280,10 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
 
 
 def cast_column_to(
-    col: ColumnEmulator, target_column_type: ColumnType, try_cast: bool = False
-) -> Optional[ColumnEmulator]:
+    col: "ColumnEmulator", target_column_type: ColumnType, try_cast: bool = False
+) -> Optional["ColumnEmulator"]:
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnType
+
     # col.sf_type.nullable = target_column_type.nullable
     target_data_type = target_column_type.datatype
     if col.sf_type == target_column_type:
@@ -2179,11 +2332,16 @@ def cast_column_to(
 
 
 @patch("iff")
-def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmulator):
+def mock_iff(
+    condition: "ColumnEmulator", expr1: "ColumnEmulator", expr2: "ColumnEmulator"
+):
     assert isinstance(condition.sf_type.datatype, BooleanType)
+    from snowflake.snowpark.mock._snowflake_data_type import get_coerce_result_type
 
     coerce_result = get_coerce_result_type(expr1.sf_type, expr2.sf_type)
     if all(condition) or all(~condition) or coerce_result is not None:
+        from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+
         res = ColumnEmulator(data=[None] * len(condition), dtype=object)
         expr1 = cast_column_to(expr1, coerce_result)
         expr2 = cast_column_to(expr2, coerce_result)
@@ -2198,7 +2356,9 @@ def mock_iff(condition: ColumnEmulator, expr1: ColumnEmulator, expr2: ColumnEmul
 
 
 @patch("random", pass_column_index=True)
-def mock_random(seed: Optional[int] = None, column_index=None) -> ColumnEmulator:
+def mock_random(seed: Optional[int] = None, column_index=None) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     rand_min = -(2**63)
     rand_max = 2**63 - 1
     seed = seed if seed is not None else randint(rand_min, rand_max)
@@ -2238,12 +2398,15 @@ def _rank(raw_input, dense=False):
                 rank = index
         previous = value
         final_values.append(rank)
+    from snowflake.snowpark.mock._options import pandas
 
     return pandas.Series(final_values, index=raw_input.index)
 
 
 @patch("rank", pass_input_data=True, pass_row_index=True)
-def mock_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+def mock_rank(raw_input: "ColumnEmulator", row_index: int) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     rank = _rank(raw_input)
     return ColumnEmulator(
         data=rank.iloc[row_index], sf_type=ColumnType(LongType(), False)
@@ -2251,7 +2414,9 @@ def mock_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
 
 
 @patch("dense_rank", pass_input_data=True, pass_row_index=True)
-def mock_dense_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+def mock_dense_rank(raw_input: "ColumnEmulator", row_index: int) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     rank = _rank(raw_input, True)
     return ColumnEmulator(
         data=rank.iloc[row_index], sf_type=ColumnType(LongType(), False)
@@ -2259,7 +2424,9 @@ def mock_dense_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator
 
 
 @patch("percent_rank", pass_input_data=True, pass_row_index=True)
-def mock_percent_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+def mock_percent_rank(raw_input: "ColumnEmulator", row_index: int) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     length = len(raw_input) - 1
     rank = _rank(raw_input).apply(lambda x: (x - 1.0) / length)
     return ColumnEmulator(
@@ -2268,7 +2435,9 @@ def mock_percent_rank(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulat
 
 
 @patch("cume_dist", pass_input_data=True, pass_row_index=True)
-def mock_cume_dist(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+def mock_cume_dist(raw_input: "ColumnEmulator", row_index: int) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     # Calculate dense rank
     rank = _rank(raw_input, True)
 
@@ -2290,7 +2459,11 @@ def mock_cume_dist(raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
 
 
 @patch("ntile", pass_input_data=True, pass_row_index=True)
-def mock_ntile(ntile: int, raw_input: ColumnEmulator, row_index: int) -> ColumnEmulator:
+def mock_ntile(
+    ntile: int, raw_input: "ColumnEmulator", row_index: int
+) -> "ColumnEmulator":
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
+
     current_ntile = ntile.iloc[row_index]
     if current_ntile <= 0:
         raise SnowparkLocalTestingException("NTILE argument must be at least 1")
@@ -2305,7 +2478,9 @@ def mock_ntile(ntile: int, raw_input: ColumnEmulator, row_index: int) -> ColumnE
 
 
 @patch("any_value")
-def mock_any_value(col: ColumnEmulator):
+def mock_any_value(col: "ColumnEmulator"):
+    from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator
+
     return ColumnEmulator(
         col.sample(1),
         sf_type=col.sf_type,
