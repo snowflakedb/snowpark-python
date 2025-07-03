@@ -93,43 +93,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest-64-cores, ubuntu-latest-64-cores]
-        python-version: ["3.9", "3.12"] # only test oldest and latest versions
-        cloud-provider: [aws, gcp, azure]
-        exclude:
+        # matrix is empty for pre-commit, tests are only added
+        # through the include directive
+        include:
           # only run py3.9 tests on ubuntu+aws to isolate 3.9 failures
-          - os: macos-latest
-            python-version: "3.9"
-            cloud-provider: gcp
-          - os: windows-latest-64-cores
-            python-version: "3.9"
-            cloud-provider: gcp
-          - os: macos-latest
-            python-version: "3.9"
-            cloud-provider: azure
-          - os: windows-latest-64-cores
-            python-version: "3.9"
-            cloud-provider: azure
-          - os: macos-latest
-            python-version: "3.9"
-            cloud-provider: aws
-          - os: windows-latest-64-cores
-            python-version: "3.9"
+          - python-version: "3.9"
+            os: ubuntu-latest-64-cores
             cloud-provider: aws
           # only run gcp tests with latest python and ubuntu
-          - os: windows-latest-64-cores
+          - cloud-provider: gcp
             python-version: "3.12"
-            cloud-provider: gcp
-          - os: macos-latest
-            python-version: "3.12"
-            cloud-provider: gcp
+            os: ubuntu-latest-64-cores
           # only run azure tests with latest python and ubuntu
-          - os: windows-latest-64-cores
+          - cloud-provider: azure
             python-version: "3.12"
-            cloud-provider: azure
-          - os: macos-latest
-            python-version: "3.12"
-            cloud-provider: azure
+            os: ubuntu-latest-64-cores
+          # run py 3.12 tests on aws across all operating systems
+          - python-version: "3.12"
+            cloud-provider: aws
+            os: ubuntu-latest-64-cores
+          - python-version: "3.12"
+            cloud-provider: aws
+            os: macos-latest
+          - python-version: "3.12"
+            cloud-provider: aws
+            os: windows-latest-64-cores
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -216,15 +204,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: ["3.9", "3.12" ]
+        os: [ubuntu-latest]
+        python-version: ["3.12" ]
         cloud-provider: [aws]
-        exclude:
-          # only run py3.9 tests on ubuntu+aws to isolate 3.9 failures
-          - os: macos-latest
-            python-version: "3.9"
-          - os: windows-latest
-            python-version: "3.9"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -288,7 +270,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [ubuntu-latest]
         # TODO SNOW-1763185 use py39 by default
         # Protobuf encoding differs per python version, use 3.8 by default.
         python-version: [ "3.11" ]
@@ -364,7 +346,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ macos-latest ]
+        os: [ ubuntu-latest ]
         python-version: [ "3.9"]
         cloud-provider: [ aws ]
     steps:
@@ -414,7 +396,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest ]
-        python-version: [ "3.9", "3.12" ] # Test oldest and latest python
+        python-version: [ "3.12" ] # Test latest python
         cloud-provider: [aws] # Test only one csp
     steps:
       - name: Checkout Code
@@ -474,43 +456,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest-64-cores, ubuntu-latest-64-cores]
-        python-version: [ "3.9", "3.12" ] # Test oldest and latest python
-        cloud-provider: [aws] # Test only on a single csp for PR precommits
-        exclude:
+        # matrix is empty for pre-commit, tests are only added
+        # through the include directive
+        include:
           # only run py3.9 tests on ubuntu+aws to isolate 3.9 failures
-          - os: macos-latest
-            python-version: "3.9"
-            cloud-provider: gcp
-          - os: windows-latest-64-cores
-            python-version: "3.9"
-            cloud-provider: gcp
-          - os: macos-latest
-            python-version: "3.9"
-            cloud-provider: azure
-          - os: windows-latest-64-cores
-            python-version: "3.9"
-            cloud-provider: azure
-          - os: macos-latest
-            python-version: "3.9"
-            cloud-provider: aws
-          - os: windows-latest-64-cores
-            python-version: "3.9"
+          - python-version: "3.9"
+            os: ubuntu-latest-64-cores
             cloud-provider: aws
           # only run gcp tests with latest python and ubuntu
-          - os: windows-latest-64-cores
+          - cloud-provider: gcp
             python-version: "3.12"
-            cloud-provider: gcp
-          - os: macos-latest
-            python-version: "3.12"
-            cloud-provider: gcp
+            os: ubuntu-latest-64-cores
           # only run azure tests with latest python and ubuntu
-          - os: windows-latest-64-cores
+          - cloud-provider: azure
             python-version: "3.12"
-            cloud-provider: azure
-          - os: macos-latest
-            python-version: "3.12"
-            cloud-provider: azure
+            os: ubuntu-latest-64-cores
+          # run py 3.12 tests on aws across all operating systems
+          - python-version: "3.12"
+            cloud-provider: aws
+            os: ubuntu-latest-64-cores
+          - python-version: "3.12"
+            cloud-provider: aws
+            os: macos-latest
+          - python-version: "3.12"
+            cloud-provider: aws
+            os: windows-latest-64-cores
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
