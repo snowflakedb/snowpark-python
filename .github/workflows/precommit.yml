@@ -110,6 +110,12 @@ jobs:
           - os: windows-latest-64-cores
             python-version: "3.9"
             cloud-provider: azure
+          - os: macos-latest
+            python-version: "3.9"
+            cloud-provider: aws
+          - os: windows-latest-64-cores
+            python-version: "3.9"
+            cloud-provider: aws
           # only run gcp tests with latest python and ubuntu
           - os: windows-latest-64-cores
             python-version: "3.12"
@@ -123,7 +129,7 @@ jobs:
             cloud-provider: azure
           - os: macos-latest
             python-version: "3.12"
-            cloud-provider:
+            cloud-provider: azure
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -485,6 +491,12 @@ jobs:
           - os: windows-latest-64-cores
             python-version: "3.9"
             cloud-provider: azure
+          - os: macos-latest
+            python-version: "3.9"
+            cloud-provider: aws
+          - os: windows-latest-64-cores
+            python-version: "3.9"
+            cloud-provider: aws
           # only run gcp tests with latest python and ubuntu
           - os: windows-latest-64-cores
             python-version: "3.12"
