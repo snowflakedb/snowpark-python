@@ -140,8 +140,10 @@ class SnowflakeFile(RawIOBase):
         self._file_size = 0
         if self._is_local_file and mode in _READ_MODES:
             # Buffered Reader used to support BufferedIOBase methods such as read1 and readinto1
+            encoding = "utf-8" if mode == "r" else None
             self._file_stream = BufferedReader(
-                open(self._file_location, self._mode), _DEFAULT_READ_BUFFER_SIZE
+                open(self._file_location, self._mode, encoding=encoding),
+                _DEFAULT_READ_BUFFER_SIZE,
             )
 
             # SEEK_CUR and SEEK_END are only supported in binary mode for Python IO so we must obtain the size of the file
