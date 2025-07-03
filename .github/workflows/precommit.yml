@@ -134,6 +134,12 @@ jobs:
           - os: windows-latest-64-cores
             python-version: "3.11"
             cloud-provider: azure
+          - os: windows-latest-64-cores
+            python-version: "3.11"
+            cloud-provider: gcp
+          - os: windows-latest-64-cores
+            python-version: "3.12"
+            cloud-provider: gcp
           # limit python 3.12 to one os per csp
           - os: macos-latest
             python-version: "3.12"
@@ -240,7 +246,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12" ]
+        python-version: ["3.9", "3.12" ]
         cloud-provider: [aws]
         exclude:
           # only run each version on one os
@@ -453,24 +459,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest ]
-        python-version: [ "3.9", "3.11", "3.12" ]
-        cloud-provider: [aws, gcp, azure]
-        exclude:
-          # Run 3.9 on aws
-          - python-version: "3.11"
-            cloud-provider: aws
-          - python-version: "3.12"
-            cloud-provider: aws
-          # Run 3.11 on gcp
-          - python-version: "3.9"
-            cloud-provider: gcp
-          - python-version: "3.12"
-            cloud-provider: gcp
-          # Run 3.12 on azure
-          - python-version: "3.9"
-            cloud-provider: azure
-          - python-version: "3.11"
-            cloud-provider: azure
+        python-version: [ "3.9", "3.12" ] # Test oldest and latest python
+        cloud-provider: [aws] # Test only one csp
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -530,46 +520,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest-64-cores, ubuntu-latest-64-cores]
-        python-version: [ "3.9", "3.10", "3.11" ]
-        cloud-provider: [aws, gcp, azure]
-        exclude:
-          # only run macos with aws py3.9 for doctest
-          - os: macos-latest
-            python-version: "3.10"
-          - os: macos-latest
-            python-version: "3.11"
-          - os: macos-latest
-            python-version: "3.9"
-            cloud-provider: azure
-          - os: macos-latest
-            python-version: "3.9"
-            cloud-provider: gcp
-          # only run ubuntu with py3.9 on aws and py3.10 on azure
-          - os: ubuntu-latest-64-cores
-            python-version: "3.11"
-          - os: ubuntu-latest-64-cores
-            python-version: "3.9"
-            cloud-provider: azure
-          - os: ubuntu-latest-64-cores
-            python-version: "3.9"
-            cloud-provider: gcp
-          - os: ubuntu-latest-64-cores
-            python-version: "3.10"
-            cloud-provider: aws
-          - os: ubuntu-latest-64-cores
-            python-version: "3.10"
-            cloud-provider: gcp
-          # only run windows with py3.10 on gcp
-          - os: windows-latest-64-cores
-            python-version: "3.9"
-          - os: windows-latest-64-cores
-            python-version: "3.10"
-          - os: windows-latest-64-cores
-            python-version: "3.11"
-            cloud-provider: aws
-          - os: windows-latest-64-cores
-            python-version: "3.11"
-            cloud-provider: azure
+        python-version: [ "3.9", "3.12" ] # Test oldest and latest python
+        cloud-provider: [aws] # Test only on a single csp for PR precommits
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
