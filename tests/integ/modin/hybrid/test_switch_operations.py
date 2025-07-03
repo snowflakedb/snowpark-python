@@ -8,8 +8,10 @@ import pytest
 from unittest.mock import patch
 import tqdm.auto
 
+import pandas as native_pd
 import numpy as np
 from numpy.testing import assert_array_equal
+from modin.config import context as config_context
 import modin.pandas as pd
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.utils import (
@@ -244,3 +246,41 @@ def test_tqdm_usage_during_snowflake_to_pandas_switch():
         df.set_backend("Pandas")
 
     mock_trange.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "class_name, method_name, f_args",
+    [
+        ("DataFrame", "to_json", ()),  # declared in base_overrides
+        ("Series", "to_json", ()),  # declared in base_overrides
+        ("DataFrame", "dot", ([6],)),  # declared in dataframe_overrides
+        ("Series", "transform", (lambda x: x * 2,)),  # declared in series_overrides
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_unimplemented_autoswitches(class_name, method_name, f_args):
+    # Unimplemented methods declared via register_*_not_implemented should automatically
+    # default to local pandas execution.
+    # This test needs to be modified if any of the APIs in question are ever natively implemented
+    # for Snowpark pandas.
+    data = [1, 2, 3]
+    method = getattr(getattr(pd, class_name)(data).move_to("Snowflake"), method_name)
+    # Attempting to call the method without switching should raise.
+    with config_context(AutoSwitchBackend=False):
+        with pytest.raises(
+            NotImplementedError, match="Snowpark pandas does not yet support the method"
+        ):
+            method(*f_args)
+    # Attempting to call the method while switching is enabled should work fine.
+    snow_result = method(*f_args)
+    pandas_result = getattr(getattr(native_pd, class_name)(data), method_name)(*f_args)
+    if isinstance(snow_result, (pd.DataFrame, pd.Series)):
+        assert snow_result.get_backend() == "Pandas"
+        assert_array_equal(snow_result.to_numpy(), pandas_result.to_numpy())
+    else:
+        # Series.to_json will output an extraneous level for the __reduced__ column, but that's OK
+        # since we don't officially support the method.
+        if class_name == "Series" and method_name == "to_json":
+            assert snow_result == '{"__reduced__":{"0":1,"1":2,"2":3}}'
+        else:
+            assert snow_result == pandas_result

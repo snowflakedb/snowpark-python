@@ -68,6 +68,9 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     MODIN_IS_AT_LEAST_0_34_0,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
+)
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
     extract_validate_and_try_convert_named_aggs_from_kwargs,
@@ -91,6 +94,9 @@ _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
 
 if MODIN_IS_AT_LEAST_0_33_0:
     from modin.pandas.api.extensions import register_base_accessor
+    from modin.core.storage_formats.pandas.query_compiler_caster import (
+        register_function_for_pre_op_switch,
+    )
 
     register_base_override = functools.partial(
         register_base_accessor, backend="Snowflake"
@@ -98,7 +104,13 @@ if MODIN_IS_AT_LEAST_0_33_0:
 
     def register_base_not_implemented():
         def decorator(base_method: Any):
-            return register_base_override(name=base_method.__name__)(
+            name = base_method.__name__
+            HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("BasePandasDataset", name))
+            if MODIN_IS_AT_LEAST_0_33_0:
+                register_function_for_pre_op_switch(
+                    class_name="BasePandasDataset", backend="Snowflake", method=name
+                )
+            return register_base_override(name=name)(
                 base_not_implemented()(base_method)
             )
 
