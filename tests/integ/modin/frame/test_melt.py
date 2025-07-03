@@ -319,3 +319,56 @@ def test_melt_timedelta(value_vars):
     eval_snowpark_pandas_result(
         snow_df, native_df, lambda df: df.melt(id_vars=["A"], value_vars=value_vars)
     )
+
+
+@sql_count_checker(query_count=3)
+def test_melt_internal_name_leakage_SNOW_2177453():
+    cohort_data = [
+        {
+            "Month": "2024-09",
+            "New_Users": 1000,
+            "Cool_Users": 2000,
+            "Awesome_Users": 3000,
+            "Total_Users": 6000,
+        },
+        {
+            "Month": "2024-10",
+            "New_Users": 1000,
+            "Cool_Users": 2000,
+            "Awesome_Users": 3000,
+            "Total_Users": 6000,
+        },
+        {
+            "Month": "2024-11",
+            "New_Users": 1000,
+            "Cool_Users": 2000,
+            "Awesome_Users": 3000,
+            "Total_Users": 6000,
+        },
+        {
+            "Month": "2024-12",
+            "New_Users": 1000,
+            "Cool_Users": 2000,
+            "Awesome_Users": 3000,
+            "Total_Users": 6000,
+        },
+        {
+            "Month": "2025-01",
+            "New_Users": 1000,
+            "Cool_Users": 2000,
+            "Awesome_Users": 3000,
+            "Total_Users": 6000,
+        },
+    ]
+    cohort_df = pd.DataFrame(cohort_data)
+    cohort_df["Month_Date"] = pd.to_datetime(cohort_df["Month"] + "-01")
+
+    cohort_melted = cohort_df.melt(
+        id_vars=["Month"],
+        value_vars=["New_Users", "Cool_Users", "Awesome_Users"],
+        var_name="User_Type",
+        value_name="Count",
+    )
+    assert len(cohort_melted[cohort_melted["User_Type"] == "New_Users"]) == 5
+    assert len(cohort_melted[cohort_melted["User_Type"] == "Cool_Users"]) == 5
+    assert len(cohort_melted[cohort_melted["User_Type"] == "Awesome_Users"]) == 5

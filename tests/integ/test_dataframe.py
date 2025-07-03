@@ -725,10 +725,15 @@ def test_select_with_table_function_column_overlap(session):
         [Row(B=2, A=2, C=3), Row(B=5, A=8, C=6)],
     )
 
+    Utils.check_answer(
+        df.select(col("b"), two_x_udtf(df.a), df.c),
+        [Row(B=2, A=2, C=3), Row(B=5, A=8, C=6)],
+    )
+
     # ensure overlapping columns raised ambiguous column error if non-overlapping columns
-    # are selected as columns
+    # are selected as complex columns
     with pytest.raises(SnowparkSQLException, match="ambiguous column name"):
-        df.select(col("b"), two_x_udtf(df.a), col("c")).collect()
+        df.select(col("b").alias("b1"), two_x_udtf(df.a), col("c")).collect()
 
     # ensure explode works
     df = session.create_dataframe([(1, [1, 2]), (2, [3, 4])], schema=["id", "value"])
