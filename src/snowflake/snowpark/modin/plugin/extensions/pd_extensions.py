@@ -16,13 +16,24 @@ from snowflake.snowpark import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin.plugin.extensions.datetime_index import (  # noqa: F401
     DatetimeIndex,
 )
+from modin.utils import _inherit_docstrings
 from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
 from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa: F401
     TimedeltaIndex,
 )
+import modin.pandas as pd
+from modin.config import context as config_context
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
+
+# Import the register_pd_accessor for pandas backend
+if MODIN_IS_AT_LEAST_0_33_0:
+
+    from modin.pandas.api.extensions import (
+        register_pd_accessor as _register_pd_accessor,
+    )
 
 register_pd_accessor("Index")(Index)
 register_pd_accessor("DatetimeIndex")(DatetimeIndex)
@@ -394,6 +405,26 @@ def read_snowflake(
             columns=columns,
             enforce_ordering=enforce_ordering,
         )
+    )
+
+
+if MODIN_IS_AT_LEAST_0_33_0:
+
+    @_inherit_docstrings(read_snowflake)
+    def _read_snowflake_pandas_backend(
+        name_or_query, index_col=None, columns=None, enforce_ordering=False
+    ) -> pd.DataFrame:
+        with config_context(Backend="Snowflake"):
+            df = pd.read_snowflake(
+                name_or_query,
+                index_col=index_col,
+                columns=columns,
+                enforce_ordering=enforce_ordering,
+            )
+        return df.set_backend("Pandas")
+
+    _register_pd_accessor("read_snowflake", backend="Pandas")(
+        _read_snowflake_pandas_backend
     )
 
 
