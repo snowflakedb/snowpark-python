@@ -11,6 +11,8 @@
 - Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
 - Added a new function `snowflake.snowpark.dataframe.map_in_pandas` that allows users map a function across a dataframe. The mapping function takes an iterator of pandas dataframes as input and provides one as output.
 - Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
+- Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in
+local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
 
 #### Improvements
 
@@ -24,6 +26,7 @@
 
 - Fixed a bug caused by redundant validation when creating an iceberg table.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where closing the cursor or connection could unexpectedly raise an error and terminate the program.
+- Fixed ambiguous column errors when using table functions in `DataFrame.select()` that have output columns matching the input DataFrame's columns. This improvement works when dataframe columns are provided as `Column` objects.
 
 ### Snowpark Local Testing Updates
 
@@ -42,9 +45,13 @@
 - Added support for `pd.read_feather`.
 - Added support for `pd.explain_switch()` to return debugging information on hybrid execution decisions.
 
+#### Improvements
+- Add a data type guard to the cost functions for hybrid execution which checks for data type compatibility
+
 #### Bug Fixes
 - Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
 - Fixed a bug in hybrid execution mode (PrPr) where calling numpy operations like `np.where` on modin objects with the Pandas backend would raise an `AttributeError`. This fix requires `modin` version 0.34.0 or newer.
+- Fixed issue when df.melt where the resulting values have an additional suffix applied
 
 ## 1.33.0 (2025-06-19)
 
@@ -1942,7 +1949,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 ### Bug Fixes
 
 - Fixed a bug that overwrote `paramstyle` to `qmark` when creating a Snowpark session.
-- Fixed a bug where `df.join(..., how="cross")` fails with `SnowparkJoinException: (1112): Unsupported using join type 'Cross'`.
+- Fixed a bug where `df.join(..., how="cross")` fails with `SnowparkJoinException: (1112): Unsupported using join type 'Cross'`.
 - Fixed a bug where querying a `DataFrame` column created from chained function calls used a wrong column name.
 
 ## 1.1.0 (2023-01-26)
