@@ -423,6 +423,7 @@ def read_snowflake(
 
 if MODIN_IS_AT_LEAST_0_33_0:
 
+    @_register_pd_accessor("read_snowflake", backend="Pandas")
     @_inherit_docstrings(read_snowflake)
     @doc(
         _READ_SNOWFLAKE_DOC,
@@ -440,10 +441,6 @@ if MODIN_IS_AT_LEAST_0_33_0:
                 enforce_ordering=enforce_ordering,
             )
         return df.set_backend("Pandas")
-
-    _register_pd_accessor("read_snowflake", backend="Pandas")(
-        _read_snowflake_pandas_backend
-    )
 
 
 @register_pd_accessor("to_snowflake")
