@@ -280,6 +280,7 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
     else:
         # Series.to_json will output an extraneous level for the __reduced__ column, but that's OK
         # since we don't officially support the method.
+        # See modin bug: https://github.com/modin-project/modin/issues/7624
         if class_name == "Series" and method_name == "to_json":
             assert snow_result == '{"__reduced__":{"0":1,"1":2,"2":3}}'
         else:
