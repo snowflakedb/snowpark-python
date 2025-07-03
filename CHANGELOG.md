@@ -43,6 +43,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
 - Added support for `pd.read_feather`.
+- Support `pd.read_snowflake` when the global modin backend is `Pandas`.
 
 #### Improvements
 - Add a data type guard to the cost functions for hybrid execution which checks for data type compatibility
