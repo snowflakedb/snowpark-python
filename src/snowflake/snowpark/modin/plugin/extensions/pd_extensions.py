@@ -675,7 +675,9 @@ def explain_switch(simple=True) -> Union[native_pd.DataFrame, None]:
 
     """
     if not MODIN_IS_AT_LEAST_0_33_0:
-        raise NotImplementedError("explain_switch requires modin >= 0.33.0") # pragma: no cover
+        raise NotImplementedError(
+            "explain_switch requires modin >= 0.33.0"
+        )  # pragma: no cover
     if simple:
         return explain_switch_simple()
     return explain_switch_complex()
@@ -688,7 +690,7 @@ def explain_switch_simple() -> Union[native_pd.DataFrame, None]:
 
     stats = get_hybrid_switch_log()
     if len(stats) <= 0:
-        return None # pragma: no cover
+        return None  # pragma: no cover
     stats["decision"] = stats.groupby(["group", "mode"]).ffill()["decision"]
     stats["api"] = stats.groupby(["source", "group", "mode"]).ffill()["api"]
     stats["mode"] = stats.groupby(["source", "group"]).ffill()["mode"]
