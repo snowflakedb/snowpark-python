@@ -41,6 +41,8 @@ PANDAS_REQUIREMENTS = [
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     f"modin{MODIN_DEPENDENCY_VERSION}",
+    "tqdm",  # For progress bars during backend switching
+    "ipywidgets",  # For enhanced progress bars in Jupyter notebooks
 ]
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
