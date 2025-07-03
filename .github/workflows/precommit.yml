@@ -100,8 +100,30 @@ jobs:
           # only run py3.9 tests on ubuntu+aws to isolate 3.9 failures
           - os: macos-latest
             python-version: "3.9"
+            cloud-provider: gcp
           - os: windows-latest-64-cores
             python-version: "3.9"
+            cloud-provider: gcp
+          - os: macos-latest
+            python-version: "3.9"
+            cloud-provider: azure
+          - os: windows-latest-64-cores
+            python-version: "3.9"
+            cloud-provider: azure
+          # only run gcp tests with latest python and ubuntu
+          - os: windows-latest-64-cores
+            python-version: "3.12"
+            cloud-provider: gcp
+          - os: macos-latest
+            python-version: "3.12"
+            cloud-provider: gcp
+          # only run azure tests with latest python and ubuntu
+          - os: windows-latest-64-cores
+            python-version: "3.12"
+            cloud-provider: azure
+          - os: macos-latest
+            python-version: "3.12"
+            cloud-provider: 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -450,11 +472,33 @@ jobs:
         python-version: [ "3.9", "3.12" ] # Test oldest and latest python
         cloud-provider: [aws] # Test only on a single csp for PR precommits
         exclude:
-          # only run py3.9 tests on ubuntu+aws to isolate 3.9 errors
+          # only run py3.9 tests on ubuntu+aws to isolate 3.9 failures
           - os: macos-latest
             python-version: "3.9"
+            cloud-provider: gcp
           - os: windows-latest-64-cores
             python-version: "3.9"
+            cloud-provider: gcp
+          - os: macos-latest
+            python-version: "3.9"
+            cloud-provider: azure
+          - os: windows-latest-64-cores
+            python-version: "3.9"
+            cloud-provider: azure
+          # only run gcp tests with latest python and ubuntu
+          - os: windows-latest-64-cores
+            python-version: "3.12"
+            cloud-provider: gcp
+          - os: macos-latest
+            python-version: "3.12"
+            cloud-provider: gcp
+          # only run azure tests with latest python and ubuntu
+          - os: windows-latest-64-cores
+            python-version: "3.12"
+            cloud-provider: azure
+          - os: macos-latest
+            python-version: "3.12"
+            cloud-provider: azure
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
