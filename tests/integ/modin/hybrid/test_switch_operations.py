@@ -5,6 +5,8 @@
 import logging
 import contextlib
 import pytest
+from unittest.mock import patch
+import tqdm.auto
 
 import numpy as np
 from numpy.testing import assert_array_equal
@@ -216,3 +218,29 @@ def test_np_where_manual_switch():
     ) if not MODIN_IS_AT_LEAST_0_34_0 else contextlib.nullcontext():
         result = np.where(df, [1, 2], [3, 4])
         assert_array_equal(result, np.array([[1, 4]]))
+
+
+@sql_count_checker(query_count=0)
+def test_tqdm_usage_during_pandas_to_snowflake_switch():
+    progress_iter_count = 2
+    df = pd.DataFrame([1, 2, 3]).set_backend("pandas")
+
+    with patch.object(
+        tqdm.auto, "trange", return_value=range(progress_iter_count)
+    ) as mock_trange:
+        df.set_backend("Snowflake")
+
+    mock_trange.assert_called_once()
+
+
+@sql_count_checker(query_count=1)
+def test_tqdm_usage_during_snowflake_to_pandas_switch():
+    progress_iter_count = 2
+    df = pd.DataFrame([1, 2, 3]).set_backend("Snowflake")
+
+    with patch.object(
+        tqdm.auto, "trange", return_value=range(progress_iter_count)
+    ) as mock_trange:
+        df.set_backend("Pandas")
+
+    mock_trange.assert_called_once()
