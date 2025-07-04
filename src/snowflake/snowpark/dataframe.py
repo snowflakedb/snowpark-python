@@ -208,6 +208,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
     _NumericType,
+    _FractionalType,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -4924,6 +4925,13 @@ class DataFrame:
                     )
                     + "}"
                 )
+            elif isinstance(cell, float) and isinstance(datatype, _FractionalType):
+                if cell == float("inf"):
+                    res = "Infinity"
+                elif cell == float("-inf"):
+                    res = "-Infinity"
+                else:
+                    res = str(cell).replace("e+", "E").replace("e-", "E-")
             else:
                 res = str(cell)
             return res.replace("\n", "\\n")
