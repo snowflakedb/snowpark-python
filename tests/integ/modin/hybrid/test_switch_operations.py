@@ -205,6 +205,22 @@ def test_groupby_agg_post_op_switch(operation, small_snow_df):
 
 
 @sql_count_checker(query_count=1)
+def test_explain_switch(us_holidays_data):
+    from snowflake.snowpark.modin.plugin._internal.telemetry import (
+        clear_hybrid_switch_log,
+    )
+
+    clear_hybrid_switch_log()
+    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
+    pd.merge(df_us_holidays, df_transactions, left_on="Date", right_on="DATE")
+    assert "decision" in str(pd.explain_switch())
+    assert "decision" in str(pd.explain_switch(simple=False))
+    assert "DataFrame.__init__" in str(pd.explain_switch())
+    assert "rows" in str(pd.explain_switch(simple=False))
+
+
+@sql_count_checker(query_count=1)
 def test_np_where_manual_switch():
     df = pd.DataFrame([[True, False]]).set_backend("Snowflake")
     with pytest.raises(TypeError, match=r"no implementation found for 'numpy\.where'"):
@@ -213,9 +229,14 @@ def test_np_where_manual_switch():
     df.set_backend("Pandas", inplace=True)
     # SNOW-2173644: Prior to modin 0.34, manually switching the backend to pandas would cause lookup
     # of the __array_function__ method to fail.
-    with pytest.raises(
-        AttributeError, match=r"DataFrame object has no attribute __array_function__"
-    ) if not MODIN_IS_AT_LEAST_0_34_0 else contextlib.nullcontext():
+    with (
+        pytest.raises(
+            AttributeError,
+            match=r"DataFrame object has no attribute __array_function__",
+        )
+        if not MODIN_IS_AT_LEAST_0_34_0
+        else contextlib.nullcontext()
+    ):
         result = np.where(df, [1, 2], [3, 4])
         assert_array_equal(result, np.array([[1, 4]]))
 
