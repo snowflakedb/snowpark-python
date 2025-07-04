@@ -50,6 +50,9 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     error_checking_for_init,
     MODIN_IS_AT_LEAST_0_33_0,
 )
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
+)
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
     SnowparkPandasRowPartitionIterator,
@@ -80,6 +83,9 @@ if MODIN_IS_AT_LEAST_0_33_0:
     from modin.pandas.api.extensions import (
         register_series_accessor as _register_series_accessor,
     )
+    from modin.core.storage_formats.pandas.query_compiler_caster import (
+        register_function_for_pre_op_switch,
+    )
 
     register_series_accessor = functools.partial(
         _register_series_accessor, backend="Snowflake"
@@ -96,6 +102,11 @@ def register_series_not_implemented():
             if isinstance(base_method, property)
             else base_method.__name__
         )
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("Series", name))
+        if MODIN_IS_AT_LEAST_0_33_0:
+            register_function_for_pre_op_switch(
+                class_name="Series", backend="Snowflake", method=name
+            )
         register_series_accessor(name)(func)
         return func
 
