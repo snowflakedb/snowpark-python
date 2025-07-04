@@ -19,6 +19,12 @@ Example Pre-Operation Switchpoints:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 apply, iterrows, itertuples, items, plot, quantile, __init__, plot, quantile, T, read_csv, read_json, concat, merge 
 
+Many methods that are not yet implemented in Snowpark pandas are also registered as
+pre-operation switch points, and will automatically move data to local pandas for execution when
+called. This includes most methods that are ordinarily completely unsupported by Snowpark pandas,
+and have `N` in their implemented status in the :doc:`DataFrame <supported/dataframe_supported>` and
+:doc:`Series <supported/series_supported>` supported API lists.
+
 Post-Operation Switchpoints:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 read_snowflake, value_counts, tail, var, std, sum, sem, max, min, mean, agg, aggregate, count, nunique, cummax, cummin, cumprod, cumsum
