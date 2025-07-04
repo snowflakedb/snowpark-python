@@ -10,14 +10,8 @@ import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
 
-from snowflake.connector import ProgrammingError
 from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.connector.options import pyarrow
-from snowflake.connector.pandas_tools import (
-    _create_temp_stage,
-    _create_temp_file_format,
-    build_location_helper,
-)
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Except,
@@ -33,6 +27,7 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     to_sql,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
+from snowflake.snowpark._internal.lazy_import_utils import get_pandas_tools
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
     ALREADY_QUOTED,
@@ -1961,6 +1956,13 @@ def write_arrow(
     # SNOW-1904593: This function mostly copies the functionality of snowflake.connector.pandas_utils.write_pandas.
     # It should be pushed down into the connector, but would require a minimum required version bump.
     import pyarrow.parquet  # type: ignore
+    from snowflake.connector import ProgrammingError
+
+    # Lazy load pandas_tools modules
+    pandas_tools = get_pandas_tools()
+    _create_temp_stage = pandas_tools._create_temp_stage
+    _create_temp_file_format = pandas_tools._create_temp_file_format
+    build_location_helper = pandas_tools.build_location_helper
 
     if database is not None and schema is None:
         raise ProgrammingError(
@@ -2058,14 +2060,14 @@ def write_arrow(
         )
 
         parquet_columns = "$1:" + ",$1:".join(
-            f"{quote}{snowflake_col}{quote}::{column_type_mapping[col]}"
+            f"{quote}{snowflake_col}{quote}::{column_type_mapping[snowflake_col]}"
             for snowflake_col, col in zip(snowflake_column_names, table.schema.names)
         )
 
         if auto_create_table:
             create_table_columns = ", ".join(
                 [
-                    f"{quote}{snowflake_col}{quote} {column_type_mapping[col]}"
+                    f"{quote}{snowflake_col}{quote} {column_type_mapping[snowflake_col]}"
                     for snowflake_col, col in zip(
                         snowflake_column_names, table.schema.names
                     )
