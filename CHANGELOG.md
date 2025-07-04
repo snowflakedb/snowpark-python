@@ -47,7 +47,8 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Support `pd.read_snowflake` when the global modin backend is `Pandas`.
 
 #### Improvements
-- Add a data type guard to the cost functions for hybrid execution which checks for data type compatibility
+- Add a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
+- Added automatic switching to the pandas backend in hybrid execution mode (PrPr) for many methods that are not directly implemented in Snowpark pandas.
 
 #### Dependency Updates
 - Added tqdm and ipywidgets as dependencies so that progress bars appear when switching between modin backends.

@@ -185,6 +185,9 @@ if MODIN_IS_AT_LEAST_0_33_0:
     AutoSwitchBackend().disable()
 
     # Hybrid Mode Registration
+    # In hybrid execution mode, the client will automatically switch backends when a
+    # wholly-unimplemented method is called. Those switch points are registered separately in
+    # extensions files via the register_*_not_implemented family of methods.
     pre_op_switch_points: list[dict[str, Union[str, None]]] = [
         {"class_name": "DataFrame", "method": "__init__"},
         {"class_name": "Series", "method": "__init__"},

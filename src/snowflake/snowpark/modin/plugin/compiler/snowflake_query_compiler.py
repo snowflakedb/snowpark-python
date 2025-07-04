@@ -18,7 +18,18 @@ from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from functools import reduce
 from types import MappingProxyType
-from typing import Any, Callable, List, Literal, Optional, TypeVar, Union, get_args
+from typing import (
+    Any,
+    Callable,
+    List,
+    Literal,
+    Optional,
+    TypeVar,
+    Union,
+    get_args,
+    Set,
+    Tuple,
+)
 
 import modin.pandas as pd
 from modin.pandas import Series, DataFrame
@@ -481,6 +492,9 @@ HYBRID_ITERATIVE_STYLE_METHODS = ["iterrows", "itertuples", "items", "plot"]
 HYBRID_ALL_EXPENSIVE_METHODS = (
     HYBRID_HIGH_OVERHEAD_METHODS + HYBRID_ITERATIVE_STYLE_METHODS
 )
+# Set of (class name, method name) tuples for methods that are wholly unimplemented by
+# Snowpark pandas. This list is populated by the register_*_not_implemented decorators.
+HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS: Set[Tuple[str, str]] = set()
 
 T = TypeVar("T", bound=Callable[..., Any])
 
@@ -858,7 +872,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         operation: str,
         arguments: MappingProxyType[str, Any],
     ) -> Optional[int]:
-        if self._is_in_memory_init(api_cls_name, operation, arguments):
+        if (
+            self._is_in_memory_init(api_cls_name, operation, arguments)
+            or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
+        ):
             return QCCoercionCost.COST_IMPOSSIBLE
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
@@ -891,9 +908,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             None if the cost cannot be determined.
         """
         # in-memory intialization should not move to Snowflake
-        if cls._is_in_memory_init(api_cls_name, operation, arguments):
-            return QCCoercionCost.COST_IMPOSSIBLE
-        if not cls._are_dtypes_compatible_with_snowflake(other_qc):
+        if (
+            cls._is_in_memory_init(api_cls_name, operation, arguments)
+            or not cls._are_dtypes_compatible_with_snowflake(other_qc)
+            or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
+        ):
             return QCCoercionCost.COST_IMPOSSIBLE
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:

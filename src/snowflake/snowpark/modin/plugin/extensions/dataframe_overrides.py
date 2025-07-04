@@ -85,6 +85,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
+    HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
 )
 from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
@@ -123,6 +124,9 @@ if MODIN_IS_AT_LEAST_0_33_0:
     from modin.pandas.api.extensions import (
         register_dataframe_accessor as _register_dataframe_accessor,
     )
+    from modin.core.storage_formats.pandas.query_compiler_caster import (
+        register_function_for_pre_op_switch,
+    )
 
     register_dataframe_accessor = functools.partial(
         _register_dataframe_accessor, backend="Snowflake"
@@ -138,7 +142,13 @@ else:  # pragma: no branch
 def register_dataframe_not_implemented():
     def decorator(base_method: Any):
         func = dataframe_not_implemented()(base_method)
-        register_dataframe_accessor(base_method.__name__)(func)
+        name = base_method.__name__
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("DataFrame", name))
+        if MODIN_IS_AT_LEAST_0_33_0:
+            register_function_for_pre_op_switch(
+                class_name="DataFrame", backend="Snowflake", method=name
+            )
+        register_dataframe_accessor(name)(func)
         return func
 
     return decorator
