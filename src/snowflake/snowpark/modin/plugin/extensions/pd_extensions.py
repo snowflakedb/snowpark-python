@@ -29,7 +29,6 @@ from pandas.util._decorators import doc
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
 # Import the register_pd_accessor for pandas backend
 if MODIN_IS_AT_LEAST_0_33_0:
