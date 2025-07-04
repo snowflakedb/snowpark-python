@@ -47,6 +47,7 @@ from snowflake.snowpark.mock._window_utils import (
     RowFrameIndexer,
     is_rank_related_window_function,
 )
+
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 if TYPE_CHECKING:
