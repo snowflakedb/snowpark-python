@@ -801,17 +801,28 @@ def test_readlines_with_hint_snowflakefile(
         assert content[i] == lines[i] or content[i] == windows_lines[i]
 
 
+# Tests seek relative to the starting pos, seeking forward and backwards
+# relative to the current stream pos after seeking forward by 5, and
+# seeking backwards from the end of the stream.
 @pytest.mark.parametrize(
     ["read_mode", "write_mode", "offset", "whence", "use_stage"],
     [
         ("r", "w", 0, io.SEEK_SET, True),
         ("r", "w", 0, io.SEEK_SET, False),
+        ("r", "w", 3, io.SEEK_SET, True),
+        ("r", "w", 3, io.SEEK_SET, False),
         ("rb", "wb", 0, io.SEEK_SET, True),
         ("rb", "wb", 0, io.SEEK_SET, False),
+        ("rb", "wb", 3, io.SEEK_SET, True),
+        ("rb", "wb", 3, io.SEEK_SET, False),
         ("r", "w", 3, io.SEEK_CUR, True),
         ("r", "w", 3, io.SEEK_CUR, False),
+        ("r", "w", -3, io.SEEK_CUR, True),
+        ("r", "w", -3, io.SEEK_CUR, False),
         ("rb", "wb", 3, io.SEEK_CUR, True),
         ("rb", "wb", 3, io.SEEK_CUR, False),
+        ("rb", "wb", -3, io.SEEK_CUR, True),
+        ("rb", "wb", -3, io.SEEK_CUR, False),
         ("r", "w", -3, io.SEEK_END, True),
         ("r", "w", -3, io.SEEK_END, False),
         ("rb", "wb", -3, io.SEEK_END, True),
