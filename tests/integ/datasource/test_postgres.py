@@ -63,7 +63,7 @@ def create_postgres_connection():
 @pytest.mark.parametrize(
     "input_type, input_value",
     [
-        # ("table", POSTGRES_TABLE_NAME),
+        ("table", POSTGRES_TABLE_NAME),
         ("query", f"SELECT * FROM {POSTGRES_TABLE_NAME}"),
     ],
 )

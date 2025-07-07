@@ -25,9 +25,7 @@ class PostgresDialect(BaseDialect):
             # here we push down to-dict conversion to Databricks
             type_code = raw_field[1]
             field_name = (
-                f"""{query_input_alias}."{raw_field[0]}" """
-                if is_query
-                else raw_field[0]
+                f'{query_input_alias}."{raw_field[0]}"' if is_query else raw_field[0]
             )
             if type_code in (
                 Psycopg2TypeCode.JSONB.value,
