@@ -10,9 +10,10 @@ from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast
 
-from typing_extensions import ParamSpec
-
 import pandas as native_pd
+from modin.logging.metrics import add_metric_handler
+from modin.config import MetricsMode
+from typing_extensions import ParamSpec
 
 import snowflake.snowpark.session
 from snowflake.connector.telemetry import TelemetryField as PCTelemetryField
@@ -23,9 +24,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
 )
 from snowflake.snowpark.query_history import QueryHistory
 from snowflake.snowpark.session import Session
-
-from modin.logging.metrics import add_metric_handler
-from modin.config import MetricsMode
 
 # Define ParamSpec with "_Args" as the generic parameter specification similar to Any
 _Args = ParamSpec("_Args")
@@ -672,6 +670,7 @@ hybrid_switch_log = native_pd.DataFrame({})
 def clear_hybrid_switch_log() -> None:
     global hybrid_switch_log
     hybrid_switch_log = native_pd.DataFrame({})
+
 
 def get_hybrid_switch_log() -> native_pd.DataFrame:
     global hybrid_switch_log
