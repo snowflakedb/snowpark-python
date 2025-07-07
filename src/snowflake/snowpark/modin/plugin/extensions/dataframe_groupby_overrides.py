@@ -89,6 +89,7 @@ def __init__(
     group_keys,
     idx_name,
     drop,
+    backend_pinned: bool,
     **kwargs,
 ) -> None:
     # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -104,6 +105,7 @@ def __init__(
     # the keys that are returned by iterating over the resulting DataFrameGroupBy
     # object will now be tuples of length one
     self._return_tuple_when_iterating = kwargs.pop("return_tuple_when_iterating", False)
+    self._backend_pinned = backend_pinned
     self._level = level
     self._kwargs = {
         "level": level,
@@ -1244,12 +1246,14 @@ def __getitem__(self, key):
         return DataFrameGroupBy(
             self._df.iloc[:, ilocs_list],
             drop=self._drop,
+            backend_pinned=self._backend_pinned,
             **kwargs,
         )
     else:
         return SeriesGroupBy(
             self._df.iloc[:, ilocs_list],
             drop=self._drop,
+            backend_pinned=self._backend_pinned,
             **kwargs,
         )
 
