@@ -105,15 +105,21 @@ ORACLEDB_TABLE_NAME_SMALL = "ALL_TYPE_TABLE_SMALL"
 ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integration"
 
 
+@pytest.mark.parametrize(
+    "input_type, input_value",
+    [
+        ("table", SQL_SERVER_TABLE_NAME),
+        ("query", f"SELECT * FROM {SQL_SERVER_TABLE_NAME}"),
+    ],
+)
 @pytest.mark.parametrize("fetch_with_process", [True, False])
-def test_dbapi_with_temp_table(session, caplog, fetch_with_process):
+def test_basic_sql_server(session, caplog, fetch_with_process, input_type, input_value):
+    input_dict = {
+        input_type: input_value,
+        "fetch_with_process": str(fetch_with_process),
+    }
     with caplog.at_level(logging.DEBUG):
-        df = session.read.dbapi(
-            sql_server_create_connection,
-            table=SQL_SERVER_TABLE_NAME,
-            max_workers=4,
-            fetch_with_process=fetch_with_process,
-        )
+        df = session.read.dbapi(sql_server_create_connection, **input_dict)
         # default fetch size is 1k, so we should only see 1 parquet file generated as the data is less than 1k
         assert caplog.text.count("Retrieved BytesIO parquet from queue") == 1
         assert df.collect() == sql_server_all_type_data
