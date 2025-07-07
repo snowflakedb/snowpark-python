@@ -22,13 +22,13 @@ import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas
+from modin.core.storage_formats.pandas.query_compiler_caster import (
+    register_function_for_pre_op_switch,
+)
 from modin.pandas import Series
 from modin.pandas.api.extensions import register_base_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
-from modin.core.storage_formats.pandas.query_compiler_caster import (
-    register_function_for_pre_op_switch,
-)
 from pandas._libs import lib
 from pandas._libs.lib import NoDefault, is_bool, no_default
 from pandas._typing import (
@@ -66,9 +66,7 @@ from pandas.util._validators import (
     validate_percentile,
 )
 
-from snowflake.snowpark.modin.plugin._internal.utils import (
-    MODIN_IS_AT_LEAST_0_34_0,
-)
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_34_0
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
@@ -105,9 +103,7 @@ def register_base_not_implemented():
         register_function_for_pre_op_switch(
             class_name="BasePandasDataset", backend="Snowflake", method=name
         )
-        return register_base_override(name=name)(
-            base_not_implemented()(base_method)
-        )
+        return register_base_override(name=name)(base_not_implemented()(base_method))
 
     return decorator
 
