@@ -559,7 +559,6 @@ class FunctionExpression(Expression):
         api_call_source: Optional[str] = None,
         *,
         is_data_generator: bool = False,
-        **named_arguments,
     ) -> None:
         super().__init__()
         self.name = name
@@ -645,7 +644,7 @@ class ModelFunctionExpression(Expression):
 
     @property
     def plan_node_category(self) -> PlanNodeCategory:
-        return PlanNodeCategory.MODEL
+        return PlanNodeCategory.FUNCTION
 
     @property
     def sql(self) -> str:
