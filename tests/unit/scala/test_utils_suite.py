@@ -329,7 +329,6 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_debug_utils_dir/",
                 "resources/test_debug_utils_dir/dataframe_generator1.py",
                 "resources/test_debug_utils_dir/dataframe_generator2.py",
-                "resources/test_debug_utils_dir/operator_tree_output.txt",
                 "resources/test_debug_utils_dir/sample_read_file.txt",
                 "resources/test_debug_utils_dir/sample_write_file.txt",
                 "resources/test_sp_dir/",

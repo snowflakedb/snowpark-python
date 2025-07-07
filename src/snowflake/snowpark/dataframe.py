@@ -6299,7 +6299,6 @@ class DataFrame:
             return
         profiler = DataframeQueryProfiler(self._session)
         for i, query_id in enumerate(query_history.dataframe_queries[self._ast_id]):
-            # For multiple queries, append to the file after the first query
             if i == 0:
                 profiler.profile_query(query_id, output_file)
             else:
