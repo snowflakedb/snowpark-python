@@ -212,6 +212,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
+    experimental,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -10752,6 +10753,7 @@ def _call_model(
 
 
 @publicapi
+@experimental(version="1.34.0")
 def model(
     model_name: str,
     version_or_alias_name: Optional[str] = None,
