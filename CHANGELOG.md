@@ -52,6 +52,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 
 #### Dependency Updates
 - Added tqdm and ipywidgets as dependencies so that progress bars appear when switching between modin backends.
+- Updated the minimum supported `modin` version from 0.32.0 to 0.33.0, and the modin version ceiling from 0.34.0 to 0.35.0 (non-inclusive).
 
 #### Bug Fixes
 - Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
