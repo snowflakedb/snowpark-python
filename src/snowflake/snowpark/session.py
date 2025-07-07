@@ -2060,7 +2060,7 @@ class Session:
             for package in dependency_packages:
                 name = package.name
                 package_specs = [
-                    (spec.operator, spec.version) for spec in package_req.specifier
+                    (spec.operator, spec.version) for spec in package.specifier
                 ]
                 version = package_specs[0][1] if package_specs else None
 
