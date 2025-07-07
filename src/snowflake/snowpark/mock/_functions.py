@@ -403,7 +403,7 @@ def mock_stddev(column: "ColumnEmulator") -> "ColumnEmulator":
 
 @patch("approx_percentile_accumulate")
 def mock_approx_percentile_accumulate(
-    column: Union[TableEmulator, ColumnEmulator]
+    column: Union["TableEmulator", "ColumnEmulator"]
 ) -> "ColumnEmulator":
     from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 
@@ -414,8 +414,8 @@ def mock_approx_percentile_accumulate(
 
 @patch("approx_percentile_estimate")
 def mock_approx_percentile_estimate(
-    column1: Union[TableEmulator, ColumnEmulator],
-    column2: Union[TableEmulator, ColumnEmulator],
+    column1: Union["TableEmulator", "ColumnEmulator"],
+    column2: Union["TableEmulator", "ColumnEmulator"],
 ) -> "ColumnEmulator":
     from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 
@@ -426,8 +426,8 @@ def mock_approx_percentile_estimate(
 
 @patch("covar_samp")
 def mock_covar_samp(
-    column1: Union[TableEmulator, ColumnEmulator],
-    column2: Union[TableEmulator, ColumnEmulator],
+    column1: Union["TableEmulator", "ColumnEmulator"],
+    column2: Union["TableEmulator", "ColumnEmulator"],
 ) -> "ColumnEmulator":
     from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 
@@ -438,8 +438,8 @@ def mock_covar_samp(
 
 @patch("corr")
 def mock_corr_samp(
-    column1: Union[TableEmulator, ColumnEmulator],
-    column2: Union[TableEmulator, ColumnEmulator],
+    column1: Union["TableEmulator", "ColumnEmulator"],
+    column2: Union["TableEmulator", "ColumnEmulator"],
 ) -> "ColumnEmulator":
     # TODO SNOW-1800512: Fix, returns dummy of 42 for now.
     from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
@@ -2280,7 +2280,7 @@ def mock_concat_ws(*columns: "ColumnEmulator") -> "ColumnEmulator":
 
 
 def cast_column_to(
-    col: "ColumnEmulator", target_column_type: ColumnType, try_cast: bool = False
+    col: "ColumnEmulator", target_column_type: "ColumnType", try_cast: bool = False
 ) -> Optional["ColumnEmulator"]:
     from snowflake.snowpark.mock._snowflake_data_type import ColumnType
 
