@@ -21,10 +21,10 @@ import pandas  # isort: skip  # noqa: E402
 supported_pandas_major_version = 2
 supported_pandas_minor_version = 2
 actual_pandas_version = version.parse(pandas.__version__)
-supported_modin_version = "0.32.0"
+recommended_supported_modin_version = "0.33.2"
 
 install_modin_msg = (
-    f"Please set the modin version as {supported_modin_version} in the Packages menu at the top of your notebook."
+    f"Please set the modin version as {recommended_supported_modin_version} in the Packages menu at the top of your notebook."
     if "snowbook" in sys.modules  # this indicates the environment is Snowflake Notebook
     else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
 )
@@ -52,8 +52,8 @@ except ModuleNotFoundError:  # pragma: no cover
         "Modin is not installed. " + install_modin_msg
     )  # pragma: no cover
 
-modin_min_supported_version = version.parse("0.32.0")
-modin_max_supported_version = version.parse("0.34.0")  # non-inclusive
+modin_min_supported_version = version.parse("0.33.0")
+modin_max_supported_version = version.parse("0.35.0")  # non-inclusive
 actual_modin_version = version.parse(modin.__version__)
 if not (
     modin_min_supported_version <= actual_modin_version < modin_max_supported_version

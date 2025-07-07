@@ -1567,6 +1567,7 @@ def groupby(
         observed=observed,
         drop=False,
         dropna=dropna,
+        backend_pinned=self.is_backend_pinned(),
     )
 
 
