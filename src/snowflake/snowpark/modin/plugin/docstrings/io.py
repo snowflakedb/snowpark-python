@@ -468,6 +468,68 @@ def json_normalize():
 def read_orc():
     """
     Load an ORC object from the file path, returning a DataFrame.
+
+    This method reads an ORC (Optimized Row Columnar) file into a pandas DataFrame using the pyarrow.orc library. ORC is a columnar storage format that provides efficient compression and fast retrieval for analytical workloads. It allows reading specific columns, handling different filesystem types (such as local storage, cloud storage via fsspec, or pyarrow filesystem), and supports different data type backends, including numpy_nullable and pyarrow.
+
+    Parameters
+    ----------
+    path : str, path object, or file-like object
+        String, path object (implementing os.PathLike[str]), or file-like object implementing a binary read() function. The string could be a URL. Valid URL schemes include http, ftp, s3, and file. For file URLs, a host is expected. A local file could be: file://localhost/path/to/table.orc.
+
+    columns : list, default None
+        If not None, only these columns will be read from the file. Output always follows the ordering of the file and not the columns list. This mirrors the original behaviour of pyarrow.orc.ORCFile.read().
+
+    dtype_backend : {‘numpy_nullable’, ‘pyarrow’}
+        Back-end data type applied to the resultant DataFrame (still experimental). If not specified, the default behavior is to not use nullable data types. If specified, the behavior is as follows:
+
+        - "numpy_nullable": returns nullable-dtype-backed DataFrame
+
+        - "pyarrow": returns pyarrow-backed nullable ArrowDtype DataFrame
+
+        Added in version 2.0.
+
+    filesystem: fsspec or pyarrow filesystem, default None
+        Filesystem object to use when reading the orc file.
+
+        Added in version 2.1.0.
+
+    **kwargs
+        Any additional kwargs are passed to pyarrow.
+
+    Returns
+    -------
+    DataFrame
+        DataFrame based on the ORC file.
+
+    See also
+    --------
+
+    read_csv
+        Read a comma-separated values (csv) file into a pandas DataFrame.
+
+    read_excel
+        Read an Excel file into a pandas DataFrame.
+
+    read_spss
+        Read an SPSS file into a pandas DataFrame.
+
+    read_sas
+        Load a SAS file into a pandas DataFrame.
+
+    read_feather
+        Load a feather-format object into a pandas DataFrame.
+
+    Notes
+    -----
+
+    Before using this function you should read the user guide about ORC and install optional dependencies.
+
+    If path is a URI scheme pointing to a local or remote file (e.g. “s3://”), a pyarrow.fs filesystem will be attempted to read the file. You can also pass a pyarrow or fsspec filesystem object into the filesystem keyword to override this behavior.
+
+    Examples
+    --------
+
+    >>> result = pd.read_orc("example_pa.orc")  # doctest: +SKIP
     """
 
 
