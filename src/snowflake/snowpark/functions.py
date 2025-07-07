@@ -10768,12 +10768,13 @@ def model(
 
         >>> df = session.table("DIAMONDS_TEST")
         >>> model_fn = model("DIAMONDS_PRICE_PREDICTION", "v1")
-        >>> result = df.select(model_fn(
+        >>> result_df = df.select(model_fn(
         ...     "predict",
         ...     col("CUT_OE"), col("COLOR_OE"), col("CLARITY_OE"), col("CARAT"),
         ...     col("DEPTH"), col("TABLE_PCT"), col("X"), col("Y"), col("Z")
-        ... ))
-        >>> result.show()  # doctest: +SKIP
+        ... )["output_feature_0"])
+        >>> result_df.count()
+        5412
     """
     return lambda method_name, *args: _call_model(
         model_name, version_or_alias_name, method_name, *args, _emit_ast=_emit_ast
