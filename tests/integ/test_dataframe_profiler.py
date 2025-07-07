@@ -179,7 +179,7 @@ def test_profiler_disabled_get_execution_profile(session, caplog):
     with caplog.at_level(logging.WARNING):
         df.get_execution_profile()
     assert (
-        "No query history found. Enable dataframe profiler to get execution profile."
+        "No query history found. Enable dataframe profiler using session.dataframe_profiler.enable()"
         in caplog.text
     )
 
@@ -291,3 +291,35 @@ def test_profiler_across_sessions(session, db_parameters):
         profiler1.disable()
         profiler2.disable()
         session2.close()
+
+
+def test_dataframe_cache_result_preserves_profile(session):
+    """Test that after calling .cache_result() on a dataframe, we still have access to the same query history and profile."""
+    profiler = session.dataframe_profiler
+    profiler.enable()
+
+    try:
+        test_data = [(i, f"value_{i}", i * 10) for i in range(1, 11)]
+        df = session.create_dataframe(test_data, schema=["id", "name", "amount"])
+
+        result1 = df.collect()
+        assert len(result1) == 10
+        assert validate_execution_profile(
+            df, ["ValuesClause", "Input Rows", "Output Rows"]
+        ), "Should be able to get profile before caching"
+        cached_df = df.cache_result()
+        result2 = cached_df.collect()
+        assert len(result2) == 10
+        assert result2 == result1
+        assert validate_execution_profile(
+            cached_df, ["ValuesClause", "TableScan", "Input Rows", "Output Rows"]
+        ), "Should be able to get profile after caching"
+        filtered_cached = cached_df.filter(col("id") > 5)
+        result3 = filtered_cached.collect()
+        assert len(result3) == 5
+        assert validate_execution_profile(
+            filtered_cached, ["Filter", "Input Rows", "Output Rows"]
+        ), "Should be able to get profile for filtered cached dataframe"
+
+    finally:
+        profiler.disable()

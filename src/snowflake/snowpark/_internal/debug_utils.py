@@ -5,10 +5,11 @@
 from functools import cached_property
 import os
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set, Tuple, TextIO
 import itertools
 import re
 from typing import TYPE_CHECKING
+import snowflake.snowpark
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto

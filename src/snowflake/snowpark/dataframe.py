@@ -175,7 +175,7 @@ from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
-from snowflake.snowpark._internal.debug_utils import profile_query
+from snowflake.snowpark._internal.debug_utils import DataframeQueryProfiler
 from snowflake.snowpark.functions import (
     abs as abs_,
     col,
@@ -6125,6 +6125,22 @@ class DataFrame:
 
         if _emit_ast:
             cached_df._ast_id = stmt.uid
+            # Preserve query history from the original dataframe for profiling
+            if (
+                self._session.dataframe_profiler._query_history is not None
+                and self._ast_id is not None
+                and self._ast_id
+                in self._session.dataframe_profiler._query_history._dataframe_queries
+            ):
+                # Copy the original dataframe's query history to the cached dataframe's AST ID
+                original_queries = (
+                    self._session.dataframe_profiler._query_history._dataframe_queries[
+                        self._ast_id
+                    ]
+                )
+                self._session.dataframe_profiler._query_history._dataframe_queries[
+                    cached_df._ast_id
+                ] = original_queries.copy()
         return cached_df
 
     @publicapi
@@ -6266,24 +6282,28 @@ class DataFrame:
 
             return res_dfs
 
-    @publicapi
     def get_execution_profile(self, output_file: Optional[str] = None) -> None:
         """
         Get the execution profile of the dataframe.
         """
         if self._session.dataframe_profiler._query_history is None:
             _logger.warning(
-                "No query history found. Enable dataframe profiler to get execution profile."
+                "No query history found. Enable dataframe profiler using session.dataframe_profiler.enable()"
             )
             return
         query_history = self._session.dataframe_profiler._query_history
         if self._ast_id not in query_history.dataframe_queries:
             _logger.warning(
-                f"No queries found for dataframe with ast_id {self._ast_id}. Make sure to call collect or count to evaluate the dataframe."
+                f"No queries found for dataframe with ast_id {self._ast_id}. Make sure to evaluate the dataframe before calling get_execution_profile."
             )
             return
-        for query_id in query_history.dataframe_queries[self._ast_id]:
-            profile_query(self._session, query_id, output_file)
+        profiler = DataframeQueryProfiler(self._session)
+        for i, query_id in enumerate(query_history.dataframe_queries[self._ast_id]):
+            # For multiple queries, append to the file after the first query
+            if i == 0:
+                profiler.profile_query(query_id, output_file)
+            else:
+                profiler.profile_query(query_id, output_file, append_mode=True)
 
     @property
     def queries(self) -> Dict[str, List[str]]:
