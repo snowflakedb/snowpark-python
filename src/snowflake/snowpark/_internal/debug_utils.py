@@ -5,10 +5,11 @@
 from functools import cached_property
 import os
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set, Tuple, TextIO
 import itertools
 import re
 from typing import TYPE_CHECKING
+import snowflake.snowpark
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -287,207 +288,262 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
     return ""
 
 
-def build_operator_tree(operators_data):
-    nodes = {}
-    children = {}
-    root_nodes = set()
-    for row in operators_data:
-        operator_id = (
-            row["OPERATOR_ID"]
-            if "OPERATOR_ID" in row and row["OPERATOR_ID"] is not None
-            else 0
-        )
-        parent_operators = (
-            row["PARENT_OPERATORS"]
-            if "PARENT_OPERATORS" in row and row["PARENT_OPERATORS"] is not None
-            else None
-        )
-        parent_operators = (
-            str(parent_operators) if parent_operators is not None else None
-        )
-        node_info = {
-            "id": operator_id,
-            "type": row["OPERATOR_TYPE"]
-            if "OPERATOR_TYPE" in row and row["OPERATOR_TYPE"] is not None
-            else "N/A",
-            "input_rows": row["INPUT_ROWS"]
-            if "INPUT_ROWS" in row and row["INPUT_ROWS"] is not None
-            else 0,
-            "output_rows": row["OUTPUT_ROWS"]
-            if "OUTPUT_ROWS" in row and row["OUTPUT_ROWS"] is not None
-            else 0,
-            "row_multiple": row["ROW_MULTIPLE"]
-            if "ROW_MULTIPLE" in row and row["ROW_MULTIPLE"] is not None
-            else 0,
-            "exec_time": row["OVERALL_PERCENTAGE"]
-            if "OVERALL_PERCENTAGE" in row and row["OVERALL_PERCENTAGE"] is not None
-            else 0,
-            "attributes": row["OPERATOR_ATTRIBUTES"]
-            if "OPERATOR_ATTRIBUTES" in row and row["OPERATOR_ATTRIBUTES"] is not None
-            else "N/A",
-        }
-
-        nodes[operator_id] = node_info
-        children[operator_id] = []
-
-        if parent_operators is None:
-            root_nodes.add(operator_id)
-        else:
-            x = ast.literal_eval(parent_operators)
-            for parent_id in x:
-                if parent_id not in children:
-                    children[parent_id] = []
-                children[parent_id].append(operator_id)
-
-    return nodes, children, root_nodes
-
-
-def _write_output(message: str, file_handle=None) -> None:
-    """Helper function to write output to either console or file."""
-    if file_handle:
-        file_handle.write(message + "\n")
-    else:
-        sys.stdout.write(message + "\n")
-
-
-def print_operator_tree(nodes, children, node_id, prefix="", is_last=True, file=None):
-    node = nodes[node_id]
-
-    connector = "└── " if is_last else "├── "
-
-    node_info = (
-        f"[{node['id']}] {node['type']} "
-        f"(In: {node['input_rows']:,}, Out: {node['output_rows']:,}, "
-        f"Mult: {node['row_multiple']:.2f}, Time: {node['exec_time']:.2f}%)"
-    )
-
-    _write_output(f"{prefix}{connector}{node_info}", file)
-
-    extension = "    " if is_last else "│   "
-    new_prefix = prefix + extension
-
-    child_list = children.get(node_id, [])
-    for i, child_id in enumerate(child_list):
-        is_last_child = i == len(child_list) - 1
-        print_operator_tree(
-            nodes, children, child_id, new_prefix, is_last_child, file=file
-        )
-
-
-def profile_query(session, query_id: str, output_file: Optional[str] = None) -> None:
+class DataframeQueryProfiler:
     """
-    Profile a query and save the results to a file.
-
-    Args:
-        session: The Snowpark session to use for querying operator stats
-        query_id: The query ID to profile
-        output_file: The file to save the results to. If not provided, the results will be printed to the console.
-
-    Returns:
-        None - output either to the console or to the file specified by output_file
+    A class for profiling Snowflake queries and analyzing operator statistics.
+    It can generate tree visualizations and output tables of operator statistics.
     """
 
-    stats_query = f"""
-        SELECT
-            operator_id,
-            operator_type,
-            operator_attributes,
-            operator_statistics:input_rows::number as input_rows,
-            operator_statistics:output_rows::number as output_rows,
-            CASE
-                WHEN operator_statistics:input_rows::number > 0
-                THEN operator_statistics:output_rows::number / operator_statistics:input_rows::number
-                ELSE NULL
-            END as row_multiple,
-            execution_time_breakdown:overall_percentage::number as overall_percentage
-        FROM TABLE(get_query_operator_stats('{query_id}'))
-        ORDER BY step_id, operator_id
+    def __init__(self, session: "snowflake.snowpark.Session") -> None:
+        self.session = session
+
+    def build_operator_tree(self, operators_data: List[Dict]) -> Tuple[Dict, Dict, Set]:
         """
-    stats_connection = session._conn._conn.cursor()
-    stats_connection.execute(stats_query)
-    raw_results = stats_connection.fetchall()
+        Build a tree structure from raw operator data for query profiling.
 
-    column_names = [desc[0] for desc in stats_connection.description]
-    stats_result = [dict(zip(column_names, row)) for row in raw_results]
+        Args:
+            operators_data (List[Dict]): A list of dictionaries containing operator statistics.
+            The keys include operator id, operator type, parent operators, input rows, output rows,
+            row multiple, overall percentage, and operator attributes.
 
-    nodes, children, root_nodes = build_operator_tree(stats_result)
-    file_handle = None
-    if output_file:
-        file_handle = open(output_file, "w", encoding="utf-8")
+        Returns:
+            Tuple[Dict, Dict, Set]: A tuple containing:
+                - nodes (Dict[int, Dict]): Dictionary mapping operator IDs to node information
+                - children (Dict[int, List[int]]): Dictionary mapping operator IDs to lists of child operator IDs
+                - root_nodes (Set[int]): Set of operator IDs that are root nodes (have no parents)
 
-    try:
-        _write_output(f"\n=== Analyzing Query {query_id} ===", file_handle)
-        _write_output(f"\n{'='*80}", file_handle)
-        _write_output("QUERY OPERATOR TREE", file_handle)
-        _write_output(f"{'='*80}", file_handle)
+        """
 
-        root_list = sorted(list(root_nodes))
-        for i, root_id in enumerate(root_list):
-            is_last_root = i == len(root_list) - 1
-            print_operator_tree(
-                nodes, children, root_id, "", is_last_root, file=file_handle
-            )
-
-        _write_output(f"\n{'='*160}", file_handle)
-        _write_output("DETAILED OPERATOR STATISTICS", file_handle)
-        _write_output(f"{'='*160}", file_handle)
-        _write_output(
-            f"{'Operator':<15} {'Type':<15} {'Input Rows':<12} {'Output Rows':<12} {'Row Multiple':<12} {'Overall %':<12} {'Attributes':<50}",
-            file_handle,
-        )
-        _write_output(f"{'='*160}", file_handle)
-
-        total_input = 0
-        total_output = 0
-
-        for row in stats_result:
+        nodes = {}
+        children = {}
+        root_nodes = set()
+        for row in operators_data:
             operator_id = (
                 row["OPERATOR_ID"]
                 if "OPERATOR_ID" in row and row["OPERATOR_ID"] is not None
                 else 0
             )
-            operator_type = (
-                row["OPERATOR_TYPE"]
+            parent_operators = (
+                row["PARENT_OPERATORS"]
+                if "PARENT_OPERATORS" in row and row["PARENT_OPERATORS"] is not None
+                else None
+            )
+            parent_operators = (
+                str(parent_operators) if parent_operators is not None else None
+            )
+            node_info = {
+                "id": operator_id,
+                "type": row["OPERATOR_TYPE"]
                 if "OPERATOR_TYPE" in row and row["OPERATOR_TYPE"] is not None
-                else "N/A"
-            )
-            input_rows = (
-                row["INPUT_ROWS"]
+                else "N/A",
+                "input_rows": row["INPUT_ROWS"]
                 if "INPUT_ROWS" in row and row["INPUT_ROWS"] is not None
-                else 0
-            )
-            output_rows = (
-                row["OUTPUT_ROWS"]
+                else 0,
+                "output_rows": row["OUTPUT_ROWS"]
                 if "OUTPUT_ROWS" in row and row["OUTPUT_ROWS"] is not None
-                else 0
-            )
-            row_multiple = (
-                row["ROW_MULTIPLE"]
+                else 0,
+                "row_multiple": row["ROW_MULTIPLE"]
                 if "ROW_MULTIPLE" in row and row["ROW_MULTIPLE"] is not None
-                else 0
-            )
-            exec_time = (
-                row["OVERALL_PERCENTAGE"]
+                else 0,
+                "exec_time": row["OVERALL_PERCENTAGE"]
                 if "OVERALL_PERCENTAGE" in row and row["OVERALL_PERCENTAGE"] is not None
-                else 0
-            )
-            operator_attrs = (
-                row["OPERATOR_ATTRIBUTES"]
+                else 0,
+                "attributes": row["OPERATOR_ATTRIBUTES"]
                 if "OPERATOR_ATTRIBUTES" in row
                 and row["OPERATOR_ATTRIBUTES"] is not None
-                else "N/A"
-            )
-            operator_attrs = operator_attrs.replace("\n", " ").replace("  ", " ")
+                else "N/A",
+            }
 
-            _write_output(
-                f"{operator_id:<15} {operator_type:<15} {input_rows:<12} {output_rows:<12} {row_multiple:<12.2f} {exec_time:<12} {operator_attrs:<50}",
+            nodes[operator_id] = node_info
+            children[operator_id] = []
+
+            if parent_operators is None:
+                root_nodes.add(operator_id)
+            else:
+                x = ast.literal_eval(parent_operators)
+                for parent_id in x:
+                    if parent_id not in children:
+                        children[parent_id] = []
+                    children[parent_id].append(operator_id)
+
+        return nodes, children, root_nodes
+
+    def _write_output(self, message: str, file_handle=None) -> None:
+        """Helper function to write output to either console or file."""
+        if file_handle:
+            file_handle.write(message + "\n")
+        else:
+            sys.stdout.write(message + "\n")
+
+    def print_operator_tree(
+        self,
+        nodes: Dict[int, Dict],
+        children: Dict[int, List[int]],
+        node_id: int,
+        prefix: str = "",
+        is_last: bool = True,
+        file: Optional[TextIO] = None,
+    ) -> None:
+        """
+        Print a visual tree representation of query operators with their statistics.
+
+        Args:
+            nodes (Dict[int, Dict]): Dictionary mapping operator IDs to node information.
+            children (Dict[int, List[int]]): Dictionary mapping operator IDs to lists of child operator IDs.
+            node_id (int): The ID of the current operator node to print.
+            prefix (str, optional): String prefix for tree formatting (used for indentation).
+                Defaults to "".
+            is_last (bool, optional): Whether this node is the last child of its parent.
+                Used for proper tree connector formatting. Defaults to True.
+            file (Optional[file], optional): File handle to write output to. If None,
+                output is written to stdout. Defaults to None.
+
+        Returns:
+            None: This function prints output and doesn't return a value.
+
+        """
+        node = nodes[node_id]
+
+        connector = "└── " if is_last else "├── "
+
+        node_info = (
+            f"[{node['id']}] {node['type']} "
+            f"(In: {node['input_rows']:,}, Out: {node['output_rows']:,}, "
+            f"Mult: {node['row_multiple']:.2f}, Time: {node['exec_time']:.2f}%)"
+        )
+
+        self._write_output(f"{prefix}{connector}{node_info}", file)
+
+        extension = "    " if is_last else "│   "
+        new_prefix = prefix + extension
+
+        child_list = children.get(node_id, [])
+        for i, child_id in enumerate(child_list):
+            is_last_child = i == len(child_list) - 1
+            self.print_operator_tree(
+                nodes, children, child_id, new_prefix, is_last_child, file=file
+            )
+
+    def profile_query(
+        self,
+        query_id: str,
+        output_file: Optional[str] = None,
+        append_mode: bool = False,
+    ) -> None:
+        """
+        Profile a query and save the results to a file.
+
+        Args:
+            query_id: The query ID to profile
+            output_file: The file to save the results to. If not provided, the results will be printed to the console.
+
+        Returns:
+            None - output either to the console or to the file specified by output_file
+        """
+
+        stats_query = f"""
+            SELECT
+                operator_id,
+                operator_type,
+                operator_attributes,
+                operator_statistics:input_rows::number as input_rows,
+                operator_statistics:output_rows::number as output_rows,
+                CASE
+                    WHEN operator_statistics:input_rows::number > 0
+                    THEN operator_statistics:output_rows::number / operator_statistics:input_rows::number
+                    ELSE NULL
+                END as row_multiple,
+                execution_time_breakdown:overall_percentage::number as overall_percentage
+            FROM TABLE(get_query_operator_stats('{query_id}'))
+            ORDER BY step_id, operator_id
+            """
+        stats_connection = self.session._conn._conn.cursor()
+        stats_connection.execute(stats_query)
+        raw_results = stats_connection.fetchall()
+
+        column_names = [desc[0] for desc in stats_connection.description]
+        stats_result = [dict(zip(column_names, row)) for row in raw_results]
+
+        nodes, children, root_nodes = self.build_operator_tree(stats_result)
+        file_handle = None
+        if output_file:
+            mode = "a" if append_mode else "w"
+            file_handle = open(output_file, mode, encoding="utf-8")
+
+        try:
+            self._write_output(f"\n=== Analyzing Query {query_id} ===", file_handle)
+            self._write_output(f"\n{'='*80}", file_handle)
+            self._write_output("QUERY OPERATOR TREE", file_handle)
+            self._write_output(f"{'='*80}", file_handle)
+
+            root_list = sorted(list(root_nodes))
+            for i, root_id in enumerate(root_list):
+                is_last_root = i == len(root_list) - 1
+                self.print_operator_tree(
+                    nodes, children, root_id, "", is_last_root, file=file_handle
+                )
+
+            self._write_output(f"\n{'='*160}", file_handle)
+            self._write_output("DETAILED OPERATOR STATISTICS", file_handle)
+            self._write_output(f"{'='*160}", file_handle)
+            self._write_output(
+                f"{'Operator':<15} {'Type':<15} {'Input Rows':<12} {'Output Rows':<12} {'Row Multiple':<12} {'Overall %':<12} {'Attributes':<50}",
                 file_handle,
             )
-            total_input += input_rows
-            total_output += output_rows
+            self._write_output(f"{'='*160}", file_handle)
 
-        _write_output(f"{'='*160}", file_handle)
+            total_input = 0
+            total_output = 0
 
-    finally:
-        if file_handle:
-            file_handle.close()
+            for row in stats_result:
+                operator_id = (
+                    row["OPERATOR_ID"]
+                    if "OPERATOR_ID" in row and row["OPERATOR_ID"] is not None
+                    else 0
+                )
+                operator_type = (
+                    row["OPERATOR_TYPE"]
+                    if "OPERATOR_TYPE" in row and row["OPERATOR_TYPE"] is not None
+                    else "N/A"
+                )
+                input_rows = (
+                    row["INPUT_ROWS"]
+                    if "INPUT_ROWS" in row and row["INPUT_ROWS"] is not None
+                    else 0
+                )
+                output_rows = (
+                    row["OUTPUT_ROWS"]
+                    if "OUTPUT_ROWS" in row and row["OUTPUT_ROWS"] is not None
+                    else 0
+                )
+                row_multiple = (
+                    row["ROW_MULTIPLE"]
+                    if "ROW_MULTIPLE" in row and row["ROW_MULTIPLE"] is not None
+                    else 0
+                )
+                exec_time = (
+                    row["OVERALL_PERCENTAGE"]
+                    if "OVERALL_PERCENTAGE" in row
+                    and row["OVERALL_PERCENTAGE"] is not None
+                    else 0
+                )
+                operator_attrs = (
+                    row["OPERATOR_ATTRIBUTES"]
+                    if "OPERATOR_ATTRIBUTES" in row
+                    and row["OPERATOR_ATTRIBUTES"] is not None
+                    else "N/A"
+                )
+                operator_attrs = operator_attrs.replace("\n", " ").replace("  ", " ")
+
+                self._write_output(
+                    f"{operator_id:<15} {operator_type:<15} {input_rows:<12} {output_rows:<12} {row_multiple:<12.2f} {exec_time:<12} {operator_attrs:<50}",
+                    file_handle,
+                )
+                total_input += input_rows
+                total_output += output_rows
+
+            self._write_output(f"{'='*160}", file_handle)
+
+        finally:
+            if file_handle:
+                file_handle.close()
