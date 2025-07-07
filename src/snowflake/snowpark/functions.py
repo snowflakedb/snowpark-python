@@ -178,6 +178,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     Star,
     NamedFunctionExpression,
+    ModelFunctionExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.window_expression import (
@@ -11685,6 +11686,47 @@ def randn(
 
 
 @publicapi
+def model(
+    model_name: str,
+    model_function: str,
+    model_version: Optional[str] = None,
+    *args, 
+     _emit_ast: bool = True,
+    **kwargs,
+   
+) -> Column:
+    """Call model registered in the Snowflake Model Registry.
+
+    Args:
+        model_name: Name of the model to call.
+        model_function: Name of the model function to call.
+        model_version: Version of the model to call.
+        args: Positional arguments to pass to the function.
+        kwargs: Keyword arguments to pass to the function.
+
+    Example::
+        >>> df = session.create_dataframe([["hello world"], ["world hello"]], schema=["text"])
+        >>> df.select(call_model("model_name", "function", "arg1", "arg2", "arg3").alias("result")).collect()
+        [Row(RESULT='result')]
+    """
+    ast = (
+        build_function_expr(f"model({model_name, model_version})!{model_function}", [*args, **kwargs])
+        if _emit_ast
+        else None
+    )
+    model_function_expression = ModelFunctionExpression(
+        model_name,
+        model_function,
+        model_version,
+        *args,
+        **kwargs,
+    )
+    ans = Column(model_function_expression, _emit_ast=_emit_ast)
+    ans._ast = ast
+    return ans
+
+
+@publicapi
 def build_stage_file_url(
     stage_name: str, relative_file_path: str, _emit_ast: bool = True
 ) -> Column:
@@ -12733,3 +12775,5 @@ def ai_complete(
     return _call_named_arguments_function(
         sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
     )
+
+
