@@ -10725,7 +10725,7 @@ def sproc(
 
 def _call_model(
     model_name: str,
-    version_or_alias_name: str | None,
+    version_or_alias_name: Optional[str],
     method_name: str,
     *args,
     _emit_ast: bool = True,
@@ -10754,7 +10754,7 @@ def _call_model(
 @publicapi
 def model(
     model_name: str,
-    version_or_alias_name: str | None = None,
+    version_or_alias_name: Optional[str] = None,
     _emit_ast: bool = True,
 ) -> Callable:
     """

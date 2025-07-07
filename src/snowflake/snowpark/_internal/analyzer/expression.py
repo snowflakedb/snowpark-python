@@ -554,7 +554,7 @@ class ModelExpression(Expression):
     def __init__(
         self,
         model_name: str,
-        version_or_alias_name: str | None,
+        version_or_alias_name: Optional[str],
         method_name: str,
         arguments: List[Expression],
     ) -> None:

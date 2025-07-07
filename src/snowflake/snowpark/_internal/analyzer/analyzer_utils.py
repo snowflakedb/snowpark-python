@@ -258,7 +258,7 @@ def result_scan_statement(uuid_place_holder: str) -> str:
 
 def model_expression(
     model_name: str,
-    version_or_alias_name: str | None,
+    version_or_alias_name: Optional[str],
     method_name: str,
     children: List[str],
 ) -> str:
