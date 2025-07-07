@@ -10768,8 +10768,8 @@ def model(
 
     Example::
 
-        >>> df = session.table("DIAMONDS_TEST")
-        >>> model_fn = model("DIAMONDS_PRICE_PREDICTION", "v1")
+        >>> df = session.table("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_TEST")
+        >>> model_fn = model("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_PRICE_PREDICTION", "v1")
         >>> result_df = df.select(model_fn(
         ...     "predict",
         ...     col("CUT_OE"), col("COLOR_OE"), col("CLARITY_OE"), col("CARAT"),
