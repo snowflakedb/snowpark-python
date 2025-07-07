@@ -1803,7 +1803,9 @@ class Session:
             package_name, use_local_version, package_req = package_info
             # The `packaging.requirements.Requirement` object exposes a `packaging.requirements.SpecifierSet` object
             # that handles a set of version specifiers.
-            package_specs = [(spec.operator, spec.version) for spec in package_req.specifier]
+            package_specs = [
+                (spec.operator, spec.version) for spec in package_req.specifier
+            ]
             package_version_req = package_specs[0][1] if package_specs else None
 
             if validate_package:
@@ -2057,7 +2059,9 @@ class Session:
             # Add dependency packages
             for package in dependency_packages:
                 name = package.name
-                package_specs = [(spec.operator, spec.version) for spec in package_req.specifier]
+                package_specs = [
+                    (spec.operator, spec.version) for spec in package_req.specifier
+                ]
                 version = package_specs[0][1] if package_specs else None
 
                 if name in result_dict:
