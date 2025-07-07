@@ -11,9 +11,19 @@ For Snowflake, specific API calls will trigger hybrid backend evaluation. These 
 as either a pre-operation switch point or a post-operation switch point. These switch points
 may change over time as the feature matures and as APIs are updated.
 
+Only Dataframes with data types that are compatible with Snowflake can be moved to the Snowflake
+backend, and if a Dataframe backed by pandas contains such a type ('categorical' for example)
+then astype should be used to coerce that type before the backend can be changed.
+
 Example Pre-Operation Switchpoints:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 apply, iterrows, itertuples, items, plot, quantile, __init__, plot, quantile, T, read_csv, read_json, concat, merge 
+
+Many methods that are not yet implemented in Snowpark pandas are also registered as
+pre-operation switch points, and will automatically move data to local pandas for execution when
+called. This includes most methods that are ordinarily completely unsupported by Snowpark pandas,
+and have `N` in their implemented status in the :doc:`DataFrame <supported/dataframe_supported>` and
+:doc:`Series <supported/series_supported>` supported API lists.
 
 Post-Operation Switchpoints:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -100,3 +110,11 @@ backend is 10M rows. This can be configured through the modin environment variab
     with config_context(NativePandasMaxRows=1234):
         # Operations only performed using the Pandas backend
         df = pd.DataFrame([4, 5, 6])
+
+
+Debugging Hybrid Execution
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+`pd.explain_switch()` provides information on how execution engine decisions
+are made. This method prints a simplified version of the command unless `simple=False` is
+passed as an argument.

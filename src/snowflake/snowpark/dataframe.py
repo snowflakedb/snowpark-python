@@ -1597,6 +1597,8 @@ class DataFrame:
                     )
                 else:
                     names.append(e._named())
+                if isinstance(e._expression, (Attribute, UnresolvedAttribute)):
+                    string_col_names.append(e._expression.name)
                 if _emit_ast and _ast_stmt is None:
                     ast_cols.append(e._ast)
 
