@@ -559,6 +559,7 @@ class FunctionExpression(Expression):
         api_call_source: Optional[str] = None,
         *,
         is_data_generator: bool = False,
+        **named_arguments,
     ) -> None:
         super().__init__()
         self.name = name
@@ -619,6 +620,44 @@ class NamedFunctionExpression(Expression):
     @property
     def plan_node_category(self) -> PlanNodeCategory:
         return PlanNodeCategory.FUNCTION
+
+    
+class ModelFunctionExpression(Expression):
+    def __init__(
+        self,
+        model_name: str,
+        model_function: str,
+        model_version: Optional[str] = None,
+        *model_args: Expression,
+        **model_named_args: Dict[str, Expression],
+    ) -> None:
+        super().__init__()
+        self.model_name = model_name
+        self.model_version = model_version
+        self.model_function = model_function
+        self.model_args = model_args
+        self.model_named_args = model_named_args
+        self.children = list(model_args) + list(model_named_args.values())
+
+    @property
+    def pretty_name(self) -> str:
+        return f"model({self.model_name}, {self.model_version})!{self.model_function}"
+
+    @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.MODEL
+
+    @property
+    def sql(self) -> str:
+        model_args_str = ", ".join([arg.sql for arg in self.model_args])
+        model_named_args_str = ", ".join([f"{k} => {v.sql}" for k, v in self.model_named_args.items()])
+        return f"model({self.model_name}, {self.model_version})!{self.model_function}({model_args_str}, {model_named_args_str})"
+
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        return derive_dependent_columns(*self.children) if self.children else None
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(*self.children) if self.children else []
 
 
 class WithinGroup(Expression):
