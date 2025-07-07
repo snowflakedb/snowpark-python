@@ -26,6 +26,7 @@ Input/Output
     read_snowflake
     to_snowflake
     to_snowpark
+    to_view
 
 .. rubric:: pandas
 
