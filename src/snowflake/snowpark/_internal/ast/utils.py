@@ -34,6 +34,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     MultipleExpression,
     Star,
     UnresolvedAttribute,
+    ModelFunctionExpression
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SaveMode
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
@@ -1015,7 +1016,7 @@ def snowpark_expression_to_ast(expr: Expression) -> proto.Expr:  # pragma: no co
         from snowflake.snowpark.functions import col
 
         return col("*")._ast
-    elif isinstance(expr, FunctionExpression):
+    elif isinstance(expr, (FunctionExpression, ModelFunctionExpression)):
         # Snowpark pandas API has some usage where injecting the publicapi decorator would lead to issues.
         # Directly translate here.
         ast = proto.Expr()
