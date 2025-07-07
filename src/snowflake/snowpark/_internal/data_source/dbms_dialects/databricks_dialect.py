@@ -14,15 +14,24 @@ class DatabricksDialect(BaseDialect):
         schema: StructType,
         raw_schema: List[tuple],
         is_query: bool,
+        query_input_alias: str,
     ) -> str:
         cols = []
         for field, raw_field in zip(schema.fields, raw_schema):
+            field_name = (
+                f"{query_input_alias}.`{raw_field[0]}`"
+                if is_query
+                else f"`{raw_field[0]}`"
+            )
             # databricks-sql-connector returns list of tuples for MapType
             # here we push down to-dict conversion to Databricks
             if isinstance(field.datatype, MapType):
-                cols.append(f"""TO_JSON(`{raw_field[0]}`) AS {raw_field[0]}""")
+                cols.append(f"""TO_JSON({field_name}) AS {raw_field[0]}""")
             elif isinstance(field.datatype, BinaryType):
-                cols.append(f"""HEX(`{raw_field[0]}`) AS {raw_field[0]}""")
+                cols.append(f"""HEX({field_name}) AS {raw_field[0]}""")
             else:
-                cols.append(f"`{raw_field[0]}`")
-        return f"""SELECT {" , ".join(cols)} FROM {table_or_query}"""
+                cols.append(f"{field_name} AS {raw_field[0]}")
+        if is_query:
+            return f"""SELECT {" , ".join(cols)} FROM ({table_or_query}) {query_input_alias}"""
+        else:
+            return f"""SELECT {" , ".join(cols)} FROM {table_or_query}"""

@@ -21,6 +21,7 @@ from snowflake.snowpark._internal.data_source.utils import (
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
+from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.types import (
     StructType,
     _NumericType,
@@ -69,6 +70,10 @@ class DataSourcePartitioner:
         self.dialect = self.dialect_class()
         self.driver = self.driver_class(create_connection, dbms_type)
 
+        self._query_input_alias = (
+            f"SNOWPARK_DBAPI_QUERY_INPUT_ALIAS{generate_random_alphanumeric().upper()}"
+        )
+
     def reader(self) -> DataSourceReader:
         return DataSourceReader(
             self.driver_class,
@@ -85,7 +90,7 @@ class DataSourcePartitioner:
     def schema(self) -> StructType:
         if self.custom_schema is None:
             return self.driver.infer_schema_from_description_with_error_control(
-                self.table_or_query, self.is_query
+                self.table_or_query, self.is_query, self._query_input_alias
             )
         else:
             if isinstance(self.custom_schema, str):

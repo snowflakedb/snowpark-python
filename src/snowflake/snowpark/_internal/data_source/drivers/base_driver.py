@@ -59,21 +59,39 @@ class BaseDriver:
     ) -> "Connection":
         return conn
 
+    @staticmethod
+    def generate_infer_schema_sql(
+        table_or_query: str, is_query: bool, query_input_alias: str
+    ):
+        return (
+            f"SELECT * FROM ({table_or_query}) {query_input_alias} WHERE 1 = 0"
+            if is_query
+            else f"SELECT * FROM {table_or_query} WHERE 1 = 0"
+        )
+
     def infer_schema_from_description(
-        self, table_or_query: str, cursor: "Cursor", is_query: bool
+        self,
+        table_or_query: str,
+        cursor: "Cursor",
+        is_query: bool,
+        query_input_alias: str,
     ) -> StructType:
-        cursor.execute(f"SELECT * FROM {table_or_query} WHERE 1 = 0")
+        cursor.execute(
+            self.generate_infer_schema_sql(table_or_query, is_query, query_input_alias)
+        )
         raw_schema = cursor.description
         self.raw_schema = raw_schema
         return self.to_snow_type(raw_schema)
 
     def infer_schema_from_description_with_error_control(
-        self, table_or_query: str, is_query: bool
+        self, table_or_query: str, is_query: bool, query_input_alias: str
     ) -> StructType:
         conn = self.create_connection()
         cursor = conn.cursor()
         try:
-            return self.infer_schema_from_description(table_or_query, cursor, is_query)
+            return self.infer_schema_from_description(
+                table_or_query, cursor, is_query, query_input_alias
+            )
 
         except Exception as exc:
             raise SnowparkDataframeReaderException(
