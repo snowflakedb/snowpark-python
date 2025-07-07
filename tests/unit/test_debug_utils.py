@@ -3,6 +3,7 @@
 #
 
 import os
+import tempfile
 from unittest import mock
 
 import pytest
@@ -28,12 +29,6 @@ test_write_file_path = os.path.join(
     "resources",
     "test_debug_utils_dir",
     "sample_write_file.txt",
-)
-test_operator_tree_output_path = os.path.join(
-    os.path.dirname(curr_file_path),
-    "resources",
-    "test_debug_utils_dir",
-    "operator_tree_output.txt",
 )
 
 
@@ -214,16 +209,22 @@ def test_print_operator_tree_single_node():
     }
     children = {1: []}
 
-    # Write to file and verify content
-    with open(test_operator_tree_output_path, "w", encoding="utf-8") as test_file:
+    # Write to temporary file and verify content
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".txt"
+    ) as test_file:
         profiler.print_operator_tree(nodes, children, 1, file=test_file)
+        temp_path = test_file.name
 
-    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
-        content = test_file.read()
-        expected_content = (
-            "└── [1] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 100.00%)\n"
-        )
-        assert content == expected_content
+    try:
+        with open(temp_path, encoding="utf-8") as test_file:
+            content = test_file.read()
+            expected_content = (
+                "└── [1] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 100.00%)\n"
+            )
+            assert content == expected_content
+    finally:
+        os.unlink(temp_path)
 
 
 def test_print_operator_tree_with_children():
@@ -249,16 +250,22 @@ def test_print_operator_tree_with_children():
     }
     children = {1: [2], 2: []}
 
-    with open(test_operator_tree_output_path, "w", encoding="utf-8") as test_file:
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".txt"
+    ) as test_file:
         profiler.print_operator_tree(nodes, children, 1, file=test_file)
+        temp_path = test_file.name
 
-    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
-        content = test_file.read()
-        expected_content = (
-            "└── [1] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 50.00%)\n"
-            "    └── [2] Filter (In: 1,000, Out: 500, Mult: 0.50, Time: 30.00%)\n"
-        )
-        assert content == expected_content
+    try:
+        with open(temp_path, encoding="utf-8") as test_file:
+            content = test_file.read()
+            expected_content = (
+                "└── [1] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 50.00%)\n"
+                "    └── [2] Filter (In: 1,000, Out: 500, Mult: 0.50, Time: 30.00%)\n"
+            )
+            assert content == expected_content
+    finally:
+        os.unlink(temp_path)
 
 
 def test_print_operator_tree_multiple_children():
@@ -293,17 +300,23 @@ def test_print_operator_tree_multiple_children():
     }
     children = {1: [2, 3], 2: [], 3: []}
 
-    with open(test_operator_tree_output_path, "w", encoding="utf-8") as test_file:
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".txt"
+    ) as test_file:
         profiler.print_operator_tree(nodes, children, 1, file=test_file)
+        temp_path = test_file.name
 
-    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
-        content = test_file.read()
-        expected_content = (
-            "└── [1] Join (In: 2,000, Out: 1,500, Mult: 0.75, Time: 60.00%)\n"
-            "    ├── [2] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 20.00%)\n"
-            "    └── [3] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 20.00%)\n"
-        )
-        assert content == expected_content
+    try:
+        with open(temp_path, encoding="utf-8") as test_file:
+            content = test_file.read()
+            expected_content = (
+                "└── [1] Join (In: 2,000, Out: 1,500, Mult: 0.75, Time: 60.00%)\n"
+                "    ├── [2] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 20.00%)\n"
+                "    └── [3] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 20.00%)\n"
+            )
+            assert content == expected_content
+    finally:
+        os.unlink(temp_path)
 
 
 def test_print_operator_tree_three_levels():
@@ -352,19 +365,25 @@ def test_print_operator_tree_three_levels():
         },
     }
     children = {1: [2, 3], 2: [], 3: [4], 4: [5], 5: []}
-    with open(test_operator_tree_output_path, "w", encoding="utf-8") as test_file:
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".txt"
+    ) as test_file:
         profiler.print_operator_tree(nodes, children, 1, file=test_file)
+        temp_path = test_file.name
 
-    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
-        content = test_file.read()
-        expected_content = (
-            "└── [1] Join (In: 3,000, Out: 2,000, Mult: 0.67, Time: 40.00%)\n"
-            "    ├── [2] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 15.00%)\n"
-            "    └── [3] Filter (In: 2,000, Out: 1,500, Mult: 0.75, Time: 25.00%)\n"
-            "        └── [4] TableScan (In: 2,000, Out: 2,000, Mult: 1.00, Time: 20.00%)\n"
-            "            └── [5] Sort (In: 1,500, Out: 1,500, Mult: 1.00, Time: 10.00%)\n"
-        )
-        assert content == expected_content
+    try:
+        with open(temp_path, encoding="utf-8") as test_file:
+            content = test_file.read()
+            expected_content = (
+                "└── [1] Join (In: 3,000, Out: 2,000, Mult: 0.67, Time: 40.00%)\n"
+                "    ├── [2] TableScan (In: 1,000, Out: 1,000, Mult: 1.00, Time: 15.00%)\n"
+                "    └── [3] Filter (In: 2,000, Out: 1,500, Mult: 0.75, Time: 25.00%)\n"
+                "        └── [4] TableScan (In: 2,000, Out: 2,000, Mult: 1.00, Time: 20.00%)\n"
+                "            └── [5] Sort (In: 1,500, Out: 1,500, Mult: 1.00, Time: 10.00%)\n"
+            )
+            assert content == expected_content
+    finally:
+        os.unlink(temp_path)
 
 
 @pytest.mark.parametrize(
@@ -399,14 +418,20 @@ def test_print_operator_tree_with_prefix(prefix, is_last, expected_content):
     }
     children = {1: []}
 
-    with open(test_operator_tree_output_path, "w", encoding="utf-8") as test_file:
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".txt"
+    ) as test_file:
         profiler.print_operator_tree(
             nodes, children, 1, prefix=prefix, is_last=is_last, file=test_file
         )
+        temp_path = test_file.name
 
-    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
-        content = test_file.read()
-        assert content == expected_content
+    try:
+        with open(temp_path, encoding="utf-8") as test_file:
+            content = test_file.read()
+            assert content == expected_content
+    finally:
+        os.unlink(temp_path)
 
 
 def test_print_operator_tree_to_stdout():
@@ -501,16 +526,22 @@ def test_profile_query_output_to_file():
 
     query_id = "test_query_456"
     profiler = DataframeQueryProfiler(mock_session)
-    with open(test_operator_tree_output_path, "w", encoding="utf-8") as temp_file:
-        temp_file.write("")  # Clear the file first
 
-    profiler.profile_query(query_id, test_operator_tree_output_path)
-    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
-        content = test_file.read()
-        assert "=== Analyzing Query test_query_456 ===" in content
-        assert "QUERY OPERATOR TREE" in content
-        assert "DETAILED OPERATOR STATISTICS" in content
-        assert "TableScan" in content
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".txt"
+    ) as temp_file:
+        temp_path = temp_file.name
+
+    try:
+        profiler.profile_query(query_id, temp_path)
+        with open(temp_path, encoding="utf-8") as test_file:
+            content = test_file.read()
+            assert "=== Analyzing Query test_query_456 ===" in content
+            assert "QUERY OPERATOR TREE" in content
+            assert "DETAILED OPERATOR STATISTICS" in content
+            assert "TableScan" in content
+    finally:
+        os.unlink(temp_path)
 
 
 def test_profile_query_empty_results():
@@ -572,21 +603,28 @@ def test_profile_query_with_complex_attributes():
     query_id = "complex_query_202"
     profiler = DataframeQueryProfiler(mock_session)
 
-    with open(test_operator_tree_output_path, "w", encoding="utf-8") as temp_file:
-        temp_file.write("")
+    with tempfile.NamedTemporaryFile(
+        mode="w", delete=False, suffix=".txt"
+    ) as temp_file:
+        temp_path = temp_file.name
 
-    profiler.profile_query(query_id, test_operator_tree_output_path)
-
-    with open(test_operator_tree_output_path, encoding="utf-8") as test_file:
-        content = test_file.read()
-        lines = content.split("\n")
-        detail_section = False
-        for line in lines:
-            if "DETAILED OPERATOR STATISTICS" in line:
-                detail_section = True
-            elif detail_section and "Join" in line:
-                assert "join_condition=table1.id=table2.id type=inner rows=1000" in line
-                break
+    try:
+        profiler.profile_query(query_id, temp_path)
+        with open(temp_path, encoding="utf-8") as test_file:
+            content = test_file.read()
+            lines = content.split("\n")
+            detail_section = False
+            for line in lines:
+                if "DETAILED OPERATOR STATISTICS" in line:
+                    detail_section = True
+                elif detail_section and "Join" in line:
+                    assert (
+                        "join_condition=table1.id=table2.id type=inner rows=1000"
+                        in line
+                    )
+                    break
+    finally:
+        os.unlink(temp_path)
 
 
 def test_profile_query_file_handle_cleanup():
