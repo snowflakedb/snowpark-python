@@ -1803,19 +1803,19 @@ class Session:
             package_name, use_local_version, package_req = package_info
             # The `packaging.requirements.Requirement` object exposes a `packaging.requirements.SpecifierSet` object
             # that handles a set of version specifiers.
-            package_specs = [
-                (spec.operator, spec.version) for spec in package_req.specifier
-            ]
-            package_version_req = package_specs[0][1] if package_specs else None
+            package_specifier = package_req.specifier if package_req.specifier else None
 
             if validate_package:
                 if package_name not in valid_packages or (
-                    package_version_req
-                    and not any(v in package_req for v in valid_packages[package_name])
+                    package_specifier
+                    and not any(
+                        package_specifier.contains(v)
+                        for v in valid_packages[package_name]
+                    )
                 ):
                     version_text = (
-                        f"(version {package_version_req})"
-                        if package_version_req is not None
+                        f"(version {package_specifier})"
+                        if package_specifier is not None
                         else ""
                     )
                     if is_in_stored_procedure():  # pragma: no cover
