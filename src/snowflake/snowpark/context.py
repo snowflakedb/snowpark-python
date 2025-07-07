@@ -39,12 +39,16 @@ _debug_eager_schema_validation = False
 # This is an internal-only global flag, used to determine whether to enable query line tracking for tracing sql compilation errors.
 _enable_trace_sql_errors_to_dataframe = False
 
+# This is an internal-only global flag, used to determine whether to detect exploding joins.
+_enable_track_exploding_joins = False
+
 
 def configure_development_features(
     *,
     enable_dataframe_trace_on_error: bool = True,
     enable_eager_schema_validation: bool = True,
     enable_trace_sql_errors_to_dataframe: bool = True,
+    enable_track_exploding_joins: bool = True,
 ) -> None:
     """
     Configure development features for the session.
@@ -56,6 +60,8 @@ def configure_development_features(
         enable_eager_schema_validation: If True, dataframe schemas are eagerly validated by querying
             for column metadata after every dataframe operation. This adds additional query overhead.
         enable_trace_sql_errors_to_dataframe: If True, we will enable query line tracking.
+        enable_track_exploding_joins: If True, we will track exploding joins (output_rows > 10 * input_rows)
+            in query execution and log warnings when detected.
     Note:
         This feature is experimental since 1.33.0. Do not use it in production.
     """
@@ -63,10 +69,11 @@ def configure_development_features(
         "configure_development_features() is experimental since 1.33.0. Do not use it in production.",
     )
     global _enable_dataframe_trace_on_error, _enable_trace_sql_errors_to_dataframe
-    global _debug_eager_schema_validation
+    global _debug_eager_schema_validation, _enable_track_exploding_joins
     _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
     _debug_eager_schema_validation = enable_eager_schema_validation
     _enable_trace_sql_errors_to_dataframe = enable_trace_sql_errors_to_dataframe
+    _enable_track_exploding_joins = enable_track_exploding_joins
 
 
 def _should_use_structured_type_semantics():
