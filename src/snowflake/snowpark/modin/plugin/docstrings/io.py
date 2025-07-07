@@ -486,12 +486,8 @@ def read_orc():
 
         - "pyarrow": returns pyarrow-backed nullable ArrowDtype DataFrame
 
-        Added in version 2.0.
-
     filesystem: fsspec or pyarrow filesystem, default None
         Filesystem object to use when reading the orc file.
-
-        Added in version 2.1.0.
 
     **kwargs
         Any additional kwargs are passed to pyarrow.
