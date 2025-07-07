@@ -1801,7 +1801,10 @@ class Session:
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
-            package_version_req = package_req.specs[0][1] if package_req.specs else None
+            # The `packaging.requirements.Requirement` object exposes a `packaging.requirements.SpecifierSet` object
+            # that handles a set of version specifiers.
+            package_specs = [(spec.operator, spec.version) for spec in package_req.specifier]
+            package_version_req = package_specs[0][1] if package_specs else None
 
             if validate_package:
                 if package_name not in valid_packages or (
@@ -2054,7 +2057,8 @@ class Session:
             # Add dependency packages
             for package in dependency_packages:
                 name = package.name
-                version = package.specs[0][1] if package.specs else None
+                package_specs = [(spec.operator, spec.version) for spec in package_req.specifier]
+                version = package_specs[0][1] if package_specs else None
 
                 if name in result_dict:
                     if version is not None:
