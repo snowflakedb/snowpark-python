@@ -1173,6 +1173,7 @@ def groupby(
         dropna=dropna,
         drop=False,  # TODO reconcile with OSS modin's drop flag
         return_tuple_when_iterating=return_tuple_when_iterating,
+        backend_pinned=self.is_backend_pinned(),
     )
 
 

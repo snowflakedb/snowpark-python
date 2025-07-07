@@ -9,8 +9,10 @@ under the `pd` namespace, such as `pd.read_snowflake`.
 from typing import Any, Iterable, Literal, Optional, Union
 
 from modin.pandas import DataFrame, Series
+from modin.pandas.api.extensions import (
+    register_pd_accessor as _register_pd_accessor,
+)
 
-from snowflake.snowpark.modin.plugin import MODIN_IS_AT_LEAST_0_33_0
 from .general_overrides import register_pd_accessor
 from pandas._typing import IndexLabel
 import pandas as native_pd
@@ -30,12 +32,6 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
 
-# Import the register_pd_accessor for pandas backend
-if MODIN_IS_AT_LEAST_0_33_0:
-
-    from modin.pandas.api.extensions import (
-        register_pd_accessor as _register_pd_accessor,
-    )
 
 register_pd_accessor("Index")(Index)
 register_pd_accessor("DatetimeIndex")(DatetimeIndex)
@@ -422,26 +418,24 @@ def read_snowflake(
     )
 
 
-if MODIN_IS_AT_LEAST_0_33_0:
-
-    @_register_pd_accessor("read_snowflake", backend="Pandas")
-    @_inherit_docstrings(read_snowflake)
-    @doc(
-        _READ_SNOWFLAKE_DOC,
-        table_name="RESULT_1",
-        stored_procedure_name="MULTIPLY_COL_BY_VALUE_1",
-    )
-    def _read_snowflake_pandas_backend(
-        name_or_query, index_col=None, columns=None, enforce_ordering=False
-    ) -> pd.DataFrame:
-        with config_context(Backend="Snowflake"):
-            df = pd.read_snowflake(
-                name_or_query,
-                index_col=index_col,
-                columns=columns,
-                enforce_ordering=enforce_ordering,
-            )
-        return df.set_backend("Pandas")
+@_register_pd_accessor("read_snowflake", backend="Pandas")
+@_inherit_docstrings(read_snowflake)
+@doc(
+    _READ_SNOWFLAKE_DOC,
+    table_name="RESULT_1",
+    stored_procedure_name="MULTIPLY_COL_BY_VALUE_1",
+)
+def _read_snowflake_pandas_backend(
+    name_or_query, index_col=None, columns=None, enforce_ordering=False
+) -> pd.DataFrame:
+    with config_context(Backend="Snowflake"):
+        df = pd.read_snowflake(
+            name_or_query,
+            index_col=index_col,
+            columns=columns,
+            enforce_ordering=enforce_ordering,
+        )
+    return df.set_backend("Pandas")
 
 
 @register_pd_accessor("to_snowflake")
@@ -719,10 +713,6 @@ def explain_switch(simple=True) -> Union[native_pd.DataFrame, None]:
                                      auto   Pandas
 
     """
-    if not MODIN_IS_AT_LEAST_0_33_0:
-        raise NotImplementedError(
-            "explain_switch requires modin >= 0.33.0"
-        )  # pragma: no cover
     if simple:
         return explain_switch_simple()
     return explain_switch_complex()
