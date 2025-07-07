@@ -45,6 +45,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Added support for `pd.read_feather`.
 - Added support for `pd.explain_switch()` to return debugging information on hybrid execution decisions.
 - Support `pd.read_snowflake` when the global modin backend is `Pandas`.
+- Added Support for `pd.to_dynamic_table`.
 
 #### Improvements
 - Add a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
