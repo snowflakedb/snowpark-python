@@ -17,6 +17,7 @@ Input/Output
     read_pickle
     read_html
     read_xml
+    read_stata
 
 .. rubric:: SQL
 

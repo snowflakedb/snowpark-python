@@ -344,3 +344,33 @@ def read_sas(
     kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_sas_signature}
 
     return pd.DataFrame(query_compiler=PandasOnSnowflakeIO.read_sas(**kwargs))
+
+
+@_inherit_docstrings(native_pd.read_stata, apilink="pandas.read_stata")
+@register_pd_accessor("read_stata")
+def read_stata(
+    filepath_or_buffer: FilePath,
+    *,
+    convert_dates: bool = True,
+    convert_categoricals: bool = True,
+    index_col: str | None = None,
+    convert_missing: bool = False,
+    preserve_dtypes: bool = True,
+    columns: Sequence[str] | None = None,
+    order_categoricals: bool = True,
+    chunksize: int | None = None,
+    iterator: bool = False,
+    compression: CompressionOptions = "infer",
+    storage_options: StorageOptions = None,
+) -> pd.DataFrame:
+    _pd_read_stata_signature = {
+        val.name for val in inspect.signature(native_pd.read_stata).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_stata_signature}
+
+    return DataFrame(
+        query_compiler=PandasOnSnowflakeIO.read_stata(
+            **kwargs,
+        )
+    )
