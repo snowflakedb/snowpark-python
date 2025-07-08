@@ -779,7 +779,7 @@ def to_iceberg(
         >>> df.to_snowpark_pandas().to_iceberg("my_table", iceberg_config=iceberg_config, mode="overwrite") # doctest: +SKIP
     """
     _snowpark_pandas_obj_check(obj)
-    return obj.to_iceberg(
+    return obj._query_compiler.to_iceberg(
         table_name=table_name,
         iceberg_config=iceberg_config,
         mode=mode,

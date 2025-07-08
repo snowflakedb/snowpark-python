@@ -416,12 +416,12 @@ def _telemetry_helper(
         if need_to_restore_args0_api_calls:
             args[0]._query_compiler.snowpark_pandas_api_calls = existing_api_calls
     # TODO: SNOW-911654 Fix telemetry for cases like pd.merge([df1, df2]) and df1.merge(df2)
-    # Inplace lazy APIs: those APIs won't return anything. We also need to exclude one exception "to_snowflake" which
-    # also returns None, since it is an eager API
+    # Inplace lazy APIs: those APIs won't return anything. We also need to exclude "to_snowflake" and "to_iceberg" which
+    # also return None, since they are eager APIs.
     elif (
         result is None
+        and func.__name__ not in ["to_snowflake", "to_iceberg"]
         and is_snowpark_pandas_dataframe_or_series_type(args[0])
-        and func.__name__ != "to_snowflake"
     ):
         args[0]._query_compiler.snowpark_pandas_api_calls = (
             existing_api_calls
