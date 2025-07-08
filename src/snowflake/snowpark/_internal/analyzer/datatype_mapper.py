@@ -23,6 +23,8 @@ from snowflake.snowpark.types import (
     DataType,
     DateType,
     DecimalType,
+    DoubleType,
+    FileType,
     FloatType,
     GeographyType,
     GeometryType,
@@ -35,11 +37,9 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
-    FileType,
     _FractionalType,
     _IntegralType,
     _NumericType,
-    DoubleType,
 )
 
 MILLIS_PER_DAY = 24 * 3600 * 1000
