@@ -80,9 +80,9 @@ class TestDataFrame:
             # accessing the created view in another session fails when enforce_ordering is enabled
             with pytest.raises(
                 SnowparkSQLException,
-                match="Object 'VIEW_NAME' does not exist or not authorized",
+                match="does not exist or not authorized",
             ):
-                new_session.sql("select * from view_name").collect()
+                new_session.sql(f"select * from {view_name}").collect()
             new_session.close()
 
         finally:
@@ -304,9 +304,9 @@ class TestSeries:
             # accessing the created view in another session fails when enforce_ordering is enabled
             with pytest.raises(
                 SnowparkSQLException,
-                match="Object 'VIEW_NAME' does not exist or not authorized",
+                match="does not exist or not authorized",
             ):
-                new_session.sql("select * from view_name").collect()
+                new_session.sql(f"select * from {view_name}").collect()
             new_session.close()
 
         finally:
