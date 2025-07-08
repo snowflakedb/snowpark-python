@@ -6,6 +6,9 @@ from typing import List
 from snowflake.snowpark.types import StructType
 
 
+QUERY_TEMPLATE = "SELECT {cols} FROM {table_or_query} {query_input_alias}"
+
+
 class BaseDialect:
     @staticmethod
     def generate_select_query(
@@ -24,7 +27,8 @@ class BaseDialect:
             else:
                 cols.append(raw_field[0])
 
-        if is_query:
-            return f"""SELECT {" , ".join(cols)} FROM ({table_or_query}) {query_input_alias}"""
-        else:
-            return f"""SELECT {" , ".join(cols)} FROM {table_or_query}"""
+        return QUERY_TEMPLATE.format(
+            cols=" , ".join(cols),
+            table_or_query=f"({table_or_query})" if is_query else table_or_query,
+            query_input_alias=query_input_alias if is_query else "",
+        )
