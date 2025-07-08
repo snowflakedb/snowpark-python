@@ -1116,6 +1116,19 @@ def test_filter(session):
     expected = []
     assert res == expected
 
+    data = [
+        (Decimal("123.45"), 1),
+        (Decimal("678.90"), 2),
+        (Decimal("0.0"), 3),
+        (None, 4),
+    ]
+    decimal_df = session.create_dataframe(data, ["amount", "id"])
+
+    res = decimal_df.filter(col("amount") == Decimal("123.45")).collect()
+
+    expected = [Row(AMOUNT=Decimal("123.450000000000000000"), ID=1)]
+    assert res == expected
+
 
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
