@@ -108,15 +108,16 @@ jobs:
           - cloud-provider: azure
             python-version: "3.12"
             os: ubuntu-latest-64-cores
-          # run py 3.12 tests on aws across all operating systems
+          # run py 3.12 tests on aws on ubuntu and macos
           - python-version: "3.12"
-            cloud-provider: aws
+            cloud-provider: gcp
             os: ubuntu-latest-64-cores
           - python-version: "3.12"
             cloud-provider: aws
             os: macos-latest
+          # run py 3.12 tests on gcp on windows to help take load off aws runners
           - python-version: "3.12"
-            cloud-provider: aws
+            cloud-provider: gcp
             os: windows-latest-64-cores
     steps:
       - name: Checkout Code
@@ -458,29 +459,25 @@ jobs:
       matrix:
         # matrix is empty for pre-commit, tests are only added
         # through the include directive
+        # We split Python version and OS differences across the different clouds to make sure
+        # the actions runners do not get overwhelmed.
+        # When support for a new Python version is added in the future, avoid adding a new task
+        # --just replace the version on an old one, and let the daily job handle full python
+        # version/cloud/OS permutation coverage.
         include:
-          # only run py3.9 tests on ubuntu+aws to isolate 3.9 failures
+          # The steps below are configured to run only doctests for macos-3.12-aws
           - python-version: "3.9"
-            os: ubuntu-latest-64-cores
-            cloud-provider: aws
-          # only run gcp tests with latest python and ubuntu
-          - cloud-provider: gcp
-            python-version: "3.12"
-            os: ubuntu-latest-64-cores
-          # only run azure tests with latest python and ubuntu
-          - cloud-provider: azure
-            python-version: "3.12"
-            os: ubuntu-latest-64-cores
-          # run py 3.12 tests on aws across all operating systems
-          - python-version: "3.12"
-            cloud-provider: aws
-            os: ubuntu-latest-64-cores
-          - python-version: "3.12"
-            cloud-provider: aws
             os: macos-latest
+            cloud-provider: aws
+          - cloud-provider: gcp
+            python-version: "3.11"
+            os: windows-latest-64-cores
+          - cloud-provider: azure
+            python-version: "3.10"
+            os: ubuntu-latest-64-cores
           - python-version: "3.12"
             cloud-provider: aws
-            os: windows-latest-64-cores
+            os: ubuntu-latest-64-cores
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
