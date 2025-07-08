@@ -92,6 +92,9 @@ def _send_modin_api_telemetry(
     }
 
     message: dict = {
+        **session._conn._telemetry_client._create_basic_telemetry_data(
+            SnowparkPandasTelemetryField.TYPE_SNOWPARK_PANDAS_FUNCTION_USAGE.value
+        ),
         TelemetryField.KEY_DATA.value: data,
         PCTelemetryField.KEY_SOURCE.value: "modin",
     }
