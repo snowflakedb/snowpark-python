@@ -39,6 +39,7 @@ from snowflake.snowpark.types import (
     _FractionalType,
     _IntegralType,
     _NumericType,
+    DoubleType,
 )
 
 MILLIS_PER_DAY = 24 * 3600 * 1000
@@ -132,7 +133,7 @@ def to_sql(
     if isinstance(datatype, DecimalType):
         if value is None:
             return f"NULL :: DECIMAL({datatype.precision},{datatype.scale})"
-    if isinstance(datatype, FloatType):
+    if isinstance(datatype, (FloatType, DoubleType)):
         if value is None:
             return "NULL :: FLOAT"
     if isinstance(datatype, StringType):

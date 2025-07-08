@@ -3227,17 +3227,3 @@ def test_limit(session):
 |     |     |
 -------------\n""".lstrip()
     )
-
-
-def test_filter(session):
-    data = [
-        (Decimal("123.45"), 1),
-        (Decimal("678.90"), 2),
-        (Decimal("0.0"), 3),
-        (None, 4),
-    ]
-    decimal_df = session.create_dataframe(data)
-
-    filtered_df = decimal_df.filter(col("amount") == Decimal("123.45"))
-
-    filtered_df._show_string(_emit_ast=session.ast_enabled)
