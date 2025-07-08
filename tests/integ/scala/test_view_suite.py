@@ -223,7 +223,7 @@ def test_create_temp_view_on_functions(session, local_testing_mode):
 def test_create_or_replace_temp_view_with_file(session, resources_path):
     original_value = session._conn._thread_safe_session_enabled
     try:
-        session._conn.set_thread_safe_session_enabled = True
+        session._conn._thread_safe_session_enabled = True
         tmp_stage_name = Utils.random_stage_name()
         Utils.create_stage(session, tmp_stage_name, is_temporary=True)
         test_files = TestFiles(resources_path)
