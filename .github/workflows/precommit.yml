@@ -110,7 +110,7 @@ jobs:
             os: ubuntu-latest-64-cores
           # run py 3.12 tests on aws on ubuntu and macos
           - python-version: "3.12"
-            cloud-provider: gcp
+            cloud-provider: aws
             os: ubuntu-latest-64-cores
           - python-version: "3.12"
             cloud-provider: aws
