@@ -110,6 +110,7 @@ ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integr
     [
         ("table", SQL_SERVER_TABLE_NAME),
         ("query", f"SELECT * FROM {SQL_SERVER_TABLE_NAME}"),
+        ("query", f"(SELECT * FROM {SQL_SERVER_TABLE_NAME})"),
     ],
 )
 @pytest.mark.parametrize("fetch_with_process", [True, False])

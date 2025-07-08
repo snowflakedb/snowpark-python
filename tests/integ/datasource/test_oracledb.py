@@ -74,6 +74,7 @@ def create_connection_oracledb():
     [
         ("table", ORACLEDB_TABLE_NAME),
         ("query", f"SELECT * FROM {ORACLEDB_TABLE_NAME}"),
+        ("query", f"(SELECT * FROM {ORACLEDB_TABLE_NAME})"),
     ],
 )
 def test_basic_oracledb(session, input_type, input_value):

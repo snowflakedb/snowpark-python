@@ -74,6 +74,11 @@ def create_connection_mysql():
             None,
             TEST_QUERY,
         ),
+        (
+            create_connection_mysql,
+            None,
+            f"({TEST_QUERY})",
+        ),
     ],
 )
 def test_basic_mysql(session, create_connection, table_name, query):

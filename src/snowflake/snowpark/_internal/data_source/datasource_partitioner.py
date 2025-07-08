@@ -70,9 +70,7 @@ class DataSourcePartitioner:
         self.dialect = self.dialect_class()
         self.driver = self.driver_class(create_connection, dbms_type)
 
-        self._query_input_alias = (
-            f"SNOWPARK_DBAPI_QUERY_INPUT_ALIAS{generate_random_alphanumeric().upper()}"
-        )
+        self._query_input_alias = f"SNOWPARK_DBAPI_QUERY_INPUT_ALIAS_{generate_random_alphanumeric(5).upper()}"
 
     def reader(self) -> DataSourceReader:
         return DataSourceReader(
