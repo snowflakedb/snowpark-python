@@ -67,16 +67,22 @@ class TestDataFrame:
         finally:
             Utils.drop_table(session, table_name)
 
-    @sql_count_checker(query_count=0)
-    def test_to_iceberg_config_required(self, native_pandas_df_basic):
+    @sql_count_checker(query_count=1)
+    def test_to_iceberg_config_required(self, session, native_pandas_df_basic):
         snow_dataframe = pd.DataFrame(native_pandas_df_basic)
 
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-        with pytest.raises(
-            TypeError,
-            match="missing 1 required keyword-only argument: 'iceberg_config'",
-        ):
-            pd.to_iceberg(obj=snow_dataframe, table_name=table_name, mode="overwrite")
+        try:
+            with pytest.raises(
+                TypeError,
+                match="missing 1 required keyword-only argument: 'iceberg_config'",
+            ):
+                pd.to_iceberg(
+                    obj=snow_dataframe, table_name=table_name, mode="overwrite"
+                )
+        finally:
+            # This is just in case the iceberg table is created erroneously
+            Utils.drop_table(session, table_name)
 
 
 class TestSeries:
@@ -112,13 +118,17 @@ class TestSeries:
         finally:
             Utils.drop_table(session, table_name)
 
-    @sql_count_checker(query_count=0)
-    def test_to_iceberg_config_required(self, native_pandas_ser_basic):
+    @sql_count_checker(query_count=1)
+    def test_to_iceberg_config_required(self, session, native_pandas_ser_basic):
         snow_series = pd.Series(native_pandas_ser_basic)
 
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-        with pytest.raises(
-            TypeError,
-            match="missing 1 required keyword-only argument: 'iceberg_config'",
-        ):
-            pd.to_iceberg(obj=snow_series, table_name=table_name, mode="overwrite")
+        try:
+            with pytest.raises(
+                TypeError,
+                match="missing 1 required keyword-only argument: 'iceberg_config'",
+            ):
+                pd.to_iceberg(obj=snow_series, table_name=table_name, mode="overwrite")
+        finally:
+            # This is just in case the iceberg table is created erroneously
+            Utils.drop_table(session, table_name)
