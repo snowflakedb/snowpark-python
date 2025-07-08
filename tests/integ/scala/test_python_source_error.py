@@ -25,6 +25,7 @@ pytestmark = [
 def setup(request, session):
     original = session.ast_enabled
     set_ast_state(AstFlagSource.TEST, True)
+
     yield
     set_ast_state(AstFlagSource.TEST, original)
 
