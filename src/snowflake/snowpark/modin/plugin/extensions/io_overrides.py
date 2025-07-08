@@ -169,6 +169,8 @@ def read_orc(
     }
     _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
     kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_orc_signature}
+    if kwargs["kwargs"] == {}:
+        del kwargs["kwargs"]
 
     return DataFrame(
         query_compiler=PandasOnSnowflakeIO.read_orc(
