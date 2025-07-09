@@ -1093,7 +1093,7 @@ def test_df_subscriptable(session):
     assert res == expected
 
 
-def test_filter(session):
+def test_filter(session, local_testing_mode):
     """Tests for df.filter()."""
     df = session.range(1, 10, 2)
     res = df.filter(col("id") > 4).collect()
@@ -1116,18 +1116,21 @@ def test_filter(session):
     expected = []
     assert res == expected
 
-    data = [
-        (Decimal("123.45"), 1),
-        (Decimal("678.90"), 2),
-        (Decimal("0.0"), 3),
-        (None, 4),
-    ]
-    decimal_df = session.create_dataframe(data, ["amount", "id"])
+    if (
+        not local_testing_mode
+    ):  # TODO: SNOW-2197035: local testing bug with NULL floats and Decimals
+        data = [
+            (Decimal("123.45"), 1),
+            (Decimal("678.90"), 2),
+            (Decimal("0.0"), 3),
+            (None, 4),
+        ]
+        decimal_df = session.create_dataframe(data, ["amount", "id"])
 
-    res = decimal_df.filter(col("amount") == Decimal("123.45")).collect()
+        res = decimal_df.filter(col("amount") == Decimal("123.45")).collect()
 
-    expected = [Row(AMOUNT=Decimal("123.450000000000000000"), ID=1)]
-    assert res == expected
+        expected = [Row(AMOUNT=Decimal("123.450000000000000000"), ID=1)]
+        assert res == expected
 
 
 @pytest.mark.xfail(
