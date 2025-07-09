@@ -24,6 +24,7 @@ Input/Output
     :toctree: pandas_api/
 
     read_snowflake
+    to_iceberg
     to_snowflake
     to_snowpark
 
