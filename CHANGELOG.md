@@ -47,13 +47,18 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Support `pd.read_snowflake` when the global modin backend is `Pandas`.
 
 #### Improvements
-- Add a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
+
+- Added modin telemetry on API calls and hybrid engine switches.
+- Show more helpful error messages to Snowflake Notebook users when Modin or pandas version does not match our requirements.
+- Added a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
 - Added automatic switching to the pandas backend in hybrid execution mode (PrPr) for many methods that are not directly implemented in Snowpark pandas.
 
 #### Dependency Updates
+
 - Added tqdm and ipywidgets as dependencies so that progress bars appear when switching between modin backends.
 
 #### Bug Fixes
+
 - Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
 - Fixed a bug in hybrid execution mode (PrPr) where calling numpy operations like `np.where` on modin objects with the Pandas backend would raise an `AttributeError`. This fix requires `modin` version 0.34.0 or newer.
 - Fixed issue when df.melt where the resulting values have an additional suffix applied
@@ -128,8 +133,6 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 - Added `iceberg_version` option to table creation functions.
 - Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
-- Added modin telemetry on API calls and hybrid engine switches.
-- Show more helpful error messages to Snowflake Notebook users when Modin or pandas version does not match our requirements.
 
 #### Bug Fixes
 
