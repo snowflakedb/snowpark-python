@@ -139,11 +139,6 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Fixed a bug in `Series.where` when the `other` parameter is an unnamed `Series`.
 
 
-#### Bug Fixes
-
-- Fixed a bug in `Series.where` when the `other` parameter is an unnamed `Series`.
-
-
 ## 1.32.0 (2025-05-15)
 
 ### Snowpark Python API Updates
