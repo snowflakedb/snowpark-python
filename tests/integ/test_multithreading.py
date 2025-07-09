@@ -3,6 +3,7 @@
 #
 
 import gc
+import copy
 import hashlib
 import logging
 import os
@@ -67,7 +68,7 @@ def threadsafe_session(
     if IS_IN_STORED_PROC:
         yield session
     else:
-        new_db_parameters = db_parameters.copy()
+        new_db_parameters = copy.deepcopy(db_parameters)
         new_db_parameters["local_testing"] = local_testing_mode
         with Session.builder.configs(new_db_parameters).create() as session:
             session._sql_simplifier_enabled = sql_simplifier_enabled
@@ -792,7 +793,7 @@ def test_large_query_breakdown_with_cte(threadsafe_session):
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="cannot create new session in SP")
 @pytest.mark.parametrize("thread_safe_enabled", [True, False])
 def test_temp_name_placeholder_for_sync(db_parameters, thread_safe_enabled):
-    new_db_params = db_parameters.copy()
+    new_db_params = copy.deepcopy(db_parameters)
     new_db_params["session_parameters"] = {
         _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: thread_safe_enabled,
         _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES: True,
