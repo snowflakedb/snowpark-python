@@ -14,6 +14,9 @@ from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 
+# TODO SNOW-2196517: Combine these tests with their counterparts for DataFrame and Series
+
+
 class TestDataFrame:
     @sql_count_checker(query_count=7)
     def test_to_dynamic_table_enforce_ordering_raises(self, session) -> None:
