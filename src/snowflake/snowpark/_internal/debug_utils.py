@@ -311,3 +311,68 @@ def get_missing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str
             locations_str = "\n  - ".join(list(found_locations.keys()))
             return f"\nMissing object '{object_name}' corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
+
+
+def get_existing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str:
+    """
+    Extract table/object name from error messages like 'Object "TABLE" already exists'
+    and return information about where that table was referenced in the Python source code.
+
+    Args:
+        top_plan: The top level SnowflakePlan object that contains the error.
+        error_msg: The error message containing the object/table name.
+
+    Returns:
+        Error message with the Python source locations where the table was referenced,
+        otherwise an empty string.
+    """
+    sql_compilation_error_regex = re.compile(
+        r""".*SQL compilation error:\s*Object '([^']+)' already exists.*""",
+    )
+    match = sql_compilation_error_regex.match(error_msg)
+    if not match:
+        return ""
+
+    table_name = match.group(1)
+
+    try:
+        bind_stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
+
+        for _, stmt in bind_stmt_cache.items():
+            if hasattr(stmt, "bind") and hasattr(stmt.bind, "expr"):
+                expr = stmt.bind.expr
+
+                # case when we create a table by using .save_as_table()
+                if expr.HasField("write_table"):
+                    write_table_expr = expr.write_table
+                    expr_table_name = None
+                    if write_table_expr.table_name.HasField(
+                        "name"
+                    ) and write_table_expr.table_name.name.HasField("name_flat"):
+                        expr_table_name = (
+                            write_table_expr.table_name.name.name_flat.name
+                        )
+                        expr_table_name = expr_table_name.strip('"').upper()
+
+                    normalized_table_name = table_name.strip('"').upper()
+                    if (
+                        expr_table_name in normalized_table_name
+                        or normalized_table_name.endswith(f".{expr_table_name}")
+                    ):
+                        location = _format_source_location(write_table_expr.src)
+                        return f"\nTable '{table_name}' was first referenced at {location}.\n"
+
+                # case when we create a table by using session.sql()
+                elif expr.HasField("sql"):
+                    sql_expr = expr.sql
+                    query_upper = sql_expr.query.upper()
+                    table_name_upper = table_name.strip('"').upper()
+                    if "CREATE" in query_upper and table_name_upper in query_upper:
+                        location = _format_source_location(sql_expr.src)
+                        return f"\nTable '{table_name}' was first referenced at {location}.\n"
+
+    except Exception:
+        # If we can't access the AST batch, return empty
+        return ""
+
+    return ""
