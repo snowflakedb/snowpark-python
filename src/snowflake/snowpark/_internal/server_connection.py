@@ -434,14 +434,14 @@ class ServerConnection:
         notify_kwargs = {}
         if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
-        if "dataframeAstId" in kwargs:
-            notify_kwargs["dataframeAstId"] = kwargs["dataframeAstId"]
+        if "dataframeUUID" in kwargs:
+            notify_kwargs["dataframeUUID"] = kwargs["dataframeUUID"]
 
-        # Filter out AST parameters before passing to cursor
+        # Filter out dataframe parameters before passing to cursor
         cursor_kwargs = {
             k: v
             for k, v in kwargs.items()
-            if k not in [DATAFRAME_AST_PARAMETER, "dataframeAstId"]
+            if k not in [DATAFRAME_AST_PARAMETER, "dataframeUUID"]
         }
 
         try:
@@ -466,14 +466,14 @@ class ServerConnection:
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
         notify_kwargs = {}
-        if "dataframeAstId" in kwargs:
-            notify_kwargs["dataframeAstId"] = kwargs["dataframeAstId"]
+        if "dataframeUUID" in kwargs:
+            notify_kwargs["dataframeUUID"] = kwargs["dataframeUUID"]
 
         # Filter out AST parameters before passing to cursor
         cursor_kwargs = {
             k: v
             for k, v in kwargs.items()
-            if k not in [DATAFRAME_AST_PARAMETER, "dataframeAstId"]
+            if k not in [DATAFRAME_AST_PARAMETER, "dataframeUUID"]
         }
 
         try:
