@@ -6285,7 +6285,8 @@ class DataFrame:
 
     def get_execution_profile(self, output_file: Optional[str] = None) -> None:
         """
-        Get the execution profile of the dataframe.
+        Get the execution profile of the dataframe. Output is written to the file specified by output_file if provided,
+        otherwise it is written to the console.
         """
         if self._session.dataframe_profiler._query_history is None:
             _logger.warning(
@@ -6298,12 +6299,10 @@ class DataFrame:
                 f"No queries found for dataframe with plan uuid {self._plan.uuid}. Make sure to evaluate the dataframe before calling get_execution_profile."
             )
             return
-        profiler = DataframeQueryProfiler(self._session)
-        for i, query_id in enumerate(query_history.dataframe_queries[self._plan.uuid]):
-            if i == 0:
-                profiler.profile_query(query_id, output_file)
-            else:
-                profiler.profile_query(query_id, output_file, append_mode=True)
+        profiler = DataframeQueryProfiler(self._session, output_file)
+        for query_id in query_history.dataframe_queries[self._plan.uuid]:
+            profiler.profile_query(query_id)
+        profiler.close()
 
     @property
     def queries(self) -> Dict[str, List[str]]:

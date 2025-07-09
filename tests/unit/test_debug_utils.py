@@ -123,9 +123,10 @@ def test_write_output_to_stdout(message, expected_output):
 )
 def test_write_output_to_file(message, expected_content):
     mock_session = mock.MagicMock()
-    profiler = DataframeQueryProfiler(mock_session)
-    with open(test_write_file_path, "w", encoding="utf-8") as test_file:
-        profiler._write_output(message, test_file)
+    open(test_write_file_path, "w").close()
+    profiler = DataframeQueryProfiler(mock_session, test_write_file_path)
+    profiler._write_output(message)
+    profiler.close()
     with open(test_write_file_path, encoding="utf-8") as test_file:
         actual_content = test_file.read()
         assert actual_content == expected_content
@@ -196,7 +197,6 @@ def test_build_operator_tree_with_default_values():
 
 def test_print_operator_tree_single_node():
     mock_session = mock.MagicMock()
-    profiler = DataframeQueryProfiler(mock_session)
     nodes = {
         1: {
             "id": 1,
@@ -209,14 +209,17 @@ def test_print_operator_tree_single_node():
     }
     children = {1: []}
 
-    # Write to temporary file and verify content
+    # Create temporary file and get its path
     with tempfile.NamedTemporaryFile(
         mode="w", delete=False, suffix=".txt", encoding="utf-8"
-    ) as test_file:
-        profiler.print_operator_tree(nodes, children, 1, file=test_file)
-        temp_path = test_file.name
+    ) as temp_file:
+        temp_path = temp_file.name
 
     try:
+        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler.print_operator_tree(nodes, children, 1)
+        profiler.close()
+
         with open(temp_path, encoding="utf-8") as test_file:
             content = test_file.read()
             expected_content = (
@@ -229,7 +232,6 @@ def test_print_operator_tree_single_node():
 
 def test_print_operator_tree_with_children():
     mock_session = mock.MagicMock()
-    profiler = DataframeQueryProfiler(mock_session)
     nodes = {
         1: {
             "id": 1,
@@ -252,11 +254,14 @@ def test_print_operator_tree_with_children():
 
     with tempfile.NamedTemporaryFile(
         mode="w", delete=False, suffix=".txt", encoding="utf-8"
-    ) as test_file:
-        profiler.print_operator_tree(nodes, children, 1, file=test_file)
-        temp_path = test_file.name
+    ) as temp_file:
+        temp_path = temp_file.name
 
     try:
+        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler.print_operator_tree(nodes, children, 1)
+        profiler.close()
+
         with open(temp_path, encoding="utf-8") as test_file:
             content = test_file.read()
             expected_content = (
@@ -271,7 +276,6 @@ def test_print_operator_tree_with_children():
 def test_print_operator_tree_multiple_children():
     """Test printing a tree with multiple children."""
     mock_session = mock.MagicMock()
-    profiler = DataframeQueryProfiler(mock_session)
     nodes = {
         1: {
             "id": 1,
@@ -302,11 +306,14 @@ def test_print_operator_tree_multiple_children():
 
     with tempfile.NamedTemporaryFile(
         mode="w", delete=False, suffix=".txt", encoding="utf-8"
-    ) as test_file:
-        profiler.print_operator_tree(nodes, children, 1, file=test_file)
-        temp_path = test_file.name
+    ) as temp_file:
+        temp_path = temp_file.name
 
     try:
+        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler.print_operator_tree(nodes, children, 1)
+        profiler.close()
+
         with open(temp_path, encoding="utf-8") as test_file:
             content = test_file.read()
             expected_content = (
@@ -321,7 +328,6 @@ def test_print_operator_tree_multiple_children():
 
 def test_print_operator_tree_three_levels():
     mock_session = mock.MagicMock()
-    profiler = DataframeQueryProfiler(mock_session)
     nodes = {
         1: {
             "id": 1,
@@ -365,13 +371,17 @@ def test_print_operator_tree_three_levels():
         },
     }
     children = {1: [2, 3], 2: [], 3: [4], 4: [5], 5: []}
+
     with tempfile.NamedTemporaryFile(
         mode="w", delete=False, suffix=".txt", encoding="utf-8"
-    ) as test_file:
-        profiler.print_operator_tree(nodes, children, 1, file=test_file)
-        temp_path = test_file.name
+    ) as temp_file:
+        temp_path = temp_file.name
 
     try:
+        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler.print_operator_tree(nodes, children, 1)
+        profiler.close()
+
         with open(temp_path, encoding="utf-8") as test_file:
             content = test_file.read()
             expected_content = (
@@ -405,7 +415,6 @@ def test_print_operator_tree_three_levels():
 )
 def test_print_operator_tree_with_prefix(prefix, is_last, expected_content):
     mock_session = mock.MagicMock()
-    profiler = DataframeQueryProfiler(mock_session)
     nodes = {
         1: {
             "id": 1,
@@ -420,13 +429,14 @@ def test_print_operator_tree_with_prefix(prefix, is_last, expected_content):
 
     with tempfile.NamedTemporaryFile(
         mode="w", delete=False, suffix=".txt", encoding="utf-8"
-    ) as test_file:
-        profiler.print_operator_tree(
-            nodes, children, 1, prefix=prefix, is_last=is_last, file=test_file
-        )
-        temp_path = test_file.name
+    ) as temp_file:
+        temp_path = temp_file.name
 
     try:
+        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler.print_operator_tree(nodes, children, 1, prefix=prefix, is_last=is_last)
+        profiler.close()
+
         with open(temp_path, encoding="utf-8") as test_file:
             content = test_file.read()
             assert content == expected_content
@@ -436,6 +446,7 @@ def test_print_operator_tree_with_prefix(prefix, is_last, expected_content):
 
 def test_print_operator_tree_to_stdout():
     mock_session = mock.MagicMock()
+    # Create profiler without file path to write to stdout
     profiler = DataframeQueryProfiler(mock_session)
     nodes = {
         1: {
@@ -525,7 +536,6 @@ def test_profile_query_output_to_file():
     ]
 
     query_id = "test_query_456"
-    profiler = DataframeQueryProfiler(mock_session)
 
     with tempfile.NamedTemporaryFile(
         mode="w", delete=False, suffix=".txt", encoding="utf-8"
@@ -533,7 +543,9 @@ def test_profile_query_output_to_file():
         temp_path = temp_file.name
 
     try:
-        profiler.profile_query(query_id, temp_path)
+        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler.profile_query(query_id)
+        profiler.close()
         with open(temp_path, encoding="utf-8") as test_file:
             content = test_file.read()
             assert "=== Analyzing Query test_query_456 ===" in content
@@ -601,7 +613,6 @@ def test_profile_query_with_complex_attributes():
     ]
 
     query_id = "complex_query_202"
-    profiler = DataframeQueryProfiler(mock_session)
 
     with tempfile.NamedTemporaryFile(
         mode="w", delete=False, suffix=".txt", encoding="utf-8"
@@ -609,7 +620,9 @@ def test_profile_query_with_complex_attributes():
         temp_path = temp_file.name
 
     try:
-        profiler.profile_query(query_id, temp_path)
+        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler.profile_query(query_id)
+        profiler.close()
         with open(temp_path, encoding="utf-8") as test_file:
             content = test_file.read()
             lines = content.split("\n")
@@ -625,36 +638,3 @@ def test_profile_query_with_complex_attributes():
                     break
     finally:
         os.unlink(temp_path)
-
-
-def test_profile_query_file_handle_cleanup():
-    mock_session = mock.MagicMock()
-    mock_cursor = mock.MagicMock()
-    mock_session._conn._conn.cursor.return_value = mock_cursor
-
-    mock_cursor.fetchall.return_value = [
-        (1, "TableScan", "table=test", 100, 100, 1.0, 100.0),
-    ]
-    mock_cursor.description = [
-        ("OPERATOR_ID",),
-        ("OPERATOR_TYPE",),
-        ("OPERATOR_ATTRIBUTES",),
-        ("INPUT_ROWS",),
-        ("OUTPUT_ROWS",),
-        ("ROW_MULTIPLE",),
-        ("OVERALL_PERCENTAGE",),
-    ]
-
-    query_id = "cleanup_test_query"
-    profiler = DataframeQueryProfiler(mock_session)
-
-    mock_file = mock.MagicMock()
-    with mock.patch("builtins.open", return_value=mock_file) as mock_open:
-        with mock.patch.object(
-            profiler, "_write_output", side_effect=Exception("Test exception")
-        ):
-            with pytest.raises(Exception, match="Test exception"):
-                profiler.profile_query(query_id, "test_output.txt")
-
-        mock_open.assert_called_once_with("test_output.txt", "w", encoding="utf-8")
-        mock_file.close.assert_called_once()
