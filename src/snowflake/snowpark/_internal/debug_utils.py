@@ -355,7 +355,7 @@ def get_existing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> st
                         expr_table_name = expr_table_name.strip('"').upper()
 
                     normalized_table_name = table_name.strip('"').upper()
-                    if (
+                    if expr_table_name is not None and (
                         expr_table_name in normalized_table_name
                         or normalized_table_name.endswith(f".{expr_table_name}")
                     ):
