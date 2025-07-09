@@ -211,7 +211,7 @@ def test_print_operator_tree_single_node():
 
     # Write to temporary file and verify content
     with tempfile.NamedTemporaryFile(
-        mode="w", delete=False, suffix=".txt"
+        mode="w", delete=False, suffix=".txt", encoding="utf-8"
     ) as test_file:
         profiler.print_operator_tree(nodes, children, 1, file=test_file)
         temp_path = test_file.name
@@ -251,7 +251,7 @@ def test_print_operator_tree_with_children():
     children = {1: [2], 2: []}
 
     with tempfile.NamedTemporaryFile(
-        mode="w", delete=False, suffix=".txt"
+        mode="w", delete=False, suffix=".txt", encoding="utf-8"
     ) as test_file:
         profiler.print_operator_tree(nodes, children, 1, file=test_file)
         temp_path = test_file.name
@@ -301,7 +301,7 @@ def test_print_operator_tree_multiple_children():
     children = {1: [2, 3], 2: [], 3: []}
 
     with tempfile.NamedTemporaryFile(
-        mode="w", delete=False, suffix=".txt"
+        mode="w", delete=False, suffix=".txt", encoding="utf-8"
     ) as test_file:
         profiler.print_operator_tree(nodes, children, 1, file=test_file)
         temp_path = test_file.name
@@ -366,7 +366,7 @@ def test_print_operator_tree_three_levels():
     }
     children = {1: [2, 3], 2: [], 3: [4], 4: [5], 5: []}
     with tempfile.NamedTemporaryFile(
-        mode="w", delete=False, suffix=".txt"
+        mode="w", delete=False, suffix=".txt", encoding="utf-8"
     ) as test_file:
         profiler.print_operator_tree(nodes, children, 1, file=test_file)
         temp_path = test_file.name
@@ -419,7 +419,7 @@ def test_print_operator_tree_with_prefix(prefix, is_last, expected_content):
     children = {1: []}
 
     with tempfile.NamedTemporaryFile(
-        mode="w", delete=False, suffix=".txt"
+        mode="w", delete=False, suffix=".txt", encoding="utf-8"
     ) as test_file:
         profiler.print_operator_tree(
             nodes, children, 1, prefix=prefix, is_last=is_last, file=test_file
@@ -528,7 +528,7 @@ def test_profile_query_output_to_file():
     profiler = DataframeQueryProfiler(mock_session)
 
     with tempfile.NamedTemporaryFile(
-        mode="w", delete=False, suffix=".txt"
+        mode="w", delete=False, suffix=".txt", encoding="utf-8"
     ) as temp_file:
         temp_path = temp_file.name
 
@@ -604,7 +604,7 @@ def test_profile_query_with_complex_attributes():
     profiler = DataframeQueryProfiler(mock_session)
 
     with tempfile.NamedTemporaryFile(
-        mode="w", delete=False, suffix=".txt"
+        mode="w", delete=False, suffix=".txt", encoding="utf-8"
     ) as temp_file:
         temp_path = temp_file.name
 
