@@ -220,6 +220,11 @@ def test_send_modin_api_telemetry(send_mock):
                 "category": "modin",
             },
             "source": "modin",
+            "type": "snowpark_pandas_function_usage",
+            "version": ANY,
+            "python_version": ANY,
+            "operating_system": ANY,
+            "interactive": ANY,
         }
     )
 
