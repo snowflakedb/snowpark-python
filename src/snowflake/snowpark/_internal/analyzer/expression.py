@@ -550,6 +550,31 @@ class SubfieldInt(Expression):
         )
 
 
+class ModelExpression(Expression):
+    def __init__(
+        self,
+        model_name: str,
+        version_or_alias_name: Optional[str],
+        method_name: str,
+        arguments: List[Expression],
+    ) -> None:
+        super().__init__()
+        self.model_name = model_name
+        self.version_or_alias_name = version_or_alias_name
+        self.method_name = method_name
+        self.children = arguments
+
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        return derive_dependent_columns(*self.children)
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(*self.children)
+
+    @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.FUNCTION
+
+
 class FunctionExpression(Expression):
     def __init__(
         self,
