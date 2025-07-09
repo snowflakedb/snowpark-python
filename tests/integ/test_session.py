@@ -744,7 +744,11 @@ def test_close_session_twice(db_parameters):
     reason="reading server side parameter is not supported in local testing",
 )
 def test_sql_simplifier_disabled_on_session(db_parameters):
-    with Session.builder.configs(db_parameters).create() as new_session:
+    # TODO: SNOW-2196637, db_parameters["session_parameters"] is unexpectedly mutated during test execution;
+    # it should remain immutable.
+    params = copy.deepcopy(db_parameters)
+    params.pop("session_parameters")
+    with Session.builder.configs(params).create() as new_session:
         assert new_session.sql_simplifier_enabled is True
         new_session.sql_simplifier_enabled = False
         assert new_session.sql_simplifier_enabled is False
