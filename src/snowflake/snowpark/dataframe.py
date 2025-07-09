@@ -753,8 +753,9 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-            # Also pass the AST UID for query listeners
-            kwargs["dataframeAstId"] = self._ast_id
+
+        # Also pass the dataframe UUID for query listeners
+        kwargs["dataframeUUID"] = self._plan.uuid
 
         with open_telemetry_context_manager(self.collect, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -803,8 +804,8 @@ class DataFrame:
 
             # Flush AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-            # Also pass the AST UID for query listeners
-            kwargs["dataframeAstId"] = self._ast_id
+        # Also pass the dataframeUUID for query listeners
+        kwargs["dataframeUUID"] = self._plan.uuid
 
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -941,8 +942,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-            # Also pass the AST UID for query listeners
-            kwargs["dataframeAstId"] = self._ast_id
+        # Also pass the dataframe UUID for query listeners
+        kwargs["dataframeUUID"] = self._plan.uuid
 
         return self._session._conn.execute(
             self._plan,
@@ -1063,8 +1064,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-            # Also pass the AST UID for query listeners
-            kwargs["dataframeAstId"] = self._ast_id
+        # Also pass the dataframe UUID for query listeners
+        kwargs["dataframeUUID"] = self._plan.uuid
 
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
@@ -1171,8 +1172,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-            # Also pass the AST UID for query listeners
-            kwargs["dataframeAstId"] = self._ast_id
+        # Also pass the dataframe UUID for query listeners
+        kwargs["dataframeUUID"] = self._plan.uuid
 
         return self._session._conn.execute(
             self._plan,
@@ -4368,8 +4369,8 @@ class DataFrame:
 
             # Flush AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-            # Also pass the AST UID for query listeners
-            kwargs["dataframeAstId"] = self._ast_id
+        # Also pass the dataframe UUID for query listeners
+        kwargs["dataframeUUID"] = self._plan.uuid
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
@@ -4541,8 +4542,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-            # Also pass the AST UID for query listeners
-            kwargs["dataframeAstId"] = self._ast_id
+        # Also pass the dataframe UUID for query listeners
+        kwargs["dataframeUUID"] = self._plan.uuid
 
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -4845,8 +4846,8 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-            # Also pass the AST UID for query listeners
-            kwargs["dataframeAstId"] = self._ast_id
+        # Also pass the dataframe UUID for query listeners
+        kwargs["dataframeUUID"] = self._plan.uuid
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
@@ -5589,8 +5590,8 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-            # Also pass the AST UID for query listeners
-            kwargs["dataframeAstId"] = self._ast_id
+        # Also pass the dataframe UUID for query listeners
+        kwargs["dataframeUUID"] = self._plan.uuid
 
         if n is None:
             df = self.limit(1, _emit_ast=False)
@@ -6125,22 +6126,22 @@ class DataFrame:
 
         if _emit_ast:
             cached_df._ast_id = stmt.uid
-            # Preserve query history from the original dataframe for profiling
-            if (
-                self._session.dataframe_profiler._query_history is not None
-                and self._ast_id is not None
-                and self._ast_id
-                in self._session.dataframe_profiler._query_history._dataframe_queries
-            ):
-                # Copy the original dataframe's query history to the cached dataframe's AST ID
-                original_queries = (
-                    self._session.dataframe_profiler._query_history._dataframe_queries[
-                        self._ast_id
-                    ]
-                )
+
+        # Preserve query history from the original dataframe for profiling
+        if (
+            self._session.dataframe_profiler._query_history is not None
+            and self._plan.uuid
+            in self._session.dataframe_profiler._query_history._dataframe_queries
+        ):
+            # Copy the original dataframe's query history to the cached dataframe's UUID
+            original_queries = (
                 self._session.dataframe_profiler._query_history._dataframe_queries[
-                    cached_df._ast_id
-                ] = original_queries.copy()
+                    self._plan.uuid
+                ]
+            )
+            self._session.dataframe_profiler._query_history._dataframe_queries[
+                cached_df._plan.uuid
+            ] = original_queries.copy()
         return cached_df
 
     @publicapi
@@ -6292,13 +6293,13 @@ class DataFrame:
             )
             return
         query_history = self._session.dataframe_profiler._query_history
-        if self._ast_id not in query_history.dataframe_queries:
+        if self._plan.uuid not in query_history.dataframe_queries:
             _logger.warning(
-                f"No queries found for dataframe with ast_id {self._ast_id}. Make sure to evaluate the dataframe before calling get_execution_profile."
+                f"No queries found for dataframe with plan uuid {self._plan.uuid}. Make sure to evaluate the dataframe before calling get_execution_profile."
             )
             return
         profiler = DataframeQueryProfiler(self._session)
-        for i, query_id in enumerate(query_history.dataframe_queries[self._ast_id]):
+        for i, query_id in enumerate(query_history.dataframe_queries[self._plan.uuid]):
             if i == 0:
                 profiler.profile_query(query_id, output_file)
             else:

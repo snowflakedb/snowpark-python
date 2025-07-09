@@ -14,7 +14,6 @@ from snowflake.snowpark.functions import (
     avg,
     count,
 )
-from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 
 pytestmark = [
     pytest.mark.xfail(
@@ -27,23 +26,17 @@ pytestmark = [
 
 @pytest.fixture(autouse=True)
 def setup(request, session):
-    original = session.ast_enabled
-    set_ast_state(AstFlagSource.TEST, True)
     result = session.sql("SHOW PARAMETERS LIKE 'USE_CACHED_RESULT'").collect()
     original_use_cached_result = result[0]["value"] if result else "FALSE"
     # if we use cached result, some of our tests will be flaky b/c they may not rerun the expected query
     # and use the cached query result instead
     session.sql("ALTER SESSION SET USE_CACHED_RESULT = FALSE").collect()
     yield
-    set_ast_state(AstFlagSource.TEST, original)
     if original_use_cached_result and original_use_cached_result.upper() == "TRUE":
         session.sql("ALTER SESSION SET USE_CACHED_RESULT = TRUE").collect()
 
 
 def validate_execution_profile(df, expected_patterns=None):
-    if not hasattr(df, "_ast_id") or df._ast_id is None:
-        return False
-
     with tempfile.NamedTemporaryFile(
         mode="w", delete=False, suffix=".txt", encoding="utf-8"
     ) as temp_file:
@@ -247,7 +240,7 @@ def test_df_transformations_without_collect(session, caplog):
         result = transformed_df.collect()
         with caplog.at_level(logging.WARNING):
             df.get_execution_profile()
-        assert "No queries found for dataframe with ast_id" in caplog.text
+        assert "No queries found for dataframe with plan uuid" in caplog.text
 
         assert len(result) == 2
         orig_result = df.collect()

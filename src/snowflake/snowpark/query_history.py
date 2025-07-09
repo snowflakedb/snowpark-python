@@ -72,11 +72,11 @@ class QueryHistory(QueryListener):
 
     def _notify(self, query_record: QueryRecord, **kwargs) -> None:
         if self._include_dataframe_profiling:
-            if "dataframeAstId" in kwargs:
-                ast_id = kwargs["dataframeAstId"]
-                if ast_id not in self._dataframe_queries:
-                    self._dataframe_queries[ast_id] = []
-                self._dataframe_queries[ast_id].append(query_record.query_id)
+            if "dataframeUUID" in kwargs:
+                df_uuid = kwargs["dataframeUUID"]
+                if df_uuid not in self._dataframe_queries:
+                    self._dataframe_queries[df_uuid] = []
+                self._dataframe_queries[df_uuid].append(query_record.query_id)
         self._queries.append(query_record)
 
     @property
