@@ -706,7 +706,7 @@ def to_iceberg(
     Writes the given DataFrame or Series data to the specified iceberg table in a Snowflake database.
 
     Args:
-        obj: The object to be converted to native pandas. It must be either a Snowpark pandas DataFrame or Series.
+        obj: The object to create the iceberg table from. It must be either a Snowpark pandas DataFrame or Series.
         table_name: A string or list of strings representing table name.
             If input is a string, it represents the table name; if input is of type iterable of strings,
             it represents the fully-qualified object identifier (database name, schema name, and table name).
