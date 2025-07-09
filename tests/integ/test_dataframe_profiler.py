@@ -45,7 +45,7 @@ def validate_execution_profile(df, expected_patterns=None):
         return False
 
     with tempfile.NamedTemporaryFile(
-        mode="w", delete=False, suffix=".txt"
+        mode="w", delete=False, suffix=".txt", encoding="utf-8"
     ) as temp_file:
         temp_filename = temp_file.name
 
