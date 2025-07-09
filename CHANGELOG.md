@@ -13,6 +13,7 @@
 - Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
 - Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in
 local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
+- Added a new function `snowflake.snowpark.functions.model` that allows users to call methods of a model.
 
 #### Improvements
 
