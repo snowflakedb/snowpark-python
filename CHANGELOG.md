@@ -21,6 +21,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Added support for complex column expression as input for `functions.explode`.
 - Added debuggability improvements to show which Python lines an SQL compilation error corresponds to. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
 - Set enforce_ordering=True when calling `to_snowpark_pandas()` from a snowpark dataframe containing DML/DDL queries instead of throwing a NotImplementedError.
+- Set the 'type' and other standard fields for modin telemetry.
 
 #### Bug Fixes
 
@@ -49,6 +50,8 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 #### Improvements
 - Add a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
 - Added automatic switching to the pandas backend in hybrid execution mode (PrPr) for many methods that are not directly implemented in Snowpark pandas.
+- Set the 'type' and other standard fields for modin telemetry.
+
 
 #### Dependency Updates
 - Added tqdm and ipywidgets as dependencies so that progress bars appear when switching between modin backends.
