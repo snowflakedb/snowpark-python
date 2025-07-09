@@ -32,7 +32,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 
 ### Snowpark Local Testing Updates
 
-- Added local testing support for reading files with `SnowflakeFile` using local file paths.
+- Added local testing support for reading files with `SnowflakeFile` using local file paths, stage paths (@stage/file_path), and the Snow URL semantic (snow://...).
 
 #### Bug Fixes
 
