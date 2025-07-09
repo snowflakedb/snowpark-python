@@ -15,6 +15,9 @@ from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils, iceberg_supported
 
 
+# TODO SNOW-2196517: Combine these tests with their counterparts for DataFrame and Series
+
+
 @pytest.fixture(scope="function")
 def native_pandas_df_basic():
     native_df = native_pd.DataFrame(
