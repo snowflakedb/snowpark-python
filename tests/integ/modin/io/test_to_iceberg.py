@@ -36,8 +36,8 @@ def native_pandas_ser_basic():
 
 class TestDataFrame:
     @sql_count_checker(query_count=6)
-    def test_to_iceberg(self, session, native_pandas_df_basic, local_testing_mode):
-        if not iceberg_supported(session, local_testing_mode):
+    def test_to_iceberg(self, session, native_pandas_df_basic):
+        if not iceberg_supported(session, local_testing_mode=False):
             pytest.skip("Test requires iceberg support.")
 
         snow_dataframe = pd.DataFrame(native_pandas_df_basic)
@@ -87,8 +87,8 @@ class TestDataFrame:
 
 class TestSeries:
     @sql_count_checker(query_count=6)
-    def test_to_iceberg(self, session, native_pandas_ser_basic, local_testing_mode):
-        if not iceberg_supported(session, local_testing_mode):
+    def test_to_iceberg(self, session, native_pandas_ser_basic):
+        if not iceberg_supported(session, local_testing_mode=False):
             pytest.skip("Test requires iceberg support.")
 
         snow_series = pd.Series(native_pandas_ser_basic)

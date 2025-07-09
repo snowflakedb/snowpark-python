@@ -776,7 +776,7 @@ def to_iceberg(
         ...     "base_location": "/iceberg_root",
         ...     "storage_serialization_policy": "OPTIMIZED",
         ... }
-        >>> df.to_snowpark_pandas().to_iceberg("my_table", iceberg_config=iceberg_config, mode="overwrite") # doctest: +SKIP
+        >>> pd.to_iceberg(df.to_snowpark_pandas(), "my_table", iceberg_config=iceberg_config, mode="overwrite") # doctest: +SKIP
     """
     _snowpark_pandas_obj_check(obj)
     return obj._query_compiler.to_iceberg(
