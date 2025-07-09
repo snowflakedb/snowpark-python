@@ -77,7 +77,7 @@ class FakeConnection:
 class FakeConnectionWithException(FakeConnection):
     def execute(self, sql: str):
         self.sql = sql
-        if sql.lower().startswith("select *") and "1 = 0" not in sql:
+        if sql.lower().startswith("select") and "1 = 0" not in sql:
             raise RuntimeError("Fake exception")
         else:
             return self

@@ -38,4 +38,4 @@ class DatabricksDialect(BaseDialect):
             cols=" , ".join(cols),
             table_or_query=f"({table_or_query})" if is_query else table_or_query,
             query_input_alias=query_input_alias if is_query else "",
-        )
+        ).strip()

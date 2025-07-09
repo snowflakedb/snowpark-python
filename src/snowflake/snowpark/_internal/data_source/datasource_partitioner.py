@@ -99,15 +99,16 @@ class DataSourcePartitioner:
                         f"You should provide a valid schema string representing a struct type."
                         'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     )
-                return schema
             elif isinstance(self.custom_schema, StructType):
-                return self.custom_schema
+                schema = self.custom_schema
             else:
                 raise ValueError(
                     f"Invalid schema type: {type(self.custom_schema)}."
                     'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
                 )
+            self.driver.raw_schema = [(field_name,) for field_name in schema.names]
+            return schema
 
     @cached_property
     def partitions(self) -> List[str]:

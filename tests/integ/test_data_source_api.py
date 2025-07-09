@@ -240,95 +240,108 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
 
 
 @pytest.mark.parametrize(
-    "schema, column, lower_bound, upper_bound, num_partitions, expected_queries",
+    "schema, raw_schema, column, lower_bound, upper_bound, num_partitions, expected_queries",
     [
         (
             StructType([StructField("ID", IntegerType())]),
+            [("ID", int)],
             "ID",
             5,
             15,
             4,
             [
-                "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
-                "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '10'",
-                "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '12'",
-                "SELECT * FROM fake_table WHERE ID >= '12'",
+                "SELECT ID FROM fake_table WHERE ID < '8' OR ID is null",
+                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '10'",
+                "SELECT ID FROM fake_table WHERE ID >= '10' AND ID < '12'",
+                "SELECT ID FROM fake_table WHERE ID >= '12'",
             ],
         ),
         (
             StructType([StructField("ID", IntegerType())]),
+            [("ID", int)],
             "ID",
             -5,
             5,
             4,
             [
-                "SELECT * FROM fake_table WHERE ID < '-2' OR ID is null",
-                "SELECT * FROM fake_table WHERE ID >= '-2' AND ID < '0'",
-                "SELECT * FROM fake_table WHERE ID >= '0' AND ID < '2'",
-                "SELECT * FROM fake_table WHERE ID >= '2'",
+                "SELECT ID FROM fake_table WHERE ID < '-2' OR ID is null",
+                "SELECT ID FROM fake_table WHERE ID >= '-2' AND ID < '0'",
+                "SELECT ID FROM fake_table WHERE ID >= '0' AND ID < '2'",
+                "SELECT ID FROM fake_table WHERE ID >= '2'",
             ],
         ),
         (
             StructType([StructField("ID", IntegerType())]),
+            [("ID", int)],
             "ID",
             5,
             15,
             10,
             [
-                "SELECT * FROM fake_table WHERE ID < '6' OR ID is null",
-                "SELECT * FROM fake_table WHERE ID >= '6' AND ID < '7'",
-                "SELECT * FROM fake_table WHERE ID >= '7' AND ID < '8'",
-                "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '9'",
-                "SELECT * FROM fake_table WHERE ID >= '9' AND ID < '10'",
-                "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '11'",
-                "SELECT * FROM fake_table WHERE ID >= '11' AND ID < '12'",
-                "SELECT * FROM fake_table WHERE ID >= '12' AND ID < '13'",
-                "SELECT * FROM fake_table WHERE ID >= '13' AND ID < '14'",
-                "SELECT * FROM fake_table WHERE ID >= '14'",
+                "SELECT ID FROM fake_table WHERE ID < '6' OR ID is null",
+                "SELECT ID FROM fake_table WHERE ID >= '6' AND ID < '7'",
+                "SELECT ID FROM fake_table WHERE ID >= '7' AND ID < '8'",
+                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '9'",
+                "SELECT ID FROM fake_table WHERE ID >= '9' AND ID < '10'",
+                "SELECT ID FROM fake_table WHERE ID >= '10' AND ID < '11'",
+                "SELECT ID FROM fake_table WHERE ID >= '11' AND ID < '12'",
+                "SELECT ID FROM fake_table WHERE ID >= '12' AND ID < '13'",
+                "SELECT ID FROM fake_table WHERE ID >= '13' AND ID < '14'",
+                "SELECT ID FROM fake_table WHERE ID >= '14'",
             ],
         ),
         (
             StructType([StructField("ID", IntegerType())]),
+            [("ID", int)],
             "ID",
             5,
             15,
             3,
             [
-                "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
-                "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '11'",
-                "SELECT * FROM fake_table WHERE ID >= '11'",
+                "SELECT ID FROM fake_table WHERE ID < '8' OR ID is null",
+                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '11'",
+                "SELECT ID FROM fake_table WHERE ID >= '11'",
             ],
         ),
         (
             StructType([StructField("DATE", DateType())]),
+            [("DATE", datetime.datetime)],
             "DATE",
             str(datetime.date(2020, 6, 15)),
             str(datetime.date(2020, 12, 15)),
             4,
             [
-                "SELECT * FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
-                "SELECT * FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
-                "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
-                "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
+                "SELECT DATE FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
+                "SELECT DATE FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
+                "SELECT DATE FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
+                "SELECT DATE FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
             ],
         ),
         (
             StructType([StructField("DATE", DateType())]),
+            [("DATE", datetime.datetime)],
             "DATE",
             str(datetime.datetime(2020, 6, 15, 12, 25, 30)),
             str(datetime.datetime(2020, 12, 15, 7, 8, 20)),
             4,
             [
-                "SELECT * FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
-                "SELECT * FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
-                "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
-                "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
+                "SELECT DATE FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
+                "SELECT DATE FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
+                "SELECT DATE FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
+                "SELECT DATE FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
             ],
         ),
     ],
 )
 def test_partition_logic(
-    session, schema, column, lower_bound, upper_bound, num_partitions, expected_queries
+    session,
+    schema,
+    raw_schema,
+    column,
+    lower_bound,
+    upper_bound,
+    num_partitions,
+    expected_queries,
 ):
     with patch.object(
         DataSourcePartitioner, "schema", new_callable=PropertyMock
@@ -343,6 +356,7 @@ def test_partition_logic(
             num_partitions=num_partitions,
         )
         mock_schema.return_value = schema
+        partitioner.driver.raw_schema = raw_schema
         queries = partitioner.partitions
         for r, expected_r in zip(queries, expected_queries):
             assert r == expected_r
@@ -365,6 +379,7 @@ def test_partition_unsupported_type(session):
             mock_schema.return_value = StructType(
                 [StructField("DATE", MapType(), False)]
             )
+            partitioner.driver.raw_schema = [("DATE", dict)]
             partitioner.partitions
 
 
@@ -473,12 +488,13 @@ def test_predicates():
                 "id > 2001",
             ],
         )
+        partitioner.driver.raw_schema = [("ID", int)]
         mock_schema.return_value = StructType([StructField("ID", IntegerType(), False)])
         queries = partitioner.partitions
         expected_result = [
-            "SELECT * FROM fake_table WHERE id > 1 AND id <= 1000",
-            "SELECT * FROM fake_table WHERE id > 1001 AND id <= 2000",
-            "SELECT * FROM fake_table WHERE id > 2001",
+            "SELECT ID FROM fake_table WHERE id > 1 AND id <= 1000",
+            "SELECT ID FROM fake_table WHERE id > 1001 AND id <= 2000",
+            "SELECT ID FROM fake_table WHERE id > 2001",
         ]
         assert queries == expected_result
 
@@ -760,6 +776,7 @@ def test_partition_wrong_input(session, caplog, fetch_with_process):
             mock_schema.return_value = StructType(
                 [StructField("DATE", IntegerType(), False)]
             )
+            partitioner.driver.raw_schema = [("DATE", int)]
             partitioner.partitions
 
         partitioner = DataSourcePartitioner(
@@ -774,6 +791,7 @@ def test_partition_wrong_input(session, caplog, fetch_with_process):
         mock_schema.return_value = StructType(
             [StructField("DATE", IntegerType(), False)]
         )
+        partitioner.driver.raw_schema = [("DATE", int)]
         partitioner.partitions
         assert "The number of partitions is reduced" in caplog.text
 
