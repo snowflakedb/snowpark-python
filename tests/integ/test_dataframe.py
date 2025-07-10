@@ -2286,8 +2286,9 @@ def test_create_dataframe_large_respects_paramstyle(db_parameters, paramstyle):
     from snowflake.snowpark._internal.analyzer import analyzer
 
     original_value = analyzer.ARRAY_BIND_THRESHOLD
-    db_parameters["paramstyle"] = paramstyle
-    session_builder = Session.builder.configs(db_parameters)
+    new_db_parameters = copy.deepcopy(db_parameters)
+    new_db_parameters["paramstyle"] = paramstyle
+    session_builder = Session.builder.configs(new_db_parameters)
     new_session = session_builder.create()
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
