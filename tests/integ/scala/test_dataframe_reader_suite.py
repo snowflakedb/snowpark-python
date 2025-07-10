@@ -2199,6 +2199,10 @@ def test_enforce_existing_file_format_object_doesnt_exist(session):
 
 
 @pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="STRING types have different precision in stored procs",
+)
+@pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="relaxed_types not supported by local testing mode",
 )
