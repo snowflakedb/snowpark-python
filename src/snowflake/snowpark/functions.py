@@ -175,6 +175,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Interval,
     ListAgg,
     Literal,
+    ModelExpression,
     MultipleExpression,
     Star,
     NamedFunctionExpression,
@@ -211,6 +212,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
+    experimental,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -10720,6 +10722,65 @@ def sproc(
             _emit_ast=_emit_ast,
             **kwargs,
         )
+
+
+def _call_model(
+    model_name: str,
+    version_or_alias_name: Optional[str],
+    method_name: str,
+    *args,
+    _emit_ast: bool = True,
+) -> Column:
+    if _emit_ast:
+        _ast = build_function_expr(
+            "model", [model_name, version_or_alias_name, method_name, *args]
+        )
+    else:
+        _ast = None
+
+    args_list = parse_positional_args_to_list(*args)
+    expressions = [Column._to_expr(arg) for arg in args_list]
+    return Column(
+        ModelExpression(
+            model_name,
+            version_or_alias_name,
+            method_name,
+            expressions,
+        ),
+        _ast=_ast,
+        _emit_ast=_emit_ast,
+    )
+
+
+@publicapi
+@experimental(version="1.34.0")
+def model(
+    model_name: str,
+    version_or_alias_name: Optional[str] = None,
+    _emit_ast: bool = True,
+) -> Callable:
+    """
+    Creates a model function that can be used to call a model method.
+
+    Args:
+        model_name: The name of the model to call.
+        version_or_alias_name: The version or alias name of the model to call.
+
+    Example::
+
+        >>> df = session.table("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_TEST")
+        >>> model_fn = model("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_PRICE_PREDICTION", "v1")
+        >>> result_df = df.select(model_fn(
+        ...     "predict",
+        ...     col("CUT_OE"), col("COLOR_OE"), col("CLARITY_OE"), col("CARAT"),
+        ...     col("DEPTH"), col("TABLE_PCT"), col("X"), col("Y"), col("Z")
+        ... )["output_feature_0"])
+        >>> result_df.count()
+        5412
+    """
+    return lambda method_name, *args: _call_model(
+        model_name, version_or_alias_name, method_name, *args, _emit_ast=_emit_ast
+    )
 
 
 # Add these alias for user code migration

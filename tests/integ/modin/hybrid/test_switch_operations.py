@@ -15,7 +15,6 @@ from modin.config import context as config_context
 import modin.pandas as pd
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.utils import (
-    MODIN_IS_AT_LEAST_0_33_0,
     MODIN_IS_AT_LEAST_0_34_0,
 )
 
@@ -24,15 +23,6 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.utils.sql_counter import sql_count_checker
-
-
-@pytest.fixture(scope="module", autouse=True)
-def skip(pytestconfig):
-    if not MODIN_IS_AT_LEAST_0_33_0:
-        pytest.skip(
-            "backend switching tests only work on newer modin versions",
-            allow_module_level=True,
-        )
 
 
 @sql_count_checker(query_count=0)
