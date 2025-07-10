@@ -13,6 +13,7 @@
 - Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
 - Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in
 local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
+- Added a new function `snowflake.snowpark.functions.model` that allows users to call methods of a model.
 
 #### Improvements
 
@@ -21,6 +22,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Added support for complex column expression as input for `functions.explode`.
 - Added debuggability improvements to show which Python lines an SQL compilation error corresponds to. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
 - Set enforce_ordering=True when calling `to_snowpark_pandas()` from a snowpark dataframe containing DML/DDL queries instead of throwing a NotImplementedError.
+- Set the 'type' and other standard fields for modin telemetry.
 
 #### Bug Fixes
 
@@ -30,7 +32,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 
 ### Snowpark Local Testing Updates
 
-- Added local testing support for reading files with `SnowflakeFile` using local file paths.
+- Added local testing support for reading files with `SnowflakeFile` using local file paths, stage paths (@stage/file_path), and the Snow URL semantic (snow://...).
 
 #### Bug Fixes
 
@@ -42,19 +44,28 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 #### New Features
 
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
-- Added support for `pd.read_feather`.
+- Added support for `pd.read_feather`, `pd.read_orc`, and `pd.read_stata`.
 - Added support for `pd.explain_switch()` to return debugging information on hybrid execution decisions.
 - Support `pd.read_snowflake` when the global modin backend is `Pandas`.
+- Added support for `pd.to_dynamic_table`, `pd.to_iceberg`, and `pd.to_view`.
 - Added support for `DataFrame.boxplot`.
 
 #### Improvements
-- Add a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
+
+- Added modin telemetry on API calls and hybrid engine switches.
+- Show more helpful error messages to Snowflake Notebook users when Modin or pandas version does not match our requirements.
+- Added a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
 - Added automatic switching to the pandas backend in hybrid execution mode (PrPr) for many methods that are not directly implemented in Snowpark pandas.
+- Set the 'type' and other standard fields for modin telemetry.
+
 
 #### Dependency Updates
+
 - Added tqdm and ipywidgets as dependencies so that progress bars appear when switching between modin backends.
+- Updated the supported `modin` versions to >=0.33.0 and <0.35.0 (was previously >= 0.32.0 and <0.34.0).
 
 #### Bug Fixes
+
 - Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
 - Fixed a bug in hybrid execution mode (PrPr) where calling numpy operations like `np.where` on modin objects with the Pandas backend would raise an `AttributeError`. This fix requires `modin` version 0.34.0 or newer.
 - Fixed issue when df.melt where the resulting values have an additional suffix applied
@@ -129,13 +140,6 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 - Added `iceberg_version` option to table creation functions.
 - Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
-- Added modin telemetry on API calls and hybrid engine switches.
-- Show more helpful error messages to Snowflake Notebook users when Modin or pandas version does not match our requirements.
-
-#### Bug Fixes
-
-- Fixed a bug in `Series.where` when the `other` parameter is an unnamed `Series`.
-
 
 #### Bug Fixes
 
