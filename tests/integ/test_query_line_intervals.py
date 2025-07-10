@@ -18,8 +18,8 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(scope="module")
-def test_data(session):
+def generate_test_data(session, sql_simplifier_enabled):
+    session.sql_simplifier_enabled = sql_simplifier_enabled
     df1 = session.create_dataframe([[1, "A", 100], [2, "B", 200]]).to_df(
         ["id", "name", "value"]
     )
@@ -91,10 +91,10 @@ def test_data(session):
     ],
 )
 def test_get_plan_from_line_numbers_sql_content(
-    session, op, sql_simplifier, line_to_expected_sql, test_data
+    session, op, sql_simplifier, line_to_expected_sql
 ):
     session.sql_simplifier_enabled = sql_simplifier
-    df = op(test_data)
+    df = op(generate_test_data(session, sql_simplifier))
 
     for line_num, expected_sql in line_to_expected_sql.items():
         plan = get_plan_from_line_numbers(df._plan, line_num)
