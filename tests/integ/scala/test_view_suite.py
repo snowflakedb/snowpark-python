@@ -221,34 +221,45 @@ def test_create_temp_view_on_functions(session, local_testing_mode):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_create_or_replace_temp_view_with_file(session, resources_path):
-    tmp_stage_name = Utils.random_stage_name()
-    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
-    test_files = TestFiles(resources_path)
-    Utils.upload_to_stage(
-        session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
-    )
-    test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
-    user_schema = StructType(
-        [
-            StructField("a", IntegerType()),
-            StructField("b", StringType()),
-            StructField("c", DoubleType()),
-        ]
-    )
+    original_value = session._conn._thread_safe_session_enabled
+    try:
+        session._conn._thread_safe_session_enabled = True
+        tmp_stage_name = Utils.random_stage_name()
+        Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+        test_files = TestFiles(resources_path)
+        Utils.upload_to_stage(
+            session, f"@{tmp_stage_name}", test_files.test_file_csv, compress=False
+        )
+        test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
+        user_schema = StructType(
+            [
+                StructField("a", IntegerType()),
+                StructField("b", StringType()),
+                StructField("c", DoubleType()),
+            ]
+        )
 
-    df = session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
-    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
-    df.create_or_replace_temp_view(view_name)
-    Utils.check_answer(
-        session.table(view_name), [Row(A=1, B="one", C=1.2), Row(A=2, B="two", C=2.2)]
-    )
+        df = (
+            session.read.option("purge", False)
+            .schema(user_schema)
+            .csv(test_file_on_stage)
+        )
+        view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+        df.create_or_replace_temp_view(view_name)
+        Utils.check_answer(
+            session.table(view_name),
+            [Row(A=1, B="one", C=1.2), Row(A=2, B="two", C=2.2)],
+        )
 
-    # no post action
-    assert len(df.queries["post_actions"]) == 0
+        # no post action
+        assert len(df.queries["post_actions"]) == 0
 
-    # for sub-dataframes, we have a new temp table so even if it's dropped,
-    # it won't affect the created temp view
-    df.select("a").collect()
-    Utils.check_answer(
-        session.table(view_name), [Row(A=1, B="one", C=1.2), Row(A=2, B="two", C=2.2)]
-    )
+        # for sub-dataframes, we have a new temp table so even if it's dropped,
+        # it won't affect the created temp view
+        df.select("a").collect()
+        Utils.check_answer(
+            session.table(view_name),
+            [Row(A=1, B="one", C=1.2), Row(A=2, B="two", C=2.2)],
+        )
+    finally:
+        session._conn.set_thread_safe_session_enabled = original_value

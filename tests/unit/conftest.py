@@ -11,6 +11,7 @@ from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark._internal.server_connection import ServerConnection
+from tests.utils import Utils
 from snowflake.snowpark.session import (
     Session,
     _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES,
@@ -89,3 +90,15 @@ def mock_session(mock_analyzer) -> Session:
     mock_analyzer.session = fake_session
     fake_session._enable_multiline_queries()
     return fake_session
+
+
+@pytest.fixture(scope="function")
+def session():
+    with Session.builder.config("local_testing", True).create() as s:
+        yield s
+
+
+@pytest.fixture(scope="function")
+def tmp_stage():
+    tmp_stage_name = Utils.random_stage_name()
+    yield tmp_stage_name
