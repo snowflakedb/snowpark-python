@@ -61,6 +61,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 #### Dependency Updates
 
 - Added tqdm and ipywidgets as dependencies so that progress bars appear when switching between modin backends.
+- Updated the supported `modin` versions to >=0.33.0 and <0.35.0 (was previously >= 0.32.0 and <0.34.0).
 
 #### Bug Fixes
 
