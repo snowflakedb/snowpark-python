@@ -67,7 +67,7 @@ def test_read_sproc_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, s
         return df.select(read_file(col("temp_file"), col("read_mode"))).collect()
 
     result = read_file_sp(temp_file, read_mode)
-    Utils.check_answer(result, [Row(f"{test_msg}")])
+    Utils.check_answer(Row(result), [Row(f"{test_msg}")])
 
 
 def test_read_snowurl_snowflakefile(tmp_path, session):
@@ -104,7 +104,7 @@ def test_isatty_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, sessi
 
     @udf
     def get_atty_read(file_location: str, mode: str) -> bool:
-        with SnowflakeFile.open(file_location, mode) as f:
+        with SnowflakeFile.open(file_location, mode, require_scoped_url=False) as f:
             return f.isatty()
 
     df = session.create_dataframe(
@@ -134,7 +134,7 @@ def test_readable_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, ses
 
     @udf
     def is_readable_read(file_location: str, mode: str) -> bool:
-        with SnowflakeFile.open(file_location, mode) as f:
+        with SnowflakeFile.open(file_location, mode, require_scoped_url=False) as f:
             return f.readable()
 
     df = session.create_dataframe(
@@ -160,7 +160,7 @@ def test_readline_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, ses
 
     @udf
     def get_line(file_location: str, mode: str) -> str:
-        with SnowflakeFile.open(file_location, mode) as f:
+        with SnowflakeFile.open(file_location, mode, require_scoped_url=False) as f:
             return f.readline()
 
     df = session.create_dataframe(
@@ -195,7 +195,7 @@ def test_seek_snowflakefile(
 
     @udf
     def seek(file_location: str, mode: str, offset: int, whence: int) -> int:
-        with SnowflakeFile.open(file_location, mode) as f:
+        with SnowflakeFile.open(file_location, mode, require_scoped_url=False) as f:
             return f.seek(offset, whence)
 
     df = session.create_dataframe(
@@ -226,7 +226,7 @@ def test_seekable_snowflakefile(
 
     @udf
     def is_seekable_read(file_location: str, mode: str) -> bool:
-        with SnowflakeFile.open(file_location, mode) as f:
+        with SnowflakeFile.open(file_location, mode, require_scoped_url=False) as f:
             return f.seekable()
 
     df = session.create_dataframe(
@@ -251,7 +251,7 @@ def test_tell_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session
 
     @udf
     def try_tell(file_location: str, mode: str, size: int) -> int:
-        with SnowflakeFile.open(file_location, mode) as f:
+        with SnowflakeFile.open(file_location, mode, require_scoped_url=False) as f:
             f.read(size)
             return f.tell()
 
@@ -281,7 +281,7 @@ def test_writable_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, ses
 
     @udf
     def is_writable_read(file_location: str, mode: str) -> bool:
-        with SnowflakeFile.open(file_location, mode) as f:
+        with SnowflakeFile.open(file_location, mode, require_scoped_url=False) as f:
             return f.writable()
 
     df = session.create_dataframe(
@@ -315,7 +315,7 @@ def test_readinto_snowflakefile(
 
     @udf
     def sf_readinto(file_location: str, mode: str, buffer: bytearray) -> int:
-        with SnowflakeFile.open(file_location, mode) as f:
+        with SnowflakeFile.open(file_location, mode, require_scoped_url=False) as f:
             return f.readinto(buffer)
 
     buffer_size = 5
