@@ -678,6 +678,46 @@ def to_pandas(
     return obj.to_pandas(statement_params=statement_params, *kwargs)
 
 
+@register_pd_accessor("to_view")
+def to_view(
+    obj: Union[DataFrame, Series],
+    name: Union[str, Iterable[str]],
+    *,
+    comment: Optional[str] = None,
+    index: bool = False,
+    index_label: Optional[IndexLabel] = None,
+) -> List[Row]:
+    """
+    Creates a view that captures the computation expressed by the given DataFrame or Series.
+
+    For ``name``, you can include the database and schema name (i.e. specify a
+    fully-qualified name). If no database name or schema name are specified, the
+    view will be created in the current database or schema.
+
+    ``name`` must be a valid `Snowflake identifier <https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html>`_.
+
+    Args:
+        obj: The object to create the view from. It must be either a Snowpark pandas DataFrame or Series
+        name: The name of the view to create or replace. Can be a list of strings
+            that specifies the database name, schema name, and view name.
+        comment: Adds a comment for the created view. See
+            `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+        index: default False
+            If true, save DataFrame index columns in view columns.
+        index_label:
+            Column label for index column(s). If None is given (default) and index is True,
+            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
+    """
+    _snowpark_pandas_obj_check(obj)
+
+    return obj.to_view(
+        name=name,
+        comment=comment,
+        index=index,
+        index_label=index_label,
+    )
+
+
 @register_pd_accessor("to_dynamic_table")
 def to_dynamic_table(
     obj: Union[DataFrame, Series],

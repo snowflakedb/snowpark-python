@@ -30,6 +30,7 @@ Input/Output
     to_iceberg
     to_snowflake
     to_snowpark
+    to_view
 
 .. rubric:: pandas
 
