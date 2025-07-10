@@ -186,15 +186,12 @@ class SnowflakePlan(LogicalPlan):
                     # extract top_plan, df_ast_id, stmt_cache from args
                     top_plan, df_ast_id, stmt_cache = None, None, None
                     for arg in args:
-                        if isinstance(arg, SnowflakePlan) and arg.df_ast_ids:
-                            top_plan = arg
-                            df_ast_id = arg.df_ast_ids[-1]
-                            stmt_cache = arg.session._ast_batch._bind_stmt_cache
-                            break
-                        # If we can't find a plan with df_ast_ids, we'll take any SnowflakePlan for
-                        # getting existing_object_context
                         if isinstance(arg, SnowflakePlan):
                             top_plan = arg
+                            break
+                    if top_plan is not None and top_plan.df_ast_ids:
+                        df_ast_id = top_plan.df_ast_ids[-1]
+                        stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
 
                     df_transform_debug_trace = ""
                     error_source_context = ""

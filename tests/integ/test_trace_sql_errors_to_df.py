@@ -10,7 +10,15 @@ from snowflake.snowpark.functions import (
     col,
     sum,
 )
+<<<<<<< HEAD
 from snowflake.snowpark.window import Window
+=======
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+)
+from snowflake.snowpark.window import Window
+from tests.utils import Utils
+>>>>>>> 3caeadf81 (Adding support for views/fully qualified names and moving tests to diff file)
 
 pytestmark = [
     pytest.mark.xfail(
@@ -41,8 +49,11 @@ def test_python_source_location_in_sql_error(session):
 
 
 def test_python_source_location_in_session_sql(session):
+<<<<<<< HEAD
     if not session.sql_simplifier_enabled:
         pytest.skip("SQL simplifier must be enabled for this test")
+=======
+>>>>>>> 3caeadf81 (Adding support for views/fully qualified names and moving tests to diff file)
     df3 = session.sql(
         "SELECT a, b, c + '5' AS invalid_operation FROM (select 1 as a, 2 as b, array_construct(1, 2, 3) as c) WHERE a > 0"
     )
@@ -128,6 +139,7 @@ def test_invalid_identifier_error_message(session):
     assert "SQL compilation error corresponds to Python source" in str(ex.value)
 
 
+<<<<<<< HEAD
 def test_missing_table_with_session_table(session):
     with pytest.raises(SnowparkSQLException) as ex:
         session.table("NON_EXISTENT_TABLE").collect()
@@ -202,3 +214,241 @@ def test_missing_table_with_dataframe_operations(
     assert "Missing object 'NON_EXISTENT_TABLE' corresponds to Python source" in str(
         ex.value.debug_context
     ), f"Missing object trace not found for operation: {operation_name}"
+=======
+def test_existing_table_with_save_as_table(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe([{"a": 1, "b": 2}])
+    df.write.save_as_table(table_name, mode="overwrite")
+    with pytest.raises(SnowparkSQLException) as ex:
+        df.write.save_as_table(table_name)
+
+    assert f"Object '{table_name}' was first referenced" in str(ex.value.debug_context)
+    Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
+    "create_sql_template,conflicting_sql_template,object_type",
+    [
+        (
+            "CREATE TABLE {name} (a INT, b INT)",
+            "CREATE TABLE {name} (a INT, b INT)",
+            "TABLE",
+        ),
+        (
+            "CREATE OR REPLACE TABLE {name} (a INT, b INT)",
+            "CREATE TABLE {name} (a INT, b INT)",
+            "TABLE",
+        ),
+        (
+            "CREATE TEMP TABLE {name} (a INT, b INT)",
+            "CREATE TEMP TABLE {name} (a INT, b INT)",
+            "TABLE",
+        ),
+        (
+            "CREATE TEMPORARY TABLE {name} (a INT, b INT)",
+            "CREATE TEMPORARY TABLE {name} (a INT, b INT)",
+            "TABLE",
+        ),
+        (
+            "CREATE TABLE IF NOT EXISTS {name} (a INT, b INT)",
+            "CREATE TABLE {name} (a INT, b INT)",
+            "TABLE",
+        ),
+        (
+            "CREATE VIEW {name} AS SELECT 1 AS a, 2 AS b",
+            "CREATE VIEW {name} AS SELECT 3 AS a, 4 AS b",
+            "VIEW",
+        ),
+        (
+            "CREATE OR REPLACE VIEW {name} AS SELECT 1 AS a, 2 AS b",
+            "CREATE VIEW {name} AS SELECT 3 AS a, 4 AS b",
+            "VIEW",
+        ),
+        (
+            "CREATE TEMP VIEW {name} AS SELECT 1 AS a, 2 AS b",
+            "CREATE TEMP VIEW {name} AS SELECT 3 AS a, 4 AS b",
+            "VIEW",
+        ),
+        (
+            "CREATE VIEW IF NOT EXISTS {name} AS SELECT 1 AS a, 2 AS b",
+            "CREATE VIEW {name} AS SELECT 3 AS a, 4 AS b",
+            "VIEW",
+        ),
+        # Quoted table names
+        (
+            'CREATE TABLE "{name}" (a INT, b INT)',
+            'CREATE TABLE "{name}" (a INT, b INT)',
+            "TABLE",
+        ),
+        # Mixed quoted/unquoted (should still match)
+        (
+            'CREATE TABLE "{name}" (a INT, b INT)',
+            "CREATE TABLE {name} (a INT, b INT)",
+            "TABLE",
+        ),
+    ],
+)
+def test_existing_object_with_session_sql_create_statements(
+    session, create_sql_template, conflicting_sql_template, object_type
+):
+    """Test that get_existing_object_context properly identifies objects created via session.sql() with various CREATE statement patterns."""
+    if object_type == "TABLE":
+        object_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    else:
+        object_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+
+    session.sql(create_sql_template.format(name=object_name)).collect()
+    # Second CREATE statement should fail with "already exists" error
+    with pytest.raises(SnowparkSQLException) as ex:
+        session.sql(conflicting_sql_template.format(name=object_name)).collect()
+
+    expected_message = f"Object '{object_name}' was first referenced"
+    assert expected_message in str(
+        ex.value.debug_context
+    ), f"Expected message '{expected_message}' not found in debug context: {ex.value.debug_context}"
+    if object_type == "TABLE":
+        Utils.drop_table(session, object_name)
+    else:
+        Utils.drop_view(session, object_name)
+
+
+def test_existing_object_with_schema_qualified_names(session):
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    db = session.get_current_database()
+    sc = session.get_current_schema()
+    df = session.create_dataframe([{"a": 1, "b": 2}])
+    df.write.save_as_table([db, sc, temp_table_name], mode="overwrite")
+    df2 = session.create_dataframe([{"a": 3, "b": 4}])
+    with pytest.raises(SnowparkSQLException) as ex:
+        df2.write.save_as_table([db, sc, temp_table_name], mode="errorifexists")
+
+    db = db.strip('"')
+    sc = sc.strip('"')
+    expected_message = f"Object '{db}.{sc}.{temp_table_name}' was first referenced"
+    assert expected_message in str(
+        ex.value.debug_context
+    ), f"Expected message '{expected_message}' not found in debug context: {ex.value.debug_context}"
+    Utils.drop_table(session, temp_table_name)
+
+
+def test_existing_object_with_schema_qualified_names_using_session_sql(session):
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    db = session.get_current_database()
+    sc = session.get_current_schema()
+    session.sql(f"CREATE TABLE {db}.{sc}.{temp_table_name} (a INT, b INT)").collect()
+
+    with pytest.raises(SnowparkSQLException) as ex:
+        session.sql(
+            f"CREATE TABLE {db}.{sc}.{temp_table_name} (a INT, b INT)"
+        ).collect()
+
+    db = db.strip('"')
+    sc = sc.strip('"')
+    expected_message = f"Object '{db}.{sc}.{temp_table_name}' was first referenced"
+    assert expected_message in str(
+        ex.value.debug_context
+    ), f"Expected message '{expected_message}' not found in debug context: {ex.value.debug_context}"
+    Utils.drop_table(session, temp_table_name)
+
+
+def test_existing_view_with_schema_qualified_names_using_session_sql(session):
+    temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    db = session.get_current_database()
+    sc = session.get_current_schema()
+    session.sql(
+        f"CREATE VIEW {db}.{sc}.{temp_view_name} AS SELECT 1 AS a, 2 AS b"
+    ).collect()
+
+    with pytest.raises(SnowparkSQLException) as ex:
+        session.sql(
+            f"CREATE VIEW {db}.{sc}.{temp_view_name} AS SELECT 3 AS a, 4 AS b"
+        ).collect()
+
+    db = db.strip('"')
+    sc = sc.strip('"')
+    expected_message = f"Object '{db}.{sc}.{temp_view_name}' was first referenced"
+    assert expected_message in str(
+        ex.value.debug_context
+    ), f"Expected message '{expected_message}' not found in debug context: {ex.value.debug_context}"
+    Utils.drop_view(session, temp_view_name)
+
+
+def test_existing_view_with_schema_qualified_names_using_dataframe_methods(session):
+    temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    db = session.get_current_database()
+    sc = session.get_current_schema()
+    df = session.create_dataframe([{"a": 1, "b": 2}])
+    df.create_temp_view([db, sc, temp_view_name])
+    df2 = session.create_dataframe([{"a": 3, "b": 4}])
+    with pytest.raises(SnowparkSQLException) as ex:
+        df2.create_temp_view([db, sc, temp_view_name])
+
+    db = db.strip('"')
+    sc = sc.strip('"')
+    expected_message = f"Object '{db}.{sc}.{temp_view_name}' was first referenced"
+    assert expected_message in str(
+        ex.value.debug_context
+    ), f"Expected message '{expected_message}' not found in debug context: {ex.value.debug_context}"
+    Utils.drop_view(session, temp_view_name)
+
+
+def test_existing_object_debug_context_when_ast_disabled(session):
+    """Test that the debug context function gracefully handles the case when AST is disabled."""
+    original_ast_state = session.ast_enabled
+    set_ast_state(AstFlagSource.TEST, False)
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.sql(f"CREATE TABLE {temp_table_name} (a INT, b INT)").collect()
+    with pytest.raises(SnowparkSQLException) as ex:
+        session.sql(f"CREATE TABLE {temp_table_name} (a INT, b INT)").collect()
+
+    assert f"Object '{temp_table_name}' already exists" in str(ex.value)
+
+    Utils.drop_table(session, temp_table_name)
+    set_ast_state(AstFlagSource.TEST, original_ast_state)
+
+
+def test_existing_table_with_dataframe_write_operations(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df1 = session.create_dataframe([{"a": 1, "b": 2}])
+    df1.write.save_as_table(table_name, mode="overwrite")
+    df2 = session.create_dataframe([{"a": 3, "b": 4}])
+    with pytest.raises(SnowparkSQLException) as ex:
+        df2.write.save_as_table(table_name, mode="errorifexists")
+
+    assert f"Object '{table_name}' was first referenced" in str(ex.value.debug_context)
+    Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
+    "view_method",
+    [
+        "create_temp_view",
+        "create_or_replace_view",
+        "create_or_replace_temp_view",
+    ],
+)
+def test_existing_view_with_all_dataframe_methods(session, view_method):
+    """Test that get_existing_object_context works with all DataFrame view creation methods."""
+    view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
+    df1 = session.create_dataframe([{"a": 1, "b": 2}])
+    df2 = session.create_dataframe([{"a": 3, "b": 4}])
+    getattr(df1, view_method)(view_name)
+
+    if view_method == "create_or_replace_view":
+        with pytest.raises(SnowparkSQLException) as ex:
+            session.sql(f"CREATE VIEW {view_name} AS SELECT 5 AS a, 6 AS b").collect()
+    elif view_method == "create_or_replace_temp_view":
+        with pytest.raises(SnowparkSQLException) as ex:
+            session.sql(
+                f"CREATE TEMP VIEW {view_name} AS SELECT 5 AS a, 6 AS b"
+            ).collect()
+    else:
+        with pytest.raises(SnowparkSQLException) as ex:
+            getattr(df2, view_method)(view_name)
+
+    assert f"Object '{view_name}' was first referenced" in str(
+        ex.value.debug_context
+    ), f"Expected object reference not found in debug context for {view_method}: {ex.value.debug_context}"
+
+    Utils.drop_view(session, view_name)
+>>>>>>> 3caeadf81 (Adding support for views/fully qualified names and moving tests to diff file)
