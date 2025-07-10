@@ -1,6 +1,6 @@
 # Release History
 
-## 1.34.0 (YYYY-MM-DD)
+## 1.34.0 (2025-07-11)
 
 ### Snowpark Python API Updates
 
@@ -18,11 +18,10 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 #### Improvements
 
 - Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
-- Improved SQL generation for `session.table().sample()` to generate a flat sql statement.
+- Improved SQL generation for `session.table().sample()` to generate a flat SQL statement.
 - Added support for complex column expression as input for `functions.explode`.
 - Added debuggability improvements to show which Python lines an SQL compilation error corresponds to. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
 - Set enforce_ordering=True when calling `to_snowpark_pandas()` from a snowpark dataframe containing DML/DDL queries instead of throwing a NotImplementedError.
-- Set the 'type' and other standard fields for modin telemetry.
 
 #### Bug Fixes
 
@@ -53,11 +52,10 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 #### Improvements
 
 - Added modin telemetry on API calls and hybrid engine switches.
-- Show more helpful error messages to Snowflake Notebook users when Modin or pandas version does not match our requirements.
+- Show more helpful error messages to Snowflake Notebook users when the `modin` or `pandas` version does not match our requirements.
 - Added a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
 - Added automatic switching to the pandas backend in hybrid execution mode (PrPr) for many methods that are not directly implemented in Snowpark pandas.
-- Set the 'type' and other standard fields for modin telemetry.
-
+- Set the 'type' and other standard fields for Snowpark pandas telemetry.
 
 #### Dependency Updates
 
@@ -68,7 +66,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 
 - Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
 - Fixed a bug in hybrid execution mode (PrPr) where calling numpy operations like `np.where` on modin objects with the Pandas backend would raise an `AttributeError`. This fix requires `modin` version 0.34.0 or newer.
-- Fixed issue when df.melt where the resulting values have an additional suffix applied
+- Fixed issue in `df.melt` where the resulting values have an additional suffix applied.
 
 ## 1.33.0 (2025-06-19)
 
