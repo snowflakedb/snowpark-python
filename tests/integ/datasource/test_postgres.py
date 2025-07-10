@@ -400,7 +400,7 @@ def test_unit_generate_select_query():
         """ENCODE("bytea_col", 'HEX') AS bytea_col, """
         '"timetz_col"::TIME AS timetz_col, '
         '"interval_col"::TEXT AS interval_col, '
-        '"regular_col" AS regular_col '
+        '"regular_col" '
         "FROM test_table"
     )
     assert table_query == expected_table_query
