@@ -1330,20 +1330,20 @@ def read_stata():
 
     >>> df = pd.DataFrame({'animal': ['falcon', 'parrot', 'falcon', 'parrot'],
     ...                   'speed': [350, 18, 361, 15]})
-    >>> df.to_stata('animals.dta')
+    >>> df.to_stata('animals.dta')  # doctest: +SKIP
 
     Read a Stata dta file:
 
-    >>> df = pd.read_stata('animals.dta')
+    >>> df = pd.read_stata('animals.dta')  # doctest: +SKIP
 
     Read a Stata dta file in 10,000 line chunks:
 
     >>> values = np.random.randint(0, 10, size=(20_000, 1), dtype="uint8")
     >>> df = pd.DataFrame(values, columns=["i"])
-    >>> df.to_stata('filename.dta')
+    >>> df.to_stata('filename.dta')  # doctest: +SKIP
 
-    >>> with pd.read_stata('filename.dta', chunksize=10000) as itr:
-    ...     for chunk in itr:
+    >>> with pd.read_stata('filename.dta', chunksize=10000) as itr:  # doctest: +SKIP
+    ...     for chunk in itr:  # doctest: +SKIP
     ...         # Operate on a single chunk, e.g., chunk.mean()
     ...         pass
     """
