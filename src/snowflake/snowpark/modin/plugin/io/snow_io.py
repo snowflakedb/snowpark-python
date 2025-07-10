@@ -730,6 +730,21 @@ class PandasOnSnowflakeIO(BaseIO):
         pass  # pragma: no cover
 
     @classmethod
+    def read_orc(cls, **kwargs) -> SnowflakeQueryCompiler:
+        """
+        Load an ORC object from the file path into a query compiler.
+        """
+        path = kwargs["path"]
+        if is_snowflake_stage_path(path):
+            with _file_from_stage(path) as local_filepath:
+                kwargs["path"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls.from_pandas(pandas.read_orc(**kwargs))
+
+        return cls.from_pandas(pandas.read_orc(**kwargs))
+
+    @classmethod
     def read_sas(cls, **kwargs):  # noqa: PR01
         """
         Read SAS files stored as either XPORT or SAS7BDAT format files into a query compiler.
