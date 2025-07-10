@@ -94,7 +94,10 @@ def pytest_collection_modifyitems(config, items):
     )
     if any(platform in host.split(".") for platform in ["gcp", "azure"]):
         skip = pytest.mark.skip(reason="Skipping doctest for Azure and GCP deployment")
-        disabled_doctests = ["ai_classify"]  # Add any test names that should be skipped
+        disabled_doctests = [
+            "ai_classify",
+            "model",
+        ]  # Add any test names that should be skipped
         for item in items:
             # identify doctest items
             if isinstance(item, DoctestItem):
