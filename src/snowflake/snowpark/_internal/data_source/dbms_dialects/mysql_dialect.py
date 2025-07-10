@@ -37,7 +37,9 @@ class MysqlDialect(BaseDialect):
             ):
                 cols.append(f"""HEX({field_name}) AS {raw_field[0]}""")
             else:
-                cols.append(f"""{field_name} AS {raw_field[0]}""")
+                cols.append(
+                    f"{field_name} AS {raw_field[0]}"
+                ) if is_query else cols.append(field_name)
 
         return QUERY_TEMPLATE.format(
             cols=" , ".join(cols),
