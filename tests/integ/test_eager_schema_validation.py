@@ -79,6 +79,8 @@ def test_early_attributes(session, transform, debug_mode):
     ],
 )
 def test_early_error(session, transform, debug_mode):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
     with patch.object(context, "_debug_eager_schema_validation", debug_mode):
         df = session.create_dataframe([1, 2, 3], ["A"])
 
