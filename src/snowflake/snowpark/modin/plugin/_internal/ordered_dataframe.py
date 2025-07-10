@@ -27,7 +27,6 @@ from snowflake.snowpark.functions import (
     lit,
     max as max_,
     not_,
-    row_number,
     sum as sum_,
 )
 from snowflake.snowpark.modin.plugin._typing import AlignTypeLit, JoinTypeLit
@@ -39,7 +38,6 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.table_function import TableFunctionCall
 from snowflake.snowpark.types import StructType
-from snowflake.snowpark.window import Window
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -345,7 +343,9 @@ class OrderedDataFrame:
         if self.row_position_snowflake_quoted_identifier is not None:
             return Column(self.row_position_snowflake_quoted_identifier)
 
-        return row_number().over(Window.order_by(self._ordering_snowpark_columns())) - 1
+        from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
+
+        return pandas_lit(1)
 
     @property
     def projected_column_snowflake_quoted_identifiers(self) -> list[str]:
@@ -1886,6 +1886,7 @@ class OrderedDataFrame:
             ),
             projected_column_snowflake_quoted_identifiers=projected_dataframe_ref.snowflake_quoted_identifiers,
             ordering_columns=self.ordering_columns,
+            row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
         )
         new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
             self,
