@@ -44,7 +44,6 @@ def setup_mock_qc() -> SnowflakeQueryCompiler:
         ["to_pickle", {"filepath_or_buffer": "", "obj": ""}],
         ["read_spss", {"path": ""}],
         ["json_normalize", {"data": ""}],
-        ["read_orc", {"path": ""}],
     ],
 )
 def test_unsupported_io(io_method, kwargs):
