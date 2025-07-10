@@ -43,6 +43,7 @@ from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeD
 import pandas.io.parsers.readers
 import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
+from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -97,7 +98,6 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
     random_name_for_temp_object,
 )
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -425,9 +425,6 @@ from snowflake.snowpark.types import (
 )
 from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.window import Window
-
-if MODIN_IS_AT_LEAST_0_33_0:
-    from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 
 _logger = logging.getLogger(__name__)
 
@@ -1054,27 +1051,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def to_interchange_dataframe(
         self, nan_as_null: bool = False, allow_copy: bool = True
     ) -> InterchangeDataframe:
-        return self.to_dataframe(nan_as_null, allow_copy)
-
-    # TODO: MODIN_IS_AT_LEAST_0_33_0
-    # delete this stub and use only to_interchange_dataframe
-    def to_dataframe(
-        self, nan_as_null: bool = False, allow_copy: bool = True
-    ) -> InterchangeDataframe:  # pragma: no cover
         return self.to_pandas().__dataframe__(
             nan_as_null=nan_as_null, allow_copy=allow_copy
         )
 
     @classmethod
     def from_interchange_dataframe(cls, df: native_pd.DataFrame, data_cls: Any) -> None:
-        pass
-
-    # TODO: MODIN_IS_AT_LEAST_0_33_0
-    # delete this stub and use only from_interchange_dataframe
-    @classmethod
-    def from_dataframe(
-        cls, df: native_pd.DataFrame, data_cls: Any
-    ) -> None:  # pragma: no cover
         pass
 
     @classmethod
@@ -1238,7 +1220,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         return self.to_pandas().to_numpy(dtype=dtype, na_value=na_value, **kwargs)
 
-    # modin 0.34 and above
+    # TODO: MODIN_IS_AT_LEAST_0_34_0
+    # delete this comment and pragma: no cover once we no longer support 0.33.x
     def do_array_ufunc_implementation(
         self,
         frame: BasePandasDataset,
@@ -1302,7 +1285,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # return the sentinel NotImplemented if we do not support this function
         return NotImplemented  # pragma: no cover
 
-    # modin 0.34 and above
+    # TODO: MODIN_IS_AT_LEAST_0_34_0
+    # delete this comment and pragma: no cover once we no longer support 0.33.x
     def do_array_function_implementation(
         self,
         frame: BasePandasDataset,
@@ -10309,18 +10293,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if is_scalar(index):
                 index = (index,)
         elif is_scalar(index):
-            if MODIN_IS_AT_LEAST_0_33_0:
-                # SNOW-2084670
-                # Force this query compiler to be an SFQC, since with auto-switch behavior
-                # it may become a NativeQueryCompiler.
-                index = pd.Series([index]).set_backend("Snowflake")._query_compiler
-            else:  # pragma: no branch
-                index = pd.Series([index])._query_compiler
+            # SNOW-2084670
+            # Force this query compiler to be an SFQC, since with auto-switch behavior
+            # it may become a NativeQueryCompiler.
+            index = pd.Series([index]).set_backend("Snowflake")._query_compiler
         # convert list like to series
         elif is_list_like(index):
-            index = pd.Series(index)
-            if MODIN_IS_AT_LEAST_0_33_0:
-                index.set_backend("Snowflake", inplace=True)
+            index = pd.Series(index).set_backend("Snowflake")
             if index.dtype == "bool":
                 # boolean list like indexer is always select rows by row position
                 return SnowflakeQueryCompiler(

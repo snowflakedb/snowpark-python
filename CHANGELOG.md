@@ -44,10 +44,9 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 #### New Features
 
 - Added support for `DataFrame.to_excel` and `Series.to_excel`.
-- Added support for `pd.read_feather`.
+- Added support for `pd.read_feather`, `pd.read_orc`, and `pd.read_stata`.
 - Added support for `pd.explain_switch()` to return debugging information on hybrid execution decisions.
 - Support `pd.read_snowflake` when the global modin backend is `Pandas`.
-- Added support for `pd.read_stata`.
 - Added support for `pd.to_iceberg`.
 
 #### Improvements
@@ -62,6 +61,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 #### Dependency Updates
 
 - Added tqdm and ipywidgets as dependencies so that progress bars appear when switching between modin backends.
+- Updated the supported `modin` versions to >=0.33.0 and <0.35.0 (was previously >= 0.32.0 and <0.34.0).
 
 #### Bug Fixes
 

@@ -43,9 +43,6 @@ from snowflake.snowpark.modin.plugin.extensions.index import Index  # noqa: F401
 from snowflake.snowpark.modin.plugin.extensions.timedelta_index import (  # noqa: F401
     TimedeltaIndex,
 )
-from snowflake.snowpark.modin.plugin.utils.error_message import (
-    pandas_module_level_function_not_implemented,
-)
 
 
 @_inherit_docstrings(native_pd.read_pickle, apilink="pandas.read_pickle")
@@ -158,9 +155,8 @@ def json_normalize(
 
 @_inherit_docstrings(native_pd.read_orc, apilink="pandas.read_orc")
 @register_pd_accessor("read_orc")
-@pandas_module_level_function_not_implemented()
 def read_orc(
-    path,
+    path: FilePath,
     columns: list[str] | None = None,
     dtype_backend: DtypeBackend | NoDefault = no_default,
     filesystem=None,
@@ -168,7 +164,19 @@ def read_orc(
 ) -> pd.DataFrame:  # noqa: PR01, RT01, D200
     # TODO(https://github.com/modin-project/modin/issues/7104):
     # modin needs to remove defaults to pandas at API layer
-    pass  # pragma: no cover
+    _pd_read_orc_signature = {
+        val.name for val in inspect.signature(native_pd.read_orc).parameters.values()
+    }
+    _, _, _, f_locals = inspect.getargvalues(inspect.currentframe())
+    kwargs = {k: v for k, v in f_locals.items() if k in _pd_read_orc_signature}
+    if kwargs["kwargs"] == {}:
+        del kwargs["kwargs"]
+
+    return DataFrame(
+        query_compiler=PandasOnSnowflakeIO.read_orc(
+            **kwargs,
+        )
+    )
 
 
 @_inherit_docstrings(native_pd.read_csv, apilink="pandas.read_csv")
