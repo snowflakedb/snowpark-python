@@ -75,7 +75,6 @@ def test_unsupported_general(general_method, kwargs):
         ["at_time", {"time": ""}],
         ["between_time", {"start_time": "", "end_time": ""}],
         ["bool", {}],
-        ["boxplot", {}],
         ["clip", {}],
         ["combine", {"other": "", "func": ""}],
         ["combine_first", {"other": ""}],
