@@ -1,5 +1,13 @@
 # Release History
 
+## 1.35.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
+
 ## 1.34.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
