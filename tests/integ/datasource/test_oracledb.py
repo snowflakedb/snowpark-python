@@ -78,9 +78,7 @@ def create_connection_oracledb():
     ],
 )
 def test_basic_oracledb(session, input_type, input_value):
-    input_dict = {
-        input_type: input_value,
-    }
+    input_dict = {input_type: input_value, "max_workers": 4, "query_timeout": 5}
     df = session.read.dbapi(create_connection_oracledb, **input_dict).order_by("ID")
     assert df.collect() == oracledb_real_data
     assert df.schema == oracledb_real_schema

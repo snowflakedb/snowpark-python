@@ -117,7 +117,7 @@ ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integr
 def test_basic_sql_server(session, caplog, fetch_with_process, input_type, input_value):
     input_dict = {
         input_type: input_value,
-        "fetch_with_process": str(fetch_with_process),
+        "fetch_with_process": fetch_with_process,
     }
     with caplog.at_level(logging.DEBUG):
         df = session.read.dbapi(sql_server_create_connection, **input_dict)

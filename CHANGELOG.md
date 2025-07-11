@@ -1,5 +1,13 @@
 # Release History
 
+## 1.35.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+
 ## 1.34.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
