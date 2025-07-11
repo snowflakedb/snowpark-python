@@ -445,14 +445,7 @@ def process_parquet_queue_with_threads(
 
             except queue.Empty:
                 backpressure_semaphore.release()  # Release semaphore if no data was fetched
-                if fetch_with_process:
-                    # Check if any processes have failed
-                    for i, process in enumerate(workers):
-                        if not process.is_alive() and process.exitcode != 0:
-                            raise SnowparkDataframeReaderException(
-                                f"Partition {i} data fetching process failed with exit code {process.exitcode}"
-                            )
-                else:
+                if not fetch_with_process:
                     # Check if any threads have failed
                     for i, future in enumerate(workers):
                         if future.done():
