@@ -53,6 +53,7 @@ from tests.utils import (
     TestFiles,
     Utils,
     multithreaded_run,
+    current_account,
 )
 
 test_file_csv = "testCSV.csv"
@@ -525,6 +526,46 @@ def test_read_csv_with_infer_schema_negative(session, mode, caplog):
         with caplog.at_level(logging.WARN):
             reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
             assert "Could not infer csv schema due to exception:" in caplog.text
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
+)
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_infer_schema_fallback(session, mode, caplog):
+    reader = get_reader(session, mode)
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+    run_query = session._conn.run_query
+
+    def mock_run_query(*args, **kwargs):
+        if args[0].startswith("list"):
+            # Return junk file to simulate unkown path format
+            return {
+                "data": [(f"@@?/{tmp_stage_name1}/unknown_file", 32, "", "")],
+                "sfqid": "",
+            }
+        else:
+            return run_query(*args, **kwargs)
+
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        wraps=mock_run_query,
+    ):
+        df = (
+            reader.option("INFER_SCHEMA", True)
+            .option("PATTERN", ".*testCSV.csv")
+            .csv(test_file_on_stage)
+        )
+        # Data still loads because it falls back to old infer logic
+        Utils.check_answer(
+            df,
+            [
+                Row(c1=1, c2="one", c3=Decimal("1.2")),
+                Row(c1=2, c2="two", c3=Decimal("2.2")),
+            ],
+        )
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -1721,13 +1762,17 @@ def test_pattern(session, mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="Local testing does not support file.put",
 )
-@pytest.mark.xfail(
-    reason="SNOW-2138003: Param difference between environments",
-    strict=False,
-)
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_pattern_with_infer(session, mode):
+@pytest.mark.parametrize("extern", [True, False])
+def test_pattern_with_infer(session, mode, extern):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+
+    if current_account(session) != "SFCTEST0_AWS_US_WEST_2":
+        pytest.mark.skip("Test requires resources in sfctest0 test account")
+
+    if extern:
+        stage_name = f"TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage/{stage_name}"
+
     expected_schema = StructType(
         [
             StructField("col1", LongType(), True),
@@ -1743,7 +1788,8 @@ def test_pattern_with_infer(session, mode):
     ]
 
     try:
-        Utils.create_stage(session, stage_name, is_temporary=True)
+        if not extern:
+            Utils.create_stage(session, stage_name, is_temporary=True)
         with tempfile.TemporaryDirectory() as temp_dir:
             for i in range(3):
                 good_file_path = os.path.join(temp_dir, f"good{i}.csv")
@@ -1793,16 +1839,20 @@ def test_pattern_with_infer(session, mode):
         assert df.schema == expected_schema
         Utils.check_answer(df, expected_rows * 3)
 
-        # Test using fully qualified stage name
-        reader = base_reader()
-        df = reader.csv(
-            f"@{session.get_current_database()}.{session.get_current_schema()}.{stage_name}"
-        )
-        assert df.schema == expected_schema
-        Utils.check_answer(df, expected_rows * 3)
+        if not extern:
+            # Test using fully qualified stage name
+            reader = base_reader()
+            df = reader.csv(
+                f"@{session.get_current_database()}.{session.get_current_schema()}.{stage_name}"
+            )
+            assert df.schema == expected_schema
+            Utils.check_answer(df, expected_rows * 3)
 
     finally:
-        Utils.drop_stage(session, stage_name)
+        if extern:
+            session.sql(f"rm @{stage_name}").collect()
+        else:
+            Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.xfail(
