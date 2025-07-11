@@ -14,7 +14,7 @@ from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=5)
 def test_to_dynamic_table_enforce_ordering_raises(session) -> None:
     try:
         # create table
@@ -25,7 +25,7 @@ def test_to_dynamic_table_enforce_ordering_raises(session) -> None:
 
         # create dataframe with enforce_ordering enabled
         snow_dataframe = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", enforce_ordering=True
+            f"SELECT * FROM {table_name}", enforce_ordering=True
         )
 
         # creating dynamic_table fails when enforce_ordering is enabled
@@ -59,7 +59,7 @@ def test_to_dynamic_table_no_enforce_ordering(session) -> None:
 
         # create dataframe with enforce_ordering disabled
         snow_dataframe = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
+            f"SELECT * FROM {table_name}", enforce_ordering=False
         )
 
         # creating dynamic_table succeeds when enforce_ordering is disabled
@@ -98,7 +98,7 @@ def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
 
         # create dataframe with enforce_ordering disabled
         snow_dataframe = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
+            f"SELECT * FROM {table_name}", enforce_ordering=False
         )
 
         # creating dynamic_table succeeds when enforce_ordering is disabled
@@ -129,10 +129,17 @@ def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
         pd.session = session
 
 
-@pytest.mark.parametrize("index", [True, False])
-@pytest.mark.parametrize("index_labels", [None, ["my_index"]])
+@pytest.mark.parametrize(
+    "index, index_labels, expected_index_columns",
+    [
+        (True, None, ["index"]),
+        (True, ["my_index"], ["my_index"]),
+        (False, None, []),
+        (False, ["my_index"], []),
+    ],
+)
 @sql_count_checker(query_count=6)
-def test_to_dynamic_table_index(session, index, index_labels):
+def test_to_dynamic_table_index(session, index, index_labels, expected_index_columns):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -142,7 +149,7 @@ def test_to_dynamic_table_index(session, index, index_labels):
 
         # create dataframe with enforce_ordering disabled
         snow_dataframe = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
+            f"SELECT * FROM {table_name}", enforce_ordering=False
         )
 
         dynamic_table_name = Utils.random_name_for_temp_object(
@@ -155,15 +162,17 @@ def test_to_dynamic_table_index(session, index, index_labels):
             index=index,
             index_label=index_labels,
         )
-        expected_columns = []
-        if index:
-            # if index is retained in the result, add it as the first expected column
-            expected_index = ["index"]
-            if index_labels:
-                expected_index = index_labels
-            expected_columns = expected_columns + expected_index
+
         # add the expected data columns
-        expected_columns = expected_columns + ["_1", "_2", "_3", "_4", "_5", "_6", "_7"]
+        expected_columns = expected_index_columns + [
+            "_1",
+            "_2",
+            "_3",
+            "_4",
+            "_5",
+            "_6",
+            "_7",
+        ]
 
         # verify columns
         actual = pd.read_snowflake(
@@ -188,7 +197,7 @@ def test_to_dynamic_table_multiindex(session):
 
         # create dataframe with enforce_ordering disabled
         snow_dataframe = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
+            f"SELECT * FROM {table_name}", enforce_ordering=False
         )
 
         # make sure dataframe has a multi-index
