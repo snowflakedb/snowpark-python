@@ -541,7 +541,7 @@ def test_read_csv_with_infer_schema_fallback(session, mode, caplog):
 
     def mock_run_query(*args, **kwargs):
         if args[0].startswith("list"):
-            # Return junk file to simulate unkown path format
+            # Return junk file to simulate unknown path format
             return {
                 "data": [(f"@@?/{tmp_stage_name1}/unknown_file", 32, "", "")],
                 "sfqid": "",
@@ -1768,7 +1768,7 @@ def test_pattern_with_infer(session, mode, extern):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
 
     if current_account(session) != "SFCTEST0_AWS_US_WEST_2":
-        pytest.mark.skip("Test requires resources in sfctest0 test account")
+        pytest.skip("Test requires resources in sfctest0 test account")
 
     if extern:
         stage_name = f"TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage/{stage_name}"
