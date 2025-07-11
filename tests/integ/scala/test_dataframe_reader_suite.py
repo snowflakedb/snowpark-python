@@ -2200,7 +2200,7 @@ def test_enforce_existing_file_format_object_doesnt_exist(session):
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
-    reason="STRING types have different precision in stored procs",
+    reason="TODO: SNOW-2201113, STRING types have different precision in stored procs due to LOB",
 )
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
@@ -2352,6 +2352,14 @@ def test_try_cast(session):
         ]
     )
 
+    lob_schema = StructType(
+        [
+            StructField("A", StringType(134217728), True),
+            StructField("B", DecimalType(2, 1), True),
+            StructField("C", BooleanType(), True),
+        ]
+    )
+
     def write_csv(data):
         with tempfile.NamedTemporaryFile(
             mode="w+",
@@ -2393,7 +2401,8 @@ def test_try_cast(session):
 
         # df1 uses constrained types
         df1 = default_reader.csv(f"@{stage_name}/")
-        assert df1.schema == schema
+        # TODO: SNOW-2201113, revert the condition once the LOB issue is fixed
+        assert df1.schema == schema or df1.schema == lob_schema
         # Try to load both files
         default_reader.option("PATTERN", None)
 
