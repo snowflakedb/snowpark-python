@@ -32,7 +32,6 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     is_in_stored_procedure,
     quote_name,
-    generate_random_alphanumeric,
 )
 from snowflake.snowpark.functions import (
     array_construct,
@@ -495,96 +494,6 @@ class Utils:
         stripped_sql = re.sub(r"\s+\)", ")", stripped_sql)
 
         return stripped_sql
-
-    @staticmethod
-    def write_test_msg(
-        write_mode: str, file_location: str, test_msg: str = None
-    ) -> tuple[Union[str, bytes], str]:
-        """
-        Generates a test message or uses the provided message and writes it to the specified file location.
-
-        Used to create a test message for reading in SnowflakeFile tests.
-        Returns a test message and the file location that the message was written to.
-        """
-        file_location = os.path.join(
-            file_location, f"{generate_random_alphanumeric()}.txt"
-        )
-        if test_msg is None:
-            test_msg = generate_random_alphanumeric()
-        if write_mode == "wb":
-            test_msg = test_msg.encode()
-        encoding = "utf-8" if write_mode == "w" else None
-        with open(file_location, write_mode, encoding=encoding) as f:
-            f.write(test_msg)
-        return test_msg, file_location
-
-    @staticmethod
-    def write_test_msg_to_stage(
-        write_mode: str,
-        file_location: str,
-        tmp_stage: str,
-        session: Session,
-        test_msg: str = None,
-    ) -> tuple[Union[str, bytes], str]:
-        """
-        Generates a test message or uses the provided message and writes it to the specified file location on a stage.
-
-        Used to create a test message for reading in SnowflakeFile tests involving stages.
-        Returns a test message and the file location that the message was written to.
-        """
-        test_msg, file_location = Utils.write_test_msg(
-            write_mode, file_location, test_msg
-        )
-        Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
-        return test_msg, f"@{tmp_stage}/{file_location.split('/')[-1]}"
-
-    @staticmethod
-    def generate_and_write_lines(
-        num_lines: int,
-        write_mode: str,
-        file_location: str,
-        msg: Union[str, bytes] = None,
-    ) -> tuple[list[Union[str, bytes]], str]:
-        """
-        Generates a list of test messages and writes them to the specified file location.
-
-        Returns the list of messages and the file location that the messages were written to.
-        """
-        file_location = os.path.join(
-            file_location, f"{generate_random_alphanumeric()}.txt"
-        )
-        lines = [
-            f"{generate_random_alphanumeric()}\n" if msg is None else f"{msg}\n"
-            for _ in range(num_lines)
-        ]
-        if write_mode == "wb":
-            lines = [line.encode() for line in lines]
-        encoding = "utf-8" if write_mode == "w" else None
-        with open(file_location, write_mode, encoding=encoding) as f:
-            for line in lines:
-                f.write(line)
-
-        return lines, file_location
-
-    @staticmethod
-    def generate_and_write_lines_to_stage(
-        num_lines: int,
-        write_mode: str,
-        file_location: str,
-        tmp_stage: str,
-        session: Session,
-        msg: Union[str, bytes] = None,
-    ) -> tuple[list[Union[str, bytes]], str]:
-        """
-        Generates a list of test messages and writes them to the specified file location on a stage.
-
-        Returns the list of messages and the file location that the messages were written to.
-        """
-        lines, file_location = Utils.generate_and_write_lines(
-            num_lines, write_mode, file_location, msg
-        )
-        Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
-        return lines, f"@{tmp_stage}/{file_location.split('/')[-1]}"
 
 
 class TestData:
