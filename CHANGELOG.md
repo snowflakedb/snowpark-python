@@ -39,6 +39,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where closing the cursor or connection could unexpectedly raise an error and terminate the program.
 - Fixed ambiguous column errors when using table functions in `DataFrame.select()` that have output columns matching the input DataFrame's columns. This improvement works when dataframe columns are provided as `Column` objects.
 - Fixed a bug where having a NULL in a column with DecimalTypes would cast the column to FloatTypes instead and lead to precision loss.
+- Fixed a bug in schema inference that would cause it to fail for external stages.
 
 ### Snowpark Local Testing Updates
 
