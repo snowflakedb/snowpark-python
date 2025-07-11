@@ -1014,7 +1014,7 @@ class DataFrameReader:
                 for match in matches:
                     # Try to remove any protocol
                     (pre, _, post) = match[0].partition("://")
-                    match = pre if post is None else post
+                    match = post if post else pre
                     files.append(match.partition("/")[2])
 
                 infer_schema_options["FILES"] = files
