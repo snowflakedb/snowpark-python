@@ -20,29 +20,37 @@ def native_pandas_ser_basic():
     return native_ser
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
+@pytest.fixture(
+    params=[
+        pytest.param(
+            lambda obj, *args, **kwargs: obj.to_view(*args, **kwargs),
+            id="method",
+        ),
+        pytest.param(pd.to_view, id="function"),
+    ]
+)
+def to_view(request):
+    return request.param
+
+
 @sql_count_checker(query_count=2)
-def test_to_view_basic(session, native_pandas_ser_basic, method_type) -> None:
+def test_to_view_basic(session, native_pandas_ser_basic, to_view) -> None:
     view_name = Utils.random_view_name()
     try:
         snow_series = pd.Series(native_pandas_ser_basic)
 
-        if method_type == "instance":
-            result = snow_series.to_view(name=view_name)
-        else:  # global
-            result = pd.to_view(obj=snow_series, name=view_name)
+        result = to_view(snow_series, name=view_name)
 
         assert "successfully created" in result[0]["status"]
     finally:
         Utils.drop_view(session, view_name)
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
 @sql_count_checker(query_count=6)
 def test_to_view_multiple_sessions_enforce_ordering_raises(
     session,
     db_parameters,
-    method_type,
+    to_view,
 ) -> None:
     try:
         # create table
@@ -58,10 +66,7 @@ def test_to_view_multiple_sessions_enforce_ordering_raises(
 
         # create view
         view_name = Utils.random_view_name()
-        if method_type == "instance":
-            result = snow_series.to_view(name=view_name)
-        else:  # global
-            result = pd.to_view(obj=snow_series, name=view_name)
+        result = to_view(snow_series, name=view_name)
 
         assert "successfully created" in result[0]["status"]
 
@@ -83,12 +88,11 @@ def test_to_view_multiple_sessions_enforce_ordering_raises(
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
 @sql_count_checker(query_count=5)
 def test_to_view_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
-    method_type,
+    to_view,
 ) -> None:
     try:
         # create table
@@ -104,10 +108,7 @@ def test_to_view_multiple_sessions_no_enforce_ordering(
 
         # create view
         view_name = Utils.random_view_name()
-        if method_type == "instance":
-            result = snow_series.to_view(name=view_name)
-        else:  # global
-            result = pd.to_view(obj=snow_series, name=view_name)
+        result = to_view(snow_series, name=view_name)
 
         assert "successfully created" in result[0]["status"]
 
@@ -127,7 +128,6 @@ def test_to_view_multiple_sessions_no_enforce_ordering(
         pd.session = session
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
 @pytest.mark.parametrize(
     "index, index_labels, expected_index_columns",
     [
@@ -138,9 +138,7 @@ def test_to_view_multiple_sessions_no_enforce_ordering(
     ],
 )
 @sql_count_checker(query_count=6)
-def test_to_view_index(
-    session, index, index_labels, expected_index_columns, method_type
-):
+def test_to_view_index(session, index, index_labels, expected_index_columns, to_view):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -154,15 +152,12 @@ def test_to_view_index(
         ).iloc[:, 0]
 
         view_name = Utils.random_view_name()
-        if method_type == "instance":
-            snow_series.to_view(name=view_name, index=index, index_label=index_labels)
-        else:  # global
-            pd.to_view(
-                obj=snow_series,
-                name=view_name,
-                index=index,
-                index_label=index_labels,
-            )
+        to_view(
+            snow_series,
+            name=view_name,
+            index=index,
+            index_label=index_labels,
+        )
 
         # add the expected data columns
         expected_columns = expected_index_columns + ["_1"]
@@ -179,9 +174,8 @@ def test_to_view_index(
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
 @sql_count_checker(query_count=6)
-def test_to_view_multiindex(session, method_type):
+def test_to_view_multiindex(session, to_view):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -201,17 +195,11 @@ def test_to_view_multiindex(session, method_type):
         snow_series = snow_dataframe.iloc[:, 0]
 
         view_name = Utils.random_view_name()
-        if method_type == "instance":
-            snow_series.to_view(
-                name=view_name,
-                index=True,
-            )
-        else:  # global
-            pd.to_view(
-                obj=snow_series,
-                name=view_name,
-                index=True,
-            )
+        to_view(
+            snow_series,
+            name=view_name,
+            index=True,
+        )
 
         # verify columns
         actual = pd.read_snowflake(
@@ -226,9 +214,8 @@ def test_to_view_multiindex(session, method_type):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
 @sql_count_checker(query_count=4)
-def test_to_view_multiindex_length_mismatch_raises(session, method_type):
+def test_to_view_multiindex_length_mismatch_raises(session, to_view):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -252,12 +239,12 @@ def test_to_view_multiindex_length_mismatch_raises(session, method_type):
             ValueError,
             match="Length of 'index_label' should match number of levels",
         ):
-            if method_type == "instance":
-                snow_series.to_view(name=view_name, index=True, index_label=["a"])
-            else:  # global
-                pd.to_view(
-                    obj=snow_series, name=view_name, index=True, index_label=["a"]
-                )
+            to_view(
+                snow_series,
+                name=view_name,
+                index=True,
+                index_label=["a"],
+            )
     finally:
         # cleanup
         Utils.drop_view(session, view_name)

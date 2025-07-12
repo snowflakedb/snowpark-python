@@ -28,9 +28,21 @@ def native_pandas_df_basic():
     return native_df
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
+@pytest.fixture(
+    params=[
+        pytest.param(
+            lambda obj, *args, **kwargs: obj.to_iceberg(*args, **kwargs),
+            id="method",
+        ),
+        pytest.param(pd.to_iceberg, id="function"),
+    ]
+)
+def to_iceberg(request):
+    return request.param
+
+
 @sql_count_checker(query_count=6)
-def test_to_iceberg(session, native_pandas_df_basic, method_type):
+def test_to_iceberg(session, native_pandas_df_basic, to_iceberg):
     if not iceberg_supported(session, local_testing_mode=False):
         pytest.skip("Test requires iceberg support.")
 
@@ -47,17 +59,12 @@ def test_to_iceberg(session, native_pandas_df_basic, method_type):
         "storage_serialization_policy": "OPTIMIZED",
     }
     try:
-        if method_type == "instance":
-            snow_dataframe.to_iceberg(
-                table_name=table_name, mode="overwrite", iceberg_config=iceberg_config
-            )
-        else:  # global
-            pd.to_iceberg(
-                obj=snow_dataframe,
-                table_name=table_name,
-                mode="overwrite",
-                iceberg_config=iceberg_config,
-            )
+        to_iceberg(
+            snow_dataframe,
+            table_name=table_name,
+            mode="overwrite",
+            iceberg_config=iceberg_config,
+        )
         snow_dataframe = pd.read_snowflake(table_name)
         snow_dataframe = snow_dataframe.set_index("ID")
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
@@ -67,9 +74,8 @@ def test_to_iceberg(session, native_pandas_df_basic, method_type):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
 @sql_count_checker(query_count=1)
-def test_to_iceberg_config_required(session, native_pandas_df_basic, method_type):
+def test_to_iceberg_config_required(session, native_pandas_df_basic, to_iceberg):
     snow_dataframe = pd.DataFrame(native_pandas_df_basic)
 
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -77,12 +83,7 @@ def test_to_iceberg_config_required(session, native_pandas_df_basic, method_type
         TypeError, match="missing 1 required keyword-only argument: 'iceberg_config'"
     ):
         try:
-            if method_type == "instance":
-                snow_dataframe.to_iceberg(table_name=table_name, mode="overwrite")
-            else:  # global
-                pd.to_iceberg(
-                    obj=snow_dataframe, table_name=table_name, mode="overwrite"
-                )
+            to_iceberg(snow_dataframe, table_name=table_name, mode="overwrite")
         finally:
             # This is just in case the iceberg table is created erroneously
             Utils.drop_table(session, table_name)

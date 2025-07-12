@@ -14,8 +14,21 @@ from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 
+@pytest.fixture(
+    params=[
+        pytest.param(
+            lambda obj, *args, **kwargs: obj.to_dynamic_table(*args, **kwargs),
+            id="method",
+        ),
+        pytest.param(pd.to_dynamic_table, id="function"),
+    ]
+)
+def to_dynamic_table(request):
+    return request.param
+
+
 @sql_count_checker(query_count=5)
-def test_to_dynamic_table_enforce_ordering_raises(session) -> None:
+def test_to_dynamic_table_enforce_ordering_raises(session, to_dynamic_table) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -37,7 +50,8 @@ def test_to_dynamic_table_enforce_ordering_raises(session) -> None:
             SnowparkSQLException,
             match="Dynamic Tables cannot depend on a temporary object",
         ):
-            snow_dataframe.to_dynamic_table(
+            to_dynamic_table(
+                snow_dataframe,
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",
@@ -49,7 +63,7 @@ def test_to_dynamic_table_enforce_ordering_raises(session) -> None:
 
 
 @sql_count_checker(query_count=6)
-def test_to_dynamic_table_no_enforce_ordering(session) -> None:
+def test_to_dynamic_table_no_enforce_ordering(session, to_dynamic_table) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -66,14 +80,14 @@ def test_to_dynamic_table_no_enforce_ordering(session) -> None:
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        assert (
-            "successfully created"
-            in snow_dataframe.to_dynamic_table(
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-            )[0]["status"]
+        result = to_dynamic_table(
+            snow_dataframe,
+            name=dynamic_table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
         )
+
+        assert "successfully created" in result[0]["status"]
 
         # accessing the created dynamic_table in the same session also succeeds
         res = session.sql(f"select * from {dynamic_table_name}").collect()
@@ -88,6 +102,7 @@ def test_to_dynamic_table_no_enforce_ordering(session) -> None:
 def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
+    to_dynamic_table,
 ) -> None:
     try:
         # create table
@@ -105,14 +120,14 @@ def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        assert (
-            "successfully created"
-            in snow_dataframe.to_dynamic_table(
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-            )[0]["status"]
+        result = to_dynamic_table(
+            snow_dataframe,
+            name=dynamic_table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
         )
+
+        assert "successfully created" in result[0]["status"]
 
         # another session
         new_session = Session.builder.configs(db_parameters).create()
@@ -139,7 +154,9 @@ def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
     ],
 )
 @sql_count_checker(query_count=6)
-def test_to_dynamic_table_index(session, index, index_labels, expected_index_columns):
+def test_to_dynamic_table_index(
+    session, index, index_labels, expected_index_columns, to_dynamic_table
+):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -155,7 +172,8 @@ def test_to_dynamic_table_index(session, index, index_labels, expected_index_col
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        snow_dataframe.to_dynamic_table(
+        to_dynamic_table(
+            snow_dataframe,
             name=dynamic_table_name,
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
@@ -187,7 +205,7 @@ def test_to_dynamic_table_index(session, index, index_labels, expected_index_col
 
 
 @sql_count_checker(query_count=6)
-def test_to_dynamic_table_multiindex(session):
+def test_to_dynamic_table_multiindex(session, to_dynamic_table):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -206,7 +224,8 @@ def test_to_dynamic_table_multiindex(session):
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        snow_dataframe.to_dynamic_table(
+        to_dynamic_table(
+            snow_dataframe,
             name=dynamic_table_name,
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
@@ -223,7 +242,8 @@ def test_to_dynamic_table_multiindex(session):
         with pytest.raises(
             ValueError, match="Length of 'index_label' should match number of levels"
         ):
-            snow_dataframe.to_dynamic_table(
+            to_dynamic_table(
+                snow_dataframe,
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",

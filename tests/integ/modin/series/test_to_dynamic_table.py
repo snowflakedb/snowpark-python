@@ -14,9 +14,21 @@ from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
+@pytest.fixture(
+    params=[
+        pytest.param(
+            lambda obj, *args, **kwargs: obj.to_dynamic_table(*args, **kwargs),
+            id="method",
+        ),
+        pytest.param(pd.to_dynamic_table, id="function"),
+    ]
+)
+def to_dynamic_table(request):
+    return request.param
+
+
 @sql_count_checker(query_count=5)
-def test_to_dynamic_table_enforce_ordering_raises(session, method_type) -> None:
+def test_to_dynamic_table_enforce_ordering_raises(session, to_dynamic_table) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -38,28 +50,20 @@ def test_to_dynamic_table_enforce_ordering_raises(session, method_type) -> None:
             SnowparkSQLException,
             match="Dynamic Tables cannot depend on a temporary object",
         ):
-            if method_type == "instance":
-                snow_series.to_dynamic_table(
-                    name=dynamic_table_name,
-                    warehouse=session.get_current_warehouse(),
-                    lag="1000 minutes",
-                )
-            else:  # global
-                pd.to_dynamic_table(
-                    obj=snow_series,
-                    name=dynamic_table_name,
-                    warehouse=session.get_current_warehouse(),
-                    lag="1000 minutes",
-                )
+            to_dynamic_table(
+                snow_series,
+                name=dynamic_table_name,
+                warehouse=session.get_current_warehouse(),
+                lag="1000 minutes",
+            )
     finally:
         # cleanup
         Utils.drop_dynamic_table(session, dynamic_table_name)
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
 @sql_count_checker(query_count=6)
-def test_to_dynamic_table_no_enforce_ordering(session, method_type) -> None:
+def test_to_dynamic_table_no_enforce_ordering(session, to_dynamic_table) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -76,19 +80,12 @@ def test_to_dynamic_table_no_enforce_ordering(session, method_type) -> None:
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        if method_type == "instance":
-            result = snow_series.to_dynamic_table(
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-            )
-        else:  # global
-            result = pd.to_dynamic_table(
-                obj=snow_series,
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-            )
+        result = to_dynamic_table(
+            snow_series,
+            name=dynamic_table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+        )
 
         assert "successfully created" in result[0]["status"]
 
@@ -101,12 +98,11 @@ def test_to_dynamic_table_no_enforce_ordering(session, method_type) -> None:
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
 @sql_count_checker(query_count=5)
 def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
-    method_type,
+    to_dynamic_table,
 ) -> None:
     try:
         # create table
@@ -124,19 +120,12 @@ def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        if method_type == "instance":
-            result = snow_series.to_dynamic_table(
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-            )
-        else:  # global
-            result = pd.to_dynamic_table(
-                obj=snow_series,
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-            )
+        result = to_dynamic_table(
+            snow_series,
+            name=dynamic_table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+        )
 
         assert "successfully created" in result[0]["status"]
 
@@ -155,7 +144,6 @@ def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
         pd.session = session
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
 @pytest.mark.parametrize(
     "index, index_labels, expected_index_columns",
     [
@@ -167,7 +155,7 @@ def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
 )
 @sql_count_checker(query_count=6)
 def test_to_dynamic_table_index(
-    session, index, index_labels, expected_index_columns, method_type
+    session, index, index_labels, expected_index_columns, to_dynamic_table
 ):
     try:
         # create table
@@ -184,23 +172,14 @@ def test_to_dynamic_table_index(
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        if method_type == "instance":
-            snow_series.to_dynamic_table(
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-                index=index,
-                index_label=index_labels,
-            )
-        else:  # global
-            pd.to_dynamic_table(
-                obj=snow_series,
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-                index=index,
-                index_label=index_labels,
-            )
+        to_dynamic_table(
+            snow_series,
+            name=dynamic_table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            index=index,
+            index_label=index_labels,
+        )
 
         # add the expected data columns
         expected_columns = expected_index_columns + ["_1"]
@@ -217,9 +196,8 @@ def test_to_dynamic_table_index(
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.parametrize("method_type", ["instance", "global"])
 @sql_count_checker(query_count=6)
-def test_to_dynamic_table_multiindex(session, method_type):
+def test_to_dynamic_table_multiindex(session, to_dynamic_table):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -241,21 +219,13 @@ def test_to_dynamic_table_multiindex(session, method_type):
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        if method_type == "instance":
-            snow_series.to_dynamic_table(
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-                index=True,
-            )
-        else:  # global
-            pd.to_dynamic_table(
-                obj=snow_series,
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-                index=True,
-            )
+        to_dynamic_table(
+            snow_series,
+            name=dynamic_table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
+            index=True,
+        )
 
         # verify columns
         actual = pd.read_snowflake(
@@ -267,23 +237,14 @@ def test_to_dynamic_table_multiindex(session, method_type):
         with pytest.raises(
             ValueError, match="Length of 'index_label' should match number of levels"
         ):
-            if method_type == "instance":
-                snow_series.to_dynamic_table(
-                    name=dynamic_table_name,
-                    warehouse=session.get_current_warehouse(),
-                    lag="1000 minutes",
-                    index=True,
-                    index_label=["a"],
-                )
-            else:  # global
-                pd.to_dynamic_table(
-                    obj=snow_series,
-                    name=dynamic_table_name,
-                    warehouse=session.get_current_warehouse(),
-                    lag="1000 minutes",
-                    index=True,
-                    index_label=["a"],
-                )
+            to_dynamic_table(
+                snow_series,
+                name=dynamic_table_name,
+                warehouse=session.get_current_warehouse(),
+                lag="1000 minutes",
+                index=True,
+                index_label=["a"],
+            )
     finally:
         # cleanup
         Utils.drop_dynamic_table(session, dynamic_table_name)
