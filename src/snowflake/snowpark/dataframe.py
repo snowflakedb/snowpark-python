@@ -4,6 +4,7 @@
 #
 
 import copy
+import datetime
 import itertools
 import random
 import re
@@ -4889,6 +4890,11 @@ class DataFrame:
                 res = "NULL"
             elif isinstance(cell, bool):
                 res = "true" if cell else "false"
+            elif isinstance(cell, datetime.datetime):
+                # Remove timezone info from datetime objects
+                if cell.tzinfo is not None:
+                    cell = cell.replace(tzinfo=None)
+                res = str(cell)
             elif isinstance(cell, bytes) or isinstance(cell, bytearray):
                 res = f"[{' '.join([format(b, '02X') for b in cell])}]"
             elif isinstance(cell, list) and isinstance(datatype, ArrayType):
