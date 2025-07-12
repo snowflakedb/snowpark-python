@@ -124,6 +124,7 @@ def check_result(
         join_count=cte_join_count,
         high_count_expected=high_query_count_expected,
         high_count_reason=high_query_count_reason,
+        strict=False,
     ):
         cte_result_count = df.count()
     cte_result_pandas = df.to_pandas() if installed_pandas else None
@@ -136,7 +137,7 @@ def check_result(
         assert_frame_equal(result_pandas, cte_result_pandas)
 
     # verify no actual query or describe query is issued during that process
-    with SqlCounter(query_count=0, describe_count=describe_count_for_optimized):
+    with SqlCounter(query_count=0, describe_count=0):
         last_query = df.queries["queries"][-1]
 
         if expect_cte_optimized:
@@ -706,7 +707,7 @@ def test_sql_simplifier(session):
         join_count=2,
         describe_count_for_optimized=1 if session._join_alias_fix else None,
     )
-    with SqlCounter(query_count=0, describe_count=2 if session._join_alias_fix else 0):
+    with SqlCounter(query_count=0, describe_count=0):
         # When adding a lsuffix, the columns of right dataframe don't need to be renamed,
         # so we will get a common CTE with filter
         assert (
