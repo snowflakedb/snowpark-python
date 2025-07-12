@@ -222,6 +222,8 @@ class ServerConnection:
                     applications.append("streamlit")
                 if importlib.util.find_spec("snowflake.ml"):
                     applications.append("SnowparkML")
+                if importlib.util.find_spec("snowbook"):
+                    applications.append("notebook")
                 self._lower_case_parameters[PARAM_APPLICATION] = (
                     ":".join(applications) or get_application_name()
                 )
