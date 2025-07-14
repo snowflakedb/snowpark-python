@@ -9,6 +9,10 @@
 - Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
 - Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
 
+### Snowpark Local Testing Updates
+
+- Added local testing support for reading files with `SnowflakeFile` using local file paths, mocked stages and snowflake stages (@stage/file_path), and the Snow URL semantic (snow://...).
+
 ## 1.34.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -42,8 +46,6 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Fixed a bug in schema inference that would cause it to fail for external stages.
 
 ### Snowpark Local Testing Updates
-
-- Added local testing support for reading files with `SnowflakeFile` using local file paths, stage paths (@stage/file_path), and the Snow URL semantic (snow://...).
 
 #### Bug Fixes
 
