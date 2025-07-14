@@ -67,7 +67,7 @@ def test_read_sproc_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, s
         return df.select(read_file(col("temp_file"), col("read_mode"))).collect()
 
     result = read_file_sp(temp_file, read_mode)
-    assert test_msg in result
+    assert test_msg in str(result)
 
 
 def test_read_snowurl_snowflakefile(tmp_path, session, temp_stage):
@@ -81,7 +81,7 @@ def test_read_snowurl_snowflakefile(tmp_path, session, temp_stage):
             return f.read()
 
     df = session.create_dataframe(
-        [["r", f"{snowurl}{temp_file}"]],
+        [["r", temp_file]],
         schema=["read_mode", "temp_file"],
     )
     result = df.select(read_file(col("temp_file"), col("read_mode"))).collect()
