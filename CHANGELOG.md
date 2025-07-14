@@ -1,5 +1,13 @@
 # Release History
 
+## 1.35.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+
 ## 1.34.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -22,6 +30,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Added support for complex column expression as input for `functions.explode`.
 - Added debuggability improvements to show which Python lines an SQL compilation error corresponds to. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
 - Set enforce_ordering=True when calling `to_snowpark_pandas()` from a snowpark dataframe containing DML/DDL queries instead of throwing a NotImplementedError.
+- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
 - Set the 'type' and other standard fields for modin telemetry.
 
 #### Bug Fixes
