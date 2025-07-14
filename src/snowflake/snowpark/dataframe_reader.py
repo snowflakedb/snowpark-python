@@ -1045,14 +1045,17 @@ class DataFrameReader:
                     drop_file_format_if_exists_statement(file_format_name)
                 )
 
-            # SNOW-1628625: Schema inference should be done lazily
-            results = self._session._conn.run_query(infer_schema_query)["data"]
-
-            if len(results) == 0 and should_fallback:
-                infer_schema_query = infer_schema_statement(
-                    fallback_path, file_format_name, None
-                )
+            try:
+                # SNOW-1628625: Schema inference should be done lazily
                 results = self._session._conn.run_query(infer_schema_query)["data"]
+            except Exception as e:
+                if should_fallback:
+                    infer_schema_query = infer_schema_statement(
+                        fallback_path, file_format_name, None
+                    )
+                    results = self._session._conn.run_query(infer_schema_query)["data"]
+                else:
+                    raise e
 
             if len(results) == 0:
                 raise FileNotFoundError(
@@ -1106,6 +1109,7 @@ class DataFrameReader:
             self._infer_schema_target_columns = self._user_schema.names
             read_file_transformations = [t._expression.sql for t in transformations]
         except Exception as e:
+            __import__("pdb").set_trace()
             return None, None, None, e
         finally:
             # Clean up the file format we created

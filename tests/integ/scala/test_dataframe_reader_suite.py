@@ -534,8 +534,21 @@ def test_read_csv_with_infer_schema_negative(session, mode, caplog):
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_csv_with_infer_schema_fallback(session, mode, caplog):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    expected_schema = StructType(
+        [
+            StructField("col1", LongType(), True),
+            StructField("col2", StringType(), True),
+            StructField("col3", DecimalType(2, 1), True),
+        ]
+    )
+    example_data = [expected_schema.names] + [(1, "A", 2.3), (2, "B", 3.4)]
+    expected_rows = [
+        Row(1, "A", 2.3),
+        Row(2, "B", 3.4),
+    ]
+
     reader = get_reader(session, mode)
-    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
 
     run_query = session._conn.run_query
 
@@ -549,23 +562,29 @@ def test_read_csv_with_infer_schema_fallback(session, mode, caplog):
         else:
             return run_query(*args, **kwargs)
 
-    with mock.patch(
-        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
-        wraps=mock_run_query,
-    ):
-        df = (
-            reader.option("INFER_SCHEMA", True)
-            .option("PATTERN", ".*testCSV.csv")
-            .csv(test_file_on_stage)
-        )
-        # Data still loads because it falls back to old infer logic
-        Utils.check_answer(
-            df,
-            [
-                Row(c1=1, c2="one", c3=Decimal("1.2")),
-                Row(c1=2, c2="two", c3=Decimal("2.2")),
-            ],
-        )
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = os.path.join(temp_dir, "file.csv")
+            with open(file_path, "w+", newline="") as ofile:
+                csv_writer = csv.writer(ofile)
+                csv_writer.writerows(example_data)
+            session.file.put(file_path, f"@{stage_name}")
+
+        with mock.patch(
+            "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+            wraps=mock_run_query,
+        ):
+            df = (
+                reader.option("INFER_SCHEMA", True)
+                .option("PATTERN", ".*file.csv.gz")
+                .option("SKIP_HEADER", 1)
+                .csv(f"@{stage_name}")
+            )
+            # Data still loads because it falls back to old infer logic
+            Utils.check_answer(df, expected_rows)
+    finally:
+        Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
