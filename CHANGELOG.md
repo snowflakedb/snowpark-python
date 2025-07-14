@@ -9,6 +9,10 @@
 - Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
 - Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
 
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` does not work when connecting to Postgres and Mysql.
+
 ## 1.34.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
