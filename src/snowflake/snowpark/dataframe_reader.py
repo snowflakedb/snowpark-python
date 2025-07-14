@@ -1109,7 +1109,6 @@ class DataFrameReader:
             self._infer_schema_target_columns = self._user_schema.names
             read_file_transformations = [t._expression.sql for t in transformations]
         except Exception as e:
-            __import__("pdb").set_trace()
             return None, None, None, e
         finally:
             # Clean up the file format we created
