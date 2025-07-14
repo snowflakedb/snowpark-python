@@ -1708,9 +1708,11 @@ def test_snowflake_plan_telemetry_sent_at_critical_path(session, enabled):
 @pytest.mark.parametrize(
     "send_telemetry_func",
     [
-        lambda df, table_name: df.write.save_as_table(table_name, table_type="temp"),
         lambda df, table_name: df.write.save_as_table(
-            table_name=table_name, table_type="temp"
+            table_name, table_type="temp", mode="overwrite"
+        ),
+        lambda df, table_name: df.write.save_as_table(
+            table_name=table_name, table_type="temp", mode="overwrite"
         ),
     ],
 )
