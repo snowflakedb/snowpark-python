@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import os
 import queue
 import time
 import traceback
@@ -309,6 +309,7 @@ def _retry_run(func: Callable, *args, **kwargs) -> Any:
 def worker_process(
     partition_queue: Union[mp.Queue, queue.Queue],
     parquet_queue: Union[mp.Queue, queue.Queue],
+    process_or_thread_error_indicator: Union[mp.Queue, queue.Queue],
     reader,
     stop_event: threading.Event = None,
 ):
@@ -326,6 +327,8 @@ def worker_process(
                 stop_event,
             )
         except queue.Empty:
+            # indicate whether a process is exit gracefully
+            process_or_thread_error_indicator.put((os.getpid(),))
             # No more work available, exit gracefully
             break
         except Exception as e:
@@ -361,6 +364,7 @@ def process_completed_futures(thread_futures):
 def process_parquet_queue_with_threads(
     session: "snowflake.snowpark.Session",
     parquet_queue: Union[mp.Queue, queue.Queue],
+    process_or_thread_error_indicator: Union[mp.Queue, queue.Queue],
     workers: list,
     total_partitions: int,
     snowflake_stage_name: str,
@@ -382,6 +386,7 @@ def process_parquet_queue_with_threads(
     Args:
         session: Snowflake session for database operations
         parquet_queue: Multiprocessing queue containing parquet data
+        process_or_thread_error_indicator: Multiprocessing queue containing process exit information
         workers: List of worker processes or thread futures to monitor
         total_partitions: Total number of partitions expected
         snowflake_stage_name: Name of the Snowflake stage for uploads
@@ -395,6 +400,7 @@ def process_parquet_queue_with_threads(
     """
 
     completed_partitions = set()
+    gracefully_exited_processes = set()
     # process parquet_queue may produce more data than the threads can handle,
     # so we use semaphore to limit the number of threads
     backpressure_semaphore = BoundedSemaphore(value=_MAX_WORKER_SCALE * max_workers)
@@ -406,6 +412,10 @@ def process_parquet_queue_with_threads(
         while len(completed_partitions) < total_partitions or thread_futures:
             # Process any completed futures and handle errors
             process_completed_futures(thread_futures)
+            while not process_or_thread_error_indicator.empty():
+                gracefully_exited_processes.add(
+                    process_or_thread_error_indicator.get(block=False)[0]
+                )
 
             try:
                 backpressure_semaphore.acquire()
@@ -445,7 +455,17 @@ def process_parquet_queue_with_threads(
 
             except queue.Empty:
                 backpressure_semaphore.release()  # Release semaphore if no data was fetched
-                if not fetch_with_process:
+                if fetch_with_process:
+                    # Check if any processes have failed
+                    for i, process in enumerate(workers):
+                        if (
+                            not process.is_alive()
+                            and process.pid not in gracefully_exited_processes
+                        ):
+                            raise SnowparkDataframeReaderException(
+                                f"Partition {i} data fetching process failed with exit code {process.exitcode}"
+                            )
+                else:
                     # Check if any threads have failed
                     for i, future in enumerate(workers):
                         if future.done():

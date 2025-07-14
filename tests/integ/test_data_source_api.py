@@ -1589,6 +1589,7 @@ def test_queue_empty_process_failure():
 
     # Create empty queue to trigger queue.Empty exception
     parquet_queue = queue.Queue()
+    process_or_thread_error_indicator = queue.Queue()
     workers = [mock_process]
     total_partitions = 1  # Set to 1 so the loop continues
 
@@ -1599,6 +1600,7 @@ def test_queue_empty_process_failure():
         process_parquet_queue_with_threads(
             session=mock_session,
             parquet_queue=parquet_queue,
+            process_or_thread_error_indicator=process_or_thread_error_indicator,
             workers=workers,
             total_partitions=total_partitions,
             snowflake_stage_name="test_stage",

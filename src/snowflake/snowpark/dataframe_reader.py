@@ -1471,6 +1471,7 @@ class DataFrameReader:
             # Determine the number of processes or threads to use
             max_workers = max_workers or os.cpu_count()
             queue_class = mp.Queue if fetch_with_process else queue.Queue
+            process_or_thread_error_indicator = queue_class()
             # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
             partition_queue = queue_class()
             # a queue of parquet BytesIO objects to be uploaded
@@ -1489,7 +1490,12 @@ class DataFrameReader:
                 for _worker_id in range(max_workers):
                     process = mp.Process(
                         target=worker_process,
-                        args=(partition_queue, parquet_queue, partitioner.reader()),
+                        args=(
+                            partition_queue,
+                            parquet_queue,
+                            process_or_thread_error_indicator,
+                            partitioner.reader(),
+                        ),
                     )
                     process.start()
                     workers.append(process)
@@ -1503,6 +1509,7 @@ class DataFrameReader:
                         worker_process,
                         partition_queue,
                         parquet_queue,
+                        process_or_thread_error_indicator,
                         partitioner.reader(),
                         data_fetching_thread_stop_event,
                     )
@@ -1513,6 +1520,7 @@ class DataFrameReader:
             process_parquet_queue_with_threads(
                 session=self._session,
                 parquet_queue=parquet_queue,
+                process_or_thread_error_indicator=process_or_thread_error_indicator,
                 workers=workers,
                 total_partitions=len(partitioned_queries),
                 snowflake_stage_name=snowflake_stage_name,
