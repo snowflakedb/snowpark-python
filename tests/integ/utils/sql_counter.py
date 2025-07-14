@@ -258,7 +258,11 @@ class SqlCounter(QueryListener):
             expected_count = kwargs[key]
             if expected_count is None:
                 expected_count = 0
-            valid_count = expected_count == actual_count if self._strict else actual_count <= expected_count
+            valid_count = (
+                expected_count == actual_count
+                if self._strict
+                else actual_count <= expected_count
+            )
             failed = failed or not valid_count
             pytest.assume(
                 valid_count,
