@@ -14,8 +14,21 @@ from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 
-@sql_count_checker(query_count=7)
-def test_to_dynamic_table_enforce_ordering_raises(session) -> None:
+@pytest.fixture(
+    params=[
+        pytest.param(
+            lambda obj, *args, **kwargs: obj.to_dynamic_table(*args, **kwargs),
+            id="method",
+        ),
+        pytest.param(pd.to_dynamic_table, id="function"),
+    ]
+)
+def to_dynamic_table(request):
+    return request.param
+
+
+@sql_count_checker(query_count=5)
+def test_to_dynamic_table_enforce_ordering_raises(session, to_dynamic_table) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -25,7 +38,7 @@ def test_to_dynamic_table_enforce_ordering_raises(session) -> None:
 
         # create series with enforce_ordering enabled
         snow_series = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", enforce_ordering=True
+            f"SELECT * FROM {table_name}", enforce_ordering=True
         ).iloc[:, 0]
 
         # creating dynamic_table fails when enforce_ordering is enabled
@@ -37,7 +50,8 @@ def test_to_dynamic_table_enforce_ordering_raises(session) -> None:
             SnowparkSQLException,
             match="Dynamic Tables cannot depend on a temporary object",
         ):
-            snow_series.to_dynamic_table(
+            to_dynamic_table(
+                snow_series,
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",
@@ -49,7 +63,7 @@ def test_to_dynamic_table_enforce_ordering_raises(session) -> None:
 
 
 @sql_count_checker(query_count=6)
-def test_to_dynamic_table_no_enforce_ordering(session) -> None:
+def test_to_dynamic_table_no_enforce_ordering(session, to_dynamic_table) -> None:
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -59,21 +73,21 @@ def test_to_dynamic_table_no_enforce_ordering(session) -> None:
 
         # create series with enforce_ordering disabled
         snow_series = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
+            f"SELECT * FROM {table_name}", enforce_ordering=False
         ).iloc[:, 0]
 
         # creating dynamic_table succeeds when enforce_ordering is disabled
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        assert (
-            "successfully created"
-            in snow_series.to_dynamic_table(
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-            )[0]["status"]
+        result = to_dynamic_table(
+            snow_series,
+            name=dynamic_table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
         )
+
+        assert "successfully created" in result[0]["status"]
 
         # accessing the created dynamic_table in the same session also succeeds
         res = session.sql(f"select * from {dynamic_table_name}").collect()
@@ -88,6 +102,7 @@ def test_to_dynamic_table_no_enforce_ordering(session) -> None:
 def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
+    to_dynamic_table,
 ) -> None:
     try:
         # create table
@@ -98,21 +113,21 @@ def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
 
         # create series with enforce_ordering disabled
         snow_series = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
+            f"SELECT * FROM {table_name}", enforce_ordering=False
         ).iloc[:, 0]
 
         # creating dynamic_table succeeds when enforce_ordering is disabled
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        assert (
-            "successfully created"
-            in snow_series.to_dynamic_table(
-                name=dynamic_table_name,
-                warehouse=session.get_current_warehouse(),
-                lag="1000 minutes",
-            )[0]["status"]
+        result = to_dynamic_table(
+            snow_series,
+            name=dynamic_table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1000 minutes",
         )
+
+        assert "successfully created" in result[0]["status"]
 
         # another session
         new_session = Session.builder.configs(db_parameters).create()
@@ -129,10 +144,19 @@ def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
         pd.session = session
 
 
-@pytest.mark.parametrize("index", [True, False])
-@pytest.mark.parametrize("index_labels", [None, ["my_index"]])
+@pytest.mark.parametrize(
+    "index, index_labels, expected_index_columns",
+    [
+        (True, None, ["index"]),
+        (True, ["my_index"], ["my_index"]),
+        (False, None, []),
+        (False, ["my_index"], []),
+    ],
+)
 @sql_count_checker(query_count=6)
-def test_to_dynamic_table_index(session, index, index_labels):
+def test_to_dynamic_table_index(
+    session, index, index_labels, expected_index_columns, to_dynamic_table
+):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -142,28 +166,23 @@ def test_to_dynamic_table_index(session, index, index_labels):
 
         # create series with enforce_ordering disabled
         snow_series = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
+            f"SELECT * FROM {table_name}", enforce_ordering=False
         ).iloc[:, 0]
 
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        snow_series.to_dynamic_table(
+        to_dynamic_table(
+            snow_series,
             name=dynamic_table_name,
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
             index=index,
             index_label=index_labels,
         )
-        expected_columns = []
-        if index:
-            # if index is retained in the result, add it as the first expected column
-            expected_index = ["index"]
-            if index_labels:
-                expected_index = index_labels
-            expected_columns = expected_columns + expected_index
+
         # add the expected data columns
-        expected_columns = expected_columns + ["_1"]
+        expected_columns = expected_index_columns + ["_1"]
 
         # verify columns
         actual = pd.read_snowflake(
@@ -178,7 +197,7 @@ def test_to_dynamic_table_index(session, index, index_labels):
 
 
 @sql_count_checker(query_count=6)
-def test_to_dynamic_table_multiindex(session):
+def test_to_dynamic_table_multiindex(session, to_dynamic_table):
     try:
         # create table
         table_name = Utils.random_table_name()
@@ -188,7 +207,7 @@ def test_to_dynamic_table_multiindex(session):
 
         # create dataframe with enforce_ordering disabled
         snow_dataframe = pd.read_snowflake(
-            f"(((SELECT * FROM {table_name})))", enforce_ordering=False
+            f"SELECT * FROM {table_name}", enforce_ordering=False
         )
 
         # make sure dataframe has a multi-index
@@ -200,7 +219,8 @@ def test_to_dynamic_table_multiindex(session):
         dynamic_table_name = Utils.random_name_for_temp_object(
             TempObjectType.DYNAMIC_TABLE
         )
-        snow_series.to_dynamic_table(
+        to_dynamic_table(
+            snow_series,
             name=dynamic_table_name,
             warehouse=session.get_current_warehouse(),
             lag="1000 minutes",
@@ -217,7 +237,8 @@ def test_to_dynamic_table_multiindex(session):
         with pytest.raises(
             ValueError, match="Length of 'index_label' should match number of levels"
         ):
-            snow_series.to_dynamic_table(
+            to_dynamic_table(
+                snow_series,
                 name=dynamic_table_name,
                 warehouse=session.get_current_warehouse(),
                 lag="1000 minutes",
