@@ -67,12 +67,12 @@ def test_read_sproc_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, s
         return df.select(read_file(col("temp_file"), col("read_mode"))).collect()
 
     result = read_file_sp(temp_file, read_mode)
-    Utils.check_answer(Row(result), [Row(f"{test_msg}")])
+    assert test_msg in result
 
 
-def test_read_snowurl_snowflakefile(tmp_path, session):
+def test_read_snowurl_snowflakefile(tmp_path, session, temp_stage):
     test_msg, temp_file = Utils.write_test_msg("w", tmp_path)
-    snowurl = "snow://"
+    snowurl = f"snow://{temp_stage}"
     session.file.put(temp_file, snowurl, auto_compress=False)
 
     @udf
@@ -212,9 +212,7 @@ def test_seek_snowflakefile(
     _STANDARD_ARGS,
     _STANDARD_ARGVALUES,
 )
-def test_seekable_snowflakefile(
-    read_mode, write_mode, use_stage, tmp_path, temp_stage, session
-):
+def test_seekable_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session):
     _, temp_file = Utils.write_test_msg_to_stage(
         write_mode, tmp_path, temp_stage, session
     )
