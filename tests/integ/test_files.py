@@ -7,11 +7,7 @@ import io
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.files import SnowflakeFile
 from tests.utils import Utils
-
-
-@pytest.fixture(scope="module", autouse=True)
-def setup(session):
-    session.add_packages("snowflake-snowpark-python")
+from typing import Union
 
 
 _STANDARD_ARGS = ["read_mode", "write_mode"]
@@ -27,7 +23,7 @@ def test_read_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session
         write_mode, tmp_path, temp_stage, session
     )
 
-    def read_file(file_location: str, mode: str) -> str:
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode, require_scoped_url=False) as f:
             return f.read()
 
@@ -86,7 +82,7 @@ def test_readline_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, ses
         num_lines, write_mode, tmp_path, temp_stage, session
     )
 
-    def get_line(file_location: str, mode: str) -> str:
+    def get_line(file_location: str, mode: str) -> Union[str, bytes]:
         with SnowflakeFile.open(file_location, mode, require_scoped_url=False) as f:
             return f.readline()
 
