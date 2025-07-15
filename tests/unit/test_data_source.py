@@ -47,7 +47,7 @@ def test_close_error_handling(cursor_fails, conn_fails):
         "snowflake.snowpark._internal.data_source.drivers.base_driver.logger"
     ) as mock_logger:
         result = driver.infer_schema_from_description_with_error_control(
-            "test_table", False
+            "test_table", False, "mock_query_input_alias"
         )
 
         assert result == expected_schema

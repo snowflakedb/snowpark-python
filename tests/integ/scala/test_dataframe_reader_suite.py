@@ -53,6 +53,7 @@ from tests.utils import (
     TestFiles,
     Utils,
     multithreaded_run,
+    current_account,
 )
 
 test_file_csv = "testCSV.csv"
@@ -525,6 +526,65 @@ def test_read_csv_with_infer_schema_negative(session, mode, caplog):
         with caplog.at_level(logging.WARN):
             reader.option("INFER_SCHEMA", True).csv(test_file_on_stage)
             assert "Could not infer csv schema due to exception:" in caplog.text
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
+)
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_infer_schema_fallback(session, mode, caplog):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    expected_schema = StructType(
+        [
+            StructField("col1", LongType(), True),
+            StructField("col2", StringType(), True),
+            StructField("col3", DecimalType(2, 1), True),
+        ]
+    )
+    example_data = [expected_schema.names] + [(1, "A", 2.3), (2, "B", 3.4)]
+    expected_rows = [
+        Row(1, "A", 2.3),
+        Row(2, "B", 3.4),
+    ]
+
+    reader = get_reader(session, mode)
+
+    run_query = session._conn.run_query
+
+    def mock_run_query(*args, **kwargs):
+        if args[0].startswith("list"):
+            # Return junk file to simulate unknown path format
+            return {
+                "data": [(f"@@?/{tmp_stage_name1}/unknown_file", 32, "", "")],
+                "sfqid": "",
+            }
+        else:
+            return run_query(*args, **kwargs)
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = os.path.join(temp_dir, "file.csv")
+            with open(file_path, "w+", newline="") as ofile:
+                csv_writer = csv.writer(ofile)
+                csv_writer.writerows(example_data)
+            session.file.put(file_path, f"@{stage_name}")
+
+        with mock.patch(
+            "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+            wraps=mock_run_query,
+        ):
+            df = (
+                reader.option("INFER_SCHEMA", True)
+                .option("PATTERN", ".*file.csv.gz")
+                .option("SKIP_HEADER", 1)
+                .csv(f"@{stage_name}")
+            )
+            # Data still loads because it falls back to old infer logic
+            Utils.check_answer(df, expected_rows)
+    finally:
+        Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.parametrize("mode", ["select", "copy"])
@@ -1721,13 +1781,17 @@ def test_pattern(session, mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="Local testing does not support file.put",
 )
-@pytest.mark.xfail(
-    reason="SNOW-2138003: Param difference between environments",
-    strict=False,
-)
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_pattern_with_infer(session, mode):
+@pytest.mark.parametrize("extern", [True, False])
+def test_pattern_with_infer(session, mode, extern):
     stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+
+    if current_account(session) != "SFCTEST0_AWS_US_WEST_2":
+        pytest.skip("Test requires resources in sfctest0 test account")
+
+    if extern:
+        stage_name = f"TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage/{stage_name}"
+
     expected_schema = StructType(
         [
             StructField("col1", LongType(), True),
@@ -1743,7 +1807,8 @@ def test_pattern_with_infer(session, mode):
     ]
 
     try:
-        Utils.create_stage(session, stage_name, is_temporary=True)
+        if not extern:
+            Utils.create_stage(session, stage_name, is_temporary=True)
         with tempfile.TemporaryDirectory() as temp_dir:
             for i in range(3):
                 good_file_path = os.path.join(temp_dir, f"good{i}.csv")
@@ -1793,16 +1858,20 @@ def test_pattern_with_infer(session, mode):
         assert df.schema == expected_schema
         Utils.check_answer(df, expected_rows * 3)
 
-        # Test using fully qualified stage name
-        reader = base_reader()
-        df = reader.csv(
-            f"@{session.get_current_database()}.{session.get_current_schema()}.{stage_name}"
-        )
-        assert df.schema == expected_schema
-        Utils.check_answer(df, expected_rows * 3)
+        if not extern:
+            # Test using fully qualified stage name
+            reader = base_reader()
+            df = reader.csv(
+                f"@{session.get_current_database()}.{session.get_current_schema()}.{stage_name}"
+            )
+            assert df.schema == expected_schema
+            Utils.check_answer(df, expected_rows * 3)
 
     finally:
-        Utils.drop_stage(session, stage_name)
+        if extern:
+            session.sql(f"rm @{stage_name}").collect()
+        else:
+            Utils.drop_stage(session, stage_name)
 
 
 @pytest.mark.xfail(
@@ -2200,7 +2269,7 @@ def test_enforce_existing_file_format_object_doesnt_exist(session):
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
-    reason="STRING types have different precision in stored procs",
+    reason="TODO: SNOW-2201113, STRING types have different precision in stored procs due to LOB",
 )
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
@@ -2352,6 +2421,14 @@ def test_try_cast(session):
         ]
     )
 
+    lob_schema = StructType(
+        [
+            StructField("A", StringType(134217728), True),
+            StructField("B", DecimalType(2, 1), True),
+            StructField("C", BooleanType(), True),
+        ]
+    )
+
     def write_csv(data):
         with tempfile.NamedTemporaryFile(
             mode="w+",
@@ -2393,7 +2470,8 @@ def test_try_cast(session):
 
         # df1 uses constrained types
         df1 = default_reader.csv(f"@{stage_name}/")
-        assert df1.schema == schema
+        # TODO: SNOW-2201113, revert the condition once the LOB issue is fixed
+        assert df1.schema == schema or df1.schema == lob_schema
         # Try to load both files
         default_reader.option("PATTERN", None)
 
