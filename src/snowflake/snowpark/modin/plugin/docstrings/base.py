@@ -2220,15 +2220,14 @@ class BasePandasDataset:
         fill_method : {'backfill', 'bfill', 'pad', 'ffill', None}, default 'pad'
             How to handle NAs **before** computing percent changes.
 
-            .. deprecated:: 2.1
-                All options of `fill_method` are deprecated except `fill_method=None`.
+            All options of `fill_method` are deprecated except `fill_method=None`.
 
         limit : int, default None
             The number of consecutive NAs to fill before stopping.
 
             Snowpark pandas does not yet support this parameter.
 
-            .. deprecated:: 2.1
+            Deprecated parameter.
 
         freq : DateOffset, timedelta, or str, optional
             Increment to use from time series API (e.g. 'ME' or BDay()).
@@ -2521,7 +2520,7 @@ class BasePandasDataset:
             Which axis to use for up- or down-sampling. For Series this parameter is unused and defaults to 0.
             Snowpark pandas only supports ``axis`` 0 and DatetimeIndex.
 
-            Deprecated since version 2.0.0: Use frame.T.resample(…) instead.
+            Deprecated: Use frame.T.resample(…) instead.
         closed : {'right', 'left'}, default None
             Which side of bin interval is closed. The default is 'left' for all frequency offsets except for
             'ME', 'YE', 'QE', 'BME', 'BA', 'BQE', and 'W' which all have a default of 'right'.
@@ -2536,7 +2535,7 @@ class BasePandasDataset:
             For PeriodIndex only, controls whether to use the start or end of rule.
             Snowpark pandas does not support PeriodIndex.
 
-            Deprecated since version 2.2.0: Convert PeriodIndex to DatetimeIndex before resampling instead.
+            Deprecated: Convert PeriodIndex to DatetimeIndex before resampling instead.
         kind : {'timestamp', 'period'}, optional, default None
             Pass 'timestamp' to convert the resulting index to a DateTimeIndex
             or 'period' to convert it to a PeriodIndex. By default, the input representation is retained.

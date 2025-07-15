@@ -58,6 +58,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Added support for `pd.explain_switch()` to return debugging information on hybrid execution decisions.
 - Support `pd.read_snowflake` when the global modin backend is `Pandas`.
 - Added support for `pd.to_dynamic_table`, `pd.to_iceberg`, and `pd.to_view`.
+- Added support for `DataFrame.boxplot`.
 
 #### Improvements
 
