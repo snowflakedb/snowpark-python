@@ -1442,6 +1442,9 @@ class DataFrameReader:
                     "external_access_integration cannot be None when udtf ingestion is used. Please refer to https://docs.snowflake.com/en/sql-reference/sql/create-external-access-integration to create external access integration"
                 )
             partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+            logger.debug(
+                f"[UDTF_ingestion] Creating partitions table: {partitions_table}"
+            )
             self._session.create_dataframe(
                 [[query] for query in partitioned_queries], schema=["partition"]
             ).write.save_as_table(partitions_table, table_type="temp")
@@ -1470,7 +1473,9 @@ class DataFrameReader:
             f"""{DATA_SOURCE_SQL_COMMENT}"""
         )
         params = (snowflake_table_name,)
-        logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
+        logger.debug(
+            f"[local_ingestion] Creating temporary Snowflake table: {snowflake_table_name}"
+        )
         self._session.sql(create_table_sql, params=params, _emit_ast=False).collect(
             statement_params=statements_params_for_telemetry, _emit_ast=False
         )
@@ -1479,6 +1484,9 @@ class DataFrameReader:
         sql_create_temp_stage = (
             f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
             f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+        )
+        logger.debug(
+            f"[local_ingestion] Creating temporary Snowflake stage: {snowflake_stage_name}"
         )
         self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
             statement_params=statements_params_for_telemetry, _emit_ast=False
@@ -1503,7 +1511,7 @@ class DataFrameReader:
 
             # Start worker processes
             logger.debug(
-                f"Starting {max_workers} worker processes to fetch data from the data source."
+                f"[local_ingestion] Starting {max_workers} worker processes to fetch data from the data source."
             )
 
             if fetch_with_process:
@@ -1565,7 +1573,7 @@ class DataFrameReader:
                     if not future.done():
                         future.cancel()
                         logger.debug(
-                            f"Cancelled a remaining data fetching future {future} due to error in another thread."
+                            f"[local_ingestion] Cancelled a remaining data fetching future {future} due to error in another thread."
                         )
 
             if isinstance(exc, SnowparkDataframeReaderException):
@@ -1578,7 +1586,9 @@ class DataFrameReader:
             if data_fetching_thread_pool_executor:
                 data_fetching_thread_pool_executor.shutdown(wait=True)
 
-        logger.debug("All data has been successfully loaded into the Snowflake table.")
+        logger.debug(
+            "[local_ingestion] All data has been successfully loaded into the Snowflake table."
+        )
         self._session._conn._telemetry_client.send_data_source_perf_telemetry(
             DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
         )
