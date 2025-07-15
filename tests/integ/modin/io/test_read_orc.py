@@ -7,13 +7,19 @@ import uuid
 
 import modin.pandas as pd
 import pandas as native_pd
+import pytest
 
 from tests.integ.modin.utils import assert_frame_equal
 from tests.integ.utils.sql_counter import SqlCounter
-from tests.utils import Utils
+from tests.utils import IS_WINDOWS, Utils
 
 
 def test_read_orc():
+    if IS_WINDOWS:
+        pytest.skip(
+            reason="Skipping test for Windows because the time zone file cannot be found"
+        )
+
     df = native_pd.DataFrame({"foo": range(5), "bar": range(5, 10)})
 
     filename = f"test_read_orc_{str(uuid.uuid4())}"
@@ -31,6 +37,11 @@ def test_read_orc():
 
 
 def test_read_orc_from_stage(session):
+    if IS_WINDOWS:
+        pytest.skip(
+            reason="Skipping test for Windows because the time zone file cannot be found"
+        )
+
     df = native_pd.DataFrame({"foo": range(5), "bar": range(5, 10)})
 
     filename = f"test_read_orc_{str(uuid.uuid4())}"

@@ -4,6 +4,7 @@
 #
 
 import pytest
+import re
 
 from snowflake.snowpark._internal.utils import get_plan_from_line_numbers
 from snowflake.snowpark import functions as F
@@ -18,8 +19,8 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(scope="module")
-def test_data(session):
+def generate_test_data(session, sql_simplifier_enabled):
+    session.sql_simplifier_enabled = sql_simplifier_enabled
     df1 = session.create_dataframe([[1, "A", 100], [2, "B", 200]]).to_df(
         ["id", "name", "value"]
     )
@@ -54,17 +55,6 @@ def test_data(session):
             },
         ),
         (
-            lambda data: data["df_join1"].join(
-                data["df_join2"], data["df_join1"].id == data["df_join2"].id
-            ),
-            True,
-            {
-                2: 'SELECT * FROM ( ( SELECT "ID" AS "l_0000_ID", "NAME" AS "NAME" FROM ( SELECT $1 AS "ID", $2 AS "NAME" FROM VALUES (1 :: INT, \'A\' :: STRING), (2 :: INT, \'B\' :: STRING) ) ) AS SNOWPARK_LEFT INNER JOIN ( SELECT "ID" AS "r_0001_ID", "VALUE" AS "VALUE" FROM ( SELECT $1 AS "ID", $2 AS "VALUE" FROM VALUES (1 :: INT, 10 :: INT), (2 :: INT, 20 :: INT) ) ) AS SNOWPARK_RIGHT ON ("l_0000_ID" = "r_0001_ID") )',
-                7: "SELECT $1 AS \"ID\", $2 AS \"NAME\" FROM  VALUES (1 :: INT, 'A' :: STRING), (2 :: INT, 'B' :: STRING)",
-                14: 'SELECT "ID" AS "r_0001_ID", "VALUE" AS "VALUE" FROM ( SELECT $1 AS "ID", $2 AS "VALUE" FROM VALUES (1 :: INT, 10 :: INT), (2 :: INT, 20 :: INT) )',
-            },
-        ),
-        (
             lambda data: data["df1"].filter(data["df1"].value > 150),
             True,
             {
@@ -91,10 +81,10 @@ def test_data(session):
     ],
 )
 def test_get_plan_from_line_numbers_sql_content(
-    session, op, sql_simplifier, line_to_expected_sql, test_data
+    session, op, sql_simplifier, line_to_expected_sql
 ):
     session.sql_simplifier_enabled = sql_simplifier
-    df = op(test_data)
+    df = op(generate_test_data(session, sql_simplifier))
 
     for line_num, expected_sql in line_to_expected_sql.items():
         plan = get_plan_from_line_numbers(df._plan, line_num)
@@ -115,6 +105,48 @@ def test_get_plan_from_line_numbers_sql_content(
         assert Utils.normalize_sql(expected_sql) == Utils.normalize_sql(
             plan_sql
         ), f"Line {line_num}: Expected SQL '{expected_sql}' not equal to plan sql:\n{plan_sql}"
+
+
+def test_get_plan_from_line_numbers_join_operations(session):
+    """
+    Test get_plan_from_line_numbers for join operations using regex matching. We don't check for
+    the exact SQL b/c the join keys can vary in test environment
+    """
+    session.sql_simplifier_enabled = True
+    data = generate_test_data(session, True)
+
+    df = data["df_join1"].join(
+        data["df_join2"], data["df_join1"].id == data["df_join2"].id
+    )
+
+    line_to_expected_pattern = {
+        2: r'SELECT \* FROM \(\(SELECT "ID" AS "l_\d+_ID", "NAME" AS "NAME" FROM \(SELECT \$1 AS "ID", \$2 AS "NAME" FROM VALUES \(1 :: INT, \'A\' :: STRING\), \(2 :: INT, \'B\' :: STRING\)\)\) AS SNOWPARK_LEFT INNER JOIN \(SELECT "ID" AS "r_\d+_ID", "VALUE" AS "VALUE" FROM \(SELECT \$1 AS "ID", \$2 AS "VALUE" FROM VALUES \(1 :: INT, 10 :: INT\), \(2 :: INT, 20 :: INT\)\)\) AS SNOWPARK_RIGHT ON \("l_\d+_ID" = "r_\d+_ID"\)\)',
+        7: r'SELECT \$1 AS "ID", \$2 AS "NAME" FROM VALUES \(1 :: INT, \'A\' :: STRING\), \(2 :: INT, \'B\' :: STRING\)',
+        14: r'SELECT "ID" AS "r_\d+_ID", "VALUE" AS "VALUE" FROM \(SELECT \$1 AS "ID", \$2 AS "VALUE" FROM VALUES \(1 :: INT, 10 :: INT\), \(2 :: INT, 20 :: INT\)\)',
+    }
+
+    for line_num, expected_pattern in line_to_expected_pattern.items():
+        plan = get_plan_from_line_numbers(df._plan, line_num)
+        assert (
+            plan is not None
+        ), f"get_plan_from_line_numbers returned None for line {line_num}"
+
+        plan_sql = None
+        if hasattr(plan, "queries") and plan.queries:
+            plan_sql = plan.queries[-1].sql
+        elif hasattr(plan, "sql_query") and plan.sql_query:
+            plan_sql = plan.sql_query
+
+        assert (
+            plan_sql is not None
+        ), f"Could not extract SQL from plan for line {line_num}"
+
+        normalized_sql = Utils.normalize_sql(plan_sql)
+        assert re.match(expected_pattern, normalized_sql), (
+            f"Line {line_num}: SQL pattern does not match expected pattern.\n"
+            f"Expected pattern: {expected_pattern}\n"
+            f"Actual SQL: {normalized_sql}"
+        )
 
 
 @pytest.mark.parametrize(

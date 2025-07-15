@@ -1093,7 +1093,7 @@ def test_df_subscriptable(session):
     assert res == expected
 
 
-def test_filter(session):
+def test_filter(session, local_testing_mode):
     """Tests for df.filter()."""
     df = session.range(1, 10, 2)
     res = df.filter(col("id") > 4).collect()
@@ -1115,6 +1115,22 @@ def test_filter(session):
     res = df.filter(col("id") <= 0).collect()
     expected = []
     assert res == expected
+
+    if (
+        not local_testing_mode
+    ):  # TODO: SNOW-2197035: local testing bug with NULL floats and Decimals
+        data = [
+            (Decimal("123.45"), 1),
+            (Decimal("678.90"), 2),
+            (Decimal("0.0"), 3),
+            (None, 4),
+        ]
+        decimal_df = session.create_dataframe(data, ["amount", "id"])
+
+        res = decimal_df.filter(col("amount") == Decimal("123.45")).collect()
+
+        expected = [Row(AMOUNT=Decimal("123.450000000000000000"), ID=1)]
+        assert res == expected
 
 
 @pytest.mark.xfail(
@@ -2286,8 +2302,9 @@ def test_create_dataframe_large_respects_paramstyle(db_parameters, paramstyle):
     from snowflake.snowpark._internal.analyzer import analyzer
 
     original_value = analyzer.ARRAY_BIND_THRESHOLD
-    db_parameters["paramstyle"] = paramstyle
-    session_builder = Session.builder.configs(db_parameters)
+    new_db_parameters = copy.deepcopy(db_parameters)
+    new_db_parameters["paramstyle"] = paramstyle
+    session_builder = Session.builder.configs(new_db_parameters)
     new_session = session_builder.create()
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
@@ -5536,3 +5553,11 @@ def test_create_dataframe_empty_pandas_df(session, local_testing_mode):
     pdf = pd.DataFrame([], columns=["a"], dtype=int)
     df = session.create_dataframe(pdf)
     Utils.check_answer(df, [])
+
+
+def test_order_by_col(session, sql_simplifier_enabled, local_testing_mode):
+    if not sql_simplifier_enabled or local_testing_mode:
+        pytest.skip("SQL simplifier must be enabled for this query")
+
+    df = session.create_dataframe([(1, 2.0, "foo"), (2, None, "bar")], ["a", "b", "c"])
+    Utils.check_answer(df.select("c").orderBy("b"), df.select("c").orderBy(col("b")))

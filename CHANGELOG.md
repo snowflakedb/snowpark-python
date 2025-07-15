@@ -1,5 +1,14 @@
 # Release History
 
+## 1.35.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+- Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+
 ## 1.34.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -29,6 +38,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Fixed a bug caused by redundant validation when creating an iceberg table.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where closing the cursor or connection could unexpectedly raise an error and terminate the program.
 - Fixed ambiguous column errors when using table functions in `DataFrame.select()` that have output columns matching the input DataFrame's columns. This improvement works when dataframe columns are provided as `Column` objects.
+- Fixed a bug where having a NULL in a column with DecimalTypes would cast the column to FloatTypes instead and lead to precision loss.
 
 ### Snowpark Local Testing Updates
 
