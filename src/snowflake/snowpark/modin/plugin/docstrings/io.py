@@ -542,7 +542,7 @@ def read_excel():
         If you want to pass in a path object, pandas accepts any os.PathLike.
         By file-like object, we refer to objects with a read() method, such as a file handle (e.g. via builtin open function) or StringIO.
 
-        Deprecated: Passing byte strings is deprecated. To read from a byte string, wrap it in a BytesIO object.
+        Deprecated since version 2.1.0: Passing byte strings is deprecated. To read from a byte string, wrap it in a BytesIO object.
 
     sheet_name : str, int, list, or None, default 0
         Strings are used for sheet names. Integers are used in zero-indexed sheet positions (chart sheets do not count as a sheet position). Lists of strings/integers are used to request multiple sheets. Specify None to get all worksheets.
@@ -618,14 +618,20 @@ def read_excel():
     date_parser : function, optional
         Function to use for converting a sequence of string columns to an array of datetime instances. The default uses dateutil.parser.parser to do the conversion. Pandas will try to call date_parser in three different ways, advancing to the next if an exception occurs: 1) Pass one or more arrays (as defined by parse_dates) as arguments; 2) concatenate (row-wise) the string values from the columns defined by parse_dates into a single array and pass that; and 3) call date_parser once for each row using one or more strings (corresponding to the columns defined by parse_dates) as arguments.
 
-        Deprecated: Use date_format instead, or read in as object and then apply to_datetime() as-needed.
+        Deprecated since version 2.0.0: Use date_format instead, or read in as object and then apply to_datetime() as-needed.
 
     date_format : str or dict of column -> format, default None
         If used in conjunction with parse_dates, will parse dates according to this format. For anything more complex, please read in as object and then apply to_datetime() as-needed.
+
+        Added in version 2.0.0.
+
     thousands : str, default None
         Thousands separator for parsing string columns to numeric. Note that this parameter is only necessary for columns stored as TEXT in Excel, any numeric columns will automatically be parsed, regardless of display format.
     decimal : str, default ‘.’
         Character to recognize as decimal point for parsing string columns to numeric. Note that this parameter is only necessary for columns stored as TEXT in Excel, any numeric columns will automatically be parsed, regardless of display format.(e.g. use ‘,’ for European data).
+
+        Added in version 1.4.0.
+
     comment : str, default None
         Comments out remainder of line. Pass a character or characters to this argument to indicate comments in the input file. Any data between the comment string and the end of the current line is ignored.
     skipfooter : int, default 0
@@ -636,6 +642,9 @@ def read_excel():
         Back-end data type applied to the resultant DataFrame (still experimental). Behaviour is as follows:
         - "numpy_nullable": returns nullable-dtype-backed DataFrame (default).
         - "pyarrow": returns pyarrow-backed nullable ArrowDtype DataFrame.
+
+        Added in version 2.0.
+
     engine_kwargs : dict, optional
         Arbitrary keyword arguments passed to excel engine.
 

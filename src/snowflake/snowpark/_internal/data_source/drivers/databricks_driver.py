@@ -30,11 +30,7 @@ logger = logging.getLogger(__name__)
 
 class DatabricksDriver(BaseDriver):
     def infer_schema_from_description(
-        self,
-        table_or_query: str,
-        cursor: "Cursor",
-        is_query: bool,
-        query_input_alias: str,
+        self, table_or_query: str, cursor: "Cursor", is_query: bool
     ) -> StructType:
         # The following query gives a more detailed schema information than
         # just running "SELECT * FROM {table_or_query} WHERE 1 = 0"

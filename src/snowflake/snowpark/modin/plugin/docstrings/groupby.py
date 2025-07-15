@@ -565,8 +565,9 @@ class DataFrameGroupBy:
 
             Snowpark pandas does not support axis=1, since it is deprecated in pandas.
 
-            Deprecated: For axis=1, operate on the underlying object instead. Otherwise,
-            the axis keyword is not necessary.
+            .. deprecated:: 2.1.0
+                For axis=1, operate on the underlying object instead. Otherwise,
+                the axis keyword is not necessary.
 
         skipna : bool, default True
             Exclude NA/null values. If an entire row/column is NA, the result
@@ -657,8 +658,9 @@ class DataFrameGroupBy:
 
             Snowpark pandas does not support axis=1, since it is deprecated in pandas.
 
-            Deprecated: For axis=1, operate on the underlying object instead. Otherwise,
-            the axis keyword is not necessary.
+            .. deprecated:: 2.1.0
+                For axis=1, operate on the underlying object instead. Otherwise,
+                the axis keyword is not necessary.
 
         skipna : bool, default True
             Exclude NA/null values. If an entire row/column is NA, the result
@@ -934,13 +936,14 @@ class DataFrameGroupBy:
         fill_method : {"bfill", "ffill", "pad"}, default "ffill"
             How to handle NAs before computing percent changes.
 
-            Deprecated: All options of fill_method are deprecated except fill_method=None.
+            .. deprecated:: 2.1.0
+                All options of fill_method are deprecated except fill_method=None.
 
         limit : int, optional
             The number of consecutive NAs to fill before stopping.
             Snowpark pandas does not yet support this parameter.
 
-            Deprecated parameter.
+            .. deprecated:: 2.1.0
 
         freq : DateOffset, timedelta, or str, optional
             Increment to use from time series API (e.g. ‘ME’ or BDay()).
@@ -1459,8 +1462,9 @@ class DataFrameGroupBy:
 
             Snowpark pandas does not currently support axis=1, since it is deprecated in pandas.
 
-            Deprecated:  For axis=1, operate on the underlying object instead. Otherwise,
-            the axis keyword is not necessary.
+            .. deprecated:: 2.1.0
+                For axis=1, operate on the underlying object instead. Otherwise,
+                the axis keyword is not necessary.
 
 
         Returns

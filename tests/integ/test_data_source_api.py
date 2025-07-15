@@ -105,22 +105,15 @@ ORACLEDB_TABLE_NAME_SMALL = "ALL_TYPE_TABLE_SMALL"
 ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integration"
 
 
-@pytest.mark.parametrize(
-    "input_type, input_value",
-    [
-        ("table", SQL_SERVER_TABLE_NAME),
-        ("query", f"SELECT * FROM {SQL_SERVER_TABLE_NAME}"),
-        ("query", f"(SELECT * FROM {SQL_SERVER_TABLE_NAME})"),
-    ],
-)
 @pytest.mark.parametrize("fetch_with_process", [True, False])
-def test_basic_sql_server(session, caplog, fetch_with_process, input_type, input_value):
-    input_dict = {
-        input_type: input_value,
-        "fetch_with_process": fetch_with_process,
-    }
+def test_dbapi_with_temp_table(session, caplog, fetch_with_process):
     with caplog.at_level(logging.DEBUG):
-        df = session.read.dbapi(sql_server_create_connection, **input_dict)
+        df = session.read.dbapi(
+            sql_server_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+            max_workers=4,
+            fetch_with_process=fetch_with_process,
+        )
         # default fetch size is 1k, so we should only see 1 parquet file generated as the data is less than 1k
         assert caplog.text.count("Retrieved BytesIO parquet from queue") == 1
         assert df.collect() == sql_server_all_type_data
@@ -240,108 +233,95 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
 
 
 @pytest.mark.parametrize(
-    "schema, raw_schema, column, lower_bound, upper_bound, num_partitions, expected_queries",
+    "schema, column, lower_bound, upper_bound, num_partitions, expected_queries",
     [
         (
             StructType([StructField("ID", IntegerType())]),
-            [("ID", int)],
             "ID",
             5,
             15,
             4,
             [
-                "SELECT ID FROM fake_table WHERE ID < '8' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '10'",
-                "SELECT ID FROM fake_table WHERE ID >= '10' AND ID < '12'",
-                "SELECT ID FROM fake_table WHERE ID >= '12'",
+                "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
+                "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '10'",
+                "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '12'",
+                "SELECT * FROM fake_table WHERE ID >= '12'",
             ],
         ),
         (
             StructType([StructField("ID", IntegerType())]),
-            [("ID", int)],
             "ID",
             -5,
             5,
             4,
             [
-                "SELECT ID FROM fake_table WHERE ID < '-2' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '-2' AND ID < '0'",
-                "SELECT ID FROM fake_table WHERE ID >= '0' AND ID < '2'",
-                "SELECT ID FROM fake_table WHERE ID >= '2'",
+                "SELECT * FROM fake_table WHERE ID < '-2' OR ID is null",
+                "SELECT * FROM fake_table WHERE ID >= '-2' AND ID < '0'",
+                "SELECT * FROM fake_table WHERE ID >= '0' AND ID < '2'",
+                "SELECT * FROM fake_table WHERE ID >= '2'",
             ],
         ),
         (
             StructType([StructField("ID", IntegerType())]),
-            [("ID", int)],
             "ID",
             5,
             15,
             10,
             [
-                "SELECT ID FROM fake_table WHERE ID < '6' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '6' AND ID < '7'",
-                "SELECT ID FROM fake_table WHERE ID >= '7' AND ID < '8'",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '9'",
-                "SELECT ID FROM fake_table WHERE ID >= '9' AND ID < '10'",
-                "SELECT ID FROM fake_table WHERE ID >= '10' AND ID < '11'",
-                "SELECT ID FROM fake_table WHERE ID >= '11' AND ID < '12'",
-                "SELECT ID FROM fake_table WHERE ID >= '12' AND ID < '13'",
-                "SELECT ID FROM fake_table WHERE ID >= '13' AND ID < '14'",
-                "SELECT ID FROM fake_table WHERE ID >= '14'",
+                "SELECT * FROM fake_table WHERE ID < '6' OR ID is null",
+                "SELECT * FROM fake_table WHERE ID >= '6' AND ID < '7'",
+                "SELECT * FROM fake_table WHERE ID >= '7' AND ID < '8'",
+                "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '9'",
+                "SELECT * FROM fake_table WHERE ID >= '9' AND ID < '10'",
+                "SELECT * FROM fake_table WHERE ID >= '10' AND ID < '11'",
+                "SELECT * FROM fake_table WHERE ID >= '11' AND ID < '12'",
+                "SELECT * FROM fake_table WHERE ID >= '12' AND ID < '13'",
+                "SELECT * FROM fake_table WHERE ID >= '13' AND ID < '14'",
+                "SELECT * FROM fake_table WHERE ID >= '14'",
             ],
         ),
         (
             StructType([StructField("ID", IntegerType())]),
-            [("ID", int)],
             "ID",
             5,
             15,
             3,
             [
-                "SELECT ID FROM fake_table WHERE ID < '8' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '11'",
-                "SELECT ID FROM fake_table WHERE ID >= '11'",
+                "SELECT * FROM fake_table WHERE ID < '8' OR ID is null",
+                "SELECT * FROM fake_table WHERE ID >= '8' AND ID < '11'",
+                "SELECT * FROM fake_table WHERE ID >= '11'",
             ],
         ),
         (
             StructType([StructField("DATE", DateType())]),
-            [("DATE", datetime.datetime)],
             "DATE",
             str(datetime.date(2020, 6, 15)),
             str(datetime.date(2020, 12, 15)),
             4,
             [
-                "SELECT DATE FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
+                "SELECT * FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
             ],
         ),
         (
             StructType([StructField("DATE", DateType())]),
-            [("DATE", datetime.datetime)],
             "DATE",
             str(datetime.datetime(2020, 6, 15, 12, 25, 30)),
             str(datetime.datetime(2020, 12, 15, 7, 8, 20)),
             4,
             [
-                "SELECT DATE FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
+                "SELECT * FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
+                "SELECT * FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
             ],
         ),
     ],
 )
 def test_partition_logic(
-    session,
-    schema,
-    raw_schema,
-    column,
-    lower_bound,
-    upper_bound,
-    num_partitions,
-    expected_queries,
+    session, schema, column, lower_bound, upper_bound, num_partitions, expected_queries
 ):
     with patch.object(
         DataSourcePartitioner, "schema", new_callable=PropertyMock
@@ -356,7 +336,6 @@ def test_partition_logic(
             num_partitions=num_partitions,
         )
         mock_schema.return_value = schema
-        partitioner.driver.raw_schema = raw_schema
         queries = partitioner.partitions
         for r, expected_r in zip(queries, expected_queries):
             assert r == expected_r
@@ -379,7 +358,6 @@ def test_partition_unsupported_type(session):
             mock_schema.return_value = StructType(
                 [StructField("DATE", MapType(), False)]
             )
-            partitioner.driver.raw_schema = [("DATE", dict)]
             partitioner.partitions
 
 
@@ -466,7 +444,7 @@ def test_custom_schema(session, custom_schema, fetch_with_process):
 
         with pytest.raises(
             SnowparkDataframeReaderException,
-            match="Auto infer schema failure:",
+            match="Failed to infer Snowpark DataFrame schema",
         ):
             session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
@@ -488,13 +466,12 @@ def test_predicates():
                 "id > 2001",
             ],
         )
-        partitioner.driver.raw_schema = [("ID", int)]
         mock_schema.return_value = StructType([StructField("ID", IntegerType(), False)])
         queries = partitioner.partitions
         expected_result = [
-            "SELECT ID FROM fake_table WHERE id > 1 AND id <= 1000",
-            "SELECT ID FROM fake_table WHERE id > 1001 AND id <= 2000",
-            "SELECT ID FROM fake_table WHERE id > 2001",
+            "SELECT * FROM fake_table WHERE id > 1 AND id <= 1000",
+            "SELECT * FROM fake_table WHERE id > 1001 AND id <= 2000",
+            "SELECT * FROM fake_table WHERE id > 2001",
         ]
         assert queries == expected_result
 
@@ -776,7 +753,6 @@ def test_partition_wrong_input(session, caplog, fetch_with_process):
             mock_schema.return_value = StructType(
                 [StructField("DATE", IntegerType(), False)]
             )
-            partitioner.driver.raw_schema = [("DATE", int)]
             partitioner.partitions
 
         partitioner = DataSourcePartitioner(
@@ -791,7 +767,6 @@ def test_partition_wrong_input(session, caplog, fetch_with_process):
         mock_schema.return_value = StructType(
             [StructField("DATE", IntegerType(), False)]
         )
-        partitioner.driver.raw_schema = [("DATE", int)]
         partitioner.partitions
         assert "The number of partitions is reduced" in caplog.text
 
@@ -1002,7 +977,7 @@ def test_sql_server_udtf_ingestion(session):
 def test_unknown_driver_with_custom_schema(session, fetch_with_process):
     with pytest.raises(
         SnowparkDataframeReaderException,
-        match="Auto infer schema failure:",
+        match="Failed to infer Snowpark DataFrame schema",
     ):
         session.read.dbapi(
             unknown_dbms_create_connection,

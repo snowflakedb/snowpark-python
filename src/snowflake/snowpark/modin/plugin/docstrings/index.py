@@ -976,7 +976,8 @@ class Index:
         """
         Check if the Index only consists of booleans.
 
-        Deprecated: Use `pandas.api.types.is_bool_dtype` instead.
+        .. deprecated:: 2.0.0
+            Use `pandas.api.types.is_bool_dtype` instead.
 
         Returns
         -------
@@ -1011,7 +1012,8 @@ class Index:
         """
         Check if the Index is a floating type.
 
-        Deprecated: Use `pandas.api.types.is_float_dtype` instead.
+        .. deprecated:: 2.0.0
+            Use `pandas.api.types.is_float_dtype` instead
 
         The Index may consist of only floats, NaNs, or a mix of floats,
         integers, or NaNs.
@@ -1054,7 +1056,8 @@ class Index:
         """
         Check if the Index only consists of integers.
 
-        Deprecated: Use `pandas.api.types.is_integer_dtype` instead.
+        .. deprecated:: 2.0.0
+            Use `pandas.api.types.is_integer_dtype` instead.
 
         Returns
         -------
@@ -1089,7 +1092,8 @@ class Index:
         """
         Check if the Index holds Interval objects.
 
-        Deprecated: Use `isinstance(index.dtype, pd.IntervalDtype)` instead.
+        .. deprecated:: 2.0.0
+            Use `isinstance(index.dtype, pd.IntervalDtype)` instead.
 
         Returns
         -------
@@ -1111,7 +1115,8 @@ class Index:
         """
         Check if the Index only consists of numeric data.
 
-        Deprecated: Use `pandas.api.types.is_numeric_dtype` instead.
+        .. deprecated:: 2.0.0
+            Use `pandas.api.types.is_numeric_dtype` instead.
 
         Returns
         -------
@@ -1154,7 +1159,8 @@ class Index:
         """
         Check if the Index is of the object dtype.
 
-        Deprecated: Use `pandas.api.types.is_object_dtype` instead.
+        .. deprecated:: 2.0.0
+           Use `pandas.api.types.is_object_dtype` instead.
 
         Returns
         -------
@@ -1649,7 +1655,7 @@ class Index:
             or the string 'infer' which will try to downcast to an appropriate
             equal type (e.g. float64 to int64 if possible).
 
-            Deprecated parameter.
+            .. deprecated:: 2.1.0
 
         Returns
         -------

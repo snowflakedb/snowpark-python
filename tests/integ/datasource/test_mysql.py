@@ -74,14 +74,9 @@ def create_connection_mysql():
             None,
             TEST_QUERY,
         ),
-        (
-            create_connection_mysql,
-            None,
-            f"({TEST_QUERY})",
-        ),
     ],
 )
-def test_basic_mysql(session, create_connection, table_name, query):
+def test_dbapi_mysql(session, create_connection, table_name, query):
     df = session.read.dbapi(create_connection, table=table_name, query=query)
     Utils.check_answer(df, mysql_real_data)
     assert df.schema == mysql_schema

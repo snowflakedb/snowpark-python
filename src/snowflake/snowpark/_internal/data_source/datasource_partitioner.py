@@ -21,7 +21,6 @@ from snowflake.snowpark._internal.data_source.utils import (
 from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
-from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.types import (
     StructType,
     _NumericType,
@@ -70,12 +69,6 @@ class DataSourcePartitioner:
         self.dialect = self.dialect_class()
         self.driver = self.driver_class(create_connection, dbms_type)
 
-        self._query_input_alias = (
-            f"SNOWPARK_DBAPI_QUERY_INPUT_ALIAS_{generate_random_alphanumeric(5).upper()}"
-            if is_query
-            else None
-        )
-
     def reader(self) -> DataSourceReader:
         return DataSourceReader(
             self.driver_class,
@@ -92,7 +85,7 @@ class DataSourcePartitioner:
     def schema(self) -> StructType:
         if self.custom_schema is None:
             return self.driver.infer_schema_from_description_with_error_control(
-                self.table_or_query, self.is_query, self._query_input_alias
+                self.table_or_query, self.is_query
             )
         else:
             if isinstance(self.custom_schema, str):
@@ -103,25 +96,20 @@ class DataSourcePartitioner:
                         f"You should provide a valid schema string representing a struct type."
                         'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     )
+                return schema
             elif isinstance(self.custom_schema, StructType):
-                schema = self.custom_schema
+                return self.custom_schema
             else:
                 raise ValueError(
                     f"Invalid schema type: {type(self.custom_schema)}."
                     'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
                 )
-            self.driver.raw_schema = [(field_name,) for field_name in schema.names]
-            return schema
 
     @cached_property
     def partitions(self) -> List[str]:
         select_query = self.dialect.generate_select_query(
-            self.table_or_query,
-            self.schema,
-            self.driver.raw_schema,
-            self.is_query,
-            self._query_input_alias,
+            self.table_or_query, self.schema, self.driver.raw_schema, self.is_query
         )
         logger.debug(f"Generated select query: {select_query}")
         if self.column is None:

@@ -1904,6 +1904,8 @@ def date_range():
         Name of the resulting DatetimeIndex.
     inclusive : {"both", "neither", "left", "right"}, default "both"
         Include boundaries; Whether to set each bound as closed or open.
+
+        .. versionadded:: 1.4.0
     **kwargs
         For compatibility. Has no effect on the result.
 
@@ -2065,6 +2067,8 @@ def bdate_range():
         are passed.
     inclusive : {"both", "neither", "left", "right"}, default "both"
         Include boundaries; Whether to set each bound as closed or open.
+
+        .. versionadded:: 1.4.0
     **kwargs
         For compatibility. Has no effect on the result.
 

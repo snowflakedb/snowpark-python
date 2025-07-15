@@ -2220,14 +2220,15 @@ class BasePandasDataset:
         fill_method : {'backfill', 'bfill', 'pad', 'ffill', None}, default 'pad'
             How to handle NAs **before** computing percent changes.
 
-            All options of `fill_method` are deprecated except `fill_method=None`.
+            .. deprecated:: 2.1
+                All options of `fill_method` are deprecated except `fill_method=None`.
 
         limit : int, default None
             The number of consecutive NAs to fill before stopping.
 
             Snowpark pandas does not yet support this parameter.
 
-            Deprecated parameter.
+            .. deprecated:: 2.1
 
         freq : DateOffset, timedelta, or str, optional
             Increment to use from time series API (e.g. 'ME' or BDay()).
@@ -2520,7 +2521,7 @@ class BasePandasDataset:
             Which axis to use for up- or down-sampling. For Series this parameter is unused and defaults to 0.
             Snowpark pandas only supports ``axis`` 0 and DatetimeIndex.
 
-            Deprecated: Use frame.T.resample(…) instead.
+            Deprecated since version 2.0.0: Use frame.T.resample(…) instead.
         closed : {'right', 'left'}, default None
             Which side of bin interval is closed. The default is 'left' for all frequency offsets except for
             'ME', 'YE', 'QE', 'BME', 'BA', 'BQE', and 'W' which all have a default of 'right'.
@@ -2535,7 +2536,7 @@ class BasePandasDataset:
             For PeriodIndex only, controls whether to use the start or end of rule.
             Snowpark pandas does not support PeriodIndex.
 
-            Deprecated: Convert PeriodIndex to DatetimeIndex before resampling instead.
+            Deprecated since version 2.2.0: Convert PeriodIndex to DatetimeIndex before resampling instead.
         kind : {'timestamp', 'period'}, optional, default None
             Pass 'timestamp' to convert the resulting index to a DateTimeIndex
             or 'period' to convert it to a PeriodIndex. By default, the input representation is retained.
@@ -2878,11 +2879,23 @@ class BasePandasDataset:
         random_state : int, array-like, BitGenerator, np.random.RandomState, np.random.Generator, optional
             If int, array-like, or BitGenerator, seed for random number generator.
             If np.random.RandomState or np.random.Generator, use as given.
+
+            .. versionchanged:: 1.1.0
+
+                array-like and BitGenerator object now passed to np.random.RandomState()
+                as seed
+
+            .. versionchanged:: 1.4.0
+
+                np.random.Generator objects now accepted
+
         axis : {0 or ‘index’, 1 or ‘columns’, None}, default None
             Axis to sample. Accepts axis number or name. Default is stat axis
             for given data type. For `Series` this parameter is unused and defaults to `None`.
         ignore_index : bool, default False
             If True, the resulting index will be labeled 0, 1, …, n - 1.
+
+            .. versionadded:: 1.3.0
 
         Returns
         -------

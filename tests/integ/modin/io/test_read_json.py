@@ -294,17 +294,16 @@ def test_read_json_staged_folder():
 
 
 @sql_count_checker(query_count=5)
-@pytest.mark.xfail(
-    reason="SNOW-1336174: Remove xfail by handling empty JSON files", strict=True
-)
+@pytest.mark.xfail(reason="SNOW-1336174: Remove xfail by handling empty JSON files")
 def test_read_json_empty_file():
-    with open("test_read_json_empty_file.json", "w"):
-        pass
-    try:
-        snow_df = pd.read_json("test_read_json_empty_file.json")
-        assert len(snow_df) == 0
-    finally:
-        os.remove("test_read_json_empty_file.json")
+
+    open("test_read_json_empty_file.json", "w")
+
+    snow_df = pd.read_json("test_read_json_empty_file.json")
+
+    os.remove("test_read_json_empty_file.json")
+
+    assert len(snow_df) == 0
 
 
 @sql_count_checker(query_count=3)

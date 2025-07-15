@@ -813,10 +813,13 @@ class Series(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
+
+        New in version 2.2.0.
+
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated parameter.
+        Deprecated since version 2.2.0.
 
         Returns
         -------
@@ -1419,6 +1422,8 @@ class Series(BasePandasDataset):
             must not change the input Series
             (though pandas doesn`t check it).
 
+            .. versionadded:: 2.2.0
+
         Returns
         -------
         Series
@@ -1459,10 +1464,13 @@ class Series(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
+
+        New in version 2.2.0.
+
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated parameter.
+        Deprecated since version 2.2.0.
 
         Returns
         -------
@@ -1517,7 +1525,8 @@ class Series(BasePandasDataset):
             * ffill: propagate last valid observation forward to next valid.
             * backfill / bfill: use next valid observation to fill gap.
 
-            Deprecated: Use ffill or bfill instead.
+            .. deprecated:: 2.1.0
+                Use ffill or bfill instead.
 
         axis : {axes_single_arg}
             Axis along which to fill missing values. For `Series`
@@ -1538,7 +1547,7 @@ class Series(BasePandasDataset):
             or the string 'infer' which will try to downcast to an appropriate
             equal type (e.g. float64 to int64 if possible).
 
-            Deprecated parameter.
+            .. deprecated:: 2.2.0
 
         Returns
         -------

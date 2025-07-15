@@ -38,7 +38,8 @@ class TimedeltaIndex(Index):
         unit : {'D', 'h', 'm', 's', 'ms', 'us', 'ns'}, optional
             The unit of ``data``.
 
-            Deprecated: Use ``pd.to_timedelta`` instead.
+            .. deprecated:: 2.2.0
+             Use ``pd.to_timedelta`` instead.
 
         freq : str or pandas offset object, optional
             One of pandas date offset strings or corresponding objects. The string
@@ -69,7 +70,8 @@ class TimedeltaIndex(Index):
         unit : {'D', 'h', 'm', 's', 'ms', 'us', 'ns'}, optional
             The unit of ``data``.
 
-            Deprecated: Use ``pd.to_timedelta`` instead.
+            .. deprecated:: 2.2.0
+             Use ``pd.to_timedelta`` instead.
 
         freq : str or pandas offset object, optional
             One of pandas date offset strings or corresponding objects. The string

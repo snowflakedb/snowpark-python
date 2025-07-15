@@ -59,49 +59,27 @@ class BaseDriver:
     ) -> "Connection":
         return conn
 
-    @staticmethod
-    def generate_infer_schema_sql(
-        table_or_query: str, is_query: bool, query_input_alias: str
-    ):
-        return (
-            f"SELECT * FROM ({table_or_query}) {query_input_alias} WHERE 1 = 0"
-            if is_query
-            else f"SELECT * FROM {table_or_query} WHERE 1 = 0"
-        )
-
     def infer_schema_from_description(
-        self,
-        table_or_query: str,
-        cursor: "Cursor",
-        is_query: bool,
-        query_input_alias: str,
+        self, table_or_query: str, cursor: "Cursor", is_query: bool
     ) -> StructType:
-        cursor.execute(
-            self.generate_infer_schema_sql(table_or_query, is_query, query_input_alias)
-        )
+        cursor.execute(f"SELECT * FROM {table_or_query} WHERE 1 = 0")
         raw_schema = cursor.description
         self.raw_schema = raw_schema
         return self.to_snow_type(raw_schema)
 
     def infer_schema_from_description_with_error_control(
-        self, table_or_query: str, is_query: bool, query_input_alias: str
+        self, table_or_query: str, is_query: bool
     ) -> StructType:
         conn = self.create_connection()
         cursor = conn.cursor()
         try:
-            return self.infer_schema_from_description(
-                table_or_query, cursor, is_query, query_input_alias
-            )
+            return self.infer_schema_from_description(table_or_query, cursor, is_query)
 
         except Exception as exc:
             raise SnowparkDataframeReaderException(
-                "Auto infer schema failure:"
-                f"{exc!r}."
-                "A query:"
-                f"{self.generate_infer_schema_sql(table_or_query, is_query, query_input_alias)}"
-                "is used to infer Snowpark DataFrame schema from"
-                f"{table_or_query}"
-                "But it failed with above exception"
+                f"Failed to infer Snowpark DataFrame schema from '{table_or_query}' due to {exc!r}."
+                f" To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
+                f" Please check the stack trace for more details."
             ) from exc
         finally:
             # Best effort to close cursor and connection; failures are non-critical and can be ignored.

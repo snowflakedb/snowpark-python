@@ -167,6 +167,7 @@ def _map(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
     )
 
 
+@register_dataframe_not_implemented()
 def boxplot(
     self,
     column=None,
@@ -181,22 +182,7 @@ def boxplot(
     backend=None,
     **kwargs,
 ):  # noqa: PR01, RT01, D200
-    WarningMessage.single_warning(
-        "DataFrame.boxplot materializes data to the local machine."
-    )
-    return self._to_pandas().boxplot(
-        column=column,
-        by=by,
-        ax=ax,
-        fontsize=fontsize,
-        rot=rot,
-        grid=grid,
-        figsize=figsize,
-        layout=layout,
-        return_type=return_type,
-        backend=backend,
-        **kwargs,
-    )
+    pass  # pragma: no cover
 
 
 @register_dataframe_not_implemented()

@@ -991,11 +991,9 @@ class DataFrameReader:
         try_cast = self._cur_options.get("TRY_CAST", False)
 
         # When pattern is set we should only consider files that match the pattern during schema inference
-        # If no files match or the filepaths are not parseable fallback to trying to read all files.
+        # If no files match fallback to trying to read all files.
         # snow:// paths are not yet supported
         infer_path = path
-        fallback_path = infer_path
-        should_fallback = False
         if (
             (pattern := self._cur_options.get("PATTERN", None))
             and "FILES" not in infer_schema_options
@@ -1008,15 +1006,8 @@ class DataFrameReader:
             )["data"]
 
             if len(matches):
-                should_fallback = True
-                files = []
-                # Construct a list of file prefixes not including the stage
-                for match in matches:
-                    # Try to remove any protocol
-                    (pre, _, post) = match[0].partition("://")
-                    match = post if post else pre
-                    files.append(match.partition("/")[2])
-
+                # Constuct a list of file prefixes not including the stage
+                files = [m[0].partition("/")[2] for m in matches]
                 infer_schema_options["FILES"] = files
 
                 # Reconstruct path using just stage and any qualifiers
@@ -1044,19 +1035,8 @@ class DataFrameReader:
                 drop_tmp_file_format_if_exists_query = (
                     drop_file_format_if_exists_statement(file_format_name)
                 )
-
-            try:
-                # SNOW-1628625: Schema inference should be done lazily
-                results = self._session._conn.run_query(infer_schema_query)["data"]
-            except Exception as e:
-                if should_fallback:
-                    infer_schema_query = infer_schema_statement(
-                        fallback_path, file_format_name, None
-                    )
-                    results = self._session._conn.run_query(infer_schema_query)["data"]
-                else:
-                    raise e
-
+            # SNOW-1628625: Schema inference should be done lazily
+            results = self._session._conn.run_query(infer_schema_query)["data"]
             if len(results) == 0:
                 raise FileNotFoundError(
                     f"Given path: '{path}' could not be found or is empty."
