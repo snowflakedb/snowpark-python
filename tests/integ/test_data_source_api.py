@@ -1160,13 +1160,18 @@ def test_worker_process_unit(fetch_with_process):
             multiprocessing.Queue() if fetch_with_process else queue.Queue()
         )
         parquet_queue = multiprocessing.Queue() if fetch_with_process else queue.Queue()
+        process_or_thread_error_indicator = (
+            multiprocessing.Queue() if fetch_with_process else queue.Queue()
+        )
 
         # Set up partition_queue to return test data, then raise queue.Empty
         partition_queue.put((0, f"SELECT * FROM {table_name} WHERE id <= 3"))
         partition_queue.put((1, f"SELECT * FROM {table_name} WHERE id > 3"))
 
         # Call the worker_process function directly (using real sqlite3 operations)
-        worker_process(partition_queue, parquet_queue, reader)
+        worker_process(
+            partition_queue, parquet_queue, process_or_thread_error_indicator, reader
+        )
 
         expected_order = [
             "data_partition0_fetch0.parquet",
@@ -1191,7 +1196,9 @@ def test_worker_process_unit(fetch_with_process):
 
         # check error handling
         partition_queue.put((0, "SELECT * FROM NON_EXISTING_TABLE"))
-        worker_process(partition_queue, parquet_queue, reader)
+        worker_process(
+            partition_queue, parquet_queue, process_or_thread_error_indicator, reader
+        )
         error_signal, error_instance = parquet_queue.get()
         assert error_signal == PARTITION_TASK_ERROR_SIGNAL
         assert isinstance(
@@ -1520,6 +1527,7 @@ def test_thread_worker_exception(exception, match_message):
 
     # Create test parameters
     parquet_queue = queue.Queue()
+    process_or_thread_error_indicator = queue.Queue()
     workers = [mock_future]  # Single worker that will fail
     total_partitions = 0  # No partitions to complete
 
@@ -1527,6 +1535,7 @@ def test_thread_worker_exception(exception, match_message):
         process_parquet_queue_with_threads(
             session=mock_session,
             parquet_queue=parquet_queue,
+            process_or_thread_error_indicator=process_or_thread_error_indicator,
             workers=workers,
             total_partitions=total_partitions,
             snowflake_stage_name="test_stage",
@@ -1553,6 +1562,7 @@ def test_process_worker_non_zero_exitcode():
 
     # Create test parameters
     parquet_queue = queue.Queue()
+    process_or_thread_error_indicator = queue.Queue()
     workers = [mock_process]  # Single worker that will fail
     total_partitions = 0  # No partitions to complete
 
@@ -1563,6 +1573,7 @@ def test_process_worker_non_zero_exitcode():
         process_parquet_queue_with_threads(
             session=mock_session,
             parquet_queue=parquet_queue,
+            process_or_thread_error_indicator=process_or_thread_error_indicator,
             workers=workers,
             total_partitions=total_partitions,
             snowflake_stage_name="test_stage",
@@ -1638,6 +1649,7 @@ def test_queue_empty_thread_failure(exception, match_message):
 
     # Create empty queue to trigger queue.Empty exception
     parquet_queue = queue.Queue()
+    process_or_thread_error_indicator = queue.Queue()
     workers = [mock_future]
     total_partitions = 1  # Set to 1 so the loop continues
 
@@ -1645,6 +1657,7 @@ def test_queue_empty_thread_failure(exception, match_message):
         process_parquet_queue_with_threads(
             session=mock_session,
             parquet_queue=parquet_queue,
+            process_or_thread_error_indicator=process_or_thread_error_indicator,
             workers=workers,
             total_partitions=total_partitions,
             snowflake_stage_name="test_stage",
