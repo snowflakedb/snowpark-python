@@ -455,8 +455,12 @@ class RelationalGroupedDataFrame:
             )  # select to evaluate the expressions
             working_columns_count = len(working_columns)
 
+        # This class is defined as a local class, which is pickled and executed remotely.
+        # As a result, pytest-cov is unable to track its code coverage.
         class _ApplyInPandas:
-            def end_partition(self, pdf: pandas.DataFrame) -> pandas.DataFrame:
+            def end_partition(
+                self, pdf: pandas.DataFrame
+            ) -> pandas.DataFrame:  # pragma: no cover
                 # -- start of spark mode code
                 if parameters_count == 2:
                     import numpy as np
