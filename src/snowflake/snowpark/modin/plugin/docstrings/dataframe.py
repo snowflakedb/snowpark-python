@@ -234,10 +234,7 @@ class DataFrame(BasePandasDataset):
             * 0, or 'index' : Drop rows which contain missing values.
             * 1, or 'columns' : Drop columns which contain missing value.
 
-            .. versionchanged:: 1.0.0
-
-               Pass tuple or list to drop on multiple axes.
-               Only a single axis is allowed.
+            Only a single axis is allowed.
 
         how : {'any', 'all'}, default 'any'
             Determine if row or column is removed from DataFrame, when we have
@@ -1181,13 +1178,10 @@ class DataFrame(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
-
-        New in version 2.2.0.
-
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated since version 2.2.0.
+        Deprecated parameter.
 
         Returns
         -------
@@ -1237,7 +1231,144 @@ class DataFrame(BasePandasDataset):
 
     def boxplot():
         """
-        Make a box plot from ``DataFrame`` columns.
+        Make a box plot from DataFrame columns.
+
+        Make a box-and-whisker plot from DataFrame columns, optionally grouped by some other columns. A box plot is a method for graphically depicting groups of numerical data through their quartiles. The box extends from the Q1 to Q3 quartile values of the data, with a line at the median (Q2). The whiskers extend from the edges of box to show the range of the data. By default, they extend no more than 1.5 * IQR (IQR = Q3 - Q1) from the edges of the box, ending at the farthest data point within that interval. Outliers are plotted as separate dots.
+
+        For further details see Wikipedia’s entry for [boxplot](https://en.wikipedia.org/wiki/Box_plot).
+
+        Parameters
+        ----------
+        column : str or list of str, optional
+            Column name or list of names, or vector. Can be any valid input to pandas.DataFrame.groupby().
+
+        by : str or array-like, optional
+            Column in the DataFrame to pandas.DataFrame.groupby(). One box-plot will be done per value of columns in by.
+
+        ax : object of class matplotlib.axes.Axes, optional
+            The matplotlib axes to be used by boxplot.
+
+        fontsize : float or str
+            Tick label font size in points or as a string (e.g., large).
+
+        rot : float, default 0
+            The rotation angle of labels (in degrees) with respect to the screen coordinate system.
+
+        grid : bool, default True
+            Setting this to True will show the grid.
+
+        fig : sizeA tuple (width, height) in inches
+            The size of the figure to create in matplotlib.
+
+        layout : tuple (rows, columns), optional
+            For example, (3, 5) will display the subplots using 3 rows and 5 columns, starting from the top-left.
+
+        return_type : {‘axes’, ‘dict’, ‘both’} or None, default ‘axes’
+            The kind of object to return. The default is axes.
+
+            - ‘axes’ returns the matplotlib axes the boxplot is drawn on.
+
+            - ‘dict’ returns a dictionary whose values are the matplotlib Lines of the boxplot.
+
+            - ‘both’ returns a namedtuple with the axes and dict.
+
+            - when grouping with by, a Series mapping columns to return_type is returned.
+
+            If return_type is None, a NumPy array of axes with the same shape as layout is returned.
+
+        backend : str, default None
+            Backend to use instead of the backend specified in the option plotting.backend. For instance, ‘matplotlib’. Alternatively, to specify the plotting.backend for the whole session, set pd.options.plotting.backend.
+
+        **kwargs
+            All other plotting keyword arguments to be passed to matplotlib.pyplot.boxplot().
+
+        Returns
+        -------
+        result
+            See Notes.
+
+        See also
+        --------
+        Series.plot.hist
+            Make a histogram.
+
+        matplotlib.pyplot.boxplot
+            Matplotlib equivalent plot.
+
+        Notes
+        -----
+        The return type depends on the return_type parameter:
+
+        - ‘axes’ : object of class matplotlib.axes.Axes
+
+        - ‘dict’ : dict of matplotlib.lines.Line2D objects
+
+        - ‘both’ : a namedtuple with structure (ax, lines)
+
+        For data grouped with by, return a Series of the above or a numpy array:
+
+        - Series
+
+        - array (for return_type = None)
+
+        Use return_type='dict' when you want to tweak the appearance of the lines after plotting. In this case a dict containing the Lines making up the boxes, caps, fliers, medians, and whiskers is returned.
+
+        Examples
+        --------
+        Boxplots can be created for every column in the dataframe by df.boxplot() or indicating the columns to be used:
+
+        >>> np.random.seed(1234)
+        >>> df = pd.DataFrame(np.random.randn(10, 4),
+        ...                   columns=['Col1', 'Col2', 'Col3', 'Col4'])
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2', 'Col3'])
+        ../../_images/pandas-DataFrame-boxplot-1.png
+
+        Boxplots of variables distributions grouped by the values of a third variable can be created using the option by. For instance:
+
+        >>> df = pd.DataFrame(np.random.randn(10, 2),
+        ...                   columns=['Col1', 'Col2'])
+        >>> df['X'] = pd.Series(['A', 'A', 'A', 'A', 'A',
+        ...                      'B', 'B', 'B', 'B', 'B'])
+        >>> boxplot = df.boxplot(by='X')
+
+        A list of strings (i.e. ['X', 'Y']) can be passed to boxplot in order to group the data by combination of the variables in the x-axis:
+
+        >>> df = pd.DataFrame(np.random.randn(10, 3),
+        ...                   columns=['Col1', 'Col2', 'Col3'])
+        >>> df['X'] = pd.Series(['A', 'A', 'A', 'A', 'A',
+        ...                      'B', 'B', 'B', 'B', 'B'])
+        >>> df['Y'] = pd.Series(['A', 'B', 'A', 'B', 'A',
+        ...                      'B', 'A', 'B', 'A', 'B'])
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by=['X', 'Y'])
+
+        The layout of boxplot can be adjusted giving a tuple to layout:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by='X',
+        ...                      layout=(2, 1))
+
+        Additional formatting can be done to the boxplot, like suppressing the grid (grid=False), rotating the labels in the x-axis (i.e. rot=45) or changing the fontsize (i.e. fontsize=15):
+
+        >>> boxplot = df.boxplot(grid=False, rot=45, fontsize=15)
+
+        The parameter return_type can be used to select the type of element returned by boxplot. When return_type='axes' is selected, the matplotlib axes on which the boxplot is drawn are returned:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], return_type='axes')
+        >>> type(boxplot)
+        <class 'matplotlib.axes._axes.Axes'>
+
+        When grouping with by, a Series mapping columns to return_type is returned:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by='X',
+        ...                      return_type='axes')
+        type(boxplot)
+        <class 'pandas.Series'>
+
+        If return_type is None, a NumPy array of axes with the same shape as layout is returned:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by='X',
+        ...                      return_type=None)
+        >>> type(boxplot)
+        <class 'numpy.ndarray'>
         """
 
     def combine():
@@ -1517,13 +1648,10 @@ class DataFrame(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
-
-        New in version 2.2.0.
-
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated since version 2.2.0.
+        Deprecated parameter.
 
         Returns
         -------
@@ -1578,8 +1706,7 @@ class DataFrame(BasePandasDataset):
             * ffill: propagate last valid observation forward to next valid.
             * backfill / bfill: use next valid observation to fill gap.
 
-            .. deprecated:: 2.1.0
-                Use ffill or bfill instead.
+            Deprecated: Use ffill or bfill instead.
 
         axis : {axes_single_arg}
             Axis along which to fill missing values. For `Series`
@@ -1600,7 +1727,7 @@ class DataFrame(BasePandasDataset):
             or the string 'infer' which will try to downcast to an appropriate
             equal type (e.g. float64 to int64 if possible).
 
-            .. deprecated:: 2.2.0
+            Deprecated parameter.
 
         Returns
         -------
@@ -1694,9 +1821,6 @@ class DataFrame(BasePandasDataset):
             Of the form {field : array-like} or {field : dict}.
         orient : {‘columns’, ‘index’, ‘tight’}, default ‘columns’
             The “orientation” of the data. If the keys of the passed dict should be the columns of the resulting DataFrame, pass ‘columns’ (default). Otherwise if the keys should be rows, pass ‘index’. If ‘tight’, assume a dict with keys [‘index’, ‘columns’, ‘data’, ‘index_names’, ‘column_names’].
-
-            Added in version 1.4.0: ‘tight’ as an allowed value for the orient argument
-
         dtype : dtype, default None
             Data type to force after DataFrame construction, otherwise infer.
         columns : list, default None
@@ -1770,7 +1894,7 @@ class DataFrame(BasePandasDataset):
         data : structured ndarray, sequence of tuples or dicts, or DataFrame
             Structured input data.
 
-            Deprecated since version 2.1.0: Passing a DataFrame is deprecated.
+            Deprecated: Passing a DataFrame is deprecated.
 
         index : str, list of fields, array-like
             Field of array to use as the index, alternately a specific set of input labels to use.
@@ -5030,8 +5154,6 @@ class DataFrame(BasePandasDataset):
     def map():
         """
         Apply a function to a Dataframe elementwise.
-
-        Added in version 2.1.0: DataFrame.applymap was deprecated and renamed to DataFrame.map.
 
         This method applies a function that accepts and returns a scalar to every element of a DataFrame.
 

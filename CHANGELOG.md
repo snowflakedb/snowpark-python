@@ -1,5 +1,14 @@
 # Release History
 
+## 1.35.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Improvements
+
+- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+- Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+
 ## 1.34.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -49,6 +58,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Added support for `pd.explain_switch()` to return debugging information on hybrid execution decisions.
 - Support `pd.read_snowflake` when the global modin backend is `Pandas`.
 - Added support for `pd.to_dynamic_table`, `pd.to_iceberg`, and `pd.to_view`.
+- Added support for `DataFrame.boxplot`.
 
 #### Improvements
 
