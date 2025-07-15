@@ -234,10 +234,7 @@ class DataFrame(BasePandasDataset):
             * 0, or 'index' : Drop rows which contain missing values.
             * 1, or 'columns' : Drop columns which contain missing value.
 
-            .. versionchanged:: 1.0.0
-
-               Pass tuple or list to drop on multiple axes.
-               Only a single axis is allowed.
+            Only a single axis is allowed.
 
         how : {'any', 'all'}, default 'any'
             Determine if row or column is removed from DataFrame, when we have
@@ -1181,13 +1178,10 @@ class DataFrame(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
-
-        New in version 2.2.0.
-
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated since version 2.2.0.
+        Deprecated parameter.
 
         Returns
         -------
@@ -1241,7 +1235,7 @@ class DataFrame(BasePandasDataset):
 
         Make a box-and-whisker plot from DataFrame columns, optionally grouped by some other columns. A box plot is a method for graphically depicting groups of numerical data through their quartiles. The box extends from the Q1 to Q3 quartile values of the data, with a line at the median (Q2). The whiskers extend from the edges of box to show the range of the data. By default, they extend no more than 1.5 * IQR (IQR = Q3 - Q1) from the edges of the box, ending at the farthest data point within that interval. Outliers are plotted as separate dots.
 
-        For further details see Wikipedia’s entry for boxplot.
+        For further details see Wikipedia’s entry for [boxplot](https://en.wikipedia.org/wiki/Box_plot).
 
         Parameters
         ----------
@@ -1654,13 +1648,10 @@ class DataFrame(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
-
-        New in version 2.2.0.
-
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated since version 2.2.0.
+        Deprecated parameter.
 
         Returns
         -------
@@ -1715,8 +1706,7 @@ class DataFrame(BasePandasDataset):
             * ffill: propagate last valid observation forward to next valid.
             * backfill / bfill: use next valid observation to fill gap.
 
-            .. deprecated:: 2.1.0
-                Use ffill or bfill instead.
+            Deprecated: Use ffill or bfill instead.
 
         axis : {axes_single_arg}
             Axis along which to fill missing values. For `Series`
@@ -1737,7 +1727,7 @@ class DataFrame(BasePandasDataset):
             or the string 'infer' which will try to downcast to an appropriate
             equal type (e.g. float64 to int64 if possible).
 
-            .. deprecated:: 2.2.0
+            Deprecated parameter.
 
         Returns
         -------
@@ -1831,9 +1821,6 @@ class DataFrame(BasePandasDataset):
             Of the form {field : array-like} or {field : dict}.
         orient : {‘columns’, ‘index’, ‘tight’}, default ‘columns’
             The “orientation” of the data. If the keys of the passed dict should be the columns of the resulting DataFrame, pass ‘columns’ (default). Otherwise if the keys should be rows, pass ‘index’. If ‘tight’, assume a dict with keys [‘index’, ‘columns’, ‘data’, ‘index_names’, ‘column_names’].
-
-            Added in version 1.4.0: ‘tight’ as an allowed value for the orient argument
-
         dtype : dtype, default None
             Data type to force after DataFrame construction, otherwise infer.
         columns : list, default None
@@ -1907,7 +1894,7 @@ class DataFrame(BasePandasDataset):
         data : structured ndarray, sequence of tuples or dicts, or DataFrame
             Structured input data.
 
-            Deprecated since version 2.1.0: Passing a DataFrame is deprecated.
+            Deprecated: Passing a DataFrame is deprecated.
 
         index : str, list of fields, array-like
             Field of array to use as the index, alternately a specific set of input labels to use.
@@ -5167,8 +5154,6 @@ class DataFrame(BasePandasDataset):
     def map():
         """
         Apply a function to a Dataframe elementwise.
-
-        Added in version 2.1.0: DataFrame.applymap was deprecated and renamed to DataFrame.map.
 
         This method applies a function that accepts and returns a scalar to every element of a DataFrame.
 
