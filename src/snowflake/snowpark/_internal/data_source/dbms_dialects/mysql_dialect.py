@@ -4,12 +4,11 @@
 from typing import List
 
 from snowflake.snowpark._internal.data_source.dbms_dialects import BaseDialect
+from snowflake.snowpark._internal.data_source.dbms_dialects.base_dialect import (
+    QUERY_TEMPLATE,
+)
 from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import (
     PymysqlTypeCode,
-)
-from snowflake.snowpark._internal.utils import (
-    random_name_for_temp_object,
-    TempObjectType,
 )
 from snowflake.snowpark.types import StructType, TimeType, BinaryType
 
@@ -21,36 +20,29 @@ class MysqlDialect(BaseDialect):
         schema: StructType,
         raw_schema: List[tuple],
         is_query: bool,
+        query_input_alias: str,
     ) -> str:
         cols = []
-        random_table_alias = random_name_for_temp_object(TempObjectType.TABLE)
         for field, raw_field in zip(schema.fields, raw_schema):
+            field_name = (
+                f"{query_input_alias}.`{raw_field[0]}`"
+                if is_query
+                else f"`{raw_field[0]}`"
+            )
             if isinstance(field.datatype, TimeType):
-                if is_query:
-                    cols.append(
-                        f"""CAST({random_table_alias}.`{raw_field[0]}` AS CHAR) AS {raw_field[0]}"""
-                    )
-                else:
-                    cols.append(f"""CAST(`{raw_field[0]}` AS CHAR) AS {raw_field[0]}""")
+                cols.append(f"""CAST({field_name} AS CHAR) AS {raw_field[0]}""")
             elif (
                 isinstance(field.datatype, BinaryType)
                 or raw_field[1] == PymysqlTypeCode.BIT
             ):
-                if is_query:
-                    cols.append(
-                        f"""HEX({random_table_alias}.`{raw_field[0]}`) AS {raw_field[0]}"""
-                    )
-                else:
-                    cols.append(f"""HEX(`{raw_field[0]}`) AS {raw_field[0]}""")
+                cols.append(f"""HEX({field_name}) AS {raw_field[0]}""")
             else:
-                if is_query:
-                    cols.append(
-                        f"""{random_table_alias}.`{raw_field[0]}` AS {raw_field[0]}"""
-                    )
-                else:
-                    cols.append(f"`{raw_field[0]}`")
+                cols.append(
+                    f"{field_name} AS {raw_field[0]}"
+                ) if is_query else cols.append(field_name)
 
-        if is_query:
-            return f"""SELECT {" , ".join(cols)} FROM ({table_or_query}) {random_table_alias}"""
-        else:
-            return f"""SELECT {" , ".join(cols)} FROM `{table_or_query}`"""
+        return QUERY_TEMPLATE.format(
+            cols=", ".join(cols),
+            table_or_query=f"({table_or_query})" if is_query else f"`{table_or_query}`",
+            query_input_alias=query_input_alias if is_query else "",
+        ).strip()
