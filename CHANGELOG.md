@@ -9,7 +9,7 @@
 - Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
 - Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
 
-## 1.34.0 (2025-07-15)
+## 1.34.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
 
