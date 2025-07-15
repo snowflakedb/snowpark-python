@@ -9,6 +9,8 @@ def read_pickle():
     """
     Load pickled pandas object (or any object) from file and return unpickled object.
 
+    This API can read files stored locally or on a Snowflake stage.
+
     Warning
     -------
     Loading pickled data received from untrusted sources can be unsafe. See `here <https://docs.python.org/3/library/pickle.html>`_.
@@ -17,6 +19,9 @@ def read_pickle():
     ----------
     filepath_or_buffer : str, path object, or file-like object
         String, path object (implementing os.PathLike[str]), or file-like object implementing a binary readlines() function. Also accepts URL. URL is not limited to S3 and GCS.
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
+        escape it using a `\\@`. For more info on staged files, `read here
+        <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
     compression : str or dict, default ‘infer’
         For on-the-fly decompression of on-disk data. If ‘infer’ and ‘filepath_or_buffer’ is path-like, then detect compression from the following extensions: ‘.gz’, ‘.bz2’, ‘.zip’, ‘.xz’, ‘.zst’, ‘.tar’, ‘.tar.gz’, ‘.tar.xz’ or ‘.tar.bz2’ (otherwise no compression). If using ‘zip’ or ‘tar’, the ZIP file must contain only one data file to be read in. Set to None for no decompression. Can also be a dict with key 'method' set to one of {'zip', 'gzip', 'bz2', 'zstd', 'xz', 'tar'} and other key-value pairs are forwarded to zipfile.ZipFile, gzip.GzipFile, bz2.BZ2File, zstandard.ZstdDecompressor, lzma.LZMAFile or tarfile.TarFile, respectively. As an example, the following could be passed for Zstandard decompression using a custom compression dictionary: compression={'method': 'zstd', 'dict_data': my_compression_dict}.
     storage_options : dict, optional
@@ -73,10 +78,15 @@ def read_html():
     """
     Read HTML tables into a list of DataFrame objects.
 
+    This API can read files stored locally or on a Snowflake stage.
+
     Parameters
     ----------
     io : str, path object, or file-like object
         String, path object (implementing os.PathLike[str]), or file-like object implementing a string read() function. The string can represent a URL. Note that lxml only accepts the http, ftp and file url protocols. If you have a URL that starts with 'https' you might try removing the 's'.
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
+        escape it using a `\\@`. For more info on staged files, `read here
+        <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
     match : str or compiled regular expression, optional
         The set of tables containing text matching this regex or string will be returned. Unless the HTML is extremely simple you will probably need to pass a non-empty string here. Defaults to ‘.+’ (match any non-empty string). The default value will return all tables contained on a page. This value is converted to a regular expression so that there is consistent behavior between Beautiful Soup and lxml.
     flavor : {“lxml”, “html5lib”, “bs4”} or list-like, optional
@@ -152,10 +162,15 @@ def read_xml():
     r"""
     Read XML document into a DataFrame object.
 
+    This API can read files stored locally or on a Snowflake stage.
+
     Parameters
     ----------
     path_or_buffer : str, path object, or file-like object
         String, path object (implementing ``os.PathLike[str]``), or file-like object implementing a ``read()`` function. The string can be a path. The string can further be a URL. Valid URL schemes include http, ftp, s3, and file.
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
+        escape it using a `\\@`. For more info on staged files, `read here
+        <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
     xpath : str, optional, default ‘./\*’
         The XPath to parse required set of nodes for migration to DataFrame.``XPath`` should return a collection of elements and not a single element. Note: The etree parser supports limited XPath expressions. For more complex XPath, use lxml which requires installation.
@@ -471,10 +486,15 @@ def read_orc():
 
     This method reads an ORC (Optimized Row Columnar) file into a pandas DataFrame using the pyarrow.orc library. ORC is a columnar storage format that provides efficient compression and fast retrieval for analytical workloads. It allows reading specific columns, handling different filesystem types (such as local storage, cloud storage via fsspec, or pyarrow filesystem), and supports different data type backends, including numpy_nullable and pyarrow.
 
+    It can read files stored locally or on a Snowflake stage.
+
     Parameters
     ----------
     path : str, path object, or file-like object
         String, path object (implementing os.PathLike[str]), or file-like object implementing a binary read() function. The string could be a URL. Valid URL schemes include http, ftp, s3, and file. For file URLs, a host is expected. A local file could be: file://localhost/path/to/table.orc.
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
+        escape it using a `\\@`. For more info on staged files, `read here
+        <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
     columns : list, default None
         If not None, only these columns will be read from the file. Output always follows the ordering of the file and not the columns list. This mirrors the original behaviour of pyarrow.orc.ORCFile.read().
@@ -535,12 +555,17 @@ def read_excel():
 
     Supports xls, xlsx, xlsm, xlsb, odf, ods and odt file extensions read from a local filesystem or URL. Supports an option to read a single sheet or a list of sheets.
 
+    This API can read files stored locally or on a Snowflake stage.
+
     Parameters
     ----------
     io : str, bytes, ExcelFile, xlrd.Book, path object, or file-like object
         Any valid string path is acceptable. The string could be a URL. Valid URL schemes include http, ftp, s3, and file. For file URLs, a host is expected. A local file could be: file://localhost/path/to/table.xlsx.
         If you want to pass in a path object, pandas accepts any os.PathLike.
         By file-like object, we refer to objects with a read() method, such as a file handle (e.g. via builtin open function) or StringIO.
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
+        escape it using a `\\@`. For more info on staged files, `read here
+        <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
         Deprecated: Passing byte strings is deprecated. To read from a byte string, wrap it in a BytesIO object.
 
@@ -725,7 +750,7 @@ def read_csv():
     ----------
     filepath_or_buffer : str
         Local file location or staged file location to read from. Staged file locations
-        starts with a '@' symbol. To read a local file location with a name starting with `@`,
+        start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
     sep : str, default ','
@@ -963,7 +988,7 @@ def read_json():
     ----------
     path_or_buf : str
         Local file location or staged file location to read from. Staged file locations
-        starts with a '@' symbol. To read a local file location with a name starting with `@`,
+        start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
@@ -1102,7 +1127,7 @@ def read_parquet():
     ----------
     path : str
         Local file location or staged file location to read from. Staged file locations
-        starts with a '@' symbol. To read a local file location with a name starting with `@`,
+        start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
@@ -1223,11 +1248,16 @@ def read_sas():
     """
     Read SAS files stored as either XPORT or SAS7BDAT format files.
 
+    This API can read files stored locally or on a Snowflake stage.
+
     Parameters
     ----------
 
     filepath_or_buffer : str, path object, or file-like object
         String, path object (implementing os.PathLike[str]), or file-like object implementing a binary read() function. The string could be a URL. Valid URL schemes include http, ftp, s3, and file. For file URLs, a host is expected. A local file could be: file://localhost/path/to/table.sas7bdat.
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
+        escape it using a `\\@`. For more info on staged files, `read here
+        <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
     format : str {‘xport’, ‘sas7bdat’} or None
         If None, file format is inferred from file extension. If ‘xport’ or ‘sas7bdat’, uses the corresponding format.
     index : identifier of index column, defaults to None
@@ -1256,6 +1286,8 @@ def read_stata():
     """
     Read Stata file into DataFrame.
 
+    This API can read files stored locally or on a Snowflake stage.
+
     Parameters
     ----------
     filepath_or_buffer : str, path object or file-like object
@@ -1264,6 +1296,10 @@ def read_stata():
         If you want to pass in a path object, pandas accepts any os.PathLike.
 
         By file-like object, we refer to objects with a read() method, such as a file handle (e.g. via builtin open function) or StringIO.
+
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
+        escape it using a `\\@`. For more info on staged files, `read here
+        <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
     convert_dates : bool, default True
         Convert date variables to DataFrame time values.
