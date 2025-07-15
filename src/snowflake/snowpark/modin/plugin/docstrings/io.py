@@ -19,7 +19,7 @@ def read_pickle():
     ----------
     filepath_or_buffer : str, path object, or file-like object
         String, path object (implementing os.PathLike[str]), or file-like object implementing a binary readlines() function. Also accepts URL. URL is not limited to S3 and GCS.
-        Staged file locations starts with the '@' symbol. To read a local file location with a name starting with `@`,
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
     compression : str or dict, default ‘infer’
@@ -84,7 +84,7 @@ def read_html():
     ----------
     io : str, path object, or file-like object
         String, path object (implementing os.PathLike[str]), or file-like object implementing a string read() function. The string can represent a URL. Note that lxml only accepts the http, ftp and file url protocols. If you have a URL that starts with 'https' you might try removing the 's'.
-        Staged file locations starts with the '@' symbol. To read a local file location with a name starting with `@`,
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
     match : str or compiled regular expression, optional
@@ -168,7 +168,7 @@ def read_xml():
     ----------
     path_or_buffer : str, path object, or file-like object
         String, path object (implementing ``os.PathLike[str]``), or file-like object implementing a ``read()`` function. The string can be a path. The string can further be a URL. Valid URL schemes include http, ftp, s3, and file.
-        Staged file locations starts with the '@' symbol. To read a local file location with a name starting with `@`,
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
@@ -492,7 +492,7 @@ def read_orc():
     ----------
     path : str, path object, or file-like object
         String, path object (implementing os.PathLike[str]), or file-like object implementing a binary read() function. The string could be a URL. Valid URL schemes include http, ftp, s3, and file. For file URLs, a host is expected. A local file could be: file://localhost/path/to/table.orc.
-        Staged file locations starts with the '@' symbol. To read a local file location with a name starting with `@`,
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
@@ -563,7 +563,7 @@ def read_excel():
         Any valid string path is acceptable. The string could be a URL. Valid URL schemes include http, ftp, s3, and file. For file URLs, a host is expected. A local file could be: file://localhost/path/to/table.xlsx.
         If you want to pass in a path object, pandas accepts any os.PathLike.
         By file-like object, we refer to objects with a read() method, such as a file handle (e.g. via builtin open function) or StringIO.
-        Staged file locations starts with the '@' symbol. To read a local file location with a name starting with `@`,
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
@@ -750,7 +750,7 @@ def read_csv():
     ----------
     filepath_or_buffer : str
         Local file location or staged file location to read from. Staged file locations
-        starts with a '@' symbol. To read a local file location with a name starting with `@`,
+        start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
     sep : str, default ','
@@ -988,7 +988,7 @@ def read_json():
     ----------
     path_or_buf : str
         Local file location or staged file location to read from. Staged file locations
-        starts with a '@' symbol. To read a local file location with a name starting with `@`,
+        start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
@@ -1127,7 +1127,7 @@ def read_parquet():
     ----------
     path : str
         Local file location or staged file location to read from. Staged file locations
-        starts with a '@' symbol. To read a local file location with a name starting with `@`,
+        start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
@@ -1255,7 +1255,7 @@ def read_sas():
 
     filepath_or_buffer : str, path object, or file-like object
         String, path object (implementing os.PathLike[str]), or file-like object implementing a binary read() function. The string could be a URL. Valid URL schemes include http, ftp, s3, and file. For file URLs, a host is expected. A local file could be: file://localhost/path/to/table.sas7bdat.
-        Staged file locations starts with the '@' symbol. To read a local file location with a name starting with `@`,
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
     format : str {‘xport’, ‘sas7bdat’} or None
@@ -1297,7 +1297,7 @@ def read_stata():
 
         By file-like object, we refer to objects with a read() method, such as a file handle (e.g. via builtin open function) or StringIO.
 
-        Staged file locations starts with the '@' symbol. To read a local file location with a name starting with `@`,
+        Staged file locations start with the '@' symbol. To read a local file location with a name starting with `@`,
         escape it using a `\\@`. For more info on staged files, `read here
         <https://docs.snowflake.com/en/sql-reference/sql/create-stage>`_.
 
