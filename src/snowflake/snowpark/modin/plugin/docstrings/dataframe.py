@@ -1321,7 +1321,6 @@ class DataFrame(BasePandasDataset):
         >>> df = pd.DataFrame(np.random.randn(10, 4),
         ...                   columns=['Col1', 'Col2', 'Col3', 'Col4'])
         >>> boxplot = df.boxplot(column=['Col1', 'Col2', 'Col3'])
-        ../../_images/pandas-DataFrame-boxplot-1.png
 
         Boxplots of variables distributions grouped by the values of a third variable can be created using the option by. For instance:
 
