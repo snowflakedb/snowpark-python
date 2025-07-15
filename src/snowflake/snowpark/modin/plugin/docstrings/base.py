@@ -2879,23 +2879,11 @@ class BasePandasDataset:
         random_state : int, array-like, BitGenerator, np.random.RandomState, np.random.Generator, optional
             If int, array-like, or BitGenerator, seed for random number generator.
             If np.random.RandomState or np.random.Generator, use as given.
-
-            .. versionchanged:: 1.1.0
-
-                array-like and BitGenerator object now passed to np.random.RandomState()
-                as seed
-
-            .. versionchanged:: 1.4.0
-
-                np.random.Generator objects now accepted
-
         axis : {0 or ‘index’, 1 or ‘columns’, None}, default None
             Axis to sample. Accepts axis number or name. Default is stat axis
             for given data type. For `Series` this parameter is unused and defaults to `None`.
         ignore_index : bool, default False
             If True, the resulting index will be labeled 0, 1, …, n - 1.
-
-            .. versionadded:: 1.3.0
 
         Returns
         -------
