@@ -940,7 +940,7 @@ class DataFrameGroupBy:
             The number of consecutive NAs to fill before stopping.
             Snowpark pandas does not yet support this parameter.
 
-            Deprecated.
+            Deprecated parameter.
 
         freq : DateOffset, timedelta, or str, optional
             Increment to use from time series API (e.g. ‘ME’ or BDay()).
