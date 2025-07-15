@@ -6336,7 +6336,7 @@ Query List:
 
         def convert(col: ColumnOrName) -> Expression:
             if isinstance(col, str):
-                return self._resolve(col)
+                return Column(col)._expression
             elif isinstance(col, Column):
                 return col._expression
             else:

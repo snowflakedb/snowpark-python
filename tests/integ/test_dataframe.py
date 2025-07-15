@@ -5553,3 +5553,11 @@ def test_create_dataframe_empty_pandas_df(session, local_testing_mode):
     pdf = pd.DataFrame([], columns=["a"], dtype=int)
     df = session.create_dataframe(pdf)
     Utils.check_answer(df, [])
+
+
+def test_order_by_col(session, sql_simplifier_enabled, local_testing_mode):
+    if not sql_simplifier_enabled or local_testing_mode:
+        pytest.skip("SQL simplifier must be enabled for this query")
+
+    df = session.create_dataframe([(1, 2.0, "foo"), (2, None, "bar")], ["a", "b", "c"])
+    Utils.check_answer(df.select("c").orderBy("b"), df.select("c").orderBy(col("b")))
