@@ -466,7 +466,7 @@ def test_custom_schema(session, custom_schema, fetch_with_process):
 
         with pytest.raises(
             SnowparkDataframeReaderException,
-            match="Failed to infer Snowpark DataFrame schema",
+            match="Auto infer schema failure:",
         ):
             session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
@@ -1002,7 +1002,7 @@ def test_sql_server_udtf_ingestion(session):
 def test_unknown_driver_with_custom_schema(session, fetch_with_process):
     with pytest.raises(
         SnowparkDataframeReaderException,
-        match="Failed to infer Snowpark DataFrame schema",
+        match="Auto infer schema failure:",
     ):
         session.read.dbapi(
             unknown_dbms_create_connection,

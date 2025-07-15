@@ -24,6 +24,11 @@ pytestmark = [
         reason="SnowparkSQLException is not raised in localtesting mode",
         run=False,
     ),
+    pytest.mark.skipif(
+        "FIPS_TEST" in os.environ,
+        reason="SNOW-2204213: Reading source file location is not correct in FIPS mode",
+        run=False,
+    ),
 ]
 
 
