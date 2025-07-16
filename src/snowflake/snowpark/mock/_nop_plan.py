@@ -209,6 +209,8 @@ def resolve_attributes(
         elif isinstance(attr, SnowflakeUDF):
             data_type = session.udaf.get_udaf(attr.udf_name)._return_type
             attr = Attribute(f"${i}", data_type, True)
+        elif isinstance(attr, UnresolvedAttribute):
+            attr = Attribute(attr.name, _NumericType(), False)
         elif not isinstance(attr, Attribute):
             raise NotImplementedError
         resolved_attributes.append(attr)
