@@ -206,6 +206,7 @@ TAB = "    "
 UUID_COMMENT = "-- {}"
 MODEL = "MODEL"
 EXCLAMATION_MARK = "!"
+HAVING = " HAVING "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -530,14 +531,17 @@ def project_statement(
 
 
 def filter_statement(
-    condition: str, child: str, child_uuid: Optional[str] = None
+    condition: str, is_having: bool, child: str, child_uuid: Optional[str] = None
 ) -> str:
-    return (
-        project_statement([], child, child_uuid=child_uuid)
-        + NEW_LINE
-        + WHERE
-        + condition
-    )
+    if is_having:
+        return child + NEW_LINE + HAVING + condition
+    else:
+        return (
+            project_statement([], child, child_uuid=child_uuid)
+            + NEW_LINE
+            + WHERE
+            + condition
+        )
 
 
 def sample_statement(
@@ -648,10 +652,17 @@ def aggregate_statement(
 
 
 def sort_statement(
-    order: List[str], child: str, child_uuid: Optional[str] = None
+    order: List[str],
+    is_order_by_append: bool,
+    child: str,
+    child_uuid: Optional[str] = None,
 ) -> str:
     return (
-        project_statement([], child, child_uuid=child_uuid)
+        (
+            child
+            if is_order_by_append
+            else project_statement([], child, child_uuid=child_uuid)
+        )
         + NEW_LINE
         + ORDER_BY
         + NEW_LINE

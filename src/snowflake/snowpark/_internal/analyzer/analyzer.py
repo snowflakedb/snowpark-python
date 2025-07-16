@@ -1030,6 +1030,7 @@ class Analyzer:
                 self.analyze(
                     logical_plan.condition, df_aliased_col_name_to_real_col_name
                 ),
+                logical_plan.is_having,
                 resolved_children[logical_plan.child],
                 logical_plan,
             )
@@ -1082,6 +1083,7 @@ class Analyzer:
                     self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.order
                 ],
+                logical_plan.is_order_by_append,
                 resolved_children[logical_plan.child],
                 logical_plan,
             )

@@ -323,6 +323,7 @@ class RelationalGroupedDataFrame:
                     agg_exprs.append(_str_to_expr(e[1], _emit_ast)(col_expr))
 
         df = self._to_df(agg_exprs, _emit_ast=False)
+        df._is_grouped_by_and_aggregated = True
 
         if _emit_ast:
             df._ast_id = stmt.uid
@@ -469,6 +470,7 @@ class RelationalGroupedDataFrame:
             ),
             _emit_ast=False,
         )
+        df._is_grouped_by_and_aggregated = True
 
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.bind()
@@ -647,6 +649,7 @@ class RelationalGroupedDataFrame:
             ],
             _emit_ast=False,
         )
+        df._is_grouped_by_and_aggregated = True
 
         # TODO: count seems similar to mean, min, .... Can we unify implementation here?
         if _emit_ast:
@@ -682,6 +685,7 @@ class RelationalGroupedDataFrame:
             )._expression
             agg_exprs.append(expr)
         df = self._to_df(agg_exprs)
+        df._is_grouped_by_and_aggregated = True
 
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.bind()
