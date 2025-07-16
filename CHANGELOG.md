@@ -8,6 +8,7 @@
 
 - Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
 - Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+- Improved query generation for `DataFrame.create_or_replace_view` and `DataFrame.create_or_replace_dynamic_table` and remove an extra `SELECT *` on top of base inner query.
 
 ## 1.34.0 (YYYY-MM-DD)
 
