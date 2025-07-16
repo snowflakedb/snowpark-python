@@ -1347,7 +1347,7 @@ class DataFrame(BasePandasDataset):
 
         Additional formatting can be done to the boxplot, like suppressing the grid (grid=False), rotating the labels in the x-axis (i.e. rot=45) or changing the fontsize (i.e. fontsize=15):
 
-        >>> boxplot = df.boxplot(grid=False, rot=45, fontsize=15)
+        >>> boxplot = df.boxplot(grid=False, rot=45, fontsize=15)  # doctest: +SKIP
 
         The parameter return_type can be used to select the type of element returned by boxplot. When return_type='axes' is selected, the matplotlib axes on which the boxplot is drawn are returned:
 
