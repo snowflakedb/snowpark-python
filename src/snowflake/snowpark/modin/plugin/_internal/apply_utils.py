@@ -135,7 +135,7 @@ except ImportError:
 # Reuse UDFs that have already been constructed in each session.
 @dataclass(eq=True, frozen=True)
 class UDFCacheKey:
-    func_id: int  # The result of calling id() on the function passed to apply
+    func_pickle_hash: int  # The result of calling hash(cloudpickle.dumps(func))
     return_type: DataType  # The inferred return type of the column
     input_type: DataType
     strict: bool
@@ -155,7 +155,7 @@ session_udf_cache: dict[Session, dict[UDFCacheKey, UserDefinedFunction]] = defau
 # Reuse UDTFs that have already been constructed in each session
 @dataclass(eq=True, frozen=True)
 class UDTFCacheKey:
-    func_id: int  # The result of calling id() on the function passed to apply
+    func_pickle_hash: int  # The result of calling hash(cloudpickle.dumps(func))
     col_types: tuple[DataType, ...]
     col_names: tuple[str, ...]
     input_types: tuple[DataType, ...]
@@ -333,7 +333,7 @@ def create_udtf_for_apply_axis_1(
         None
         if column_index.nlevels > 1
         else UDTFCacheKey(
-            id(func),
+            hash(cloudpickle.dumps(func)),
             tuple(col_types),
             tuple(col_identifiers),
             tuple([LongType()] + input_types),
@@ -776,7 +776,7 @@ def create_udtf_for_groupby_no_pivot(
         None
         if data_column_index.nlevels > 1
         else UDTFCacheKey(
-            id(func),
+            hash(cloudpickle.dumps(func)),
             tuple(output_schema.column_types),
             tuple(output_schema.column_ids),
             tuple(input_column_types),
@@ -1151,7 +1151,7 @@ def create_udtf_for_groupby_apply(
         None
         if data_column_index.nlevels > 1
         else UDTFCacheKey(
-            id(func),
+            hash(cloudpickle.dumps(func)),
             tuple(col_types),
             tuple(col_names),
             tuple(input_types),
@@ -1329,7 +1329,7 @@ def create_udf_for_series_apply(
 
     strict = na_action == "ignore"
     cache_key = UDFCacheKey(
-        id(func),
+        hash(cloudpickle.dumps(func)),
         return_type,
         input_type,
         strict,
