@@ -4,6 +4,11 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for the following AI-powered functions in `functions.py`:
+  - `ai_embed`
+
 #### Improvements
 
 - Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
