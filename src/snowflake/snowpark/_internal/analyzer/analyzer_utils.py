@@ -1351,7 +1351,7 @@ def create_or_replace_view_statement(
         + name
         + comment_sql
         + AS
-        + project_statement([], child)
+        + child
     )
 
 
@@ -1400,7 +1400,7 @@ def create_or_replace_dynamic_table_statement(
         f"{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}{LAG}{EQUALS}"
         f"{convert_value_to_sql_option(lag)}{WAREHOUSE}{EQUALS}{warehouse}"
         f"{refresh_and_initialize_options}{cluster_by_sql}{data_retention_options}{iceberg_options}"
-        f"{comment_sql}{AS}{project_statement([], child)}"
+        f"{comment_sql}{AS}{child}"
     )
 
 
