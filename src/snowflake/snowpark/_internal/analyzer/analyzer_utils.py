@@ -747,7 +747,7 @@ def values_statement(output: List[Attribute], data: List[Row]) -> str:
 
 def empty_values_statement(output: List[Attribute]) -> str:
     data = [Row(*[None] * len(output))]
-    return filter_statement(UNSAT_FILTER, values_statement(output, data))
+    return filter_statement(UNSAT_FILTER, False, values_statement(output, data))
 
 
 def set_operator_statement(left: str, right: str, operator: str) -> str:
