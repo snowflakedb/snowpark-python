@@ -21,6 +21,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import running_on_public_ci
 
 
 @pytest.fixture(params=["applymap", "map"])
@@ -214,4 +215,51 @@ def test_map_udf_caching():
         # A second call to a frame with the same column signatures does not create any new UDFs.
         eval_snowpark_pandas_result(
             *create_test_dfs(test_data), lambda df: df.map(operation)
+        )
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDF caching test")
+def test_map_udf_caching_mutated_arg():
+    # Passing an internally-mutable object to a map call should not hit the cache if the object was mutated.
+    class A:
+        def __init__(self) -> None:
+            self.x = [1]
+
+    test_data = {"a": [1, 2, 3], "b": [4, 5, 6]}
+
+    arg = A()
+
+    def operation(col, arg):
+        return col + sum(arg.x)
+
+    with SqlCounter(query_count=4, udf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.map(operation, arg=arg)
+        )
+
+    # Mutate arg.x, preventing a cache entry from being created
+    arg.x.append(10)
+    with SqlCounter(query_count=4, udf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.map(operation, arg=arg)
+        )
+
+    # Mutate arg.x again, but this time mutate it between the map operation and materialization
+    with SqlCounter(query_count=7, udf_count=1):
+        arg.x.append(100)
+        snow_df, native_df = create_test_dfs(test_data)
+        mapped_snow = snow_df.map(operation, arg=arg)
+        mapped_native = native_df.map(operation, arg=arg)
+        arg.x.append(1000)
+        eval_snowpark_pandas_result(
+            mapped_snow, mapped_native, lambda df: df.map(operation, arg=arg)
+        )
+
+    # A different instance of A with the same underlying data should hit the cache because the pickled
+    # data will be the same.
+    arg2 = A()
+    arg2.x.append(10)
+    with SqlCounter(query_count=1, udf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.map(operation, arg=arg2)
         )

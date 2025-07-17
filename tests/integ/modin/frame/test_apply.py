@@ -1123,7 +1123,6 @@ def test_apply_udtf_caching():
 
 @pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDTF caching test")
 def test_apply_udtf_multiindex_columns_caching():
-    # Caching is always disabled for frames with multi-index columns.
     native_df = native_pd.DataFrame(
         [[1, 2], [None, 3]],
         columns=pd.MultiIndex.from_tuples([(1, 2), (1, 1)]),
@@ -1134,27 +1133,25 @@ def test_apply_udtf_multiindex_columns_caching():
     def f(s, default_arg=2):
         return s * default_arg
 
-    axis_0_no_cache_kwargs = {
-        "query_count": 11,
-        "udtf_count": 2,
-        "high_count_expected": True,
-        "high_count_reason": "UDTF creation on multiple columns",
-    }
-
-    with SqlCounter(**axis_0_no_cache_kwargs):
+    with SqlCounter(
+        query_count=11,
+        udtf_count=2,
+        high_count_expected=True,
+        high_count_reason="UDTF creation on multiple columns",
+    ):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
             lambda df: df.apply(f, axis=0),
         )
-    # A second call still does not hit the cache.
-    with SqlCounter(**axis_0_no_cache_kwargs):
+    # A second call hits the cache.
+    with SqlCounter(query_count=5, udtf_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
             lambda df: df.apply(f, axis=0),
         )
-    # Caching is invalid even with a different axis argument.
+    # The same rules apply with a different axis argument.
     with SqlCounter(query_count=5, udtf_count=1):
         eval_snowpark_pandas_result(
             snow_df,
@@ -1162,7 +1159,7 @@ def test_apply_udtf_multiindex_columns_caching():
             lambda df: df.apply(f, axis=1),
         )
     # A second call still does not hit the cache.
-    with SqlCounter(query_count=5, udtf_count=1):
+    with SqlCounter(query_count=2, udtf_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -1172,7 +1169,6 @@ def test_apply_udtf_multiindex_columns_caching():
 
 @pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDTF caching test")
 def test_apply_udtf_multiindex_index_caching():
-    # Caching is enabled on both axes if the row labels are multi-index.
     native_df = native_pd.DataFrame(
         [[1, 2], [None, 3]],
         columns=["A", "b"],
@@ -1214,4 +1210,56 @@ def test_apply_udtf_multiindex_index_caching():
             snow_df,
             native_df,
             lambda df: df.apply(f, axis=1),
+        )
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDTF caching test")
+def test_apply_udtf_caching_mutated_arg():
+    # Passing an internally-mutable object to an apply call should not hit the cache if the object was mutated.
+    class A:
+        def __init__(self) -> None:
+            self.x = [1]
+
+    test_data = {"a": [1, 2, 3]}  # 1 column to avoid issuing too many queries
+
+    arg = A()
+
+    def operation(col, arg):
+        return col + sum(arg.x)
+
+    with SqlCounter(query_count=6, udtf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.apply(operation, arg=arg)
+        )
+
+    # Mutate arg.x, preventing a cache entry from being created
+    arg.x.append(10)
+    with SqlCounter(query_count=6, udtf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.apply(operation, arg=arg)
+        )
+
+    # Mutate arg.x again, but this time mutate it between the map operation and materialization
+    with SqlCounter(
+        query_count=11,
+        udtf_count=2,
+        high_count_expected=True,
+        high_count_reason="multiple apply calls in sequence",
+    ):
+        arg.x.append(100)
+        snow_df, native_df = create_test_dfs(test_data)
+        mapped_snow = snow_df.apply(operation, arg=arg)
+        mapped_native = native_df.apply(operation, arg=arg)
+        arg.x.append(1000)
+        eval_snowpark_pandas_result(
+            mapped_snow, mapped_native, lambda df: df.apply(operation, arg=arg)
+        )
+
+    # A different instance of A with the same underlying data does not hit the cache, since our method of UDTF
+    # pickling creates different binary blobs.
+    arg2 = A()
+    arg2.x.append(10)
+    with SqlCounter(query_count=3, udtf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.apply(operation, arg=arg2)
         )

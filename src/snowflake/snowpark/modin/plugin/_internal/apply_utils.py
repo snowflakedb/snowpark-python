@@ -23,7 +23,10 @@ from pandas.api.types import is_scalar
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
 from collections.abc import Mapping
-from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
+from snowflake.snowpark._internal.udf_utils import (
+    get_types_from_type_hints,
+    pickle_function,
+)
 import functools
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
@@ -135,15 +138,13 @@ except ImportError:
 # Reuse UDFs that have already been constructed in each session.
 @dataclass(eq=True, frozen=True)
 class UDFCacheKey:
-    func_pickle_hash: int  # The result of calling hash(cloudpickle.dumps(func))
+    # The result of calling pickle_function(func), where func is the wrapper method that
+    # is used in the UDF. This pickled object itself is not necessarily the same as what's uploaded
+    # to the server, but we pickle the wrapper to ensure closure-captured variables are checked.
+    func_pickle_blob: bytes
     return_type: DataType  # The inferred return type of the column
     input_type: DataType
     strict: bool
-    arg_ids: tuple[
-        int, ...
-    ]  # map(id, args) we can't guarantee the hashability of arguments, so just use pointer equality
-    kwarg_key_ids: tuple[int, ...]  # map(id, kwargs.keys())
-    kwarg_value_ids: tuple[int, ...]  # map(id, kwargs.values())
     # No packages param in the key; we assume packages will be the same for the UDF every time
 
 
@@ -155,27 +156,16 @@ session_udf_cache: dict[Session, dict[UDFCacheKey, UserDefinedFunction]] = defau
 # Reuse UDTFs that have already been constructed in each session
 @dataclass(eq=True, frozen=True)
 class UDTFCacheKey:
-    func_pickle_hash: int  # The result of calling hash(cloudpickle.dumps(func))
+    # The result of calling pickle_function(func), where func is the end_partition method of the
+    # wrapper class is used in the UDTF. We cannot pickle the wrapper class directly because pickle
+    # will serialize each class differently even if they have the same body and closure variables
+    # because they are technically different classes.
+    func_pickle_blob: bytes
     col_types: tuple[DataType, ...]
     col_names: tuple[str, ...]
     input_types: tuple[DataType, ...]
     # Because UDTFs allow user-specified packages when a UDF is passed, we need to consider package names in the key as well.
     package_names: tuple[str, ...]
-    arg_ids: tuple[
-        int, ...
-    ]  # map(id, args) we can't guarantee the hashability of arguments, so just use pointer equality
-    kwarg_key_ids: tuple[int, ...]  # map(id, kwargs.keys())
-    kwarg_value_ids: tuple[int, ...]  # map(id, kwargs.values())
-    # The Python function wrapped by UDTFs captures many parameters in its closure, and thus requires more
-    # detailed identifying information than UDFs do.
-    # These may be left unspecified in some contexts.
-    column_index_hashes: tuple[int, ...]  # map(hash, column_index)
-    raw: Optional[bool] = None
-    result_type: Optional[Literal["expand", "reduce", "broadcast"]] = None
-    num_by: Optional[int] = None
-    index_column_names: Optional[tuple[Hashable, ...]] = None
-    series_groupby: Optional[bool] = None
-    force_list_like_to_series: Optional[bool] = None
 
 
 # Each UDTF construction helper function manipulates the input function slightly differently, and thus needs a different cache.
@@ -322,129 +312,113 @@ def create_udtf_for_apply_axis_1(
         func = func.func  # pragma: no cover
 
     packages = list(session.get_packages().values()) + udf_packages
+
+    class ApplyFunc:
+        def end_partition(self, df):  # type: ignore[no-untyped-def] # pragma: no cover
+            # First column is row position, set as index.
+            df = df.set_index(df.columns[0])
+
+            df.columns = column_index
+            df = df.apply(
+                func, axis=1, raw=raw, result_type=result_type, args=args, **kwargs
+            )
+            # When a dataframe is returned from `df.apply`,
+            # `func` is a series-to-series function, e.g.,
+            # def func(row):
+            #    result = row + 1
+            #    result.index.name = 'new_index_name'
+            #    return result
+            #
+            # For example, the original dataframe is
+            #    a  b  b
+            # 0  0  1  2
+            #
+            # the result dataframe from `df.apply` is
+            # new_index_name  a  b  b
+            # 0               1  2  3
+            # After the transformation below, we will get a dataframe with two
+            # columns. Each row in the result represents the series result
+            # at a particular position.
+            #                                              "LABEL"  "VALUE"
+            # 0  {"pos": 0, "0": "a", "names": ["new_index_name"]}        1
+            # 1  {"pos": 1, "0": "b", "names": ["new_index_name"]}        2
+            # 2  {"pos": 2, "0": "b", "names": ["new_index_name"]}        3
+            # where:
+            # - `pos` indicates the position within the series.
+            # - The integer keys like "0" map from index level to the result's
+            #   label at that level. In this case, the result only has one
+            #   index level.
+            # - `names` contains the names of the result's index levels.
+            # - VALUE contains the result at this position.
+            if isinstance(df, native_pd.DataFrame):
+                result = []
+                for row_position_index, series in df.iterrows():
+
+                    for i, (label, value) in enumerate(series.items()):
+                        # If this is a tuple then we store each component with a 0-based
+                        # lookup.  For example, (a,b,c) is stored as (0:a, 1:b, 2:c).
+                        if isinstance(label, tuple):
+                            obj_label = {k: v for k, v in enumerate(list(label))}
+                        else:
+                            obj_label = {0: label}
+                        obj_label["names"] = series.index.names
+                        obj_label["pos"] = i
+                        result.append(
+                            [
+                                row_position_index,
+                                json.dumps(obj_label),
+                                value,
+                            ]
+                        )
+                # use object type so the result is json-serializable
+                result = native_pd.DataFrame(
+                    result, columns=["__row__", "label", "value"], dtype=object
+                )
+            # When a series is returned from `df.apply`,
+            # `func` is a series-to-scalar function, e.g., `np.sum`
+            # For example, the original dataframe is
+            #    a  b
+            # 0  1  2
+            # and the result series from `df.apply` is
+            # 0    3
+            # dtype: int64
+            # After the transformation below, we will get a dataframe with two columns:
+            #        "LABEL"                        "VALUE"
+            # 0  {'0': MODIN_UNNAMED_SERIES_LABEL}        3
+            elif isinstance(df, native_pd.Series):
+                result = df.to_frame(name="value")
+                result.insert(0, "label", json.dumps({"0": MODIN_UNNAMED_SERIES_LABEL}))
+                result.reset_index(names="__row__", inplace=True)
+            else:
+                raise TypeError(f"Unsupported data type {df} from df.apply")
+
+            result["value"] = (
+                result["value"]
+                .apply(
+                    lambda v: handle_missing_value_in_variant(
+                        convert_numpy_int_result_to_int(v)
+                    )
+                )
+                .astype(object)
+            )
+            return result
+
+    ApplyFunc.end_partition._sf_vectorized_input = native_pd.DataFrame  # type: ignore[attr-defined]
     col_types = [LongType(), StringType(), VariantType()]
     col_identifiers = [
         row_position_snowflake_quoted_identifier,
         APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
         APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
     ]
-    # We cannot easily compute a hash for a multiindex, so never use cache for those
-    cache_key = (
-        None
-        if column_index.nlevels > 1
-        else UDTFCacheKey(
-            hash(cloudpickle.dumps(func)),
-            tuple(col_types),
-            tuple(col_identifiers),
-            tuple([LongType()] + input_types),
-            tuple(
-                pkg.__name__ if isinstance(pkg, ModuleType) else pkg for pkg in packages
-            ),
-            arg_ids=tuple(map(id, args)),
-            kwarg_key_ids=tuple(map(id, kwargs.keys())),
-            kwarg_value_ids=tuple(map(id, kwargs.values())),
-            raw=raw,
-            result_type=result_type,
-            column_index_hashes=tuple(map(hash, column_index)),
-        )
+    cache_key = UDTFCacheKey(
+        pickle_function(ApplyFunc.end_partition),
+        tuple(col_types),
+        tuple(col_identifiers),
+        tuple([LongType()] + input_types),
+        tuple(pkg.__name__ if isinstance(pkg, ModuleType) else pkg for pkg in packages),
     )
     cache = session_apply_axis_1_udtf_cache[session]
-    if cache_key is None or cache_key not in cache:
-
-        class ApplyFunc:
-            def end_partition(self, df):  # type: ignore[no-untyped-def] # pragma: no cover
-                # First column is row position, set as index.
-                df = df.set_index(df.columns[0])
-
-                df.columns = column_index
-                df = df.apply(
-                    func, axis=1, raw=raw, result_type=result_type, args=args, **kwargs
-                )
-                # When a dataframe is returned from `df.apply`,
-                # `func` is a series-to-series function, e.g.,
-                # def func(row):
-                #    result = row + 1
-                #    result.index.name = 'new_index_name'
-                #    return result
-                #
-                # For example, the original dataframe is
-                #    a  b  b
-                # 0  0  1  2
-                #
-                # the result dataframe from `df.apply` is
-                # new_index_name  a  b  b
-                # 0               1  2  3
-                # After the transformation below, we will get a dataframe with two
-                # columns. Each row in the result represents the series result
-                # at a particular position.
-                #                                              "LABEL"  "VALUE"
-                # 0  {"pos": 0, "0": "a", "names": ["new_index_name"]}        1
-                # 1  {"pos": 1, "0": "b", "names": ["new_index_name"]}        2
-                # 2  {"pos": 2, "0": "b", "names": ["new_index_name"]}        3
-                # where:
-                # - `pos` indicates the position within the series.
-                # - The integer keys like "0" map from index level to the result's
-                #   label at that level. In this case, the result only has one
-                #   index level.
-                # - `names` contains the names of the result's index levels.
-                # - VALUE contains the result at this position.
-                if isinstance(df, native_pd.DataFrame):
-                    result = []
-                    for row_position_index, series in df.iterrows():
-
-                        for i, (label, value) in enumerate(series.items()):
-                            # If this is a tuple then we store each component with a 0-based
-                            # lookup.  For example, (a,b,c) is stored as (0:a, 1:b, 2:c).
-                            if isinstance(label, tuple):
-                                obj_label = {k: v for k, v in enumerate(list(label))}
-                            else:
-                                obj_label = {0: label}
-                            obj_label["names"] = series.index.names
-                            obj_label["pos"] = i
-                            result.append(
-                                [
-                                    row_position_index,
-                                    json.dumps(obj_label),
-                                    value,
-                                ]
-                            )
-                    # use object type so the result is json-serializable
-                    result = native_pd.DataFrame(
-                        result, columns=["__row__", "label", "value"], dtype=object
-                    )
-                # When a series is returned from `df.apply`,
-                # `func` is a series-to-scalar function, e.g., `np.sum`
-                # For example, the original dataframe is
-                #    a  b
-                # 0  1  2
-                # and the result series from `df.apply` is
-                # 0    3
-                # dtype: int64
-                # After the transformation below, we will get a dataframe with two columns:
-                #        "LABEL"                        "VALUE"
-                # 0  {'0': MODIN_UNNAMED_SERIES_LABEL}        3
-                elif isinstance(df, native_pd.Series):
-                    result = df.to_frame(name="value")
-                    result.insert(
-                        0, "label", json.dumps({"0": MODIN_UNNAMED_SERIES_LABEL})
-                    )
-                    result.reset_index(names="__row__", inplace=True)
-                else:
-                    raise TypeError(f"Unsupported data type {df} from df.apply")
-
-                result["value"] = (
-                    result["value"]
-                    .apply(
-                        lambda v: handle_missing_value_in_variant(
-                            convert_numpy_int_result_to_int(v)
-                        )
-                    )
-                    .astype(object)
-                )
-                return result
-
-        ApplyFunc.end_partition._sf_vectorized_input = native_pd.DataFrame  # type: ignore[attr-defined]
-
+    if cache_key not in cache:
         try:
             new_udtf = sp_func.udtf(
                 ApplyFunc,
@@ -458,16 +432,13 @@ def create_udtf_for_apply_axis_1(
                 session=session,
                 statement_params=get_default_snowpark_pandas_statement_params(),
             )
-            if cache_key is not None:
-                cache[cache_key] = new_udtf
+            cache[cache_key] = new_udtf
         except NotImplementedError:
             # When a Snowpark object is passed to a UDF, a NotImplementedError with message
             # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
             # catch this exception and return a more user-friendly error message.
             raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
-    else:
-        new_udtf = cache[cache_key]
-    return new_udtf
+    return cache[cache_key]
 
 
 def convert_groupby_apply_dataframe_result_to_standard_schema(
@@ -771,85 +742,70 @@ def create_udtf_for_groupby_no_pivot(
     A UDTF that will apply the provided function to a group and return a
     dataframe representing all the data and metadata of the result.
     """
-    # We cannot easily compute a hash for a multiindex, so never use cache for those
-    cache_key = (
-        None
-        if data_column_index.nlevels > 1
-        else UDTFCacheKey(
-            hash(cloudpickle.dumps(func)),
-            tuple(output_schema.column_types),
-            tuple(output_schema.column_ids),
-            tuple(input_column_types),
-            tuple(session.get_packages().values()),
-            arg_ids=tuple(map(id, args)),
-            kwarg_key_ids=tuple(map(id, kwargs.keys())),
-            kwarg_value_ids=tuple(map(id, kwargs.values())),
-            column_index_hashes=tuple(map(hash, data_column_index)),
-            num_by=len(by_labels),
-            index_column_names=tuple(index_column_names),
-            series_groupby=series_groupby,
-            force_list_like_to_series=force_list_like_to_series,
-        )
+
+    class ApplyFunc:
+        def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
+            """
+            Apply the user-provided function to the group represented by this partition.
+
+            Args
+            ----
+            df: The dataframe representing one group
+
+            Returns
+            -------
+            A dataframe representing the result of applying the user-provided
+            function to this group.
+            """
+            (
+                func_result,
+                row_positions,
+                func_type,
+                group_label,
+            ) = apply_groupby_func_to_df(
+                df,
+                len(by_labels),
+                index_column_names,
+                series_groupby,
+                data_column_index,
+                func,
+                args,
+                kwargs,
+                force_list_like_to_series,
+            )
+            # 'min_row_position' is used to sort partitions and 'row_positions' is used
+            # to sort rows within a partition.
+            min_row_position = row_positions.iloc[0]
+            if func_type == GroupbyApplyFuncType.AGGREGATE:
+                row_positions = -1
+            elif func_type == GroupbyApplyFuncType.OTHER:
+                func_result.reset_index(inplace=True, drop=False)
+                row_positions = list(range(0, len(func_result)))
+            func_result = func_result.applymap(
+                lambda x: handle_missing_value_in_variant(
+                    convert_numpy_int_result_to_int(x)
+                )
+            ).astype("object")
+            if func_type == GroupbyApplyFuncType.TRANSFORM:
+                func_result.reset_index(inplace=True, drop=False)
+
+            # Add by columns.
+            for i, value in enumerate(group_label):
+                func_result.insert(i, f"group_label_{i}", value, allow_duplicates=True)
+            # Add row position columns.
+            func_result.insert(0, "__row_position__", row_positions)
+            func_result.insert(0, "__min_row_position__", min_row_position)
+            return func_result
+
+    cache_key = UDTFCacheKey(
+        pickle_function(ApplyFunc.end_partition),
+        tuple(output_schema.column_types),
+        tuple(output_schema.column_ids),
+        tuple(input_column_types),
+        tuple(session.get_packages().values()),
     )
     cache = session_groupby_apply_no_pivot_udtf_cache[session]
-    if cache_key is None or cache_key not in cache:
-
-        class ApplyFunc:
-            def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
-                """
-                Apply the user-provided function to the group represented by this partition.
-
-                Args
-                ----
-                df: The dataframe representing one group
-
-                Returns
-                -------
-                A dataframe representing the result of applying the user-provided
-                function to this group.
-                """
-                (
-                    func_result,
-                    row_positions,
-                    func_type,
-                    group_label,
-                ) = apply_groupby_func_to_df(
-                    df,
-                    len(by_labels),
-                    index_column_names,
-                    series_groupby,
-                    data_column_index,
-                    func,
-                    args,
-                    kwargs,
-                    force_list_like_to_series,
-                )
-                # 'min_row_position' is used to sort partitions and 'row_positions' is used
-                # to sort rows within a partition.
-                min_row_position = row_positions.iloc[0]
-                if func_type == GroupbyApplyFuncType.AGGREGATE:
-                    row_positions = -1
-                elif func_type == GroupbyApplyFuncType.OTHER:
-                    func_result.reset_index(inplace=True, drop=False)
-                    row_positions = list(range(0, len(func_result)))
-                func_result = func_result.applymap(
-                    lambda x: handle_missing_value_in_variant(
-                        convert_numpy_int_result_to_int(x)
-                    )
-                ).astype("object")
-                if func_type == GroupbyApplyFuncType.TRANSFORM:
-                    func_result.reset_index(inplace=True, drop=False)
-
-                # Add by columns.
-                for i, value in enumerate(group_label):
-                    func_result.insert(
-                        i, f"group_label_{i}", value, allow_duplicates=True
-                    )
-                # Add row position columns.
-                func_result.insert(0, "__row_position__", row_positions)
-                func_result.insert(0, "__min_row_position__", min_row_position)
-                return func_result
-
+    if cache_key not in cache:
         try:
             new_udtf = sp_func.udtf(
                 ApplyFunc,
@@ -863,16 +819,13 @@ def create_udtf_for_groupby_no_pivot(
                 session=session,
                 statement_params=get_default_snowpark_pandas_statement_params(),
             )
-            if cache_key is not None:
-                cache[cache_key] = new_udtf
+            cache[cache_key] = new_udtf
         except NotImplementedError:
             # When a Snowpark object is passed to a UDF, a NotImplementedError with message
             # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
             # catch this exception and return a more user-friendly error message.
             raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
-    else:
-        new_udtf = cache[cache_key]
-    return new_udtf
+    return cache[cache_key]
 
 
 def infer_output_schema_for_apply(
@@ -1139,126 +1092,110 @@ def create_udtf_for_groupby_apply(
         excluded=existing_identifiers,
         wrap_double_underscore=False,
     )
-    col_types = [
-        StringType(),
-        IntegerType(),
-        VariantType(),
-        IntegerType(),
-        IntegerType(),
-    ]
-    # We cannot easily compute a hash for a multiindex, so never use cache for those
-    cache_key = (
-        None
-        if data_column_index.nlevels > 1
-        else UDTFCacheKey(
-            hash(cloudpickle.dumps(func)),
+
+    output_schema = None
+    if is_transform:
+        # For transform, the UDTF will return same number of columns as input.
+        output_schema = GroupbyApplyOutputSchema()
+        output_schema.column_labels = [
+            "__min_row_position__",
+            "__row_position__",
+            *by_labels,
+            *index_column_names,
+        ] + [col for col in data_column_index if col not in by_labels]
+        column_types = [LongType(), LongType()] + by_types + input_index_column_types
+        num_data_cols = len(output_schema.column_labels) - len(column_types)
+        output_schema.column_types = column_types + ([VariantType()] * num_data_cols)
+        output_schema.num_index_columns = len(index_column_names) + num_by
+        output_schema.func_type = GroupbyApplyFuncType.TRANSFORM
+        output_schema.column_index_names = data_column_index.names
+    elif force_single_group:
+        # TODO: SNOW-1801328: Enable schema inference for DataFrame.apply and  avoid
+        #  pivot step.
+        output_schema = None
+    else:
+        # Attempt to infer output schema for UDTF
+        output_schema = infer_output_schema_for_apply(
+            func,
+            args,
+            kwargs,
+            by_labels,
+            data_column_index,
+            index_column_names,
+            input_types,
+            series_groupby,
+        )
+
+    if output_schema is not None:
+        # Generate new column identifiers for all required UDTF columns with the helper
+        # below to prevent collisions in column identifiers.
+        output_schema.column_ids = generate_snowflake_quoted_identifiers_helper(
+            pandas_labels=output_schema.column_labels,
+            excluded=existing_identifiers,
+            wrap_double_underscore=False,
+        )
+        return output_schema, create_udtf_for_groupby_no_pivot(
+            func,
+            args,
+            kwargs,
+            data_column_index,
+            index_column_names,
+            input_types,
+            session,
+            series_groupby,
+            by_labels,
+            output_schema,
+            force_list_like_to_series,
+        )
+    else:
+
+        # Failed to infer schema, fallback to old implementation
+        class ApplyFunc:
+            def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
+                """
+                Apply the user-provided function to the group represented by this partition.
+
+                Args
+                ----
+                df: The dataframe representing one group
+
+                Returns
+                -------
+                A dataframe representing the result of applying the user-provided
+                function to this group.
+                """
+                func_result, row_positions, func_type, _ = apply_groupby_func_to_df(
+                    df,
+                    num_by,
+                    index_column_names,
+                    series_groupby,
+                    data_column_index,
+                    func,
+                    args,
+                    kwargs,
+                    force_list_like_to_series,
+                )
+                return convert_groupby_apply_dataframe_result_to_standard_schema(
+                    func_result, row_positions, func_type
+                )
+
+        col_types = [
+            StringType(),
+            IntegerType(),
+            VariantType(),
+            IntegerType(),
+            IntegerType(),
+        ]
+        cache_key = UDTFCacheKey(
+            pickle_function(ApplyFunc.end_partition),
             tuple(col_types),
             tuple(col_names),
             tuple(input_types),
             tuple(session.get_packages().values()),
-            arg_ids=tuple(map(id, args)),
-            kwarg_key_ids=tuple(map(id, kwargs.keys())),
-            kwarg_value_ids=tuple(map(id, kwargs.values())),
-            column_index_hashes=tuple(map(hash, data_column_index)),
-            num_by=num_by,
-            index_column_names=tuple(index_column_names),
-            series_groupby=series_groupby,
-            force_list_like_to_series=force_list_like_to_series,
         )
-    )
-    cache = session_groupby_apply_udtf_cache[session]
+        cache = session_groupby_apply_udtf_cache[session]
 
-    output_schema = None
-    if cache_key is None or cache_key not in cache:
-        if is_transform:
-            # For transform, the UDTF will return same number of columns as input.
-            output_schema = GroupbyApplyOutputSchema()
-            output_schema.column_labels = [
-                "__min_row_position__",
-                "__row_position__",
-                *by_labels,
-                *index_column_names,
-            ] + [col for col in data_column_index if col not in by_labels]
-            column_types = (
-                [LongType(), LongType()] + by_types + input_index_column_types
-            )
-            num_data_cols = len(output_schema.column_labels) - len(column_types)
-            output_schema.column_types = column_types + (
-                [VariantType()] * num_data_cols
-            )
-            output_schema.num_index_columns = len(index_column_names) + num_by
-            output_schema.func_type = GroupbyApplyFuncType.TRANSFORM
-            output_schema.column_index_names = data_column_index.names
-        elif force_single_group:
-            # TODO: SNOW-1801328: Enable schema inference for DataFrame.apply and  avoid
-            #  pivot step.
-            output_schema = None
-        else:
-            # Attempt to infer output schema for UDTF
-            output_schema = infer_output_schema_for_apply(
-                func,
-                args,
-                kwargs,
-                by_labels,
-                data_column_index,
-                index_column_names,
-                input_types,
-                series_groupby,
-            )
-
-        if output_schema is not None:
-            # Generate new column identifiers for all required UDTF columns with the helper
-            # below to prevent collisions in column identifiers.
-            output_schema.column_ids = generate_snowflake_quoted_identifiers_helper(
-                pandas_labels=output_schema.column_labels,
-                excluded=existing_identifiers,
-                wrap_double_underscore=False,
-            )
-            new_udtf = create_udtf_for_groupby_no_pivot(
-                func,
-                args,
-                kwargs,
-                data_column_index,
-                index_column_names,
-                input_types,
-                session,
-                series_groupby,
-                by_labels,
-                output_schema,
-                force_list_like_to_series,
-            )
-        else:
-
-            # Failed to infer schema, fallback to old implementation
-            class ApplyFunc:
-                def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
-                    """
-                    Apply the user-provided function to the group represented by this partition.
-
-                    Args
-                    ----
-                    df: The dataframe representing one group
-
-                    Returns
-                    -------
-                    A dataframe representing the result of applying the user-provided
-                    function to this group.
-                    """
-                    func_result, row_positions, func_type, _ = apply_groupby_func_to_df(
-                        df,
-                        num_by,
-                        index_column_names,
-                        series_groupby,
-                        data_column_index,
-                        func,
-                        args,
-                        kwargs,
-                        force_list_like_to_series,
-                    )
-                    return convert_groupby_apply_dataframe_result_to_standard_schema(
-                        func_result, row_positions, func_type
-                    )
-
+        if cache_key not in cache:
             try:
                 new_udtf = sp_func.udtf(
                     ApplyFunc,
@@ -1273,16 +1210,13 @@ def create_udtf_for_groupby_apply(
                     session=session,
                     statement_params=get_default_snowpark_pandas_statement_params(),
                 )
-                if cache_key is not None:
-                    cache[cache_key] = new_udtf
+                cache[cache_key] = new_udtf
             except NotImplementedError:
                 # When a Snowpark object is passed to a UDF, a NotImplementedError with message
                 # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
                 # catch this exception and return a more user-friendly error message.
                 raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
-    else:
-        new_udtf = cache[cache_key]
-    return output_schema, new_udtf
+        return None, cache[cache_key]
 
 
 def create_udf_for_series_apply(
@@ -1327,40 +1261,36 @@ def create_udf_for_series_apply(
         # Below the function func is wrapped again, extract here the underlying Python function.
         func = func.func
 
+    if isinstance(return_type, VariantType):
+
+        def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
+            result = []
+            # When the return type is Variant, the return value must be json-serializable
+            # Calling tolist() convert np.int*, np.bool*, etc. (which is not
+            # json-serializable) to python native values
+            for e in x.apply(func, args=args, **kwargs).tolist():
+                result.append(
+                    handle_missing_value_in_variant(convert_numpy_int_result_to_int(e))
+                )
+            return result
+
+    else:
+
+        def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
+            # TODO SNOW-1874779: Add verification here to ensure inferred type matches
+            #  actual type.
+            return x.apply(func, args=args, **kwargs)
+
     strict = na_action == "ignore"
     cache_key = UDFCacheKey(
-        hash(cloudpickle.dumps(func)),
+        pickle_function(apply_func),
         return_type,
         input_type,
         strict,
-        tuple(map(id, args)),
-        tuple(map(id, kwargs.keys())),
-        tuple(map(id, kwargs.values())),
     )
     cache = session_udf_cache[session]
+
     if cache_key not in cache:
-        if isinstance(return_type, VariantType):
-
-            def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
-                result = []
-                # When the return type is Variant, the return value must be json-serializable
-                # Calling tolist() convert np.int*, np.bool*, etc. (which is not
-                # json-serializable) to python native values
-                for e in x.apply(func, args=args, **kwargs).tolist():
-                    result.append(
-                        handle_missing_value_in_variant(
-                            convert_numpy_int_result_to_int(e)
-                        )
-                    )
-                return result
-
-        else:
-
-            def apply_func(x):  # type: ignore[no-untyped-def] # pragma: no cover
-                # TODO SNOW-1874779: Add verification here to ensure inferred type matches
-                #  actual type.
-                return x.apply(func, args=args, **kwargs)
-
         try:
             cache[cache_key] = sp_func.udf(
                 apply_func,
