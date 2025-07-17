@@ -23,6 +23,7 @@ from snowflake.snowpark.functions import (
     lit,
     min as min_,
     object_construct_keep_null,
+    rank,
     row_number,
     seq1,
     sql_expr,
@@ -30,6 +31,7 @@ from snowflake.snowpark.functions import (
     table_function,
     udtf,
 )
+from snowflake.snowpark.window import Window
 from tests.utils import TestData, Utils
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -753,10 +755,10 @@ def test_order_by(setup_reduce_cast, session, simplifier_table):
         f'SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
-    # no flatten because c is a new column
+    # flatten
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).sort("a", "b", "c")
     assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
-        f'SELECT * FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST, "C" ASC NULLS FIRST'
+        f'SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST, "C" ASC NULLS FIRST'
     )
 
     # no flatten because a and be are changed
@@ -769,6 +771,14 @@ def test_order_by(setup_reduce_cast, session, simplifier_table):
     df5 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d")).sort("a", "b")
     assert Utils.normalize_sql(df5.queries["queries"][-1]) == Utils.normalize_sql(
         f'SELECT * FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT * FROM {simplifier_table} ) ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+    )
+
+    # flatten
+    df6 = df.select(rank().over(Window.order_by(col("a"))).alias("rank")).sort(
+        "a", "rank"
+    )
+    assert Utils.normalize_sql(df6.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT rank() OVER (ORDER BY "A" ASC NULLS FIRST) AS "RANK" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "RANK" ASC NULLS FIRST'
     )
 
 
@@ -790,12 +800,12 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
         f'SELECT "A", "B" FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
-    # no flatten because c is a new column
+    # flatten
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).filter(
         (col("a") > 1) & (col("b") > 2) & (col("c") < 1)
     )
     assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
-        f'SELECT * FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ) WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
+        f'SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
     )
 
     # no flatten because a and be are changed
@@ -817,6 +827,14 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
     )
     assert Utils.normalize_sql(df6.queries["queries"][-1]) == Utils.normalize_sql(
         f'SELECT * FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT * FROM {simplifier_table} ) ) WHERE ("A" > 1{integer_literal_postfix})'
+    )
+
+    # cannot filter a window expression with 'where', no flatten
+    df6 = df.select(rank().over(Window.order_by(col("a"))).alias("rank")).filter(
+        col("rank") > 1
+    )
+    assert Utils.normalize_sql(df6.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT rank() OVER (ORDER BY "A" ASC NULLS FIRST) AS "RANK" FROM {simplifier_table} ) WHERE ("RANK" > 1{integer_literal_postfix})'
     )
 
 
