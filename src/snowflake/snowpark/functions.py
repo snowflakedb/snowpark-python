@@ -212,7 +212,6 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
-    experimental,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -10753,7 +10752,6 @@ def _call_model(
 
 
 @publicapi
-@experimental(version="1.34.0")
 def model(
     model_name: str,
     version_or_alias_name: Optional[str] = None,
@@ -10769,16 +10767,15 @@ def model(
     Example::
 
         >>> df = session.table("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_TEST")
-        >>> model_fn = model("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_PRICE_PREDICTION", "v1")
-        >>> result_df = df.select(model_fn(
-        ...     "predict",
+        >>> model_instance = model("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_PRICE_PREDICTION", "v1")
+        >>> result_df = df.select(model_instance("predict")(
         ...     col("CUT_OE"), col("COLOR_OE"), col("CLARITY_OE"), col("CARAT"),
         ...     col("DEPTH"), col("TABLE_PCT"), col("X"), col("Y"), col("Z")
         ... )["output_feature_0"])
         >>> result_df.count()
         5412
     """
-    return lambda method_name, *args: _call_model(
+    return lambda method_name: lambda *args: _call_model(
         model_name, version_or_alias_name, method_name, *args, _emit_ast=_emit_ast
     )
 
