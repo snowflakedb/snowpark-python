@@ -12791,3 +12791,80 @@ def ai_complete(
     return _call_named_arguments_function(
         sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
     )
+
+
+@publicapi
+def ai_embed(
+    model: str,
+    input: ColumnOrLiteralStr,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates an embedding vector from text or an image.
+
+    Args:
+        model: A string specifying the vector embedding model to be used. Supported models:
+
+            For text embeddings:
+                - 'snowflake-arctic-embed-l-v2.0': Arctic large model (default for text)
+                - 'snowflake-arctic-embed-l-v2.0-8k': Arctic large model with 8K context
+                - 'nv-embed-qa-4': NVIDIA embedding model for Q&A
+                - 'multilingual-e5-large': Multilingual embedding model
+                - 'voyage-multilingual-2': Voyage multilingual model
+
+            For image embeddings:
+                - 'voyage-multimodal-3': Voyage multimodal model (only for images)
+
+        input: The string or image (as a FILE object) to generate an embedding from.
+            Can be a string with text or a FILE column containing an image.
+
+    Returns:
+        A VECTOR containing the embedding representation of the input.
+
+    Examples::
+
+        >>> # Text embedding
+        >>> df = session.range(1).select(
+        ...     ai_embed('snowflake-arctic-embed-l-v2.0', 'Hello, world!').alias("embedding")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> len(result) > 0
+        True
+
+        >>> # Text embedding with multilingual model
+        >>> df = session.create_dataframe([
+        ...     ['Hello world'],
+        ...     ['Bonjour le monde'],
+        ...     ['Hola mundo']
+        ... ], schema=["text"])
+        >>> df = df.select(
+        ...     col("text"),
+        ...     ai_embed('multilingual-e5-large', col("text")).alias("embedding")
+        ... )
+        >>> embeddings = df.collect()
+        >>> all(len(row[1]) > 0 for row in embeddings)
+        True
+
+        >>> # Image embedding
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_embed('voyage-multimodal-3', to_file('@mystage/dog.jpg')).alias("image_embedding")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> len(result) > 0
+        True
+    """
+    sql_func_name = "ai_embed"
+
+    # Convert arguments to columns
+    model_col = lit(model)
+    input_col = _to_col_if_lit(input, sql_func_name)
+
+    # Build AST
+    ast = build_function_expr(sql_func_name, [model, input]) if _emit_ast else None
+
+    # Call the function
+    return _call_function(
+        sql_func_name, model_col, input_col, _ast=ast, _emit_ast=_emit_ast
+    )
