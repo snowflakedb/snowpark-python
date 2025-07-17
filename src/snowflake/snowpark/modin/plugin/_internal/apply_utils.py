@@ -311,8 +311,6 @@ def create_udtf_for_apply_axis_1(
         udf_packages = func._packages  # pragma: no cover
         func = func.func  # pragma: no cover
 
-    packages = list(session.get_packages().values()) + udf_packages
-
     class ApplyFunc:
         def end_partition(self, df):  # type: ignore[no-untyped-def] # pragma: no cover
             # First column is row position, set as index.
@@ -404,6 +402,8 @@ def create_udtf_for_apply_axis_1(
             return result
 
     ApplyFunc.end_partition._sf_vectorized_input = native_pd.DataFrame  # type: ignore[attr-defined]
+
+    packages = list(session.get_packages().values()) + udf_packages
     col_types = [LongType(), StringType(), VariantType()]
     col_identifiers = [
         row_position_snowflake_quoted_identifier,
@@ -1078,21 +1078,6 @@ def create_udtf_for_groupby_apply(
         *input_data_column_types,
     ]
 
-    col_labels = [
-        "LABEL",
-        "ROW_POSITION_WITHIN_GROUP",
-        "VALUE",
-        "ORIGINAL_ROW_POSITION",
-        "APPLY_FIRST_GROUP_KEY_OCCURRENCE_POSITION",
-    ]
-    # Generate new column identifiers for all required UDTF columns with the helper below to prevent collisions in
-    # column identifiers.
-    col_names = generate_snowflake_quoted_identifiers_helper(
-        pandas_labels=col_labels,
-        excluded=existing_identifiers,
-        wrap_double_underscore=False,
-    )
-
     output_schema = None
     if is_transform:
         # For transform, the UDTF will return same number of columns as input.
@@ -1147,76 +1132,89 @@ def create_udtf_for_groupby_apply(
             output_schema,
             force_list_like_to_series,
         )
-    else:
 
-        # Failed to infer schema, fallback to old implementation
-        class ApplyFunc:
-            def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
-                """
-                Apply the user-provided function to the group represented by this partition.
+    # Failed to infer schema, fallback to old implementation
+    class ApplyFunc:
+        def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
+            """
+            Apply the user-provided function to the group represented by this partition.
 
-                Args
-                ----
-                df: The dataframe representing one group
+            Args
+            ----
+            df: The dataframe representing one group
 
-                Returns
-                -------
-                A dataframe representing the result of applying the user-provided
-                function to this group.
-                """
-                func_result, row_positions, func_type, _ = apply_groupby_func_to_df(
-                    df,
-                    num_by,
-                    index_column_names,
-                    series_groupby,
-                    data_column_index,
-                    func,
-                    args,
-                    kwargs,
-                    force_list_like_to_series,
-                )
-                return convert_groupby_apply_dataframe_result_to_standard_schema(
-                    func_result, row_positions, func_type
-                )
+            Returns
+            -------
+            A dataframe representing the result of applying the user-provided
+            function to this group.
+            """
+            func_result, row_positions, func_type, _ = apply_groupby_func_to_df(
+                df,
+                num_by,
+                index_column_names,
+                series_groupby,
+                data_column_index,
+                func,
+                args,
+                kwargs,
+                force_list_like_to_series,
+            )
+            return convert_groupby_apply_dataframe_result_to_standard_schema(
+                func_result, row_positions, func_type
+            )
 
-        col_types = [
-            StringType(),
-            IntegerType(),
-            VariantType(),
-            IntegerType(),
-            IntegerType(),
-        ]
-        cache_key = UDTFCacheKey(
-            pickle_function(ApplyFunc.end_partition),
-            tuple(col_types),
-            tuple(col_names),
-            tuple(input_types),
-            tuple(session.get_packages().values()),
-        )
-        cache = session_groupby_apply_udtf_cache[session]
+    col_labels = [
+        "LABEL",
+        "ROW_POSITION_WITHIN_GROUP",
+        "VALUE",
+        "ORIGINAL_ROW_POSITION",
+        "APPLY_FIRST_GROUP_KEY_OCCURRENCE_POSITION",
+    ]
+    # Generate new column identifiers for all required UDTF columns with the helper below to prevent collisions in
+    # column identifiers.
+    col_names = generate_snowflake_quoted_identifiers_helper(
+        pandas_labels=col_labels,
+        excluded=existing_identifiers,
+        wrap_double_underscore=False,
+    )
+    col_types = [
+        StringType(),
+        IntegerType(),
+        VariantType(),
+        IntegerType(),
+        IntegerType(),
+    ]
+    cache_key = UDTFCacheKey(
+        pickle_function(ApplyFunc.end_partition),
+        tuple(col_types),
+        tuple(col_names),
+        tuple(input_types),
+        tuple(session.get_packages().values()),
+    )
+    cache = session_groupby_apply_udtf_cache[session]
 
-        if cache_key not in cache:
-            try:
-                new_udtf = sp_func.udtf(
-                    ApplyFunc,
-                    output_schema=PandasDataFrameType(
-                        col_types,
-                        col_names,
-                    ),
-                    input_types=[PandasDataFrameType(col_types=input_types)],
-                    # We have to specify the local pandas package so that the UDF's pandas
-                    # behavior is consistent with client-side pandas behavior.
-                    packages=[native_pd] + list(session.get_packages().values()),
-                    session=session,
-                    statement_params=get_default_snowpark_pandas_statement_params(),
-                )
-                cache[cache_key] = new_udtf
-            except NotImplementedError:
-                # When a Snowpark object is passed to a UDF, a NotImplementedError with message
-                # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
-                # catch this exception and return a more user-friendly error message.
-                raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
-        return None, cache[cache_key]
+    if cache_key not in cache:
+        try:
+            new_udtf = sp_func.udtf(
+                ApplyFunc,
+                output_schema=PandasDataFrameType(
+                    col_types,
+                    col_names,
+                ),
+                input_types=[PandasDataFrameType(col_types=input_types)],
+                # We have to specify the local pandas package so that the UDF's pandas
+                # behavior is consistent with client-side pandas behavior.
+                packages=[native_pd] + list(session.get_packages().values()),
+                session=session,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+            cache[cache_key] = new_udtf
+        except NotImplementedError:
+            # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+            # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+            # catch this exception and return a more user-friendly error message.
+            raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
+    return None, cache[cache_key]
 
 
 def create_udf_for_series_apply(
