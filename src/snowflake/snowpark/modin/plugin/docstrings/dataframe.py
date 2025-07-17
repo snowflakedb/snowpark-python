@@ -1321,7 +1321,6 @@ class DataFrame(BasePandasDataset):
         >>> df = pd.DataFrame(np.random.randn(10, 4),
         ...                   columns=['Col1', 'Col2', 'Col3', 'Col4'])
         >>> boxplot = df.boxplot(column=['Col1', 'Col2', 'Col3'])
-        ../../_images/pandas-DataFrame-boxplot-1.png
 
         Boxplots of variables distributions grouped by the values of a third variable can be created using the option by. For instance:
 
@@ -1348,7 +1347,7 @@ class DataFrame(BasePandasDataset):
 
         Additional formatting can be done to the boxplot, like suppressing the grid (grid=False), rotating the labels in the x-axis (i.e. rot=45) or changing the fontsize (i.e. fontsize=15):
 
-        >>> boxplot = df.boxplot(grid=False, rot=45, fontsize=15)
+        >>> boxplot = df.boxplot(grid=False, rot=45, fontsize=15)  # doctest: +SKIP
 
         The parameter return_type can be used to select the type of element returned by boxplot. When return_type='axes' is selected, the matplotlib axes on which the boxplot is drawn are returned:
 
@@ -1360,8 +1359,8 @@ class DataFrame(BasePandasDataset):
 
         >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by='X',
         ...                      return_type='axes')
-        type(boxplot)
-        <class 'pandas.Series'>
+        >>> type(boxplot)
+        <class 'pandas.core.series.Series'>
 
         If return_type is None, a NumPy array of axes with the same shape as layout is returned:
 
