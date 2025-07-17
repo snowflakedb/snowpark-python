@@ -34,6 +34,54 @@ def test_read_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session
     _STANDARD_ARGS,
     _STANDARD_ARGVALUES,
 )
+def test_readall_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session):
+    num_lines = 5
+    lines, temp_file = Utils.generate_and_write_lines_to_stage(
+        num_lines, write_mode, tmp_path, temp_stage, session
+    )
+
+    def sf_readall(file_location: str, mode: str) -> list:
+        with SnowflakeFile.open(file_location, mode) as snowflake_file:
+            return snowflake_file.readall()
+
+    content = sf_readall(temp_file, read_mode)
+    windows_lines = [
+        line[:-1] + b"\r\n" if read_mode == "rb" else line[:-1] + "\r\n"
+        for line in lines
+    ]  # need for windows testing as \r is added
+    if write_mode == "wb":
+        assert content == b"".join(lines) or content == b"".join(windows_lines)
+    else:
+        assert content == "".join(lines) or content == "".join(windows_lines)
+
+
+@pytest.mark.parametrize(
+    _STANDARD_ARGS,
+    _STANDARD_ARGVALUES,
+)
+def test_readlines_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session):
+    num_lines = 5
+    lines, temp_file = Utils.generate_and_write_lines_to_stage(
+        num_lines, write_mode, tmp_path, temp_stage, session
+    )
+
+    def sf_readlines(file_location: str, mode: str) -> list:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.readlines()
+
+    content = sf_readlines(temp_file, read_mode)
+    windows_lines = [
+        line[:-1] + b"\r\n" if read_mode == "rb" else line[:-1] + "\r\n"
+        for line in lines
+    ]  # need for windows testing as \r is added
+    for i in range(num_lines):
+        assert content[i] == lines[i] or content[i] == windows_lines[i]
+
+
+@pytest.mark.parametrize(
+    _STANDARD_ARGS,
+    _STANDARD_ARGVALUES,
+)
 def test_isatty_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session):
     _, temp_file = Utils.write_test_msg_to_stage(
         write_mode, tmp_path, temp_stage, session

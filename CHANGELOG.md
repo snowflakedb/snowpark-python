@@ -11,7 +11,7 @@
 
 ### Snowpark Local Testing Updates
 
-- Added local testing support for reading files with `SnowflakeFile` using local file paths, mocked stages and snowflake stages (@stage/file_path), and the Snow URL semantic (snow://...).
+- Added local testing support for reading files with `SnowflakeFile` using local testing, Snowflake stage paths (@stage/file_path), and the Snow URL semantic (snow://...).
 
 ## 1.34.0 (YYYY-MM-DD)
 
