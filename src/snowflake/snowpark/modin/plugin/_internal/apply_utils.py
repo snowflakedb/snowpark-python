@@ -1077,7 +1077,6 @@ def create_udtf_for_groupby_apply(
         # ...then the data columns for the input dataframe or series.
         *input_data_column_types,
     ]
-
     output_schema = None
     if is_transform:
         # For transform, the UDTF will return same number of columns as input.
