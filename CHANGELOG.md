@@ -17,6 +17,7 @@
 #### Bug Fixes
 
 - Fixed a bug in schema inference that would cause it to fail for external stages.
+- Fixed a bug in `DataFrame.filter` and `DataFrame.orderBy` that would cause incorrect SQL to be generated when using columns from the recent and previous projection together.
 
 ### Snowpark Local Testing Updates
 
