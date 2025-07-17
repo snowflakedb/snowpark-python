@@ -436,16 +436,24 @@ class RelationalGroupedDataFrame:
             # the non-NamedExpression columns which have no name, and perform the apply_in_pandas on the new dataframe
             for col in partition_by:
                 column_name = col.get_name()
+                unquoted_name = unquote_if_quoted(column_name) if column_name else None
                 if not column_name:
-                    # only NamedExpressions have names, other expressions cannot be used as partition keys directly
-                    # and need to be evaluated.
+                    # expression is not a NamedExpression, so it has no name
+                    # example: df.group_by("id", ceil(df.v / 2))
                     aliased_name = (
                         f"sas_col_alias_{generate_random_alphanumeric(5)}".upper()
                     )
                     working_columns.append(col.alias(aliased_name))
                     key_columns.append(aliased_name)
+                elif isinstance(col._expression, (Alias, UnresolvedAlias)):
+                    # expression is an Alias or UnresolvedAlias, which inherits from NamedExpression
+                    # however, underlying it could be aliasing non-NamedExpression
+                    # example: df.group_by("id", ceil(df.v / 2).alias('newcol'))
+                    # thus we always add the working column to the new dataframe
+                    working_columns.append(col)
+                    key_columns.append(unquoted_name)
                 else:
-                    key_columns.append(unquote_if_quoted(column_name))
+                    key_columns.append(unquoted_name)
 
             partition_by = (
                 key_columns  # override the partition_by with the new key columns

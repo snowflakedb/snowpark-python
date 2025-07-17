@@ -598,7 +598,7 @@ def test_apply_in_pandas_snowpark_compatible(session):
         return pd.DataFrame([key + (pdf.v.sum(),)])
 
     df = (
-        df.group_by("id", ceil(df.v / 2))
+        df.group_by("id", ceil(df.v / 2).alias("newcol"))
         .applyInPandas(
             sum_func,
             output_schema=StructType(
