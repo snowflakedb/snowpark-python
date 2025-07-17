@@ -1472,7 +1472,6 @@ class SelectStatement(Selectable):
             and can_clause_dependent_columns_flatten(
                 derive_dependent_columns(*cols), self.column_states
             )
-            and not has_data_generator_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
@@ -1989,14 +1988,7 @@ def can_clause_dependent_columns_flatten(
             if dc_state:
                 if dc_state.change_state == ColumnChangeState.CHANGED_EXP:
                     return False
-                elif dc_state.change_state == ColumnChangeState.NEW:
-                    # Most of the time this can be flattened. But if a new column uses window function and this column
-                    # is used in a clause, the sql doesn't work in Snowflake.
-                    # For instance `select a, rank() over(order by b) as d from test_table where d = 1` doesn't work.
-                    # But `select a, b as d from test_table where d = 1` works
-                    # We can inspect whether the referenced new column uses window function. Here we are being
-                    # conservative for now to not flatten the SQL.
-                    return False
+
     return True
 
 
