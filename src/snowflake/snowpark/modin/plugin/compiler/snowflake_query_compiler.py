@@ -13618,8 +13618,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_snowflake_quoted_identifiers=new_frame.data_column_snowflake_quoted_identifiers,
                 index_column_pandas_labels=new_frame.index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=[new_identifier],
-                data_column_types=None,
-                index_column_types=None,
+                data_column_types=new_frame.cached_data_column_snowpark_pandas_types,
+                index_column_types=new_frame.cached_index_column_snowpark_pandas_types,
             )
 
         # retrieve frame as pandas object
