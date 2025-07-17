@@ -412,10 +412,6 @@ def process_parquet_queue_with_threads(
         while len(completed_partitions) < total_partitions or thread_futures:
             # Process any completed futures and handle errors
             process_completed_futures(thread_futures)
-            while not process_or_thread_error_indicator.empty():
-                gracefully_exited_processes.add(
-                    process_or_thread_error_indicator.get(block=False)[0]
-                )
 
             try:
                 backpressure_semaphore.acquire()
@@ -457,6 +453,13 @@ def process_parquet_queue_with_threads(
                 backpressure_semaphore.release()  # Release semaphore if no data was fetched
                 if fetch_with_process:
                     # Check if any processes have failed
+                    while True:
+                        try:
+                            gracefully_exited_processes.add(
+                                process_or_thread_error_indicator.get(block=False)
+                            )
+                        except queue.Empty:
+                            break
                     for i, process in enumerate(workers):
                         if (
                             not process.is_alive()
@@ -482,11 +485,22 @@ def process_parquet_queue_with_threads(
 
     if fetch_with_process:
         # Wait for all processes to complete
-        for idx, process in enumerate(workers):
+        for process in workers:
             process.join()
-            if process.exitcode != 0:
+        # empty parquet queue to get all signals after each process ends
+        while True:
+            try:
+                gracefully_exited_processes.add(
+                    process_or_thread_error_indicator.get(block=False)
+                )
+            except queue.Empty:
+                break
+
+        # check if any process fails
+        for idx, process in enumerate(workers):
+            if process.pid not in gracefully_exited_processes:
                 raise SnowparkDataframeReaderException(
-                    f"Partition {idx} data fetching process failed with exit code {process.exitcode}"
+                    f"Partition {idx} data fetching process failed with exit code {process.exitcode} or failed silently"
                 )
     else:
         # Wait for all threads to complete
