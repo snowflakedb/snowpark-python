@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from collections.abc import Callable
 import sys
 import uuid
 from abc import ABC, abstractmethod
@@ -1343,9 +1344,9 @@ class SelectStatement(Selectable):
         ):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
-        elif (self.where or self.order_by or self.limit_) and has_data_generator_exp(
-            cols
-        ):
+        elif (
+            self.where or self.order_by or self.limit_
+        ) and has_data_generator_or_window_exp(cols):
             can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
@@ -1435,7 +1436,7 @@ class SelectStatement(Selectable):
             and can_clause_dependent_columns_flatten(
                 derive_dependent_columns(col), self.column_states
             )
-            and not has_data_generator_exp(self.projection)
+            and not has_data_generator_or_window_exp(self.projection)
             and not (self.order_by and self.limit_ is not None)
         )
         if can_be_flattened:
@@ -1472,6 +1473,7 @@ class SelectStatement(Selectable):
             and can_clause_dependent_columns_flatten(
                 derive_dependent_columns(*cols), self.column_states
             )
+            and not has_data_generator_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
@@ -1508,7 +1510,7 @@ class SelectStatement(Selectable):
             # .order_by(col1).select(col2).distinct() cannot be flattened because
             # SELECT DISTINCT B FROM TABLE ORDER BY A is not valid SQL
             and (not (self.order_by and self.has_projection))
-            and not has_data_generator_exp(self.projection)
+            and not has_data_generator_or_window_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
@@ -2205,18 +2207,38 @@ def derive_column_states_from_subquery(
     return column_states
 
 
+def has_data_generator_or_window_exp(expressions: Optional[List["Expression"]]) -> bool:
+    return check_expressions(
+        expressions, [is_window_expression, is_generator_expression]
+    )
+
+
 def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
+    return check_expressions(expressions, [is_generator_expression])
+
+
+def check_expressions(
+    expressions: Optional[List["Expression"]],
+    check_funcs: List[Callable[[Expression], bool]],
+) -> bool:
     if expressions is None:
         return False
     for exp in expressions:
-        if isinstance(exp, WindowExpression):
-            return True
-        if isinstance(exp, FunctionExpression) and (
-            exp.is_data_generator
-            or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
-        ):
-            # https://docs.snowflake.com/en/sql-reference/functions-data-generation
-            return True
-        if exp is not None and has_data_generator_exp(exp.children):
-            return True
+        for check_func in check_funcs:
+            if check_func(exp):
+                return True
+            if exp is not None and check_expressions(exp.children, check_funcs):
+                return True
     return False
+
+
+def is_window_expression(exp: Expression) -> bool:
+    return isinstance(exp, WindowExpression)
+
+
+def is_generator_expression(exp: Expression) -> bool:
+    return isinstance(exp, FunctionExpression) and (
+        exp.is_data_generator
+        # https://docs.snowflake.com/en/sql-reference/functions-data-generation
+        or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
+    )
