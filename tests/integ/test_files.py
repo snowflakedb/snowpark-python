@@ -34,6 +34,24 @@ def test_read_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session
     _STANDARD_ARGS,
     _STANDARD_ARGVALUES,
 )
+def test_read1_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session):
+    test_msg, temp_file = Utils.write_test_msg_to_stage(
+        write_mode, tmp_path, temp_stage, session
+    )
+    if type(test_msg) is str:
+        test_msg = test_msg.encode()
+
+    def sf_read1(file_location: str, mode: str) -> bytes:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.read1()
+
+    assert sf_read1(temp_file, read_mode) == test_msg
+
+
+@pytest.mark.parametrize(
+    _STANDARD_ARGS,
+    _STANDARD_ARGVALUES,
+)
 def test_readall_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session):
     num_lines = 5
     lines, temp_file = Utils.generate_and_write_lines_to_stage(
@@ -252,6 +270,41 @@ def test_readinto_snowflakefile(
     num_read = min(size, buffer_size)
     buffer = bytes(buffer)
 
+    assert buffer[:num_read] == encoded_test_msg[:num_read]
+    for byte in buffer[num_read:]:
+        assert byte == 0
+
+
+@pytest.mark.parametrize(
+    ["read_mode", "write_mode", "size"],
+    [
+        ("r", "w", 0),
+        ("r", "w", 1),
+        ("rb", "wb", 0),
+        ("rb", "wb", 1),
+    ],
+)
+def test_readinto1_snowflakefile(
+    read_mode, write_mode, size, tmp_path, temp_stage, session
+):
+    test_msg = generate_random_alphanumeric(size)
+    _, temp_file = Utils.write_test_msg_to_stage(
+        write_mode, tmp_path, temp_stage, session, test_msg
+    )
+
+    encoded_test_msg = test_msg.encode()
+
+    def sf_readinto1(file_location: str, mode: str, buffer: bytearray) -> int:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.readinto1(buffer)
+
+    buffer_size = 5
+    buffer = bytearray(buffer_size)
+    length = sf_readinto1(temp_file, read_mode, buffer)
+    num_read = min(size, buffer_size)
+    buffer = bytes(buffer)
+
+    assert length == num_read
     assert buffer[:num_read] == encoded_test_msg[:num_read]
     for byte in buffer[num_read:]:
         assert byte == 0
