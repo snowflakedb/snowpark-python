@@ -27,6 +27,7 @@ from snowflake.snowpark.functions import (
     lit,
     max as max_,
     not_,
+    row_number,
     sum as sum_,
 )
 from snowflake.snowpark.modin.plugin._typing import AlignTypeLit, JoinTypeLit
@@ -38,6 +39,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.table_function import TableFunctionCall
 from snowflake.snowpark.types import StructType
+from snowflake.snowpark.window import Window
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -1182,6 +1184,59 @@ class OrderedDataFrame:
                     For other join methods, the ordering columns preserves the left order, followed by right order.
 
         """
+        left = self
+        if how not in ["asof", "cross"]:
+            if (
+                left_on_cols is not None
+                and len(left_on_cols) == 1
+                and "row_position" in left_on_cols[0]
+            ):
+                new_col = (
+                    row_number().over(
+                        Window.order_by(self._ordering_snowpark_columns())
+                    )
+                    - 1
+                )
+                new_identifier = self.generate_snowflake_quoted_identifiers(
+                    pandas_labels=["row_position_left"],
+                    wrap_double_underscore=True,
+                )[0]
+                new_col = new_col.as_(new_identifier)
+                new_ordered_dataframe = self.select("*", new_col)
+                new_ordered_dataframe.row_position_snowflake_quoted_identifier = (
+                    new_identifier
+                )
+                new_ordered_dataframe = new_ordered_dataframe.sort(
+                    OrderingColumn(new_identifier)
+                )
+                left = new_ordered_dataframe
+                left_on_cols = [new_identifier]
+            if (
+                right_on_cols is not None
+                and len(right_on_cols) == 1
+                and "row_position" in right_on_cols[0]
+            ):
+                new_col = (
+                    row_number().over(
+                        Window.order_by(right._ordering_snowpark_columns())
+                    )
+                    - 1
+                )
+                new_identifier = right.generate_snowflake_quoted_identifiers(
+                    pandas_labels=["row_position_right"],
+                    wrap_double_underscore=True,
+                )[0]
+                new_col = new_col.as_(new_identifier)
+                new_ordered_dataframe = right.select("*", new_col)
+                new_ordered_dataframe.row_position_snowflake_quoted_identifier = (
+                    new_identifier
+                )
+                new_ordered_dataframe = new_ordered_dataframe.sort(
+                    OrderingColumn(new_identifier)
+                )
+                right = new_ordered_dataframe
+                right_on_cols = [new_identifier]
+
         left_on_cols = left_on_cols or []
         right_on_cols = right_on_cols or []
         assert len(left_on_cols) == len(
@@ -1189,7 +1244,7 @@ class OrderedDataFrame:
         ), "left_on_cols and right_on_cols must be of same length"
         _raise_if_identifier_not_exists(
             left_on_cols,
-            self.projected_column_snowflake_quoted_identifiers,
+            left.projected_column_snowflake_quoted_identifiers,
             "join left_on_cols",
         )
 
@@ -1204,7 +1259,7 @@ class OrderedDataFrame:
             assert right_match_col, "right_match_col was not provided to ASOF Join"
             _raise_if_identifier_not_exists(
                 [left_match_col],
-                self.projected_column_snowflake_quoted_identifiers,
+                left.projected_column_snowflake_quoted_identifiers,
                 "join left_match_col",
             )
             _raise_if_identifier_not_exists(
@@ -1221,7 +1276,7 @@ class OrderedDataFrame:
             "right",
             "inner",
             "outer",
-        ] and self._is_self_join_on_row_position_column(
+        ] and left._is_self_join_on_row_position_column(
             left_on_cols, right, right_on_cols
         ):
             is_join_needed = False
@@ -1241,9 +1296,9 @@ class OrderedDataFrame:
             right.projected_column_snowflake_quoted_identifiers
         )
 
-        # the new projected columns are set to self._projected_columns + right._projected_column after de-conflict
+        # the new projected columns are set to left._projected_columns + right._projected_column after de-conflict
         projected_column_snowflake_quoted_identifiers = (
-            self.projected_column_snowflake_quoted_identifiers
+            left.projected_column_snowflake_quoted_identifiers
             + right.projected_column_snowflake_quoted_identifiers
         )
 
@@ -1254,9 +1309,9 @@ class OrderedDataFrame:
             new_df = OrderedDataFrame(
                 right._dataframe_ref,
                 projected_column_snowflake_quoted_identifiers=projected_column_snowflake_quoted_identifiers,
-                ordering_columns=self.ordering_columns,
-                row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
-                row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
+                ordering_columns=left.ordering_columns,
+                row_position_snowflake_quoted_identifier=left.row_position_snowflake_quoted_identifier,
+                row_count_snowflake_quoted_identifier=left.row_count_snowflake_quoted_identifier,
             )
             new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
                 self,
@@ -1274,7 +1329,7 @@ class OrderedDataFrame:
             return new_df
 
         # reproject the snowpark dataframe with only necessary columns
-        left_snowpark_dataframe_ref = self._to_projected_snowpark_dataframe_reference(
+        left_snowpark_dataframe_ref = left._to_projected_snowpark_dataframe_reference(
             include_ordering_columns=True
         )
         right_snowpark_dataframe_ref = right._to_projected_snowpark_dataframe_reference(
@@ -1334,9 +1389,9 @@ class OrderedDataFrame:
         # for right join, we preserve the right order first, then left order.
         # for all join type, left order is preserved first, then right order.
         if how == "right":
-            ordering_columns = right.ordering_columns + self.ordering_columns
+            ordering_columns = right.ordering_columns + left.ordering_columns
         else:
-            ordering_columns = self.ordering_columns + right.ordering_columns
+            ordering_columns = left.ordering_columns + right.ordering_columns
 
         new_df = OrderedDataFrame(
             DataFrameReference(
