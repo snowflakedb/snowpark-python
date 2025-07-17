@@ -2208,11 +2208,11 @@ def test_show_dataframe_spark(session):
             dedent(
                 """
             +------------+
-            |        col1|
+            |col1        |
             +------------+
-            |    Infinity|
-            |   -Infinity|
-            | 1.000005E17|
+            |Infinity    |
+            |-Infinity   |
+            |1.000005E17 |
             |1.000005E-17|
             +------------+
             """
