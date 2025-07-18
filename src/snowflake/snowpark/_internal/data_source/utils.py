@@ -328,7 +328,7 @@ def worker_process(
             )
         except queue.Empty:
             # indicate whether a process is exit gracefully
-            process_or_thread_error_indicator.put((os.getpid(),))
+            process_or_thread_error_indicator.put(os.getpid())
             # No more work available, exit gracefully
             break
         except Exception as e:
