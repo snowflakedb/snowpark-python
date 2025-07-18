@@ -116,13 +116,13 @@ class PymysqlDriver(BaseDriver):
             else f"SELECT * FROM `{table_or_query}` LIMIT {_MYSQL_INFER_TYPE_SAMPLE_LIMIT}"
         )
 
-    def infer_schema_from_description(
+    def get_raw_schema(
         self,
         table_or_query: str,
         cursor: "Cursor",
         is_query: bool,
         query_input_alias: str,
-    ) -> StructType:
+    ) -> None:
         cursor.execute(
             self.generate_infer_schema_sql(table_or_query, is_query, query_input_alias)
         )
@@ -137,7 +137,6 @@ class PymysqlDriver(BaseDriver):
             processed_raw_schema.append(new_col)
 
         self.raw_schema = processed_raw_schema
-        return self.to_snow_type(processed_raw_schema)
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         """

@@ -16,6 +16,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` does not work when connecting to Postgres and Mysql.
 - Fixed a bug in schema inference that would cause it to fail for external stages.
 
 ### Snowpark Local Testing Updates

@@ -69,6 +69,18 @@ class BaseDriver:
             else f"SELECT * FROM {table_or_query} WHERE 1 = 0"
         )
 
+    def get_raw_schema(
+        self,
+        table_or_query: str,
+        cursor: "Cursor",
+        is_query: bool,
+        query_input_alias: str,
+    ) -> None:
+        cursor.execute(
+            self.generate_infer_schema_sql(table_or_query, is_query, query_input_alias)
+        )
+        self.raw_schema = cursor.description
+
     def infer_schema_from_description(
         self,
         table_or_query: str,
@@ -76,12 +88,8 @@ class BaseDriver:
         is_query: bool,
         query_input_alias: str,
     ) -> StructType:
-        cursor.execute(
-            self.generate_infer_schema_sql(table_or_query, is_query, query_input_alias)
-        )
-        raw_schema = cursor.description
-        self.raw_schema = raw_schema
-        return self.to_snow_type(raw_schema)
+        self.get_raw_schema(table_or_query, cursor, is_query, query_input_alias)
+        return self.to_snow_type(self.raw_schema)
 
     def infer_schema_from_description_with_error_control(
         self, table_or_query: str, is_query: bool, query_input_alias: str
