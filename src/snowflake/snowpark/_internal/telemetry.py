@@ -494,6 +494,7 @@ class TelemetryClient:
         self.gauge_count = 0
         # We periodically clean out the stored procedure meter of unused gauges
         self.clean_up_stored_proc_meter_interval = 1
+        self.stored_proc_lock = threading.Lock()
 
     def send(self, msg: Dict, timestamp: Optional[int] = None):
         if self.telemetry:
@@ -504,14 +505,14 @@ class TelemetryClient:
         elif self.stored_proc_meter and self.stored_proc_meter_enabled:
             if not timestamp:
                 timestamp = get_time_millis()
-            self.stored_proc_meter.create_gauge(
-                f"snowflake.snowpark.test.gauge{self.gauge_count}",
-                description=str(msg),
-                unit="data",
-            ).set(200)
-            self.gauge_count += 1
-            if self.gauge_count % self.clean_up_stored_proc_meter_interval == 0:
-                with self.stored_proc_meter._instrument_id_instrument_lock:
+            with self.stored_proc_lock:
+                self.stored_proc_meter.create_gauge(
+                    f"snowflake.snowpark.test.gauge{self.gauge_count}",
+                    description=str(msg),
+                    unit="data",
+                ).set(200)
+                self.gauge_count += 1
+                if self.gauge_count % self.clean_up_stored_proc_meter_interval == 0:
                     self.stored_proc_meter._instrument_id_instrument.clear()
 
     def _create_basic_telemetry_data(self, telemetry_type: str) -> Dict[str, Any]:
