@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
 from io import BytesIO
 from enum import Enum
-from typing import Any, Tuple, Optional, Callable, Dict, Union
+from typing import Any, Tuple, Optional, Callable, Dict, Union, Set
 import logging
 from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
@@ -361,6 +361,18 @@ def process_completed_futures(thread_futures):
                 raise
 
 
+def _drain_process_status_queue(
+    process_or_thread_error_indicator: Union[mp.Queue, queue.Queue],
+) -> Set:
+    result = set()
+    while True:
+        try:
+            result.add(process_or_thread_error_indicator.get(block=False))
+        except queue.Empty:
+            break
+    return result
+
+
 def process_parquet_queue_with_threads(
     session: "snowflake.snowpark.Session",
     parquet_queue: Union[mp.Queue, queue.Queue],
@@ -453,21 +465,19 @@ def process_parquet_queue_with_threads(
                 backpressure_semaphore.release()  # Release semaphore if no data was fetched
                 if fetch_with_process:
                     # Check if any processes have failed
-                    while True:
-                        try:
-                            gracefully_exited_processes.add(
-                                process_or_thread_error_indicator.get(block=False)
-                            )
-                        except queue.Empty:
-                            break
                     for i, process in enumerate(workers):
-                        if (
-                            not process.is_alive()
-                            and process.pid not in gracefully_exited_processes
-                        ):
-                            raise SnowparkDataframeReaderException(
-                                f"Partition {i} data fetching process failed with exit code {process.exitcode}"
+                        if not process.is_alive():
+                            gracefully_exited_processes = (
+                                gracefully_exited_processes.union(
+                                    _drain_process_status_queue(
+                                        process_or_thread_error_indicator
+                                    )
+                                )
                             )
+                            if process.pid not in gracefully_exited_processes:
+                                raise SnowparkDataframeReaderException(
+                                    f"Partition {i} data fetching process failed with exit code {process.exitcode} or failed silently"
+                                )
                 else:
                     # Check if any threads have failed
                     for i, future in enumerate(workers):
@@ -488,13 +498,9 @@ def process_parquet_queue_with_threads(
         for process in workers:
             process.join()
         # empty parquet queue to get all signals after each process ends
-        while True:
-            try:
-                gracefully_exited_processes.add(
-                    process_or_thread_error_indicator.get(block=False)
-                )
-            except queue.Empty:
-                break
+        gracefully_exited_processes = gracefully_exited_processes.union(
+            _drain_process_status_queue(process_or_thread_error_indicator)
+        )
 
         # check if any process fails
         for idx, process in enumerate(workers):
