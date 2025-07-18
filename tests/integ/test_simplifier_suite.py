@@ -1042,7 +1042,7 @@ def test_cube_rollup(session, func_name):
         .select("country")
         .select("country")
     )
-    assert df1.queries["queries"][0].count("SELECT") == 5
+    assert df1.queries["queries"][0].count("SELECT") == 4
     func = getattr(
         df.select("country", "state", "value").select("country", "state", "value"),
         func_name,
