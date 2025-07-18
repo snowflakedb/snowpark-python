@@ -1310,7 +1310,12 @@ class DataFrame:
         new_cols = []
         for attr, name in zip(self._output, col_names):
             new_cols.append(Column(attr).alias(name))
+
         df = self.select(new_cols, _ast_stmt=stmt, _emit_ast=_emit_ast)
+        # to_df is not a select, but a complete rewrite of the column names,
+        # meaning that we should not have access to dropped columns,
+        # so that flattening works correctly after the to_df call
+        df._select_statement.flatten_disabled = True
 
         if _emit_ast:
             df._ast_id = stmt.uid
