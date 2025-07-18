@@ -536,11 +536,20 @@ class Utils:
             write_mode, file_location, test_msg
         )
         Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
+        file_location = Utils.get_file_name(file_location)
+        return test_msg, f"@{tmp_stage}/{file_location}"
+
+    @staticmethod
+    def get_file_name(file_location: str) -> str:
+        """
+        Gets the file name from the file location.
+        Handles both Windows and Unix-style paths.
+        """
         if "\\" in file_location:
             file_location = file_location.split("\\")[-1]
         else:
             file_location = file_location.split("/")[-1]
-        return test_msg, f"@{tmp_stage}/{file_location}"
+        return file_location
 
     @staticmethod
     def generate_and_write_lines(
@@ -588,10 +597,7 @@ class Utils:
             num_lines, write_mode, file_location, msg
         )
         Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
-        if "\\" in file_location:
-            file_location = file_location.split("\\")[-1]
-        else:
-            file_location = file_location.split("/")[-1]
+        file_location = Utils.get_file_name(file_location)
         return lines, f"@{tmp_stage}/{file_location}"
 
 
