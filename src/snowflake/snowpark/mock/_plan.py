@@ -668,8 +668,7 @@ def handle_udf_expression(
         # Resolve handler callable
         if type(udf.func) is tuple:
             module_name, handler_name = udf.func
-            exec(f"from {module_name} import {handler_name}")
-            udf_handler = eval(handler_name)
+            udf_handler = importlib.import_module(module_name).__dict__[handler_name]
         else:
             udf_handler = udf.func
 
