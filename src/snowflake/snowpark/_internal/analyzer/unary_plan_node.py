@@ -264,20 +264,6 @@ class Filter(UnaryNode):
         )
 
 
-class Having(UnaryNode):
-    def __init__(self, condition: Expression, child: LogicalPlan) -> None:
-        super().__init__(child)
-        self.condition = condition
-
-    @property
-    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # child HAVING condition
-        return sum_node_complexities(
-            {PlanNodeCategory.FILTER: 1},
-            self.condition.cumulative_node_complexity,
-        )
-
-
 class Project(UnaryNode):
     def __init__(self, project_list: List[NamedExpression], child: LogicalPlan) -> None:
         super().__init__(child)
