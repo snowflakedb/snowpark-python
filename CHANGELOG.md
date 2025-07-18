@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
+
 #### New Features
 
 - Added support for the following AI-powered functions in `functions.py`:
