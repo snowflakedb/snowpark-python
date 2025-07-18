@@ -31,6 +31,7 @@ from typing import (
     Tuple,
 )
 
+from modin.config import Backend
 import modin.pandas as pd
 from modin.pandas import Series, DataFrame
 from modin.pandas.base import BasePandasDataset
@@ -1202,6 +1203,164 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def execute(self) -> None:
         pass
+
+    def _move_to_ray(
+        self,
+        *,
+        enforce_ordering: bool,
+    ) -> BaseQueryCompiler:
+        """
+        Move the QueryCompiler to a Ray backend using the `ml.data.DataConnector`.
+
+        Args:
+            enforce_ordering: To sort by index
+
+        Returns:
+            A new Ray-backed BaseQueryCompiler
+        """
+        from snowflake.ml.data.data_connector import DataConnector
+
+        cached_qc = self.cache_result()
+        snowpark_df = cached_qc.to_snowpark()
+        data_connector = DataConnector.from_dataframe(snowpark_df)
+        ray_ds = data_connector.to_ray_dataset()
+        Backend.put("Ray")
+        modin_df = pd.io.from_ray(ray_ds)
+        Backend.put("Snowflake")
+
+        if '"index"' in modin_df.columns:
+            modin_df.set_index('"index"', inplace=True)
+        else:
+            # If no index column, ensure we have a RangeIndex instead
+            modin_df.index = range(len(modin_df))
+        if enforce_ordering:
+            modin_df.sort_index(inplace=True)
+        return modin_df._query_compiler
+
+    def _move_to(
+        self, target_backend: str, **kwargs: Any
+    ) -> Union[BaseQueryCompiler, Any]:
+        if target_backend == "Ray":
+            return self._move_to_ray(
+                enforce_ordering=kwargs.get("enforce_ordering", False),
+            )
+        return NotImplemented
+
+    @classmethod
+    def _move_from_ray(
+        cls,
+        ray_qc: BaseQueryCompiler,
+        *,
+        enforce_ordering: bool,
+        max_sessions: int,
+        connection_params: dict,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Move the data from Ray to Snowflake by writing to a Snowflake table.
+
+        Args:
+            ray_qc: The Ray-backed query compiler
+            enforce_ordering: Sort by index if True
+            max_sessions: The maximum number of sessions to use for writes
+            connection_params: The connection parameters to create new Snowpark sessions
+
+        Returns:
+            A new SnowflakeQueryCompiler with the data
+        """
+        try:
+            import ray  # type: ignore[import]
+            from ray.util.actor_pool import ActorPool  # type: ignore[import]
+        except ImportError as e:
+            raise ImportError(
+                "Ray is required for this operation but is not installed."
+            ) from e
+
+        def get_session(connection_params: dict[str, Any]) -> Session:
+            try:
+                return Session.builder.configs(connection_params).getOrCreate()
+            except Exception as e:
+                logging.warning(f"Error getting active session: {e}")
+                raise RuntimeError("Could not get or create Snowpark session")
+
+        def write_batch_to_snowflake(
+            session: Session,
+            table_name: str,
+            batch: native_pd.DataFrame,
+            table_type: str = "",
+            parallel: int = 4,
+        ) -> None:
+            session.write_pandas(
+                df=batch,
+                table_name=table_name,
+                table_type=table_type,
+                parallel=parallel,
+                auto_create_table=True,
+                overwrite=False,
+            )
+
+        @ray.remote
+        class SnowflakeWriterActor:
+            def __init__(
+                self, table_name: str, connection_params: dict[str, Any]
+            ) -> None:
+                self.table_name = table_name
+                self.session = get_session(connection_params)
+
+            def write(self, batch: native_pd.DataFrame) -> None:
+                write_batch_to_snowflake(self.session, self.table_name, batch)
+
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        wrapped_modin_obj = pd.DataFrame(query_compiler=ray_qc)
+        ray_ds = pd.io.to_ray(wrapped_modin_obj)
+
+        if not connection_params:
+            logging.warning(
+                "No connection parameters provided, attempting default session with max_sessions = 1"
+            )
+            max_sessions = 1
+
+        session = get_session(connection_params)
+        if max_sessions == 1:
+            # Single process using active session
+            for batch in ray_ds.iter_batches(batch_size=None, batch_format="pandas"):
+                write_batch_to_snowflake(session, table_name, batch, table_type="temp")
+        else:
+            # Multi-process to speed up writes with Ray actors
+            pool = ActorPool(
+                [
+                    SnowflakeWriterActor.remote(table_name, connection_params)  # type: ignore[attr-defined]
+                    for _ in range(max_sessions)
+                ]
+            )
+            list(
+                pool.map_unordered(
+                    lambda a, v: a.write.remote(v),
+                    ray_ds.iter_batches(batch_size=None, batch_format="pandas"),
+                )
+            )
+
+        Backend.put("Snowflake")
+        snowpark_pandas_df = pd.read_snowflake(table_name, enforce_ordering=True)
+        Backend.put("Ray")
+        if enforce_ordering:
+            snowpark_pandas_df.sort_index(inplace=True)
+        # If a permanent table was created, drop it and reference only the snapshot
+        if max_sessions > 1:
+            session.sql(f"DROP TABLE IF EXISTS {table_name}").collect()
+        return snowpark_pandas_df._query_compiler
+
+    @classmethod
+    def _move_from(
+        cls, source_qc: BaseQueryCompiler, **kwargs: Any
+    ) -> Union[BaseQueryCompiler, Any]:
+        if source_qc.get_backend() == "Ray":
+            return cls._move_from_ray(
+                source_qc,
+                enforce_ordering=kwargs.get("enforce_ordering", False),
+                max_sessions=kwargs.get("max_sessions", 8),
+                connection_params=kwargs.get("connection_params", {}),
+            )
+        return NotImplemented
 
     def to_numpy(
         self,
