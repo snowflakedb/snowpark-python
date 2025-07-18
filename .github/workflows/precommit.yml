@@ -102,20 +102,21 @@ jobs:
             cloud-provider: aws
           # only run gcp tests with latest python and ubuntu
           - cloud-provider: gcp
-            python-version: "3.13"
+            python-version: "3.12"
             os: ubuntu-latest-64-cores
           # only run azure tests with latest python and ubuntu
           - cloud-provider: azure
-            python-version: "3.13"
+            python-version: "3.12"
             os: ubuntu-latest-64-cores
-          # run py 3.13 tests on aws/ubuntu and azure/macos
+          # run py 3.13 tests on aws/ubuntu
           - python-version: "3.13"
             cloud-provider: aws
             os: ubuntu-latest-64-cores
-          - python-version: "3.13"
+          # run py 3.12 doctests on azure/macos
+          - python-version: "3.12"
             cloud-provider: azure
             os: macos-latest
-          # run py 3.13 tests on gcp on windows to help take load off aws runners
+          # run py 3.13 tests on gcp on windows
           - python-version: "3.13"
             cloud-provider: gcp
             os: windows-latest-64-cores
@@ -166,9 +167,20 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' }}
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.13' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      # SNOW-2213578 : Remove the test below and run udf tests for 3.13
+      # for 3.13, skip udf, doctest
+      - if: ${{ matrix.python-version == '3.13' }}
+        name: Run tests (excluding udf, doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -477,9 +489,6 @@ jobs:
             os: ubuntu-latest-64-cores
           - python-version: "3.12"
             cloud-provider: aws
-            os: ubuntu-latest-64-cores
-          - python-version: "3.13"
-            cloud-provider: azure
             os: ubuntu-latest-64-cores
     steps:
       - name: Checkout Code
