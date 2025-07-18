@@ -27,6 +27,13 @@ def test_read_snowflakefile(read_mode, write_mode, tmp_path, temp_stage, session
         with SnowflakeFile.open(file_location, mode) as f:
             return f.read()
 
+    import logging
+
+    _logger = logging.getLogger(__name__)
+    _logger.debug(f"Reading file: {temp_file}.")
+    _logger.debug(
+        f"Showing files associated with stage: {session.sql('LIST @{temp_stage}').collect()}"
+    )
     assert test_msg == read_file(temp_file, read_mode)
 
 

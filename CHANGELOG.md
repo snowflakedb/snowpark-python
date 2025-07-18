@@ -7,7 +7,6 @@
 #### New Features
 
 #### Improvements
-
 - Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
 - Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
 
