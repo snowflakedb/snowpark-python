@@ -475,12 +475,44 @@ class TelemetryClient:
         self.os: str = get_os_name()
         self.is_interactive = is_interactive()
 
+        # Initializing telemetry client for stored procedures
+        # In stored procs, we can't import this package at the top level, so we need to do it here
+        try:
+            from _snowflake import internal_metrics
+
+            internal_metrics_available = True
+        except ImportError:
+            internal_metrics_available = False
+        self.stored_proc_meter_enabled = (
+            is_in_stored_procedure() and internal_metrics_available
+        )
+        self.stored_proc_meter = (
+            internal_metrics.get_meter("snowpark-python-client")
+            if self.stored_proc_meter_enabled
+            else None
+        )
+        self.gauge_count = 0
+        # We periodically clean out the stored procedure meter of unused gauges
+        self.clean_up_stored_proc_meter_interval = 1
+
     def send(self, msg: Dict, timestamp: Optional[int] = None):
         if self.telemetry:
             if not timestamp:
                 timestamp = get_time_millis()
             telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
             self.telemetry.try_add_log_to_batch(telemetry_data)
+        elif self.stored_proc_meter and self.stored_proc_meter_enabled:
+            if not timestamp:
+                timestamp = get_time_millis()
+            self.stored_proc_meter.create_gauge(
+                f"snowflake.snowpark.test.gauge{self.gauge_count}",
+                description=str(msg),
+                unit="data",
+            ).set(200)
+            self.gauge_count += 1
+            if self.gauge_count % self.clean_up_stored_proc_meter_interval == 0:
+                with self.stored_proc_meter._instrument_id_instrument_lock:
+                    self.stored_proc_meter._instrument_id_instrument.clear()
 
     def _create_basic_telemetry_data(self, telemetry_type: str) -> Dict[str, Any]:
         message = {

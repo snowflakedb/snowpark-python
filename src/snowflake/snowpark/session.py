@@ -4075,10 +4075,14 @@ class Session:
         # Set both in-band and out-of-band telemetry to True/False
         if value:
             self._conn._conn.telemetry_enabled = True
-            self._conn._telemetry_client.telemetry._enabled = True
+            if self._conn._telemetry_client.telemetry:
+                self._conn._telemetry_client.telemetry._enabled = True
+            self._conn._telemetry_client.stored_proc_meter_enabled = True
         else:
             self._conn._conn.telemetry_enabled = False
-            self._conn._telemetry_client.telemetry._enabled = False
+            if self._conn._telemetry_client.telemetry:
+                self._conn._telemetry_client.telemetry._enabled = False
+            self._conn._telemetry_client.stored_proc_meter_enabled = False
 
     @property
     def file(self) -> FileOperation:
