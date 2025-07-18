@@ -536,7 +536,11 @@ class Utils:
             write_mode, file_location, test_msg
         )
         Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
-        return test_msg, f"@{tmp_stage}/{file_location.split('/')[-1]}"
+        if "\\" in file_location:
+            file_location = file_location.split("\\")[-1]
+        else:
+            file_location = file_location.split("/")[-1]
+        return test_msg, f"@{tmp_stage}/{file_location}"
 
     @staticmethod
     def generate_and_write_lines(
@@ -584,7 +588,11 @@ class Utils:
             num_lines, write_mode, file_location, msg
         )
         Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
-        return lines, f"@{tmp_stage}/{file_location.split('/')[-1]}"
+        if "\\" in file_location:
+            file_location = file_location.split("\\")[-1]
+        else:
+            file_location = file_location.split("/")[-1]
+        return lines, f"@{tmp_stage}/{file_location}"
 
 
 class TestData:
