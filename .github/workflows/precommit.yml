@@ -167,7 +167,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' }}
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.13' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
@@ -178,7 +178,7 @@ jobs:
         shell: bash
       # SNOW-2213578 : Remove the test below and run udf tests for 3.13
       # for 3.13, skip udf, doctest
-      - if: ${{ matrix.python-version == '3.13' }}
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version == '3.13' }}
         name: Run tests (excluding udf, doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
         env:
