@@ -6,6 +6,7 @@ import os
 import sys
 import time
 import queue
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
@@ -1579,9 +1580,10 @@ class DataFrameReader:
                 data_fetching_thread_pool_executor.shutdown(wait=True)
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
-        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
-            DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
-        )
+        telemetry = defaultdict()
+        telemetry["function_name"] = DATA_SOURCE_DBAPI_SIGNATURE
+        telemetry["duration"] = str(time.perf_counter() - start_time)
+        self._session._conn._telemetry_client.send_data_source_perf_telemetry(telemetry)
         # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
         # with the new name for the temporary table into which the external db data was ingressed.
         # Leaving this functionality as client-side only means capturing an AST specifically for
