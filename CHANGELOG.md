@@ -8,11 +8,41 @@
 
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
 
+#### New Features
+
+- Added support for the following AI-powered functions in `functions.py`:
+  - `ai_embed`
+
 #### Improvements
 
 - Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+- Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
 
-## 1.34.0 (YYYY-MM-DD)
+#### Bug Fixes
+
+- Fixed a bug in schema inference that would cause it to fail for external stages.
+
+### Snowpark Local Testing Updates
+
+- Added local testing support for reading files with `SnowflakeFile` using local file paths, stage paths (@stage/file_path), and the Snow URL semantic (snow://...).
+
+#### New Features
+
+#### Improvements
+
+#### Bug Fixes
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `DataFrame.boxplot`.
+
+#### Improvements
+
+#### Bug Fixes
+
+## 1.34.0 (2025-07-15)
 
 ### Snowpark Python API Updates
 
@@ -30,12 +60,10 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 #### Improvements
 
 - Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
-- Improved SQL generation for `session.table().sample()` to generate a flat sql statement.
+- Improved SQL generation for `session.table().sample()` to generate a flat SQL statement.
 - Added support for complex column expression as input for `functions.explode`.
 - Added debuggability improvements to show which Python lines an SQL compilation error corresponds to. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
 - Set enforce_ordering=True when calling `to_snowpark_pandas()` from a snowpark dataframe containing DML/DDL queries instead of throwing a NotImplementedError.
-- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
-- Set the 'type' and other standard fields for modin telemetry.
 
 #### Bug Fixes
 
@@ -45,8 +73,6 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Fixed a bug where having a NULL in a column with DecimalTypes would cast the column to FloatTypes instead and lead to precision loss.
 
 ### Snowpark Local Testing Updates
-
-- Added local testing support for reading files with `SnowflakeFile` using local file paths, stage paths (@stage/file_path), and the Snow URL semantic (snow://...).
 
 #### Bug Fixes
 
@@ -66,11 +92,10 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 #### Improvements
 
 - Added modin telemetry on API calls and hybrid engine switches.
-- Show more helpful error messages to Snowflake Notebook users when Modin or pandas version does not match our requirements.
+- Show more helpful error messages to Snowflake Notebook users when the `modin` or `pandas` version does not match our requirements.
 - Added a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
 - Added automatic switching to the pandas backend in hybrid execution mode (PrPr) for many methods that are not directly implemented in Snowpark pandas.
-- Set the 'type' and other standard fields for modin telemetry.
-
+- Set the 'type' and other standard fields for Snowpark pandas telemetry.
 
 #### Dependency Updates
 
@@ -81,7 +106,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 
 - Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
 - Fixed a bug in hybrid execution mode (PrPr) where calling numpy operations like `np.where` on modin objects with the Pandas backend would raise an `AttributeError`. This fix requires `modin` version 0.34.0 or newer.
-- Fixed issue when df.melt where the resulting values have an additional suffix applied
+- Fixed issue in `df.melt` where the resulting values have an additional suffix applied.
 
 ## 1.33.0 (2025-06-19)
 

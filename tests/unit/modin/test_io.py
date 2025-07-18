@@ -15,6 +15,9 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
         pd.to_pandas,
         pd.to_snowpark,
         pd.to_snowflake,
+        pd.to_view,
+        pd.to_dynamic_table,
+        pd.to_iceberg,
     ],
 )
 def test_wrong_obj(api):
@@ -22,7 +25,18 @@ def test_wrong_obj(api):
         TypeError,
         match="obj must be a Snowpark pandas DataFrame or Series",
     ):
-        if api.__name__ == "to_snowflake":
-            api(native_pd.Series([1, 2, 3]), name="table-name")
+        if api.__name__ in ["to_snowflake", "to_view"]:
+            api(native_pd.Series([1, 2, 3]), name="object-name")
+        elif api.__name__ == "to_dynamic_table":
+            api(
+                native_pd.Series([1, 2, 3]),
+                name="object-name",
+                warehouse="warehouse",
+                lag="lag",
+            )
+        elif api.__name__ == "to_iceberg":
+            api(
+                native_pd.Series([1, 2, 3]), table_name="object-name", iceberg_config={}
+            )
         else:
             api(native_pd.Series([1, 2, 3]))
