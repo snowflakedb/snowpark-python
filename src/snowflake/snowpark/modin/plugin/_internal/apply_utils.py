@@ -433,7 +433,7 @@ def create_udtf_for_apply_axis_1(
                 statement_params=get_default_snowpark_pandas_statement_params(),
             )
             cache[cache_key] = new_udtf
-        except NotImplementedError:  # pragma: no branch
+        except NotImplementedError:  # pragma: no cover
             # When a Snowpark object is passed to a UDF, a NotImplementedError with message
             # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
             # catch this exception and return a more user-friendly error message.
@@ -820,7 +820,7 @@ def create_udtf_for_groupby_no_pivot(
                 statement_params=get_default_snowpark_pandas_statement_params(),
             )
             cache[cache_key] = new_udtf
-        except NotImplementedError:  # pragma: no branch
+        except NotImplementedError:  # pragma: no cover
             # When a Snowpark object is passed to a UDF, a NotImplementedError with message
             # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
             # catch this exception and return a more user-friendly error message.
@@ -1208,7 +1208,7 @@ def create_udtf_for_groupby_apply(
                 statement_params=get_default_snowpark_pandas_statement_params(),
             )
             cache[cache_key] = new_udtf
-        except NotImplementedError:  # pragma: no branch
+        except NotImplementedError:  # pragma: no cover
             # When a Snowpark object is passed to a UDF, a NotImplementedError with message
             # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
             # catch this exception and return a more user-friendly error message.
@@ -1298,7 +1298,7 @@ def create_udf_for_series_apply(
                 packages=packages,
                 statement_params=get_default_snowpark_pandas_statement_params(),
             )
-        except NotImplementedError:  # pragma: no branch
+        except NotImplementedError:  # pragma: no cover
             # When a Snowpark object is passed to a UDF, a NotImplementedError with message
             # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
             # catch this exception and return a more user-friendly error message.
