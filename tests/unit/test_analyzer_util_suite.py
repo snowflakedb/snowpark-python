@@ -548,8 +548,34 @@ def test_table_function_statement_formatting():
 
 
 def test_filter_statement_formatting():
-    assert filter_statement("x > 0 AND y < 10", "my_table") == (
+    # Test with is_having=False (WHERE clause)
+    assert filter_statement("x > 0 AND y < 10", False, "my_table") == (
         " SELECT  * \n" " FROM (\n" "my_table\n" ")\n" " WHERE x > 0 AND y < 10"
+    )
+
+    # Test with is_having=True (HAVING clause)
+    assert filter_statement("COUNT(*) > 5", True, "my_table") == (
+        "my_table\n" " HAVING COUNT(*) > 5"
+    )
+
+    # Test with complex child query and is_having=False
+    child_query = "SELECT a, b, COUNT(*) as cnt\nFROM table1\nGROUP BY a, b"
+    assert filter_statement("cnt > 10", False, child_query) == (
+        " SELECT  * \n"
+        " FROM (\n"
+        "SELECT a, b, COUNT(*) as cnt\n"
+        "FROM table1\n"
+        "GROUP BY a, b\n"
+        ")\n"
+        " WHERE cnt > 10"
+    )
+
+    # Test with complex child query and is_having=True
+    assert filter_statement("SUM(amount) > 1000", True, child_query) == (
+        "SELECT a, b, COUNT(*) as cnt\n"
+        "FROM table1\n"
+        "GROUP BY a, b\n"
+        " HAVING SUM(amount) > 1000"
     )
 
 
@@ -603,11 +629,11 @@ def test_aggregate_statement_formatting():
 
 
 def test_sort_statement_formatting():
-    assert sort_statement(["col1 ASC"], "my_table") == (
+    assert sort_statement(["col1 ASC"], False, "my_table") == (
         " SELECT  * \n" " FROM (\n" "my_table\n" ")\n" " ORDER BY \n" "    col1 ASC"
     )
 
-    assert sort_statement(["col1 ASC", "col2 DESC"], "my_table") == (
+    assert sort_statement(["col1 ASC", "col2 DESC"], False, "my_table") == (
         " SELECT  * \n"
         " FROM (\n"
         "my_table\n"
@@ -615,6 +641,15 @@ def test_sort_statement_formatting():
         " ORDER BY \n"
         "    col1 ASC, \n"
         "    col2 DESC"
+    )
+
+    # Test with is_order_by_append=True
+    assert sort_statement(["col1 ASC"], True, "my_table") == (
+        "my_table\n" " ORDER BY \n" "    col1 ASC"
+    )
+
+    assert sort_statement(["col1 ASC", "col2 DESC"], True, "my_table") == (
+        "my_table\n" " ORDER BY \n" "    col1 ASC, \n" "    col2 DESC"
     )
 
 

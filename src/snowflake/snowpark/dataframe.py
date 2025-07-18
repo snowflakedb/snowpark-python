@@ -616,6 +616,7 @@ class DataFrame:
 
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
+        self._is_grouped_by_and_aggregated = False
 
         # Whether all columns are VARIANT data type,
         # which support querying nested fields via dot notations
@@ -1964,18 +1965,41 @@ class DataFrame:
             else:
                 stmt = _ast_stmt
 
-        if self._select_statement:
+        # In snowpark_connect_compatible mode, we need to handle
+        # the filtering for dataframe after aggregation without nesting using HAVING
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._is_grouped_by_and_aggregated
+        ):
+            having_plan = Filter(filter_col_expr, self._plan, is_having=True)
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            having_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(having_plan, _ast_stmt=stmt)
+            df._is_grouped_by_and_aggregated = True
+            return df
+        else:
+            if self._select_statement:
+                return self._with_plan(
+                    self._select_statement.filter(filter_col_expr),
+                    _ast_stmt=stmt,
+                )
             return self._with_plan(
-                self._select_statement.filter(filter_col_expr),
+                Filter(
+                    filter_col_expr,
+                    self._plan,
+                    is_having=False,
+                ),
                 _ast_stmt=stmt,
             )
-        return self._with_plan(
-            Filter(
-                filter_col_expr,
-                self._plan,
-            ),
-            _ast_stmt=stmt,
-        )
 
     @df_api_usage
     @publicapi
@@ -2105,16 +2129,40 @@ class DataFrame:
                     SortOrder(exprs[idx], orders[idx] if orders else Ascending())
                 )
 
-        df = (
-            self._with_plan(self._select_statement.sort(sort_exprs))
-            if self._select_statement
-            else self._with_plan(Sort(sort_exprs, self._plan))
-        )
+        # In snowpark_connect_compatible mode, we need to handle
+        # the sorting for dataframe after aggregation without nesting
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._is_grouped_by_and_aggregated
+        ):
+            sort_plan = Sort(sort_exprs, self._plan, is_order_by_append=True)
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            sort_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(sort_plan, _ast_stmt=stmt)
+            df._is_grouped_by_and_aggregated = True
+            return df
+        else:
+            df = (
+                self._with_plan(self._select_statement.sort(sort_exprs))
+                if self._select_statement
+                else self._with_plan(
+                    Sort(sort_exprs, self._plan, is_order_by_append=False)
+                )
+            )
 
-        if _emit_ast:
-            df._ast_id = stmt.uid
+            if _emit_ast:
+                df._ast_id = stmt.uid
 
-        return df
+            return df
 
     @experimental(version="1.5.0")
     @publicapi

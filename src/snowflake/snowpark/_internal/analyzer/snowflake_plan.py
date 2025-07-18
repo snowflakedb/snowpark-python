@@ -1078,12 +1078,14 @@ class SnowflakePlanBuilder:
     def filter(
         self,
         condition: str,
+        is_having: bool,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
             lambda x: filter_statement(
                 condition,
+                is_having,
                 x,
                 child_uuid=(
                     child.uuid
@@ -1135,12 +1137,14 @@ class SnowflakePlanBuilder:
     def sort(
         self,
         order: List[str],
+        is_order_by_append: bool,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
             lambda x: sort_statement(
                 order,
+                is_order_by_append,
                 x,
                 child_uuid=(
                     child.uuid
