@@ -36,6 +36,8 @@
 
 #### Improvements
 
+- Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
+
 #### Bug Fixes
 
 ## 1.34.0 (2025-07-15)

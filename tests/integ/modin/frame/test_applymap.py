@@ -21,6 +21,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import running_on_public_ci
 
 
 @pytest.fixture(params=["applymap", "map"])
@@ -32,7 +33,7 @@ def method(request):
 
 
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
-@sql_count_checker(query_count=7, udf_count=1)
+@sql_count_checker(query_count=4, udf_count=1)
 def test_applymap_basic_without_type_hints(data, func, return_type, method):
     frame_data = {0: data, 1: data}
     native_df = native_pd.DataFrame(frame_data)
@@ -41,7 +42,7 @@ def test_applymap_basic_without_type_hints(data, func, return_type, method):
 
 
 @pytest.mark.parametrize("data,func,return_type", BASIC_DATA_FUNC_RETURN_TYPE_MAP)
-@sql_count_checker(query_count=7, udf_count=1)
+@sql_count_checker(query_count=4, udf_count=1)
 def test_applymap_basic_with_type_hints(data, func, return_type, method):
     func_with_type_hint = create_func_with_return_type_hint(func, return_type)
 
@@ -57,7 +58,7 @@ def test_applymap_basic_with_type_hints(data, func, return_type, method):
     "data,func,return_type,expected_result",
     DATE_TIME_TIMESTAMP_DATA_FUNC_RETURN_TYPE_MAP,
 )
-@sql_count_checker(query_count=7, udf_count=1)
+@sql_count_checker(query_count=4, udf_count=1)
 def test_applymap_date_time_timestamp(data, func, return_type, expected_result):
     func_with_type_hint = create_func_with_return_type_hint(func, return_type)
 
@@ -149,7 +150,7 @@ def test_preserve_order():
     native_df = native_pd.DataFrame([[10, 2.12], [3.356, 4.567]])
     df = pd.DataFrame(native_df)
 
-    with SqlCounter(query_count=7, udf_count=1):
+    with SqlCounter(query_count=4, udf_count=1):
         eval_snowpark_pandas_result(df, native_df, lambda x: x.applymap(lambda y: -y))
 
     native_df = native_df.sort_values(0)
@@ -166,15 +167,13 @@ def test_preserve_order():
     1  -3.356 -4.567
     0 -10.000 -2.120
     """
-    with SqlCounter(query_count=7, udf_count=1):
+    with SqlCounter(query_count=4, udf_count=1):
         eval_snowpark_pandas_result(df, native_df, lambda x: x.applymap(lambda y: -y))
 
 
 @sql_count_checker(
-    query_count=10,
+    query_count=7,
     udf_count=1,
-    high_count_expected=True,
-    high_count_reason="udf creation",
 )
 def test_applymap_variant_json_null():
     def f(x):
@@ -194,3 +193,73 @@ def test_applymap_variant_json_null():
     df = pd.DataFrame([[1, 2, None], [3, 4, pd.NA]])
     native_df = native_pd.DataFrame([[1, 2, None], [3, 4, pd.NA]])
     eval_snowpark_pandas_result(df, native_df, lambda x: x.applymap(f).isna())
+
+
+def test_map_udf_caching():
+    # Reusing the same function reference in multiple frames should hit the local UDF cache
+    # instead of creating a new UDF on each call.
+    # The cache should not be hit when the function is called on columns with different datatypes.
+    test_data = {
+        "int_col_1": [1, 2, 3],
+        "int_col_2": [4, 5, 6],
+        "str_col_1": ["a", "b", "c"],
+        "str_col_2": ["x", "y", "z"],
+    }
+    operation = lambda x: x * 2  # noqa: E731
+    with SqlCounter(query_count=7, udf_count=1):
+        # This call issues 2 CREATE TEMPORARY FUNCTION calls: 1 for the int columns, and 1 for the str columns.
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.map(operation)
+        )
+    with SqlCounter(query_count=1):
+        # A second call to a frame with the same column signatures does not create any new UDFs.
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.map(operation)
+        )
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDF caching test")
+def test_map_udf_caching_mutated_arg():
+    # Passing an internally-mutable object to a map call should not hit the cache if the object was mutated.
+    class A:
+        def __init__(self) -> None:
+            self.x = [1]
+
+    test_data = {"a": [1, 2, 3], "b": [4, 5, 6]}
+
+    arg = A()
+
+    def operation(col, arg):
+        return col + sum(arg.x)
+
+    with SqlCounter(query_count=4, udf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.map(operation, arg=arg)
+        )
+
+    # Mutate arg.x, preventing a cache entry from being created
+    arg.x.append(10)
+    with SqlCounter(query_count=4, udf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.map(operation, arg=arg)
+        )
+
+    # Mutate arg.x again, but this time mutate it between the map operation and materialization
+    with SqlCounter(query_count=7, udf_count=1):
+        arg.x.append(100)
+        snow_df, native_df = create_test_dfs(test_data)
+        mapped_snow = snow_df.map(operation, arg=arg)
+        mapped_native = native_df.map(operation, arg=arg)
+        arg.x.append(1000)
+        eval_snowpark_pandas_result(
+            mapped_snow, mapped_native, lambda df: df.map(operation, arg=arg)
+        )
+
+    # A different instance of A with the same underlying data should hit the cache because the pickled
+    # data will be the same.
+    arg2 = A()
+    arg2.x.append(10)
+    with SqlCounter(query_count=1, udf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.map(operation, arg=arg2)
+        )
