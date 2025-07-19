@@ -90,34 +90,30 @@ class DataSourcePartitioner:
 
     @cached_property
     def schema(self) -> StructType:
-        if self.custom_schema is None:
-            return self.driver.infer_schema_from_description_with_error_control(
-                self.table_or_query, self.is_query, self._query_input_alias
-            )
-        else:
-            self.driver.get_raw_schema(
-                self.table_or_query,
-                self.driver.create_connection().cursor(),
-                self.is_query,
-                self._query_input_alias,
-            )
+        custom_schema = None
+        if self.custom_schema is not None:
             if isinstance(self.custom_schema, str):
-                schema = type_string_to_type_object(self.custom_schema)
-                if not isinstance(schema, StructType):
+                custom_schema = type_string_to_type_object(self.custom_schema)
+                if not isinstance(custom_schema, StructType):
                     raise ValueError(
                         f"Invalid schema string: {self.custom_schema}. "
                         f"You should provide a valid schema string representing a struct type."
                         'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     )
             elif isinstance(self.custom_schema, StructType):
-                schema = self.custom_schema
+                custom_schema = self.custom_schema
             else:
                 raise ValueError(
                     f"Invalid schema type: {type(self.custom_schema)}."
                     'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
                 )
-            return schema
+        auto_infer_schema = (
+            self.driver.infer_schema_from_description_with_error_control(
+                self.table_or_query, self.is_query, self._query_input_alias
+            )
+        )
+        return custom_schema or auto_infer_schema
 
     @cached_property
     def partitions(self) -> List[str]:
