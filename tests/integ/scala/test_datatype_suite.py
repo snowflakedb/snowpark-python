@@ -1329,6 +1329,7 @@ def test_structured_map_value_contains_null(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
+@pytest.mark.udf
 def test_structured_type_schema_expression(
     structured_type_session, local_testing_mode, structured_type_support, max_string
 ):
