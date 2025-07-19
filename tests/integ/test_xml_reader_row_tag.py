@@ -19,6 +19,7 @@ pytestmark = [
         "config.getoption('local_testing_mode', default=False)",
         reason="xml not supported in local testing mode",
     ),
+    pytest.mark.udf,
 ]
 
 

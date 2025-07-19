@@ -668,8 +668,7 @@ def handle_udf_expression(
         # Resolve handler callable
         if type(udf.func) is tuple:
             module_name, handler_name = udf.func
-            exec(f"from {module_name} import {handler_name}")
-            udf_handler = eval(handler_name)
+            udf_handler = importlib.import_module(module_name).__dict__[handler_name]
         else:
             udf_handler = udf.func
 
@@ -753,8 +752,7 @@ def handle_udaf_expression(
         # Resolve handler callable
         if type(udaf.handler) is tuple:
             module_name, handler_name = udaf.func
-            exec(f"from {module_name} import {handler_name}")
-            udaf_class = eval(handler_name)
+            udaf_class = importlib.import_module(module_name).__dict__[handler_name]
         else:
             udaf_class = udaf.handler
 
@@ -952,8 +950,7 @@ def handle_sproc_expression(
         # Resolve handler callable
         if type(sproc.func) is tuple:
             module_name, handler_name = sproc.func
-            exec(f"from {module_name} import {handler_name}")
-            sproc_handler = eval(handler_name)
+            sproc_handler = importlib.import_module(module_name).__dict__[handler_name]
         else:
             sproc_handler = sproc.func
 

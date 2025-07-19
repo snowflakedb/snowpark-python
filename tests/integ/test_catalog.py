@@ -276,6 +276,7 @@ def test_list_views(session, temp_db1, temp_schema1, temp_view1, temp_view2):
     assert {view.name for view in view_list} >= {temp_view1, temp_view2}
 
 
+@pytest.mark.udf
 def test_list_procedures(
     session, temp_db1, temp_schema1, temp_procedure1, temp_procedure2
 ):
@@ -354,6 +355,7 @@ def test_get_table_view(session, temp_db1, temp_schema1, temp_table1, temp_view1
     assert view.schema_name == temp_schema1
 
 
+@pytest.mark.udf
 def test_get_function_procedure_udf(
     session, temp_db1, temp_schema1, temp_procedure1, temp_udf1
 ):
@@ -426,6 +428,7 @@ def test_exists_table_view(session, temp_db1, temp_schema1, temp_table1, temp_vi
     )
 
 
+@pytest.mark.udf
 def test_exists_function_procedure_udf(
     session, temp_db1, temp_schema1, temp_procedure1, temp_udf1
 ):

@@ -3,6 +3,7 @@
 #
 
 import json
+import importlib
 import typing
 from copy import copy
 from types import ModuleType
@@ -146,8 +147,9 @@ class MockStoredProcedure(StoredProcedure):
             # Resolve handler callable
             if type(self.func) is tuple:
                 module_name, handler_name = self.func
-                exec(f"from {module_name} import {handler_name}")
-                sproc_handler = eval(handler_name)
+                sproc_handler = importlib.import_module(module_name).__dict__[
+                    handler_name
+                ]
             else:
                 sproc_handler = self.func
 

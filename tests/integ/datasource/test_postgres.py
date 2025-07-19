@@ -134,6 +134,7 @@ def test_unicode_column_name_postgres(session):
         ("query", f"(SELECT * FROM {POSTGRES_TABLE_NAME})"),
     ],
 )
+@pytest.mark.udf
 def test_udtf_ingestion_postgres(session, input_type, input_value, caplog):
     from tests.parameters import POSTGRES_CONNECTION_PARAMETERS
 
