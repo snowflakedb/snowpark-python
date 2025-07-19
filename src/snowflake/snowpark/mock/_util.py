@@ -34,6 +34,7 @@ from snowflake.snowpark.types import (
     _NumericType,
 )
 
+
 # placeholder map helps convert wildcard to reg. In practice, we convert wildcard to a middle string first,
 # and then convert middle string to regex. See the following example:
 #   wildcard = "_." -> middle: "_<snowflake-regex-placeholder-for-dot>" -> regex = ".\."
