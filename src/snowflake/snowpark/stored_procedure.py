@@ -14,6 +14,7 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.ast.utils import (
+    add_intermediate_stmt,
     build_sproc,
     build_sproc_apply,
     with_src_position,
@@ -141,12 +142,8 @@ class StoredProcedure:
 
         sproc_expr = None
         if _emit_ast and self._ast is not None:
-            assert (
-                self._ast is not None
-            ), "Need to ensure _emit_ast is True when registering a stored procedure."
-            assert (
-                self._ast_id is not None
-            ), "Need to assign an ID to the stored procedure."
+            if self._ast_id is None:
+                add_intermediate_stmt(session._ast_batch, self)
             sproc_expr = proto.Expr()
             build_sproc_apply(sproc_expr, self._ast_id, statement_params, *args)
 
@@ -849,9 +846,12 @@ class StoredProcedureRegistration:
         stmt, ast, ast_id = None, None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.bind()
-                ast = with_src_position(stmt.expr.stored_procedure, stmt)
-                ast_id = stmt.uid
+                if self._session is not None:
+                    stmt = self._session._ast_batch.bind()
+                    ast = with_src_position(stmt.expr.stored_procedure, stmt)
+                    ast_id = stmt.uid
+                else:
+                    ast = proto.StoredProcedure()
 
             return StoredProcedure(
                 func,
@@ -886,9 +886,12 @@ class StoredProcedureRegistration:
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.bind()
-            ast = with_src_position(stmt.expr.stored_procedure, stmt)
-            ast_id = stmt.uid
+            if self._session is not None:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.stored_procedure, stmt)
+                ast_id = stmt.uid
+            else:
+                ast = proto.StoredProcedure()
 
             build_sproc(
                 ast,
