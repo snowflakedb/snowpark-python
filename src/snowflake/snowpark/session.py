@@ -4385,6 +4385,7 @@ class Session:
         include_describe: bool = False,
         include_thread_id: bool = False,
         include_error: bool = False,
+        check_exploding_joins: bool = False,
     ) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
@@ -4402,7 +4403,11 @@ class Session:
         >>> assert not query_history.queries[1].is_describe
         """
         query_listener = QueryHistory(
-            self, include_describe, include_thread_id, include_error
+            self,
+            include_describe,
+            include_thread_id,
+            include_error,
+            check_exploding_joins,
         )
         self._conn.add_query_listener(query_listener)
         return query_listener

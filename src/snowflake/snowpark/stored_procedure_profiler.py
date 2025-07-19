@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.utils import (
     parse_table_name,
     strip_double_quotes_in_like_statement_in_table_name,
 )
+import snowflake.snowpark.context as context
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,9 @@ class StoredProcedureProfiler:
             self._active_profiler_number += 1
             if self._query_history is None:
                 self._query_history = self._session.query_history(
-                    include_thread_id=True, include_error=True
+                    include_thread_id=True,
+                    include_error=True,
+                    check_exploding_joins=context._enable_track_exploding_joins,
                 )
             self._is_enabled = True
 

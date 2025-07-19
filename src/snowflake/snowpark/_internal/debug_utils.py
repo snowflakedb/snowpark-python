@@ -7,12 +7,14 @@ import os
 import sys
 from typing import Dict, List, Optional
 import itertools
+import logging
 import re
 from typing import TYPE_CHECKING
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.ast.utils import extract_src_from_expr
+from snowflake.snowpark.query_history import QueryRecord
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan
@@ -21,6 +23,10 @@ UNKNOWN_FILE = "__UNKNOWN_FILE__"
 SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH = (
     "SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH"
 )
+# If output_rows >= EXPLODING_JOIN_THRESHOLD * input_rows, we will log a warning.
+EXPLODING_JOIN_THRESHOLD = 10.0
+
+_logger = logging.getLogger("snowflake.snowpark")
 
 
 class DataFrameTraceNode:
@@ -220,6 +226,32 @@ def _format_source_location(src: Optional[proto.SrcPosition]) -> str:
     return lines_info
 
 
+def _extract_source_locations_from_plan(plan: "SnowflakePlan") -> List[str]:
+    """
+    Extract source locations from a SnowflakePlan's AST IDs.
+
+    Args:
+        plan: The SnowflakePlan object to extract source locations from
+
+    Returns:
+        List of unique source location strings (e.g., "file.py: line 42")
+    """
+    source_locations = []
+    found_locations = set()
+
+    if plan.df_ast_ids is not None:
+        for ast_id in plan.df_ast_ids:
+            bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
+            if bind_stmt is not None:
+                src = extract_src_from_expr(bind_stmt.bind.expr)
+                location = _format_source_location(src)
+                if location and location not in found_locations:
+                    found_locations.add(location)
+                    source_locations.append(location)
+
+    return source_locations
+
+
 def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) -> str:
     """
     Extract SQL error line number and map it back to Python source code. We use the
@@ -249,17 +281,8 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
     )
 
     plan = get_plan_from_line_numbers(top_plan, sql_line_number)
-    source_locations = []
-    found_locations = set()
-    if plan.df_ast_ids is not None:
-        for ast_id in plan.df_ast_ids:
-            bind_stmt = plan.session._ast_batch._bind_stmt_cache.get(ast_id)
-            if bind_stmt is not None:
-                src = extract_src_from_expr(bind_stmt.bind.expr)
-                location = _format_source_location(src)
-                if location != "" and location not in found_locations:
-                    found_locations.add(location)
-                    source_locations.append(location)
+    source_locations = _extract_source_locations_from_plan(plan)
+
     if source_locations:
         if len(source_locations) == 1:
             return f"\nSQL compilation error corresponds to Python source at {source_locations[0]}.\n"
@@ -267,3 +290,103 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
             locations_str = "\n  - ".join(source_locations)
             return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
+
+
+def analyze_query_for_exploding_joins(
+    session, query_record: QueryRecord, top_plan: Optional["SnowflakePlan"] = None
+) -> None:
+    """
+    Analyze a single query for exploding joins.
+
+    Args:
+        session: The Snowpark session to use for querying operator stats
+        query_record: QueryRecord from query history
+        ast_id: Optional AST ID for the dataframe
+        top_plan: Optional top-level SnowflakePlan for source location mapping
+
+    Returns:
+        None - logs warnings when exploding joins are detected
+    """
+    if not query_record.query_id or not query_record.sql_text:
+        return
+    sql_upper = query_record.sql_text.upper()
+    if "JOIN" not in sql_upper:
+        return
+
+    stats_query = f"""
+        SELECT
+            operator_id,
+            operator_type,
+            operator_attributes,
+            operator_statistics:input_rows::number as input_rows,
+            operator_statistics:output_rows::number as output_rows,
+            CASE
+                WHEN operator_statistics:input_rows::number > 0
+                THEN operator_statistics:output_rows::number / operator_statistics:input_rows::number
+                ELSE NULL
+            END as row_multiple,
+            execution_time_breakdown:overall_percentage::number as overall_percentage
+        FROM TABLE(get_query_operator_stats('{query_record.query_id}'))
+        ORDER BY step_id, operator_id
+        """
+    stats_connection = session._conn._conn.cursor()
+    stats_connection.execute(stats_query)
+    stats_result = stats_connection.fetchall()
+    for row in stats_result:
+        operator_type = row[1] if row[1] else "N/A"
+        row_multiple = row[5] if row[5] else 0
+        if (
+            "Join" in operator_type
+            and row_multiple is not None
+            and row_multiple >= EXPLODING_JOIN_THRESHOLD
+        ):
+            operator_id = row[0] if row[0] else "N/A"
+            input_rows = row[3] if row[3] else 0
+            output_rows = row[4] if row[4] else 0
+            location_info = ""
+            if top_plan is not None:
+                join_locations = _find_join_source_locations(
+                    query_record.sql_text, top_plan
+                )
+                if join_locations:
+                    location_info = f", Locations: {'; '.join(join_locations)}"
+
+            _logger.warning(
+                f"WARNING: EXPLODING JOIN DETECTED - Query: {query_record.query_id}, "
+                f"Operator: {operator_id} ({operator_type}), "
+                f"Multiplier: {row_multiple:.2f}, "
+                f"Input Rows: {input_rows:,}, Output Rows: {output_rows:,}"
+                f"{location_info}"
+            )
+
+
+def _find_join_source_locations(sql_text: str, top_plan: "SnowflakePlan") -> List[str]:
+    """
+    Find Python source locations responsible for JOIN operations in the SQL query.
+
+    This function attempts to identify lines in the SQL that contain JOIN keywords
+    and map them back to the corresponding Python source code using the SnowflakePlan.
+
+    Args:
+        sql_text: The SQL query text to analyze
+        top_plan: The top-level SnowflakePlan to search for source locations
+
+    Returns:
+        List of source location strings (e.g., "file.py: line 42")
+    """
+    from snowflake.snowpark._internal.utils import get_plan_from_line_numbers
+
+    join_locations = []
+    found_locations = set()
+    sql_lines = sql_text.split("\n")
+
+    for line_num, line in enumerate(sql_lines):
+        line_upper = line.strip().upper()
+        if "JOIN" in line_upper:
+            plan = get_plan_from_line_numbers(top_plan, line_num)
+            locations = _extract_source_locations_from_plan(plan)
+            for location in locations:
+                if location not in found_locations:
+                    join_locations.append(location)
+
+    return join_locations
