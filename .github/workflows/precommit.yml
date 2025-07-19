@@ -442,7 +442,7 @@ jobs:
       - name: Install tox
         run: python -m pip install tox
       - name: Run tests for AST (II/II)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
