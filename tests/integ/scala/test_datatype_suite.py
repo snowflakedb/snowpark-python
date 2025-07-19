@@ -1462,6 +1462,7 @@ def test_structured_type_schema_expression(
     "config.getoption('local_testing_mode', default=False)",
     reason="Structured types are not supported in Local Testing",
 )
+@pytest.mark.udf
 def test_stored_procedure_with_structured_returns(
     structured_type_session,
     structured_type_support,
