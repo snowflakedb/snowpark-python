@@ -545,8 +545,6 @@ class Table(DataFrame):
 
             # Flush AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         new_df = self._with_plan(
             TableUpdate(
@@ -673,8 +671,6 @@ class Table(DataFrame):
 
             # Flush AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         new_df = self._with_plan(
             TableDelete(
@@ -861,8 +857,6 @@ class Table(DataFrame):
 
             # Flush AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         new_df = self._with_plan(
             TableMerge(

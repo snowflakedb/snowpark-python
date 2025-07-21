@@ -585,14 +585,14 @@ class DataframeQueryProfiler:
     def profile_query(
         self,
         query_id: str,
+        show_sql: bool = False,
     ) -> None:
         """
         Profile a query and save the results to a file.
 
         Args:
             query_id: The query ID to profile
-            plan: Optional SnowflakePlan object to extract source location information from
-            output_file: The file to save the results to. If not provided, the results will be printed to the console.
+            show_sql: Whether to show the SQL query in the output. Defaults to False.
 
         Returns:
             None - output either to the console or to the file specified by output_file

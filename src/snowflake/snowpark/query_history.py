@@ -100,7 +100,7 @@ class QueryHistory(QueryListener):
 
     @property
     def dataframe_queries(self) -> Dict[int, List[str]]:
-        """Returns a map of dataframe ast ids to query ids."""
+        """Returns a map of dataframe plan uuid to query ids."""
         return self._dataframe_queries
 
 
