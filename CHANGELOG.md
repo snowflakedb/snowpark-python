@@ -10,6 +10,7 @@
 
 #### New Features
 
+- Added support for Python 3.13 runtime.
 - Added support for the following AI-powered functions in `functions.py`:
   - `ai_embed`
 

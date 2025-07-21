@@ -3451,6 +3451,7 @@ def test_append_existing_table(session, local_testing_mode):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.udf
 def test_dynamic_table_join_table_function(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("The fix only works with SQL Simplifier enabled currently")
@@ -3536,6 +3537,7 @@ def test_dynamic_table_join_table_function(session):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.udf
 def test_dynamic_table_join_table_function_with_more_layers(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("The fix only works with SQL Simplifier enabled currently")
@@ -3623,6 +3625,7 @@ def test_dynamic_table_join_table_function_with_more_layers(session):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.udf
 def test_dynamic_table_join_table_function_nested(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("The fix only works with SQL Simplifier enabled currently")

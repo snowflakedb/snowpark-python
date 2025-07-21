@@ -146,6 +146,7 @@ def test_oracledb_driver_coverage(caplog):
     assert "Snowpark does not support column" in caplog.text
 
 
+@pytest.mark.udf
 def test_udtf_ingestion_oracledb(session):
     from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 
