@@ -250,8 +250,6 @@ def _upload_and_copy_into_table(
         session.sql(copy_into_table_query).collect(statement_params=statements_params)
         logger.debug(f"Successfully uploaded and copied BytesIO parquet: {parquet_id}")
     finally:
-        # proactively close the buffer to release memory
-        parquet_buffer.close()
         backpressure_semaphore.release()
 
 
@@ -265,17 +263,21 @@ def _upload_and_copy_into_table_with_retry(
     on_error: Optional[str] = "abort_statement",
     statements_params: Optional[Dict[str, str]] = None,
 ):
-    _retry_run(
-        _upload_and_copy_into_table,
-        session,
-        parquet_id,
-        parquet_buffer,
-        snowflake_stage_name,
-        backpressure_semaphore,
-        snowflake_table_name,
-        on_error,
-        statements_params,
-    )
+    try:
+        _retry_run(
+            _upload_and_copy_into_table,
+            session,
+            parquet_id,
+            parquet_buffer,
+            snowflake_stage_name,
+            backpressure_semaphore,
+            snowflake_table_name,
+            on_error,
+            statements_params,
+        )
+    finally:
+        # proactively close the buffer to release memory
+        parquet_buffer.close()
 
 
 def _retry_run(func: Callable, *args, **kwargs) -> Any:
