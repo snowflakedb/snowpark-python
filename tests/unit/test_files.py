@@ -352,6 +352,18 @@ def test_read_deleted_snowflakefile(mode, tmp_path):
         sf_open(temp_file)
 
 
+@pytest.mark.parametrize(["read_mode", "write_mode"], [("r", "w"), ("rb", "wb")])
+def test_read_relative_path_snowflakefile(read_mode, write_mode, tmp_path):
+    test_msg, temp_file = Utils.write_test_msg(write_mode, tmp_path)
+    temp_file = os.path.relpath(temp_file)
+
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.read()
+
+    assert read_file(temp_file, read_mode) == test_msg
+
+
 @pytest.mark.parametrize(
     _STANDARD_ARGS,
     _STANDARD_ARGVALUES,
