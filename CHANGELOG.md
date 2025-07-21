@@ -10,8 +10,10 @@
 
 #### New Features
 
-- Added support for the following AI-powered functions in `functions.py`:
+- Added support for Python 3.13 runtime.
+- Added support for the following functions in `functions.py`:
   - `ai_embed`
+  - `try_parse_json`
 
 #### Improvements
 

@@ -200,6 +200,7 @@ def test_infer_type_from_data(data, number_of_columns, expected_result):
     assert result == expected_result
 
 
+@pytest.mark.udf
 def test_udtf_ingestion_mysql(session, caplog):
     from tests.parameters import MYSQL_CONNECTION_PARAMETERS
 
