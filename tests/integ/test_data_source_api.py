@@ -1046,6 +1046,9 @@ def test_fetch_merge_count_unit(fetch_size, fetch_merge_count, expected_batch_cn
         assert all_fetched_data == example_data and batch_cnt == expected_batch_cnt
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS, reason="sqlite3 file can not be shared across processes on windows"
+)
 @pytest.mark.parametrize("fetch_with_process", [True, False])
 def test_fetch_merge_count_integ(session, caplog, fetch_with_process):
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -1305,6 +1308,9 @@ def test_case_sensitive_copy_into(session):
         parquet_buffer.close()
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS, reason="sqlite3 file can not be shared across processes on windows"
+)
 def test_threading_error_handling_with_stop_event(session):
     """Test that when one thread fails, it properly sets stop event and cancels other threads."""
     with tempfile.TemporaryDirectory() as temp_dir:
