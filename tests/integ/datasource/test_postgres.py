@@ -68,10 +68,15 @@ def create_postgres_connection():
         ("query", f"(SELECT * FROM {POSTGRES_TABLE_NAME})"),
     ],
 )
-def test_basic_postgres(session, input_type, input_value):
-    input_dict = {
-        input_type: input_value,
-    }
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        EXPECTED_TYPE,
+        None,
+    ],
+)
+def test_basic_postgres(session, input_type, input_value, custom_schema):
+    input_dict = {input_type: input_value, "custom_schema": custom_schema}
     df = session.read.dbapi(create_postgres_connection, **input_dict)
     assert df.collect() == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
 

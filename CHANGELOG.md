@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
+
 #### New Features
 
 - Added support for the following AI-powered functions in `functions.py`:
@@ -16,6 +20,7 @@
 
 #### Bug Fixes
 
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` does not work when connecting to Postgres and Mysql.
 - Fixed a bug in schema inference that would cause it to fail for external stages.
 - Fixed a bug in `DataFrame.filter` and `DataFrame.orderBy` that would cause incorrect SQL to be generated when using columns from the recent and previous projection together.
 
@@ -36,6 +41,8 @@
 - Added support for `DataFrame.boxplot`.
 
 #### Improvements
+
+- Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
 
 #### Bug Fixes
 
