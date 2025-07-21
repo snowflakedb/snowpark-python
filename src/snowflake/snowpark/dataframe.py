@@ -754,9 +754,6 @@ class DataFrame:
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
 
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
-
         with open_telemetry_context_manager(self.collect, self):
             return self._internal_collect_with_tag_no_telemetry(
                 statement_params=statement_params,
@@ -804,8 +801,6 @@ class DataFrame:
 
             # Flush AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframeUUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         with open_telemetry_context_manager(self.collect_nowait, self):
             return self._internal_collect_with_tag_no_telemetry(
@@ -942,8 +937,6 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         return self._session._conn.execute(
             self._plan,
@@ -1064,8 +1057,6 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         with open_telemetry_context_manager(self.to_pandas, self):
             result = self._session._conn.execute(
@@ -1172,8 +1163,6 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         return self._session._conn.execute(
             self._plan,
@@ -4369,8 +4358,6 @@ class DataFrame:
 
             # Flush AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         with open_telemetry_context_manager(self.count, self):
             df = self.agg(("*", "count"), _emit_ast=False)
@@ -4542,8 +4529,6 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         # TODO: Support copy_into_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -4846,8 +4831,6 @@ class DataFrame:
             self._session._ast_batch.eval(stmt)
 
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         if is_sql_select_statement(query):
             result, meta = self._session._conn.get_result_and_metadata(
@@ -5590,8 +5573,6 @@ class DataFrame:
 
             # Flush the AST and encode it as part of the query.
             _, kwargs[DATAFRAME_AST_PARAMETER] = self._session._ast_batch.flush(stmt)
-        # Also pass the dataframe UUID for query listeners
-        kwargs["dataframeUUID"] = self._plan.uuid
 
         if n is None:
             df = self.limit(1, _emit_ast=False)

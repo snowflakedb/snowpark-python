@@ -434,18 +434,12 @@ class ServerConnection:
         notify_kwargs = {}
         if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
-        if "dataframeUUID" in kwargs:
-            notify_kwargs["dataframeUUID"] = kwargs["dataframeUUID"]
-
-        # Filter out dataframe parameters before passing to cursor
-        cursor_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k not in [DATAFRAME_AST_PARAMETER, "dataframeUUID"]
-        }
-
+        if "_statement_params" in kwargs and kwargs["_statement_params"]:
+            statement_params = kwargs["_statement_params"]
+            if "_PLAN_UUID" in statement_params:
+                notify_kwargs["dataframeUUID"] = statement_params["_PLAN_UUID"]
         try:
-            results_cursor = self._cursor.execute(query, **cursor_kwargs)
+            results_cursor = self._cursor.execute(query, **kwargs)
         except Exception as ex:
             notify_kwargs["requestId"] = None
             notify_kwargs["exception"] = ex
@@ -466,18 +460,14 @@ class ServerConnection:
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
         notify_kwargs = {}
-        if "dataframeUUID" in kwargs:
-            notify_kwargs["dataframeUUID"] = kwargs["dataframeUUID"]
 
-        # Filter out AST parameters before passing to cursor
-        cursor_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k not in [DATAFRAME_AST_PARAMETER, "dataframeUUID"]
-        }
+        if "_statement_params" in kwargs and kwargs["_statement_params"]:
+            statement_params = kwargs["_statement_params"]
+            if "_PLAN_UUID" in statement_params:
+                notify_kwargs["dataframeUUID"] = statement_params["_PLAN_UUID"]
 
         try:
-            results_cursor = self._cursor.execute_async(query, **cursor_kwargs)
+            results_cursor = self._cursor.execute_async(query, **kwargs)
         except Error as err:
             self.notify_query_listeners(
                 QueryRecord(err.sfqid, err.query), is_error=True, **notify_kwargs

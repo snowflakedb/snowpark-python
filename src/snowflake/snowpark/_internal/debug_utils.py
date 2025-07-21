@@ -471,37 +471,19 @@ class DataframeQueryProfiler:
             self.file_handle = None
 
     def _get_node_info(self, row: Dict) -> Dict:
-        parent_operators = (
-            row["PARENT_OPERATORS"]
-            if "PARENT_OPERATORS" in row and row["PARENT_OPERATORS"] is not None
-            else None
-        )
+        parent_operators = row.get("PARENT_OPERATORS")
         parent_operators = (
             str(parent_operators) if parent_operators is not None else None
         )
         node_info = {
-            "id": row["OPERATOR_ID"]
-            if "OPERATOR_ID" in row and row["OPERATOR_ID"] is not None
-            else 0,
+            "id": row.get("OPERATOR_ID") or 0,
             "parent_operators": parent_operators,
-            "type": row["OPERATOR_TYPE"]
-            if "OPERATOR_TYPE" in row and row["OPERATOR_TYPE"] is not None
-            else "N/A",
-            "input_rows": row["INPUT_ROWS"]
-            if "INPUT_ROWS" in row and row["INPUT_ROWS"] is not None
-            else 0,
-            "output_rows": row["OUTPUT_ROWS"]
-            if "OUTPUT_ROWS" in row and row["OUTPUT_ROWS"] is not None
-            else 0,
-            "row_multiple": row["ROW_MULTIPLE"]
-            if "ROW_MULTIPLE" in row and row["ROW_MULTIPLE"] is not None
-            else 0,
-            "exec_time": row["OVERALL_PERCENTAGE"]
-            if "OVERALL_PERCENTAGE" in row and row["OVERALL_PERCENTAGE"] is not None
-            else 0,
-            "attributes": row["OPERATOR_ATTRIBUTES"]
-            if "OPERATOR_ATTRIBUTES" in row and row["OPERATOR_ATTRIBUTES"] is not None
-            else "N/A",
+            "type": row.get("OPERATOR_TYPE") or "N/A",
+            "input_rows": row.get("INPUT_ROWS") or 0,
+            "output_rows": row.get("OUTPUT_ROWS") or 0,
+            "row_multiple": row.get("ROW_MULTIPLE") or 0,
+            "exec_time": row.get("OVERALL_PERCENTAGE") or 0,
+            "attributes": row.get("OPERATOR_ATTRIBUTES") or "N/A",
         }
         return node_info
 
