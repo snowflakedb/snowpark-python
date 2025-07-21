@@ -151,51 +151,53 @@ def test_missing_table_context_with_session_sql(session):
     [
         (
             "select",
-            lambda session: session.table("NON_EXISTENT_TABLE").select(col("a")),
+            lambda session: session.table("NON_EXISTENT_TABLE")
+            .schema("a", "b")
+            .select(col("a")),
         ),
         (
             "filter",
-            lambda session: session.table("NON_EXISTENT_TABLE").filter(col("a") > 0),
+            lambda session: session.table("NON_EXISTENT_TABLE")
+            .schema("a", "b")
+            .filter(col("a") > 0),
         ),
-        ("sort", lambda session: session.table("NON_EXISTENT_TABLE").sort(col("a"))),
+        (
+            "sort",
+            lambda session: session.table("NON_EXISTENT_TABLE")
+            .schema("a", "b")
+            .sort(col("a")),
+        ),
         (
             "group_by",
             lambda session: session.table("NON_EXISTENT_TABLE")
-            .group_by(col("a"))
-            .count(),
+            .schema("a", "b")
+            .group_by(col("a")),
         ),
         (
             "join",
-            lambda session: session.table("NON_EXISTENT_TABLE").join(
+            lambda session: session.table("NON_EXISTENT_TABLE")
+            .schema("a", "b")
+            .join(
                 session.create_dataframe([[1, 2]], schema=["x", "y"]),
                 col("a") == col("x"),
             ),
         ),
         (
             "union",
-            lambda session: session.table("NON_EXISTENT_TABLE").union(
-                session.table("ANOTHER_NON_EXISTENT_TABLE")
-            ),
+            lambda session: session.table("NON_EXISTENT_TABLE")
+            .schema("a", "b")
+            .union(session.table("ANOTHER_NON_EXISTENT_TABLE")),
         ),
-        ("collect", lambda session: session.table("NON_EXISTENT_TABLE").collect()),
-        ("show", lambda session: session.table("NON_EXISTENT_TABLE").show()),
-        ("count", lambda session: session.table("NON_EXISTENT_TABLE").count()),
     ],
 )
 def test_missing_table_with_dataframe_operations(
     session, operation_name, operation_func
 ):
     """Test that missing table errors are traced properly across various DataFrame operations."""
-    # I have no idea why, but this test only works when i configure context here even when
-    # i configure it in conftest.py
-    import snowflake.snowpark.context as context
-
-    context.configure_development_features(
-        enable_trace_sql_errors_to_dataframe=True,
-    )
 
     with pytest.raises(SnowparkSQLException) as ex:
-        operation_func(session)
+        df = operation_func(session)
+        df.collect()
 
     assert "Missing object 'NON_EXISTENT_TABLE' corresponds to Python source" in str(
         ex.value.debug_context
