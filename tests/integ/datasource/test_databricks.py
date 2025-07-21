@@ -146,6 +146,7 @@ def test_double_quoted_column_databricks(session):
     "input_type, input_value",
     [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
 )
+@pytest.mark.udf
 def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
     # we define here to avoid test_databricks.py to be pickled and unpickled in UDTF
     def local_create_databricks_connection():
