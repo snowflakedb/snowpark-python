@@ -144,8 +144,57 @@ EXPECTED_TEST_DATA = [
     ),
 ]
 
-CUSTOM_SCHEMA = StructType(
+databricks_schema = StructType(
     [
+        StructField("COL_BYTE", ByteType(), nullable=True),
+        StructField("COL_SHORT", ShortType(), nullable=True),
+        StructField("COL_INT", IntegerType(), nullable=True),
+        StructField("COL_LONG", LongType(), nullable=True),
+        StructField("COL_FLOAT", FloatType(), nullable=True),
+        StructField("COL_DOUBLE", DoubleType(), nullable=True),
+        StructField("COL_DECIMAL", DecimalType(10, 2), nullable=True),
+        StructField("COL_STRING", StringType(), nullable=True),
+        StructField("COL_BOOLEAN", BooleanType(), nullable=True),
+        StructField("COL_BINARY", BinaryType(), nullable=True),
+        StructField("COL_DATE", DateType(), nullable=True),
+        StructField(
+            "COL_TIMESTAMP",
+            TimestampType(timezone=TimestampTimeZone.LTZ),
+            nullable=True,
+        ),
+        StructField(
+            "COL_TIMESTAMP_NTZ",
+            TimestampType(timezone=TimestampTimeZone.NTZ),
+            nullable=True,
+        ),
+        StructField("COL_ARRAY", ArrayType(IntegerType()), nullable=True),
+        StructField("COL_MAP", MapType(StringType(), IntegerType()), nullable=True),
+        StructField(
+            "COL_STRUCT",
+            StructType(
+                [
+                    StructField("FIELD1", StringType(), nullable=True),
+                    StructField("FIELD2", StringType(), nullable=True),
+                ]
+            ),
+            nullable=True,
+        ),
+        StructField("COL_INTERVAL_YEAR_MONTH", StringType(), nullable=True),
+        StructField("COL_INTERVAL_DAY_TIME", StringType(), nullable=True),
+    ]
+)
+
+databricks_less_column_schema = StructType(
+    [
+        StructField("COL_BYTE", ByteType(), nullable=True),
+        StructField("COL_SHORT", ShortType(), nullable=True),
+        StructField("COL_INT", IntegerType(), nullable=True),
+    ]
+)
+
+databricks_more_column_schema = StructType(
+    [
+        StructField("EXTRA_COLUMN", ByteType(), nullable=True),
         StructField("COL_BYTE", ByteType(), nullable=True),
         StructField("COL_SHORT", ShortType(), nullable=True),
         StructField("COL_INT", IntegerType(), nullable=True),
@@ -214,6 +263,25 @@ EXPECTED_TYPE = StructType(
         StructField("COL_INTERVAL_DAY_TIME", StringType(), nullable=True),
     ]
 )
+
+databricks_unicode_schema = StructType(
+    [
+        StructField('"编号"', LongType(), nullable=True),
+        StructField('"姓名"', StringType(), nullable=True),
+        StructField('"国家"', StringType(), nullable=True),
+        StructField('"备注"', StringType(), nullable=True),
+    ]
+)
+
+databricks_double_quoted_schema = StructType(
+    [
+        StructField('"id"', LongType(), nullable=True),
+        StructField('"name"', StringType(), nullable=True),
+        StructField('"country"', StringType(), nullable=True),
+        StructField('"remarks"', StringType(), nullable=True),
+    ]
+)
+
 DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION = (
     "snowpark_dbapi_databricks_test_integration"
 )

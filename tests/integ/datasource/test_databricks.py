@@ -33,7 +33,11 @@ from tests.resources.test_data_source_dir.test_databricks_data import (
     EXPECTED_TYPE,
     TEST_TABLE_NAME,
     DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION,
-    CUSTOM_SCHEMA,
+    databricks_less_column_schema,
+    databricks_more_column_schema,
+    databricks_schema,
+    databricks_unicode_schema,
+    databricks_double_quoted_schema,
 )
 from tests.utils import IS_IN_STORED_PROC, IS_MACOS, Utils
 
@@ -73,7 +77,9 @@ def create_databricks_connection():
 @pytest.mark.parametrize(
     "custom_schema",
     [
-        CUSTOM_SCHEMA,
+        databricks_schema,
+        databricks_less_column_schema,
+        databricks_more_column_schema,
         None,
     ],
 )
@@ -124,14 +130,34 @@ def test_unit_data_source_data_to_pandas_df():
     ]
 
 
-def test_unicode_column_databricks(session):
-    df = session.read.dbapi(create_databricks_connection, table="User_profile_unicode")
-
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        databricks_unicode_schema,
+        None,
+    ],
+)
+def test_unicode_column_databricks(session, custom_schema):
+    df = session.read.dbapi(
+        create_databricks_connection,
+        table="User_profile_unicode",
+        custom_schema=custom_schema,
+    )
     assert df.collect() == [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")]
+    assert df.schema == databricks_unicode_schema
 
 
-def test_double_quoted_column_databricks(session):
-    df = session.read.dbapi(create_databricks_connection, table="User_profile")
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        databricks_double_quoted_schema,
+        None,
+    ],
+)
+def test_double_quoted_column_databricks(session, custom_schema):
+    df = session.read.dbapi(
+        create_databricks_connection, table="User_profile", custom_schema=custom_schema
+    )
     assert df.collect() == [
         Row(
             id=1,
@@ -140,6 +166,7 @@ def test_double_quoted_column_databricks(session):
             remarks="This is a test remark",
         )
     ]
+    assert df.schema == databricks_double_quoted_schema
 
 
 @pytest.mark.parametrize(
