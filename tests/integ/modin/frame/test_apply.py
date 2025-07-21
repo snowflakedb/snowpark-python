@@ -1007,34 +1007,34 @@ def test_udfs_and_udtfs_with_snowpark_object_error_msg():
     )
     snow_df = pd.DataFrame([7, 8, 9])
     with SqlCounter(
-        query_count=16,
+        query_count=14,
         high_count_expected=True,
         high_count_reason="Series.apply has high query count",
     ):
         with pytest.raises(ValueError, match=expected_error_msg):  # Series.apply
             snow_df[0].apply(lambda row: snow_df.iloc[0, 0])
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=0):
         with pytest.raises(
             ValueError, match=expected_error_msg
         ):  # DataFrame.apply axis=0
             snow_df.apply(lambda row: snow_df.iloc[0, 0])
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=0):
         with pytest.raises(
             ValueError, match=expected_error_msg
         ):  # DataFrame.apply axis=1
             snow_df.apply(lambda row: snow_df.iloc[0, 0], axis=1)
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=0):
         with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.transform
             snow_df.transform(lambda row: snow_df.iloc[0, 0])
     with SqlCounter(
-        query_count=16,
+        query_count=14,
         high_count_expected=True,
         high_count_reason="DataFrame.map has high query count",
     ):
         with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.map
             snow_df.map(lambda row: snow_df.iloc[0, 0])
     with SqlCounter(
-        query_count=16,
+        query_count=14,
         high_count_expected=True,
         high_count_reason="Series.map has high query count",
     ):
