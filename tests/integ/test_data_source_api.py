@@ -1665,3 +1665,12 @@ def test_queue_empty_thread_failure(exception, match_message):
             max_workers=1,
             fetch_with_process=False,
         )
+
+
+def test_incorrect_custom_schema(session):
+    with pytest.raises(ValueError, match="Schema contains duplicate column"):
+        session.read.dbapi(
+            create_connection=sql_server_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+            custom_schema="id Integer, id Integer",
+        )
