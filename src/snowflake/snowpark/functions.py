@@ -6796,6 +6796,28 @@ def parse_json(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def try_parse_json(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Parse the value of the specified column as a JSON string and returns the
+    resulting JSON document. Returns NULL if an error occurs during parsing.
+
+    Example::
+        >>> df = session.create_dataframe([['{"key": "1"}'], ['{"Open": "parenthesis"']], schema=["a"])
+        >>> df.select(try_parse_json(df["a"]).alias("result")).show()
+        ----------------
+        |"RESULT"      |
+        ----------------
+        |{             |
+        |  "key": "1"  |
+        |}             |
+        |NULL          |
+        ----------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(e, "try_parse_json")
+    return _call_function("try_parse_json", c, _emit_ast=_emit_ast)
+
+
+@publicapi
 def from_json(
     e: ColumnOrName, schema: Union[str, DataType], _emit_ast: bool = True
 ) -> Column:
