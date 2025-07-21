@@ -410,17 +410,19 @@ def create_udtf_for_apply_axis_1(
         APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
         APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
     ]
-    cache_key = UDTFCacheKey(
-        pickle_function(ApplyFunc.end_partition),
-        tuple(col_types),
-        tuple(col_identifiers),
-        tuple([LongType()] + input_types),
-        tuple(pkg.__name__ if isinstance(pkg, ModuleType) else pkg for pkg in packages),
-    )
-    cache = session_apply_axis_1_udtf_cache[session]
-    if cache_key not in cache:
-        try:
-            new_udtf = sp_func.udtf(
+    try:
+        cache_key = UDTFCacheKey(
+            pickle_function(ApplyFunc.end_partition),
+            tuple(col_types),
+            tuple(col_identifiers),
+            tuple([LongType()] + input_types),
+            tuple(
+                pkg.__name__ if isinstance(pkg, ModuleType) else pkg for pkg in packages
+            ),
+        )
+        cache = session_apply_axis_1_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
                 ApplyFunc,
                 output_schema=PandasDataFrameType(
                     col_types,
@@ -432,13 +434,12 @@ def create_udtf_for_apply_axis_1(
                 session=session,
                 statement_params=get_default_snowpark_pandas_statement_params(),
             )
-            cache[cache_key] = new_udtf
-        except NotImplementedError:  # pragma: no cover
-            # When a Snowpark object is passed to a UDF, a NotImplementedError with message
-            # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
-            # catch this exception and return a more user-friendly error message.
-            raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
-    return cache[cache_key]
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def convert_groupby_apply_dataframe_result_to_standard_schema(
@@ -797,17 +798,17 @@ def create_udtf_for_groupby_no_pivot(
             func_result.insert(0, "__min_row_position__", min_row_position)
             return func_result
 
-    cache_key = UDTFCacheKey(
-        pickle_function(ApplyFunc.end_partition),
-        tuple(output_schema.column_types),
-        tuple(output_schema.column_ids),
-        tuple(input_column_types),
-        tuple(session.get_packages().values()),
-    )
-    cache = session_groupby_apply_no_pivot_udtf_cache[session]
-    if cache_key not in cache:
-        try:
-            new_udtf = sp_func.udtf(
+    try:
+        cache_key = UDTFCacheKey(
+            pickle_function(ApplyFunc.end_partition),
+            tuple(output_schema.column_types),
+            tuple(output_schema.column_ids),
+            tuple(input_column_types),
+            tuple(session.get_packages().values()),
+        )
+        cache = session_groupby_apply_no_pivot_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
                 ApplyFunc,
                 output_schema=PandasDataFrameType(
                     output_schema.column_types, output_schema.column_ids
@@ -819,13 +820,12 @@ def create_udtf_for_groupby_no_pivot(
                 session=session,
                 statement_params=get_default_snowpark_pandas_statement_params(),
             )
-            cache[cache_key] = new_udtf
-        except NotImplementedError:  # pragma: no cover
-            # When a Snowpark object is passed to a UDF, a NotImplementedError with message
-            # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
-            # catch this exception and return a more user-friendly error message.
-            raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
-    return cache[cache_key]
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def infer_output_schema_for_apply(
@@ -1183,18 +1183,17 @@ def create_udtf_for_groupby_apply(
         IntegerType(),
         IntegerType(),
     ]
-    cache_key = UDTFCacheKey(
-        pickle_function(ApplyFunc.end_partition),
-        tuple(col_types),
-        tuple(col_names),
-        tuple(input_types),
-        tuple(session.get_packages().values()),
-    )
-    cache = session_groupby_apply_udtf_cache[session]
-
-    if cache_key not in cache:
-        try:
-            new_udtf = sp_func.udtf(
+    try:
+        cache_key = UDTFCacheKey(
+            pickle_function(ApplyFunc.end_partition),
+            tuple(col_types),
+            tuple(col_names),
+            tuple(input_types),
+            tuple(session.get_packages().values()),
+        )
+        cache = session_groupby_apply_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
                 ApplyFunc,
                 output_schema=PandasDataFrameType(
                     col_types,
@@ -1207,13 +1206,12 @@ def create_udtf_for_groupby_apply(
                 session=session,
                 statement_params=get_default_snowpark_pandas_statement_params(),
             )
-            cache[cache_key] = new_udtf
-        except NotImplementedError:  # pragma: no cover
-            # When a Snowpark object is passed to a UDF, a NotImplementedError with message
-            # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
-            # catch this exception and return a more user-friendly error message.
-            raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
-    return None, cache[cache_key]
+        return None, cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def create_udf_for_series_apply(
@@ -1279,16 +1277,15 @@ def create_udf_for_series_apply(
             return x.apply(func, args=args, **kwargs)
 
     strict = na_action == "ignore"
-    cache_key = UDFCacheKey(
-        pickle_function(apply_func),
-        return_type,
-        input_type,
-        strict,
-    )
-    cache = session_udf_cache[session]
-
-    if cache_key not in cache:
-        try:
+    try:
+        cache_key = UDFCacheKey(
+            pickle_function(apply_func),
+            return_type,
+            input_type,
+            strict,
+        )
+        cache = session_udf_cache[session]
+        if cache_key not in cache:
             cache[cache_key] = sp_func.udf(
                 apply_func,
                 return_type=PandasSeriesType(return_type),
@@ -1298,12 +1295,12 @@ def create_udf_for_series_apply(
                 packages=packages,
                 statement_params=get_default_snowpark_pandas_statement_params(),
             )
-        except NotImplementedError:  # pragma: no cover
-            # When a Snowpark object is passed to a UDF, a NotImplementedError with message
-            # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
-            # catch this exception and return a more user-friendly error message.
-            raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
-    return cache[cache_key]
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def handle_missing_value_in_variant(value: Any) -> Any:
