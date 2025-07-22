@@ -212,7 +212,6 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
-    experimental,
 )
 from snowflake.snowpark.column import (
     CaseExpr,
@@ -6797,6 +6796,28 @@ def parse_json(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def try_parse_json(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Parse the value of the specified column as a JSON string and returns the
+    resulting JSON document. Returns NULL if an error occurs during parsing.
+
+    Example::
+        >>> df = session.create_dataframe([['{"key": "1"}'], ['{"Open": "parenthesis"']], schema=["a"])
+        >>> df.select(try_parse_json(df["a"]).alias("result")).show()
+        ----------------
+        |"RESULT"      |
+        ----------------
+        |{             |
+        |  "key": "1"  |
+        |}             |
+        |NULL          |
+        ----------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(e, "try_parse_json")
+    return _call_function("try_parse_json", c, _emit_ast=_emit_ast)
+
+
+@publicapi
 def from_json(
     e: ColumnOrName, schema: Union[str, DataType], _emit_ast: bool = True
 ) -> Column:
@@ -10753,7 +10774,6 @@ def _call_model(
 
 
 @publicapi
-@experimental(version="1.34.0")
 def model(
     model_name: str,
     version_or_alias_name: Optional[str] = None,
@@ -10769,16 +10789,15 @@ def model(
     Example::
 
         >>> df = session.table("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_TEST")
-        >>> model_fn = model("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_PRICE_PREDICTION", "v1")
-        >>> result_df = df.select(model_fn(
-        ...     "predict",
+        >>> model_instance = model("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_PRICE_PREDICTION", "v1")
+        >>> result_df = df.select(model_instance("predict")(
         ...     col("CUT_OE"), col("COLOR_OE"), col("CLARITY_OE"), col("CARAT"),
         ...     col("DEPTH"), col("TABLE_PCT"), col("X"), col("Y"), col("Z")
         ... )["output_feature_0"])
         >>> result_df.count()
         5412
     """
-    return lambda method_name, *args: _call_model(
+    return lambda method_name: lambda *args: _call_model(
         model_name, version_or_alias_name, method_name, *args, _emit_ast=_emit_ast
     )
 
@@ -12793,4 +12812,81 @@ def ai_complete(
 
     return _call_named_arguments_function(
         sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
+    )
+
+
+@publicapi
+def ai_embed(
+    model: str,
+    input: ColumnOrLiteralStr,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates an embedding vector from text or an image.
+
+    Args:
+        model: A string specifying the vector embedding model to be used. Supported models:
+
+            For text embeddings:
+                - 'snowflake-arctic-embed-l-v2.0': Arctic large model (default for text)
+                - 'snowflake-arctic-embed-l-v2.0-8k': Arctic large model with 8K context
+                - 'nv-embed-qa-4': NVIDIA embedding model for Q&A
+                - 'multilingual-e5-large': Multilingual embedding model
+                - 'voyage-multilingual-2': Voyage multilingual model
+
+            For image embeddings:
+                - 'voyage-multimodal-3': Voyage multimodal model (only for images)
+
+        input: The string or image (as a FILE object) to generate an embedding from.
+            Can be a string with text or a FILE column containing an image.
+
+    Returns:
+        A VECTOR containing the embedding representation of the input.
+
+    Examples::
+
+        >>> # Text embedding
+        >>> df = session.range(1).select(
+        ...     ai_embed('snowflake-arctic-embed-l-v2.0', 'Hello, world!').alias("embedding")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> len(result) > 0
+        True
+
+        >>> # Text embedding with multilingual model
+        >>> df = session.create_dataframe([
+        ...     ['Hello world'],
+        ...     ['Bonjour le monde'],
+        ...     ['Hola mundo']
+        ... ], schema=["text"])
+        >>> df = df.select(
+        ...     col("text"),
+        ...     ai_embed('multilingual-e5-large', col("text")).alias("embedding")
+        ... )
+        >>> embeddings = df.collect()
+        >>> all(len(row[1]) > 0 for row in embeddings)
+        True
+
+        >>> # Image embedding
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_embed('voyage-multimodal-3', to_file('@mystage/dog.jpg')).alias("image_embedding")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> len(result) > 0
+        True
+    """
+    sql_func_name = "ai_embed"
+
+    # Convert arguments to columns
+    model_col = lit(model)
+    input_col = _to_col_if_lit(input, sql_func_name)
+
+    # Build AST
+    ast = build_function_expr(sql_func_name, [model, input]) if _emit_ast else None
+
+    # Call the function
+    return _call_function(
+        sql_func_name, model_col, input_col, _ast=ast, _emit_ast=_emit_ast
     )

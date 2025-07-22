@@ -41,6 +41,8 @@ def test_python_source_location_in_sql_error(session):
 
 
 def test_python_source_location_in_session_sql(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
     df3 = session.sql(
         "SELECT a, b, c + '5' AS invalid_operation FROM (select 1 as a, 2 as b, array_construct(1, 2, 3) as c) WHERE a > 0"
     )

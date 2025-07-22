@@ -24,6 +24,11 @@ pytestmark = [
         reason="SnowparkSQLException is not raised in localtesting mode",
         run=False,
     ),
+    pytest.mark.skipif(
+        "FIPS_TEST" in os.environ,
+        reason="SNOW-2204213: Reading source file location is not correct in FIPS mode",
+        run=False,
+    ),
 ]
 
 
@@ -299,6 +304,8 @@ def test_error_in_lineage_extraction_is_safe(session):
 
 
 def test_enable_and_disable_extract_debug_trace(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("SQL simplifier must be enabled for this test")
     context.configure_development_features(enable_dataframe_trace_on_error=True)
     with pytest.raises(SnowparkSQLException) as exc_info:
         DataFrameGenerator1(session).simple_dataframe().select("does_not_exist").show()

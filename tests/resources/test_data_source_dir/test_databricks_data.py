@@ -20,6 +20,12 @@ from snowflake.snowpark.types import (
     DoubleType,
     TimestampTimeZone,
     VariantType,
+    ArrayType,
+    IntegerType,
+    MapType,
+    ByteType,
+    ShortType,
+    FloatType,
 )
 
 TEST_TABLE_NAME = "ALL_TYPE_TABLE_3"  # ALL_TYPE_TABLE_3 contains None data while ALL_TYPE_TABLE doesn't
@@ -137,6 +143,47 @@ EXPECTED_TEST_DATA = [
         "22 04:52:41.000000000",
     ),
 ]
+
+CUSTOM_SCHEMA = StructType(
+    [
+        StructField("COL_BYTE", ByteType(), nullable=True),
+        StructField("COL_SHORT", ShortType(), nullable=True),
+        StructField("COL_INT", IntegerType(), nullable=True),
+        StructField("COL_LONG", LongType(), nullable=True),
+        StructField("COL_FLOAT", FloatType(), nullable=True),
+        StructField("COL_DOUBLE", DoubleType(), nullable=True),
+        StructField("COL_DECIMAL", DecimalType(10, 2), nullable=True),
+        StructField("COL_STRING", StringType(), nullable=True),
+        StructField("COL_BOOLEAN", BooleanType(), nullable=True),
+        StructField("COL_BINARY", BinaryType(), nullable=True),
+        StructField("COL_DATE", DateType(), nullable=True),
+        StructField(
+            "COL_TIMESTAMP",
+            TimestampType(timezone=TimestampTimeZone.LTZ),
+            nullable=True,
+        ),
+        StructField(
+            "COL_TIMESTAMP_NTZ",
+            TimestampType(timezone=TimestampTimeZone.NTZ),
+            nullable=True,
+        ),
+        StructField("COL_ARRAY", ArrayType(IntegerType()), nullable=True),
+        StructField("COL_MAP", MapType(StringType(), IntegerType()), nullable=True),
+        StructField(
+            "COL_STRUCT",
+            StructType(
+                [
+                    StructField("FIELD1", StringType(), nullable=True),
+                    StructField("FIELD2", StringType(), nullable=True),
+                ]
+            ),
+            nullable=True,
+        ),
+        StructField("COL_INTERVAL_YEAR_MONTH", StringType(), nullable=True),
+        StructField("COL_INTERVAL_DAY_TIME", StringType(), nullable=True),
+    ]
+)
+
 EXPECTED_TYPE = StructType(
     [
         StructField("COL_BYTE", LongType(), nullable=True),
