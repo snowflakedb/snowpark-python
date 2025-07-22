@@ -294,7 +294,7 @@ EXPECTED_TEST_DATA = [
         None,
     ),
 ]
-EXPECTED_TYPE = StructType(
+postgres_schema = StructType(
     [
         StructField("BIGINT_COL", LongType(), nullable=True),
         StructField("BIGSERIAL_COL", LongType(), nullable=True),
@@ -345,4 +345,76 @@ EXPECTED_TYPE = StructType(
         StructField("XML_COL", StringType(16777216), nullable=True),
     ]
 )
+
+postgres_less_column_schema = StructType(
+    [
+        StructField("BIGINT_COL", LongType(), nullable=True),
+        StructField("BIGSERIAL_COL", LongType(), nullable=True),
+        StructField("BIT_COL", StringType(16777216), nullable=True),
+        StructField("BIT_VARYING_COL", StringType(16777216), nullable=True),
+    ]
+)
+
+postgres_more_column_schema = StructType(
+    [
+        StructField("BIGINT_COL", LongType(), nullable=True),
+        StructField("EXTRA_COLUMN", LongType(), nullable=True),
+        StructField("BIGSERIAL_COL", LongType(), nullable=True),
+        StructField("BIT_COL", StringType(16777216), nullable=True),
+        StructField("BIT_VARYING_COL", StringType(16777216), nullable=True),
+        StructField("BOOLEAN_COL", BooleanType(), nullable=True),
+        StructField("BOX_COL", StringType(16777216), nullable=True),
+        StructField("BYTEA_COL", BinaryType(), nullable=True),
+        StructField("CHAR_COL", StringType(16777216), nullable=True),
+        StructField("VARCHAR_COL", StringType(16777216), nullable=True),
+        StructField("CIDR_COL", StringType(16777216), nullable=True),
+        StructField("CIRCLE_COL", StringType(16777216), nullable=True),
+        StructField("DATE_COL", DateType(), nullable=True),
+        StructField("DOUBLE_PRECISION_COL", DoubleType(), nullable=True),
+        StructField("INET_COL", StringType(16777216), nullable=True),
+        StructField("INTEGER_COL", LongType(), nullable=True),
+        StructField("INTERVAL_COL", StringType(16777216), nullable=True),
+        StructField("JSON_COL", VariantType(), nullable=True),
+        StructField("JSONB_COL", VariantType(), nullable=True),
+        StructField("LINE_COL", StringType(16777216), nullable=True),
+        StructField("LSEG_COL", StringType(16777216), nullable=True),
+        StructField("MACADDR_COL", StringType(16777216), nullable=True),
+        StructField("MACADDR8_COL", StringType(16777216), nullable=True),
+        StructField("MONEY_COL", VariantType(), nullable=True),
+        StructField("NUMERIC_COL", DecimalType(10, 2), nullable=True),
+        StructField("PATH_COL", StringType(16777216), nullable=True),
+        StructField("PG_LSN_COL", StringType(16777216), nullable=True),
+        StructField("PG_SNAPSHOT_COL", StringType(16777216), nullable=True),
+        StructField("POINT_COL", StringType(16777216), nullable=True),
+        StructField("POLYGON_COL", StringType(16777216), nullable=True),
+        StructField("REAL_COL", DoubleType(), nullable=True),
+        StructField("SMALLINT_COL", LongType(), nullable=True),
+        StructField("SMALLSERIAL_COL", LongType(), nullable=True),
+        StructField("SERIAL_COL", LongType(), nullable=True),
+        StructField("TEXT_COL", StringType(16777216), nullable=True),
+        StructField("TIME_COL", TimeType(), nullable=True),
+        StructField("TIME_TZ_COL", TimeType(), nullable=True),
+        StructField(
+            "TIMESTAMP_COL", TimestampType(TimestampTimeZone.NTZ), nullable=True
+        ),
+        StructField(
+            "TIMESTAMPTZ_COL", TimestampType(TimestampTimeZone.TZ), nullable=True
+        ),
+        StructField("TSQUERY_COL", StringType(16777216), nullable=True),
+        StructField("TSVECTOR_COL", StringType(16777216), nullable=True),
+        StructField("TXID_SNAPSHOT_COL", StringType(16777216), nullable=True),
+        StructField("UUID_COL", StringType(16777216), nullable=True),
+        StructField("XML_COL", StringType(16777216), nullable=True),
+    ]
+)
+
+postgres_unicode_schema = StructType(
+    [
+        StructField('"編號"', LongType(), nullable=True),
+        StructField('"姓名"', StringType(16777216), nullable=True),
+        StructField('"國家"', StringType(16777216), nullable=True),
+        StructField('"備註"', StringType(16777216), nullable=True),
+    ]
+)
+
 POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_postgres_test_integration"
