@@ -549,14 +549,14 @@ class TelemetryClient:
         )
 
     @safe_telemetry
-    def send_data_source_perf_telemetry(self, json_telemetry: dict):
+    def send_data_source_perf_telemetry(self, telemetry_json_string: dict):
         message = {
             **self._create_basic_telemetry_data(
                 TelemetryField.TYPE_PERFORMANCE_DATA.value
             ),
             TelemetryField.KEY_DATA.value: {
                 TelemetryField.KEY_CATEGORY.value: TelemetryField.PERF_CAT_DATA_SOURCE.value,
-                TelemetryField.MESSAGE.value: json.dumps(json_telemetry),
+                TelemetryField.MESSAGE.value: json.dumps(telemetry_json_string),
             },
         }
         self.send(message)

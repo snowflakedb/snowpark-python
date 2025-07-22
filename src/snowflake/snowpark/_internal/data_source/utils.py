@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import math
 import os
 import queue
 import time
@@ -337,16 +338,19 @@ def worker_process(
             break
 
 
-def process_completed_futures(thread_futures):
+def process_completed_futures(thread_futures) -> float:
     """Process completed futures with simplified error handling."""
+    upload_to_sf_end_time = -math.inf
     for parquet_id, future in list(thread_futures):  # Iterate over a copy of the set
         if future.done():
             thread_futures.discard((parquet_id, future))
             try:
                 future.result()
+                upload_to_sf_end_time = max(upload_to_sf_end_time, time.perf_counter())
                 logger.debug(
                     f"Thread future for parquet {parquet_id} completed successfully."
                 )
+                return upload_to_sf_end_time
             except BaseException:
                 # Cancel all remaining futures when one fails
                 for remaining_parquet_id, remaining_future in list(
@@ -385,7 +389,7 @@ def process_parquet_queue_with_threads(
     statements_params: Optional[Dict[str, str]] = None,
     on_error: str = "abort_statement",
     fetch_with_process: bool = False,
-) -> None:
+) -> Tuple[float, float, float]:
     """
     Process parquet data from a multiprocessing queue using a thread pool.
 
@@ -410,6 +414,9 @@ def process_parquet_queue_with_threads(
     Raises:
         SnowparkDataframeReaderException: If any worker process fails
     """
+    fetch_to_local_end_time = time.perf_counter()
+    upload_to_sf_start_time = math.inf
+    upload_to_sf_end_time = -math.inf
 
     completed_partitions = set()
     gracefully_exited_processes = set()
@@ -423,7 +430,9 @@ def process_parquet_queue_with_threads(
         thread_futures = set()  # stores tuples of (parquet_id, thread_future)
         while len(completed_partitions) < total_partitions or thread_futures:
             # Process any completed futures and handle errors
-            process_completed_futures(thread_futures)
+            upload_to_sf_end_time = max(
+                upload_to_sf_end_time, process_completed_futures(thread_futures)
+            )
 
             try:
                 backpressure_semaphore.acquire()
@@ -435,6 +444,9 @@ def process_parquet_queue_with_threads(
                     completed_partitions.add(partition_idx)
                     logger.debug(f"Partition {partition_idx} completed.")
                     backpressure_semaphore.release()  # Release semaphore since no thread was created
+                    fetch_to_local_end_time = max(
+                        fetch_to_local_end_time, time.perf_counter()
+                    )
                     continue
                 # Check for errors
                 elif parquet_id == PARTITION_TASK_ERROR_SIGNAL:
@@ -445,6 +457,9 @@ def process_parquet_queue_with_threads(
                 # Process valid BytesIO parquet data
                 logger.debug(f"Retrieved BytesIO parquet from queue: {parquet_id}")
 
+                upload_to_sf_start_time = min(
+                    upload_to_sf_start_time, time.perf_counter()
+                )
                 thread_future = thread_executor.submit(
                     _upload_and_copy_into_table_with_retry,
                     session,
@@ -519,3 +534,5 @@ def process_parquet_queue_with_threads(
                 raise SnowparkDataframeReaderException(
                     f"Partition {idx} data fetching thread failed with error: {e}"
                 )
+
+    return fetch_to_local_end_time, upload_to_sf_start_time, upload_to_sf_end_time
