@@ -156,15 +156,11 @@ def test_row_count_estimator_join_overflow():
     # Verify that the RowCountEstimator returns None for a JOIN operation
     # that would overflow standard float precision.
     assert (
-        RowCountEstimator.upper_bound(
-            df1, DataFrameOperation.JOIN, {"right": df2}
-        )
+        RowCountEstimator.upper_bound(df1, DataFrameOperation.JOIN, {"right": df2})
         is None
     )
-    
+
     assert (
-        RowCountEstimator.upper_bound(
-            df1, DataFrameOperation.ALIGN, {"right": df2}
-        )
+        RowCountEstimator.upper_bound(df1, DataFrameOperation.ALIGN, {"right": df2})
         is None
     )
