@@ -197,12 +197,14 @@ def test_dbapi_retry(session, fetch_with_process):
         with pytest.raises(
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
+            back_pressure = threading.BoundedSemaphore()
+            back_pressure.acquire()
             _upload_and_copy_into_table_with_retry(
                 session=session,
                 parquet_id="test.parquet",
                 parquet_buffer=BytesIO(b"test data"),
                 snowflake_stage_name="fake_stage",
-                backpressure_semaphore=threading.BoundedSemaphore(),
+                backpressure_semaphore=back_pressure,
                 snowflake_table_name="fake_table",
             )
         assert mock_task.call_count == _MAX_RETRY_TIME
@@ -1047,6 +1049,9 @@ def test_fetch_merge_count_unit(fetch_size, fetch_merge_count, expected_batch_cn
         assert all_fetched_data == example_data and batch_cnt == expected_batch_cnt
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS, reason="sqlite3 file can not be shared across processes on windows"
+)
 @pytest.mark.parametrize("fetch_with_process", [True, False])
 def test_fetch_merge_count_integ(session, caplog, fetch_with_process):
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -1313,6 +1318,9 @@ def test_case_sensitive_copy_into(session):
         parquet_buffer.close()
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS, reason="sqlite3 file can not be shared across processes on windows"
+)
 def test_threading_error_handling_with_stop_event(session):
     """Test that when one thread fails, it properly sets stop event and cancels other threads."""
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -1686,4 +1694,12 @@ def test_incorrect_custom_schema(session):
                 create_connection=sql_server_create_connection,
                 table=SQL_SERVER_TABLE_NAME,
                 custom_schema="id Integer, id Integer",
+
+              
+def test_error_in_upload_is_raised(session):
+    with patch.object(session.file, "put_stream", side_effect=ValueError("Fake error")):
+        with pytest.raises(SnowparkDataframeReaderException, match="Fake error"):
+            session.read.dbapi(
+                create_connection=sql_server_create_connection,
+                table=SQL_SERVER_TABLE_NAME,
             )
