@@ -44,6 +44,7 @@
 #### Improvements
 
 - Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
+- Added support for reading files from S3 buckets using `pd.read_excel`.
 
 #### Bug Fixes
 
