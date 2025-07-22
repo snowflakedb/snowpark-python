@@ -124,6 +124,7 @@ def check_result(
         join_count=cte_join_count,
         high_count_expected=high_query_count_expected,
         high_count_reason=high_query_count_reason,
+        strict=False,
     ):
         cte_result_count = df.count()
     cte_result_pandas = df.to_pandas() if installed_pandas else None
@@ -136,7 +137,7 @@ def check_result(
         assert_frame_equal(result_pandas, cte_result_pandas)
 
     # verify no actual query or describe query is issued during that process
-    with SqlCounter(query_count=0, describe_count=describe_count_for_optimized):
+    with SqlCounter(query_count=0, describe_count=0):
         last_query = df.queries["queries"][-1]
 
         if expect_cte_optimized:
@@ -245,7 +246,7 @@ def test_join_with_alias_dataframe(session):
     expected_describe_count = (
         3
         if (session.reduce_describe_query_enabled and session.sql_simplifier_enabled)
-        else 5
+        else 4
     )
     with SqlCounter(
         query_count=2, describe_count=expected_describe_count, join_count=2
@@ -706,7 +707,7 @@ def test_sql_simplifier(session):
         join_count=2,
         describe_count_for_optimized=1 if session._join_alias_fix else None,
     )
-    with SqlCounter(query_count=0, describe_count=2 if session._join_alias_fix else 0):
+    with SqlCounter(query_count=0, describe_count=0):
         # When adding a lsuffix, the columns of right dataframe don't need to be renamed,
         # so we will get a common CTE with filter
         assert (
@@ -779,7 +780,7 @@ def test_table(session):
     "query",
     [
         "select 1 as a, 2 as b",
-        "show tables in schema limit 10",
+        "show tables in schema",
     ],
 )
 def test_sql(session, query):
@@ -789,6 +790,8 @@ def test_sql(session, query):
         )
 
     df = session.sql(query).filter(lit(True))
+    if "show tables" in query:
+        df = df.order_by(col('"created_on"').asc()).limit(10)
     df_result = df.union_all(df).select("*")
     expected_query_count = 1
     if "show tables" in query:

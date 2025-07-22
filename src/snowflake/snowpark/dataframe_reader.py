@@ -991,9 +991,11 @@ class DataFrameReader:
         try_cast = self._cur_options.get("TRY_CAST", False)
 
         # When pattern is set we should only consider files that match the pattern during schema inference
-        # If no files match fallback to trying to read all files.
+        # If no files match or the filepaths are not parseable fallback to trying to read all files.
         # snow:// paths are not yet supported
         infer_path = path
+        fallback_path = infer_path
+        should_fallback = False
         if (
             (pattern := self._cur_options.get("PATTERN", None))
             and "FILES" not in infer_schema_options
@@ -1006,8 +1008,15 @@ class DataFrameReader:
             )["data"]
 
             if len(matches):
-                # Constuct a list of file prefixes not including the stage
-                files = [m[0].partition("/")[2] for m in matches]
+                should_fallback = True
+                files = []
+                # Construct a list of file prefixes not including the stage
+                for match in matches:
+                    # Try to remove any protocol
+                    (pre, _, post) = match[0].partition("://")
+                    match = post if post else pre
+                    files.append(match.partition("/")[2])
+
                 infer_schema_options["FILES"] = files
 
                 # Reconstruct path using just stage and any qualifiers
@@ -1035,8 +1044,19 @@ class DataFrameReader:
                 drop_tmp_file_format_if_exists_query = (
                     drop_file_format_if_exists_statement(file_format_name)
                 )
-            # SNOW-1628625: Schema inference should be done lazily
-            results = self._session._conn.run_query(infer_schema_query)["data"]
+
+            try:
+                # SNOW-1628625: Schema inference should be done lazily
+                results = self._session._conn.run_query(infer_schema_query)["data"]
+            except Exception as e:
+                if should_fallback:
+                    infer_schema_query = infer_schema_statement(
+                        fallback_path, file_format_name, None
+                    )
+                    results = self._session._conn.run_query(infer_schema_query)["data"]
+                else:
+                    raise e
+
             if len(results) == 0:
                 raise FileNotFoundError(
                     f"Given path: '{path}' could not be found or is empty."
@@ -1471,6 +1491,7 @@ class DataFrameReader:
             # Determine the number of processes or threads to use
             max_workers = max_workers or os.cpu_count()
             queue_class = mp.Queue if fetch_with_process else queue.Queue
+            process_or_thread_error_indicator = queue_class()
             # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
             partition_queue = queue_class()
             # a queue of parquet BytesIO objects to be uploaded
@@ -1489,7 +1510,12 @@ class DataFrameReader:
                 for _worker_id in range(max_workers):
                     process = mp.Process(
                         target=worker_process,
-                        args=(partition_queue, parquet_queue, partitioner.reader()),
+                        args=(
+                            partition_queue,
+                            parquet_queue,
+                            process_or_thread_error_indicator,
+                            partitioner.reader(),
+                        ),
                     )
                     process.start()
                     workers.append(process)
@@ -1503,6 +1529,7 @@ class DataFrameReader:
                         worker_process,
                         partition_queue,
                         parquet_queue,
+                        process_or_thread_error_indicator,
                         partitioner.reader(),
                         data_fetching_thread_stop_event,
                     )
@@ -1513,6 +1540,7 @@ class DataFrameReader:
             process_parquet_queue_with_threads(
                 session=self._session,
                 parquet_queue=parquet_queue,
+                process_or_thread_error_indicator=process_or_thread_error_indicator,
                 workers=workers,
                 total_partitions=len(partitioned_queries),
                 snowflake_stage_name=snowflake_stage_name,

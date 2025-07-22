@@ -64,13 +64,19 @@ def create_postgres_connection():
     "input_type, input_value",
     [
         ("table", POSTGRES_TABLE_NAME),
+        ("query", f"SELECT * FROM {POSTGRES_TABLE_NAME}"),
         ("query", f"(SELECT * FROM {POSTGRES_TABLE_NAME})"),
     ],
 )
-def test_basic_postgres(session, input_type, input_value):
-    input_dict = {
-        input_type: input_value,
-    }
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        EXPECTED_TYPE,
+        None,
+    ],
+)
+def test_basic_postgres(session, input_type, input_value, custom_schema):
+    input_dict = {input_type: input_value, "custom_schema": custom_schema}
     df = session.read.dbapi(create_postgres_connection, **input_dict)
     assert df.collect() == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
 
@@ -128,6 +134,7 @@ def test_unicode_column_name_postgres(session):
         ("query", f"(SELECT * FROM {POSTGRES_TABLE_NAME})"),
     ],
 )
+@pytest.mark.udf
 def test_udtf_ingestion_postgres(session, input_type, input_value, caplog):
     from tests.parameters import POSTGRES_CONNECTION_PARAMETERS
 
@@ -391,12 +398,12 @@ def test_unit_generate_select_query():
 
     # Test with table name
     table_query = PostgresDialect.generate_select_query(
-        "test_table", schema, raw_schema, is_query=False
+        "test_table", schema, raw_schema, is_query=False, query_input_alias="mock_alias"
     )
     expected_table_query = (
         'SELECT TO_JSON("json_col")::TEXT AS json_col, '
         'CASE WHEN "cash_col" IS NULL THEN NULL ELSE FORMAT(\'"%s"\', "cash_col"::TEXT) END AS cash_col, '
-        "ENCODE(\"bytea_col\", 'HEX') AS bytea_col, "
+        """ENCODE("bytea_col", 'HEX') AS bytea_col, """
         '"timetz_col"::TIME AS timetz_col, '
         '"interval_col"::TEXT AS interval_col, '
         '"regular_col" '
@@ -406,16 +413,20 @@ def test_unit_generate_select_query():
 
     # Test with subquery
     subquery_query = PostgresDialect.generate_select_query(
-        "(SELECT * FROM test_table)", schema, raw_schema, is_query=True
+        "(SELECT * FROM test_table)",
+        schema,
+        raw_schema,
+        is_query=True,
+        query_input_alias="mock_alias",
     )
     expected_subquery_query = (
-        'SELECT TO_JSON("json_col")::TEXT AS json_col, '
-        'CASE WHEN "cash_col" IS NULL THEN NULL ELSE FORMAT(\'"%s"\', "cash_col"::TEXT) END AS cash_col, '
-        "ENCODE(\"bytea_col\", 'HEX') AS bytea_col, "
-        '"timetz_col"::TIME AS timetz_col, '
-        '"interval_col"::TEXT AS interval_col, '
-        '"regular_col" '
-        "FROM (SELECT * FROM test_table)"
+        'SELECT TO_JSON(mock_alias."json_col")::TEXT AS json_col, '
+        'CASE WHEN mock_alias."cash_col" IS NULL THEN NULL ELSE FORMAT(\'"%s"\', "cash_col"::TEXT) END AS cash_col, '
+        """ENCODE(mock_alias."bytea_col", 'HEX') AS bytea_col, """
+        'mock_alias."timetz_col"::TIME AS timetz_col, '
+        'mock_alias."interval_col"::TEXT AS interval_col, '
+        'mock_alias."regular_col" AS regular_col '
+        "FROM ((SELECT * FROM test_table)) mock_alias"
     )
     assert subquery_query == expected_subquery_query
 
@@ -425,7 +436,11 @@ def test_unit_generate_select_query():
     ]
     jsonb_schema = StructType([StructField("jsonb_col", VariantType())])
     jsonb_query = PostgresDialect.generate_select_query(
-        "test_table", jsonb_schema, jsonb_raw_schema, is_query=False
+        "test_table",
+        jsonb_schema,
+        jsonb_raw_schema,
+        is_query=False,
+        query_input_alias="mock_alias",
     )
     expected_jsonb_query = (
         'SELECT TO_JSON("jsonb_col")::TEXT AS jsonb_col FROM test_table'

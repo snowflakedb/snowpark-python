@@ -95,7 +95,7 @@ class RowCountEstimator:
                 return None
             # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
             # When the product becomes very large we return None conservatively, as this can have
-            # a negative performance impact on alignment. This is a similiar fix to what was added
+            # a negative performance impact on alignment. This is a similar fix to what was added
             # in SnowflakeQueryCompiler::_get_rows
             cartesian_result = current * right_bound
             if cartesian_result > MAX_ROW_COUNT_FOR_ESTIMATION:
