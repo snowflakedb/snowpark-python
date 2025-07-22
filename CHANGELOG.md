@@ -56,6 +56,7 @@ local ingestion. By default, local ingestion uses multithreading. Multiprocessin
 - Added a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
 - Added automatic switching to the pandas backend in hybrid execution mode (PrPr) for many methods that are not directly implemented in Snowpark pandas.
 - Set the 'type' and other standard fields for modin telemetry.
+- Added an upper bound to the row estimation when the cartesian product from an align or join results in a very large number. This mitigates a performance regression.
 
 
 #### Dependency Updates
