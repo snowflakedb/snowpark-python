@@ -196,12 +196,14 @@ def test_dbapi_retry(session, fetch_with_process):
         with pytest.raises(
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
+            back_pressure = threading.BoundedSemaphore()
+            back_pressure.acquire()
             _upload_and_copy_into_table_with_retry(
                 session=session,
                 parquet_id="test.parquet",
                 parquet_buffer=BytesIO(b"test data"),
                 snowflake_stage_name="fake_stage",
-                backpressure_semaphore=threading.BoundedSemaphore(),
+                backpressure_semaphore=back_pressure,
                 snowflake_table_name="fake_table",
             )
         assert mock_task.call_count == _MAX_RETRY_TIME
@@ -1671,3 +1673,12 @@ def test_queue_empty_thread_failure(exception, match_message):
             max_workers=1,
             fetch_with_process=False,
         )
+
+
+def test_error_in_upload_is_raised(session):
+    with patch.object(session.file, "put_stream", side_effect=ValueError("Fake error")):
+        with pytest.raises(SnowparkDataframeReaderException, match="Fake error"):
+            session.read.dbapi(
+                create_connection=sql_server_create_connection,
+                table=SQL_SERVER_TABLE_NAME,
+            )
