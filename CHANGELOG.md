@@ -48,6 +48,8 @@
 
 #### Bug Fixes
 
+- Fix a `pd.read_excel` bug when reading files inside stage inner directory.
+
 ## 1.34.0 (2025-07-15)
 
 ### Snowpark Python API Updates
