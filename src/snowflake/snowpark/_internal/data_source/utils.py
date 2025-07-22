@@ -350,7 +350,6 @@ def process_completed_futures(thread_futures) -> float:
                 logger.debug(
                     f"Thread future for parquet {parquet_id} completed successfully."
                 )
-                return upload_to_sf_end_time
             except BaseException:
                 # Cancel all remaining futures when one fails
                 for remaining_parquet_id, remaining_future in list(
@@ -363,6 +362,7 @@ def process_completed_futures(thread_futures) -> float:
                         )
                 thread_futures.clear()  # Clear the set since all are cancelled
                 raise
+    return upload_to_sf_end_time
 
 
 def _drain_process_status_queue(

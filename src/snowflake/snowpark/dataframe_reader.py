@@ -1598,12 +1598,13 @@ class DataFrameReader:
                 data_fetching_thread_pool_executor.shutdown(wait=True)
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
-        telemetry = defaultdict()
         telemetry_json_string["function_name"] = DATA_SOURCE_DBAPI_SIGNATURE
         telemetry_json_string["end_to_end_duration"] = str(
             time.perf_counter() - start_time
         )
-        self._session._conn._telemetry_client.send_data_source_perf_telemetry(telemetry)
+        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+            telemetry_json_string
+        )
         # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
         # with the new name for the temporary table into which the external db data was ingressed.
         # Leaving this functionality as client-side only means capturing an AST specifically for
