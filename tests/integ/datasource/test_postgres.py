@@ -34,8 +34,11 @@ from tests.parameters import POSTGRES_CONNECTION_PARAMETERS
 from tests.resources.test_data_source_dir.test_postgres_data import (
     POSTGRES_TABLE_NAME,
     EXPECTED_TEST_DATA,
-    EXPECTED_TYPE,
     POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION,
+    postgres_schema,
+    postgres_less_column_schema,
+    postgres_more_column_schema,
+    postgres_unicode_schema,
 )
 from tests.utils import IS_IN_STORED_PROC
 
@@ -71,14 +74,16 @@ def create_postgres_connection():
 @pytest.mark.parametrize(
     "custom_schema",
     [
-        EXPECTED_TYPE,
+        postgres_schema,
+        postgres_less_column_schema,
+        postgres_more_column_schema,
         None,
     ],
 )
 def test_basic_postgres(session, input_type, input_value, custom_schema):
     input_dict = {input_type: input_value, "custom_schema": custom_schema}
     df = session.read.dbapi(create_postgres_connection, **input_dict)
-    assert df.collect() == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
+    assert df.collect() == EXPECTED_TEST_DATA and df.schema == postgres_schema
 
 
 @pytest.mark.parametrize(
@@ -119,9 +124,18 @@ def test_external_access_integration_not_set(session):
         )
 
 
-def test_unicode_column_name_postgres(session):
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        postgres_unicode_schema,
+        None,
+    ],
+)
+def test_unicode_column_name_postgres(session, custom_schema):
     df = session.read.dbapi(
-        create_postgres_connection, table='test_schema."用户資料"'
+        create_postgres_connection,
+        table='test_schema."用户資料"',
+        custom_schema=custom_schema,
     ).order_by("編號")
     assert df.collect() == [Row(編號=1, 姓名="山田太郎", 國家="日本", 備註="これはUnicodeテストです")]
     assert df.columns == ['"編號"', '"姓名"', '"國家"', '"備註"']

@@ -4,6 +4,7 @@
 
 import datetime
 import decimal
+from collections import defaultdict
 from functools import cached_property
 from typing import Optional, Union, List, Callable
 import logging
@@ -22,6 +23,7 @@ from snowflake.snowpark._internal.data_source.datasource_reader import DataSourc
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
+from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
     StructType,
     _NumericType,
@@ -90,34 +92,66 @@ class DataSourcePartitioner:
 
     @cached_property
     def schema(self) -> StructType:
+        auto_infer_successful = True
+
+        # we infer schema in all condition and combine it with custom schema to match the behavior of pyspark
+        # however, we used to support ingestion with only custom schema(no auto infer underlying), the try-except is
+        # meant to maintain this behavior and use custom schema only when auto infer fails (such as access an unknon
+        # DBMS).
+        try:
+            auto_infer_schema = (
+                self.driver.infer_schema_from_description_with_error_control(
+                    self.table_or_query, self.is_query, self._query_input_alias
+                )
+            )
+        except (NotImplementedError, SnowparkDataframeReaderException):
+            if self.custom_schema is None:
+                raise
+            auto_infer_successful = False
+        except Exception:
+            raise
+        # scenario that access an unknown DBMS while custom_schema is not specified is handled above,
+        # it is safe to return auto_infer_schema here
         if self.custom_schema is None:
-            return self.driver.infer_schema_from_description_with_error_control(
-                self.table_or_query, self.is_query, self._query_input_alias
-            )
+            return auto_infer_schema
         else:
-            self.driver.get_raw_schema(
-                self.table_or_query,
-                self.driver.create_connection().cursor(),
-                self.is_query,
-                self._query_input_alias,
-            )
             if isinstance(self.custom_schema, str):
-                schema = type_string_to_type_object(self.custom_schema)
-                if not isinstance(schema, StructType):
+                custom_schema = type_string_to_type_object(self.custom_schema)
+                if not isinstance(custom_schema, StructType):
                     raise ValueError(
                         f"Invalid schema string: {self.custom_schema}. "
                         f"You should provide a valid schema string representing a struct type."
                         'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     )
             elif isinstance(self.custom_schema, StructType):
-                schema = self.custom_schema
+                custom_schema = self.custom_schema
             else:
                 raise ValueError(
                     f"Invalid schema type: {type(self.custom_schema)}."
                     'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
                 )
-            return schema
+
+            if not auto_infer_successful:
+                return custom_schema
+
+            # generate final schema with auto infer schema and custom schema
+            custom_schema_name_to_field = defaultdict()
+            for field in custom_schema.fields:
+                if field.name.lower() in custom_schema_name_to_field:
+                    raise ValueError(
+                        f"Invalid schema: {self.custom_schema}. "
+                        f"Schema contains duplicate column: {field.name.lower()}. "
+                        "Please choose another name or rename the existing column "
+                    )
+                custom_schema_name_to_field[field.name.lower()] = field
+            final_fields = []
+            for field in auto_infer_schema.fields:
+                final_fields.append(
+                    custom_schema_name_to_field.get(field.name.lower(), field)
+                )
+
+            return StructType(final_fields)
 
     @cached_property
     def partitions(self) -> List[str]:

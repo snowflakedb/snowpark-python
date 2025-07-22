@@ -22,6 +22,10 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     oracledb_real_data,
     oracledb_real_data_small,
     oracledb_real_schema,
+    oracledb_less_column_schema,
+    oracledb_more_column_schema,
+    oracledb_unicode_schema,
+    oracledb_double_quoted_schema,
 )
 from tests.utils import Utils, RUNNING_ON_JENKINS
 
@@ -81,6 +85,8 @@ def create_connection_oracledb():
     "custom_schema",
     [
         oracledb_real_schema,
+        oracledb_less_column_schema,
+        oracledb_more_column_schema,
         None,
     ],
 )
@@ -196,13 +202,32 @@ def test_external_access_integration_not_set(session):
         )
 
 
-def test_unicode_column_name_oracledb(session):
-    df = session.read.dbapi(create_connection_oracledb, table='"用户資料"')
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        oracledb_unicode_schema,
+        None,
+    ],
+)
+def test_unicode_column_name_oracledb(session, custom_schema):
+    df = session.read.dbapi(
+        create_connection_oracledb, table='"用户資料"', custom_schema=custom_schema
+    )
     assert df.collect() == [Row(編號=1, 姓名="山田太郎", 國家="日本", 備註="これはUnicodeテストです")]
+    assert df.schema == oracledb_unicode_schema
 
 
-def test_double_quoted_column_name_oracledb(session):
-    df = session.read.dbapi(create_connection_oracledb, table='"UserProfile"')
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        oracledb_double_quoted_schema,
+        None,
+    ],
+)
+def test_double_quoted_column_name_oracledb(session, custom_schema):
+    df = session.read.dbapi(
+        create_connection_oracledb, table='"UserProfile"', custom_schema=custom_schema
+    )
     assert df.collect() == [
         Row(
             Id=1,
@@ -211,3 +236,4 @@ def test_double_quoted_column_name_oracledb(session):
             Notes="This is a case-sensitive example.",
         )
     ]
+    assert df.schema == oracledb_double_quoted_schema

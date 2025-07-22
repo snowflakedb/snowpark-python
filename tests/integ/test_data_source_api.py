@@ -29,6 +29,7 @@ from snowflake.snowpark._internal.data_source.datasource_reader import DataSourc
 from snowflake.snowpark._internal.data_source.drivers import (
     PyodbcDriver,
     SqliteDriver,
+    BaseDriver,
 )
 from snowflake.snowpark._internal.data_source.utils import (
     _task_fetch_data_from_source,
@@ -1673,6 +1674,27 @@ def test_queue_empty_thread_failure(exception, match_message):
             max_workers=1,
             fetch_with_process=False,
         )
+
+
+def test_incorrect_custom_schema(session):
+    with pytest.raises(ValueError, match="Schema contains duplicate column"):
+        session.read.dbapi(
+            create_connection=sql_server_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+            custom_schema="id Integer, id Integer",
+        )
+
+    with patch.object(
+        BaseDriver,
+        "infer_schema_from_description_with_error_control",
+        side_effect=ValueError("Fake error"),
+    ):
+        with pytest.raises(ValueError, match="Fake error"):
+            session.read.dbapi(
+                create_connection=sql_server_create_connection,
+                table=SQL_SERVER_TABLE_NAME,
+                custom_schema="id Integer, id Integer",
+            )
 
 
 def test_error_in_upload_is_raised(session):
