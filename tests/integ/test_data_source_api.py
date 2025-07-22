@@ -1694,8 +1694,9 @@ def test_incorrect_custom_schema(session):
                 create_connection=sql_server_create_connection,
                 table=SQL_SERVER_TABLE_NAME,
                 custom_schema="id Integer, id Integer",
+            )
 
-              
+
 def test_error_in_upload_is_raised(session):
     with patch.object(session.file, "put_stream", side_effect=ValueError("Fake error")):
         with pytest.raises(SnowparkDataframeReaderException, match="Fake error"):
