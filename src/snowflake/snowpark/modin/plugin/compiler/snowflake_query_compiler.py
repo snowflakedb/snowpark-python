@@ -772,6 +772,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             internal_frame = query_compiler._modin_frame
             ordered_dataframe = internal_frame.ordered_dataframe
             num_rows = ordered_dataframe.row_count_upper_bound
+            # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
+            # It's possible this bit of code is related to the performance regression
             # hack to work around large numbers when things are an estimate
             if (
                 ordered_dataframe.row_count_upper_bound is None
