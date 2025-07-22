@@ -80,8 +80,8 @@ class SnowflakeFile(RawIOBase):
     These examples are using the client, but this same pattern can be used inside SQL-defined UDFs.
 
     We provide a local implementation of SnowflakeFile to aid in local testing.
-    This currently only supports using read APIs on relative paths and mocked stages
-    (sessions in local testing mode that aren't connected to a real stage).
+    This currently supports using read APIs on relative paths, mocked stages
+    (sessions in local testing mode that aren't connected to a real stage), and Snowflake stages.
 
     Note:
         1. All of the implementation in this file is for local testing purposes.
