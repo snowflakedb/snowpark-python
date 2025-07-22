@@ -2189,6 +2189,36 @@ def test_show_dataframe_spark(session):
             ),
         )
 
+        df2_col_names = ["col1"]
+        df2 = session.create_dataframe(
+            [
+                (float("inf"),),
+                (float("-inf"),),
+                (1.000005e17,),
+                (1.000005e-17,),
+            ],
+            df2_col_names,
+        )
+
+        assert_show_string_equals(
+            df2._show_string_spark(
+                truncate=False,
+                _spark_column_names=df2_col_names,
+            ),
+            dedent(
+                """
+            +------------+
+            |col1        |
+            +------------+
+            |Infinity    |
+            |-Infinity   |
+            |1.000005E17 |
+            |1.000005E-17|
+            +------------+
+            """
+            ),
+        )
+
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
@@ -3421,6 +3451,7 @@ def test_append_existing_table(session, local_testing_mode):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.udf
 def test_dynamic_table_join_table_function(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("The fix only works with SQL Simplifier enabled currently")
@@ -3506,6 +3537,7 @@ def test_dynamic_table_join_table_function(session):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.udf
 def test_dynamic_table_join_table_function_with_more_layers(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("The fix only works with SQL Simplifier enabled currently")
@@ -3593,6 +3625,7 @@ def test_dynamic_table_join_table_function_with_more_layers(session):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.udf
 def test_dynamic_table_join_table_function_nested(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("The fix only works with SQL Simplifier enabled currently")

@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list_variadic,
     prepare_pivot_arguments,
     publicapi,
+    generate_random_alphanumeric,
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
@@ -415,33 +416,77 @@ class RelationalGroupedDataFrame:
         partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
 
         # this is the case where this is being called from spark
-        # this is not handleing nested column access, it is assuming that the access in the function is not nested
+        # this is not handling nested column access, it is assuming that the access in the function is not nested
         original_columns: List[str] | None = None
-        key_columns: List[str] | None = None
+        key_columns: List[str] = []
+
+        working_dataframe = self._dataframe
+        working_columns: List[Union[str, Column]] = self._dataframe.columns
+        working_columns_count = len(working_columns)
+        parameters_count = None
+
         if context._is_snowpark_connect_compatible_mode:
             if self._dataframe._column_map is not None:
                 original_columns = [
                     column.spark_name for column in self._dataframe._column_map.columns
                 ]
-            signature = inspect.signature(func)
-            parameters = signature.parameters
-            if len(parameters) == 2:
-                key_columns = [
-                    unquote_if_quoted(col.get_name()) for col in partition_by
-                ]
 
+            parameters_count = len(inspect.signature(func).parameters)
+
+            # the strategy here is to create a new dataframe with all the columns including
+            # the non-NamedExpression columns which have no name, and perform the apply_in_pandas on the new dataframe
+            for col in partition_by:
+                column_name = col.get_name()
+                unquoted_name = unquote_if_quoted(column_name) if column_name else None
+                if not column_name:
+                    # expression is not a NamedExpression, so it has no name
+                    # example: df.group_by("id", ceil(df.v / 2))
+                    aliased_name = (
+                        f"sas_col_alias_{generate_random_alphanumeric(5)}".upper()
+                    )
+                    working_columns.append(col.alias(aliased_name))
+                    key_columns.append(aliased_name)
+                elif isinstance(col._expression, (Alias, UnresolvedAlias)):
+                    # expression is an Alias or UnresolvedAlias, which inherits from NamedExpression
+                    # however, underlying it could be aliasing non-NamedExpression
+                    # example: df.group_by("id", ceil(df.v / 2).alias('newcol'))
+                    # thus we always add the working column to the new dataframe
+                    working_columns.append(col)
+                    key_columns.append(unquoted_name)
+                else:
+                    key_columns.append(unquoted_name)
+
+            partition_by = (
+                key_columns  # override the partition_by with the new key columns
+            )
+            working_dataframe = self._dataframe.select(
+                *working_columns
+            )  # select to evaluate the expressions
+            working_columns_count = len(working_columns)
+
+        # This class is defined as a local class, which is pickled and executed remotely.
+        # As a result, pytest-cov is unable to track its code coverage.
         class _ApplyInPandas:
-            def end_partition(self, pdf: pandas.DataFrame) -> pandas.DataFrame:
-                if key_columns is not None:
+            def end_partition(
+                self, pdf: pandas.DataFrame
+            ) -> pandas.DataFrame:  # pragma: no cover
+                # -- start of spark mode code
+                if parameters_count == 2:
                     import numpy as np
 
                     key_list = [pdf[key].iloc[0] for key in key_columns]
                     numpy_array = np.array(key_list)
                     keys = tuple(numpy_array)
                 if original_columns is not None:
+                    # drop the extra aliased columns that were appended to the working dataframe
+                    # this won't affect non-spark logic as original_columns is only set in spark mode
+                    to_drop_columns = working_columns_count - len(original_columns)
+                    if to_drop_columns > 0:
+                        pdf = pdf.drop(pdf.columns[-to_drop_columns:], axis=1)
                     pdf.columns = original_columns
-                if key_columns is not None:
+                if parameters_count == 2:
                     return func(keys, pdf)
+                # -- end of spark mode code
                 return func(pdf)
 
         # for vectorized UDTF
@@ -450,22 +495,22 @@ class RelationalGroupedDataFrame:
         # The assumption here is that we send all columns of the dataframe in the apply_in_pandas
         # function so the inferred input types are the types of each column in the dataframe.
         kwargs["input_types"] = kwargs.get(
-            "input_types", [field.datatype for field in self._dataframe.schema.fields]
+            "input_types", [field.datatype for field in working_dataframe.schema.fields]
         )
 
         kwargs["input_names"] = kwargs.get(
-            "input_names", [field.name for field in self._dataframe.schema.fields]
+            "input_names", [field.name for field in working_dataframe.schema.fields]
         )
 
-        _apply_in_pandas_udtf = self._dataframe._session.udtf.register(
+        _apply_in_pandas_udtf = working_dataframe._session.udtf.register(
             _ApplyInPandas,
             output_schema=output_schema,
             _emit_ast=_emit_ast,
             **kwargs,
         )
 
-        df = self._dataframe.select(
-            _apply_in_pandas_udtf(*self._dataframe.columns).over(
+        df = working_dataframe.select(
+            _apply_in_pandas_udtf(*working_dataframe.columns).over(
                 partition_by=partition_by, _emit_ast=False
             ),
             _emit_ast=False,
@@ -473,13 +518,13 @@ class RelationalGroupedDataFrame:
         df._is_grouped_by_and_aggregated = True
 
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.bind()
+            stmt = working_dataframe._session._ast_batch.bind()
             ast = with_src_position(
                 stmt.expr.relational_grouped_dataframe_apply_in_pandas, stmt
             )
             self._set_ast_ref(ast.grouped_df)
             build_proto_from_callable(
-                ast.func, func, self._dataframe._session._ast_batch
+                ast.func, func, working_dataframe._session._ast_batch
             )
             build_proto_from_struct_type(output_schema, ast.output_schema)
             for k, v in kwargs.items():
