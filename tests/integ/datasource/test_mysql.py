@@ -81,8 +81,17 @@ def create_connection_mysql():
         ),
     ],
 )
-def test_basic_mysql(session, create_connection, table_name, query):
-    df = session.read.dbapi(create_connection, table=table_name, query=query)
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        mysql_schema,
+        None,
+    ],
+)
+def test_basic_mysql(session, create_connection, table_name, query, custom_schema):
+    df = session.read.dbapi(
+        create_connection, table=table_name, query=query, custom_schema=custom_schema
+    )
     Utils.check_answer(df, mysql_real_data)
     assert df.schema == mysql_schema
 
@@ -191,6 +200,7 @@ def test_infer_type_from_data(data, number_of_columns, expected_result):
     assert result == expected_result
 
 
+@pytest.mark.udf
 def test_udtf_ingestion_mysql(session, caplog):
     from tests.parameters import MYSQL_CONNECTION_PARAMETERS
 

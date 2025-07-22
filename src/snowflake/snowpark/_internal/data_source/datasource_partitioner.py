@@ -95,6 +95,12 @@ class DataSourcePartitioner:
                 self.table_or_query, self.is_query, self._query_input_alias
             )
         else:
+            self.driver.get_raw_schema(
+                self.table_or_query,
+                self.driver.create_connection().cursor(),
+                self.is_query,
+                self._query_input_alias,
+            )
             if isinstance(self.custom_schema, str):
                 schema = type_string_to_type_object(self.custom_schema)
                 if not isinstance(schema, StructType):
@@ -111,7 +117,6 @@ class DataSourcePartitioner:
                     'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
                     'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
                 )
-            self.driver.raw_schema = [(field_name,) for field_name in schema.names]
             return schema
 
     @cached_property

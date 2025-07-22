@@ -213,7 +213,7 @@ class TestCacheResultReducesQueryCount:
             native_pd.DataFrame(simple_test_data).applymap(lambda x: x + x), native_pd
         )
         with SqlCounter(
-            query_count=11,
+            query_count=8,
             union_count=9,
             udf_count=1,
             high_count_expected=True,
@@ -227,7 +227,7 @@ class TestCacheResultReducesQueryCount:
             )
 
         with SqlCounter(
-            query_count=10,
+            query_count=7,
             high_count_expected=True,
             high_count_reason="applymap requires additional queries to setup the UDF.",
         ):

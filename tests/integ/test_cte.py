@@ -780,7 +780,7 @@ def test_table(session):
     "query",
     [
         "select 1 as a, 2 as b",
-        "show tables in schema limit 10",
+        "show tables in schema",
     ],
 )
 def test_sql(session, query):
@@ -790,6 +790,8 @@ def test_sql(session, query):
         )
 
     df = session.sql(query).filter(lit(True))
+    if "show tables" in query:
+        df = df.order_by(col('"created_on"').asc()).limit(10)
     df_result = df.union_all(df).select("*")
     expected_query_count = 1
     if "show tables" in query:

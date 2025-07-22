@@ -33,6 +33,7 @@ from tests.resources.test_data_source_dir.test_databricks_data import (
     EXPECTED_TYPE,
     TEST_TABLE_NAME,
     DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION,
+    CUSTOM_SCHEMA,
 )
 from tests.utils import IS_IN_STORED_PROC, IS_MACOS, Utils
 
@@ -69,10 +70,15 @@ def create_databricks_connection():
         ("query", f"(SELECT * FROM {TEST_TABLE_NAME})"),
     ],
 )
-def test_basic_databricks(session, input_type, input_value):
-    input_dict = {
-        input_type: input_value,
-    }
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        CUSTOM_SCHEMA,
+        None,
+    ],
+)
+def test_basic_databricks(session, input_type, input_value, custom_schema):
+    input_dict = {input_type: input_value, "custom_schema": custom_schema}
     df = session.read.dbapi(create_databricks_connection, **input_dict).order_by(
         "COL_BYTE", ascending=True
     )
@@ -140,6 +146,7 @@ def test_double_quoted_column_databricks(session):
     "input_type, input_value",
     [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
 )
+@pytest.mark.udf
 def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
     # we define here to avoid test_databricks.py to be pickled and unpickled in UDTF
     def local_create_databricks_connection():
