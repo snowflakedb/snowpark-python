@@ -30,6 +30,10 @@ class DataFrameOperation(Enum):
     SAMPLE = "sample"
 
 
+# The maximum number of rows we allow for estimates of joins/aligns
+MAX_ROW_COUNT_FOR_ESTIMATION = 1e15
+
+
 class RowCountEstimator:
     @staticmethod
     def upper_bound(
@@ -94,7 +98,7 @@ class RowCountEstimator:
             # a negative performance impact on alignment. This is a similiar fix to what was added
             # in SnowflakeQueryCompiler::_get_rows
             cartesian_result = current * right_bound
-            if cartesian_result > 1e34:
+            if cartesian_result > MAX_ROW_COUNT_FOR_ESTIMATION:
                 return None
             return cartesian_result
 
@@ -111,7 +115,7 @@ class RowCountEstimator:
             # a negative performance impact on alignment. This is a similiar fix to what was added
             # in SnowflakeQueryCompiler::_get_rows
             cartesian_result = current * other_bound
-            if cartesian_result > 1e34:
+            if cartesian_result > MAX_ROW_COUNT_FOR_ESTIMATION:
                 return None
             return cartesian_result
 

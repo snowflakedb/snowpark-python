@@ -143,18 +143,18 @@ def test_ordered_dataframe_missing_row_position_column_negative(
         )
 
 
-def test_row_count_estimator_join_overflow():
+def test_row_count_estimator_join_big():
     # Create two mock OrderedDataFrame objects with large row counts
     df1 = mock.create_autospec(OrderedDataFrame)
-    df1.row_count = 1e20
+    df1.row_count = 1e10
     df1.row_count_upper_bound = None
 
     df2 = mock.create_autospec(OrderedDataFrame)
-    df2.row_count = 1e20
+    df2.row_count = 1e10
     df2.row_count_upper_bound = None
 
     # Verify that the RowCountEstimator returns None for a JOIN operation
-    # that would overflow standard float precision.
+    # which is "large"
     assert (
         RowCountEstimator.upper_bound(df1, DataFrameOperation.JOIN, {"right": df2})
         is None

@@ -310,6 +310,9 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     validate_resample_supported_by_snowflake,
     compute_resample_start_and_end_date,
 )
+from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
+    MAX_ROW_COUNT_FOR_ESTIMATION,
+)
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasColumn,
     SnowparkPandasType,
@@ -777,7 +780,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # hack to work around large numbers when things are an estimate
             if (
                 ordered_dataframe.row_count_upper_bound is None
-                or ordered_dataframe.row_count_upper_bound > 1e34
+                or ordered_dataframe.row_count_upper_bound
+                > MAX_ROW_COUNT_FOR_ESTIMATION
             ):
                 num_rows = query_compiler.get_axis_len(0)
             if num_rows is None:
@@ -793,7 +797,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # hack to work around large numbers when things are an estimate
         if (
             ordered_dataframe.row_count_upper_bound is None
-            or ordered_dataframe.row_count_upper_bound > 1e34
+            or ordered_dataframe.row_count_upper_bound > MAX_ROW_COUNT_FOR_ESTIMATION
         ):
             num_rows = self.get_axis_len(0)
         if num_rows is None:
