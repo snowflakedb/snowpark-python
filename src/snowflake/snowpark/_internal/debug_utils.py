@@ -295,21 +295,19 @@ def get_missing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str
 
     # For missing object errors, the compilation error is at the top level
     # (with query like select * from non_existent_table), so we use the top plan directly
-    source_locations = []
-    found_locations = set()
+    found_locations = {}
     if top_plan.df_ast_ids is not None:
         for ast_id in top_plan.df_ast_ids:
             bind_stmt = top_plan.session._ast_batch._bind_stmt_cache.get(ast_id)
             if bind_stmt is not None:
                 src = extract_src_from_expr(bind_stmt.bind.expr)
                 location = _format_source_location(src)
-                if location != "" and location not in found_locations:
-                    found_locations.add(location)
-                    source_locations.append(location)
-    if source_locations:
-        if len(source_locations) == 1:
-            return f"\nMissing object '{object_name}' corresponds to Python source at {source_locations[0]}.\n"
+                if location != "":
+                    found_locations[location] = None
+    if found_locations:
+        if len(found_locations) == 1:
+            return f"\nMissing object '{object_name}' corresponds to Python source at {list(found_locations.keys())[0]}.\n"
         else:
-            locations_str = "\n  - ".join(source_locations)
+            locations_str = "\n  - ".join(list(found_locations.keys()))
             return f"\nMissing object '{object_name}' corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
