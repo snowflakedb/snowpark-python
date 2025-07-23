@@ -19,8 +19,9 @@ from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DecimalType
+import snowflake.snowpark.session
 
-from tests.utils import TestData, Utils, TestFiles
+from tests.utils import TestData, Utils, TestFiles, IS_IN_STORED_PROC
 
 try:
     import pyarrow as pa
@@ -214,10 +215,10 @@ def test_write_arrow_table_type(session, arrow_table, table_type):
     "config.getoption('local_testing_mode', default=False)",
     reason="arrow not fully supported by local testing.",
 )
-def test_write_arrow_chunk_size(session):
+def test_write_arrow_chunk_size(session, monkeypatch):
     table_name = Utils.random_table_name()
     try:
-        # create medium sized df that can be chunked
+        # create medium-sized df that can be chunked
         df = session.range(101)
         table = df.to_arrow()
         success, num_chunks, num_rows, _ = write_arrow(
@@ -227,11 +228,54 @@ def test_write_arrow_chunk_size(session):
             auto_create_table=True,
             chunk_size=25,
         )
-        assert success
         # 25 rows per chunk = 5 chunks
-        assert num_chunks == 5
-        # All rows should have been inserted
-        assert num_rows == 101
+        assert success and num_chunks == 5 and num_rows == 101
+
+        # Import the original write_arrow to create a wrapper
+        from snowflake.snowpark.session import write_arrow as original_write_arrow
+
+        # Create a wrapper that intercepts calls but lets the real function execute
+        def write_arrow_wrapper(*args, **kwargs):
+            # Verify that chunk_size=10 was passed
+            assert (
+                kwargs.get("chunk_size") == 10
+            ), f"Expected chunk_size=10, got {kwargs.get('chunk_size')}"
+            # Call the real function and return its actual result
+            ret = original_write_arrow(*args, **kwargs)
+            success, num_chunks, num_rows, _ = ret
+            # 10 rws per chunk = 11 chunks
+            assert success and num_chunks == 11 and num_rows == 101
+            return ret
+
+        # Approach 1: setting chunk_size in the create_dataframe call
+        with mock.patch(
+            "snowflake.snowpark.session.write_arrow", side_effect=write_arrow_wrapper
+        ) as mock_write_arrow:
+            session.create_dataframe(table, chunk_size=10)
+            # Verify that write_arrow was called once
+            mock_write_arrow.assert_called_once()
+
+        # Approach 2: Module variable update
+        original_arrow_chunk_size = snowflake.snowpark.session.WRITE_ARROW_CHUNK_SIZE
+        assert (
+            original_arrow_chunk_size == 100000
+            if IS_IN_STORED_PROC
+            else original_arrow_chunk_size is None
+        )
+        monkeypatch.setattr(snowflake.snowpark.session, "WRITE_ARROW_CHUNK_SIZE", 10)
+        assert snowflake.snowpark.session.WRITE_ARROW_CHUNK_SIZE == 10
+
+        with mock.patch(
+            "snowflake.snowpark.session.write_arrow", side_effect=write_arrow_wrapper
+        ) as mock_write_arrow:
+            session.write_arrow(
+                table,
+                table_name,
+                auto_create_table=True,
+            )
+            # Verify that write_arrow was called once
+            mock_write_arrow.assert_called_once()
+
     finally:
         Utils.drop_table(session, table_name)
 

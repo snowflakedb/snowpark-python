@@ -1,5 +1,11 @@
 # Release History
 
+## 1.36.0 (YYYY-MM-DD)
+
+#### New Features
+
+- Added a `chunk_size` parameter to `Session.create_dataframe` to control the number of rows per chunk when creating a DataFrame from a pandas DataFrame or PyArrow Table.
+
 ## 1.35.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates

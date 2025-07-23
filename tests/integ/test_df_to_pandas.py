@@ -25,8 +25,10 @@ import datetime
 import decimal
 
 import pytest
+from unittest import mock
 
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.session import write_pandas
 from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
     ArrayType,
@@ -49,6 +51,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
+import snowflake.snowpark.session
 from tests.utils import IS_IN_STORED_PROC, Utils
 
 
@@ -404,3 +407,67 @@ def test_df_to_pandas_df(session):
         }
     )
     assert_frame_equal(df.to_pandas(), pandas_df)
+
+
+def test_write_pandas_chunk_size(session, monkeypatch):
+    table_name = Utils.random_table_name()
+    try:
+        # create medium-sized df that can be chunked
+        df = session.range(101)
+        table = df.to_pandas()
+        success, num_chunks, num_rows, _ = write_pandas(
+            session._conn._conn,
+            table,
+            table_name,
+            auto_create_table=True,
+            chunk_size=25,
+        )
+        # 25 rows per chunk = 5 chunks
+        assert success and num_chunks == 5 and num_rows == 101
+
+        # Import the original write_pandas to create a wrapper
+        from snowflake.snowpark.session import write_pandas as original_write_pandas
+
+        # Create a wrapper that intercepts calls but lets the real function execute
+        def write_pandas_wrapper(*args, **kwargs):
+            # Verify that chunk_size=10 was passed
+            assert (
+                kwargs.get("chunk_size") == 10
+            ), f"Expected chunk_size=10, got {kwargs.get('chunk_size')}"
+            # Call the real function and return its actual result
+            ret = original_write_pandas(*args, **kwargs)
+            success, num_chunks, num_rows, _ = ret
+            # 10 rws per chunk = 11 chunks
+            assert success and num_chunks == 11 and num_rows == 101
+            return ret
+
+        # Approach 1: setting chunk_size in the create_dataframe call
+        with mock.patch(
+            "snowflake.snowpark.session.write_pandas", side_effect=write_pandas_wrapper
+        ) as mock_write_pandas:
+            session.create_dataframe(table, chunk_size=10)
+            # Verify that write_arrow was called once
+            mock_write_pandas.assert_called_once()
+
+        # Approach 2: Module variable update
+        original_pandas_chunk_size = snowflake.snowpark.session.WRITE_PANDAS_CHUNK_SIZE
+        assert (
+            original_pandas_chunk_size == 100000
+            if IS_IN_STORED_PROC
+            else original_pandas_chunk_size is None
+        )
+        monkeypatch.setattr(snowflake.snowpark.session, "WRITE_PANDAS_CHUNK_SIZE", 10)
+        assert snowflake.snowpark.session.WRITE_PANDAS_CHUNK_SIZE == 10
+
+        with mock.patch(
+            "snowflake.snowpark.session.write_pandas", side_effect=write_pandas_wrapper
+        ) as mock_write_pandas:
+            session.write_pandas(
+                table,
+                table_name,
+                auto_create_table=True,
+            )
+            # Verify that write_arrow was called once
+            mock_write_pandas.assert_called_once()
+    finally:
+        Utils.drop_table(session, table_name)
