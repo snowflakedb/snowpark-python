@@ -45,6 +45,7 @@
 #### Improvements
 
 - Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
+- Added an example for reading a file from a stage in the docstring for `pd.read_excel`.
 
 #### Bug Fixes
 

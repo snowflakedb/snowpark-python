@@ -701,6 +701,14 @@ def read_excel():
     1           1   string2      2
     2           2  #Comment      3
 
+    The file can also be read from a stage:
+
+    >>> pd.read_excel('@mystage/tmp.xlsx', index_col=0)  # doctest: +SKIP
+           Name  Value
+    0   string1      1
+    1   string2      2
+    2  #Comment      3
+
     Index and header can be specified via the index_col and header arguments
 
     >>> pd.read_excel('tmp.xlsx', index_col=None, header=None)  # doctest: +SKIP
