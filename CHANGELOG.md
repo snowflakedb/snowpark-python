@@ -48,6 +48,9 @@
 
 #### Bug Fixes
 
+- Added an upper bound to the row estimation when the cartesian product from an align or join results in a very large number. This mitigates a performance regression.
+
+
 ## 1.34.0 (2025-07-15)
 
 ### Snowpark Python API Updates
