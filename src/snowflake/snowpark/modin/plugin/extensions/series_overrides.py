@@ -18,7 +18,15 @@ import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
 from modin.pandas import DataFrame, Series
-from modin.pandas.base import BasePandasDataset
+from modin.pandas.base import (
+    BasePandasDataset,
+    _ATTRS_NO_LOOKUP,
+    sentinel,
+)
+from modin.core.storage_formats.pandas.query_compiler_caster import (
+    EXTENSION_NO_LOOKUP,
+    register_function_for_pre_op_switch,
+)
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
 from pandas._libs.lib import NoDefault, is_integer, no_default
@@ -27,6 +35,7 @@ from pandas._typing import (
     AnyArrayLike,
     ArrayLike,
     Axis,
+    FilePath,
     FillnaOptions,
     IgnoreRaise,
     IndexKeyFunc,
@@ -35,6 +44,8 @@ from pandas._typing import (
     NaPosition,
     Renamer,
     Scalar,
+    StorageOptions,
+    WriteExcelBuffer,
 )
 from pandas.core.common import apply_if_callable, is_bool_indexer
 from pandas.core.dtypes.common import is_bool_dtype, is_dict_like, is_list_like
@@ -45,7 +56,9 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     convert_index_to_list_of_qcs,
     convert_index_to_qc,
     error_checking_for_init,
-    MODIN_IS_AT_LEAST_0_33_0,
+)
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
 )
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
@@ -72,17 +85,13 @@ from snowflake.snowpark.modin.utils import (
     validate_int_kwarg,
 )
 
+from modin.pandas.api.extensions import (
+    register_series_accessor as _register_series_accessor,
+)
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    from modin.pandas.api.extensions import (
-        register_series_accessor as _register_series_accessor,
-    )
-
-    register_series_accessor = functools.partial(
-        _register_series_accessor, backend="Snowflake"
-    )
-else:  # pragma: no branch
-    from modin.pandas.api.extensions import register_series_accessor
+register_series_accessor = functools.partial(
+    _register_series_accessor, backend="Snowflake"
+)
 
 
 def register_series_not_implemented():
@@ -92,6 +101,10 @@ def register_series_not_implemented():
             base_method.fget.__name__
             if isinstance(base_method, property)
             else base_method.__name__
+        )
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("Series", name))
+        register_function_for_pre_op_switch(
+            class_name="Series", backend="Snowflake", method=name
         )
         register_series_accessor(name)(func)
         return func
@@ -104,89 +117,42 @@ def register_series_not_implemented():
 # Because __getattr__ itself is responsible for resolving extension methods, we cannot override
 # this method via the extensions module, and have to do it with an old-fashioned set.
 # We cannot name this method __getattr__ because Python will treat this as this file's __getattr__.
-if MODIN_IS_AT_LEAST_0_33_0:
-    from modin.pandas.base import (
-        _ATTRS_NO_LOOKUP,
-        sentinel,
-    )
-    from modin.core.storage_formats.pandas.query_compiler_caster import (
-        EXTENSION_NO_LOOKUP,
-    )
-
-    def _getattr_impl(self, key):
-        """
-        Return item identified by `key`.
-        Parameters
-        ----------
-        key : hashable
-            Key to get.
-        Returns
-        -------
-        Any
-        Notes
-        -----
-        First try to use `__getattribute__` method. If it fails
-        try to get `key` from `Series` fields.
-        """
-        # NOTE that to get an attribute, python calls __getattribute__() first and
-        # then falls back to __getattr__() if the former raises an AttributeError.
-        try:
-            if key not in EXTENSION_NO_LOOKUP:
-                extension = self._getattr__from_extension_impl(
-                    key, set(), Series._extensions
-                )
-                if extension is not sentinel:
-                    return extension
-            return super(Series, self).__getattr__(key)
-        except AttributeError as err:
-            if key not in _ATTRS_NO_LOOKUP:
-                try:
-                    value = self[key]
-                    if isinstance(value, Series) and value.empty:
-                        raise err
-                    return value
-                except Exception:
-                    # We want to raise err if self[key] raises any kind of exception
+def _getattr_impl(self, key):
+    """
+    Return item identified by `key`.
+    Parameters
+    ----------
+    key : hashable
+        Key to get.
+    Returns
+    -------
+    Any
+    Notes
+    -----
+    First try to use `__getattribute__` method. If it fails
+    try to get `key` from `Series` fields.
+    """
+    # NOTE that to get an attribute, python calls __getattribute__() first and
+    # then falls back to __getattr__() if the former raises an AttributeError.
+    try:
+        if key not in EXTENSION_NO_LOOKUP:
+            extension = self._getattr__from_extension_impl(
+                key, set(), Series._extensions
+            )
+            if extension is not sentinel:
+                return extension
+        return super(Series, self).__getattr__(key)
+    except AttributeError as err:
+        if key not in _ATTRS_NO_LOOKUP:
+            try:
+                value = self[key]
+                if isinstance(value, Series) and value.empty:
                     raise err
-            raise err
-
-else:
-
-    def _getattr_impl(self, key):
-        """
-        Return item identified by `key`.
-
-        Parameters
-        ----------
-        key : hashable
-            Key to get.
-
-        Returns
-        -------
-        Any
-
-        Notes
-        -----
-        First try to use `__getattribute__` method. If it fails
-        try to get `key` from `Series` fields.
-        """
-        # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-        from modin.pandas.base import _ATTRS_NO_LOOKUP
-        from modin.pandas.series import _SERIES_EXTENSIONS_
-
-        try:
-            return _SERIES_EXTENSIONS_.get(key, object.__getattribute__(self, key))
-        except AttributeError as err:
-            if key not in _ATTRS_NO_LOOKUP:
-                try:
-                    value = self[key]
-                    if isinstance(value, Series) and value.empty:
-                        raise err
-                    return value
-                except Exception:
-                    # We want to raise err if self[key] raises any kind of exception
-                    raise err
-            raise err
+                return value
+            except Exception:
+                # We want to raise err if self[key] raises any kind of exception
+                raise err
+        raise err
 
 
 Series.__getattr__ = _getattr_impl
@@ -397,6 +363,48 @@ def swaplevel(self, i=-2, j=-1, copy=True):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
+def to_excel(
+    self,
+    excel_writer: FilePath | WriteExcelBuffer | pd.ExcelWriter,
+    sheet_name: str = "Sheet1",
+    na_rep: str = "",
+    float_format: str | None = None,
+    columns: Sequence[Hashable] | None = None,
+    header: Sequence[Hashable] | bool = True,
+    index: bool = True,
+    index_label: IndexLabel | None = None,
+    startrow: int = 0,
+    startcol: int = 0,
+    engine: Literal["openpyxl", "xlsxwriter"] | None = None,
+    merge_cells: bool = True,
+    inf_rep: str = "inf",
+    freeze_panes: tuple[int, int] | None = None,
+    storage_options: StorageOptions | None = None,
+    engine_kwargs: dict[str, Any] | None = None,
+):  # noqa: PR01, RT01, D200
+    WarningMessage.single_warning(
+        "Series.to_excel materializes data to the local machine."
+    )
+    return self._to_pandas().to_excel(
+        excel_writer=excel_writer,
+        sheet_name=sheet_name,
+        na_rep=na_rep,
+        float_format=float_format,
+        columns=columns,
+        header=header,
+        index=index,
+        index_label=index_label,
+        startrow=startrow,
+        startcol=startcol,
+        engine=engine,
+        merge_cells=merge_cells,
+        inf_rep=inf_rep,
+        freeze_panes=freeze_panes,
+        storage_options=storage_options,
+        engine_kwargs=engine_kwargs,
+    )
+
+
 @register_series_not_implemented()
 def to_period(self, freq=None, copy=True):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
@@ -437,11 +445,9 @@ def to_timestamp(self, freq=None, how="start", copy=True):  # noqa: PR01, RT01, 
     pass  # pragma: no cover
 
 
-if MODIN_IS_AT_LEAST_0_33_0:
-
-    @register_series_not_implemented()
-    def update(self, other) -> None:  # noqa: PR01, RT01, D200
-        pass  # pragma: no cover
+@register_series_not_implemented()
+def update(self, other) -> None:  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
 
 
 @register_series_not_implemented()
@@ -669,10 +675,7 @@ def _update_inplace(self, new_query_compiler) -> None:
 # Modin uses _update_inplace to implement set_backend(inplace=True), so in modin 0.33 and newer we
 # can't extend _update_inplace. To fix a query count bug specific to Snowflake in _update_inplace, we overwrite
 # _update_inplace entirely instead of using the extension system.
-if MODIN_IS_AT_LEAST_0_33_0:
-    Series._update_inplace = _update_inplace
-else:
-    register_series_accessor("_update_inplace")(_update_inplace)
+Series._update_inplace = _update_inplace
 
 
 # Since Snowpark pandas leaves all data on the warehouse, memory_usage's report of local memory
@@ -1164,20 +1167,22 @@ def map(
     )
 
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    # In older versions of Snowpark pandas, overrides to base methods would automatically override
-    # corresponding DataFrame/Series API definitions as well. For consistency between methods, this
-    # is no longer the case, and DataFrame/Series must separately apply this override.
+# In older versions of Snowpark pandas, overrides to base methods would automatically override
+# corresponding DataFrame/Series API definitions as well. For consistency between methods, this
+# is no longer the case, and DataFrame/Series must separately apply this override.
 
-    def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
-        # Use a field on the query compiler instead of self to avoid any possible ambiguity with
-        # a column named "_attrs"
-        self._query_compiler._attrs = copy.deepcopy(value)
 
-    def _get_attrs(self) -> dict:  # noqa: RT01, D200
-        return self._query_compiler._attrs
+def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
+    # Use a field on the query compiler instead of self to avoid any possible ambiguity with
+    # a column named "_attrs"
+    self._query_compiler._attrs = copy.deepcopy(value)
 
-    register_series_accessor("attrs")(property(_get_attrs, _set_attrs))
+
+def _get_attrs(self) -> dict:  # noqa: RT01, D200
+    return self._query_compiler._attrs
+
+
+register_series_accessor("attrs")(property(_get_attrs, _set_attrs))
 
 
 # Snowpark pandas does different validation than upstream Modin.
@@ -1539,16 +1544,10 @@ def groupby(
     Group Series using a mapper or by a Series of columns.
     """
     # TODO: SNOW-1063347: Modin upgrade - modin.pandas.Series functions
-    if MODIN_IS_AT_LEAST_0_33_0:
-        from modin.pandas.groupby import SeriesGroupBy
-        from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides import (
-            validate_groupby_args,
-        )
-    else:
-        from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-            SeriesGroupBy,
-            validate_groupby_args,
-        )
+    from modin.pandas.groupby import SeriesGroupBy
+    from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides import (
+        validate_groupby_args,
+    )
 
     validate_groupby_args(by, level, observed)
 
@@ -1568,6 +1567,7 @@ def groupby(
         observed=observed,
         drop=False,
         dropna=dropna,
+        backend_pinned=self.is_backend_pinned(),
     )
 
 

@@ -233,11 +233,19 @@ DataFrame
     DataFrame.last_valid_index
     DataFrame.resample
 
+.. rubric:: Plotting
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    DataFrame.boxplot
+
 .. rubric:: Serialization / IO / conversion
 
 .. autosummary::
     :toctree: pandas_api/
 
     DataFrame.to_csv
+    DataFrame.to_excel
     DataFrame.to_html
     DataFrame.to_string

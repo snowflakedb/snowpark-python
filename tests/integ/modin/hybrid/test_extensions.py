@@ -2,21 +2,14 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import pytest
 import modin.pandas as pd
+import pandas as native_pd
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
+from snowflake.snowpark._internal.utils import TempObjectType
 
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-
-
-@pytest.fixture(scope="module", autouse=True)
-def skip(pytestconfig):
-    if not MODIN_IS_AT_LEAST_0_33_0:
-        pytest.skip(
-            "backend switching tests only work on newer modin versions",
-            allow_module_level=True,
-        )
+from tests.utils import Utils
+from modin.config import context as modin_config_context
 
 
 @sql_count_checker(query_count=0)
@@ -69,3 +62,17 @@ def test_to_snowflake_and_to_snowpark():
             .astype(column.to_pandas().dtype)  # no queries (data is native)
             .equals(column.to_pandas().to_frame())
         )
+
+
+@modin_config_context(Backend="Pandas")
+def test_read_snowflake_on_pandas_backend():
+    native_df = native_pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    snowpark_df = pd.session.create_dataframe(native_df)
+    snowpark_df.write.save_as_table(table_name, table_type="temp")
+
+    with SqlCounter(query_count=2):
+        result_df = pd.read_snowflake(table_name)
+
+    assert result_df.get_backend() == "Pandas"
+    assert result_df.to_pandas().astype(native_df.dtypes).equals(native_df)

@@ -7,7 +7,6 @@ import pandas as native_pd
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin.extensions.index import Index
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
 
 def test_class_equivalence():
@@ -76,12 +75,6 @@ def test_class_equivalence():
         "test",
         "timedelta_range",
     ]
-    if MODIN_IS_AT_LEAST_0_33_0:
-        for name in reexport_functions:
-            assert getattr(pd, name)._wrapped_method_for_casting is getattr(
-                native_pd, name
-            )
-        assert pd.array._wrapped_method_for_casting is native_pd.array
-    else:
-        for name in reexport_functions:
-            assert getattr(pd, name) is getattr(native_pd, name)
+    for name in reexport_functions:
+        assert getattr(pd, name)._wrapped_method_for_casting is getattr(native_pd, name)
+    assert pd.array._wrapped_method_for_casting is native_pd.array

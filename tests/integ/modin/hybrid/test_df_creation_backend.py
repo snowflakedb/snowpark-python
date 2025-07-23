@@ -4,27 +4,16 @@
 
 import tempfile
 import pandas as native_pd
-import pytest
 
 # We're comparing an object with the native pandas backend, so we use the pandas testing utility
 # here rather than our own internal one.
-from pandas.testing import assert_series_equal
+from pandas.testing import assert_series_equal, assert_frame_equal
 
 import modin.pandas as pd
 from modin.config import context as config_context
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
 from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
-
-
-@pytest.fixture(scope="module", autouse=True)
-def skip(pytestconfig):
-    if not MODIN_IS_AT_LEAST_0_33_0:
-        pytest.skip(
-            "backend switching tests only work on newer modin versions",
-            allow_module_level=True,
-        )
 
 
 CSV_CONTENT = """fruit,score
@@ -39,9 +28,10 @@ raisin,-1
 # When automatic backend switching is enabled, read_csv should end up in native pandas.
 @sql_count_checker(query_count=0)
 def test_read_csv_local():
-    with tempfile.NamedTemporaryFile(mode="w") as f:
+    # delete=False is necessary to allow re-opening the file for reading on windows
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
         f.write(CSV_CONTENT)
-        f.flush()
+        f.close()
         fruits = pd.read_csv(f.name)
         assert fruits.get_backend() == "Pandas"
 
@@ -118,3 +108,17 @@ def test_constructor_does_not_double_move():
     assert pd.DataFrame(pandas_df).get_backend() == "Pandas"
     assert pd.DataFrame({"col0": pandas_df[0]}).get_backend() == "Pandas"
     assert pd.DataFrame(pandas_df[0]).get_backend() == "Pandas"
+
+
+@sql_count_checker(query_count=0)
+def test_native_series_argument():
+    # SNOW-2173648: Operations like this assignment failed in QueryCompiler.move_to_me_cost()
+    df = pd.DataFrame({"a": [1, 2, 3]})
+    result_frame = pd.DataFrame(df["a"].to_pandas())
+    assert result_frame.get_backend() == "Pandas"
+    assert_frame_equal(
+        result_frame.to_pandas(),
+        native_pd.DataFrame({"a": [1, 2, 3]}),
+        check_column_type=False,
+        check_index_type=False,
+    )

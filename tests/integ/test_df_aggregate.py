@@ -26,9 +26,12 @@ from snowflake.snowpark.functions import (
     stddev_pop,
     sum as sum_,
     upper,
+    grouping,
+    grouping_id,
 )
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 from snowflake.snowpark.types import DoubleType, IntegerType, StructType, StructField
+import snowflake.snowpark.context as context
 from tests.utils import Utils
 
 
@@ -634,3 +637,207 @@ def test_agg_on_empty_df(session):
     Utils.check_answer(
         agged_no_group_by, [Row(None, 0, 0, "", None, None, None, None, None, None)]
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="HAVING clause is not supported in local testing mode",
+)
+def test_agg_filter_snowpark_connect_compatible(session):
+    original_value = context._is_snowpark_connect_compatible_mode
+
+    try:
+        context._is_snowpark_connect_compatible_mode = True
+        df = session.create_dataframe(
+            [(1, 2, 3), (3, 2, 1), (3, 2, 1)], ["a", "b", "c"]
+        )
+        df1 = df.group_by("a").agg(sum_("c")).filter(count("a") > 1)
+        assert "HAVING" in df1.queries["queries"][0]
+        Utils.check_answer(df1, [Row(3, 2)])
+
+        # Test with grouping function
+        df2 = df.group_by("a", "b").agg(
+            sum_("c").alias("sum_c"),
+            grouping("a").alias("ga"),
+            grouping("b").alias("gb"),
+        )
+        # Filter on grouping column - should use HAVING
+        df3 = df2.filter(col("ga") == 0)
+        assert "HAVING" in df3.queries["queries"][0]
+        Utils.check_answer(df3, [Row(1, 2, 3, 0, 0), Row(3, 2, 2, 0, 0)])
+
+        # original behavior on dataframe without group by
+        with pytest.raises(
+            SnowparkSQLException, match="Invalid aggregate function in where clause"
+        ):
+            df.filter(count("a") > 1).collect()
+
+        # Test that filtering on grouping without group by is invalid
+        with pytest.raises(
+            SnowparkSQLException, match="GROUPING function without a GROUP BY"
+        ):
+            df.filter(grouping("a") == 0).collect()
+
+        Utils.check_answer(df.filter(col("a") > 1), [Row(3, 2, 1), Row(3, 2, 1)])
+    finally:
+        context._is_snowpark_connect_compatible_mode = original_value
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ORDER BY append is not supported in local testing mode",
+)
+def test_agg_sort_snowpark_connect_compatible(session):
+    original_value = context._is_snowpark_connect_compatible_mode
+
+    try:
+        context._is_snowpark_connect_compatible_mode = True
+        df = session.create_dataframe(
+            [(1, 2, 3), (3, 2, 1), (3, 2, 1)], ["a", "b", "c"]
+        )
+        df1 = df.group_by("a").agg(sum_("c")).sort("a", ascending=False)
+        Utils.check_answer(df1, [Row(3, 2), Row(1, 3)])
+
+        # Test with grouping function
+        df2 = df.group_by("a", "b").agg(
+            sum_("c").alias("sum_c"),
+            grouping("a").alias("ga"),
+            grouping("b").alias("gb"),
+        )
+        # Sort on grouping column
+        df3 = df2.sort(col("ga").desc(), col("gb").desc())
+        Utils.check_answer(df3, [Row(1, 2, 3, 0, 0), Row(3, 2, 2, 0, 0)])
+
+        # Test that sorting on grouping without group by is invalid
+        with pytest.raises(
+            SnowparkSQLException, match="GROUPING function without a GROUP BY"
+        ):
+            df.sort(grouping("a")).collect()
+
+        # original behavior on dataframe without group by
+        df4 = df.sort(col("a"))
+        Utils.check_answer(df4, [Row(1, 2, 3), Row(3, 2, 1), Row(3, 2, 1)])
+    finally:
+        context._is_snowpark_connect_compatible_mode = original_value
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="HAVING and ORDER BY append are not supported in local testing mode",
+)
+def test_agg_filter_and_sort_with_grouping_snowpark_connect_compatible(session):
+    original_value = context._is_snowpark_connect_compatible_mode
+
+    try:
+        context._is_snowpark_connect_compatible_mode = True
+        df = session.create_dataframe(
+            [
+                ("dotNET", 2012, 10000),
+                ("Java", 2012, 20000),
+                ("dotNET", 2012, 5000),
+                ("dotNET", 2013, 48000),
+                ("Java", 2013, 30000),
+            ],
+            ["course", "year", "earnings"],
+        )
+
+        # Test 1: cube with filter on grouping columns and orderBy
+        df1 = (
+            df.cube("course", "year")
+            .agg(
+                sum_("earnings").alias("sum_earnings"),
+                grouping("course").alias("gc"),
+                grouping("year").alias("gy"),
+                grouping_id("course", "year").alias("gid"),
+            )
+            .filter((col("gy") == 1) & (col("gid") > 0))
+            .sort("course", "year")
+        )
+
+        # Verify results
+        Utils.check_answer(
+            df1,
+            [
+                Row(None, None, 113000, 1, 1, 3),
+                Row("Java", None, 50000, 0, 1, 1),
+                Row("dotNET", None, 63000, 0, 1, 1),
+            ],
+        )
+
+        # Test 2: cube with orderBy on grouping columns
+        df2 = (
+            df.cube("course", "year")
+            .agg(
+                sum_("earnings").alias("sum_earnings"),
+                grouping("course").alias("gc"),
+                grouping("year").alias("gy"),
+            )
+            .sort(col("gc"), col("gy"), "course", "year")
+        )
+
+        # Verify results - first rows should have gc=0, gy=0
+        results2 = df2.collect()
+        assert len(results2) == 9  # 3x3 cube results
+        # Check first few rows are sorted correctly
+        assert results2[0][3] == 0 and results2[0][4] == 0  # gc=0, gy=0
+        assert results2[1][3] == 0 and results2[1][4] == 0  # gc=0, gy=0
+
+        # Test 3: rollup with filter and orderBy
+        df3 = (
+            df.rollup("course")
+            .agg(sum_("earnings").alias("sum_earnings"), grouping("course").alias("gc"))
+            .filter(col("gc") > 0)
+            .sort(col("gc"), "course")
+        )
+
+        Utils.check_answer(df3, [Row(None, 113000, 1)])
+
+        # Test 4: Complex filter and sort with multiple grouping functions
+        df4 = (
+            df.cube("course", "year")
+            .agg(
+                count("*").alias("count"),
+                grouping("course").alias("gc"),
+                grouping("year").alias("gy"),
+            )
+            .filter((col("gc") == 0) | (col("gy") == 0))
+            .sort(col("gc").desc(), col("gy").desc(), "course", "year")
+        )
+
+        # Verify results include rows where at least one grouping is 0
+        results4 = df4.collect()
+        for row in results4:
+            assert row[3] == 0 or row[4] == 0  # gc=0 or gy=0
+
+        # Test 5: Combination of multiple operations
+        df5 = (
+            df.rollup("course", "year")
+            .agg(
+                sum_("earnings").alias("sum_earnings"),
+                grouping("course").alias("gc"),
+                grouping("year").alias("gy"),
+                grouping_id("course", "year").alias("gid"),
+            )
+            .filter(col("gid") < 3)
+            .sort("gid", "course", "year")
+        )
+
+        # Verify gid values are less than 3 and sorted
+        results5 = df5.collect()
+        assert all(row[4] < 3 for row in results5)
+        # Check sorting by gid
+        for i in range(1, len(results5)):
+            assert results5[i - 1][4] <= results5[i][4]  # gid is sorted
+
+        # Test 6: cube with orderBy using grouping in sort expression
+        df6 = (
+            df.cube("course")
+            .agg(count("*").alias("count"), grouping("course").alias("gc"))
+            .sort(grouping("course").desc(), "course")
+        )
+
+        # First row should have highest grouping value (1)
+        results6 = df6.collect()
+        assert results6[0][2] == 1  # gc=1 for NULL course
+    finally:
+        context._is_snowpark_connect_compatible_mode = original_value

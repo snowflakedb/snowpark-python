@@ -23,6 +23,7 @@ from snowflake.snowpark.types import (
     IntegerType,
     BinaryType,
     DateType,
+    BooleanType,
 )
 import snowflake.snowpark
 import logging
@@ -58,31 +59,73 @@ class BaseDriver:
     ) -> "Connection":
         return conn
 
+    @staticmethod
+    def generate_infer_schema_sql(
+        table_or_query: str, is_query: bool, query_input_alias: str
+    ):
+        return (
+            f"SELECT * FROM ({table_or_query}) {query_input_alias} WHERE 1 = 0"
+            if is_query
+            else f"SELECT * FROM {table_or_query} WHERE 1 = 0"
+        )
+
+    def get_raw_schema(
+        self,
+        table_or_query: str,
+        cursor: "Cursor",
+        is_query: bool,
+        query_input_alias: str,
+    ) -> None:
+        cursor.execute(
+            self.generate_infer_schema_sql(table_or_query, is_query, query_input_alias)
+        )
+        self.raw_schema = cursor.description
+
     def infer_schema_from_description(
-        self, table_or_query: str, cursor: "Cursor", is_query: bool
+        self,
+        table_or_query: str,
+        cursor: "Cursor",
+        is_query: bool,
+        query_input_alias: str,
     ) -> StructType:
-        cursor.execute(f"SELECT * FROM {table_or_query} WHERE 1 = 0")
-        raw_schema = cursor.description
-        self.raw_schema = raw_schema
-        return self.to_snow_type(raw_schema)
+        self.get_raw_schema(table_or_query, cursor, is_query, query_input_alias)
+        return self.to_snow_type(self.raw_schema)
 
     def infer_schema_from_description_with_error_control(
-        self, table_or_query: str, is_query: bool
+        self, table_or_query: str, is_query: bool, query_input_alias: str
     ) -> StructType:
         conn = self.create_connection()
         cursor = conn.cursor()
         try:
-            return self.infer_schema_from_description(table_or_query, cursor, is_query)
+            return self.infer_schema_from_description(
+                table_or_query, cursor, is_query, query_input_alias
+            )
 
         except Exception as exc:
             raise SnowparkDataframeReaderException(
-                f"Failed to infer Snowpark DataFrame schema from '{table_or_query}' due to {exc!r}."
-                f" To avoid auto inference, you can manually specify the Snowpark DataFrame schema using 'custom_schema' in DataFrameReader.dbapi."
-                f" Please check the stack trace for more details."
+                "Auto infer schema failure:"
+                f"{exc!r}."
+                "A query:"
+                f"{self.generate_infer_schema_sql(table_or_query, is_query, query_input_alias)}"
+                "is used to infer Snowpark DataFrame schema from"
+                f"{table_or_query}"
+                "But it failed with above exception"
             ) from exc
         finally:
-            cursor.close()
-            conn.close()
+            # Best effort to close cursor and connection; failures are non-critical and can be ignored.
+            try:
+                cursor.close()
+            except BaseException as exc:
+                logger.debug(
+                    f"Failed to close cursor after inferring schema from description due to error: {exc!r}"
+                )
+
+            try:
+                conn.close()
+            except BaseException as exc:
+                logger.debug(
+                    f"Failed to close connection after inferring schema from description due to error: {exc!r}"
+                )
 
     def udtf_ingestion(
         self,
@@ -184,10 +227,17 @@ class BaseDriver:
                     if isinstance(x, (datetime.datetime, datetime.date))
                     else x
                 )
+            # astype below is meant to address copy into failure when the column contain only None value,
+            # pandas would infer wrong type for that column in that situation, thus we convert them to corresponding type.
             elif isinstance(field.datatype, BinaryType):
-                df[name] = df[name].map(
-                    lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x
+                # we convert all binary to hex, so it is safe to astype to string
+                df[name] = (
+                    df[name]
+                    .map(lambda x: x.hex() if isinstance(x, (bytearray, bytes)) else x)
+                    .astype("string")
                 )
+            elif isinstance(field.datatype, BooleanType):
+                df[name] = df[name].astype("boolean")
         return df
 
     @staticmethod

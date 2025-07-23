@@ -175,8 +175,10 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Interval,
     ListAgg,
     Literal,
+    ModelExpression,
     MultipleExpression,
     Star,
+    NamedFunctionExpression,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import Alias
 from snowflake.snowpark._internal.analyzer.window_expression import (
@@ -6794,6 +6796,28 @@ def parse_json(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def try_parse_json(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Parse the value of the specified column as a JSON string and returns the
+    resulting JSON document. Returns NULL if an error occurs during parsing.
+
+    Example::
+        >>> df = session.create_dataframe([['{"key": "1"}'], ['{"Open": "parenthesis"']], schema=["a"])
+        >>> df.select(try_parse_json(df["a"]).alias("result")).show()
+        ----------------
+        |"RESULT"      |
+        ----------------
+        |{             |
+        |  "key": "1"  |
+        |}             |
+        |NULL          |
+        ----------------
+        <BLANKLINE>
+    """
+    c = _to_col_if_str(e, "try_parse_json")
+    return _call_function("try_parse_json", c, _emit_ast=_emit_ast)
+
+
+@publicapi
 def from_json(
     e: ColumnOrName, schema: Union[str, DataType], _emit_ast: bool = True
 ) -> Column:
@@ -10468,6 +10492,28 @@ def _call_function(
     )
 
 
+def _call_named_arguments_function(
+    name: str,
+    kwargs: Dict[str, ColumnOrLiteral],
+    api_call_source: Optional[str] = None,
+    _ast: proto.Expr = None,
+    _emit_ast: bool = True,
+) -> Column:
+
+    if _emit_ast and _ast is None:
+        _ast = build_function_expr(name, kwargs)
+
+    return Column(
+        NamedFunctionExpression(
+            name,
+            {k: Column._to_expr(v) for k, v in kwargs.items()},
+            api_call_source=api_call_source,
+        ),
+        _ast=_ast,
+        _emit_ast=_emit_ast,
+    )
+
+
 @publicapi
 def sproc(
     func: Optional[Callable] = None,
@@ -10697,6 +10743,63 @@ def sproc(
             _emit_ast=_emit_ast,
             **kwargs,
         )
+
+
+def _call_model(
+    model_name: str,
+    version_or_alias_name: Optional[str],
+    method_name: str,
+    *args,
+    _emit_ast: bool = True,
+) -> Column:
+    if _emit_ast:
+        _ast = build_function_expr(
+            "model", [model_name, version_or_alias_name, method_name, *args]
+        )
+    else:
+        _ast = None
+
+    args_list = parse_positional_args_to_list(*args)
+    expressions = [Column._to_expr(arg) for arg in args_list]
+    return Column(
+        ModelExpression(
+            model_name,
+            version_or_alias_name,
+            method_name,
+            expressions,
+        ),
+        _ast=_ast,
+        _emit_ast=_emit_ast,
+    )
+
+
+@publicapi
+def model(
+    model_name: str,
+    version_or_alias_name: Optional[str] = None,
+    _emit_ast: bool = True,
+) -> Callable:
+    """
+    Creates a model function that can be used to call a model method.
+
+    Args:
+        model_name: The name of the model to call.
+        version_or_alias_name: The version or alias name of the model to call.
+
+    Example::
+
+        >>> df = session.table("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_TEST")
+        >>> model_instance = model("TESTSCHEMA_SNOWPARK_PYTHON.DIAMONDS_PRICE_PREDICTION", "v1")
+        >>> result_df = df.select(model_instance("predict")(
+        ...     col("CUT_OE"), col("COLOR_OE"), col("CLARITY_OE"), col("CARAT"),
+        ...     col("DEPTH"), col("TABLE_PCT"), col("X"), col("Y"), col("Z")
+        ... )["output_feature_0"])
+        >>> result_df.count()
+        5412
+    """
+    return lambda method_name: lambda *args: _call_model(
+        model_name, version_or_alias_name, method_name, *args, _emit_ast=_emit_ast
+    )
 
 
 # Add these alias for user code migration
@@ -12096,17 +12199,17 @@ def prompt(
 @publicapi
 def ai_filter(
     predicate: ColumnOrLiteralStr,
-    file: Optional[ColumnOrLiteralStr] = None,
+    file: Optional[Column] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
     Classifies free-form prompt inputs into a boolean. Currently supports both text and image filtering.
 
     Args:
-        predicate: If you’re specifying an input string, it is string containing the text to be classified;
-            If you’re filtering on one file, it is a string containing the instructions to
+        predicate: If you're specifying an input string, it is string containing the text to be classified;
+            If you're filtering on one file, it is a string containing the instructions to
             classify the file input as either TRUE or FALSE.
-        file:The column that the file is classified by based on the instructions specified in ``predicate``.
+        file: The FILE type column that the file is classified by based on the instructions specified in ``predicate``.
             You can use IMAGE FILE as an input to the AI_FILTER function.
 
     Note:
@@ -12161,9 +12264,8 @@ def ai_filter(
         ast = (
             build_function_expr(sql_func_name, [predicate, file]) if _emit_ast else None
         )
-        expr_col = _to_col_if_lit(file, sql_func_name)
         return _call_function(
-            sql_func_name, predicate_col, expr_col, _ast=ast, _emit_ast=_emit_ast
+            sql_func_name, predicate_col, file, _ast=ast, _emit_ast=_emit_ast
         )
 
 
@@ -12189,7 +12291,7 @@ def ai_classify(
             - task_description: A explanation of the classification task that is 50 words or fewer.
                 This can help the model understand the context of the classification task and improve accuracy.
 
-            - output_mode: Set to `multi`` for multi-label classification. Defaults to `single` for single-label classification.
+            - output_mode: Set to ``multi`` for multi-label classification. Defaults to `single` for single-label classification.
 
             - examples: A list of example objects for few-shot learning. Each example must include:
 
@@ -12506,3 +12608,285 @@ def ai_similarity(
         return _call_function(
             sql_func_name, input1_col, input2_col, _ast=ast, _emit_ast=_emit_ast
         )
+
+
+@overload
+@publicapi
+def ai_complete(
+    model: str,
+    prompt: ColumnOrLiteralStr,
+    model_parameters: Optional[dict] = None,
+    response_format: Optional[dict] = None,
+    show_details: Optional[bool] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    ...
+
+
+@overload
+@publicapi
+def ai_complete(
+    model: str,
+    prompt: str,
+    file: Column,
+    model_parameters: Optional[dict] = None,
+    response_format: Optional[dict] = None,
+    show_details: Optional[bool] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    ...
+
+
+@publicapi
+def ai_complete(
+    model: str,
+    prompt: ColumnOrLiteralStr,
+    file: Optional[Column] = None,
+    model_parameters: Optional[dict] = None,
+    response_format: Optional[dict] = None,
+    show_details: Optional[bool] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Generates a response (completion) for a text prompt using a supported language model.
+
+    This function supports three main usage patterns:
+    1. String prompt only: AI_COMPLETE(model, prompt, ...)
+    2. Prompt with file: AI_COMPLETE(model, prompt, file, ...)
+    3. Prompt object: AI_COMPLETE(model, prompt_object, ...)
+
+    Args:
+        model: A string specifying the model to be used. Different input types have different supported models.
+            See details in `AI_COMPLETE <https://docs.snowflake.com/en/sql-reference/functions/ai_complete>`_.
+        prompt: A string prompt, or a Column object from :func:`prompt()`.
+        file: The FILE type column representing an image. When provided, prompt should be a string.
+        model_parameters: Optional object containing model hyperparameters:
+
+            - temperature: A value from 0 to 1 controlling randomness (default: ``0``)
+            - top_p: A value from 0 to 1 controlling diversity (default: ``0``)
+            - max_tokens: Maximum number of output tokens (default: ``4096``, max: ``8192``)
+            - guardrails: Enable Cortex Guard filtering (default: ``FALSE``)
+
+        response_format: Optional JSON schema that the response should follow for structured outputs.
+        show_details: Optional boolean flag to return detailed inference information (default: ``FALSE``).
+
+    Returns:
+        ``response_format`` and ``show_details`` are only supported for single string.
+        When ``show_details`` is ``FALSE`` and ``response_format`` is not specified: Returns a string containing the response.
+        When ``show_details`` is ``FALSE`` and ``response_format`` is specified: Returns an object following the provided format.
+        When ``show_details`` is ``TRUE``: Returns a JSON object with detailed inference information including
+        choices, created timestamp, model name, and token usage statistics.
+        See details in `AI_COMPLETE Returns <https://docs.snowflake.com/en/sql-reference/functions/ai_complete-single-string#returns>`_.
+
+    Examples::
+
+        >>> # Basic completion with string prompt
+        >>> df = session.range(1).select(
+        ...     ai_complete('snowflake-arctic', 'What are large language models?').alias("response")
+        ... )
+        >>> len(df.collect()[0][0]) > 10
+        True
+
+        >>> # Using model parameters
+        >>> df = session.range(1).select(
+        ...     ai_complete(
+        ...         model='llama2-70b-chat',
+        ...         prompt='How does a snowflake get its unique pattern?',
+        ...         model_parameters={
+        ...             'temperature': 0.7,
+        ...             'max_tokens': 100
+        ...         }
+        ...     ).alias("response")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> len(result) > 0
+        True
+
+        >>> # With detailed output
+        >>> df = session.range(1).select(
+        ...     ai_complete(
+        ...         model='mistral-large',
+        ...         prompt='Explain AI in one sentence.',
+        ...         show_details=True
+        ...     ).alias("detailed_response")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> 'choices' in result and 'usage' in result
+        True
+
+        >>> # Prompt with image processing
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/kitchen.png", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_complete(
+        ...         model='claude-4-sonnet',
+        ...         prompt='Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances.',
+        ...         file=to_file('@mystage/kitchen.png'),
+        ...     )
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> "microwave" in result and "refrigerator" in result
+        True
+
+        >>> # Structured output with response format
+        >>> response_schema = {
+        ...     'type': 'json',
+        ...     'schema': {
+        ...         'type': 'object',
+        ...         'properties': {
+        ...             'sentiment': {'type': 'string'},
+        ...             'confidence': {'type': 'number'}
+        ...         },
+        ...         'required': ['sentiment', 'confidence']
+        ...     }
+        ... }
+        >>> df = session.range(1).select(
+        ...     ai_complete(
+        ...         model='mistral-large2',
+        ...         prompt='Analyze the sentiment of this text: I love this product!',
+        ...         response_format=response_schema
+        ...     ).alias("structured_result")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> 'sentiment' in result and 'confidence' in result
+        True
+
+        >>> # Using prompt object from prompt() function
+        >>> df = session.range(1).select(
+        ...     ai_complete(
+        ...         model='openai-gpt-4.1',
+        ...         prompt=prompt("Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances? {0}", to_file('@mystage/kitchen.png')),
+        ...     )
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> "microwave" in result and "refrigerator" in result
+        True
+    """
+    sql_func_name = "ai_complete"
+
+    args = [model, prompt]
+
+    if file is not None:
+        args.append(file)
+    if model_parameters is not None:
+        args.append(model_parameters)
+    if response_format is not None:
+        args.append(response_format)
+    if show_details is not None:
+        args.append(show_details)
+
+    ast = build_function_expr(sql_func_name, args) if _emit_ast else None
+
+    # Convert arguments to columns
+    model_col = lit(model)
+    prompt_col = _to_col_if_lit(prompt, sql_func_name)
+
+    # Build the function call arguments
+    call_kwargs = {
+        "model": model_col,
+    }
+
+    # Add file if provided
+    if file is not None:
+        if isinstance(prompt, str) or isinstance(prompt._expr1, Literal):
+            call_kwargs["predicate"] = prompt_col
+            call_kwargs["file"] = file
+        else:
+            raise ValueError("prompt must be a string or a literal column")
+    else:
+        call_kwargs["prompt"] = prompt_col
+
+    # Add model_parameters if provided
+    if model_parameters is not None:
+        model_params_col = sql_expr(json.dumps(model_parameters).replace('"', "'"))
+        call_kwargs["model_parameters"] = model_params_col
+
+    # Add response_format if provided
+    if response_format is not None:
+        response_format_col = sql_expr(json.dumps(response_format).replace('"', "'"))
+        call_kwargs["response_format"] = response_format_col
+
+    # Add show_details if provided
+    if show_details is not None:
+        call_kwargs["show_details"] = sql_expr(str(show_details))
+
+    return _call_named_arguments_function(
+        sql_func_name, call_kwargs, _ast=ast, _emit_ast=_emit_ast
+    )
+
+
+@publicapi
+def ai_embed(
+    model: str,
+    input: ColumnOrLiteralStr,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates an embedding vector from text or an image.
+
+    Args:
+        model: A string specifying the vector embedding model to be used. Supported models:
+
+            For text embeddings:
+                - 'snowflake-arctic-embed-l-v2.0': Arctic large model (default for text)
+                - 'snowflake-arctic-embed-l-v2.0-8k': Arctic large model with 8K context
+                - 'nv-embed-qa-4': NVIDIA embedding model for Q&A
+                - 'multilingual-e5-large': Multilingual embedding model
+                - 'voyage-multilingual-2': Voyage multilingual model
+
+            For image embeddings:
+                - 'voyage-multimodal-3': Voyage multimodal model (only for images)
+
+        input: The string or image (as a FILE object) to generate an embedding from.
+            Can be a string with text or a FILE column containing an image.
+
+    Returns:
+        A VECTOR containing the embedding representation of the input.
+
+    Examples::
+
+        >>> # Text embedding
+        >>> df = session.range(1).select(
+        ...     ai_embed('snowflake-arctic-embed-l-v2.0', 'Hello, world!').alias("embedding")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> len(result) > 0
+        True
+
+        >>> # Text embedding with multilingual model
+        >>> df = session.create_dataframe([
+        ...     ['Hello world'],
+        ...     ['Bonjour le monde'],
+        ...     ['Hola mundo']
+        ... ], schema=["text"])
+        >>> df = df.select(
+        ...     col("text"),
+        ...     ai_embed('multilingual-e5-large', col("text")).alias("embedding")
+        ... )
+        >>> embeddings = df.collect()
+        >>> all(len(row[1]) > 0 for row in embeddings)
+        True
+
+        >>> # Image embedding
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_embed('voyage-multimodal-3', to_file('@mystage/dog.jpg')).alias("image_embedding")
+        ... )
+        >>> result = df.collect()[0][0]
+        >>> len(result) > 0
+        True
+    """
+    sql_func_name = "ai_embed"
+
+    # Convert arguments to columns
+    model_col = lit(model)
+    input_col = _to_col_if_lit(input, sql_func_name)
+
+    # Build AST
+    ast = build_function_expr(sql_func_name, [model, input]) if _emit_ast else None
+
+    # Call the function
+    return _call_function(
+        sql_func_name, model_col, input_col, _ast=ast, _emit_ast=_emit_ast
+    )

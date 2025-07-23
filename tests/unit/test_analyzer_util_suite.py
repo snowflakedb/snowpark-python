@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     NOT,
     OR,
     REPLACE,
+    format_uuid,
     convert_value_to_sql_option,
     create_file_format_statement,
     create_or_replace_dynamic_table_statement,
@@ -41,6 +42,36 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     UsingJoin,
 )
 from snowflake.snowpark._internal.utils import EMPTY_STRING
+
+import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
+
+
+@pytest.fixture(autouse=True)
+def setup():
+    original_new_line = analyzer_utils.NEW_LINE
+    original_tab = analyzer_utils.TAB
+    analyzer_utils.NEW_LINE = "\n"
+    analyzer_utils.TAB = "    "
+    yield
+    analyzer_utils.NEW_LINE = original_new_line
+    analyzer_utils.TAB = original_tab
+
+
+def test_format_uuid():
+    uuid_str = "123e4567-e89b-12d3-a456-426614174000"
+    expected = f"-- {uuid_str}"
+    result = format_uuid(uuid_str, with_new_line=False)
+    assert result == expected
+
+    result_with_newline = format_uuid(uuid_str, with_new_line=True)
+    expected_with_newline = f"\n-- {uuid_str}\n"
+    assert result_with_newline == expected_with_newline
+
+    empty_result = format_uuid(None, with_new_line=False)
+    assert empty_result == ""
+
+    empty_result_with_newline = format_uuid(None, with_new_line=True)
+    assert empty_result_with_newline == ""
 
 
 def test_generate_scoped_temp_objects():
@@ -369,14 +400,6 @@ def test_join_statement_negative():
 
 
 def test_create_iceberg_table_statement():
-    with pytest.raises(
-        ValueError, match="Iceberg table configuration requires base_location be set."
-    ):
-        create_table_statement(
-            table_name="test_table",
-            schema="test_col varchar",
-            iceberg_config={},
-        )
     assert create_table_statement(
         table_name="test_table",
         schema="test_col varchar",
@@ -525,8 +548,34 @@ def test_table_function_statement_formatting():
 
 
 def test_filter_statement_formatting():
-    assert filter_statement("x > 0 AND y < 10", "my_table") == (
+    # Test with is_having=False (WHERE clause)
+    assert filter_statement("x > 0 AND y < 10", False, "my_table") == (
         " SELECT  * \n" " FROM (\n" "my_table\n" ")\n" " WHERE x > 0 AND y < 10"
+    )
+
+    # Test with is_having=True (HAVING clause)
+    assert filter_statement("COUNT(*) > 5", True, "my_table") == (
+        "my_table\n" " HAVING COUNT(*) > 5"
+    )
+
+    # Test with complex child query and is_having=False
+    child_query = "SELECT a, b, COUNT(*) as cnt\nFROM table1\nGROUP BY a, b"
+    assert filter_statement("cnt > 10", False, child_query) == (
+        " SELECT  * \n"
+        " FROM (\n"
+        "SELECT a, b, COUNT(*) as cnt\n"
+        "FROM table1\n"
+        "GROUP BY a, b\n"
+        ")\n"
+        " WHERE cnt > 10"
+    )
+
+    # Test with complex child query and is_having=True
+    assert filter_statement("SUM(amount) > 1000", True, child_query) == (
+        "SELECT a, b, COUNT(*) as cnt\n"
+        "FROM table1\n"
+        "GROUP BY a, b\n"
+        " HAVING SUM(amount) > 1000"
     )
 
 
@@ -580,11 +629,11 @@ def test_aggregate_statement_formatting():
 
 
 def test_sort_statement_formatting():
-    assert sort_statement(["col1 ASC"], "my_table") == (
+    assert sort_statement(["col1 ASC"], False, "my_table") == (
         " SELECT  * \n" " FROM (\n" "my_table\n" ")\n" " ORDER BY \n" "    col1 ASC"
     )
 
-    assert sort_statement(["col1 ASC", "col2 DESC"], "my_table") == (
+    assert sort_statement(["col1 ASC", "col2 DESC"], False, "my_table") == (
         " SELECT  * \n"
         " FROM (\n"
         "my_table\n"
@@ -592,6 +641,15 @@ def test_sort_statement_formatting():
         " ORDER BY \n"
         "    col1 ASC, \n"
         "    col2 DESC"
+    )
+
+    # Test with is_order_by_append=True
+    assert sort_statement(["col1 ASC"], True, "my_table") == (
+        "my_table\n" " ORDER BY \n" "    col1 ASC"
+    )
+
+    assert sort_statement(["col1 ASC", "col2 DESC"], True, "my_table") == (
+        "my_table\n" " ORDER BY \n" "    col1 ASC, \n" "    col2 DESC"
     )
 
 

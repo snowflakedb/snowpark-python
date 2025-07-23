@@ -72,6 +72,7 @@ def mock_snowflake_plan() -> SnowflakePlan:
     fake_snowflake_plan._is_valid_for_replacement = True
     fake_snowflake_plan._metadata = mock.create_autospec(PlanMetadata)
     fake_snowflake_plan._metadata.attributes = {}
+    fake_snowflake_plan.query_line_intervals = []
     return fake_snowflake_plan
 
 
@@ -80,7 +81,7 @@ def mock_query_generator(mock_session) -> QueryGenerator:
     def mock_resolve(x):
         snowflake_plan = mock_snowflake_plan()
         snowflake_plan.source_plan = x
-        snowflake_plan.df_ast_id = None
+        snowflake_plan.df_ast_ids = None
         if hasattr(x, "post_actions"):
             snowflake_plan.post_actions = x.post_actions
         return snowflake_plan

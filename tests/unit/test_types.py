@@ -34,21 +34,22 @@ except ImportError:
 from snowflake.snowpark._internal.type_utils import (
     convert_sf_to_sp_type,
     convert_sp_to_sf_type,
+    extract_bracket_content,
+    extract_nullable_keyword,
     get_number_precision_scale,
     infer_schema,
     infer_type,
+    is_likely_struct,
     merge_type,
+    most_permissive_type,
+    parse_struct_field_list,
     python_type_to_snow_type,
     python_value_str_to_object,
     retrieve_func_defaults_from_source,
     retrieve_func_type_hints_from_source,
     snow_type_to_dtype_str,
-    type_string_to_type_object,
-    is_likely_struct,
-    parse_struct_field_list,
     split_top_level_comma_fields,
-    extract_bracket_content,
-    extract_nullable_keyword,
+    type_string_to_type_object,
 )
 from snowflake.snowpark.types import (
     ArrayType,
@@ -60,6 +61,7 @@ from snowflake.snowpark.types import (
     DateType,
     DecimalType,
     DoubleType,
+    FileType,
     FloatType,
     Geography,
     GeographyType,
@@ -73,9 +75,9 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimeType,
     TimestampTimeZone,
     TimestampType,
-    TimeType,
     Variant,
     VariantType,
     VectorType,
@@ -2058,3 +2060,48 @@ def test_extract_nullable_keyword_mix_of_no_keywords():
     # This doesn't match 'NOT NULL', so it returns original string with is_nullable=True
     assert base_str == "mytype null"
     assert is_nullable is True
+
+
+def test_most_permissive_type():
+    basic = [
+        NullType(),
+        BinaryType(),
+        BooleanType(),
+        DateType(),
+        TimestampType(),
+        TimeType(),
+        FileType(),
+        VariantType(),
+        GeographyType(),
+        GeometryType(),
+    ]
+    for basic_type in basic:
+        assert most_permissive_type(basic_type) == basic_type
+        array_type = ArrayType(basic_type)
+        assert most_permissive_type(array_type) == array_type
+        struct_type = StructType([StructField("A", basic_type)])
+        assert most_permissive_type(struct_type) == struct_type
+        map_type = MapType(StringType(), basic_type)
+        assert most_permissive_type(map_type) == map_type
+
+    numerics = [
+        FloatType(),
+        DoubleType(),
+        DecimalType(),
+        ByteType(),
+        ShortType(),
+        IntegerType(),
+        LongType(),
+    ]
+    for numeric_type in numerics:
+        assert most_permissive_type(numeric_type) == DoubleType()
+        assert most_permissive_type(ArrayType(numeric_type)) == ArrayType(DoubleType())
+        assert most_permissive_type(
+            StructType([StructField("A", numeric_type)])
+        ) == StructType([StructField("A", DoubleType())])
+        assert most_permissive_type(MapType(StringType(), numeric_type)) == MapType(
+            StringType(), DoubleType()
+        )
+
+    assert most_permissive_type(StringType(5)) == StringType()
+    assert most_permissive_type(VectorType("int", 2)) == VectorType("int", 2)

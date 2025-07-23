@@ -10,7 +10,9 @@ from collections import namedtuple
 from collections.abc import Hashable
 from enum import Enum, auto
 from typing import Any, Callable, Literal, Optional, Tuple, Union
+from types import ModuleType
 from datetime import datetime
+from dataclasses import dataclass
 
 import cloudpickle
 import numpy as np
@@ -21,7 +23,10 @@ from pandas.api.types import is_scalar
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
 from collections.abc import Mapping
-from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
+from snowflake.snowpark._internal.udf_utils import (
+    get_types_from_type_hints,
+    pickle_function,
+)
 import functools
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
@@ -128,6 +133,62 @@ try:
 except ImportError:
     SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = set()
     ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple()
+
+
+# Reuse UDFs that have already been constructed in each session.
+@dataclass(eq=True, frozen=True)
+class UDFCacheKey:
+    # The result of calling pickle_function(func), where func is the wrapper method that
+    # is used in the UDF. This pickled object itself is not necessarily the same as what's uploaded
+    # to the server, but we pickle the wrapper to ensure closure-captured variables are checked.
+    func_pickle_blob: bytes
+    return_type: DataType  # The inferred return type of the column
+    input_type: DataType
+    strict: bool
+    # No packages param in the key; we assume packages will be the same for the UDF every time
+
+
+session_udf_cache: dict[Session, dict[UDFCacheKey, UserDefinedFunction]] = defaultdict(
+    dict
+)
+
+
+# Reuse UDTFs that have already been constructed in each session
+@dataclass(eq=True, frozen=True)
+class UDTFCacheKey:
+    # The result of calling pickle_function(func), where func is the end_partition method of the
+    # wrapper class is used in the UDTF. We cannot pickle the wrapper class directly because pickle
+    # will serialize each class differently even if they have the same body and closure variables
+    # because they are technically different classes.
+    func_pickle_blob: bytes
+    col_types: tuple[DataType, ...]
+    col_names: tuple[str, ...]
+    input_types: tuple[DataType, ...]
+    # Because UDTFs allow user-specified packages when a UDF is passed, we need to consider package names in the key as well.
+    package_names: tuple[str, ...]
+
+
+# Each UDTF construction helper function manipulates the input function slightly differently, and thus needs a different cache.
+session_apply_axis_1_udtf_cache: dict[
+    Session, dict[UDTFCacheKey, UserDefinedTableFunction]
+] = defaultdict(dict)
+session_groupby_apply_no_pivot_udtf_cache: dict[
+    Session, dict[UDTFCacheKey, UserDefinedTableFunction]
+] = defaultdict(dict)
+session_groupby_apply_udtf_cache: dict[
+    Session, dict[UDTFCacheKey, UserDefinedTableFunction]
+] = defaultdict(dict)
+
+
+def clear_session_udf_and_udtf_caches() -> None:
+    """
+    Clear all cached UDF and UDTFs. If any were persisted to the server, they are unaffected by
+    this function.
+    """
+    session_udf_cache.clear()
+    session_apply_axis_1_udtf_cache.clear()
+    session_groupby_apply_no_pivot_udtf_cache.clear()
+    session_groupby_apply_udtf_cache.clear()
 
 
 class GroupbyApplySortMethod(Enum):
@@ -343,25 +404,38 @@ def create_udtf_for_apply_axis_1(
     ApplyFunc.end_partition._sf_vectorized_input = native_pd.DataFrame  # type: ignore[attr-defined]
 
     packages = list(session.get_packages().values()) + udf_packages
+    col_types = [LongType(), StringType(), VariantType()]
+    col_identifiers = [
+        row_position_snowflake_quoted_identifier,
+        APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
+        APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
+    ]
     try:
-        func_udtf = sp_func.udtf(
-            ApplyFunc,
-            output_schema=PandasDataFrameType(
-                [LongType(), StringType(), VariantType()],
-                [
-                    row_position_snowflake_quoted_identifier,
-                    APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
-                    APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
-                ],
+        cache_key = UDTFCacheKey(
+            pickle_function(ApplyFunc.end_partition),
+            tuple(col_types),
+            tuple(col_identifiers),
+            tuple([LongType()] + input_types),
+            tuple(
+                pkg.__name__ if isinstance(pkg, ModuleType) else pkg for pkg in packages
             ),
-            input_types=[PandasDataFrameType([LongType()] + input_types)],
-            # We have to use the current pandas version to ensure the behavior consistency
-            packages=[native_pd] + packages,
-            session=session,
-            statement_params=get_default_snowpark_pandas_statement_params(),
         )
-        return func_udtf
-    except NotImplementedError:
+        cache = session_apply_axis_1_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
+                ApplyFunc,
+                output_schema=PandasDataFrameType(
+                    col_types,
+                    col_identifiers,
+                ),
+                input_types=[PandasDataFrameType([LongType()] + input_types)],
+                # We have to use the current pandas version to ensure the behavior consistency
+                packages=[native_pd] + packages,
+                session=session,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
         # When a Snowpark object is passed to a UDF, a NotImplementedError with message
         # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
         # catch this exception and return a more user-friendly error message.
@@ -725,19 +799,29 @@ def create_udtf_for_groupby_no_pivot(
             return func_result
 
     try:
-        return sp_func.udtf(
-            ApplyFunc,
-            output_schema=PandasDataFrameType(
-                output_schema.column_types, output_schema.column_ids
-            ),
-            input_types=[PandasDataFrameType(col_types=input_column_types)],
-            # We have to specify the local pandas package so that the UDF's pandas
-            # behavior is consistent with client-side pandas behavior.
-            packages=[native_pd] + list(session.get_packages().values()),
-            session=session,
-            statement_params=get_default_snowpark_pandas_statement_params(),
+        cache_key = UDTFCacheKey(
+            pickle_function(ApplyFunc.end_partition),
+            tuple(output_schema.column_types),
+            tuple(output_schema.column_ids),
+            tuple(input_column_types),
+            tuple(session.get_packages().values()),
         )
-    except NotImplementedError:
+        cache = session_groupby_apply_no_pivot_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
+                ApplyFunc,
+                output_schema=PandasDataFrameType(
+                    output_schema.column_types, output_schema.column_ids
+                ),
+                input_types=[PandasDataFrameType(col_types=input_column_types)],
+                # We have to specify the local pandas package so that the UDF's pandas
+                # behavior is consistent with client-side pandas behavior.
+                packages=[native_pd] + list(session.get_packages().values()),
+                session=session,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
         # When a Snowpark object is passed to a UDF, a NotImplementedError with message
         # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
         # catch this exception and return a more user-friendly error message.
@@ -1092,27 +1176,38 @@ def create_udtf_for_groupby_apply(
         excluded=existing_identifiers,
         wrap_double_underscore=False,
     )
+    col_types = [
+        StringType(),
+        IntegerType(),
+        VariantType(),
+        IntegerType(),
+        IntegerType(),
+    ]
     try:
-        return None, sp_func.udtf(
-            ApplyFunc,
-            output_schema=PandasDataFrameType(
-                [
-                    StringType(),
-                    IntegerType(),
-                    VariantType(),
-                    IntegerType(),
-                    IntegerType(),
-                ],
-                col_names,
-            ),
-            input_types=[PandasDataFrameType(col_types=input_types)],
-            # We have to specify the local pandas package so that the UDF's pandas
-            # behavior is consistent with client-side pandas behavior.
-            packages=[native_pd] + list(session.get_packages().values()),
-            session=session,
-            statement_params=get_default_snowpark_pandas_statement_params(),
+        cache_key = UDTFCacheKey(
+            pickle_function(ApplyFunc.end_partition),
+            tuple(col_types),
+            tuple(col_names),
+            tuple(input_types),
+            tuple(session.get_packages().values()),
         )
-    except NotImplementedError:
+        cache = session_groupby_apply_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
+                ApplyFunc,
+                output_schema=PandasDataFrameType(
+                    col_types,
+                    col_names,
+                ),
+                input_types=[PandasDataFrameType(col_types=input_types)],
+                # We have to specify the local pandas package so that the UDF's pandas
+                # behavior is consistent with client-side pandas behavior.
+                packages=[native_pd] + list(session.get_packages().values()),
+                session=session,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return None, cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
         # When a Snowpark object is passed to a UDF, a NotImplementedError with message
         # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
         # catch this exception and return a more user-friendly error message.
@@ -1181,18 +1276,27 @@ def create_udf_for_series_apply(
             #  actual type.
             return x.apply(func, args=args, **kwargs)
 
+    strict = na_action == "ignore"
     try:
-        func_udf = sp_func.udf(
-            apply_func,
-            return_type=PandasSeriesType(return_type),
-            input_types=[PandasSeriesType(input_type)],
-            strict=bool(na_action == "ignore"),
-            session=session,
-            packages=packages,
-            statement_params=get_default_snowpark_pandas_statement_params(),
+        cache_key = UDFCacheKey(
+            pickle_function(apply_func),
+            return_type,
+            input_type,
+            strict,
         )
-        return func_udf
-    except NotImplementedError:
+        cache = session_udf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udf(
+                apply_func,
+                return_type=PandasSeriesType(return_type),
+                input_types=[PandasSeriesType(input_type)],
+                strict=strict,
+                session=session,
+                packages=packages,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
         # When a Snowpark object is passed to a UDF, a NotImplementedError with message
         # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
         # catch this exception and return a more user-friendly error message.

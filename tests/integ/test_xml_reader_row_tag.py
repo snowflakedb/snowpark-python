@@ -19,6 +19,7 @@ pytestmark = [
         "config.getoption('local_testing_mode', default=False)",
         reason="xml not supported in local testing mode",
     ),
+    pytest.mark.udf,
 ]
 
 
@@ -35,6 +36,7 @@ test_file_malformed_record_xml = "malformed_record.xml"
 test_file_xml_declared_namespace = "declared_namespace.xml"
 test_file_xml_undeclared_namespace = "undeclared_namespace.xml"
 test_file_null_value_xml = "null_value.xml"
+test_file_books_xsd = "books.xsd"
 
 # Global stage name for uploading test files
 tmp_stage_name = Utils.random_stage_name()
@@ -99,6 +101,12 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name,
         test_files.test_null_value_xml,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
+        test_files.test_books_xsd,
         compress=False,
     )
 
@@ -378,3 +386,23 @@ def test_read_xml_ignore_surrounding_whitespace(
         .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
     )
     Utils.check_answer(df, [expected_row])
+
+
+def test_read_xml_row_validation_xsd_path(session):
+    row_tag = "book"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}")
+        .option("mode", "dropmalformed")
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+
+    # Only bk101 should pass XSD validation (author must be "Gambardella, Matthew")
+    result = df.collect()
+    assert len(result) == 1
+    assert result[0]["'author'"] == '"Gambardella, Matthew"'
+    assert result[0]["'title'"] == '"XML Developer\'s Guide"'
+    assert result[0]["'genre'"] == '"Computer"'
+    assert result[0]["'price'"] == '"44.95"'
+    assert result[0]["'publish_date'"] == '"2000-10-01"'
+    assert result[0]["'_id'"] == '"bk101"'

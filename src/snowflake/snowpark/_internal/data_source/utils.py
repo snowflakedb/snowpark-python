@@ -1,16 +1,17 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import os
 import queue
 import time
 import traceback
+import threading
 import multiprocessing as mp
 from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
 from io import BytesIO
 from enum import Enum
-from typing import Any, Tuple, Optional, Callable, Dict
+from typing import Any, Tuple, Optional, Callable, Dict, Union, Set
 import logging
 from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
@@ -151,7 +152,8 @@ def _task_fetch_data_from_source(
     worker: DataSourceReader,
     partition: str,
     partition_idx: int,
-    parquet_queue: mp.Queue,
+    parquet_queue: Union[mp.Queue, queue.Queue],
+    stop_event: threading.Event = None,
 ):
     """
     Fetch data from source and convert to parquet BytesIO objects.
@@ -179,6 +181,16 @@ def _task_fetch_data_from_source(
         logger.debug(f"Added parquet BytesIO to queue: {parquet_id}")
 
     for i, result in enumerate(worker.read(partition)):
+        if stop_event and stop_event.is_set():
+            parquet_queue.put(
+                (
+                    PARTITION_TASK_ERROR_SIGNAL,
+                    SnowparkDataframeReaderException(
+                        "Data fetching stopped by thread failure"
+                    ),
+                )
+            )
+            break
         convert_to_parquet_bytesio(result, i)
 
     parquet_queue.put((f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}{partition_idx}", None))
@@ -188,7 +200,8 @@ def _task_fetch_data_from_source_with_retry(
     worker: DataSourceReader,
     partition: str,
     partition_idx: int,
-    parquet_queue: mp.Queue,
+    parquet_queue: Union[mp.Queue, queue.Queue],
+    stop_event: threading.Event = None,
 ):
     _retry_run(
         _task_fetch_data_from_source,
@@ -196,6 +209,7 @@ def _task_fetch_data_from_source_with_retry(
         partition,
         partition_idx,
         parquet_queue,
+        stop_event,
     )
 
 
@@ -215,30 +229,25 @@ def _upload_and_copy_into_table(
     # Reset buffer position to beginning
     parquet_buffer.seek(0)
 
-    try:
-        # Upload BytesIO directly to stage using put_stream
-        stage_file_path = f"@{snowflake_stage_name}/{parquet_id}"
-        session.file.put_stream(
-            parquet_buffer,
-            stage_file_path,
-            overwrite=True,
-        )
+    # Upload BytesIO directly to stage using put_stream
+    stage_file_path = f"@{snowflake_stage_name}/{parquet_id}"
+    session.file.put_stream(
+        parquet_buffer,
+        stage_file_path,
+        overwrite=True,
+    )
 
-        # Copy into table
-        copy_into_table_query = f"""
-        COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{parquet_id}
-        FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
-        MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE
-        PURGE=TRUE
-        ON_ERROR={on_error}
-        {DATA_SOURCE_SQL_COMMENT}
-        """
-        session.sql(copy_into_table_query).collect(statement_params=statements_params)
-        logger.debug(f"Successfully uploaded and copied BytesIO parquet: {parquet_id}")
-    finally:
-        # proactively close the buffer to release memory
-        parquet_buffer.close()
-        backpressure_semaphore.release()
+    # Copy into table
+    copy_into_table_query = f"""
+    COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{parquet_id}
+    FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
+    MATCH_BY_COLUMN_NAME=CASE_SENSITIVE
+    PURGE=TRUE
+    ON_ERROR={on_error}
+    {DATA_SOURCE_SQL_COMMENT}
+    """
+    session.sql(copy_into_table_query).collect(statement_params=statements_params)
+    logger.debug(f"Successfully uploaded and copied BytesIO parquet: {parquet_id}")
 
 
 def _upload_and_copy_into_table_with_retry(
@@ -251,17 +260,22 @@ def _upload_and_copy_into_table_with_retry(
     on_error: Optional[str] = "abort_statement",
     statements_params: Optional[Dict[str, str]] = None,
 ):
-    _retry_run(
-        _upload_and_copy_into_table,
-        session,
-        parquet_id,
-        parquet_buffer,
-        snowflake_stage_name,
-        backpressure_semaphore,
-        snowflake_table_name,
-        on_error,
-        statements_params,
-    )
+    try:
+        _retry_run(
+            _upload_and_copy_into_table,
+            session,
+            parquet_id,
+            parquet_buffer,
+            snowflake_stage_name,
+            backpressure_semaphore,
+            snowflake_table_name,
+            on_error,
+            statements_params,
+        )
+    finally:
+        # proactively close the buffer to release memory
+        parquet_buffer.close()
+        backpressure_semaphore.release()
 
 
 def _retry_run(func: Callable, *args, **kwargs) -> Any:
@@ -292,7 +306,13 @@ def _retry_run(func: Callable, *args, **kwargs) -> Any:
 
 
 # DBAPI worker function that processes multiple partitions
-def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
+def worker_process(
+    partition_queue: Union[mp.Queue, queue.Queue],
+    parquet_queue: Union[mp.Queue, queue.Queue],
+    process_or_thread_error_indicator: Union[mp.Queue, queue.Queue],
+    reader,
+    stop_event: threading.Event = None,
+):
     """Worker process that fetches data from multiple partitions"""
     while True:
         try:
@@ -304,8 +324,11 @@ def worker_process(partition_queue: mp.Queue, parquet_queue: mp.Queue, reader):
                 query,
                 partition_idx,
                 parquet_queue,
+                stop_event,
             )
         except queue.Empty:
+            # indicate whether a process is exit gracefully
+            process_or_thread_error_indicator.put(os.getpid())
             # No more work available, exit gracefully
             break
         except Exception as e:
@@ -338,16 +361,30 @@ def process_completed_futures(thread_futures):
                 raise
 
 
+def _drain_process_status_queue(
+    process_or_thread_error_indicator: Union[mp.Queue, queue.Queue],
+) -> Set:
+    result = set()
+    while True:
+        try:
+            result.add(process_or_thread_error_indicator.get(block=False))
+        except queue.Empty:
+            break
+    return result
+
+
 def process_parquet_queue_with_threads(
     session: "snowflake.snowpark.Session",
-    parquet_queue: mp.Queue,
-    processes: list,
+    parquet_queue: Union[mp.Queue, queue.Queue],
+    process_or_thread_error_indicator: Union[mp.Queue, queue.Queue],
+    workers: list,
     total_partitions: int,
     snowflake_stage_name: str,
     snowflake_table_name: str,
     max_workers: int,
     statements_params: Optional[Dict[str, str]] = None,
     on_error: str = "abort_statement",
+    fetch_with_process: bool = False,
 ) -> None:
     """
     Process parquet data from a multiprocessing queue using a thread pool.
@@ -361,7 +398,8 @@ def process_parquet_queue_with_threads(
     Args:
         session: Snowflake session for database operations
         parquet_queue: Multiprocessing queue containing parquet data
-        processes: List of worker processes to monitor
+        process_or_thread_error_indicator: Multiprocessing queue containing process exit information
+        workers: List of worker processes or thread futures to monitor
         total_partitions: Total number of partitions expected
         snowflake_stage_name: Name of the Snowflake stage for uploads
         snowflake_table_name: Name of the target Snowflake table
@@ -374,6 +412,7 @@ def process_parquet_queue_with_threads(
     """
 
     completed_partitions = set()
+    gracefully_exited_processes = set()
     # process parquet_queue may produce more data than the threads can handle,
     # so we use semaphore to limit the number of threads
     backpressure_semaphore = BoundedSemaphore(value=_MAX_WORKER_SCALE * max_workers)
@@ -424,19 +463,59 @@ def process_parquet_queue_with_threads(
 
             except queue.Empty:
                 backpressure_semaphore.release()  # Release semaphore if no data was fetched
-                # Check if any processes have failed
-                for i, process in enumerate(processes):
-                    if not process.is_alive() and process.exitcode != 0:
-                        raise SnowparkDataframeReaderException(
-                            f"Partition {i} data fetching process failed with exit code {process.exitcode}"
-                        )
+                if fetch_with_process:
+                    # Check if any processes have failed
+                    for i, process in enumerate(workers):
+                        if not process.is_alive():
+                            gracefully_exited_processes = (
+                                gracefully_exited_processes.union(
+                                    _drain_process_status_queue(
+                                        process_or_thread_error_indicator
+                                    )
+                                )
+                            )
+                            if process.pid not in gracefully_exited_processes:
+                                raise SnowparkDataframeReaderException(
+                                    f"Partition {i} data fetching process failed with exit code {process.exitcode} or failed silently"
+                                )
+                else:
+                    # Check if any threads have failed
+                    for i, future in enumerate(workers):
+                        if future.done():
+                            try:
+                                future.result()
+                            except BaseException as e:
+                                if isinstance(e, SnowparkDataframeReaderException):
+                                    raise e
+                                raise SnowparkDataframeReaderException(
+                                    f"Partition {i} data fetching thread failed with error: {e}"
+                                )
                 time.sleep(0.1)
                 continue
 
-    # Wait for all processes to complete
-    for idx, process in enumerate(processes):
-        process.join()
-        if process.exitcode != 0:
-            raise SnowparkDataframeReaderException(
-                f"Partition {idx} data fetching process failed with exit code {process.exitcode}"
-            )
+    if fetch_with_process:
+        # Wait for all processes to complete
+        for process in workers:
+            process.join()
+        # empty parquet queue to get all signals after each process ends
+        gracefully_exited_processes = gracefully_exited_processes.union(
+            _drain_process_status_queue(process_or_thread_error_indicator)
+        )
+
+        # check if any process fails
+        for idx, process in enumerate(workers):
+            if process.pid not in gracefully_exited_processes:
+                raise SnowparkDataframeReaderException(
+                    f"Partition {idx} data fetching process failed with exit code {process.exitcode} or failed silently"
+                )
+    else:
+        # Wait for all threads to complete
+        for idx, future in enumerate(workers):
+            try:
+                future.result()
+            except BaseException as e:
+                if isinstance(e, SnowparkDataframeReaderException):
+                    raise e
+                raise SnowparkDataframeReaderException(
+                    f"Partition {idx} data fetching thread failed with error: {e}"
+                )

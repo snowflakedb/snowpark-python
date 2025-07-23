@@ -17,6 +17,7 @@ from textwrap import dedent
 from typing import Tuple
 from unittest import mock
 
+import snowflake.snowpark.context as context
 from snowflake.snowpark.dataframe import map
 from snowflake.snowpark.session import Session
 from tests.conftest import local_testing_mode
@@ -49,6 +50,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
+    array_construct,
     col,
     column,
     concat,
@@ -723,10 +725,15 @@ def test_select_with_table_function_column_overlap(session):
         [Row(B=2, A=2, C=3), Row(B=5, A=8, C=6)],
     )
 
+    Utils.check_answer(
+        df.select(col("b"), two_x_udtf(df.a), df.c),
+        [Row(B=2, A=2, C=3), Row(B=5, A=8, C=6)],
+    )
+
     # ensure overlapping columns raised ambiguous column error if non-overlapping columns
-    # are selected as columns
+    # are selected as complex columns
     with pytest.raises(SnowparkSQLException, match="ambiguous column name"):
-        df.select(col("b"), two_x_udtf(df.a), col("c")).collect()
+        df.select(col("b").alias("b1"), two_x_udtf(df.a), col("c")).collect()
 
     # ensure explode works
     df = session.create_dataframe([(1, [1, 2]), (2, [3, 4])], schema=["id", "value"])
@@ -804,6 +811,24 @@ def test_explode(session):
         df.select(df.strs, explode(df.maps).as_("primo", "secundo")), expected_result
     )
 
+    if not session.sql_simplifier_enabled:
+        return
+
+    # with input as array construct
+    Utils.check_answer(
+        session.range(1).select(explode(array_construct(lit(1), lit(2), lit(3)))),
+        [Row(VALUE="1"), Row(VALUE="2"), Row(VALUE="3")],
+    )
+
+    with mock.patch.object(context, "_use_structured_type_semantics", True):
+        # with input as array construct and cast
+        Utils.check_answer(
+            session.range(1).select(
+                explode(array_construct(lit(1), lit(2)).cast(ArrayType(LongType())))
+            ),
+            [Row(VALUE=1), Row(VALUE=2)],
+        )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
@@ -839,8 +864,12 @@ def test_explode_negative(session):
     with pytest.raises(ValueError, match="Invalid column type for explode"):
         df.select(explode(df.idx))
 
-    with pytest.raises(ValueError, match="Invalid column type for explode"):
-        df.select(explode(col("DOES_NOT_EXIST")))
+    if session.sql_simplifier_enabled:
+        with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+            df.select(explode(col("DOES_NOT_EXIST")))
+    else:
+        with pytest.raises(ValueError, match="Invalid column type for explode"):
+            df.select(explode(col("DOES_NOT_EXIST")))
 
 
 @pytest.mark.skipif(
@@ -1064,7 +1093,7 @@ def test_df_subscriptable(session):
     assert res == expected
 
 
-def test_filter(session):
+def test_filter(session, local_testing_mode):
     """Tests for df.filter()."""
     df = session.range(1, 10, 2)
     res = df.filter(col("id") > 4).collect()
@@ -1086,6 +1115,22 @@ def test_filter(session):
     res = df.filter(col("id") <= 0).collect()
     expected = []
     assert res == expected
+
+    if (
+        not local_testing_mode
+    ):  # TODO: SNOW-2197035: local testing bug with NULL floats and Decimals
+        data = [
+            (Decimal("123.45"), 1),
+            (Decimal("678.90"), 2),
+            (Decimal("0.0"), 3),
+            (None, 4),
+        ]
+        decimal_df = session.create_dataframe(data, ["amount", "id"])
+
+        res = decimal_df.filter(col("amount") == Decimal("123.45")).collect()
+
+        expected = [Row(AMOUNT=Decimal("123.450000000000000000"), ID=1)]
+        assert res == expected
 
 
 @pytest.mark.xfail(
@@ -2144,6 +2189,36 @@ def test_show_dataframe_spark(session):
             ),
         )
 
+        df2_col_names = ["col1"]
+        df2 = session.create_dataframe(
+            [
+                (float("inf"),),
+                (float("-inf"),),
+                (1.000005e17,),
+                (1.000005e-17,),
+            ],
+            df2_col_names,
+        )
+
+        assert_show_string_equals(
+            df2._show_string_spark(
+                truncate=False,
+                _spark_column_names=df2_col_names,
+            ),
+            dedent(
+                """
+            +------------+
+            |col1        |
+            +------------+
+            |Infinity    |
+            |-Infinity   |
+            |1.000005E17 |
+            |1.000005E-17|
+            +------------+
+            """
+            ),
+        )
+
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
@@ -2257,8 +2332,9 @@ def test_create_dataframe_large_respects_paramstyle(db_parameters, paramstyle):
     from snowflake.snowpark._internal.analyzer import analyzer
 
     original_value = analyzer.ARRAY_BIND_THRESHOLD
-    db_parameters["paramstyle"] = paramstyle
-    session_builder = Session.builder.configs(db_parameters)
+    new_db_parameters = copy.deepcopy(db_parameters)
+    new_db_parameters["paramstyle"] = paramstyle
+    session_builder = Session.builder.configs(new_db_parameters)
     new_session = session_builder.create()
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
@@ -3375,6 +3451,7 @@ def test_append_existing_table(session, local_testing_mode):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.udf
 def test_dynamic_table_join_table_function(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("The fix only works with SQL Simplifier enabled currently")
@@ -3460,6 +3537,7 @@ def test_dynamic_table_join_table_function(session):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.udf
 def test_dynamic_table_join_table_function_with_more_layers(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("The fix only works with SQL Simplifier enabled currently")
@@ -3547,6 +3625,7 @@ def test_dynamic_table_join_table_function_with_more_layers(session):
     IS_IN_STORED_PROC,
     reason="This test failed because of parameters setting, skip for now",
 )
+@pytest.mark.udf
 def test_dynamic_table_join_table_function_nested(session):
     if not session.sql_simplifier_enabled:
         pytest.skip("The fix only works with SQL Simplifier enabled currently")
@@ -5507,3 +5586,11 @@ def test_create_dataframe_empty_pandas_df(session, local_testing_mode):
     pdf = pd.DataFrame([], columns=["a"], dtype=int)
     df = session.create_dataframe(pdf)
     Utils.check_answer(df, [])
+
+
+def test_order_by_col(session, sql_simplifier_enabled, local_testing_mode):
+    if not sql_simplifier_enabled or local_testing_mode:
+        pytest.skip("SQL simplifier must be enabled for this query")
+
+    df = session.create_dataframe([(1, 2.0, "foo"), (2, None, "bar")], ["a", "b", "c"])
+    Utils.check_answer(df.select("c").orderBy("b"), df.select("c").orderBy(col("b")))

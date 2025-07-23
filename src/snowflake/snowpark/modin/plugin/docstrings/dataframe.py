@@ -234,10 +234,7 @@ class DataFrame(BasePandasDataset):
             * 0, or 'index' : Drop rows which contain missing values.
             * 1, or 'columns' : Drop columns which contain missing value.
 
-            .. versionchanged:: 1.0.0
-
-               Pass tuple or list to drop on multiple axes.
-               Only a single axis is allowed.
+            Only a single axis is allowed.
 
         how : {'any', 'all'}, default 'any'
             Determine if row or column is removed from DataFrame, when we have
@@ -1181,13 +1178,10 @@ class DataFrame(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
-
-        New in version 2.2.0.
-
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated since version 2.2.0.
+        Deprecated parameter.
 
         Returns
         -------
@@ -1237,7 +1231,143 @@ class DataFrame(BasePandasDataset):
 
     def boxplot():
         """
-        Make a box plot from ``DataFrame`` columns.
+        Make a box plot from DataFrame columns.
+
+        Make a box-and-whisker plot from DataFrame columns, optionally grouped by some other columns. A box plot is a method for graphically depicting groups of numerical data through their quartiles. The box extends from the Q1 to Q3 quartile values of the data, with a line at the median (Q2). The whiskers extend from the edges of box to show the range of the data. By default, they extend no more than 1.5 * IQR (IQR = Q3 - Q1) from the edges of the box, ending at the farthest data point within that interval. Outliers are plotted as separate dots.
+
+        For further details see Wikipedia’s entry for [boxplot](https://en.wikipedia.org/wiki/Box_plot).
+
+        Parameters
+        ----------
+        column : str or list of str, optional
+            Column name or list of names, or vector. Can be any valid input to pandas.DataFrame.groupby().
+
+        by : str or array-like, optional
+            Column in the DataFrame to pandas.DataFrame.groupby(). One box-plot will be done per value of columns in by.
+
+        ax : object of class matplotlib.axes.Axes, optional
+            The matplotlib axes to be used by boxplot.
+
+        fontsize : float or str
+            Tick label font size in points or as a string (e.g., large).
+
+        rot : float, default 0
+            The rotation angle of labels (in degrees) with respect to the screen coordinate system.
+
+        grid : bool, default True
+            Setting this to True will show the grid.
+
+        fig : sizeA tuple (width, height) in inches
+            The size of the figure to create in matplotlib.
+
+        layout : tuple (rows, columns), optional
+            For example, (3, 5) will display the subplots using 3 rows and 5 columns, starting from the top-left.
+
+        return_type : {‘axes’, ‘dict’, ‘both’} or None, default ‘axes’
+            The kind of object to return. The default is axes.
+
+            - ‘axes’ returns the matplotlib axes the boxplot is drawn on.
+
+            - ‘dict’ returns a dictionary whose values are the matplotlib Lines of the boxplot.
+
+            - ‘both’ returns a namedtuple with the axes and dict.
+
+            - when grouping with by, a Series mapping columns to return_type is returned.
+
+            If return_type is None, a NumPy array of axes with the same shape as layout is returned.
+
+        backend : str, default None
+            Backend to use instead of the backend specified in the option plotting.backend. For instance, ‘matplotlib’. Alternatively, to specify the plotting.backend for the whole session, set pd.options.plotting.backend.
+
+        **kwargs
+            All other plotting keyword arguments to be passed to matplotlib.pyplot.boxplot().
+
+        Returns
+        -------
+        result
+            See Notes.
+
+        See also
+        --------
+        Series.plot.hist
+            Make a histogram.
+
+        matplotlib.pyplot.boxplot
+            Matplotlib equivalent plot.
+
+        Notes
+        -----
+        The return type depends on the return_type parameter:
+
+        - ‘axes’ : object of class matplotlib.axes.Axes
+
+        - ‘dict’ : dict of matplotlib.lines.Line2D objects
+
+        - ‘both’ : a namedtuple with structure (ax, lines)
+
+        For data grouped with by, return a Series of the above or a numpy array:
+
+        - Series
+
+        - array (for return_type = None)
+
+        Use return_type='dict' when you want to tweak the appearance of the lines after plotting. In this case a dict containing the Lines making up the boxes, caps, fliers, medians, and whiskers is returned.
+
+        Examples
+        --------
+        Boxplots can be created for every column in the dataframe by df.boxplot() or indicating the columns to be used:
+
+        >>> np.random.seed(1234)
+        >>> df = pd.DataFrame(np.random.randn(10, 4),
+        ...                   columns=['Col1', 'Col2', 'Col3', 'Col4'])
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2', 'Col3'])
+
+        Boxplots of variables distributions grouped by the values of a third variable can be created using the option by. For instance:
+
+        >>> df = pd.DataFrame(np.random.randn(10, 2),
+        ...                   columns=['Col1', 'Col2'])
+        >>> df['X'] = pd.Series(['A', 'A', 'A', 'A', 'A',
+        ...                      'B', 'B', 'B', 'B', 'B'])
+        >>> boxplot = df.boxplot(by='X')
+
+        A list of strings (i.e. ['X', 'Y']) can be passed to boxplot in order to group the data by combination of the variables in the x-axis:
+
+        >>> df = pd.DataFrame(np.random.randn(10, 3),
+        ...                   columns=['Col1', 'Col2', 'Col3'])
+        >>> df['X'] = pd.Series(['A', 'A', 'A', 'A', 'A',
+        ...                      'B', 'B', 'B', 'B', 'B'])
+        >>> df['Y'] = pd.Series(['A', 'B', 'A', 'B', 'A',
+        ...                      'B', 'A', 'B', 'A', 'B'])
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by=['X', 'Y'])
+
+        The layout of boxplot can be adjusted giving a tuple to layout:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by='X',
+        ...                      layout=(2, 1))
+
+        Additional formatting can be done to the boxplot, like suppressing the grid (grid=False), rotating the labels in the x-axis (i.e. rot=45) or changing the fontsize (i.e. fontsize=15):
+
+        >>> boxplot = df.boxplot(grid=False, rot=45, fontsize=15)  # doctest: +SKIP
+
+        The parameter return_type can be used to select the type of element returned by boxplot. When return_type='axes' is selected, the matplotlib axes on which the boxplot is drawn are returned:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], return_type='axes')
+        >>> type(boxplot)
+        <class 'matplotlib.axes._axes.Axes'>
+
+        When grouping with by, a Series mapping columns to return_type is returned:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by='X',
+        ...                      return_type='axes')
+        >>> type(boxplot)
+        <class 'pandas.core.series.Series'>
+
+        If return_type is None, a NumPy array of axes with the same shape as layout is returned:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by='X',
+        ...                      return_type=None)
+        >>> type(boxplot)
+        <class 'numpy.ndarray'>
         """
 
     def combine():
@@ -1517,13 +1647,10 @@ class DataFrame(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
-
-        New in version 2.2.0.
-
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated since version 2.2.0.
+        Deprecated parameter.
 
         Returns
         -------
@@ -1578,8 +1705,7 @@ class DataFrame(BasePandasDataset):
             * ffill: propagate last valid observation forward to next valid.
             * backfill / bfill: use next valid observation to fill gap.
 
-            .. deprecated:: 2.1.0
-                Use ffill or bfill instead.
+            Deprecated: Use ffill or bfill instead.
 
         axis : {axes_single_arg}
             Axis along which to fill missing values. For `Series`
@@ -1600,7 +1726,7 @@ class DataFrame(BasePandasDataset):
             or the string 'infer' which will try to downcast to an appropriate
             equal type (e.g. float64 to int64 if possible).
 
-            .. deprecated:: 2.2.0
+            Deprecated parameter.
 
         Returns
         -------
@@ -1694,9 +1820,6 @@ class DataFrame(BasePandasDataset):
             Of the form {field : array-like} or {field : dict}.
         orient : {‘columns’, ‘index’, ‘tight’}, default ‘columns’
             The “orientation” of the data. If the keys of the passed dict should be the columns of the resulting DataFrame, pass ‘columns’ (default). Otherwise if the keys should be rows, pass ‘index’. If ‘tight’, assume a dict with keys [‘index’, ‘columns’, ‘data’, ‘index_names’, ‘column_names’].
-
-            Added in version 1.4.0: ‘tight’ as an allowed value for the orient argument
-
         dtype : dtype, default None
             Data type to force after DataFrame construction, otherwise infer.
         columns : list, default None
@@ -1770,7 +1893,7 @@ class DataFrame(BasePandasDataset):
         data : structured ndarray, sequence of tuples or dicts, or DataFrame
             Structured input data.
 
-            Deprecated since version 2.1.0: Passing a DataFrame is deprecated.
+            Deprecated: Passing a DataFrame is deprecated.
 
         index : str, list of fields, array-like
             Field of array to use as the index, alternately a specific set of input labels to use.
@@ -5031,8 +5154,6 @@ class DataFrame(BasePandasDataset):
         """
         Apply a function to a Dataframe elementwise.
 
-        Added in version 2.1.0: DataFrame.applymap was deprecated and renamed to DataFrame.map.
-
         This method applies a function that accepts and returns a scalar to every element of a DataFrame.
 
         Parameters
@@ -5995,4 +6116,117 @@ class DataFrame(BasePandasDataset):
         >>> import os  # doctest: +SKIP
         >>> os.makedirs('folder/subfolder', exist_ok=True)  # doctest: +SKIP
         >>> df.to_csv('folder/subfolder/out.csv')  # doctest: +SKIP
+        """
+
+    def to_excel():
+        """
+        Write object to an Excel sheet.
+
+        To write a single object to an Excel .xlsx file it is only necessary to specify a target file name. To write to multiple sheets it is necessary to create an ExcelWriter object with a target file name, and specify a sheet in the file to write to.
+
+        Multiple sheets may be written to by specifying unique sheet_name. With all data written to the file it is necessary to save the changes. Note that creating an ExcelWriter object with a file name that already exists will result in the contents of the existing file being erased.
+
+        Parameters
+        ----------
+        excel_writer : path-like, file-like, or ExcelWriter object
+            File path or existing ExcelWriter.
+
+        sheet_name : str, default ‘Sheet1’
+            Name of sheet which will contain DataFrame.
+
+        na_rep : str, default ‘’
+            Missing data representation.
+
+        float_format : str, optional
+            Format string for floating point numbers. For example float_format="%.2f" will format 0.1234 to 0.12.
+
+        columns : sequence or list of str, optional
+            Columns to write.
+
+        header : bool or list of str, default True
+            Write out the column names. If a list of string is given it is assumed to be aliases for the column names.
+
+        index : bool, default True
+            Write row names (index).
+
+        index_label : str or sequence, optional
+            Column label for index column(s) if desired. If not specified, and header and index are True, then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
+
+        startrow : int, default 0
+            Upper left cell row to dump data frame.
+
+        startcol : int, default 0
+            Upper left cell column to dump data frame.
+
+        engine : str, optional
+            Write engine to use, ‘openpyxl’ or ‘xlsxwriter’. You can also set this via the options io.excel.xlsx.writer or io.excel.xlsm.writer.
+
+        merge_cells : bool, default True
+            Write MultiIndex and Hierarchical Rows as merged cells.
+
+        inf_rep : str, default ‘inf’
+            Representation for infinity (there is no native representation for infinity in Excel).
+
+        freeze_panes : tuple of int (length 2), optional
+            Specifies the one-based bottommost row and rightmost column that is to be frozen.
+
+        storage_options : dict, optional
+            Extra options that make sense for a particular storage connection, e.g. host, port, username, password, etc. For HTTP(S) URLs the key-value pairs are forwarded to urllib.request.Request as header options. For other URLs (e.g. starting with “s3://”, and “gcs://”) the key-value pairs are forwarded to fsspec.open. Please see fsspec and urllib for more details, and for more examples on storage options refer here.
+
+        engine_kwargs : dict, optional
+            Arbitrary keyword arguments passed to excel engine.
+
+        See also
+        --------
+        to_csv
+            Write DataFrame to a comma-separated values (csv) file.
+
+        ExcelWriter
+            Class for writing DataFrame objects into excel sheets.
+
+        read_excel
+            Read an Excel file into a pandas DataFrame.
+
+        read_csv
+            Read a comma-separated values (csv) file into DataFrame.
+
+        io.formats.style.Styler.to_excel
+            Add styles to Excel sheet.
+
+        Notes
+        -----
+        For compatibility with to_csv(), to_excel serializes lists and dicts to strings before writing.
+
+        Once a workbook has been saved it is not possible to write further data without rewriting the whole workbook.
+
+        Examples
+        --------
+        Create, write to and save a workbook:
+
+        >>> df1 = pd.DataFrame([['a', 'b'], ['c', 'd']],
+        ...                    index=['row 1', 'row 2'],
+        ...                    columns=['col 1', 'col 2'])
+        >>> df1.to_excel("output.xlsx")  # doctest: +SKIP
+
+        To specify the sheet name:
+
+        >>> df1.to_excel("output.xlsx",
+        ...              sheet_name='Sheet_name_1')  # doctest: +SKIP
+
+        If you wish to write to more than one sheet in the workbook, it is necessary to specify an ExcelWriter object:
+
+        >>> df2 = df1.copy()
+        >>> with pd.ExcelWriter('output.xlsx') as writer:
+        ...     df1.to_excel(writer, sheet_name='Sheet_name_1')  # doctest: +SKIP
+        ...     df2.to_excel(writer, sheet_name='Sheet_name_2')  # doctest: +SKIP
+
+        ExcelWriter can also be used to append to an existing Excel file:
+
+        >>> with pd.ExcelWriter('output.xlsx',
+        ...                     mode='a') as writer:
+        ...     df1.to_excel(writer, sheet_name='Sheet_name_3')  # doctest: +SKIP
+
+        To set the library that is used to write the Excel file, you can pass the engine keyword (the default engine is automatically chosen depending on the file extension):
+
+        >>> df1.to_excel('output1.xlsx', engine='xlsxwriter')  # doctest: +SKIP
         """

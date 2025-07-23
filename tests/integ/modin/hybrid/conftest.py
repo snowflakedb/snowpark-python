@@ -6,42 +6,34 @@ import pytest
 
 import modin.pandas as pd
 from modin.config import context as config_context
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
 
 @pytest.fixture(autouse=True, scope="function")
 def enable_autoswitch():
-    if MODIN_IS_AT_LEAST_0_33_0:
-        with config_context(AutoSwitchBackend=True):
-            yield
-    else:
+    with config_context(AutoSwitchBackend=True):
         yield
 
 
 @pytest.fixture(scope="module")
 def init_transaction_tables():
-    if MODIN_IS_AT_LEAST_0_33_0:
-        session = pd.session
-        session.sql(
-            """
-        CREATE OR REPLACE TABLE revenue_transactions (
-            Transaction_ID STRING,
-            Date DATE,
-            Revenue FLOAT
-        );"""
-        ).collect()
-        session.sql(
-            """SET num_days = (SELECT DATEDIFF(DAY, '2024-01-01', CURRENT_DATE));"""
-        ).collect()
-        session.sql(
-            """INSERT INTO revenue_transactions (Transaction_ID, Date, Revenue)
-        SELECT
-            UUID_STRING() AS Transaction_ID,
-            DATEADD(DAY, UNIFORM(0, $num_days, RANDOM(0)), '2024-01-01') AS Date,
-            UNIFORM(10, 1000, RANDOM(0)) AS Revenue
-        FROM TABLE(GENERATOR(ROWCOUNT => 10000000));
+    session = pd.session
+    session.sql(
         """
-        ).collect()
+    CREATE OR REPLACE TABLE revenue_transactions (
+        Transaction_ID STRING,
+        Date DATE,
+        Revenue FLOAT
+    );"""
+    ).collect()
+    session.sql(
+        """INSERT INTO revenue_transactions (Transaction_ID, Date, Revenue)
+    SELECT
+        UUID_STRING() AS Transaction_ID,
+        DATEADD(DAY, UNIFORM(0, 800, RANDOM(0)), '2024-01-01') AS Date,
+        UNIFORM(10, 1000, RANDOM(0)) AS Revenue
+    FROM TABLE(GENERATOR(ROWCOUNT => 10000000));
+    """
+    ).collect()
 
 
 @pytest.fixture

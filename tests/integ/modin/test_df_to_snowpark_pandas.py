@@ -18,7 +18,7 @@ from snowflake.snowpark.types import (
     StructType,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import Utils, multithreaded_run
+from tests.utils import TestFiles, Utils, multithreaded_run
 
 
 @pytest.fixture(scope="module")
@@ -176,12 +176,19 @@ def test_to_snowpark_pandas_columns_not_list_raises(
             )
 
 
-@sql_count_checker(query_count=0)
-def test_to_snowpark_pandas_with_multiple_queries_and_no_enforce_ordering_raises(
+@sql_count_checker(query_count=8)
+def test_to_snowpark_pandas_with_multiple_queries_forces_ordering(
     session,
+    resources_path,
 ):
     tmp_stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
     test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
+
+    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
+    )
     user_schema = StructType(
         [
             StructField("a", IntegerType()),
@@ -192,8 +199,5 @@ def test_to_snowpark_pandas_with_multiple_queries_and_no_enforce_ordering_raises
     snowpark_df = (
         session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
     )
-    with pytest.raises(
-        NotImplementedError,
-        match="dataframe includes DDL or DML operations",
-    ):
-        snowpark_df.to_snowpark_pandas(enforce_ordering=False)
+    df = snowpark_df.to_snowpark_pandas(enforce_ordering=False)
+    assert len(df.columns) == 3
