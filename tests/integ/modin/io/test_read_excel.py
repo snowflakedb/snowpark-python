@@ -55,3 +55,24 @@ def test_read_excel_from_stage(session, resources_path):
             native_pd.read_excel(filename),
             check_dtype=False,
         )
+
+
+def test_read_excel_from_stage_inner_directory(session, resources_path):
+    test_files = TestFiles(resources_path)
+
+    filename = test_files.test_file_excel
+
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    # Upload file to inner directory in stage
+    inner_dir = "data/excel_files"
+    stage_path_with_dir = f"@{stage_name}/{inner_dir}"
+    Utils.upload_to_stage(session, stage_path_with_dir, filename, compress=False)
+
+    with SqlCounter(query_count=2):
+        assert_frame_equal(
+            pd.read_excel(f"@{stage_name}/{inner_dir}/{os.path.basename(filename)}"),
+            native_pd.read_excel(filename),
+            check_dtype=False,
+        )

@@ -173,7 +173,7 @@ def _file_from_stage(filepath_or_buffer):
     with tempfile.TemporaryDirectory() as local_temp_dir:
         session.file.get(filepath_or_buffer, local_temp_dir)
         _, stripped_filepath = extract_stage_name_and_prefix(filepath_or_buffer)
-        yield os.path.join(local_temp_dir, stripped_filepath)
+        yield os.path.join(local_temp_dir, os.path.basename(stripped_filepath))
 
 
 class PandasOnSnowflakeIO(BaseIO):
