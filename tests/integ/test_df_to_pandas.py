@@ -450,7 +450,7 @@ def test_write_pandas_chunk_size(session, monkeypatch):
             "snowflake.snowpark.session.write_pandas", side_effect=write_pandas_wrapper
         ) as mock_write_pandas:
             session.create_dataframe(table, chunk_size=10)
-            # Verify that write_arrow was called once
+            # Verify that write_pandas was called once
             mock_write_pandas.assert_called_once()
 
         # Approach 2: Module variable update
