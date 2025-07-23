@@ -409,6 +409,10 @@ def test_df_to_pandas_df(session):
     assert_frame_equal(df.to_pandas(), pandas_df)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="write_pandas is not supported by local testing.",
+)
 def test_write_pandas_chunk_size(session, monkeypatch):
     table_name = Utils.random_table_name()
     try:
