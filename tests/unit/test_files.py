@@ -375,6 +375,19 @@ def test_read_relative_path_snowflakefile(
         os.remove(temp_file)
 
 
+def test_read_scoped_url_snowflakefile():
+    scoped_url = "https://example.com/path/to/file.txt"
+
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.read()
+
+    with pytest.raises(
+        ValueError, match="Scoped and Stage URLs are not yet supported."
+    ):
+        read_file(scoped_url, "r")
+
+
 @pytest.mark.parametrize(
     _STANDARD_ARGS,
     _STANDARD_ARGVALUES,
