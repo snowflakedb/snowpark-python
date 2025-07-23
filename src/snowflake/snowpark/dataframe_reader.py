@@ -1443,8 +1443,7 @@ class DataFrameReader:
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
         telemetry_json_string["DBMS_type"] = partitioner.dbms_type
-        telemetry_json_string["driver_type"] = partitioner.dbms_type
-        telemetry_json_string["schema"] = struct_schema.simple_string()
+        telemetry_json_string["driver_type"] = partitioner.driver_type
 
         # udtf ingestion
         if udtf_configs is not None:
@@ -1610,15 +1609,17 @@ class DataFrameReader:
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
         telemetry_json_string["end_to_end_duration"] = time.perf_counter() - start_time
-        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
-            telemetry_json_string
-        )
+
         # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
         # with the new name for the temporary table into which the external db data was ingressed.
         # Leaving this functionality as client-side only means capturing an AST specifically for
         # this API in a new entity is not valuable from a server-side execution or AST perspective.
         res_df = partitioner.driver.to_result_snowpark_df(
             self, snowflake_table_name, struct_schema, _emit_ast=_emit_ast
+        )
+        telemetry_json_string["schema"] = res_df.schema.simple_string()
+        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+            telemetry_json_string
         )
         set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
         return res_df
