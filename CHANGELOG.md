@@ -20,6 +20,7 @@
 
 - Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
 - Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+- Added `exclude_grouping_columns` parameter to all aggreagation methods in `RelationalGroupedDataFrame` like `RelationalGroupedDataFrame.agg()`, to exclude grouping columns from the result DataFrame.
 
 #### Bug Fixes
 

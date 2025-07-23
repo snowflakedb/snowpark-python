@@ -178,23 +178,26 @@ class RelationalGroupedDataFrame:
     def _to_df(
         self,
         agg_exprs: List[Expression],
+        exclude_grouping_columns: bool = False,
         _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = False,
     ) -> DataFrame:
         aliased_agg = []
-        for grouping_expr in self._grouping_exprs:
-            if isinstance(grouping_expr, GroupingSetsExpression):
-                # avoid doing list(set(grouping_expr.args)) because it will change the order
-                gr_used = set()
-                gr_uniq = [
-                    a
-                    for arg in grouping_expr.args
-                    for a in arg
-                    if a not in gr_used and (gr_used.add(a) or True)
-                ]
-                aliased_agg.extend(gr_uniq)
-            else:
-                aliased_agg.append(grouping_expr)
+
+        if not exclude_grouping_columns:
+            for grouping_expr in self._grouping_exprs:
+                if isinstance(grouping_expr, GroupingSetsExpression):
+                    # avoid doing list(set(grouping_expr.args)) because it will change the order
+                    gr_used = set()
+                    gr_uniq = [
+                        a
+                        for arg in grouping_expr.args
+                        for a in arg
+                        if a not in gr_used and (gr_used.add(a) or True)
+                    ]
+                    aliased_agg.extend(gr_uniq)
+                else:
+                    aliased_agg.append(grouping_expr)
 
         aliased_agg.extend(agg_exprs)
 
@@ -261,6 +264,7 @@ class RelationalGroupedDataFrame:
     def agg(
         self,
         *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
+        exclude_grouping_columns: bool = False,
         _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
@@ -274,6 +278,9 @@ class RelationalGroupedDataFrame:
                 - A list of the above
 
                 or a ``dict`` maps column names to aggregate function names.
+
+            exclude_grouping_columns: If True, the resulting DataFrame will only contain
+                the aggregated columns and exclude the grouping columns. Default is False.
 
         Note:
             The name of the aggregate function to compute must be a valid Snowflake `aggregate function
@@ -323,7 +330,11 @@ class RelationalGroupedDataFrame:
                     )
                     agg_exprs.append(_str_to_expr(e[1], _emit_ast)(col_expr))
 
-        df = self._to_df(agg_exprs, _emit_ast=False)
+        df = self._to_df(
+            agg_exprs,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=False,
+        )
         df._is_grouped_by_and_aggregated = True
 
         if _emit_ast:
@@ -649,40 +660,127 @@ class RelationalGroupedDataFrame:
 
     @relational_group_df_api_usage
     @publicapi
-    def avg(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
-        """Return the average for the specified numeric columns."""
-        return self._non_empty_argument_function("avg", *cols, _emit_ast=_emit_ast)
+    def avg(
+        self,
+        *cols: ColumnOrName,
+        exclude_grouping_columns: bool = False,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """Return the average for the specified numeric columns.
+
+        Args:
+            cols: The columns to calculate average for.
+            exclude_grouping_columns: If True, the resulting DataFrame will only contain
+                the aggregated columns and exclude the grouping columns. Default is False.
+        """
+        return self._non_empty_argument_function(
+            "avg",
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     mean = avg
 
     @relational_group_df_api_usage
     @publicapi
-    def sum(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
-        """Return the sum for the specified numeric columns."""
-        return self._non_empty_argument_function("sum", *cols, _emit_ast=_emit_ast)
+    def sum(
+        self,
+        *cols: ColumnOrName,
+        exclude_grouping_columns: bool = False,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """Return the sum for the specified numeric columns.
+
+        Args:
+            cols: The columns to calculate sum for.
+            exclude_grouping_columns: If True, the resulting DataFrame will only contain
+                the aggregated columns and exclude the grouping columns. Default is False.
+        """
+        return self._non_empty_argument_function(
+            "sum",
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     @relational_group_df_api_usage
     @publicapi
-    def median(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
-        """Return the median for the specified numeric columns."""
-        return self._non_empty_argument_function("median", *cols, _emit_ast=_emit_ast)
+    def median(
+        self,
+        *cols: ColumnOrName,
+        exclude_grouping_columns: bool = False,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """Return the median for the specified numeric columns.
+
+        Args:
+            cols: The columns to calculate median for.
+            exclude_grouping_columns: If True, the resulting DataFrame will only contain
+                the aggregated columns and exclude the grouping columns. Default is False.
+        """
+        return self._non_empty_argument_function(
+            "median",
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     @relational_group_df_api_usage
     @publicapi
-    def min(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
-        """Return the min for the specified numeric columns."""
-        return self._non_empty_argument_function("min", *cols, _emit_ast=_emit_ast)
+    def min(
+        self,
+        *cols: ColumnOrName,
+        exclude_grouping_columns: bool = False,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """Return the min for the specified numeric columns.
+
+        Args:
+            cols: The columns to calculate min for.
+            exclude_grouping_columns: If True, the resulting DataFrame will only contain
+                the aggregated columns and exclude the grouping columns. Default is False.
+        """
+        return self._non_empty_argument_function(
+            "min",
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     @relational_group_df_api_usage
     @publicapi
-    def max(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
-        """Return the max for the specified numeric columns."""
-        return self._non_empty_argument_function("max", *cols, _emit_ast=_emit_ast)
+    def max(
+        self,
+        *cols: ColumnOrName,
+        exclude_grouping_columns: bool = False,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """Return the max for the specified numeric columns.
+
+        Args:
+            cols: The columns to calculate max for.
+            exclude_grouping_columns: If True, the resulting DataFrame will only contain
+                the aggregated columns and exclude the grouping columns. Default is False.
+        """
+        return self._non_empty_argument_function(
+            "max",
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     @relational_group_df_api_usage
     @publicapi
-    def count(self, _emit_ast: bool = True) -> DataFrame:
-        """Return the number of rows for each group."""
+    def count(
+        self, exclude_grouping_columns: bool = False, _emit_ast: bool = True
+    ) -> DataFrame:
+        """Return the number of rows for each group.
+
+        Args:
+            exclude_grouping_columns: If True, the resulting DataFrame will only contain
+                the count column and exclude the grouping columns. Default is False.
+        """
         df = self._to_df(
             [
                 Alias(
@@ -692,6 +790,7 @@ class RelationalGroupedDataFrame:
                     "count",
                 )
             ],
+            exclude_grouping_columns=exclude_grouping_columns,
             _emit_ast=False,
         )
         df._is_grouped_by_and_aggregated = True
@@ -709,18 +808,37 @@ class RelationalGroupedDataFrame:
         return df
 
     @publicapi
-    def function(self, agg_name: str, _emit_ast: bool = True) -> Callable:
+    def function(
+        self,
+        agg_name: str,
+        exclude_grouping_columns: bool = False,
+        _emit_ast: bool = True,
+    ) -> Callable:
         """Computes the builtin aggregate ``agg_name`` over the specified columns. Use
         this function to invoke any aggregates not explicitly listed in this class.
         See examples in :meth:`DataFrame.group_by`.
+
+        Args:
+            agg_name: The name of the aggregate function.
+            exclude_grouping_columns: If True, the resulting DataFrame will only contain
+                the aggregated columns and exclude the grouping columns. Default is False.
         """
-        return lambda *cols: self._function(agg_name, *cols, _emit_ast=_emit_ast)
+        return lambda *cols: self._function(
+            agg_name,
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     builtin = function
 
     @publicapi
     def _function(
-        self, agg_name: str, *cols: ColumnOrName, _emit_ast: bool = True
+        self,
+        agg_name: str,
+        *cols: ColumnOrName,
+        exclude_grouping_columns: bool = False,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         agg_exprs = []
         for c in cols:
@@ -729,7 +847,7 @@ class RelationalGroupedDataFrame:
                 agg_name, c_expr, _emit_ast=False
             )._expression
             agg_exprs.append(expr)
-        df = self._to_df(agg_exprs)
+        df = self._to_df(agg_exprs, exclude_grouping_columns=exclude_grouping_columns)
         df._is_grouped_by_and_aggregated = True
 
         if _emit_ast:
@@ -750,14 +868,22 @@ class RelationalGroupedDataFrame:
 
     @publicapi
     def _non_empty_argument_function(
-        self, func_name: str, *cols: ColumnOrName, _emit_ast: bool = True
+        self,
+        func_name: str,
+        *cols: ColumnOrName,
+        exclude_grouping_columns: bool = False,
+        _emit_ast: bool = True,
     ) -> DataFrame:
         if not cols:
             raise ValueError(
                 f"You must pass a list of one or more Columns to function: {func_name}"
             )
         else:
-            return self.builtin(func_name, _emit_ast=_emit_ast)(*cols)
+            return self.builtin(
+                func_name,
+                exclude_grouping_columns=exclude_grouping_columns,
+                _emit_ast=_emit_ast,
+            )(*cols)
 
     def _set_ast_ref(self, expr_builder: proto.Expr) -> None:
         """
