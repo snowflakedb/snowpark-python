@@ -55,3 +55,14 @@ def test_read_excel_from_stage(session, resources_path):
             native_pd.read_excel(filename),
             check_dtype=False,
         )
+
+
+def test_read_excel_s3():
+    host = pd.session.connection.host
+    if any(platform in host.split(".") for platform in ["gcp", "azure"]):
+        pytest.skip(reason="Skipping test for Azure and GCP deployment")
+    with SqlCounter(query_count=9):
+        df = pd.read_excel(
+            "s3://sfquickstarts/frostbyte_tastybytes/excel/pricing_guac_roll_04_2023.xlsx"
+        )
+    assert len(df.columns) == 7

@@ -229,6 +229,26 @@ class PandasOnSnowflakeIO(BaseIO):
         Snowpark pandas has a slightly different error message from the upstream modin version.
         """
         io = kwargs["io"]
+
+        if (
+            io is not None
+            and isinstance(io, str)
+            and any(
+                io.lower().startswith(prefix)
+                for prefix in ["s3://", "s3china://", "s3gov://"]
+            )
+        ):
+            session = get_active_session()
+            temp_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+            dirname = os.path.dirname(io)
+            basename = os.path.basename(io)
+            session.sql(
+                f"CREATE OR REPLACE TEMPORARY STAGE {temp_stage_name} URL='{dirname}'"
+            ).collect()
+            io = f"{STAGE_PREFIX}{os.path.join(temp_stage_name, basename)}"
+            kwargs["io"] = io
+            return cls.read_excel(**kwargs)
+
         if is_snowflake_stage_path(io):
             with _file_from_stage(io) as local_filepath:
                 kwargs["io"] = local_filepath
