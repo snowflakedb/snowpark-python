@@ -7,6 +7,7 @@ import functools
 import threading
 from enum import Enum, unique
 import time
+import json
 from typing import Any, Dict, List, Optional
 
 from snowflake.connector import SnowflakeConnection
@@ -506,7 +507,7 @@ class TelemetryClient:
             id = generate_random_alphanumeric(10)
             self.stored_proc_meter.create_gauge(
                 f"snowflake.snowpark.test.gauge{id}",
-                description=str(msg),
+                description=json.dumps(msg, ensure_ascii=False, separators=(",", ":")),
                 unit="data",
             ).set(200)
             self.gauge_count += 1

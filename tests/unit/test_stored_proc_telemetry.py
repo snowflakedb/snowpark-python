@@ -6,6 +6,7 @@
 import threading
 from unittest.mock import patch, MagicMock
 from typing import Dict
+import json
 
 from snowflake.snowpark._internal.telemetry import TelemetryClient
 
@@ -60,7 +61,9 @@ def test_telemetry_client_with_mock_meter(mock_is_in_stored_proc):
     gauge = list(mock_meter._instrument_id_instrument.values())[0]
     assert "snowflake.snowpark.test.gauge" in gauge.name
     assert gauge.unit == "data"
-    assert gauge.description == str(test_message)
+    assert gauge.description == json.dumps(
+        test_message, ensure_ascii=False, separators=(",", ":")
+    )
     assert gauge.get_value() == 200
 
 
