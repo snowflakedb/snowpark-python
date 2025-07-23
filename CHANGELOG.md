@@ -1,6 +1,6 @@
 # Release History
 
-## 1.35.0 (YYYY-MM-DD)
+## 1.35.0 (2025-07-24)
 
 ### Snowpark Python API Updates
 
@@ -18,8 +18,8 @@
 
 #### Improvements
 
-- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
-- Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+- Improved `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+- Improved error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
 
 #### Bug Fixes
 
@@ -28,13 +28,9 @@
 
 ### Snowpark Local Testing Updates
 
-- Added local testing support for reading files with `SnowflakeFile` using local file paths, the Snow URL semantic (snow://...), local testing framework stages, and Snowflake stages (@stage/file_path).
-
 #### New Features
 
-#### Improvements
-
-#### Bug Fixes
+- Added local testing support for reading files with `SnowflakeFile` using local file paths, the Snow URL semantic (snow://...), local testing framework stages, and Snowflake stages (@stage/file_path).
 
 ### Snowpark pandas API Updates
 
