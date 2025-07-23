@@ -1414,6 +1414,10 @@ class DataFrameReader:
             )
 
         telemetry_json_string = defaultdict()
+        telemetry_json_string["function_name"] = DATA_SOURCE_DBAPI_SIGNATURE
+        telemetry_json_string["ingestion_mode"] = (
+            "udtf_ingestion" if udtf_configs is not None else "local_ingestion"
+        )
 
         table_or_query = table or query
         is_query = True if table is None else False
@@ -1457,10 +1461,17 @@ class DataFrameReader:
                 struct_schema,
                 partitions_table,
                 udtf_configs["external_access_integration"],
+                _telemetry_json=telemetry_json_string,
                 fetch_size=fetch_size,
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
                 _emit_ast=_emit_ast,
+            )
+            telemetry_json_string["end_to_end_duration"] = (
+                time.perf_counter() - start_time
+            )
+            self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+                telemetry_json_string
             )
             set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df
@@ -1598,10 +1609,7 @@ class DataFrameReader:
                 data_fetching_thread_pool_executor.shutdown(wait=True)
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
-        telemetry_json_string["function_name"] = DATA_SOURCE_DBAPI_SIGNATURE
-        telemetry_json_string["end_to_end_duration"] = str(
-            time.perf_counter() - start_time
-        )
+        telemetry_json_string["end_to_end_duration"] = time.perf_counter() - start_time
         self._session._conn._telemetry_client.send_data_source_perf_telemetry(
             telemetry_json_string
         )

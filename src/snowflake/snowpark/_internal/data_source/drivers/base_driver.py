@@ -133,6 +133,7 @@ class BaseDriver:
         schema: StructType,
         partition_table: str,
         external_access_integrations: str,
+        _telemetry_json: dict,
         fetch_size: int = 1000,
         imports: Optional[List[str]] = None,
         packages: Optional[List[str]] = None,
@@ -141,7 +142,7 @@ class BaseDriver:
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
 
         udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
-        start = time.time()
+        start = time.perf_counter()
         session.udtf.register(
             self.udtf_class_builder(fetch_size=fetch_size, schema=schema),
             name=udtf_name,
@@ -155,6 +156,7 @@ class BaseDriver:
             packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
             imports=imports,
         )
+        _telemetry_json["udtf_registration"] = time.perf_counter() - start
         logger.debug(f"register ingestion udtf takes: {time.time() - start} seconds")
         call_udtf_sql = f"""
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
