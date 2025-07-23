@@ -843,6 +843,10 @@ def test_agg_filter_and_sort_with_grouping_snowpark_connect_compatible(session):
         context._is_snowpark_connect_compatible_mode = original_value
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="exclude_grouping_columns is not supported",
+)
 def test_group_by_exclude_grouping_columns(session):
     """Test the exclude_grouping_columns parameter for all aggregate functions."""
 
@@ -872,6 +876,7 @@ def test_group_by_exclude_grouping_columns(session):
         .collect()
     )
     assert len(result_exclude[0]) == 1  # only sum_v1
+    print(result_exclude)
     Utils.check_answer(result_exclude, [Row(6), Row(15)])
 
     # Test with multiple grouping columns
