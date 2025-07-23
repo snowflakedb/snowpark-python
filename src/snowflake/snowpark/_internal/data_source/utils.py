@@ -229,30 +229,25 @@ def _upload_and_copy_into_table(
     # Reset buffer position to beginning
     parquet_buffer.seek(0)
 
-    try:
-        # Upload BytesIO directly to stage using put_stream
-        stage_file_path = f"@{snowflake_stage_name}/{parquet_id}"
-        session.file.put_stream(
-            parquet_buffer,
-            stage_file_path,
-            overwrite=True,
-        )
+    # Upload BytesIO directly to stage using put_stream
+    stage_file_path = f"@{snowflake_stage_name}/{parquet_id}"
+    session.file.put_stream(
+        parquet_buffer,
+        stage_file_path,
+        overwrite=True,
+    )
 
-        # Copy into table
-        copy_into_table_query = f"""
-        COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{parquet_id}
-        FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
-        MATCH_BY_COLUMN_NAME=CASE_SENSITIVE
-        PURGE=TRUE
-        ON_ERROR={on_error}
-        {DATA_SOURCE_SQL_COMMENT}
-        """
-        session.sql(copy_into_table_query).collect(statement_params=statements_params)
-        logger.debug(f"Successfully uploaded and copied BytesIO parquet: {parquet_id}")
-    finally:
-        # proactively close the buffer to release memory
-        parquet_buffer.close()
-        backpressure_semaphore.release()
+    # Copy into table
+    copy_into_table_query = f"""
+    COPY INTO {snowflake_table_name} FROM @{snowflake_stage_name}/{parquet_id}
+    FILE_FORMAT = (TYPE = PARQUET USE_VECTORIZED_SCANNER=TRUE)
+    MATCH_BY_COLUMN_NAME=CASE_SENSITIVE
+    PURGE=TRUE
+    ON_ERROR={on_error}
+    {DATA_SOURCE_SQL_COMMENT}
+    """
+    session.sql(copy_into_table_query).collect(statement_params=statements_params)
+    logger.debug(f"Successfully uploaded and copied BytesIO parquet: {parquet_id}")
 
 
 def _upload_and_copy_into_table_with_retry(
@@ -265,17 +260,22 @@ def _upload_and_copy_into_table_with_retry(
     on_error: Optional[str] = "abort_statement",
     statements_params: Optional[Dict[str, str]] = None,
 ):
-    _retry_run(
-        _upload_and_copy_into_table,
-        session,
-        parquet_id,
-        parquet_buffer,
-        snowflake_stage_name,
-        backpressure_semaphore,
-        snowflake_table_name,
-        on_error,
-        statements_params,
-    )
+    try:
+        _retry_run(
+            _upload_and_copy_into_table,
+            session,
+            parquet_id,
+            parquet_buffer,
+            snowflake_stage_name,
+            backpressure_semaphore,
+            snowflake_table_name,
+            on_error,
+            statements_params,
+        )
+    finally:
+        # proactively close the buffer to release memory
+        parquet_buffer.close()
+        backpressure_semaphore.release()
 
 
 def _retry_run(func: Callable, *args, **kwargs) -> Any:
