@@ -628,6 +628,8 @@ class MockServerConnection:
     ) -> Union[
         List[Row], "pandas.DataFrame", Iterator[Row], Iterator["pandas.DataFrame"]
     ]:
+        # Add dataframePlan to kwargs for query listeners
+        kwargs["dataframePlan"] = plan
         if self._conn.is_closed():
             raise SnowparkSessionException(
                 "Cannot perform this operation because the session has been closed.",
@@ -725,6 +727,8 @@ class MockServerConnection:
         notify_kwargs = {"requestId": str(uuid.uuid4())}
         if DATAFRAME_AST_PARAMETER in kwargs:
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        if "dataframePlan" in kwargs:
+            notify_kwargs["dataframePlan"] = kwargs["dataframePlan"]
         from snowflake.snowpark.query_history import QueryRecord
 
         self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
@@ -792,6 +796,8 @@ class MockServerConnection:
         notify_kwargs = {"requestId": str(uuid.uuid4())}
         if DATAFRAME_AST_PARAMETER in kwargs:
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        if "dataframePlan" in kwargs:
+            notify_kwargs["dataframePlan"] = kwargs["dataframePlan"]
         from snowflake.snowpark.query_history import QueryRecord
 
         self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
