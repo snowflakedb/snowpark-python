@@ -18,6 +18,11 @@
   - `ai_embed`
   - `try_parse_json`
 
+#### Improvements
+
+- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+- Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
@@ -66,7 +71,6 @@
 - Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
 - Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
 - Added a new function `snowflake.snowpark.functions.model` that allows users to call methods of a model.
-- Added a dataframe profiler. To use, you can call get_execution_profile() on your desired dataframe. This profiler reports the queries executed to evaluate a dataframe, and statistics about each of the query operators.
 
 #### Improvements
 
