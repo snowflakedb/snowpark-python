@@ -4,27 +4,24 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for the following functions in `functions.py`:
+  - `ai_embed`
+  - `try_parse_json`
+
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` accept illegal schema.
-
-#### New Features
-
-- Added support for Python 3.13 runtime.
-- Added support for the following functions in `functions.py`:
-  - `ai_embed`
-  - `try_parse_json`
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` does not work when connecting to Postgres and Mysql.
+- Fixed a bug in schema inference that would cause it to fail for external stages.
 
 #### Improvements
 
 - Improved `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
 - Improved error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
 
-#### Bug Fixes
-
-- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` does not work when connecting to Postgres and Mysql.
-- Fixed a bug in schema inference that would cause it to fail for external stages.
 
 ### Snowpark Local Testing Updates
 
