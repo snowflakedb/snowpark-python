@@ -107,7 +107,7 @@ def test_filtered_data(init_transaction_tables):
     )
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=5, join_count=1)
 def test_apply(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     assert df_transactions.get_backend() == "Snowflake"
