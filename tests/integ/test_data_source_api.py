@@ -395,13 +395,11 @@ def test_telemetry(session, fetch_with_process):
             table=SQL_SERVER_TABLE_NAME,
             fetch_with_process=fetch_with_process,
         )
-    print(df.schema)
-    print(df.schema.simple_string())
     telemetry_json = mock_telemetry.call_args[0][0]
     assert telemetry_json["function_name"] == "DataFrameReader.dbapi"
     assert telemetry_json["ingestion_mode"] == "local_ingestion"
-    assert telemetry_json["dbms_type"] == DBMS_TYPE.SQL_SERVER_DB
-    assert telemetry_json["driver_type"] == DRIVER_TYPE.PYODBC
+    assert telemetry_json["dbms_type"] == DBMS_TYPE.SQL_SERVER_DB.value
+    assert telemetry_json["driver_type"] == DRIVER_TYPE.PYODBC.value
     assert telemetry_json["schema"] == df.schema.simple_string()
     assert "fetch_to_local_duration" in telemetry_json
     assert "upload_and_copy_into_sf_table_duration" in telemetry_json
