@@ -242,11 +242,10 @@ def test_write_arrow_chunk_size(session, monkeypatch):
             # Call the real function and return its actual result
             ret = original_write_arrow(*args, **kwargs)
             success, num_chunks, num_rows, _ = ret
-            # 10 rws per chunk = 11 chunks
+            # 10 rows per chunk = 11 chunks
             assert success and num_chunks == 11 and num_rows == 101
             return ret
 
-        # Approach 1: setting chunk_size in the create_dataframe call
         with mock.patch(
             "snowflake.snowpark.session.write_arrow", side_effect=write_arrow_wrapper
         ) as mock_write_arrow:

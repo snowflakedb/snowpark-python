@@ -440,16 +440,15 @@ def test_write_pandas_chunk_size(session, monkeypatch):
             # Call the real function and return its actual result
             ret = original_write_pandas(*args, **kwargs)
             success, num_chunks, num_rows, _ = ret
-            # 10 rws per chunk = 11 chunks
+            # 10 rows per chunk = 11 chunks
             assert success and num_chunks == 11 and num_rows == 101
             return ret
 
-        # Approach 1: setting chunk_size in the create_dataframe call
         with mock.patch(
             "snowflake.snowpark.session.write_pandas", side_effect=write_pandas_wrapper
         ) as mock_write_pandas:
             session.create_dataframe(table, chunk_size=10)
-            # Verify that write_arrow was called once
+            # Verify that write_pandas was called once
             mock_write_pandas.assert_called_once()
     finally:
         Utils.drop_table(session, table_name)
