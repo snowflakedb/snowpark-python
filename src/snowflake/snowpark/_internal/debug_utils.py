@@ -267,3 +267,47 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
             locations_str = "\n  - ".join(source_locations)
             return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
+
+
+def get_missing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str:
+    """
+    Extract Python source location context for missing object errors.
+
+    Args:
+        top_plan (SnowflakePlan): The top-level SnowflakePlan object that contains the SQL
+            compilation error.
+        error_msg (str): The raw error message from the SQL compilation error. Expected to contain
+            the pattern "Object 'name' does not exist or not authorized".
+
+    Returns:
+        Error message with the affected Python lines numbers if found, otherwise an empty string.
+
+    """
+    sql_compilation_error_regex = re.compile(
+        r""".*SQL compilation error:\s*Object '([^']+)' does not exist or not authorized.*""",
+    )
+    match = sql_compilation_error_regex.match(error_msg)
+    if not match:
+        return ""
+
+    # Extract the object name from the error message
+    object_name = match.group(1)
+
+    # For missing object errors, the compilation error is at the top level
+    # (with query like select * from non_existent_table), so we use the top plan directly
+    found_locations = {}
+    if top_plan.df_ast_ids is not None:
+        for ast_id in top_plan.df_ast_ids:
+            bind_stmt = top_plan.session._ast_batch._bind_stmt_cache.get(ast_id)
+            if bind_stmt is not None:
+                src = extract_src_from_expr(bind_stmt.bind.expr)
+                location = _format_source_location(src)
+                if location != "":
+                    found_locations[location] = None
+    if found_locations:
+        if len(found_locations) == 1:
+            return f"\nMissing object '{object_name}' corresponds to Python source at {list(found_locations.keys())[0]}.\n"
+        else:
+            locations_str = "\n  - ".join(list(found_locations.keys()))
+            return f"\nMissing object '{object_name}' corresponds to Python sources at:\n  - {locations_str}\n"
+    return ""
