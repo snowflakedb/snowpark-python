@@ -276,7 +276,6 @@ _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
 _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION = (
     "PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION"
 )
-
 # Flag for controlling the usage of scoped temp read only table.
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
     "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
@@ -3196,6 +3195,7 @@ class Session:
             they will be converted to `TIMESTAMP_LTZ` in the output Snowflake table by default.
             If `TIMESTAMP_TZ` is needed for those columns instead, please manually create the table before loading data.
         """
+
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
                 external_feature_name="Session.write_pandas",

@@ -214,7 +214,7 @@ def test_write_arrow_table_type(session, arrow_table, table_type):
     "config.getoption('local_testing_mode', default=False)",
     reason="arrow not fully supported by local testing.",
 )
-def test_write_arrow_chunk_size(session, monkeypatch):
+def test_write_arrow_chunk_size(session):
     table_name = Utils.random_table_name()
     try:
         # create medium-sized df that can be chunked
