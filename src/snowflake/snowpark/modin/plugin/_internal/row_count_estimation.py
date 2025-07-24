@@ -104,6 +104,8 @@ class RowCountEstimator:
                 return current
             if how == "right":
                 return right_bound
+            if how == "outer":
+                return current + right_bound
             if how == "cross":
                 # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
                 # When the product becomes very large we return None conservatively, as this can have

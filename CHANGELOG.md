@@ -1,6 +1,35 @@
 # Release History
 
-## 1.35.0 (YYYY-MM-DD)
+## 1.36.0 (TBD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+#### New Features
+
+#### Improvements
+
+#### Bug Fixes
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+#### Improvements
+
+#### Bug Fixes
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+- hybrid execution row estimate improvements and a reduction of eager calls
+
+#### Bug Fixes
+
+## 1.35.0 (2025-07-24)
 
 ### Snowpark Python API Updates
 
