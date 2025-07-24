@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import json
 import multiprocessing as mp
 import os
 import sys
@@ -1620,5 +1621,6 @@ class DataFrameReader:
         self._session._conn._telemetry_client.send_data_source_perf_telemetry(
             telemetry_json_string
         )
+        logger.debug(f"recorded telemetry: {json.dumps(telemetry_json_string)}")
         set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
         return res_df

@@ -459,7 +459,7 @@ def process_parquet_queue_with_threads(
 
                 upload_to_sf_start_time = (
                     time.perf_counter()
-                    if upload_to_sf_start_time != math.inf
+                    if upload_to_sf_start_time == math.inf
                     else upload_to_sf_start_time
                 )
                 thread_future = thread_executor.submit(
