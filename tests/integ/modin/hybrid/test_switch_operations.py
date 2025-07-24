@@ -143,7 +143,10 @@ def test_apply(init_transaction_tables, us_holidays_data):
     start_date = pd.Timestamp("2025-10-01")
     end_date = pd.Timestamp("2025-10-31")
 
-    assert df_transactions._query_compiler._modin_frame.ordered_dataframe.row_count_upper_bound == 10000000
+    assert (
+        df_transactions._query_compiler._modin_frame.ordered_dataframe.row_count_upper_bound
+        == 10000000
+    )
     df_forecast = forecast_revenue(df_transactions, start_date, end_date)
     assert df_forecast.get_backend() == "Snowflake"
 
@@ -305,16 +308,21 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
         else:
             assert snow_result == pandas_result
 
-@sql_count_checker(query_count=13, join_count=6, udtf_count=2, 
-                   high_count_expected=True, 
-                   high_count_reason="tests queries across different execution modes")
+
+@sql_count_checker(
+    query_count=13,
+    join_count=6,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="tests queries across different execution modes",
+)
 def test_query_count_no_switch(init_transaction_tables):
     def inner_test(df_in):
-        df_result = df_in[(df_in['REVENUE'] > 123) & (df_in['REVENUE'] < 200)]
-        df_result['REVENUE_DUPE'] = df_result['REVENUE']
+        df_result = df_in[(df_in["REVENUE"] > 123) & (df_in["REVENUE"] < 200)]
+        df_result["REVENUE_DUPE"] = df_result["REVENUE"]
         df_result["COUNT"] = df_result.groupby("DATE")["REVENUE"].transform("count")
         return df_result
-    
+
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_transactions.to_csv("revenue_transactions.csv")
     inner_test(df_transactions)
@@ -322,15 +330,15 @@ def test_query_count_no_switch(init_transaction_tables):
     hybrid_len = None
     with pd.session.query_history() as query_history_orig:
         with config_context(AutoSwitchBackend=False, NativePandasMaxRows=10):
-            assert AutoSwitchBackend.get() == False
+            assert AutoSwitchBackend.get() is False
             df_result = inner_test(df_transactions)
             orig_len = len(df_result)
-            
+
     with pd.session.query_history() as query_history_hybrid:
         with config_context(AutoSwitchBackend=True, NativePandasMaxRows=10):
             assert AutoSwitchBackend.get()
             df_result = inner_test(df_transactions)
             hybrid_len = len(df_result)
-    
+
     assert orig_len == hybrid_len
     assert len(query_history_orig.queries) == len(query_history_hybrid.queries)
