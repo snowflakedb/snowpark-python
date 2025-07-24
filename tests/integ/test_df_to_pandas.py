@@ -23,12 +23,12 @@ except ImportError:
 
 import datetime
 import decimal
-
+import math
 import pytest
 from unittest import mock
 
 from snowflake.snowpark._internal.utils import TempObjectType
-from snowflake.snowpark.session import write_pandas
+from snowflake.snowpark.session import write_pandas, WRITE_PANDAS_CHUNK_SIZE
 from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
     ArrayType,
@@ -415,39 +415,59 @@ def test_df_to_pandas_df(session):
 def test_write_pandas_chunk_size(session):
     table_name = Utils.random_table_name()
     try:
+        chunk_size, expected_num_rows = 25, 101
         # create medium-sized df that can be chunked
-        df = session.range(101)
+        df = session.range(expected_num_rows)
         table = df.to_pandas()
         success, num_chunks, num_rows, _ = write_pandas(
             session._conn._conn,
             table,
             table_name,
             auto_create_table=True,
-            chunk_size=25,
+            chunk_size=chunk_size,
         )
-        # 25 rows per chunk = 5 chunks
-        assert success and num_chunks == 5 and num_rows == 101
+        assert (
+            success
+            and num_chunks == math.ceil(expected_num_rows / chunk_size)
+            and num_rows == expected_num_rows
+        )
 
         # Import the original write_pandas to create a wrapper
         from snowflake.snowpark.session import write_pandas as original_write_pandas
 
+        expected_chunk_size = 10
+
         # Create a wrapper that intercepts calls but lets the real function execute
         def write_pandas_wrapper(*args, **kwargs):
-            # Verify that chunk_size=10 was passed
-            assert (
-                kwargs.get("chunk_size") == 10
-            ), f"Expected chunk_size=10, got {kwargs.get('chunk_size')}"
+            input_chunk_size = kwargs.get("chunk_size")
+            assert input_chunk_size == expected_chunk_size
+            expected_num_chunks = (
+                math.ceil(expected_num_rows / expected_chunk_size)
+                if input_chunk_size != WRITE_PANDAS_CHUNK_SIZE
+                else 1
+            )
             # Call the real function and return its actual result
             ret = original_write_pandas(*args, **kwargs)
             success, num_chunks, num_rows, _ = ret
-            # 10 rows per chunk = 11 chunks
-            assert success and num_chunks == 11 and num_rows == 101
+            assert (
+                success
+                and num_chunks == expected_num_chunks
+                and num_rows == expected_num_rows
+            )
             return ret
 
         with mock.patch(
             "snowflake.snowpark.session.write_pandas", side_effect=write_pandas_wrapper
         ) as mock_write_pandas:
             session.create_dataframe(table, chunk_size=10)
+            # Verify that write_pandas was called once
+            mock_write_pandas.assert_called_once()
+
+        expected_chunk_size = WRITE_PANDAS_CHUNK_SIZE
+        with mock.patch(
+            "snowflake.snowpark.session.write_pandas", side_effect=write_pandas_wrapper
+        ) as mock_write_pandas:
+            session.create_dataframe(table)
             # Verify that write_pandas was called once
             mock_write_pandas.assert_called_once()
     finally:

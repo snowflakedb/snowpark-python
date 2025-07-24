@@ -6,6 +6,7 @@
 import os
 import pytest
 import re
+import math
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -19,6 +20,7 @@ from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DecimalType
+from snowflake.snowpark.session import WRITE_ARROW_CHUNK_SIZE
 
 from tests.utils import TestData, Utils, TestFiles
 
@@ -217,39 +219,60 @@ def test_write_arrow_table_type(session, arrow_table, table_type):
 def test_write_arrow_chunk_size(session):
     table_name = Utils.random_table_name()
     try:
+        chunk_size, expected_num_rows = 25, 101
         # create medium-sized df that can be chunked
-        df = session.range(101)
+        df = session.range(expected_num_rows)
         table = df.to_arrow()
         success, num_chunks, num_rows, _ = write_arrow(
             session._conn._conn.cursor(),
             table,
             table_name,
             auto_create_table=True,
-            chunk_size=25,
+            chunk_size=chunk_size,
         )
         # 25 rows per chunk = 5 chunks
-        assert success and num_chunks == 5 and num_rows == 101
+        assert (
+            success
+            and num_chunks == math.ceil(expected_num_rows / chunk_size)
+            and num_rows == expected_num_rows
+        )
 
         # Import the original write_arrow to create a wrapper
         from snowflake.snowpark.session import write_arrow as original_write_arrow
 
+        expected_chunk_size = 10
+
         # Create a wrapper that intercepts calls but lets the real function execute
         def write_arrow_wrapper(*args, **kwargs):
-            # Verify that chunk_size=10 was passed
-            assert (
-                kwargs.get("chunk_size") == 10
-            ), f"Expected chunk_size=10, got {kwargs.get('chunk_size')}"
+            input_chunk_size = kwargs.get("chunk_size")
+            assert input_chunk_size == expected_chunk_size
+            expected_num_chunks = (
+                math.ceil(expected_num_rows / expected_chunk_size)
+                if input_chunk_size != WRITE_ARROW_CHUNK_SIZE
+                else 1
+            )
             # Call the real function and return its actual result
             ret = original_write_arrow(*args, **kwargs)
             success, num_chunks, num_rows, _ = ret
-            # 10 rows per chunk = 11 chunks
-            assert success and num_chunks == 11 and num_rows == 101
+            assert (
+                success
+                and num_chunks == expected_num_chunks
+                and num_rows == expected_num_rows
+            )
             return ret
 
         with mock.patch(
             "snowflake.snowpark.session.write_arrow", side_effect=write_arrow_wrapper
         ) as mock_write_arrow:
             session.create_dataframe(table, chunk_size=10)
+            # Verify that write_arrow was called once
+            mock_write_arrow.assert_called_once()
+
+        expected_chunk_size = WRITE_ARROW_CHUNK_SIZE
+        with mock.patch(
+            "snowflake.snowpark.session.write_arrow", side_effect=write_arrow_wrapper
+        ) as mock_write_arrow:
+            session.create_dataframe(table)
             # Verify that write_arrow was called once
             mock_write_arrow.assert_called_once()
     finally:
