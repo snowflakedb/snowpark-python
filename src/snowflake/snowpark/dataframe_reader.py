@@ -1442,7 +1442,7 @@ class DataFrameReader:
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
-        telemetry_json_string["DBMS_type"] = partitioner.dbms_type
+        telemetry_json_string["dbms_type"] = partitioner.dbms_type
         telemetry_json_string["driver_type"] = partitioner.driver_type
 
         # udtf ingestion

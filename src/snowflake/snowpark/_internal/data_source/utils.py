@@ -457,8 +457,10 @@ def process_parquet_queue_with_threads(
                 # Process valid BytesIO parquet data
                 logger.debug(f"Retrieved BytesIO parquet from queue: {parquet_id}")
 
-                upload_to_sf_start_time = min(
-                    upload_to_sf_start_time, time.perf_counter()
+                upload_to_sf_start_time = (
+                    time.perf_counter()
+                    if upload_to_sf_start_time != math.inf
+                    else upload_to_sf_start_time
                 )
                 thread_future = thread_executor.submit(
                     _upload_and_copy_into_table_with_retry,
