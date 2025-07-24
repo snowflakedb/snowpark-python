@@ -37,6 +37,7 @@ from snowflake.snowpark._internal.analyzer.table_function import (
 from snowflake.snowpark._internal.debug_utils import (
     get_df_transform_trace_message,
     get_python_source_from_sql_error,
+    get_existing_object_context,
     get_missing_object_context,
 )
 
@@ -185,14 +186,17 @@ class SnowflakePlan(LogicalPlan):
                     # extract top_plan, df_ast_id, stmt_cache from args
                     top_plan, df_ast_id, stmt_cache = None, None, None
                     for arg in args:
-                        if isinstance(arg, SnowflakePlan) and arg.df_ast_ids:
+                        if isinstance(arg, SnowflakePlan):
                             top_plan = arg
-                            df_ast_id = arg.df_ast_ids[-1]
-                            stmt_cache = arg.session._ast_batch._bind_stmt_cache
                             break
+                    if top_plan is not None and top_plan.df_ast_ids:
+                        df_ast_id = top_plan.df_ast_ids[-1]
+                        stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
+
                     df_transform_debug_trace = ""
                     error_source_context = ""
                     missing_object_context = ""
+                    existing_object_context = ""
                     try:
                         if (
                             "SQL compilation error:" in e.msg
@@ -219,6 +223,14 @@ class SnowflakePlan(LogicalPlan):
                             missing_object_context = get_missing_object_context(
                                 top_plan, e.msg
                             )
+                        if (
+                            ("already exists" in e.msg)
+                            and top_plan is not None
+                            and context._enable_trace_sql_errors_to_dataframe
+                        ):
+                            existing_object_context = get_existing_object_context(
+                                top_plan, e.msg
+                            )
                     except Exception as trace_error:
                         # If we encounter an error when getting the df_transform_debug_trace,
                         # we will ignore the error and not add the debug trace to the error message.
@@ -233,6 +245,7 @@ class SnowflakePlan(LogicalPlan):
                         + df_transform_debug_trace
                         + error_source_context
                         + missing_object_context
+                        + existing_object_context
                     )
                     if debug_context == debug_header:
                         debug_context = ""
