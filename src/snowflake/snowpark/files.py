@@ -17,7 +17,6 @@ from io import (
     SEEK_CUR,
 )
 from snowflake.snowpark._internal.utils import (
-    RELATIVE_PATH_PREFIX,
     SNOWFLAKE_PATH_PREFIXES,
 )
 from typing import Sequence
@@ -82,6 +81,7 @@ class SnowflakeFile(RawIOBase):
     We provide a local implementation of SnowflakeFile to aid in local testing.
     This currently supports using read APIs on relative paths, mocked stages
     (sessions in local testing mode that aren't connected to a real stage), and Snowflake stages.
+    Scoped and Stage URLs (https://) are not yet supported.
 
     Note:
         1. All of the implementation in this file is for local testing purposes.
@@ -119,25 +119,17 @@ class SnowflakeFile(RawIOBase):
         # Attributes required for local testing functionality
         _DEFAULT_READ_BUFFER_SIZE = 32 * 1024
         self._pos = 0
-        self._is_local_file = (
-            True
-            if self._file_location.startswith((RELATIVE_PATH_PREFIX, "C:"))
-            else False
-        )
+        if self._file_location.startswith("https://"):
+            raise ValueError("Scoped and Stage URLs are not yet supported.")
+
         self._is_stage_file = (
             True
             if self._file_location.startswith(tuple(SNOWFLAKE_PATH_PREFIXES))
             else False
         )
-
-        # Validate the file location
-        if not self._is_local_file and not self._is_stage_file:
-            raise ValueError(
-                f"Invalid file location '{self._file_location}'. "
-                "File location must be a local file path or a stage file URL."
-            )
-
+        self._is_local_file = not self._is_stage_file
         self._file_size = 0
+
         if self._is_local_file and mode in _READ_MODES:
             # Buffered Reader used to support BufferedIOBase methods such as read1 and readinto1
             encoding = "utf-8" if mode == "r" else None
