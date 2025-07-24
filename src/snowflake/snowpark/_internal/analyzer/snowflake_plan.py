@@ -242,9 +242,7 @@ class SnowflakePlan(LogicalPlan):
                     debug_header = "\n\n--- Additional Debug Information ---\n"
                     debug_context = (
                         debug_header
-                       
                         + df_transform_debug_trace
-                       
                         + error_source_context
                         + missing_object_context
                         + existing_object_context

@@ -10,15 +10,11 @@ from snowflake.snowpark.functions import (
     col,
     sum,
 )
-<<<<<<< HEAD
-from snowflake.snowpark.window import Window
-=======
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
 )
 from snowflake.snowpark.window import Window
 from tests.utils import Utils
->>>>>>> 3caeadf81 (Adding support for views/fully qualified names and moving tests to diff file)
 
 pytestmark = [
     pytest.mark.xfail(
@@ -49,11 +45,8 @@ def test_python_source_location_in_sql_error(session):
 
 
 def test_python_source_location_in_session_sql(session):
-<<<<<<< HEAD
     if not session.sql_simplifier_enabled:
         pytest.skip("SQL simplifier must be enabled for this test")
-=======
->>>>>>> 3caeadf81 (Adding support for views/fully qualified names and moving tests to diff file)
     df3 = session.sql(
         "SELECT a, b, c + '5' AS invalid_operation FROM (select 1 as a, 2 as b, array_construct(1, 2, 3) as c) WHERE a > 0"
     )
@@ -139,7 +132,6 @@ def test_invalid_identifier_error_message(session):
     assert "SQL compilation error corresponds to Python source" in str(ex.value)
 
 
-<<<<<<< HEAD
 def test_missing_table_with_session_table(session):
     with pytest.raises(SnowparkSQLException) as ex:
         session.table("NON_EXISTENT_TABLE").collect()
@@ -214,7 +206,8 @@ def test_missing_table_with_dataframe_operations(
     assert "Missing object 'NON_EXISTENT_TABLE' corresponds to Python source" in str(
         ex.value.debug_context
     ), f"Missing object trace not found for operation: {operation_name}"
-=======
+
+
 def test_existing_table_with_save_as_table(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     df = session.create_dataframe([{"a": 1, "b": 2}])
@@ -451,4 +444,3 @@ def test_existing_view_with_all_dataframe_methods(session, view_method):
     ), f"Expected object reference not found in debug context for {view_method}: {ex.value.debug_context}"
 
     Utils.drop_view(session, view_name)
->>>>>>> 3caeadf81 (Adding support for views/fully qualified names and moving tests to diff file)
