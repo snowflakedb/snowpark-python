@@ -25,7 +25,7 @@
 #### New Features
 
 #### Improvements
-- hybrid execution row estimate improvements and a reduction of eager calls
+- Hybrid execution row estimate improvements and a reduction of eager calls.
 
 #### Bug Fixes
 
