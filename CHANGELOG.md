@@ -4,7 +4,7 @@
 
 #### New Features
 
-- Added a `chunk_size` parameter to `Session.create_dataframe` to control the number of rows per chunk when creating a DataFrame from a pandas DataFrame or PyArrow Table.
+- `Session.create_dataframe` now accepts keyword arguments that are forwarded to the internal call to `Session.write_pandas` or `Session.write_arrow` when creating a DataFrame from a pandas DataFrame or a pyarrow Table.
 
 ## 1.35.0 (YYYY-MM-DD)
 

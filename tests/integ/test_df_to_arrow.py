@@ -19,9 +19,8 @@ from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DecimalType
-import snowflake.snowpark.session
 
-from tests.utils import TestData, Utils, TestFiles, IS_IN_STORED_PROC
+from tests.utils import TestData, Utils, TestFiles
 
 try:
     import pyarrow as pa
@@ -254,28 +253,6 @@ def test_write_arrow_chunk_size(session, monkeypatch):
             session.create_dataframe(table, chunk_size=10)
             # Verify that write_arrow was called once
             mock_write_arrow.assert_called_once()
-
-        # Approach 2: Module variable update
-        original_arrow_chunk_size = snowflake.snowpark.session.WRITE_ARROW_CHUNK_SIZE
-        assert (
-            original_arrow_chunk_size == 100000
-            if IS_IN_STORED_PROC
-            else original_arrow_chunk_size is None
-        )
-        monkeypatch.setattr(snowflake.snowpark.session, "WRITE_ARROW_CHUNK_SIZE", 10)
-        assert snowflake.snowpark.session.WRITE_ARROW_CHUNK_SIZE == 10
-
-        with mock.patch(
-            "snowflake.snowpark.session.write_arrow", side_effect=write_arrow_wrapper
-        ) as mock_write_arrow:
-            session.write_arrow(
-                table,
-                table_name,
-                auto_create_table=True,
-            )
-            # Verify that write_arrow was called once
-            mock_write_arrow.assert_called_once()
-
     finally:
         Utils.drop_table(session, table_name)
 

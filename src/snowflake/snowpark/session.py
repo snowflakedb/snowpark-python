@@ -277,9 +277,6 @@ _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION = (
     "PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION"
 )
 
-# Create sentinel objects for detecting when no chunk_size was provided in write_arrow|pandas
-_DEFAULT_CHUNK_SIZE = object()
-
 # Flag for controlling the usage of scoped temp read only table.
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
     "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
@@ -2917,7 +2914,7 @@ class Session:
         *,
         database: Optional[str] = None,
         schema: Optional[str] = None,
-        chunk_size: Optional[int] = _DEFAULT_CHUNK_SIZE,
+        chunk_size: Optional[int] = WRITE_ARROW_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
         parallel: int = 4,
@@ -2966,10 +2963,6 @@ class Session:
                 set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
                 https://docs.snowflake.com/en/sql-reference/sql/create-file-format
         """
-        # Resolve chunk_size: if sentinel value is used, use the current module variable
-        if chunk_size is _DEFAULT_CHUNK_SIZE:
-            chunk_size = WRITE_ARROW_CHUNK_SIZE
-
         cursor = self._conn._conn.cursor()
 
         if quote_identifiers:
@@ -3101,7 +3094,7 @@ class Session:
         *,
         database: Optional[str] = None,
         schema: Optional[str] = None,
-        chunk_size: Optional[int] = _DEFAULT_CHUNK_SIZE,
+        chunk_size: Optional[int] = WRITE_PANDAS_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
         parallel: int = 4,
@@ -3203,10 +3196,6 @@ class Session:
             they will be converted to `TIMESTAMP_LTZ` in the output Snowflake table by default.
             If `TIMESTAMP_TZ` is needed for those columns instead, please manually create the table before loading data.
         """
-        # Resolve chunk_size: if sentinel value is used, use the current module variable
-        if chunk_size is _DEFAULT_CHUNK_SIZE:
-            chunk_size = WRITE_PANDAS_CHUNK_SIZE
-
         if isinstance(self._conn, MockServerConnection):
             self._conn.log_not_supported_error(
                 external_feature_name="Session.write_pandas",
@@ -3368,8 +3357,7 @@ class Session:
         data: Union[List, Tuple, "pandas.DataFrame", "pyarrow.Table"],
         schema: Optional[Union[StructType, Iterable[str], str]] = None,
         _emit_ast: bool = True,
-        *,
-        chunk_size: Optional[int] = _DEFAULT_CHUNK_SIZE,
+        **kwargs: Dict[str, Any],
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
@@ -3378,6 +3366,9 @@ class Session:
         table for you to then do further transformations on. This temporary table will be
         dropped at the end of your session. If you would like to save the pandas DataFrame or PyArrow Table,
         use the :meth:`write_pandas` or :meth:`write_arrow` method instead.
+        Note: When ``data`` is a pandas DataFrame or pyarrow Table, schema inference may be affected by chunk size.
+        You can control it by passing the ``chunk_size`` keyword argument. For details, see :meth:`write_pandas`
+        or :meth:`write_arrow`, which are used internally by this function.
 
         Args:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
@@ -3395,11 +3386,10 @@ class Session:
 
                 To improve performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
-            chunk_size: Optional; only applies when `data` is a pandas DataFrame or a PyArrow Table.
-                Number of rows to be inserted once. If not provided, all rows will be dumped once.
-                Default to None normally, 100,000 if inside a stored procedure.
-                Note: The chunk size may affect schema inference because different chunks might contain varying data
-                types, especially when None values are present. This can lead to inconsistencies in inferred types.
+            **kwargs: Additional keyword arguments passed to :meth:`write_pandas` or :meth:`write_arrow`
+                when ``data`` is a pandas DataFrame or pyarrow Table, respectively. These can include
+                options such as chunk_size or compression.
+
         Examples::
 
             >>> # create a dataframe with a schema
@@ -3493,8 +3483,8 @@ class Session:
                         auto_create_table=True,
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
-                        chunk_size=chunk_size,
                         _emit_ast=False,
+                        **kwargs,
                     )
                     set_api_call_source(table, "Session.create_dataframe[arrow]")
                 else:
@@ -3507,8 +3497,8 @@ class Session:
                         auto_create_table=True,
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
-                        chunk_size=chunk_size,
                         _emit_ast=False,
+                        **kwargs,
                     )
                     set_api_call_source(table, "Session.create_dataframe[pandas]")
 
