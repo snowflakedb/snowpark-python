@@ -55,7 +55,8 @@ def configure_development_features(
             session which can be done using `session.ast_enabled = True`.
         enable_eager_schema_validation: If True, dataframe schemas are eagerly validated by querying
             for column metadata after every dataframe operation. This adds additional query overhead.
-        enable_trace_sql_errors_to_dataframe: If True, we will enable query line tracking.
+        enable_trace_sql_errors_to_dataframe: If True, we will enable tracing sql compilation errors
+            to the associated dataframe operations.
     Note:
         This feature is experimental since 1.33.0. Do not use it in production.
     """
