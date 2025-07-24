@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import sys
 
 import pytest
 
@@ -149,6 +150,9 @@ def test_unicode_column_name_postgres(session, custom_schema):
     ],
 )
 @pytest.mark.udf
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 13), reason="driver not supported in python 3.13"
+)
 def test_udtf_ingestion_postgres(session, input_type, input_value, caplog):
     from tests.parameters import POSTGRES_CONNECTION_PARAMETERS
 

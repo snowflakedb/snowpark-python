@@ -4,6 +4,8 @@
 
 import logging
 import math
+import sys
+
 import pytest
 
 from snowflake.snowpark import Row
@@ -153,6 +155,9 @@ def test_oracledb_driver_coverage(caplog):
 
 
 @pytest.mark.udf
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 13), reason="driver not supported in python 3.13"
+)
 def test_udtf_ingestion_oracledb(session):
     from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 
