@@ -267,3 +267,170 @@ def get_python_source_from_sql_error(top_plan: "SnowflakePlan", error_msg: str) 
             locations_str = "\n  - ".join(source_locations)
             return f"\nSQL compilation error corresponds to Python sources at:\n  - {locations_str}\n"
     return ""
+
+
+def get_missing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str:
+    """
+    Extract Python source location context for missing object errors.
+
+    Args:
+        top_plan (SnowflakePlan): The top-level SnowflakePlan object that contains the SQL
+            compilation error.
+        error_msg (str): The raw error message from the SQL compilation error. Expected to contain
+            the pattern "Object 'name' does not exist or not authorized".
+
+    Returns:
+        Error message with the affected Python lines numbers if found, otherwise an empty string.
+
+    """
+    sql_compilation_error_regex = re.compile(
+        r""".*SQL compilation error:\s*Object '([^']+)' does not exist or not authorized.*""",
+    )
+    match = sql_compilation_error_regex.match(error_msg)
+    if not match:
+        return ""
+
+    # Extract the object name from the error message
+    object_name = match.group(1)
+
+    # For missing object errors, the compilation error is at the top level
+    # (with query like select * from non_existent_table), so we use the top plan directly
+    found_locations = {}
+    if top_plan.df_ast_ids is not None:
+        for ast_id in top_plan.df_ast_ids:
+            bind_stmt = top_plan.session._ast_batch._bind_stmt_cache.get(ast_id)
+            if bind_stmt is not None:
+                src = extract_src_from_expr(bind_stmt.bind.expr)
+                location = _format_source_location(src)
+                if location != "":
+                    found_locations[location] = None
+    if found_locations:
+        if len(found_locations) == 1:
+            return f"\nMissing object '{object_name}' corresponds to Python source at {list(found_locations.keys())[0]}.\n"
+        else:
+            locations_str = "\n  - ".join(list(found_locations.keys()))
+            return f"\nMissing object '{object_name}' corresponds to Python sources at:\n  - {locations_str}\n"
+    return ""
+
+
+def get_existing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> str:
+    """
+    Extract table/object name from error messages like 'Object "TABLE" already exists'
+    and return information about where that table was referenced in the Python source code.
+
+    Args:
+        top_plan: The top level SnowflakePlan object that contains the error.
+        error_msg: The error message containing the object/table name.
+
+    Returns:
+        Error message with the Python source locations where the table was referenced,
+        otherwise an empty string.
+    """
+    sql_compilation_error_regex = re.compile(
+        r""".*SQL compilation error:\s*Object '([^']+)' already exists.*""",
+    )
+    match = sql_compilation_error_regex.match(error_msg)
+    if not match:
+        return ""
+
+    object_name = match.group(1)
+
+    def normalize_sql_identifier(name: str) -> str:
+        """Normalize SQL identifier by removing quotes and converting to uppercase."""
+        return name.strip('"').strip("'").upper()
+
+    def object_name_match(extracted_name: str, error_object_name: str) -> bool:
+        """Check if two object names match exactly, accounting for schema prefixes."""
+        extracted_norm = normalize_sql_identifier(extracted_name)
+        error_norm = normalize_sql_identifier(error_object_name)
+        return error_norm in extracted_norm or extracted_norm in error_norm
+
+    def sql_contains_object_creation(sql_query: str, target_object: str) -> bool:
+        """Check if SQL query contains a CREATE statement for the target object."""
+        query_upper = sql_query.upper()
+        target_upper = normalize_sql_identifier(target_object)
+
+        # Extract just the table name from the qualified name
+        # target_object could be "DB.SCHEMA.TABLE" or just "TABLE"
+        table_name_parts = target_upper.split(".")
+        table_name = table_name_parts[-1]  # Get the last part (table name)
+
+        # Pattern to match SQL identifiers that can be quoted or unquoted
+        # Matches: identifier, "identifier", 'identifier'
+        identifier_pattern = r'(?:["\']?[^"\'\s.]+["\']?)'
+
+        create_patterns = [
+            # Simple table name: CREATE TABLE table_name
+            rf"\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP\s+|TEMPORARY\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?['\"]?{re.escape(table_name)}['\"]?\b",
+            rf"\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP\s+|TEMPORARY\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?['\"]?{re.escape(table_name)}['\"]?\b",
+            # Schema-qualified: CREATE TABLE schema.table_name or "schema".table_name
+            rf"\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP\s+|TEMPORARY\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?{identifier_pattern}\.{re.escape(table_name)}\b",
+            rf"\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP\s+|TEMPORARY\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?{identifier_pattern}\.{re.escape(table_name)}\b",
+            # Database-qualified: CREATE TABLE database.schema.table_name or "database"."schema".table_name
+            rf"\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP\s+|TEMPORARY\s+)?TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?{identifier_pattern}\.{identifier_pattern}\.{re.escape(table_name)}\b",
+            rf"\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP\s+|TEMPORARY\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?{identifier_pattern}\.{identifier_pattern}\.{re.escape(table_name)}\b",
+        ]
+
+        for pattern in create_patterns:
+            if re.search(pattern, query_upper):
+                return True
+        return False
+
+    bind_stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
+
+    for _, stmt in bind_stmt_cache.items():
+        if hasattr(stmt, "bind") and hasattr(stmt.bind, "expr"):
+            expr = stmt.bind.expr
+
+            # case when we create an object by using .save_as_table()
+            if expr.HasField("write_table"):
+                write_table_expr = expr.write_table
+                expr_object_name = None
+                if write_table_expr.table_name.HasField(
+                    "name"
+                ) and write_table_expr.table_name.name.HasField("name_flat"):
+                    expr_object_name = write_table_expr.table_name.name.name_flat.name
+                elif write_table_expr.table_name.HasField(
+                    "name"
+                ) and write_table_expr.table_name.name.HasField("name_structured"):
+                    expr_object_name = (
+                        write_table_expr.table_name.name.name_structured.name[-1]
+                    )
+
+                if expr_object_name and object_name_match(
+                    expr_object_name, object_name
+                ):
+                    location = _format_source_location(write_table_expr.src)
+                    if location:
+                        return f"\nObject '{object_name}' was first referenced at {location}.\n"
+
+            # case when we create an object by using session.sql()
+            elif expr.HasField("sql"):
+                sql_expr = expr.sql
+                if sql_contains_object_creation(sql_expr.query, object_name):
+                    location = _format_source_location(sql_expr.src)
+                    if location:
+                        return f"\nObject '{object_name}' was first referenced at {location}.\n"
+
+            # case when we create a view by using create_temp_view(), create_or_replace_view(), create_or_replace_temp_view()
+            elif expr.HasField("dataframe_create_or_replace_view"):
+                create_view_expr = expr.dataframe_create_or_replace_view
+                expr_object_name = None
+                if create_view_expr.name.HasField(
+                    "name"
+                ) and create_view_expr.name.name.HasField("name_flat"):
+                    expr_object_name = create_view_expr.name.name.name_flat.name
+                elif create_view_expr.name.HasField(
+                    "name"
+                ) and create_view_expr.name.name.HasField("name_structured"):
+                    expr_object_name = create_view_expr.name.name.name_structured.name[
+                        -1
+                    ]
+                if expr_object_name and object_name_match(
+                    expr_object_name, object_name
+                ):
+                    location = _format_source_location(create_view_expr.src)
+                    if location:
+                        return f"\nObject '{object_name}' was first referenced at {location}.\n"
+
+    return ""
