@@ -133,7 +133,6 @@ class BaseDriver:
         schema: StructType,
         partition_table: str,
         external_access_integrations: str,
-        _telemetry_json: dict,
         fetch_size: int = 1000,
         imports: Optional[List[str]] = None,
         packages: Optional[List[str]] = None,
@@ -156,7 +155,6 @@ class BaseDriver:
             packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
             imports=imports,
         )
-        _telemetry_json["udtf_registration"] = time.perf_counter() - start
         logger.debug(f"register ingestion udtf takes: {time.time() - start} seconds")
         call_udtf_sql = f"""
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))

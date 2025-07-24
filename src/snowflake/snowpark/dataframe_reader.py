@@ -1460,7 +1460,6 @@ class DataFrameReader:
                 struct_schema,
                 partitions_table,
                 udtf_configs["external_access_integration"],
-                _telemetry_json=telemetry_json_string,
                 fetch_size=fetch_size,
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
