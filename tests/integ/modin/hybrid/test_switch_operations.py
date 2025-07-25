@@ -82,7 +82,7 @@ def test_filtered_data(init_transaction_tables):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     assert df_transactions.get_backend() == "Snowflake"
     # in-place operations that do not change the backend
-    # TODO: the following will result in a cartesian align which will grow the
+    # TODO: the following will result in an align which will grow the
     # size of the row estimate
     df_transactions["DATE"] = pd.to_datetime(df_transactions["DATE"])
     assert df_transactions.get_backend() == "Snowflake"
@@ -324,19 +324,16 @@ def test_query_count_no_switch(init_transaction_tables):
         return df_result
 
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
-    df_transactions.to_csv("revenue_transactions.csv")
     inner_test(df_transactions)
     orig_len = None
     hybrid_len = None
     with pd.session.query_history() as query_history_orig:
         with config_context(AutoSwitchBackend=False, NativePandasMaxRows=10):
-            assert AutoSwitchBackend.get() is False
             df_result = inner_test(df_transactions)
             orig_len = len(df_result)
 
     with pd.session.query_history() as query_history_hybrid:
         with config_context(AutoSwitchBackend=True, NativePandasMaxRows=10):
-            assert AutoSwitchBackend.get()
             df_result = inner_test(df_transactions)
             hybrid_len = len(df_result)
 

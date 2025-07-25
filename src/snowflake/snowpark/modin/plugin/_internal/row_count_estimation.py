@@ -51,8 +51,13 @@ class RowCountEstimator:
         Returns:
             int: The estimated upper bound on the number of rows in the resulting dataframe
         """
+        
+        if df.row_count and df.row_count_upper_bound < df.row_count:
+            raise RuntimeError("row upper bound is less than row count")
+        
         # Get the current upper bound. If not set, return None
         current = df.row_count_upper_bound or df.row_count
+        
         if current is None:
             return None
 
@@ -94,7 +99,7 @@ class RowCountEstimator:
                 # Cannot estimate row count: other DataFrame has no row count information
                 return None
             how = args["how"]
-            if how in ["cross", "inner", "outer" "left", "right"]:
+            if how in ["cross", "inner", "outer", "left", "right"]:
                 # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
                 # When the product becomes very large we return None conservatively, as this can have
                 # a negative performance impact on alignment. This is a similar fix to what was added
@@ -120,7 +125,7 @@ class RowCountEstimator:
                     return current
                 else:
                     return other_bound
-            if how == ["outer", "inner", "coalesce", "left", "right"]:
+            if how in ["outer", "coalesce", "left", "right"]:
                 return current + other_bound
             # We do not support cross-joins/cartesian products in ALIGN
             raise ValueError(f"Unsupported operation/method: {operation}/{how}")
