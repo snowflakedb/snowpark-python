@@ -52,7 +52,7 @@ class RowCountEstimator:
             int: The estimated upper bound on the number of rows in the resulting dataframe
         """
         # Get the current upper bound. If not set, return None
-        current = df.row_count_upper_bound
+        current = df.row_count_upper_bound or df.row_count
         if current is None:
             return None
 
@@ -93,14 +93,29 @@ class RowCountEstimator:
             if right_bound is None:
                 # Cannot estimate row count: other DataFrame has no row count information
                 return None
-            # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
-            # When the product becomes very large we return None conservatively, as this can have
-            # a negative performance impact on alignment. This is a similar fix to what was added
-            # in SnowflakeQueryCompiler::_get_rows
-            cartesian_result = current * right_bound
-            if cartesian_result > MAX_ROW_COUNT_FOR_ESTIMATION:
-                return None
-            return cartesian_result
+            how = args["how"]
+            if how == "inner":
+                # choose smallest
+                if current < right_bound:
+                    return current
+                else:
+                    return right_bound
+            if how == "left" or how == "asof":
+                return current
+            if how == "right":
+                return right_bound
+            if how == "outer":
+                return current + right_bound
+            if how == "cross":
+                # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
+                # When the product becomes very large we return None conservatively, as this can have
+                # a negative performance impact on alignment. This is a similar fix to what was added
+                # in SnowflakeQueryCompiler::_get_rows
+                cartesian_result = current * right_bound
+                if cartesian_result > MAX_ROW_COUNT_FOR_ESTIMATION:
+                    return None
+                return cartesian_result
+            raise ValueError(f"Unsupported operation/method: {operation}/{how}")
 
         # TODO: Implement a better estimate by having cases for different align types
         # Align can cause a Cartesian product with the row counts multiplying
@@ -110,14 +125,21 @@ class RowCountEstimator:
             if other_bound is None:
                 # Cannot estimate row count: other DataFrame has no row count information
                 return None
-            # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
-            # When the product becomes very large we return None conservatively, as this can have
-            # a negative performance impact on alignment. This is a similar fix to what was added
-            # in SnowflakeQueryCompiler::_get_rows
-            cartesian_result = current * other_bound
-            if cartesian_result > MAX_ROW_COUNT_FOR_ESTIMATION:
-                return None
-            return cartesian_result
+            how = args["how"]
+            if how == "inner":
+                # choose smallest
+                if current < other_bound:
+                    return current
+                else:
+                    return other_bound
+            if how == "outer" or how == "coalesce":
+                return current + other_bound
+            if how == "left":
+                return current
+            if how == "right":
+                return other_bound
+            # We do not support cross-joins/cartesian products in ALIGN
+            raise ValueError(f"Unsupported operation/method: {operation}/{how}")
 
         # Limit sets the upper bound to n rows
         elif operation == DataFrameOperation.LIMIT:
