@@ -843,6 +843,10 @@ def test_agg_filter_and_sort_with_grouping_snowpark_connect_compatible(session):
         context._is_snowpark_connect_compatible_mode = original_value
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="HAVING, ORDER BY append, and limit append are not supported in local testing mode",
+)
 def test_filter_sort_limit_snowpark_connect_compatible(session):
     original_value = context._is_snowpark_connect_compatible_mode
 
