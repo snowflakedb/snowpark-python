@@ -387,6 +387,27 @@ def test_partition_unsupported_type(session):
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
+def test_telemetry(session, fetch_with_process):
+    with patch(
+        "snowflake.snowpark._internal.telemetry.TelemetryClient.send_data_source_perf_telemetry"
+    ) as mock_telemetry:
+        df = session.read.dbapi(
+            sql_server_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+            fetch_with_process=fetch_with_process,
+        )
+    telemetry_json = mock_telemetry.call_args[0][0]
+    assert telemetry_json["function_name"] == "DataFrameReader.dbapi"
+    assert telemetry_json["ingestion_mode"] == "local_ingestion"
+    assert telemetry_json["dbms_type"] == DBMS_TYPE.SQL_SERVER_DB.value
+    assert telemetry_json["driver_type"] == DRIVER_TYPE.PYODBC.value
+    assert telemetry_json["schema"] == df.schema.simple_string()
+    assert "fetch_to_local_duration" in telemetry_json
+    assert "upload_and_copy_into_sf_table_duration" in telemetry_json
+    assert "end_to_end_duration" in telemetry_json
+
+
+@pytest.mark.parametrize("fetch_with_process", [True, False])
 def test_telemetry_tracking(caplog, session, fetch_with_process):
     original_func = session._conn.run_query
     called, comment_showed = 0, 0

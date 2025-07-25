@@ -1,11 +1,13 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import json
 import multiprocessing as mp
 import os
 import sys
 import time
 import queue
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
@@ -1411,6 +1413,13 @@ class DataFrameReader:
             raise SnowparkDataframeReaderException(
                 "Either 'table' or 'query' must be provided, but not both."
             )
+
+        telemetry_json_string = defaultdict()
+        telemetry_json_string["function_name"] = DATA_SOURCE_DBAPI_SIGNATURE
+        telemetry_json_string["ingestion_mode"] = (
+            "udtf_ingestion" if udtf_configs is not None else "local_ingestion"
+        )
+
         table_or_query = table or query
         is_query = True if table is None else False
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
@@ -1434,6 +1443,8 @@ class DataFrameReader:
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
+        telemetry_json_string["dbms_type"] = partitioner.dbms_type.value
+        telemetry_json_string["driver_type"] = partitioner.driver_type.value
 
         # udtf ingestion
         if udtf_configs is not None:
@@ -1454,6 +1465,12 @@ class DataFrameReader:
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
                 _emit_ast=_emit_ast,
+            )
+            telemetry_json_string["end_to_end_duration"] = (
+                time.perf_counter() - start_time
+            )
+            self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+                telemetry_json_string
             )
             set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df
@@ -1506,6 +1523,8 @@ class DataFrameReader:
                 f"Starting {max_workers} worker processes to fetch data from the data source."
             )
 
+            fetch_to_local_start_time = time.perf_counter()
+
             if fetch_with_process:
                 for _worker_id in range(max_workers):
                     process = mp.Process(
@@ -1537,7 +1556,11 @@ class DataFrameReader:
                 ]
 
             # Process BytesIO objects from queue and upload them using utility method
-            process_parquet_queue_with_threads(
+            (
+                fetch_to_local_end_time,
+                upload_to_sf_start_time,
+                upload_to_sf_end_time,
+            ) = process_parquet_queue_with_threads(
                 session=self._session,
                 parquet_queue=parquet_queue,
                 process_or_thread_error_indicator=process_or_thread_error_indicator,
@@ -1549,6 +1572,12 @@ class DataFrameReader:
                 statements_params=statements_params_for_telemetry,
                 on_error="abort_statement",
                 fetch_with_process=fetch_with_process,
+            )
+            telemetry_json_string["fetch_to_local_duration"] = (
+                fetch_to_local_end_time - fetch_to_local_start_time
+            )
+            telemetry_json_string["upload_and_copy_into_sf_table_duration"] = (
+                upload_to_sf_end_time - upload_to_sf_start_time
             )
 
         except BaseException as exc:
@@ -1579,9 +1608,8 @@ class DataFrameReader:
                 data_fetching_thread_pool_executor.shutdown(wait=True)
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
-        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
-            DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
-        )
+        telemetry_json_string["end_to_end_duration"] = time.perf_counter() - start_time
+
         # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
         # with the new name for the temporary table into which the external db data was ingressed.
         # Leaving this functionality as client-side only means capturing an AST specifically for
@@ -1589,5 +1617,10 @@ class DataFrameReader:
         res_df = partitioner.driver.to_result_snowpark_df(
             self, snowflake_table_name, struct_schema, _emit_ast=_emit_ast
         )
+        telemetry_json_string["schema"] = res_df.schema.simple_string()
+        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+            telemetry_json_string
+        )
+        logger.debug(f"recorded telemetry: {json.dumps(telemetry_json_string)}")
         set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
         return res_df

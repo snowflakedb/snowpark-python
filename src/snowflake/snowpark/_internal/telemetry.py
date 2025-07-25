@@ -4,6 +4,7 @@
 #
 
 import functools
+import json
 import threading
 from enum import Enum, unique
 import time
@@ -116,6 +117,7 @@ class TelemetryField(Enum):
     )
     # multi-threading
     THREAD_IDENTIFIER = "thread_ident"
+    # data source
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -547,12 +549,17 @@ class TelemetryClient:
         )
 
     @safe_telemetry
-    def send_data_source_perf_telemetry(self, func_name: str, duration: float):
-        self.send_performance_telemetry(
-            category=TelemetryField.PERF_CAT_DATA_SOURCE.value,
-            func_name=func_name,
-            duration=duration,
-        )
+    def send_data_source_perf_telemetry(self, telemetry_json_string: dict):
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_PERFORMANCE_DATA.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.KEY_CATEGORY.value: TelemetryField.PERF_CAT_DATA_SOURCE.value,
+                TelemetryField.MESSAGE.value: json.dumps(telemetry_json_string),
+            },
+        }
+        self.send(message)
 
     @safe_telemetry
     def send_function_usage_telemetry(
