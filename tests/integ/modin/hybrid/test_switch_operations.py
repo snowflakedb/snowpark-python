@@ -309,7 +309,7 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
 
 
 @sql_count_checker(
-    query_count=13,
+    query_count=12,
     join_count=6,
     udtf_count=2,
     high_count_expected=True,
