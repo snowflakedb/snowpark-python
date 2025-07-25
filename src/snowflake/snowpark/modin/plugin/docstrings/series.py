@@ -1981,6 +1981,11 @@ class Series(BasePandasDataset):
         ...     return x * 2  # doctest: +SKIP
         ...
         >>> s.map(double, snowflake_udf_params={"name": "permanent_double", "stage_location": "@sample_upload_stage"})  # doctest: +SKIP
+        0          catcat
+        1          dogdog
+        2            None
+        3    rabbitrabbit
+        dtype: object
 
         You may also pass `replace` and `if_not_exists` in the dictionary to overwrite or re-use existing UDFs.
 

@@ -853,6 +853,10 @@ class DataFrame(BasePandasDataset):
         ...     return x * 2  # doctest: +SKIP
         ...
         >>> df.apply(double, snowflake_udf_params={"name": "permanent_double", "stage_location": "@sample_upload_stage"})  # doctest: +SKIP
+           A   B
+        0  4   0
+        1  6  14
+        2  8  18
 
         You may also pass `replace` and `if_not_exists` in the dictionary to overwrite or re-use existing UDTFs.
         """
@@ -5237,10 +5241,13 @@ class DataFrame(BasePandasDataset):
         The following example generates a permanent UDF named "permanent_double":
 
         >>> session.sql("CREATE STAGE sample_upload_stage").collect()  # doctest: +SKIP
-        >>> def double(x: int) -> int:  # doctest: +SKIP
+        >>> def double(x: float) -> float:  # doctest: +SKIP
         ...     return x * 2  # doctest: +SKIP
         ...
         >>> df.map(double, snowflake_udf_params={"name": "permanent_double", "stage_location": "@sample_upload_stage"})  # doctest: +SKIP
+                 0      1
+        0.0  2.000  4.240
+        1.0  6.712  9.134
 
         You may also pass `replace` and `if_not_exists` in the dictionary to overwrite or re-use existing UDFs.
         """
