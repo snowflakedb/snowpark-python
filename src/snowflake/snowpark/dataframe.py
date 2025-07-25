@@ -616,7 +616,7 @@ class DataFrame:
 
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
-        self._is_grouped_by_and_aggregated = False
+        self._ops_after_agg = None
 
         # Whether all columns are VARIANT data type,
         # which support querying nested fields via dot notations
@@ -1969,7 +1969,8 @@ class DataFrame:
         # the filtering for dataframe after aggregation without nesting using HAVING
         if (
             context._is_snowpark_connect_compatible_mode
-            and self._is_grouped_by_and_aggregated
+            and self._ops_after_agg is not None
+            and "filter" not in self._ops_after_agg
         ):
             having_plan = Filter(filter_col_expr, self._plan, is_having=True)
             if self._select_statement:
@@ -1984,7 +1985,8 @@ class DataFrame:
                 )
             else:
                 df = self._with_plan(having_plan, _ast_stmt=stmt)
-            df._is_grouped_by_and_aggregated = True
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("filter")
             return df
         else:
             if self._select_statement:
@@ -2133,7 +2135,8 @@ class DataFrame:
         # the sorting for dataframe after aggregation without nesting
         if (
             context._is_snowpark_connect_compatible_mode
-            and self._is_grouped_by_and_aggregated
+            and self._ops_after_agg is not None
+            and "sort" not in self._ops_after_agg
         ):
             sort_plan = Sort(sort_exprs, self._plan, is_order_by_append=True)
             if self._select_statement:
@@ -2148,7 +2151,8 @@ class DataFrame:
                 )
             else:
                 df = self._with_plan(sort_plan, _ast_stmt=stmt)
-            df._is_grouped_by_and_aggregated = True
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("sort")
             return df
         else:
             df = (
@@ -2854,13 +2858,39 @@ class DataFrame:
         else:
             stmt = None
 
-        if self._select_statement:
-            return self._with_plan(
-                self._select_statement.limit(n, offset=offset), _ast_stmt=stmt
+        # In snowpark_connect_compatible mode, we need to handle
+        # the limit for dataframe after aggregation without nesting
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._ops_after_agg is not None
+            and "limit" not in self._ops_after_agg
+        ):
+            limit_plan = Limit(
+                Literal(n), Literal(offset), self._plan, is_limit_append=True
             )
-        return self._with_plan(
-            Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
-        )
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            limit_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(limit_plan, _ast_stmt=stmt)
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("limit")
+            return df
+        else:
+            if self._select_statement:
+                return self._with_plan(
+                    self._select_statement.limit(n, offset=offset), _ast_stmt=stmt
+                )
+            return self._with_plan(
+                Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
+            )
 
     @df_api_usage
     @publicapi
