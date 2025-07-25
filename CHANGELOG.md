@@ -2,9 +2,17 @@
 
 ## 1.36.0 (YYYY-MM-DD)
 
+### Snowpark Python API Updates
+
 #### New Features
 
 - `Session.create_dataframe` now accepts keyword arguments that are forwarded to the internal call to `Session.write_pandas` or `Session.write_arrow` when creating a DataFrame from a pandas DataFrame or a pyarrow Table.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for creating permanent UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
 
 ## 1.35.0 (YYYY-MM-DD)
 
