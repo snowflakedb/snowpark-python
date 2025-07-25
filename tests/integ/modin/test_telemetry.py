@@ -720,7 +720,7 @@ def test_telemetry_multiple_func_call_count(session):
         assert repr_telemetry_data[-1]["call_count"] == 2
 
         # last call from telemetry data
-        # s called __dataframe__() 2 times.
+        # s called __dataframe__() 1 time.
         assert dataframe_telemetry_data[-1]["call_count"] == 1
 
 
