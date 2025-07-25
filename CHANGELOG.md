@@ -4,8 +4,6 @@
 
 ### Snowpark Python API Updates
 
-#### Bug Fixes
-
 #### New Features
 
 - `Session.create_dataframe` now accepts keyword arguments that are forwarded to the internal call to `Session.write_pandas` or `Session.write_arrow` when creating a DataFrame from a pandas DataFrame or a pyarrow Table.
@@ -35,37 +33,30 @@
 
 ### Snowpark Python API Updates
 
-#### Bug Fixes
-
-- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
-- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` accept illegal schema.
-
 #### New Features
 
-- Added support for Python 3.13 runtime.
 - Added support for the following functions in `functions.py`:
   - `ai_embed`
   - `try_parse_json`
 
-#### Improvements
-
-- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
-- Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
-
 #### Bug Fixes
 
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` accept illegal schema.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` does not work when connecting to Postgres and Mysql.
 - Fixed a bug in schema inference that would cause it to fail for external stages.
 
-### Snowpark Local Testing Updates
+#### Improvements
 
-- Added local testing support for reading files with `SnowflakeFile` using local file paths, the Snow URL semantic (snow://...), local testing framework stages, and Snowflake stages (@stage/file_path).
+- Improved `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+- Improved error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+
+
+### Snowpark Local Testing Updates
 
 #### New Features
 
-#### Improvements
-
-#### Bug Fixes
+- Added local testing support for reading files with `SnowflakeFile` using local file paths, the Snow URL semantic (snow://...), local testing framework stages, and Snowflake stages (@stage/file_path).
 
 ### Snowpark pandas API Updates
 
