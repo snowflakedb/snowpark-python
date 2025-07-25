@@ -2938,8 +2938,11 @@ class Session:
             table_name: Table name where we want to insert into.
             database: Database schema and table is in, if not provided the default one will be used (Default value = None).
             schema: Schema table is in, if not provided the default one will be used (Default value = None).
-            chunk_size: Number of elements to be inserted in each batch, if not provided all elements will be dumped
-                (Default value = None).
+            chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
+                Default to None normally, 100,000 if inside a stored procedure.
+                Note: If auto_create_table or overwrite is set to True, the chunk size may affect schema
+                inference because different chunks might contain varying data types,
+                especially when None values are present. This can lead to inconsistencies in inferred types.
             compression: The compression used on the Parquet files, can only be gzip, or snappy. Gzip gives a
                 better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
             on_error: Action to take when COPY INTO statements fail, default follows documentation at:
@@ -3114,6 +3117,9 @@ class Session:
             schema: Schema that the table is in. If not provided, the default one will be used.
             chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
                 Default to None normally, 100,000 if inside a stored procedure.
+                Note: If auto_create_table or overwrite is set to True, the chunk size may affect schema
+                inference because different chunks might contain varying data types,
+                especially when None values are present. This can lead to inconsistencies in inferred types.
             compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
                 better compression, while snappy is faster. Use whichever is more appropriate.
             on_error: Action to take when COPY INTO statements fail. See details at
@@ -3351,14 +3357,18 @@ class Session:
         data: Union[List, Tuple, "pandas.DataFrame", "pyarrow.Table"],
         schema: Optional[Union[StructType, Iterable[str], str]] = None,
         _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
-        If creating a new DataFrame from a pandas Dataframe, we will store the pandas
-        DataFrame in a temporary table and return a DataFrame pointing to that temporary
+        If creating a new DataFrame from a pandas Dataframe or a PyArrow Table, we will store
+        the data in a temporary table and return a DataFrame pointing to that temporary
         table for you to then do further transformations on. This temporary table will be
-        dropped at the end of your session. If you would like to save the pandas DataFrame,
-        use the :meth:`write_pandas` method instead.
+        dropped at the end of your session. If you would like to save the pandas DataFrame or PyArrow Table,
+        use the :meth:`write_pandas` or :meth:`write_arrow` method instead.
+        Note: When ``data`` is a pandas DataFrame or pyarrow Table, schema inference may be affected by chunk size.
+        You can control it by passing the ``chunk_size`` keyword argument. For details, see :meth:`write_pandas`
+        or :meth:`write_arrow`, which are used internally by this function.
 
         Args:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
@@ -3376,6 +3386,9 @@ class Session:
 
                 To improve performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
+            **kwargs: Additional keyword arguments passed to :meth:`write_pandas` or :meth:`write_arrow`
+                when ``data`` is a pandas DataFrame or pyarrow Table, respectively. These can include
+                options such as chunk_size or compression.
 
         Examples::
 
@@ -3471,6 +3484,7 @@ class Session:
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
                         _emit_ast=False,
+                        **kwargs,
                     )
                     set_api_call_source(table, "Session.create_dataframe[arrow]")
                 else:
@@ -3484,6 +3498,7 @@ class Session:
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
                         _emit_ast=False,
+                        **kwargs,
                     )
                     set_api_call_source(table, "Session.create_dataframe[pandas]")
 

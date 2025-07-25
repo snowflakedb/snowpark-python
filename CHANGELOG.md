@@ -1,5 +1,13 @@
 # Release History
 
+## 1.36.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- `Session.create_dataframe` now accepts keyword arguments that are forwarded to the internal call to `Session.write_pandas` or `Session.write_arrow` when creating a DataFrame from a pandas DataFrame or a pyarrow Table.
+
 ## 1.35.0 (2025-07-24)
 
 ### Snowpark Python API Updates
