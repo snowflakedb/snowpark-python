@@ -1166,9 +1166,10 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, Limit):
-            on_top_of_order_by = isinstance(
-                logical_plan.child, SnowflakePlan
-            ) and isinstance(logical_plan.child.source_plan, Sort)
+            on_top_of_order_by = logical_plan.is_limit_append or (
+                isinstance(logical_plan.child, SnowflakePlan)
+                and isinstance(logical_plan.child.source_plan, Sort)
+            )
             return self.plan_builder.limit(
                 self.to_sql_try_avoid_cast(
                     logical_plan.limit_expr, df_aliased_col_name_to_real_col_name

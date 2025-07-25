@@ -288,13 +288,18 @@ class SnowflakeCreateTable(LogicalPlan):
 
 class Limit(LogicalPlan):
     def __init__(
-        self, limit_expr: Expression, offset_expr: Expression, child: LogicalPlan
+        self,
+        limit_expr: Expression,
+        offset_expr: Expression,
+        child: LogicalPlan,
+        is_limit_append: bool = False,
     ) -> None:
         super().__init__()
         self.limit_expr = limit_expr
         self.offset_expr = offset_expr
         self.child = child
         self.children.append(child)
+        self.is_limit_append = is_limit_append
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
