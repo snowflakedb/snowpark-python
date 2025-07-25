@@ -316,6 +316,10 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
     high_count_reason="tests queries across different execution modes",
 )
 def test_query_count_no_switch(init_transaction_tables):
+    '''
+    Tests that when there is no switching behavior the query count is the
+    same under hybrid mode and non-hybrid mode.
+    '''
     def inner_test(df_in):
         df_result = df_in[(df_in["REVENUE"] > 123) & (df_in["REVENUE"] < 200)]
         df_result["REVENUE_DUPE"] = df_result["REVENUE"]
