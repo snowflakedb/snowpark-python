@@ -51,13 +51,13 @@ class RowCountEstimator:
         Returns:
             int: The estimated upper bound on the number of rows in the resulting dataframe
         """
-        
+
         if df.row_count and df.row_count_upper_bound < df.row_count:
             raise RuntimeError("row upper bound is less than row count")
-        
+
         # Get the current upper bound. If not set, return None
         current = df.row_count_upper_bound or df.row_count
-        
+
         if current is None:
             return None
 

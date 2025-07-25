@@ -12,7 +12,6 @@ import pandas as native_pd
 import numpy as np
 from numpy.testing import assert_array_equal
 from modin.config import context as config_context
-from modin.config import AutoSwitchBackend
 import modin.pandas as pd
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.utils import (
