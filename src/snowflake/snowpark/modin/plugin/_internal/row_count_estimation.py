@@ -120,11 +120,7 @@ class RowCountEstimator:
                 return None
             how = args["how"]
             if how == "inner":
-                # choose smallest
-                if current < other_bound:
-                    return current
-                else:
-                    return other_bound
+                return min(current, other_bound)
             if how in ["outer", "coalesce", "left", "right"]:
                 return current + other_bound
             # We do not support cross-joins/cartesian products in ALIGN
