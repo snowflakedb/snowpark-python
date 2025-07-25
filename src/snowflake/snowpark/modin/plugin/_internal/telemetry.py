@@ -734,6 +734,6 @@ def hybrid_describe_telemetry_watcher(
 
 
 def connect_modin_telemetry() -> None:
-    MetricsMode.enable()
-    add_metric_handler(modin_telemetry_watcher)
-    add_metric_handler(hybrid_describe_telemetry_watcher)
+    MetricsMode.disable()
+    # add_metric_handler(modin_telemetry_watcher)
+    # add_metric_handler(hybrid_describe_telemetry_watcher)
