@@ -175,7 +175,7 @@ from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
-from snowflake.snowpark._internal.debug_utils import DataframeQueryProfiler
+from snowflake.snowpark._internal.debug_utils import QueryProfiler
 from snowflake.snowpark.functions import (
     abs as abs_,
     col,
@@ -6280,10 +6280,12 @@ class DataFrame:
                 f"No queries found for dataframe with plan uuid {self._plan.uuid}. Make sure to evaluate the dataframe before calling get_execution_profile."
             )
             return
-        profiler = DataframeQueryProfiler(self._session, output_file)
-        for query_id in query_history.dataframe_queries[self._plan.uuid]:
-            profiler.profile_query(query_id)
-        profiler.close()
+        try:
+            profiler = QueryProfiler(self._session, output_file)
+            for query_id in query_history.dataframe_queries[self._plan.uuid]:
+                profiler.profile_query(query_id)
+        finally:
+            profiler.close()
 
     @property
     def queries(self) -> Dict[str, List[str]]:

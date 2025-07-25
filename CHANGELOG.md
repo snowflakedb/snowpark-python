@@ -17,11 +17,7 @@
 - Added support for the following functions in `functions.py`:
   - `ai_embed`
   - `try_parse_json`
-
-#### Improvements
-
-- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
-- Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+- Added a dataframe profiler. To use, you can call get_execution_profile() on your desired dataframe. This profiler reports the queries executed to evaluate a dataframe, and statistics about each of the query operators.
 
 #### Bug Fixes
 

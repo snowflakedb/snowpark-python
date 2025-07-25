@@ -13,7 +13,7 @@ import snowflake.snowpark
 from snowflake.snowpark._internal.ast.batch import get_dependent_bind_ids
 from snowflake.snowpark._internal.ast.utils import __STRING_INTERNING_MAP__
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-import ast
+from ast import literal_eval
 from snowflake.snowpark._internal.ast.utils import extract_src_from_expr
 
 if TYPE_CHECKING:
@@ -455,7 +455,7 @@ def get_existing_object_context(top_plan: "SnowflakePlan", error_msg: str) -> st
     return ""
 
 
-class DataframeQueryProfiler:
+class QueryProfiler:
     """
     A class for profiling Snowflake queries and analyzing operator statistics.
     It can generate tree visualizations and output tables of operator statistics.
@@ -516,7 +516,8 @@ class DataframeQueryProfiler:
             if node_info["parent_operators"] is None:
                 root_nodes.add(node_info["id"])
             else:
-                x = ast.literal_eval(node_info["parent_operators"])
+                # parse parent_operators, which is a string like "[1, 2, 3]" to a list
+                x = literal_eval(node_info["parent_operators"])
                 for parent_id in x:
                     if parent_id not in children:
                         children[parent_id] = []

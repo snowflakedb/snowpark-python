@@ -437,7 +437,7 @@ class ServerConnection:
         if "_statement_params" in kwargs and kwargs["_statement_params"]:
             statement_params = kwargs["_statement_params"]
             if "_PLAN_UUID" in statement_params:
-                notify_kwargs["dataframeUUID"] = statement_params["_PLAN_UUID"]
+                notify_kwargs["dataframe_uuid"] = statement_params["_PLAN_UUID"]
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
         except Exception as ex:
@@ -464,7 +464,7 @@ class ServerConnection:
         if "_statement_params" in kwargs and kwargs["_statement_params"]:
             statement_params = kwargs["_statement_params"]
             if "_PLAN_UUID" in statement_params:
-                notify_kwargs["dataframeUUID"] = statement_params["_PLAN_UUID"]
+                notify_kwargs["dataframe_uuid"] = statement_params["_PLAN_UUID"]
 
         try:
             results_cursor = self._cursor.execute_async(query, **kwargs)

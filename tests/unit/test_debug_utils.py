@@ -11,7 +11,7 @@ import pytest
 from snowflake.snowpark._internal.ast.batch import AstBatch
 from snowflake.snowpark._internal.debug_utils import (
     DataFrameTraceNode,
-    DataframeQueryProfiler,
+    QueryProfiler,
     _format_source_location,
 )
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -106,7 +106,7 @@ def test_format_source_location(
 )
 def test_write_output_to_stdout(message, expected_output):
     mock_session = mock.MagicMock()
-    profiler = DataframeQueryProfiler(mock_session)
+    profiler = QueryProfiler(mock_session)
     with mock.patch("sys.stdout") as mock_stdout:
         profiler._write_output(message)
         mock_stdout.write.assert_called_once_with(expected_output)
@@ -124,7 +124,7 @@ def test_write_output_to_stdout(message, expected_output):
 def test_write_output_to_file(message, expected_content):
     mock_session = mock.MagicMock()
     open(test_write_file_path, "w").close()
-    profiler = DataframeQueryProfiler(mock_session, test_write_file_path)
+    profiler = QueryProfiler(mock_session, test_write_file_path)
     profiler._write_output(message)
     profiler.close()
     with open(test_write_file_path, encoding="utf-8") as test_file:
@@ -134,7 +134,7 @@ def test_write_output_to_file(message, expected_content):
 
 def test_build_operator_tree():
     mock_session = mock.MagicMock()
-    profiler = DataframeQueryProfiler(mock_session)
+    profiler = QueryProfiler(mock_session)
     operators_data = [
         {
             "OPERATOR_ID": 1,
@@ -182,7 +182,7 @@ def test_build_operator_tree():
 
 def test_build_operator_tree_with_default_values():
     mock_session = mock.MagicMock()
-    profiler = DataframeQueryProfiler(mock_session)
+    profiler = QueryProfiler(mock_session)
     operators_data = [{}]
 
     nodes, _, _ = profiler.build_operator_tree(operators_data)
@@ -216,7 +216,7 @@ def test_print_operator_tree_single_node():
         temp_path = temp_file.name
 
     try:
-        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler = QueryProfiler(mock_session, temp_path)
         profiler.print_operator_tree(nodes, children, 1)
         profiler.close()
 
@@ -258,7 +258,7 @@ def test_print_operator_tree_with_children():
         temp_path = temp_file.name
 
     try:
-        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler = QueryProfiler(mock_session, temp_path)
         profiler.print_operator_tree(nodes, children, 1)
         profiler.close()
 
@@ -310,7 +310,7 @@ def test_print_operator_tree_multiple_children():
         temp_path = temp_file.name
 
     try:
-        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler = QueryProfiler(mock_session, temp_path)
         profiler.print_operator_tree(nodes, children, 1)
         profiler.close()
 
@@ -378,7 +378,7 @@ def test_print_operator_tree_three_levels():
         temp_path = temp_file.name
 
     try:
-        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler = QueryProfiler(mock_session, temp_path)
         profiler.print_operator_tree(nodes, children, 1)
         profiler.close()
 
@@ -433,7 +433,7 @@ def test_print_operator_tree_with_prefix(prefix, is_last, expected_content):
         temp_path = temp_file.name
 
     try:
-        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler = QueryProfiler(mock_session, temp_path)
         profiler.print_operator_tree(nodes, children, 1, prefix=prefix, is_last=is_last)
         profiler.close()
 
@@ -447,7 +447,7 @@ def test_print_operator_tree_with_prefix(prefix, is_last, expected_content):
 def test_print_operator_tree_to_stdout():
     mock_session = mock.MagicMock()
     # Create profiler without file path to write to stdout
-    profiler = DataframeQueryProfiler(mock_session)
+    profiler = QueryProfiler(mock_session)
     nodes = {
         1: {
             "id": 1,
@@ -488,7 +488,7 @@ def test_profile_query_with_mock_data():
     ]
 
     query_id = "test_query_123"
-    profiler = DataframeQueryProfiler(mock_session)
+    profiler = QueryProfiler(mock_session)
 
     with mock.patch("sys.stdout") as mock_stdout:
         profiler.profile_query(query_id)
@@ -543,7 +543,7 @@ def test_profile_query_output_to_file():
         temp_path = temp_file.name
 
     try:
-        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler = QueryProfiler(mock_session, temp_path)
         profiler.profile_query(query_id)
         profiler.close()
         with open(temp_path, encoding="utf-8") as test_file:
@@ -575,7 +575,7 @@ def test_profile_query_empty_results():
     ]
 
     query_id = "empty_query_789"
-    profiler = DataframeQueryProfiler(mock_session)
+    profiler = QueryProfiler(mock_session)
 
     # Mock stdout to capture output
     with mock.patch("sys.stdout") as mock_stdout:
@@ -620,7 +620,7 @@ def test_profile_query_with_complex_attributes():
         temp_path = temp_file.name
 
     try:
-        profiler = DataframeQueryProfiler(mock_session, temp_path)
+        profiler = QueryProfiler(mock_session, temp_path)
         profiler.profile_query(query_id)
         profiler.close()
         with open(temp_path, encoding="utf-8") as test_file:
