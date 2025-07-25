@@ -134,6 +134,10 @@ class RowCountEstimator:
                     return other_bound
             if how == "outer" or how == "coalesce":
                 return current + other_bound
+            if how == "left":
+                return current
+            if how == "right":
+                return other_bound
             # We do not support cross-joins/cartesian products in ALIGN
             raise ValueError(f"Unsupported operation/method: {operation}/{how}")
 
