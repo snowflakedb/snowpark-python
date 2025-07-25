@@ -115,3 +115,101 @@ public class DataLoader{{
 $$
 ;
 """
+
+
+INFER_SCHEMA_UDTF = """
+CREATE OR REPLACE FUNCTION jdbc_test(query VARCHAR)
+RETURNS TABLE (field_name VARCHAR, field_type VARCHAR, nullable BOOLEAN)
+LANGUAGE JAVA
+RUNTIME_VERSION = '11'
+EXTERNAL_ACCESS_INTEGRATIONS=(******************)
+packages=('com.snowflake:snowpark:latest')
+IMPORTS = ('**********')
+HANDLER = 'DataLoader'
+as
+$$
+
+import java.sql.*;
+import java.util.stream.Stream;
+import java.util.ArrayList;
+import java.util.List;
+import com.snowflake.snowpark_java.types.*;
+import com.snowflake.snowpark_java.udtf.*;
+import com.snowflake.snowpark_java.types.SnowflakeSecrets;
+import com.snowflake.snowpark_java.types.UsernamePassword;
+
+class OutputRow {{
+
+    public String field_name;
+    public String field_type;
+    public boolean nullable;
+
+}}
+
+public class DataLoader{{
+    private final Connection conn;
+
+    private static Connection createConnection() {{
+        try {{
+            Class.forName("*********");
+            String url = "jdbc:oracle:thin:@*****:1521/ORCL";
+            String username = "*****";
+            String password = "*****";
+            return DriverManager.getConnection(url, username, password);
+        }} catch (Exception e) {{
+            throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
+        }}
+    }}
+    public static Class<?> getOutputClass() {{
+        return OutputRow.class;
+    }}
+
+    public StructType outputSchema() {{
+        return StructType.create(
+            new StructField("field_name", DataTypes.StringType),
+            new StructField("field_type", DataTypes.StringType),
+            new StructField("nullable", DataTypes.BooleanType)
+        );
+    }}
+
+    public DataLoader() {{
+        this.conn = createConnection();
+    }}
+
+    public Stream<OutputRow> process(String query) {{
+        List<OutputRow> list = new ArrayList<>();
+         try {{
+            PreparedStatement stmt = this.conn.prepareStatement(query);
+            // Avoid fetching data – get only metadata
+            stmt.setMaxRows(1);
+            try (ResultSet rs = stmt.executeQuery()) {{
+                ResultSetMetaData meta = rs.getMetaData();
+                int columnCount = meta.getColumnCount();
+
+                for (int i = 1; i <= columnCount; i++) {{
+                    OutputRow row = new OutputRow();
+
+                    String name = meta.getColumnName(i);
+                    String type = meta.getColumnTypeName(i);
+                    boolean nullable = meta.isNullable(i) == ResultSetMetaData.columnNullable;
+                    row.field_name = name;
+                    row.field_type = type;
+                    row.nullable = nullable;
+                    list.add(row);
+                }}
+            }}
+        }} catch (SQLException e) {{
+            throw new RuntimeException("SQL error: " + e.getMessage(), e);
+        }}
+
+        return list.stream();
+    }}
+
+    public Stream<OutputRow> endPartition() {{
+        return Stream.empty();
+    }}
+}}
+$$
+;
+
+"""
