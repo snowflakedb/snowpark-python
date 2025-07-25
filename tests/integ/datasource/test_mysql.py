@@ -17,6 +17,10 @@ from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_real_data,
     MysqlType,
     mysql_schema,
+    mysql_more_column_schema,
+    mysql_less_column_schema,
+    mysql_unicode_schema,
+    mysql_double_quoted_schema,
 )
 from tests.utils import RUNNING_ON_JENKINS, Utils
 from tests.parameters import MYSQL_CONNECTION_PARAMETERS
@@ -74,10 +78,26 @@ def create_connection_mysql():
             None,
             TEST_QUERY,
         ),
+        (
+            create_connection_mysql,
+            None,
+            f"({TEST_QUERY})",
+        ),
     ],
 )
-def test_dbapi_mysql(session, create_connection, table_name, query):
-    df = session.read.dbapi(create_connection, table=table_name, query=query)
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        mysql_schema,
+        mysql_more_column_schema,
+        mysql_less_column_schema,
+        None,
+    ],
+)
+def test_basic_mysql(session, create_connection, table_name, query, custom_schema):
+    df = session.read.dbapi(
+        create_connection, table=table_name, query=query, custom_schema=custom_schema
+    )
     Utils.check_answer(df, mysql_real_data)
     assert df.schema == mysql_schema
 
@@ -139,13 +159,32 @@ def test_pymysql_driver_coverage(caplog):
     assert "Snowpark does not support column" in caplog.text
 
 
-def test_unicode_column_name_mysql(session):
-    df = session.read.dbapi(create_connection_mysql, table="用户資料")
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        mysql_unicode_schema,
+        None,
+    ],
+)
+def test_unicode_column_name_mysql(session, custom_schema):
+    df = session.read.dbapi(
+        create_connection_mysql, table="用户資料", custom_schema=custom_schema
+    )
     assert df.collect() == [Row(編號=1, 姓名="山田太郎", 國家="日本", 備註="これはUnicodeテストです")]
+    assert df.schema == mysql_unicode_schema
 
 
-def test_double_quoted_column_name_mysql(session):
-    df = session.read.dbapi(create_connection_mysql, table='"UserProfile"')
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        mysql_double_quoted_schema,
+        None,
+    ],
+)
+def test_double_quoted_column_name_mysql(session, custom_schema):
+    df = session.read.dbapi(
+        create_connection_mysql, table='"UserProfile"', custom_schema=custom_schema
+    )
     assert df.collect() == [
         Row(
             Id=1,
@@ -154,6 +193,7 @@ def test_double_quoted_column_name_mysql(session):
             Notes="This is a case-sensitive example.",
         )
     ]
+    assert df.schema == mysql_double_quoted_schema
 
 
 @pytest.mark.parametrize(
@@ -186,6 +226,7 @@ def test_infer_type_from_data(data, number_of_columns, expected_result):
     assert result == expected_result
 
 
+@pytest.mark.udf
 def test_udtf_ingestion_mysql(session, caplog):
     from tests.parameters import MYSQL_CONNECTION_PARAMETERS
 

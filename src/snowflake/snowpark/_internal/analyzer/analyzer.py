@@ -27,6 +27,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     insert_merge_statement,
     like_expression,
     list_agg,
+    model_expression,
     named_arguments_function,
     order_expression,
     range_statement,
@@ -61,7 +62,6 @@ from snowflake.snowpark._internal.analyzer.datatype_mapper import (
     to_sql,
 )
 from snowflake.snowpark._internal.analyzer.expression import (
-    NamedFunctionExpression,
     Attribute,
     CaseWhen,
     Collate,
@@ -73,8 +73,10 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Like,
     ListAgg,
     Literal,
+    ModelExpression,
     MultipleExpression,
     NamedExpression,
+    NamedFunctionExpression,
     RegExp,
     ScalarSubquery,
     SnowflakeUDF,
@@ -416,6 +418,17 @@ class Analyzer:
                         expr.df_alias
                     )
             return expr.name
+
+        if isinstance(expr, ModelExpression):
+            return model_expression(
+                expr.model_name,
+                expr.version_or_alias_name,
+                expr.method_name,
+                [
+                    self.to_sql_try_avoid_cast(c, df_aliased_col_name_to_real_col_name)
+                    for c in expr.children
+                ],
+            )
 
         if isinstance(expr, FunctionExpression):
             if expr.api_call_source is not None:
@@ -1017,6 +1030,7 @@ class Analyzer:
                 self.analyze(
                     logical_plan.condition, df_aliased_col_name_to_real_col_name
                 ),
+                logical_plan.is_having,
                 resolved_children[logical_plan.child],
                 logical_plan,
             )
@@ -1069,6 +1083,7 @@ class Analyzer:
                     self.analyze(x, df_aliased_col_name_to_real_col_name)
                     for x in logical_plan.order
                 ],
+                logical_plan.is_order_by_append,
                 resolved_children[logical_plan.child],
                 logical_plan,
             )

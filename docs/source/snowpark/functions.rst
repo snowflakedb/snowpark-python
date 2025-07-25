@@ -23,6 +23,7 @@ Functions
     acosh
     add_months
     ai_agg
+    ai_embed
     ai_classify
     ai_complete
     ai_filter
@@ -265,6 +266,7 @@ Functions
     min_by
     minute
     mode
+    model
     monotonically_increasing_id
     month
     monthname
@@ -382,6 +384,7 @@ Functions
     trim
     trunc
     try_cast
+    try_parse_json
     try_to_binary
     typeof
     udaf

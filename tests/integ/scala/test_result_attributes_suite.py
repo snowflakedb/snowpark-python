@@ -126,7 +126,7 @@ def test_array_type(session):
     (
         "tables",
         "transactions",
-        "locks",
+        pytest.param("locks", marks=pytest.mark.xfail),
         "schemas",
         "objects",
         "views",

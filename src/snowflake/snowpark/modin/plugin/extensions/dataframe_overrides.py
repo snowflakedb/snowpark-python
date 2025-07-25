@@ -36,6 +36,9 @@ from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeD
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
+from modin.core.storage_formats.pandas.query_compiler_caster import (
+    register_function_for_pre_op_switch,
+)
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     AggFuncType,
@@ -80,7 +83,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     convert_index_to_qc,
     error_checking_for_init,
     is_repr_truncated,
-    MODIN_IS_AT_LEAST_0_33_0,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
@@ -115,28 +117,18 @@ from snowflake.snowpark.modin.utils import (
 )
 from snowflake.snowpark.udf import UserDefinedFunction
 
+from modin.pandas.groupby import DataFrameGroupBy
+from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides import (
+    validate_groupby_args,
+)
+from modin.pandas.api.extensions import (
+    register_dataframe_accessor as _register_dataframe_accessor,
+)
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    from modin.pandas.groupby import DataFrameGroupBy
-    from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides import (
-        validate_groupby_args,
-    )
-    from modin.pandas.api.extensions import (
-        register_dataframe_accessor as _register_dataframe_accessor,
-    )
-    from modin.core.storage_formats.pandas.query_compiler_caster import (
-        register_function_for_pre_op_switch,
-    )
 
-    register_dataframe_accessor = functools.partial(
-        _register_dataframe_accessor, backend="Snowflake"
-    )
-else:  # pragma: no branch
-    from snowflake.snowpark.modin.plugin.extensions.groupby_overrides import (
-        DataFrameGroupBy,
-        validate_groupby_args,
-    )
-    from modin.pandas.api.extensions import register_dataframe_accessor
+register_dataframe_accessor = functools.partial(
+    _register_dataframe_accessor, backend="Snowflake"
+)
 
 
 def register_dataframe_not_implemented():
@@ -144,10 +136,9 @@ def register_dataframe_not_implemented():
         func = dataframe_not_implemented()(base_method)
         name = base_method.__name__
         HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("DataFrame", name))
-        if MODIN_IS_AT_LEAST_0_33_0:
-            register_function_for_pre_op_switch(
-                class_name="DataFrame", backend="Snowflake", method=name
-            )
+        register_function_for_pre_op_switch(
+            class_name="DataFrame", backend="Snowflake", method=name
+        )
         register_dataframe_accessor(name)(func)
         return func
 
@@ -176,7 +167,6 @@ def _map(self, func: PythonFuncType, na_action: str | None = None, **kwargs):
     )
 
 
-@register_dataframe_not_implemented()
 def boxplot(
     self,
     column=None,
@@ -191,7 +181,22 @@ def boxplot(
     backend=None,
     **kwargs,
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    WarningMessage.single_warning(
+        "DataFrame.boxplot materializes data to the local machine."
+    )
+    return self._to_pandas().boxplot(
+        column=column,
+        by=by,
+        ax=ax,
+        fontsize=fontsize,
+        rot=rot,
+        grid=grid,
+        figsize=figsize,
+        layout=layout,
+        return_type=return_type,
+        backend=backend,
+        **kwargs,
+    )
 
 
 @register_dataframe_not_implemented()
@@ -964,19 +969,20 @@ def applymap(self, func: PythonFuncType, na_action: str | None = None, **kwargs)
     return self.map(func, na_action=na_action, **kwargs)
 
 
-if MODIN_IS_AT_LEAST_0_33_0:
-    # In older versions of Snowpark pandas, overrides to base methods would automatically override
-    # corresponding DataFrame/Series API definitions as well. For consistency between methods, this
-    # is no longer the case, and DataFrame/Series must separately apply this override.
-    def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
-        # Use a field on the query compiler instead of self to avoid any possible ambiguity with
-        # a column named "_attrs"
-        self._query_compiler._attrs = copy.deepcopy(value)
+# In older versions of Snowpark pandas, overrides to base methods would automatically override
+# corresponding DataFrame/Series API definitions as well. For consistency between methods, this
+# is no longer the case, and DataFrame/Series must separately apply this override.
+def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
+    # Use a field on the query compiler instead of self to avoid any possible ambiguity with
+    # a column named "_attrs"
+    self._query_compiler._attrs = copy.deepcopy(value)
 
-    def _get_attrs(self) -> dict:  # noqa: RT01, D200
-        return self._query_compiler._attrs
 
-    register_dataframe_accessor("attrs")(property(_get_attrs, _set_attrs))
+def _get_attrs(self) -> dict:  # noqa: RT01, D200
+    return self._query_compiler._attrs
+
+
+register_dataframe_accessor("attrs")(property(_get_attrs, _set_attrs))
 
 
 # We need to override _get_columns to satisfy
@@ -1181,6 +1187,7 @@ def groupby(
         dropna=dropna,
         drop=False,  # TODO reconcile with OSS modin's drop flag
         return_tuple_when_iterating=return_tuple_when_iterating,
+        backend_pinned=self.is_backend_pinned(),
     )
 
 

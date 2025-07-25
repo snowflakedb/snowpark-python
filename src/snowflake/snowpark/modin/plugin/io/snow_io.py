@@ -173,7 +173,7 @@ def _file_from_stage(filepath_or_buffer):
     with tempfile.TemporaryDirectory() as local_temp_dir:
         session.file.get(filepath_or_buffer, local_temp_dir)
         _, stripped_filepath = extract_stage_name_and_prefix(filepath_or_buffer)
-        yield os.path.join(local_temp_dir, stripped_filepath)
+        yield os.path.join(local_temp_dir, os.path.basename(stripped_filepath))
 
 
 class PandasOnSnowflakeIO(BaseIO):
@@ -721,13 +721,34 @@ class PandasOnSnowflakeIO(BaseIO):
         return cls.from_pandas(pandas.read_feather(**kwargs))
 
     @classmethod
-    @pandas_module_level_function_not_implemented()
-    def read_stata(
-        cls,
-        filepath_or_buffer,
-        **kwargs,
-    ):
-        pass  # pragma: no cover
+    def read_stata(cls, **kwargs) -> SnowflakeQueryCompiler:
+        """
+        Read Stata file into a query compiler.
+        """
+        filepath_or_buffer = kwargs["filepath_or_buffer"]
+        if is_snowflake_stage_path(filepath_or_buffer):
+            with _file_from_stage(filepath_or_buffer) as local_filepath:
+                kwargs["filepath_or_buffer"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls.from_pandas(pandas.read_stata(**kwargs))
+
+        return cls.from_pandas(pandas.read_stata(**kwargs))
+
+    @classmethod
+    def read_orc(cls, **kwargs) -> SnowflakeQueryCompiler:
+        """
+        Load an ORC object from the file path into a query compiler.
+        """
+        path = kwargs["path"]
+        if is_snowflake_stage_path(path):
+            with _file_from_stage(path) as local_filepath:
+                kwargs["path"] = local_filepath
+                # We have to return here because the temp file is deleted
+                # after exiting this block
+                return cls.from_pandas(pandas.read_orc(**kwargs))
+
+        return cls.from_pandas(pandas.read_orc(**kwargs))
 
     @classmethod
     def read_sas(cls, **kwargs):  # noqa: PR01

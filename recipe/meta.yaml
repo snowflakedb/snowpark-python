@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.33.0" %}
+{% set version = "1.34.0" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 {% set build_number = os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) %}
 
@@ -23,10 +23,11 @@ build:
   string: "py310_{{ build_number }}"  # [py==310]
   string: "py311_{{ build_number }}"  # [py==311]
   string: "py312_{{ build_number }}"  # [py==312]
+  string: "py313_{{ build_number }}"  # [py==313]
 {% endif %}
 
-{% if noarch_build and py not in [39, 310, 311, 312] %}
-error: "Noarch build for Python version {{ py }} is not supported. Supported versions: 3.9, 3.10, 3.11, or 3.12."
+{% if noarch_build and py not in [39, 310, 311, 312, 313] %}
+error: "Noarch build for Python version {{ py }} is not supported. Supported versions: 3.9, 3.10, 3.11, 3.12, or 3.13."
 {% else %}
 requirements:
   host:
@@ -47,6 +48,8 @@ requirements:
     - python >=3.11,<3.12.0a0
     {% elif noarch_build and py == 312 %}
     - python >=3.12,<3.13.0a0
+    {% elif noarch_build and py == 313 %}
+    - python >=3.13,<3.14.0a0
     {% else %}
     - python
     {% endif %}
@@ -63,7 +66,7 @@ requirements:
     - tzlocal
   run_constrained:
     # Snowpark pandas
-    - modin >=0.32.0,<0.34.0
+    - modin >=0.33.0,<0.35.0
 {% endif %}
 
 test:

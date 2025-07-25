@@ -664,7 +664,7 @@ import scipy.stats  # noqa: E402
     "packages,expected_query_count",
     [
         (["scipy", "numpy"], 26),
-        (["scipy>1.1", "numpy<2.0"], 26),
+        # TODO: SNOW-2217451 Re-enable scipy>1.1, numpy<2.0 test case after NumPy 2.x compatibility issue is resolved
         # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
         # [scipy, np], 9),
     ],

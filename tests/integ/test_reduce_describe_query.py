@@ -3,7 +3,7 @@
 #
 
 from typing import List
-
+import copy
 import pytest
 
 import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
@@ -430,7 +430,7 @@ def test_reduce_describe_query_enabled_on_session(db_parameters):
         new_session.reduce_describe_query_enabled = default_value
         assert new_session.reduce_describe_query_enabled is default_value
 
-        parameters = db_parameters.copy()
+        parameters = copy.deepcopy(db_parameters)
         parameters["session_parameters"] = {
             _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED: not default_value
         }

@@ -12,7 +12,6 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_33_0
 
 
 def setup_mock_qc() -> SnowflakeQueryCompiler:
@@ -22,13 +21,12 @@ def setup_mock_qc() -> SnowflakeQueryCompiler:
     # Hybrid engine switching methods
     # Actual values don't matter since we don't do any computation in unit tests, and AutoSwitchBackend
     # is disabled in conftest.py.
-    if MODIN_IS_AT_LEAST_0_33_0:
-        mock_query_compiler.get_backend.return_value = "Snowflake"
-        mock_query_compiler.move_to_cost.return_value = 0
-        mock_query_compiler.move_to_me_cost.return_value = 0
-        mock_query_compiler.max_cost.return_value = 1000
-        mock_query_compiler.stay_cost.return_value = 0
-        mock_query_compiler._max_shape.return_value = (10, 10)
+    mock_query_compiler.get_backend.return_value = "Snowflake"
+    mock_query_compiler.move_to_cost.return_value = 0
+    mock_query_compiler.move_to_me_cost.return_value = 0
+    mock_query_compiler.max_cost.return_value = 1000
+    mock_query_compiler.stay_cost.return_value = 0
+    mock_query_compiler._max_shape.return_value = (10, 10)
     return mock_query_compiler
 
 
@@ -38,7 +36,6 @@ def setup_mock_qc() -> SnowflakeQueryCompiler:
         ["read_gbq", {"query": ""}],
         ["read_clipboard", {}],
         ["read_hdf", {"path_or_buf": ""}],
-        ["read_stata", {"filepath_or_buffer": ""}],
         ["read_sql", {"sql": "", "con": ""}],
         ["read_fwf", {"filepath_or_buffer": ""}],
         ["read_sql_table", {"table_name": "", "con": ""}],
@@ -46,7 +43,6 @@ def setup_mock_qc() -> SnowflakeQueryCompiler:
         ["to_pickle", {"filepath_or_buffer": "", "obj": ""}],
         ["read_spss", {"path": ""}],
         ["json_normalize", {"data": ""}],
-        ["read_orc", {"path": ""}],
     ],
 )
 def test_unsupported_io(io_method, kwargs):
@@ -75,7 +71,6 @@ def test_unsupported_general(general_method, kwargs):
         ["at_time", {"time": ""}],
         ["between_time", {"start_time": "", "end_time": ""}],
         ["bool", {}],
-        ["boxplot", {}],
         ["clip", {}],
         ["combine", {"other": "", "func": ""}],
         ["combine_first", {"other": ""}],

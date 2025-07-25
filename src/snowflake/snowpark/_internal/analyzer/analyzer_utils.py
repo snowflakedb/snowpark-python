@@ -204,6 +204,9 @@ ADD_FIELDS = " ADD FIELDS"
 NEW_LINE = "\n"
 TAB = "    "
 UUID_COMMENT = "-- {}"
+MODEL = "MODEL"
+EXCLAMATION_MARK = "!"
+HAVING = " HAVING "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -252,6 +255,20 @@ def result_scan_statement(uuid_place_holder: str) -> str:
         + RIGHT_PARENTHESIS
         + RIGHT_PARENTHESIS
     )
+
+
+def model_expression(
+    model_name: str,
+    version_or_alias_name: Optional[str],
+    method_name: str,
+    children: List[str],
+) -> str:
+    model_args_str = (
+        f"{model_name}{COMMA}{version_or_alias_name}"
+        if version_or_alias_name
+        else model_name
+    )
+    return f"{MODEL}{LEFT_PARENTHESIS}{model_args_str}{RIGHT_PARENTHESIS}{EXCLAMATION_MARK}{method_name}{LEFT_PARENTHESIS}{COMMA.join(children)}{RIGHT_PARENTHESIS}"
 
 
 def function_expression(name: str, children: List[str], is_distinct: bool) -> str:
@@ -514,14 +531,17 @@ def project_statement(
 
 
 def filter_statement(
-    condition: str, child: str, child_uuid: Optional[str] = None
+    condition: str, is_having: bool, child: str, child_uuid: Optional[str] = None
 ) -> str:
-    return (
-        project_statement([], child, child_uuid=child_uuid)
-        + NEW_LINE
-        + WHERE
-        + condition
-    )
+    if is_having:
+        return child + NEW_LINE + HAVING + condition
+    else:
+        return (
+            project_statement([], child, child_uuid=child_uuid)
+            + NEW_LINE
+            + WHERE
+            + condition
+        )
 
 
 def sample_statement(
@@ -632,10 +652,17 @@ def aggregate_statement(
 
 
 def sort_statement(
-    order: List[str], child: str, child_uuid: Optional[str] = None
+    order: List[str],
+    is_order_by_append: bool,
+    child: str,
+    child_uuid: Optional[str] = None,
 ) -> str:
     return (
-        project_statement([], child, child_uuid=child_uuid)
+        (
+            child
+            if is_order_by_append
+            else project_statement([], child, child_uuid=child_uuid)
+        )
         + NEW_LINE
         + ORDER_BY
         + NEW_LINE
@@ -720,7 +747,7 @@ def values_statement(output: List[Attribute], data: List[Row]) -> str:
 
 def empty_values_statement(output: List[Attribute]) -> str:
     data = [Row(*[None] * len(output))]
-    return filter_statement(UNSAT_FILTER, values_statement(output, data))
+    return filter_statement(UNSAT_FILTER, False, values_statement(output, data))
 
 
 def set_operator_statement(left: str, right: str, operator: str) -> str:
