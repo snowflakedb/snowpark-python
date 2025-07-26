@@ -8,6 +8,27 @@
 
 - `Session.create_dataframe` now accepts keyword arguments that are forwarded to the internal call to `Session.write_pandas` or `Session.write_arrow` when creating a DataFrame from a pandas DataFrame or a pyarrow Table.
 
+#### Improvements
+
+#### Bug Fixes
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+#### Improvements
+
+#### Bug Fixes
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+- Hybrid execution row estimate improvements and a reduction of eager calls.
+
+#### Bug Fixes
+
 ## 1.35.0 (2025-07-24)
 
 ### Snowpark Python API Updates

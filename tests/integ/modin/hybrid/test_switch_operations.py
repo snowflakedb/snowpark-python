@@ -75,12 +75,14 @@ def test_merge(init_transaction_tables, us_holidays_data):
     assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=4)
 def test_filtered_data(init_transaction_tables):
     # When data is filtered, the engine should change when it is sufficiently small.
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     assert df_transactions.get_backend() == "Snowflake"
     # in-place operations that do not change the backend
+    # TODO: the following will result in an align which will grow the
+    # size of the row estimate
     df_transactions["DATE"] = pd.to_datetime(df_transactions["DATE"])
     assert df_transactions.get_backend() == "Snowflake"
     base_date = pd.Timestamp("2025-06-09").date()
@@ -91,7 +93,8 @@ def test_filtered_data(init_transaction_tables):
     assert df_transactions_filter1.get_backend() == "Snowflake"
     # The smaller dataframe does operations in pandas
     df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()["REVENUE"]
-    assert df_transactions_filter1.get_backend() == "Pandas"
+    # We still operate in Snowflake because we cannot properly estimate the rows
+    assert df_transactions_filter1.get_backend() == "Snowflake"
     df_transactions_filter2 = pd.read_snowflake(
         "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09'"
     )
@@ -103,11 +106,13 @@ def test_filtered_data(init_transaction_tables):
     )
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=5, join_count=1)
 def test_apply(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    assert df_transactions.get_backend() == "Snowflake"
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
     df_us_holidays["Date"] = pd.to_datetime(df_us_holidays["Date"])
+    assert df_us_holidays.get_backend() == "Pandas"
 
     def forecast_revenue(df, start_date, end_date):
         # Filter data from last year
@@ -136,8 +141,13 @@ def test_apply(init_transaction_tables, us_holidays_data):
 
     start_date = pd.Timestamp("2025-10-01")
     end_date = pd.Timestamp("2025-10-31")
+
+    assert (
+        df_transactions._query_compiler._modin_frame.ordered_dataframe.row_count_upper_bound
+        == 10000000
+    )
     df_forecast = forecast_revenue(df_transactions, start_date, end_date)
-    assert df_forecast.get_backend() == "Pandas"
+    assert df_forecast.get_backend() == "Snowflake"
 
     def adjust_for_holiday_weekend(row):
         # For national holidays, revenue down 5% since stores are closed.
@@ -197,7 +207,7 @@ def test_groupby_agg_post_op_switch(operation, small_snow_df):
 
 
 @sql_count_checker(query_count=1)
-def test_explain_switch(us_holidays_data):
+def test_explain_switch(init_transaction_tables, us_holidays_data):
     from snowflake.snowpark.modin.plugin._internal.telemetry import (
         clear_hybrid_switch_log,
     )
@@ -296,3 +306,40 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
             assert snow_result == '{"__reduced__":{"0":1,"1":2,"2":3}}'
         else:
             assert snow_result == pandas_result
+
+
+@sql_count_checker(
+    query_count=12,
+    join_count=6,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="tests queries across different execution modes",
+)
+def test_query_count_no_switch(init_transaction_tables):
+    """
+    Tests that when there is no switching behavior the query count is the
+    same under hybrid mode and non-hybrid mode.
+    """
+
+    def inner_test(df_in):
+        df_result = df_in[(df_in["REVENUE"] > 123) & (df_in["REVENUE"] < 200)]
+        df_result["REVENUE_DUPE"] = df_result["REVENUE"]
+        df_result["COUNT"] = df_result.groupby("DATE")["REVENUE"].transform("count")
+        return df_result
+
+    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    inner_test(df_transactions)
+    orig_len = None
+    hybrid_len = None
+    with pd.session.query_history() as query_history_orig:
+        with config_context(AutoSwitchBackend=False, NativePandasMaxRows=10):
+            df_result = inner_test(df_transactions)
+            orig_len = len(df_result)
+
+    with pd.session.query_history() as query_history_hybrid:
+        with config_context(AutoSwitchBackend=True, NativePandasMaxRows=10):
+            df_result = inner_test(df_transactions)
+            hybrid_len = len(df_result)
+
+    assert orig_len == hybrid_len
+    assert len(query_history_orig.queries) == len(query_history_hybrid.queries)

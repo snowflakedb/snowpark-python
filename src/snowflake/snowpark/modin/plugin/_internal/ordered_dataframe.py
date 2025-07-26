@@ -1522,7 +1522,7 @@ class OrderedDataFrame:
             new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
                 self,
                 DataFrameOperation.ALIGN,
-                args={"right": right},
+                args={"right": right, "how": how},
             )
             return new_df
 
@@ -1831,7 +1831,7 @@ class OrderedDataFrame:
         new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
             self,
             DataFrameOperation.ALIGN,
-            args={"right": right},
+            args={"right": right, "how": how},
         )
         return new_df
 
