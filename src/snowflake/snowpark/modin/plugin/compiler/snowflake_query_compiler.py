@@ -31,6 +31,7 @@ from typing import (
     Tuple,
 )
 
+from modin.config import context as config_context
 import modin.pandas as pd
 from modin.pandas import Series, DataFrame
 from modin.pandas.base import BasePandasDataset
@@ -42,7 +43,7 @@ import pandas.io.parsers
 from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeDataframe
 import pandas.io.parsers.readers
 import pytz  # type: ignore
-from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
+from modin.core.storage_formats import BaseQueryCompiler, PandasQueryCompiler  # type: ignore
 from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 from pandas import Timedelta
 from pandas._libs import lib
@@ -1206,6 +1207,231 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def execute(self) -> None:
         pass
+
+    def _move_to_ray(self) -> PandasQueryCompiler:
+        """
+        Move the QueryCompiler to a Ray backend using the `ml.data.DataConnector`.
+
+        Returns:
+            A new Ray-backed PandasQueryCompiler
+        """
+        try:
+            from snowflake.ml.data.data_connector import DataConnector  # type: ignore[import]
+        except ImportError as e:
+            logging.warning(
+                "DataConnector is required for efficient transfer to Ray. "
+                "Please `pip install snowflake-ml`."
+            )
+            raise ImportError from e
+
+        cached_qc = self.cache_result()
+        original_index_labels = self.get_index_names()
+        original_column_labels = self.columns.tolist()
+        snowflake_index_labels = [
+            unquote_name_if_quoted(label)
+            for label in cached_qc._modin_frame.index_column_snowflake_quoted_identifiers
+        ]
+        snowflake_column_labels = [
+            unquote_name_if_quoted(label)
+            for label in cached_qc._modin_frame.data_column_snowflake_quoted_identifiers
+        ]
+        snowpark_df = (
+            cached_qc._modin_frame.ordered_dataframe.to_projected_snowpark_dataframe(
+                sort=True
+            )
+        )
+
+        data_connector = DataConnector.from_dataframe(snowpark_df)
+        ray_ds = data_connector.to_ray_dataset()
+        with config_context(Backend="Ray"):
+            ray_df = pd.io.from_ray(ray_ds)
+        # Drop all metadata (ordering, row position, row count) columns
+        ray_df.drop(
+            ray_df.columns[
+                len(snowflake_index_labels) + len(snowflake_column_labels) :
+            ],
+            axis=1,
+            inplace=True,
+        )
+
+        ray_df.set_index(
+            snowflake_index_labels,
+            drop=True,
+            inplace=True,
+        )
+        ray_df.index.set_names(original_index_labels, inplace=True)
+        ray_df.columns = original_column_labels
+        return ray_df._query_compiler
+
+    def move_to(self, target_backend: str) -> Union[BaseQueryCompiler, Any]:
+        try:
+            if target_backend == "Ray":
+                return self._move_to_ray()
+            return NotImplemented
+        except Exception:
+            return NotImplemented
+
+    @classmethod
+    def _move_from_ray(
+        cls,
+        ray_qc: BaseQueryCompiler,
+        *,
+        max_sessions: int,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Move the data from Ray to Snowflake by writing to a Snowflake table. Preserves
+        the row position order from the original dataframe.
+
+        Args:
+            ray_qc: The Ray-backed query compiler.
+            max_sessions: The maximum number of sessions to use for writes.
+            connection_params: The connection parameters to create new Snowpark sessions.
+
+        Returns:
+            A new SnowflakeQueryCompiler with the data
+        """
+        try:
+            import ray  # type: ignore[import]
+            from ray.util.actor_pool import ActorPool  # type: ignore[import]
+        except ImportError as e:
+            logging.warning(
+                "Ray is required for this operation. Please `pip install modin[ray]`."
+            )
+            raise ImportError from e
+
+        def get_session() -> Session:
+            try:
+                return Session.builder.getOrCreate()
+            except Exception as e:
+                logging.error(
+                    "Could not get or create Snowpark session. Ensure you have a "
+                    "~/.snowflake/connections.toml file with the correct credentials. "
+                    f"{e}"
+                )
+                raise RuntimeError("Could not get or create Snowpark session.") from e
+
+        def write_batch_to_snowflake(
+            session: Session,
+            table_name: str,
+            batch: native_pd.DataFrame,
+            table_type: str = "",
+            parallel: int = 4,
+        ) -> None:
+            session.write_pandas(
+                df=batch,
+                table_name=table_name,
+                table_type=table_type,
+                parallel=parallel,
+                auto_create_table=True,
+                overwrite=False,
+            )
+
+        @ray.remote
+        class SnowflakeWriterActor:
+            def __init__(self, table_name: str) -> None:
+                self.table_name = table_name
+                self.session = get_session()
+
+            def write(self, batch: native_pd.DataFrame) -> None:
+                write_batch_to_snowflake(self.session, self.table_name, batch)
+
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        ray_df = pd.DataFrame(query_compiler=ray_qc)
+
+        original_column_labels = ray_df.columns.tolist()
+        data_column_snowflake_quoted_identifiers = (
+            generate_snowflake_quoted_identifiers_helper(
+                pandas_labels=original_column_labels, excluded=[]
+            )
+        )
+        ray_df.columns = [
+            extract_pandas_label_from_snowflake_quoted_identifier(identifier)
+            for identifier in data_column_snowflake_quoted_identifiers
+        ]
+        original_index_pandas_labels = ray_df.index.names
+        index_snowflake_quoted_identifiers = (
+            generate_snowflake_quoted_identifiers_helper(
+                pandas_labels=fill_none_in_index_labels(original_index_pandas_labels),
+                excluded=data_column_snowflake_quoted_identifiers,
+                wrap_double_underscore=True,
+            )
+        )
+        current_df_data_column_snowflake_quoted_identifiers = (
+            index_snowflake_quoted_identifiers
+            + data_column_snowflake_quoted_identifiers
+        )
+        index_names = [
+            extract_pandas_label_from_snowflake_quoted_identifier(identifier)
+            for identifier in index_snowflake_quoted_identifiers
+        ]
+        ray_df.reset_index(
+            inplace=True,
+            names=index_names,
+        )
+        row_position_snowflake_quoted_identifier = (
+            generate_snowflake_quoted_identifiers_helper(
+                pandas_labels=[ROW_POSITION_COLUMN_LABEL],
+                excluded=current_df_data_column_snowflake_quoted_identifiers,
+                wrap_double_underscore=True,
+            )[0]
+        )
+        row_position_pandas_label = (
+            extract_pandas_label_from_snowflake_quoted_identifier(
+                row_position_snowflake_quoted_identifier
+            )
+        )
+
+        ray_df[row_position_pandas_label] = np.arange(len(ray_df))
+
+        current_df_data_column_snowflake_quoted_identifiers.append(
+            row_position_snowflake_quoted_identifier
+        )
+
+        ray_ds = pd.io.to_ray(ray_df)
+        pool = ActorPool(
+            [
+                SnowflakeWriterActor.remote(table_name)  # type: ignore[attr-defined]
+                for _ in range(max_sessions)
+            ]
+        )
+        # Wait for all actors to finish writing
+        list(
+            pool.map_unordered(
+                lambda a, v: a.write.remote(v),
+                ray_ds.iter_batches(batch_size=None, batch_format="pandas"),
+            )
+        )
+
+        with config_context(Backend="Snowflake"):
+            snowpark_pandas_df = pd.read_snowflake(table_name, enforce_ordering=True)
+
+        snowpark_pandas_df.sort_values(by=row_position_pandas_label, inplace=True)
+        snowpark_pandas_df.drop(
+            row_position_pandas_label,
+            axis=1,
+            inplace=True,
+        )
+        snowpark_pandas_df.columns = (
+            original_index_pandas_labels + original_column_labels
+        )
+        snowpark_pandas_df.set_index(
+            original_index_pandas_labels,
+            drop=True,
+            inplace=True,
+        )
+
+        # Drop the permanent table and reference only the snapshot
+        get_session().sql(f"DROP TABLE IF EXISTS {table_name}").collect()
+        return snowpark_pandas_df._query_compiler
+
+    @classmethod
+    def move_from(cls, source_qc: BaseQueryCompiler) -> Union[BaseQueryCompiler, Any]:
+        try:
+            if source_qc.get_backend() == "Ray":
+                return cls._move_from_ray(source_qc, max_sessions=8)
+            return NotImplemented
+        except Exception:
+            return NotImplemented
 
     def to_numpy(
         self,
