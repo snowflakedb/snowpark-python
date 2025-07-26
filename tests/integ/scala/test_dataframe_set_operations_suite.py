@@ -185,6 +185,10 @@ def test_union_all(session):
     assert res == [Row(1, 25250)]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Flattening is not properly supported in Local Testing",
+)
 def test_union_by_name(session):
     df1 = session.create_dataframe([(1, 2, 3)]).to_df("a", "b", "c")
     df2 = session.create_dataframe([(3, 1, 2)]).to_df("c", "a", "b")
