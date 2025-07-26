@@ -52,14 +52,16 @@ class RowCountEstimator:
             int: The estimated upper bound on the number of rows in the resulting dataframe
         """
 
-        if df.row_count is not None and df.row_count_upper_bound < df.row_count:
-            raise RuntimeError("row upper bound is less than row count")
-
         # Get the current upper bound. If not set, return None
         current = df.row_count_upper_bound or df.row_count
 
         if current is None:
             return None
+
+        if df.row_count is not None and current < df.row_count:
+            raise RuntimeError(
+                "RowCountEstimator: row upper bound is less than row count"
+            )
 
         # These operations preserve or reduce the row count, so we can use the current upper bound
         if operation in {
@@ -108,7 +110,9 @@ class RowCountEstimator:
                 if cartesian_result > MAX_ROW_COUNT_FOR_ESTIMATION:
                     return None
                 return cartesian_result
-            raise ValueError(f"Unsupported operation/method: {operation}/{how}")
+            raise ValueError(
+                f"RowCountEstimator: Unsupported operation/method: {operation}/{how}"
+            )
 
         # TODO: Implement a better estimate by having cases for different align types
         # Align can cause a Cartesian product with the row counts multiplying
@@ -124,7 +128,9 @@ class RowCountEstimator:
             if how in ["outer", "coalesce", "left", "right"]:
                 return current + other_bound
             # We do not support cross-joins/cartesian products in ALIGN
-            raise ValueError(f"Unsupported operation/method: {operation}/{how}")
+            raise ValueError(
+                f"RowCountEstimator: Unsupported operation/method: {operation}/{how}"
+            )
 
         # Limit sets the upper bound to n rows
         elif operation == DataFrameOperation.LIMIT:
