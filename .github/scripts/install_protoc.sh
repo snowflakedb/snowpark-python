@@ -72,7 +72,13 @@ install() {
 install
 
 # mypy-protobuf is used to generated typed Python code from protobuf
-pip install mypy-protobuf
+if command -v uv &> /dev/null; then
+    echo "Using uv to install mypy-protobuf"
+    uv pip install mypy-protobuf --system
+else
+    echo "uv not available, using pip to install mypy-protobuf"
+    pip install mypy-protobuf
+fi
 echo "mypy-protobuf version: $(protoc-gen-mypy --version)"
 
 echo "${SCRIPT_NAME} done."
