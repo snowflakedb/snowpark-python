@@ -175,6 +175,7 @@ from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
+from snowflake.snowpark._internal.debug_utils import QueryProfiler
 from snowflake.snowpark.functions import (
     abs as abs_,
     col,
@@ -6106,6 +6107,22 @@ class DataFrame:
 
         if _emit_ast:
             cached_df._ast_id = stmt.uid
+
+        # Preserve query history from the original dataframe for profiling
+        if (
+            self._session.dataframe_profiler._query_history is not None
+            and self._plan.uuid
+            in self._session.dataframe_profiler._query_history._dataframe_queries
+        ):
+            # Copy the original dataframe's query history to the cached dataframe's UUID
+            original_queries = (
+                self._session.dataframe_profiler._query_history._dataframe_queries[
+                    self._plan.uuid
+                ]
+            )
+            self._session.dataframe_profiler._query_history._dataframe_queries[
+                cached_df._plan.uuid
+            ] = original_queries.copy()
         return cached_df
 
     @publicapi
@@ -6246,6 +6263,29 @@ class DataFrame:
                     df._ast_id = obj_stmt.uid
 
             return res_dfs
+
+    def get_execution_profile(self, output_file: Optional[str] = None) -> None:
+        """
+        Get the execution profile of the dataframe. Output is written to the file specified by output_file if provided,
+        otherwise it is written to the console.
+        """
+        if self._session.dataframe_profiler._query_history is None:
+            _logger.warning(
+                "No query history found. Enable dataframe profiler using session.dataframe_profiler.enable()"
+            )
+            return
+        query_history = self._session.dataframe_profiler._query_history
+        if self._plan.uuid not in query_history.dataframe_queries:
+            _logger.warning(
+                f"No queries found for dataframe with plan uuid {self._plan.uuid}. Make sure to evaluate the dataframe before calling get_execution_profile."
+            )
+            return
+        try:
+            profiler = QueryProfiler(self._session, output_file)
+            for query_id in query_history.dataframe_queries[self._plan.uuid]:
+                profiler.profile_query(query_id)
+        finally:
+            profiler.close()
 
     @property
     def queries(self) -> Dict[str, List[str]]:

@@ -194,6 +194,7 @@ from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
+from snowflake.snowpark.dataframe_profiler import DataframeProfiler
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -754,6 +755,7 @@ class Session:
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+        self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
 
         self._ast_batch = AstBatch(self)
@@ -4131,6 +4133,14 @@ class Session:
         """
         return self._sp_profiler
 
+    @property
+    def dataframe_profiler(self) -> DataframeProfiler:
+        """
+        Returns a :class:`dataframe_profiler.DataframeProfiler` object that you can use to profile dataframe operations.
+        See details of how to use this object in :class:`dataframe_profiler.DataframeProfiler`.
+        """
+        return self._dataframe_profiler
+
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
@@ -4412,6 +4422,7 @@ class Session:
         include_describe: bool = False,
         include_thread_id: bool = False,
         include_error: bool = False,
+        include_dataframe_profiling: bool = False,
     ) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
@@ -4429,7 +4440,11 @@ class Session:
         >>> assert not query_history.queries[1].is_describe
         """
         query_listener = QueryHistory(
-            self, include_describe, include_thread_id, include_error
+            self,
+            include_describe,
+            include_thread_id,
+            include_error,
+            include_dataframe_profiling,
         )
         self._conn.add_query_listener(query_listener)
         return query_listener

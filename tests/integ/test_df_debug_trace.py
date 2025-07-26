@@ -11,8 +11,12 @@ from snowflake.snowpark._internal.debug_utils import (
     SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH,
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from tests.resources.test_df_debug_dir.dataframe_generator1 import DataFrameGenerator1
-from tests.resources.test_df_debug_dir.dataframe_generator2 import DataFrameGenerator2
+from tests.resources.test_debug_utils_dir.dataframe_generator1 import (
+    DataFrameGenerator1,
+)
+from tests.resources.test_debug_utils_dir.dataframe_generator2 import (
+    DataFrameGenerator2,
+)
 
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 import snowflake.snowpark.context as context
@@ -59,13 +63,13 @@ CURR_FILE_PATH = os.path.abspath(__file__)
 DATAFRAME_GENERATOR1_PATH = os.path.join(
     os.path.dirname(os.path.dirname(CURR_FILE_PATH)),
     "resources",
-    "test_df_debug_dir",
+    "test_debug_utils_dir",
     "dataframe_generator1.py",
 )
 DATAFRAME_GENERATOR2_PATH = os.path.join(
     os.path.dirname(os.path.dirname(CURR_FILE_PATH)),
     "resources",
-    "test_df_debug_dir",
+    "test_debug_utils_dir",
     "dataframe_generator2.py",
 )
 
