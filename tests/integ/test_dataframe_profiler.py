@@ -22,6 +22,7 @@ pytestmark = [
         reason="This is a SQL test suite",
         run=False,
     ),
+    pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need to run alter session"),
 ]
 
 
@@ -69,9 +70,6 @@ def validate_execution_profile(df, expected_patterns=None):
             os.unlink(temp_filename)
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Altering session in stored procedure is not supported"
-)
 def test_profiler_enable_disable(session):
     profiler = session.dataframe_profiler
     assert profiler._query_history is None
@@ -81,9 +79,6 @@ def test_profiler_enable_disable(session):
     assert profiler._query_history is None
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Altering session in stored procedure is not supported"
-)
 def test_multiple_df(session):
     profiler = session.dataframe_profiler
     profiler.enable()
@@ -112,9 +107,6 @@ def test_multiple_df(session):
         profiler.disable()
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Altering session in stored procedure is not supported"
-)
 def test_multiple_collect_same_df(session):
     """Test collect() calls with various transformations applied to the same dataframe."""
     profiler = session.dataframe_profiler
@@ -171,9 +163,6 @@ def test_multiple_collect_same_df(session):
         profiler.disable()
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Altering session in stored procedure is not supported"
-)
 def test_profiler_disabled_get_execution_profile(session, caplog):
     profiler = session.dataframe_profiler
     profiler.disable()
@@ -187,9 +176,6 @@ def test_profiler_disabled_get_execution_profile(session, caplog):
     )
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Altering session in stored procedure is not supported"
-)
 def test_query_profiling_joins(session):
     profiler = session.dataframe_profiler
     profiler.enable()
@@ -241,9 +227,6 @@ def test_query_profiling_joins(session):
         profiler.disable()
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Altering session in stored procedure is not supported"
-)
 def test_df_transformations_without_collect(session, caplog):
     profiler = session.dataframe_profiler
     profiler.enable()
@@ -270,9 +253,6 @@ def test_df_transformations_without_collect(session, caplog):
         profiler.disable()
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Altering session in stored procedure is not supported"
-)
 def test_profiler_across_sessions(session, db_parameters):
     profiler1 = session.dataframe_profiler
     profiler1.enable()
@@ -305,9 +285,6 @@ def test_profiler_across_sessions(session, db_parameters):
         session2.close()
 
 
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Altering session in stored procedure is not supported"
-)
 def test_dataframe_cache_result_preserves_profile(session):
     """Test that after calling .cache_result() on a dataframe, we still have access to the same query history and profile."""
     profiler = session.dataframe_profiler
