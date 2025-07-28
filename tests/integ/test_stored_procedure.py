@@ -4,7 +4,7 @@
 #
 
 import datetime
-import pkg_resources
+import importlib.metadata
 import logging
 import os
 import re
@@ -2059,23 +2059,6 @@ def test_sproc_artifact_repository_from_file(session, tmpdir):
 def test_snowpark_python_bugfix_version_warning(
     session, caplog, version_override, expect_warning
 ):
-    def mock_get_distribution(version_override):
-        """Returns a function that mocks pkg_resources.get_distribution."""
-        original_get_distribution = (
-            pkg_resources.get_distribution
-        )  # Store original function
-
-        def _mock(package_name):
-            if package_name == "snowflake-snowpark-python":
-
-                class FakeDistribution:
-                    version = version_override  # Override only this package
-
-                return FakeDistribution()
-            return original_get_distribution(package_name)
-
-        return _mock
-
     def run_test_case(caplog, version_override, expect_warning):
         """Runs a test case with a given package version override and expected warning presence."""
 
@@ -2083,8 +2066,10 @@ def test_snowpark_python_bugfix_version_warning(
             return x + 1
 
         with patch(
-            "pkg_resources.get_distribution",
-            side_effect=mock_get_distribution(version_override),
+            "importlib.metadata.version",
+            side_effect=lambda package_name: version_override
+            if package_name == "snowflake-snowpark-python"
+            else importlib.metadata.version(package_name),
         ), caplog.at_level(logging.WARNING):
             plus1_sp = sproc(
                 plus1,
