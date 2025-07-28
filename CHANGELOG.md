@@ -30,6 +30,7 @@
 - Improved `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
 - Improved error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
 
+
 ### Snowpark Local Testing Updates
 
 #### New Features
