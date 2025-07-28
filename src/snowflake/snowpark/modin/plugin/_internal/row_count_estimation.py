@@ -101,6 +101,9 @@ class RowCountEstimator:
                 # Cannot estimate row count: other DataFrame has no row count information
                 return None
             how = args["how"]
+            # asof might be refined, but we may have to check additional arguments
+            if how in ["asof"]:
+                return max(current, right_bound)
             if how in ["cross", "inner", "outer", "left", "right"]:
                 # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
                 # When the product becomes very large we return None conservatively, as this can have
