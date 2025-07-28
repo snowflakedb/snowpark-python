@@ -10303,6 +10303,37 @@ def pandas_udtf(
 
 
 @publicapi
+def vectorized(input_type: type, max_batch_size: int = None, flatten_object_input: bool = False):
+    """Vectorized Python UDFs let you define Python functions that receive batches of 
+    input rows as Pandas DataFrames and return batches of results as Pandas arrays or 
+    Series. You call vectorized Python UDFs the same way you call other Python UDFs.
+
+    Args:
+        input: The type of the input to the vectorized Python UDF. It can be pandas.DataFrame or pandas.Series.
+        max_batch_size: The maximum batch size for the vectorized Python UDF.
+
+    Example::
+        >>> import pandas
+        >>> from snowflake.snowpark.functions import vectorized, udf
+        >>> 
+        >>> @udf(name="add_one_to_inputs")
+        >>> @vectorized(input=pandas.DataFrame)
+        >>> def add_one_to_inputs(df):
+        >>>     return df[0] + df[1] + 1
+        <BLANKLINE>
+    """
+    def vectorized_decorator(func):
+        func._sf_vectorized_input = input_type
+        if max_batch_size:
+            func._sf_max_batch_size = max_batch_size
+        if flatten_object_input:
+            func._sf_flatten_object_input = flatten_object_input
+        return func
+    
+    return vectorized_decorator
+
+
+@publicapi
 def call_udf(udf_name: str, *args: ColumnOrLiteral, _emit_ast: bool = True) -> Column:
     """Calls a user-defined function (UDF) by name.
 
