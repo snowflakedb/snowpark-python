@@ -6264,6 +6264,7 @@ class DataFrame:
 
             return res_dfs
 
+    @experimental(version="1.36.0")
     def get_execution_profile(self, output_file: Optional[str] = None) -> None:
         """
         Get the execution profile of the dataframe. Output is written to the file specified by output_file if provided,
