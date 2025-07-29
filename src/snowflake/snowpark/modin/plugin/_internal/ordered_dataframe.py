@@ -312,6 +312,15 @@ class OrderedDataFrame:
     def ordering_columns(self) -> list[OrderingColumn]:
         return list(self._ordering_columns_tuple)
 
+    @property
+    def row_count(self) -> Optional[int]:
+        return self._row_count
+
+    @row_count.setter
+    def row_count(self, value):
+        self._row_count = value
+        self.row_count_upper_bound = value
+
     def _ordering_snowpark_columns(self) -> list[Column]:
         """
         Returns a list of SnowparkColumns that can be applied to the snowpark
