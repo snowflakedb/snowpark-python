@@ -27,6 +27,7 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.utils.sql_counter import sql_count_checker
+from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 
 
 @sql_count_checker(query_count=0)
@@ -35,7 +36,6 @@ def test_get_rows_with_large_and_none_upper_bound():
     Tests that _get_rows returns a large default value when row_count_upper_bound
     is None or very large.
     """
-    from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 
     pandas_df = pd.DataFrame({"A": [1, 2, 3, 4]})
     df = pandas_df.move_to("Snowflake")
@@ -66,7 +66,6 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
     that is incompatible with Snowpark pandas, and that a warning is issued
     when attempting to convert it.
     """
-    from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 
     # DataFrame with a compatible dtype.
     df_compatible = pd.DataFrame({"A": [1, 2, 3]})
