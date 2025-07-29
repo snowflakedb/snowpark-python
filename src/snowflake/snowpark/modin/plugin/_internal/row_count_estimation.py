@@ -55,7 +55,7 @@ class RowCountEstimator:
         # Get the current upper bound. If current is None that may still be valid for
         # some operations like limit or agg
         current = df.row_count_upper_bound or df.row_count
-        
+
         if df.row_count is not None and current is not None and current < df.row_count:
             raise RuntimeError(
                 "RowCountEstimator: row upper bound is less than row count"
