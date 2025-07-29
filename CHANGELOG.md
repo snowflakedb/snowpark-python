@@ -1,40 +1,42 @@
 # Release History
 
-## 1.35.0 (YYYY-MM-DD)
+## 1.36.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
+
+#### New Features
+
+- `Session.create_dataframe` now accepts keyword arguments that are forwarded to the internal call to `Session.write_pandas` or `Session.write_arrow` when creating a DataFrame from a pandas DataFrame or a pyarrow Table.
+
+## 1.35.0 (2025-07-24)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following functions in `functions.py`:
+  - `ai_embed`
+  - `try_parse_json`
+- Added a dataframe profiler. To use, you can call get_execution_profile() on your desired dataframe. This profiler reports the queries executed to evaluate a dataframe, and statistics about each of the query operators.
 
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` accept illegal schema.
-
-#### New Features
-
-- Added support for Python 3.13 runtime.
-- Added support for the following functions in `functions.py`:
-  - `ai_embed`
-  - `try_parse_json`
-
-#### Improvements
-
-- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
-- Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
-
-#### Bug Fixes
-
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` does not work when connecting to Postgres and Mysql.
 - Fixed a bug in schema inference that would cause it to fail for external stages.
 
-### Snowpark Local Testing Updates
+#### Improvements
 
-- Added local testing support for reading files with `SnowflakeFile` using local file paths, the Snow URL semantic (snow://...), local testing framework stages, and Snowflake stages (@stage/file_path).
+- Improved `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+- Improved error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+
+
+### Snowpark Local Testing Updates
 
 #### New Features
 
-#### Improvements
-
-#### Bug Fixes
+- Added local testing support for reading files with `SnowflakeFile` using local file paths, the Snow URL semantic (snow://...), local testing framework stages, and Snowflake stages (@stage/file_path).
 
 - Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically (SNOW-2171718).
 
@@ -65,8 +67,7 @@
 - Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
 - Added a new function `snowflake.snowpark.dataframe.map_in_pandas` that allows users map a function across a dataframe. The mapping function takes an iterator of pandas dataframes as input and provides one as output.
 - Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
-- Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in
-local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
+- Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
 - Added a new function `snowflake.snowpark.functions.model` that allows users to call methods of a model.
 
 #### Improvements
