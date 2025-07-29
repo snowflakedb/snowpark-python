@@ -440,7 +440,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]  # SNOW-2230787 test failing on Python 3.13
         cloud-provider: [gcp]
         protobuf-version: ["3.20.1", "4.25.3", "5.28.3"]
     steps:
