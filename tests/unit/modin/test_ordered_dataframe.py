@@ -156,11 +156,11 @@ def test_row_count_estimator_join_big():
     # Verify that the RowCountEstimator returns None for a JOIN operation
     # which is "large"
     assert (
-        RowCountEstimator.upper_bound(df1, DataFrameOperation.JOIN, {"right": df2})
+        RowCountEstimator.upper_bound(df1, DataFrameOperation.JOIN, {"right": df2, "how": "left"})
         is None
     )
 
     assert (
-        RowCountEstimator.upper_bound(df1, DataFrameOperation.ALIGN, {"right": df2})
-        is None
+        RowCountEstimator.upper_bound(df1, DataFrameOperation.ALIGN, {"right": df2, "how": "left"})
+        == 20000000000
     )
