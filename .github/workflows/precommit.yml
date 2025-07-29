@@ -530,8 +530,6 @@ jobs:
         run: python -m tox -e snowpark_pandas_auto_switch_backend
         shell: bash
         env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
 
         # only run doctest for macos on aws
