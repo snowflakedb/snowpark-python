@@ -55,7 +55,9 @@ def test_snowflake_pandas_transfer_threshold():
     assert pandas_df.get_backend() == "Pandas"
 
     # Set and verify that we can set the transfer cost to
-    # something low and it works
+    # something low and it works.
+    # TODO: Allow for usage of this variable with the modin
+    # config context.
     try:
         oldval = SnowflakePandasTransferThreshold.get()
         SnowflakePandasTransferThreshold.put(10)

@@ -8,6 +8,11 @@
 
 - `Session.create_dataframe` now accepts keyword arguments that are forwarded to the internal call to `Session.write_pandas` or `Session.write_arrow` when creating a DataFrame from a pandas DataFrame or a pyarrow Table.
 
+### Snowpark pandas API Updates
+
+#### Improvements
+- Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution. Lower the default to 100k from 10M.
+
 ## 1.35.0 (2025-07-24)
 
 ### Snowpark Python API Updates

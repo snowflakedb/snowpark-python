@@ -111,10 +111,12 @@ backend is 10M rows. This can be configured through the modin environment variab
         # Operations on local data frames discouraged above 1234
         df = pd.DataFrame([4, 5, 6])
 
+Configuring Transfer Costs
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Transfer costs are also considered for data moving out of Snowflake. For data moving
+Transfer costs are also considered for data moving between engines. For data moving
 from Snowflake this threshold can be configured with the SnowflakePandasTransferThreshold
-modin environment variable. This is set to 100k rows by default; which will penalize
+environment variable. This is set to 100k rows by default; which will penalize
 the movement of data as it nears this threshold.
 
 The default value, 100k was selected based on a variety of tests at different network
@@ -126,15 +128,7 @@ where the initial download of row data is acceptable.
 
     # Change row transfer threshold to 500k
     from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
-    from modin.config import context as config_context
-
     SnowflakePandasTransferThreshold.put(500_000)
-
-    # Use a config context to set the transfer threshold
-    with config_context(SnowflakePandasTransferThreshold=10_000_000):
-        # Data transfer discouraged above 10M rows
-        ...
-
 
 Debugging Hybrid Execution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

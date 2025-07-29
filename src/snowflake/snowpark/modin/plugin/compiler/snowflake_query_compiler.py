@@ -578,7 +578,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     _MAX_SIZE_THIS_ENGINE_CAN_HANDLE = 10_000_000_000_000
     _OPERATION_INITIALIZATION_OVERHEAD = 100
     _OPERATION_PER_ROW_OVERHEAD = 10
-    _TRANSFER_THRESHOLD = 100_000
 
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
@@ -839,10 +838,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     @classmethod
     def _transfer_threshold(cls) -> int:
-        # do not return the custom configuration for sub-classes
-        if cls == SnowflakeQueryCompiler:
-            return SnowflakePandasTransferThreshold.get()
-        return cls._TRANSFER_THRESHOLD
+        return SnowflakePandasTransferThreshold.get()
 
     def move_to_cost(
         self,
