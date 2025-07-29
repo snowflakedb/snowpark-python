@@ -36,6 +36,8 @@
 
 #### Bug Fixes
 
+- Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically (SNOW-2171718).
+
 ### Snowpark pandas API Updates
 
 #### New Features
