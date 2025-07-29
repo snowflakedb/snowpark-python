@@ -387,6 +387,12 @@ def test_async_is_running_and_cancel(session):
     async_job2.cancel()
     start = time()
     while not async_job2.is_done():
+        assert async_job2.status() in [
+            "RUNNING",
+            "ABORTING",
+            "ABORTED",
+            "FAILED_WITH_ERROR",
+        ]
         sleep(1.0)
     # If query is canceled, it takes less time than originally needed
     assert (time() - start) < 20
@@ -530,8 +536,17 @@ def test_async_is_failed(session):
         async_job = session.sql(query).collect_nowait()
         while not async_job.is_done():
             assert not async_job.is_failed()
+            status = async_job.status()
+            assert status in [
+                "RUNNING",
+                "QUEUED",
+                "RESUMING_WAREHOUSE",
+                "QUEUED_REPARING_WAREHOUSE",
+                "SUCCESS",
+            ]
             sleep(1.0)
         assert not async_job.is_failed()
+        assert async_job.status() == "SUCCESS"
         assert async_job.result() is not None
 
     failed_queries = ["select c from values (1, 2), (3, 4) as t(a, b)", "select 1 / 0"]
@@ -539,4 +554,14 @@ def test_async_is_failed(session):
         async_job = session.sql(query).collect_nowait()
         while not async_job.is_done():
             sleep(1.0)
+            assert status in [
+                "RUNNING",
+                "QUEUED",
+                "RESUMING_WAREHOUSE",
+                "QUEUED_REPARING_WAREHOUSE",
+                "FAILED_WITH_ERROR",
+                "FAILED_WITH_INCIDENT",
+            ]
         assert async_job.is_failed()
+        status = async_job.status()
+        assert status in ["FAILED_WITH_ERROR", "FAILED_WITH_INCIDENT"]
