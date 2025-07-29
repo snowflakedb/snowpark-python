@@ -240,6 +240,14 @@ class AsyncJob:
         is_running = self._session._conn._conn.is_still_running(status)
         return not is_running
 
+    def is_failed(self) -> bool:
+        """
+        Checks the status of the query associated with this instance and returns a bool value
+        indicating whether the query has failed.
+        """
+        status = self._session._conn._conn.get_query_status(self.query_id)
+        return self._session._conn._conn.is_an_error(status)
+
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
