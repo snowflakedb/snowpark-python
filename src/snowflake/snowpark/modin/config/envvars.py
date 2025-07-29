@@ -869,6 +869,15 @@ class DaskThreadsPerWorker(EnvironmentVariable, type=int):  # pragma: no cover
     varname = "MODIN_DASK_THREADS_PER_WORKER"
     default = 1
 
+class SnowflakePandasTransferThreshold(EnvironmentVariable, type=int):
+    """
+    Targeted max number of dataframe rows which should be transferred from
+    Snowflake when using hybrid execution.
+    """
+
+    varname = "SNOWFLAKE_PANDAS_MAX_XFER_ROWS"
+    default = 100_000
+
 
 def _check_vars() -> None:  # pragma: no cover
     """

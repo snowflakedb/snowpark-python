@@ -4,6 +4,7 @@
 
 import logging
 import contextlib
+from unittest import mock
 import pytest
 from unittest.mock import patch
 import tqdm.auto
@@ -13,16 +14,65 @@ import numpy as np
 from numpy.testing import assert_array_equal
 from modin.config import context as config_context
 import modin.pandas as pd
+from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.utils import (
     MODIN_IS_AT_LEAST_0_34_0,
 )
-
+from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
+from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.utils.sql_counter import sql_count_checker
+
+
+@sql_count_checker(query_count=4)
+def test_snowflake_pandas_transfer_threshold():
+    """
+    Tests that the SnowflakePandasTransferThreshold configuration variable
+    is correctly used in the cost model.
+    """
+    # Verify the default value of the configuration variable.
+    assert SnowflakePandasTransferThreshold.get() == 100_000
+
+    # Create a SnowflakeQueryCompiler and verify that it has the default value.
+    compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
+    assert compiler._transfer_threshold() == 100_000
+
+    df = pd.DataFrame()
+    assert df.get_backend() == "Pandas"
+    snow_df = pd.DataFrame({'A': [1, 2, 3]*100})
+    snow_df = snow_df.move_to("Snowflake")
+    assert snow_df.get_backend() == "Snowflake"
+    cost = snow_df._query_compiler.move_to_cost(
+        type(df._query_compiler), "DataFrame", "test_op", {}
+    )
+    assert cost == 3
+    pandas_df = snow_df.transpose()
+    
+    assert pandas_df.get_backend() == "Pandas"
+
+    # Set and verify that we can set the transfer cost to
+    # something low and it works
+    try:
+        oldval = SnowflakePandasTransferThreshold.get()
+        SnowflakePandasTransferThreshold.put(10)
+        compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
+        assert compiler._transfer_threshold() == 10
+
+        snow_df = pd.DataFrame({'A': [1, 2, 3]*100})
+        snow_df = snow_df.move_to("Snowflake")
+        # Verify that the move_to_cost changes when this value is changed.
+        cost = snow_df._query_compiler.move_to_cost(
+            type(df._query_compiler),"DataFrame", "test_op", {}
+        )
+        assert cost == QCCoercionCost.COST_IMPOSSIBLE        
+    finally:
+        SnowflakePandasTransferThreshold.put(oldval)
+
+
 
 
 @sql_count_checker(query_count=0)
@@ -75,7 +125,7 @@ def test_merge(init_transaction_tables, us_holidays_data):
     assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=9)
 def test_filtered_data(init_transaction_tables):
     # When data is filtered, the engine should change when it is sufficiently small.
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
@@ -85,15 +135,16 @@ def test_filtered_data(init_transaction_tables):
     assert df_transactions.get_backend() == "Snowflake"
     base_date = pd.Timestamp("2025-06-09").date()
     df_transactions_filter1 = df_transactions[
-        (df_transactions["DATE"] >= base_date - pd.Timedelta("7 days"))
+        (df_transactions["DATE"] >= base_date - pd.Timedelta("1 days"))
         & (df_transactions["DATE"] < base_date)
     ]
+    df_transactions_filter1 = df_transactions_filter1.sort_values(by="TRANSACTION_ID").head(1000)
     assert df_transactions_filter1.get_backend() == "Snowflake"
     # The smaller dataframe does operations in pandas
     df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()["REVENUE"]
     assert df_transactions_filter1.get_backend() == "Pandas"
     df_transactions_filter2 = pd.read_snowflake(
-        "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09'"
+        "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -1, '2025-06-09' ) and Date < '2025-06-09' ORDER BY TRANSACTION_ID LIMIT 1000"
     )
     assert df_transactions_filter2.get_backend() == "Pandas"
     assert_array_equal(
