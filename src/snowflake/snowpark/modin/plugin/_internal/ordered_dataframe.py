@@ -1194,7 +1194,51 @@ class OrderedDataFrame:
 
         """
         left = self
-        if False and dummy_row_pos_mode and how not in ["asof", "cross"]:
+        left_on_cols = left_on_cols or []
+        right_on_cols = right_on_cols or []
+        assert len(left_on_cols) == len(
+            right_on_cols
+        ), "left_on_cols and right_on_cols must be of same length"
+        _raise_if_identifier_not_exists(
+            left_on_cols,
+            left.projected_column_snowflake_quoted_identifiers,
+            "join left_on_cols",
+        )
+
+        _raise_if_identifier_not_exists(
+            right_on_cols,
+            right.projected_column_snowflake_quoted_identifiers,
+            "join right_on_cols",
+        )
+
+        if how == "asof":
+            assert left_match_col, "left_match_col was not provided to ASOF Join"
+            assert right_match_col, "right_match_col was not provided to ASOF Join"
+            _raise_if_identifier_not_exists(
+                [left_match_col],
+                left.projected_column_snowflake_quoted_identifiers,
+                "join left_match_col",
+            )
+            _raise_if_identifier_not_exists(
+                [right_match_col],
+                right.projected_column_snowflake_quoted_identifiers,
+                "join right_match_col",
+            )
+
+        is_join_needed = True
+        # join is not needed for `left`, `right`, `inner` and `outer` join for self join
+        # on row position column since row position column is a unique column.
+        if how in [
+            "left",
+            "right",
+            "inner",
+            "outer",
+        ] and left._is_self_join_on_row_position_column(
+            left_on_cols, right, right_on_cols
+        ):
+            is_join_needed = False
+
+        if is_join_needed and dummy_row_pos_mode and how not in ["asof", "cross"]:
             if (
                 left_on_cols is not None
                 and len(left_on_cols) == 1
@@ -1245,50 +1289,6 @@ class OrderedDataFrame:
                 )
                 right = new_ordered_dataframe
                 right_on_cols = [new_identifier]
-
-        left_on_cols = left_on_cols or []
-        right_on_cols = right_on_cols or []
-        assert len(left_on_cols) == len(
-            right_on_cols
-        ), "left_on_cols and right_on_cols must be of same length"
-        _raise_if_identifier_not_exists(
-            left_on_cols,
-            left.projected_column_snowflake_quoted_identifiers,
-            "join left_on_cols",
-        )
-
-        _raise_if_identifier_not_exists(
-            right_on_cols,
-            right.projected_column_snowflake_quoted_identifiers,
-            "join right_on_cols",
-        )
-
-        if how == "asof":
-            assert left_match_col, "left_match_col was not provided to ASOF Join"
-            assert right_match_col, "right_match_col was not provided to ASOF Join"
-            _raise_if_identifier_not_exists(
-                [left_match_col],
-                left.projected_column_snowflake_quoted_identifiers,
-                "join left_match_col",
-            )
-            _raise_if_identifier_not_exists(
-                [right_match_col],
-                right.projected_column_snowflake_quoted_identifiers,
-                "join right_match_col",
-            )
-
-        is_join_needed = True
-        # join is not needed for `left`, `right`, `inner` and `outer` join for self join
-        # on row position column since row position column is a unique column.
-        if how in [
-            "left",
-            "right",
-            "inner",
-            "outer",
-        ] and left._is_self_join_on_row_position_column(
-            left_on_cols, right, right_on_cols
-        ):
-            is_join_needed = False
 
         original_right_quoted_identifiers = (
             right.projected_column_snowflake_quoted_identifiers
