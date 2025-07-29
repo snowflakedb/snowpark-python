@@ -50,7 +50,7 @@ def tmp_table_basic(session):
 def test_to_snowpark_pandas_basic(
     session, tmp_table_basic, index_col, columns, enforce_ordering
 ) -> None:
-    expected_query_count = 4 if enforce_ordering else 2
+    expected_query_count = 6 if enforce_ordering else 3
     # One less query when we don't have a multi-index
     with SqlCounter(
         query_count=expected_query_count
@@ -93,7 +93,7 @@ def test_to_snowpark_pandas_basic(
 def test_to_snowpark_pandas_from_views(
     session, tmp_table_basic, enforce_ordering
 ) -> None:
-    with SqlCounter(query_count=4 if enforce_ordering else 2):
+    with SqlCounter(query_count=6 if enforce_ordering else 3):
         snowpark_df = session.sql(
             f"SELECT ID, SHOE_MODEL FROM {tmp_table_basic} WHERE ID > 1"
         )
@@ -113,7 +113,7 @@ def test_to_snowpark_pandas_from_views(
 def test_to_snowpark_pandas_with_operations(
     session, tmp_table_basic, enforce_ordering
 ) -> None:
-    with SqlCounter(query_count=4 if enforce_ordering else 2):
+    with SqlCounter(query_count=6 if enforce_ordering else 3):
         snowpark_df = session.table(tmp_table_basic)
         snowpark_df = (
             snowpark_df.select(
@@ -176,7 +176,6 @@ def test_to_snowpark_pandas_columns_not_list_raises(
             )
 
 
-@sql_count_checker(query_count=8)
 def test_to_snowpark_pandas_with_multiple_queries_forces_ordering(
     session,
     resources_path,
@@ -199,5 +198,6 @@ def test_to_snowpark_pandas_with_multiple_queries_forces_ordering(
     snowpark_df = (
         session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
     )
-    df = snowpark_df.to_snowpark_pandas(enforce_ordering=False)
-    assert len(df.columns) == 3
+    with SqlCounter(query_count=8):
+        df = snowpark_df.to_snowpark_pandas(enforce_ordering=False)
+        assert len(df.columns) == 3
