@@ -166,7 +166,7 @@ def test_row_count_estimator_join_big():
         RowCountEstimator.upper_bound(
             df1, DataFrameOperation.ALIGN, {"right": df2, "how": "left"}
         )
-        == 20000000000
+        == 2e10
     )
 
 
