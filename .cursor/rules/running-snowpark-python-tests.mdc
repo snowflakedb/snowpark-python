@@ -1,0 +1,6 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+whenever you collect more than 100 snowpark-python tests for running, run them with -n 12
