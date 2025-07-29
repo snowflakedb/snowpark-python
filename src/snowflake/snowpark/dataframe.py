@@ -1737,7 +1737,6 @@ class DataFrame:
                 )
 
             return self._with_plan(self._select_statement.select(names), _ast_stmt=stmt)
-
         return self._with_plan(Project(names, join_plan or self._plan), _ast_stmt=stmt)
 
     @df_api_usage
@@ -6410,12 +6409,11 @@ Query List:
         """
         :param proto.Bind ast_stmt: The AST statement protobuf corresponding to this value.
         """
-        df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt, _emit_ast=False)
+        df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt)
         df._statement_params = self._statement_params
 
         if _ast_stmt is not None:
             df._ast_id = _ast_stmt.uid
-
         return df
 
     def _get_column_names_from_column_or_name_list(
