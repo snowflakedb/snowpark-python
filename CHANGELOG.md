@@ -8,6 +8,12 @@
 
 - `Session.create_dataframe` now accepts keyword arguments that are forwarded to the internal call to `Session.write_pandas` or `Session.write_arrow` when creating a DataFrame from a pandas DataFrame or a pyarrow Table.
 
+### Snowpark pandas API Updates
+
+#### Bug Fixes
+
+- Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically.
+
 ## 1.35.0 (2025-07-24)
 
 ### Snowpark Python API Updates
@@ -37,8 +43,6 @@
 #### New Features
 
 - Added local testing support for reading files with `SnowflakeFile` using local file paths, the Snow URL semantic (snow://...), local testing framework stages, and Snowflake stages (@stage/file_path).
-
-- Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically (SNOW-2171718).
 
 ### Snowpark pandas API Updates
 
