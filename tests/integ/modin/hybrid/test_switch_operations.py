@@ -106,9 +106,9 @@ def test_filtered_data(init_transaction_tables):
     )
 
 
-@sql_count_checker(query_count=5, join_count=1)
+@sql_count_checker(query_count=4)
 def test_apply(init_transaction_tables, us_holidays_data):
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS").head(1000)
     assert df_transactions.get_backend() == "Snowflake"
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
     df_us_holidays["Date"] = pd.to_datetime(df_us_holidays["Date"])
@@ -144,10 +144,10 @@ def test_apply(init_transaction_tables, us_holidays_data):
 
     assert (
         df_transactions._query_compiler._modin_frame.ordered_dataframe.row_count_upper_bound
-        == 10000000
+        == 1000
     )
     df_forecast = forecast_revenue(df_transactions, start_date, end_date)
-    assert df_forecast.get_backend() == "Snowflake"
+    assert df_forecast.get_backend() == "Pandas"
 
     def adjust_for_holiday_weekend(row):
         # For national holidays, revenue down 5% since stores are closed.
