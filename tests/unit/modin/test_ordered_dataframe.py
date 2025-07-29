@@ -168,3 +168,32 @@ def test_row_count_estimator_join_big():
         )
         == 20000000000
     )
+    
+def test_row_count_estimator_invariants():
+    # Verify we raise a runtime error if estimate < count
+    df1 = mock.create_autospec(OrderedDataFrame)
+    df1.row_count = 100
+    df1.row_count_upper_bound = 50
+
+    with pytest.raises(RuntimeError):
+        RowCountEstimator.upper_bound(
+            df1, DataFrameOperation.FILTER, {}
+        )
+
+    df2 = mock.create_autospec(OrderedDataFrame)
+    df2.row_count = 50
+    df2.row_count_upper_bound = 100
+    
+    df3 = mock.create_autospec(OrderedDataFrame)
+    df3.row_count = 50
+    df3.row_count_upper_bound = 100    
+        
+    with pytest.raises(ValueError):
+        RowCountEstimator.upper_bound(
+            df2, DataFrameOperation.JOIN, {"right": df3, "how": "poodle_join"}
+        )
+
+    with pytest.raises(ValueError):
+        RowCountEstimator.upper_bound(
+            df2, DataFrameOperation.ALIGN, {"right": df3, "how": "poodle_join"}
+        )
