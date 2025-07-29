@@ -529,7 +529,6 @@ jobs:
         run: python -m tox -e snowpark_pandas_auto_switch_backend
         env:
           TOX_PARALLEL_NO_SPINNER: 1
-          TEST_SNOWPARK_PANDAS_AUTO_SWITCH_BACKEND: True
         shell: bash
         # only run doctest for macos on aws
       - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
