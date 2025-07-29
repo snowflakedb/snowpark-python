@@ -73,7 +73,7 @@ def test_from_list(us_holidays_data):
 
 
 def test_move_threshold_setting():
-    with config_context(AutoSwitchBackend=True, NativePandasMaxRows=10):
+    with config_context(NativePandasMaxRows=10):
         with SqlCounter(
             query_count=10,
             join_count=2,
