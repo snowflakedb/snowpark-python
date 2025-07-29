@@ -560,7 +560,7 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
         elif inspect.isfunction(attr_value):
             setattr(cls, attr_name, propagate_attrs_decorator(attr_value))
     return cls
-    
+
 
 @_propagate_attrs_on_methods
 class SnowflakeQueryCompiler(BaseQueryCompiler):
@@ -836,9 +836,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
                 return False
         return True
-    
+
     @classmethod
-    def _transfer_threshold(cls):
+    def _transfer_threshold(cls) -> int:
         # do not return the custom configuration for sub-classes
         if cls == SnowflakeQueryCompiler:
             return SnowflakePandasTransferThreshold.get()

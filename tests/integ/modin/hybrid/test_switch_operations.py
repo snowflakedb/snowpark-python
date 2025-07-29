@@ -43,7 +43,7 @@ def test_snowflake_pandas_transfer_threshold():
 
     df = pd.DataFrame()
     assert df.get_backend() == "Pandas"
-    snow_df = pd.DataFrame({'A': [1, 2, 3]*100})
+    snow_df = pd.DataFrame({"A": [1, 2, 3] * 100})
     snow_df = snow_df.move_to("Snowflake")
     assert snow_df.get_backend() == "Snowflake"
     cost = snow_df._query_compiler.move_to_cost(
@@ -51,7 +51,7 @@ def test_snowflake_pandas_transfer_threshold():
     )
     assert cost == 3
     pandas_df = snow_df.transpose()
-    
+
     assert pandas_df.get_backend() == "Pandas"
 
     # Set and verify that we can set the transfer cost to
@@ -62,17 +62,15 @@ def test_snowflake_pandas_transfer_threshold():
         compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
         assert compiler._transfer_threshold() == 10
 
-        snow_df = pd.DataFrame({'A': [1, 2, 3]*100})
+        snow_df = pd.DataFrame({"A": [1, 2, 3] * 100})
         snow_df = snow_df.move_to("Snowflake")
         # Verify that the move_to_cost changes when this value is changed.
         cost = snow_df._query_compiler.move_to_cost(
-            type(df._query_compiler),"DataFrame", "test_op", {}
+            type(df._query_compiler), "DataFrame", "test_op", {}
         )
-        assert cost == QCCoercionCost.COST_IMPOSSIBLE        
+        assert cost == QCCoercionCost.COST_IMPOSSIBLE
     finally:
         SnowflakePandasTransferThreshold.put(oldval)
-
-
 
 
 @sql_count_checker(query_count=0)
@@ -138,7 +136,9 @@ def test_filtered_data(init_transaction_tables):
         (df_transactions["DATE"] >= base_date - pd.Timedelta("1 days"))
         & (df_transactions["DATE"] < base_date)
     ]
-    df_transactions_filter1 = df_transactions_filter1.sort_values(by="TRANSACTION_ID").head(1000)
+    df_transactions_filter1 = df_transactions_filter1.sort_values(
+        by="TRANSACTION_ID"
+    ).head(1000)
     assert df_transactions_filter1.get_backend() == "Snowflake"
     # The smaller dataframe does operations in pandas
     df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()["REVENUE"]
