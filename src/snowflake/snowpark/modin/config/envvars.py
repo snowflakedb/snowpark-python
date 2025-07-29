@@ -23,7 +23,7 @@ import sys
 import warnings
 from textwrap import dedent
 from typing import Any, Optional
-
+import modin.config as modin_config
 from packaging import version
 from pandas.util._decorators import doc  # type: ignore[attr-defined]
 
@@ -76,6 +76,20 @@ class EnvironmentVariable(Parameter, type=str, abstract=True):  # pragma: no cov
         if cls.choices:
             help += f" (valid examples are: {', '.join(str(c) for c in cls.choices)})"
         return help
+
+
+class SnowflakePandasTransferThreshold(EnvironmentVariable, type=int):
+    """
+    Targeted max number of dataframe rows which should be transferred from
+    Snowflake when using hybrid execution.
+    """
+
+    varname = "SNOWFLAKE_PANDAS_MAX_XFER_ROWS"
+    default = 100_000
+
+
+# have to monkey patch this into modin right now to use config contexts
+modin_config.SnowflakePandasTransferThreshold = SnowflakePandasTransferThreshold
 
 
 class EnvWithSibilings(
@@ -868,16 +882,6 @@ class DaskThreadsPerWorker(EnvironmentVariable, type=int):  # pragma: no cover
 
     varname = "MODIN_DASK_THREADS_PER_WORKER"
     default = 1
-
-
-class SnowflakePandasTransferThreshold(EnvironmentVariable, type=int):
-    """
-    Targeted max number of dataframe rows which should be transferred from
-    Snowflake when using hybrid execution.
-    """
-
-    varname = "SNOWFLAKE_PANDAS_MAX_XFER_ROWS"
-    default = 100_000
 
 
 def _check_vars() -> None:  # pragma: no cover

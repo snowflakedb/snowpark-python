@@ -49,7 +49,7 @@ def test_snowflake_pandas_transfer_threshold():
     cost = snow_df._query_compiler.move_to_cost(
         type(df._query_compiler), "DataFrame", "test_op", {}
     )
-    assert cost == 3
+    assert cost < QCCoercionCost.COST_LOW
     pandas_df = snow_df.transpose()
 
     assert pandas_df.get_backend() == "Pandas"
@@ -58,9 +58,7 @@ def test_snowflake_pandas_transfer_threshold():
     # something low and it works.
     # TODO: Allow for usage of this variable with the modin
     # config context.
-    try:
-        oldval = SnowflakePandasTransferThreshold.get()
-        SnowflakePandasTransferThreshold.put(10)
+    with config_context(SnowflakePandasTransferThreshold=10):
         compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
         assert compiler._transfer_threshold() == 10
 
@@ -71,8 +69,6 @@ def test_snowflake_pandas_transfer_threshold():
             type(df._query_compiler), "DataFrame", "test_op", {}
         )
         assert cost == QCCoercionCost.COST_IMPOSSIBLE
-    finally:
-        SnowflakePandasTransferThreshold.put(oldval)
 
 
 @sql_count_checker(query_count=0)

@@ -130,6 +130,12 @@ where the initial download of row data is acceptable.
     from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
     SnowflakePandasTransferThreshold.put(500_000)
 
+    # Use a config context to set the transfer limit
+    with config_context(SnowflakePandasTransferThreshold=1234):
+        # Data movement out of Snowflake strongly discouraged above
+        # 617 rows ( 1234 / 2 )
+        df = pd.DataFrame([4, 5, 6])
+
 Debugging Hybrid Execution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
