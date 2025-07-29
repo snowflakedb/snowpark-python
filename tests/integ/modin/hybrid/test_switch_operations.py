@@ -14,7 +14,9 @@ from numpy.testing import assert_array_equal
 from modin.config import context as config_context
 import modin.pandas as pd
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.row_count_estimation import MAX_ROW_COUNT_FOR_ESTIMATION
+from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
+    MAX_ROW_COUNT_FOR_ESTIMATION,
+)
 from snowflake.snowpark.modin.plugin._internal.utils import (
     MODIN_IS_AT_LEAST_0_34_0,
 )
@@ -27,7 +29,6 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
-
 @sql_count_checker(query_count=0)
 def test_get_rows_with_large_and_none_upper_bound():
     """
@@ -36,13 +37,26 @@ def test_get_rows_with_large_and_none_upper_bound():
     """
     from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 
-    pandas_df = pd.DataFrame({'A': [1, 2, 3, 4]})
+    pandas_df = pd.DataFrame({"A": [1, 2, 3, 4]})
     df = pandas_df.move_to("Snowflake")
     df._query_compiler._modin_frame.ordered_dataframe.row_count_upper_bound = None
-    assert SnowflakeQueryCompiler._get_rows(df._query_compiler) == MAX_ROW_COUNT_FOR_ESTIMATION
-    df._query_compiler._modin_frame.ordered_dataframe.row_count_upper_bound = MAX_ROW_COUNT_FOR_ESTIMATION + 1
-    assert SnowflakeQueryCompiler._get_rows(df._query_compiler) == MAX_ROW_COUNT_FOR_ESTIMATION
-    assert df._query_compiler.move_to_cost(type(pandas_df._query_compiler), "DataFrame", "apply", {}) == QCCoercionCost.COST_IMPOSSIBLE
+    assert (
+        SnowflakeQueryCompiler._get_rows(df._query_compiler)
+        == MAX_ROW_COUNT_FOR_ESTIMATION
+    )
+    df._query_compiler._modin_frame.ordered_dataframe.row_count_upper_bound = (
+        MAX_ROW_COUNT_FOR_ESTIMATION + 1
+    )
+    assert (
+        SnowflakeQueryCompiler._get_rows(df._query_compiler)
+        == MAX_ROW_COUNT_FOR_ESTIMATION
+    )
+    assert (
+        df._query_compiler.move_to_cost(
+            type(pandas_df._query_compiler), "DataFrame", "apply", {}
+        )
+        == QCCoercionCost.COST_IMPOSSIBLE
+    )
 
 
 @sql_count_checker(query_count=0)
@@ -363,5 +377,3 @@ def test_query_count_no_switch(init_transaction_tables):
 
     assert orig_len == hybrid_len
     assert len(query_history_orig.queries) == len(query_history_hybrid.queries)
-
-
