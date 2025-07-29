@@ -928,3 +928,143 @@ def test_filter_sort_limit_snowpark_connect_compatible(session):
 
     finally:
         context._is_snowpark_connect_compatible_mode = original_value
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="exclude_grouping_columns is not supported",
+)
+def test_group_by_exclude_grouping_columns(session):
+    """Test the exclude_grouping_columns parameter for all aggregate functions."""
+
+    # Create test data
+    df = session.create_dataframe(
+        [
+            ("A", "X", 1, 100),
+            ("A", "X", 2, 200),
+            ("A", "Y", 3, 300),
+            ("B", "X", 4, 400),
+            ("B", "Y", 5, 500),
+            ("B", "Y", 6, 600),
+        ],
+        schema=["group1", "group2", "value1", "value2"],
+    )
+
+    # Test agg() with exclude_grouping_columns
+    # Default behavior (include grouping columns)
+    result_default = df.group_by("group1").agg(sum_("value1").alias("sum_v1")).collect()
+    assert len(result_default[0]) == 2  # group1 + sum_v1
+    Utils.check_answer(result_default, [Row("A", 6), Row("B", 15)])
+
+    # Exclude grouping columns
+    result_exclude = (
+        df.group_by("group1")
+        .agg(sum_("value1").alias("sum_v1"), exclude_grouping_columns=True)
+        .collect()
+    )
+    assert len(result_exclude[0]) == 1  # only sum_v1
+    print(result_exclude)
+    Utils.check_answer(result_exclude, [Row(6), Row(15)])
+
+    # Test with multiple grouping columns
+    result_multi_default = (
+        df.group_by("group1", "group2").agg(sum_("value1").alias("sum_v1")).collect()
+    )
+    assert len(result_multi_default[0]) == 3  # group1 + group2 + sum_v1
+
+    result_multi_exclude = (
+        df.group_by("group1", "group2")
+        .agg(sum_("value1").alias("sum_v1"), exclude_grouping_columns=True)
+        .collect()
+    )
+    assert len(result_multi_exclude[0]) == 1  # only sum_v1
+    # Group by produces [('A', 'X', 3), ('A', 'Y', 3), ('B', 'X', 4), ('B', 'Y', 11)]
+    Utils.check_answer(result_multi_exclude, [Row(3), Row(3), Row(4), Row(11)])
+
+    # Test with multiple aggregations
+    result_multi_agg = (
+        df.group_by("group1")
+        .agg(
+            sum_("value1").alias("sum_v1"),
+            avg("value2").alias("avg_v2"),
+            exclude_grouping_columns=True,
+        )
+        .collect()
+    )
+    assert len(result_multi_agg[0]) == 2  # sum_v1 + avg_v2
+    Utils.check_answer(result_multi_agg, [Row(6, 200.0), Row(15, 500.0)])
+
+    # Test count() with exclude_grouping_columns
+    result_count_default = df.group_by("group1").count().collect()
+    assert len(result_count_default[0]) == 2  # group1 + count
+    Utils.check_answer(result_count_default, [Row("A", 3), Row("B", 3)])
+
+    result_count_exclude = (
+        df.group_by("group1").count(exclude_grouping_columns=True).collect()
+    )
+    assert len(result_count_exclude[0]) == 1  # only count
+    Utils.check_answer(result_count_exclude, [Row(3), Row(3)])
+
+    # Test avg() with exclude_grouping_columns
+    result_avg_default = df.group_by("group1").avg("value1").collect()
+    assert len(result_avg_default[0]) == 2  # group1 + avg
+
+    result_avg_exclude = (
+        df.group_by("group1").avg("value1", exclude_grouping_columns=True).collect()
+    )
+    assert len(result_avg_exclude[0]) == 1  # only avg
+    Utils.check_answer(result_avg_exclude, [Row(2.0), Row(5.0)])
+
+    # Test sum() with exclude_grouping_columns
+    result_sum_default = df.group_by("group1").sum("value1", "value2").collect()
+    assert len(result_sum_default[0]) == 3  # group1 + sum(value1) + sum(value2)
+
+    result_sum_exclude = (
+        df.group_by("group1")
+        .sum("value1", "value2", exclude_grouping_columns=True)
+        .collect()
+    )
+    assert len(result_sum_exclude[0]) == 2  # only sums
+    Utils.check_answer(result_sum_exclude, [Row(6, 600), Row(15, 1500)])
+
+    # Test min() with exclude_grouping_columns
+    result_min_default = df.group_by("group1").min("value1").collect()
+    assert len(result_min_default[0]) == 2  # group1 + min
+
+    result_min_exclude = (
+        df.group_by("group1").min("value1", exclude_grouping_columns=True).collect()
+    )
+    assert len(result_min_exclude[0]) == 1  # only min
+    Utils.check_answer(result_min_exclude, [Row(1), Row(4)])
+
+    # Test max() with exclude_grouping_columns
+    result_max_default = df.group_by("group1").max("value1").collect()
+    assert len(result_max_default[0]) == 2  # group1 + max
+
+    result_max_exclude = (
+        df.group_by("group1").max("value1", exclude_grouping_columns=True).collect()
+    )
+    assert len(result_max_exclude[0]) == 1  # only max
+    Utils.check_answer(result_max_exclude, [Row(3), Row(6)])
+
+    # Test median() with exclude_grouping_columns
+    result_median_default = df.group_by("group1").median("value1").collect()
+    assert len(result_median_default[0]) == 2  # group1 + median
+
+    result_median_exclude = (
+        df.group_by("group1").median("value1", exclude_grouping_columns=True).collect()
+    )
+    assert len(result_median_exclude[0]) == 1  # only median
+    Utils.check_answer(result_median_exclude, [Row(2.0), Row(5.0)])
+
+    # Test function() / builtin() with exclude_grouping_columns
+    result_builtin_default = df.group_by("group1").builtin("sum")("value1").collect()
+    assert len(result_builtin_default[0]) == 2  # group1 + sum
+
+    result_builtin_exclude = (
+        df.group_by("group1")
+        .builtin("sum", exclude_grouping_columns=True)("value1")
+        .collect()
+    )
+    assert len(result_builtin_exclude[0]) == 1  # only sum
+    Utils.check_answer(result_builtin_exclude, [Row(6), Row(15)])
