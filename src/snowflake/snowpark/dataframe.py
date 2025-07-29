@@ -679,9 +679,9 @@ class DataFrame:
     @_ast_id.setter
     def _ast_id(self, value: Optional[int]) -> None:
         self.__ast_id = value
-        if self._plan is not None:
+        if self._plan is not None and value is not None:
             self._plan.add_df_ast_id(value)
-        if self._select_statement is not None:
+        if self._select_statement is not None and value is not None:
             self._select_statement.add_df_ast_id(value)
 
     @publicapi
@@ -1737,6 +1737,7 @@ class DataFrame:
                 )
 
             return self._with_plan(self._select_statement.select(names), _ast_stmt=stmt)
+
         return self._with_plan(Project(names, join_plan or self._plan), _ast_stmt=stmt)
 
     @df_api_usage
