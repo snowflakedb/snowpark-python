@@ -339,24 +339,30 @@ class Selectable(LogicalPlan, ABC):
     @property
     def sql_in_subquery(self) -> str:
         """Return the sql when this Selectable is used in a subquery."""
+        indented_subquery = analyzer_utils.indent_child_query(
+            f"{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.indent_child_query(self.sql_query)}"
+            f"{analyzer_utils.NEW_LINE}"
+        )
         return (
             f"{analyzer_utils.LEFT_PARENTHESIS}"
-            f"{analyzer_utils.NEW_LINE}"
-            f"{self.sql_query}"
-            f"{analyzer_utils.NEW_LINE}"
+            f"{indented_subquery}"
             f"{analyzer_utils.RIGHT_PARENTHESIS}"
         )
 
     @property
     def sql_in_subquery_with_uuid(self) -> str:
         UUID = analyzer_utils.format_uuid(self.uuid)
+        indented_subquery = analyzer_utils.indent_child_query(
+            f"{analyzer_utils.NEW_LINE}"
+            f"{UUID}"
+            f"{analyzer_utils.indent_child_query(self.sql_query)}"
+            f"{analyzer_utils.NEW_LINE}"
+            f"{UUID}"
+        )
         return (
             f"{analyzer_utils.LEFT_PARENTHESIS}"
-            f"{analyzer_utils.NEW_LINE}"
-            f"{UUID}"
-            f"{self.sql_query}"
-            f"{analyzer_utils.NEW_LINE}"
-            f"{UUID}"
+            f"{indented_subquery}"
             f"{analyzer_utils.RIGHT_PARENTHESIS}"
         )
 
@@ -594,12 +600,12 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_in_subquery(self) -> str:
-        return self.entity.name
+        return analyzer_utils.NEW_LINE + analyzer_utils.TAB + self.entity.name
 
     @property
     def sql_in_subquery_with_uuid(self) -> str:
         UUID = analyzer_utils.format_uuid(self.uuid)
-        return f"{UUID}{self.entity.name}{UUID}"
+        return f"{UUID}{analyzer_utils.NEW_LINE}{analyzer_utils.TAB}{self.entity.name}{UUID}"
 
     @property
     def schema_query(self) -> str:
@@ -1804,7 +1810,7 @@ class SetStatement(Selectable):
         )
         sql = (
             f"({analyzer_utils.NEW_LINE}{FIRST_UUID}"
-            f"{self.set_operands[0].selectable.sql_query}"
+            f"{analyzer_utils.indent_child_query(self.set_operands[0].selectable.sql_query)}"
             f"{analyzer_utils.NEW_LINE}{FIRST_UUID})"
         )
         for i in range(1, len(self.set_operands)):
@@ -1816,7 +1822,7 @@ class SetStatement(Selectable):
             )
             child_sql = (
                 f"({analyzer_utils.NEW_LINE}{ITH_UUID}"
-                f"{operand.selectable.sql_query}"
+                f"{analyzer_utils.indent_child_query(operand.selectable.sql_query)}"
                 f"{analyzer_utils.NEW_LINE}{ITH_UUID})"
             )
             sql = f"{sql}{operand.operator}{child_sql}"

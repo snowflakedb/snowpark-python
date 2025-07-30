@@ -103,7 +103,7 @@ def test_get_plan_from_line_numbers_sql_content(
         ), f"Could not extract SQL from plan for line {line_num}"
 
         assert Utils.normalize_sql(expected_sql) == Utils.normalize_sql(
-            plan_sql
+            plan_sql, session._new_line_token
         ), f"Line {line_num}: Expected SQL '{expected_sql}' not equal to plan sql:\n{plan_sql}"
 
 
@@ -141,7 +141,7 @@ def test_get_plan_from_line_numbers_join_operations(session):
             plan_sql is not None
         ), f"Could not extract SQL from plan for line {line_num}"
 
-        normalized_sql = Utils.normalize_sql(plan_sql)
+        normalized_sql = Utils.normalize_sql(plan_sql, session._new_line_token)
         assert re.match(expected_pattern, normalized_sql), (
             f"Line {line_num}: SQL pattern does not match expected pattern.\n"
             f"Expected pattern: {expected_pattern}\n"

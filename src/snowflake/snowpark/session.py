@@ -118,6 +118,7 @@ from snowflake.snowpark._internal.utils import (
     escape_quotes,
     experimental,
     experimental_parameter,
+    generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -665,6 +666,7 @@ class Session:
                 _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, False
             )
         )
+        self._new_line_token = generate_random_alphanumeric()
         if self._generate_multiline_queries:
             self._enable_multiline_queries()
         else:
@@ -795,13 +797,15 @@ class Session:
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
         self._generate_multiline_queries = True
-        analyzer_utils.NEW_LINE = "\n"
+        analyzer_utils.NEW_LINE_TOKEN = self._new_line_token
+        analyzer_utils.NEW_LINE = f"\n{self._new_line_token}"
         analyzer_utils.TAB = "    "
 
     def _disable_multiline_queries(self):
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
         self._generate_multiline_queries = False
+        analyzer_utils.NEW_LINE_TOKEN = ""
         analyzer_utils.NEW_LINE = ""
         analyzer_utils.TAB = ""
 
@@ -2811,7 +2815,7 @@ class Session:
             if _ast_stmt is None:
                 stmt = self._ast_batch.bind()
                 expr = with_src_position(stmt.expr.sql, stmt)
-                expr.query = query
+                expr.query = self._clean_query(query)
                 if params is not None:
                     for p in params:
                         build_expr_from_python_val(expr.params.add(), p)
@@ -2871,6 +2875,12 @@ class Session:
         and Snowflake server."""
         return self._conn._conn
 
+    def _clean_query(self, query: str) -> str:
+        """Remove _new_line_token from query before execution."""
+        if self._new_line_token and self._new_line_token in query:
+            query = query.replace(self._new_line_token, "")
+        return query
+
     def _run_query(
         self,
         query: str,
@@ -2878,6 +2888,7 @@ class Session:
         log_on_exception: bool = True,
         statement_params: Optional[Dict[str, str]] = None,
     ) -> List[Any]:
+        query = self._clean_query(query)
         return self._conn.run_query(
             query,
             is_ddl_on_temp_object=is_ddl_on_temp_object,
@@ -2886,7 +2897,7 @@ class Session:
         )["data"]
 
     def _get_result_attributes(self, query: str) -> List[Attribute]:
-        return self._conn.get_result_attributes(query)
+        return self._conn.get_result_attributes(self._clean_query(query))
 
     def get_session_stage(
         self,
@@ -4286,6 +4297,7 @@ class Session:
 
         validate_object_name(sproc_name)
         query = generate_call_python_sp_sql(self, sproc_name, *args)
+        query = self._clean_query(query)
 
         if is_return_table is None:
             is_return_table = self._infer_is_return_table(
