@@ -1908,7 +1908,10 @@ def ttl_cache(ttl_seconds: float):
     return decorator
 
 
-def remove_comments(sql_query: str, uuids: List[str]) -> str:
+def remove_comments(
+    sql_query: str,
+    uuids: List[str],
+) -> str:
     """Removes comments associated with child uuids in a query"""
     from snowflake.snowpark._internal.analyzer import analyzer_utils
 
@@ -1918,7 +1921,7 @@ def remove_comments(sql_query: str, uuids: List[str]) -> str:
     return "\n".join(
         line
         for line in sql_query.split("\n")
-        if line not in comment_placeholders and line != ""
+        if line.strip() not in comment_placeholders and line.strip() != ""
     )
 
 
@@ -2060,3 +2063,12 @@ def get_plan_from_line_numbers(
             )
 
     raise ValueError(f"Line number {line_number} does not fall within any interval")
+
+
+def remove_new_line_token(text: str, new_line_token: Optional[str] = None) -> str:
+    if not new_line_token:
+        return text
+    cleaned_text = text.replace(new_line_token, "")
+    cleaned_text = cleaned_text.replace(new_line_token.upper(), "")
+
+    return cleaned_text
