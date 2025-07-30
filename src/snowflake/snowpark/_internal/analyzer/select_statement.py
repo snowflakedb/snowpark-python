@@ -51,6 +51,7 @@ from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     result_scan_statement,
     schema_value_statement,
+    remove_new_line_tokens,
 )
 from snowflake.snowpark._internal.analyzer.binary_expression import And
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -298,6 +299,32 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     @abstractmethod
+    def formatted_sql_query(self) -> str:
+        """
+        Returns the formatted sql query of this Selectable logical plan.
+        These SQL queries include new_line tokens, which are used for formatting.
+        The new_line_tokens tell us where we can add tabs (we can't just use '\n')
+        to delineate this because '\n' can be included in column names.
+        For example, when new_line_token is "ABCDEF" the formatted_sql_query is:
+        SELECT
+        ABCDEF    "A",
+        ABCDEF    "B",
+        ABCDEF    "C"
+        ABCDEF    FROM (
+        ABCDEF                 SELECT
+        ABCDEF                     DISTINCT  *
+        ABCDEF                 FROM
+        ABCDEF                    SNOWPARK_TEMP_TABLE_8B4DX08QFA
+        ABCDEF            )
+        ABCDEF         WHERE
+        ABCDEF            ("B" > 1)
+        ABCDEF         ORDER BY
+        ABCDEF            "C" ASC NULLS FIRST
+        """
+        pass
+
+    @property
+    @abstractmethod
     def commented_sql(self) -> str:
         """
         This is an abstract method that is implemented by any
@@ -341,25 +368,31 @@ class Selectable(LogicalPlan, ABC):
     @property
     def sql_in_subquery(self) -> str:
         """Return the sql when this Selectable is used in a subquery."""
+        indented_subquery = analyzer_utils.indent_child_query(
+            f"{analyzer_utils.NEW_LINE}"
+            f"{analyzer_utils.indent_child_query(self.formatted_sql_query)}"
+            f"{analyzer_utils.NEW_LINE}"
+        )
         return (
             f"{analyzer_utils.LEFT_PARENTHESIS}"
-            f"{analyzer_utils.NEW_LINE}"
-            f"{self.sql_query}"
-            f"{analyzer_utils.NEW_LINE}"
-            f"{analyzer_utils.RIGHT_PARENTHESIS}"
+            f"{indented_subquery}"
+            f" {analyzer_utils.RIGHT_PARENTHESIS}"
         )
 
     @property
     def sql_in_subquery_with_uuid(self) -> str:
         UUID = analyzer_utils.format_uuid(self.uuid)
+        indented_subquery = analyzer_utils.indent_child_query(
+            f"{analyzer_utils.NEW_LINE}"
+            f"{UUID}"
+            f"{analyzer_utils.indent_child_query(self.formatted_sql_query)}"
+            f"{analyzer_utils.NEW_LINE}"
+            f"{UUID}"
+        )
         return (
             f"{analyzer_utils.LEFT_PARENTHESIS}"
-            f"{analyzer_utils.NEW_LINE}"
-            f"{UUID}"
-            f"{self.sql_query}"
-            f"{analyzer_utils.NEW_LINE}"
-            f"{UUID}"
-            f"{analyzer_utils.RIGHT_PARENTHESIS}"
+            f"{indented_subquery}"
+            f" {analyzer_utils.RIGHT_PARENTHESIS}"
         )
 
     @property
@@ -405,6 +438,7 @@ class Selectable(LogicalPlan, ABC):
                 self.commented_sql
                 if context._enable_trace_sql_errors_to_dataframe
                 else self.sql_query,
+                formatted_sql=self.formatted_sql_query,
                 params=self.query_params,
             )
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
@@ -591,17 +625,21 @@ class SelectableEntity(Selectable):
         return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
 
     @property
+    def formatted_sql_query(self) -> str:
+        return self.sql_query
+
+    @property
     def commented_sql(self) -> str:
         return self.sql_query
 
     @property
     def sql_in_subquery(self) -> str:
-        return self.entity.name
+        return analyzer_utils.NEW_LINE + analyzer_utils.TAB + self.entity.name
 
     @property
     def sql_in_subquery_with_uuid(self) -> str:
         UUID = analyzer_utils.format_uuid(self.uuid)
-        return f"{UUID}{self.entity.name}{UUID}"
+        return f"{UUID}{analyzer_utils.NEW_LINE}{analyzer_utils.TAB}{self.entity.name}{UUID}"
 
     @property
     def schema_query(self) -> str:
@@ -654,6 +692,7 @@ class SelectSQL(Selectable):
         self,
         sql: str,
         *,
+        formatted_sql: Optional[str] = None,
         convert_to_select: bool = False,
         analyzer: "Analyzer",
         params: Optional[Sequence[Any]] = None,
@@ -680,15 +719,19 @@ class SelectSQL(Selectable):
                 _analyze_attributes(sql, self._session, self._uuid)
             )  # Change to subqueryable schema query so downstream query plan can describe the SQL
             self._query_param = None
+            # When converting to select, both sql_query and formatted_sql_query should be RESULT_SCAN
+            self._formatted_sql_query = self._sql_query
         else:
             self._sql_query = sql
             self._schema_query = sql
             self._query_param = params
+            self._formatted_sql_query = formatted_sql or self._sql_query
         self._commented_sql = self._sql_query
 
     def __deepcopy__(self, memodict={}) -> "SelectSQL":  # noqa: B006
         copied = SelectSQL(
             sql=self.original_sql,
+            formatted_sql=self.formatted_sql_query,
             # when convert_to_select is True, a describe call might be triggered
             # to construct the schema query. Since this is a pure copy method, and all
             # fields can be done with a pure copy, we set this parameter to False on
@@ -701,6 +744,7 @@ class SelectSQL(Selectable):
         # copy over the other fields
         copied.convert_to_select = self.convert_to_select
         copied._sql_query = self._sql_query
+        copied._formatted_sql_query = self._formatted_sql_query
         copied._commented_sql = self._commented_sql
         copied._schema_query = self._schema_query
         copied._query_param = deepcopy(self._query_param)
@@ -710,6 +754,10 @@ class SelectSQL(Selectable):
     @property
     def sql_query(self) -> str:
         return self._sql_query
+
+    @property
+    def formatted_sql_query(self) -> str:
+        return self._formatted_sql_query
 
     @property
     def commented_sql(self) -> str:
@@ -733,6 +781,7 @@ class SelectSQL(Selectable):
             return self
         new = SelectSQL(
             self._sql_query,
+            formatted_sql=self._formatted_sql_query,
             convert_to_select=True,
             analyzer=self.analyzer,
             params=self.query_params,
@@ -801,6 +850,10 @@ class SelectSnowflakePlan(Selectable):
         return self.sql_query
 
     @property
+    def formatted_sql_query(self) -> str:
+        return self._snowflake_plan.queries[-1].formatted_sql
+
+    @property
     def schema_query(self) -> Optional[str]:
         return self.snowflake_plan.schema_query
 
@@ -866,6 +919,7 @@ class SelectStatement(Selectable):
         self.pre_actions = self.from_.pre_actions
         self.post_actions = self.from_.post_actions
         self._sql_query = None
+        self._formatted_sql_query = None
         self._commented_sql = None
         self._schema_query = schema_query
         self.distinct_: bool = distinct
@@ -1039,7 +1093,18 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         self._sql_query = self._generate_sql(generate_uuid_comments=False)
+        self._sql_query = remove_new_line_tokens(self._sql_query)
         return self._sql_query
+
+    @property
+    def formatted_sql_query(self) -> str:
+        if self._formatted_sql_query:
+            return self._formatted_sql_query
+        if not self.has_clause and not self.has_projection:
+            self._formatted_sql_query = self.from_.formatted_sql_query
+            return self._formatted_sql_query
+        self._formatted_sql_query = self._generate_sql(generate_uuid_comments=False)
+        return self._formatted_sql_query
 
     @property
     def commented_sql(self) -> str:
@@ -1048,8 +1113,10 @@ class SelectStatement(Selectable):
         if not self.has_clause and not self.has_projection:
             UUID = analyzer_utils.format_uuid(self.from_.uuid)
             self._commented_sql = f"{UUID}{self.from_.sql_query}{UUID}"
+            self._commented_sql = remove_new_line_tokens(self._commented_sql)
             return self._commented_sql
         self._commented_sql = self._generate_sql(generate_uuid_comments=True)
+        self._commented_sql = remove_new_line_tokens(self._commented_sql)
         return self._commented_sql
 
     def _generate_sql(self, generate_uuid_comments: bool) -> str:
@@ -1119,6 +1186,7 @@ class SelectStatement(Selectable):
             self._schema_query = self.from_.schema_query
             return self._schema_query
         self._schema_query = f"{analyzer_utils.SELECT}{self.projection_in_str}{analyzer_utils.FROM}({self.from_.schema_query})"
+        self._schema_query = remove_new_line_tokens(self._schema_query)
         return self._schema_query
 
     @property
@@ -1714,6 +1782,10 @@ class SelectTableFunction(Selectable):
         return self._snowflake_plan.queries[-1].sql
 
     @property
+    def formatted_sql_query(self) -> str:
+        return self._snowflake_plan.queries[-1].formatted_sql
+
+    @property
     def commented_sql(self) -> str:
         return self.sql_query
 
@@ -1765,6 +1837,7 @@ class SetStatement(Selectable):
     def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
         self._sql_query = None
+        self._formatted_sql_query = None
         self._commented_sql = None
         self.set_operands = set_operands
         self._nodes = []
@@ -1783,6 +1856,7 @@ class SetStatement(Selectable):
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
         copied._sql_query = self._sql_query
+        copied._formatted_sql_query = self._formatted_sql_query
 
         return copied
 
@@ -1790,12 +1864,22 @@ class SetStatement(Selectable):
     def sql_query(self) -> str:
         if not self._sql_query:
             self._sql_query = self._generate_sql(generate_uuid_comments=False)
+            self._sql_query = remove_new_line_tokens(self._sql_query)
         return self._sql_query
+
+    @property
+    def formatted_sql_query(self) -> str:
+        if not self._formatted_sql_query:
+            self._formatted_sql_query = self._generate_sql(generate_uuid_comments=False)
+        return self._formatted_sql_query
 
     @property
     def commented_sql(self) -> str:
         if not self._commented_sql:
             self._commented_sql = self._generate_sql(generate_uuid_comments=True)
+            self._commented_sql = self._commented_sql.replace(
+                self._session._new_line_token, ""
+            )
         return self._commented_sql
 
     def _generate_sql(self, generate_uuid_comments: bool) -> str:
@@ -1806,7 +1890,7 @@ class SetStatement(Selectable):
         )
         sql = (
             f"({analyzer_utils.NEW_LINE}{FIRST_UUID}"
-            f"{self.set_operands[0].selectable.sql_query}"
+            f"{analyzer_utils.indent_child_query(self.set_operands[0].selectable.formatted_sql_query)}"
             f"{analyzer_utils.NEW_LINE}{FIRST_UUID})"
         )
         for i in range(1, len(self.set_operands)):
@@ -1818,7 +1902,7 @@ class SetStatement(Selectable):
             )
             child_sql = (
                 f"({analyzer_utils.NEW_LINE}{ITH_UUID}"
-                f"{operand.selectable.sql_query}"
+                f"{analyzer_utils.indent_child_query(operand.selectable.formatted_sql_query)}"
                 f"{analyzer_utils.NEW_LINE}{ITH_UUID})"
             )
             sql = f"{sql}{operand.operator}{child_sql}"
@@ -1834,6 +1918,7 @@ class SetStatement(Selectable):
         for i in range(1, len(self.set_operands)):
             attributes = self.set_operands[i].selectable.snowflake_plan.attributes
             sql = f"{sql}{self.set_operands[i].operator}({schema_value_statement(attributes)})"
+        sql = remove_new_line_tokens(sql)
         return sql
 
     @property
@@ -1895,16 +1980,22 @@ def parse_column_name(
             # some expressions converted to SQL text with extra preceeding and trailing spaces.
             # Snowflake SQL removes the spaces in the returned column names.
             # So we remove it at the client too.
-            return analyzer.analyze(
+            name = analyzer.analyze(
                 column, df_aliased_col_name_to_real_col_name, parse_local_name=True
             ).strip(" ")
+            # Strip new_line_token from column names
+            name = remove_new_line_tokens(name)
+            return name
         if isinstance(column, UnresolvedAttribute):
             if not column.is_sql_text:
                 return column.name
         if isinstance(column, UnresolvedAlias):
-            return analyzer.analyze(
+            name = analyzer.analyze(
                 column, df_aliased_col_name_to_real_col_name, parse_local_name=True
             ).strip(" ")
+            # Strip new_line_token from column names
+            name = remove_new_line_tokens(name)
+            return name
         if isinstance(column, Alias):
             return column.name
     # We can parse column name from a column's SQL expression in the future.
@@ -2080,6 +2171,8 @@ def initiate_column_states(
         name = analyzer.analyze(
             attr, df_aliased_col_name_to_real_col_name, parse_local_name=True
         ).strip(" ")
+        # Strip new_line_token from column names
+        name = remove_new_line_tokens(name)
         column_states[name] = ColumnState(
             name,
             change_state=ColumnChangeState.UNCHANGED_EXP,

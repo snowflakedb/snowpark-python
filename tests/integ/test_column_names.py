@@ -234,6 +234,7 @@ def test_specified_window_frame(session):
     assert df1._output[0].name == '" a"'
     assert df1.columns[0] == '" a"'
     df2 = df1.select(rank().over(Window.order_by('" a"').rows_between(1, 2)) - 1)
+    print(df2.queries["queries"][-1])
     expected_columns = [
         '"(RANK() OVER (  ORDER BY \n    "" A"" ASC NULLS FIRST  ROWS BETWEEN 1 FOLLOWING  AND 2 FOLLOWING  ) - 1 :: INT)"'
     ]

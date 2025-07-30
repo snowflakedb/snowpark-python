@@ -351,12 +351,15 @@ def test_create_scoped_temp_table(session):
                 child_attributes=None,
             )
             .queries[0]
-            .sql
+            .sql,
+            session._new_line_token,
         ) == Utils.normalize_sql(
             f"CREATE TEMPORARY TABLE {temp_table_name} AS SELECT * FROM ({inner_select_sql} )"
         )
-        expected_sql = f' CREATE  TEMPORARY  TABLE  {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
-        assert expected_sql in (
+        expected_sql = (
+            f'CREATE TEMPORARY TABLE {temp_table_name}("NUM" BIGINT, "STR" STRING(8))'
+        )
+        assert expected_sql in Utils.normalize_sql(
             session._plan_builder.save_as_table(
                 table_name=[temp_table_name],
                 column_names=None,
@@ -376,7 +379,8 @@ def test_create_scoped_temp_table(session):
                 child_attributes=df._plan.attributes,
             )
             .queries[0]
-            .sql
+            .sql,
+            session._new_line_token,
         )
         expected_sql = (
             f" CREATE  SCOPED TEMPORARY  TABLE  {temp_table_name}    AS  SELECT"
