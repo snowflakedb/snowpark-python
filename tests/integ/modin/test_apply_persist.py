@@ -293,3 +293,21 @@ def test_grouby_apply_permanent(session, stage_name):
         check_udf_exists(session, udf_name)
     finally:
         drop_named_udf_and_udtfs()
+
+
+@sql_count_checker(query_count=6, join_count=1)
+def test_apply_immutable(session, stage_name):
+    def immutable_f(x: int) -> int:
+        return x + 2
+
+    eval_snowpark_pandas_result(
+        *create_test_dfs({"A": [1, 2, 3]}),
+        get_applier(
+            immutable_f,
+            {
+                "stage_location": stage_name,
+                "immutable": True,
+                "replace": True,
+            },
+        ),
+    )

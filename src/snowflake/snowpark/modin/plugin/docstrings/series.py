@@ -705,7 +705,7 @@ class Series(BasePandasDataset):
 
         4. For working with 3rd-party-packages see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
 
-        5. For creating permanent UDTfs, see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
+        5. For creating permanent or immutable UDTFs, see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
         """
 
     def argmax():
@@ -1987,8 +1987,37 @@ class Series(BasePandasDataset):
         3    rabbitrabbit
         dtype: object
 
-        You may also pass `replace` and `if_not_exists` in the dictionary to overwrite or re-use existing UDFs.
+        You may also pass "replace" and "if_not_exists" in the dictionary to overwrite or re-use existing UDTFs.
 
+        With the "replace" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ... })
+
+        With the "if_not_exists" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "if_not_exists": True,
+        ... })
+
+        Note that Snowpark pandas may still attempt to upload a new UDTF even when "if_not_exists"
+        is passed; the generated SQL will just contain a `CREATE FUNCTION IF NOT EXISTS` query
+        instead. Subsequent calls to `apply` within the same session may skip this query.
+
+        Passing the `immutable` keyword creates an immutable UDTF, which assumes that the
+        UDTF will return the same result for the same inputs.
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ...     "immutable": True,
+        ... })
         """
 
     def mask():

@@ -155,6 +155,7 @@ class UDxFPersistParams:
 
     udf_name: str
     stage_name: str
+    immutable: bool
     # Ignore replace and if_not_exists for caching purposes since we cache on the contents
     # of the pickled bytes of the function.
     replace: bool | None = dataclasses.field(default=None, hash=None, compare=False)
@@ -186,12 +187,19 @@ def process_persist_params(
     NAME_KEY = "name"
     REPLACE_KEY = "replace"
     IF_NOT_EXISTS_KEY = "if_not_exists"
+    IMMUTABLE_KEY = "immutable"
     # If is_permanent is unspecified, assume it is transient.
     if STAGE_KEY not in persist_info:
         raise ValueError(
             f"`{STAGE_KEY}` must be set when calling apply/map/transform when creating a permanent UDF with `{PERSIST_KWARG_NAME}`."
         )
-    supported_args = {STAGE_KEY, NAME_KEY, REPLACE_KEY, IF_NOT_EXISTS_KEY}
+    supported_args = {
+        STAGE_KEY,
+        NAME_KEY,
+        REPLACE_KEY,
+        IF_NOT_EXISTS_KEY,
+        IMMUTABLE_KEY,
+    }
     unsupported_args = [f"`{key}`" for key in persist_info if key not in supported_args]
     if len(unsupported_args) > 0:
         if len(unsupported_args) > 1:
@@ -211,6 +219,7 @@ def process_persist_params(
     return UDxFPersistParams(
         name,
         persist_info[STAGE_KEY],
+        persist_info.get(IMMUTABLE_KEY, False),
         persist_info.get(REPLACE_KEY),
         persist_info.get(IF_NOT_EXISTS_KEY),
     )
@@ -321,6 +330,7 @@ def cache_key_to_init_params(
         "is_permanent": True,
         "name": key.persist_params.udf_name,
         "stage_location": key.persist_params.stage_name,
+        "immutable": key.persist_params.immutable,
         "replace": key.persist_params.replace,
         "if_not_exists": key.persist_params.if_not_exists,
     }
