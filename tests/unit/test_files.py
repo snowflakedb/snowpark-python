@@ -9,6 +9,13 @@ import os
 import io
 from io import UnsupportedOperation
 
+try:
+    import pandas  # noqa: F401
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 from snowflake.snowpark.files import SnowflakeFile, _DEFER_IMPLEMENTATION_ERR_MSG
 from typing import Union
 
@@ -27,6 +34,13 @@ _STANDARD_ARGVALUES = [
     ("r", "w", False),
     ("rb", "wb", True),
     ("rb", "wb", False),
+]
+
+pytestmark = [
+    pytest.mark.skipif(
+        not is_pandas_available,
+        reason="pandas is not available",
+    ),
 ]
 
 
@@ -350,6 +364,42 @@ def test_read_deleted_snowflakefile(mode, tmp_path):
             SnowflakeFile.open(file_location)
 
         sf_open(temp_file)
+
+
+@pytest.mark.parametrize(
+    ["read_mode", "write_mode", "use_tmp_path"],
+    [("r", "w", True), ("r", "w", False), ("rb", "wb", True), ("rb", "wb", False)],
+)
+def test_read_relative_path_snowflakefile(
+    read_mode, write_mode, use_tmp_path, tmp_path
+):
+    if use_tmp_path:
+        test_msg, temp_file = Utils.write_test_msg(write_mode, tmp_path)
+    else:
+        # Write to a temp file in the current directory
+        test_msg, temp_file = Utils.write_test_msg(write_mode, "")
+    temp_file = os.path.relpath(temp_file)
+
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.read()
+
+    assert read_file(temp_file, read_mode) == test_msg
+    if not use_tmp_path:
+        os.remove(temp_file)
+
+
+def test_read_scoped_url_snowflakefile():
+    scoped_url = "https://example.com/path/to/file.txt"
+
+    def read_file(file_location: str, mode: str) -> Union[str, bytes]:
+        with SnowflakeFile.open(file_location, mode) as f:
+            return f.read()
+
+    with pytest.raises(
+        ValueError, match="Scoped and Stage URLs are not yet supported."
+    ):
+        read_file(scoped_url, "r")
 
 
 @pytest.mark.parametrize(
