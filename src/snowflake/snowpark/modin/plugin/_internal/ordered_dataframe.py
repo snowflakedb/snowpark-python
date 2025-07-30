@@ -1939,7 +1939,7 @@ class OrderedDataFrame:
         See detailed docstring in Snowpark DataFrame's limit.
         """
         projected_dataframe_ref = self._to_projected_snowpark_dataframe_reference(
-            include_ordering_columns=True, sort=sort
+            include_ordering_columns=True, include_row_position_column=True, sort=sort
         )
         snowpark_dataframe = projected_dataframe_ref.snowpark_dataframe.limit(
             n=n, offset=offset
