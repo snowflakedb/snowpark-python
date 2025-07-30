@@ -527,7 +527,7 @@ def test_iter_cursor_wait_for_result(session, action):
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="sproc is not supported in async job yet")
-def test_async_is_failed(session):
+def test_async_job_status_apis(session):
     successful_queries = [
         "select a from values (1, 2), (3, 4) as t(a, b)",
         "select 1 + 1",
@@ -554,6 +554,7 @@ def test_async_is_failed(session):
         async_job = session.sql(query).collect_nowait()
         while not async_job.is_done():
             sleep(1.0)
+            status = async_job.status()
             assert status in [
                 "RUNNING",
                 "QUEUED",
@@ -563,5 +564,4 @@ def test_async_is_failed(session):
                 "FAILED_WITH_INCIDENT",
             ]
         assert async_job.is_failed()
-        status = async_job.status()
-        assert status in ["FAILED_WITH_ERROR", "FAILED_WITH_INCIDENT"]
+        assert async_job.status() in ["FAILED_WITH_ERROR", "FAILED_WITH_INCIDENT"]
