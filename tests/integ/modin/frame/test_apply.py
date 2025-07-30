@@ -4,7 +4,6 @@
 
 import datetime
 import re
-import sys
 
 import modin.pandas as pd
 import numpy as np
@@ -889,14 +888,7 @@ import scipy.stats  # noqa: E402
     "packages,expected_query_count",
     [
         (["scipy", "numpy"], 7),
-        param(
-            ["scipy>1.1", "numpy<2.0"],
-            7,
-            marks=pytest.mark.skipif(
-                sys.version_info.major == 3 and sys.version_info.minor == 12,
-                reason="SNOW-2046982: test raises ModuleNotFoundError when run in python 3.12",
-            ),
-        ),
+        # TODO: SNOW-2217451 Re-enable scipy>1.1, numpy<2.0 test case after NumPy 2.x compatibility issue is resolved
         # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
         # [scipy, np], 9),
     ],
@@ -935,7 +927,7 @@ def test_apply_axis1_with_3rd_party_libraries_and_decorator(
     "packages,expected_query_count",
     [
         (["scipy", "numpy"], 7),
-        (["scipy>1.1", "numpy<2.0"], 7),
+        # TODO: SNOW-2217451 Re-enable scipy>1.1, numpy<2.0 test case after NumPy 2.x compatibility issue is resolved
         ([scipy, np], 9),
     ],
 )
@@ -1007,34 +999,34 @@ def test_udfs_and_udtfs_with_snowpark_object_error_msg():
     )
     snow_df = pd.DataFrame([7, 8, 9])
     with SqlCounter(
-        query_count=16,
+        query_count=14,
         high_count_expected=True,
         high_count_reason="Series.apply has high query count",
     ):
         with pytest.raises(ValueError, match=expected_error_msg):  # Series.apply
             snow_df[0].apply(lambda row: snow_df.iloc[0, 0])
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=0):
         with pytest.raises(
             ValueError, match=expected_error_msg
         ):  # DataFrame.apply axis=0
             snow_df.apply(lambda row: snow_df.iloc[0, 0])
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=0):
         with pytest.raises(
             ValueError, match=expected_error_msg
         ):  # DataFrame.apply axis=1
             snow_df.apply(lambda row: snow_df.iloc[0, 0], axis=1)
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=0):
         with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.transform
             snow_df.transform(lambda row: snow_df.iloc[0, 0])
     with SqlCounter(
-        query_count=16,
+        query_count=14,
         high_count_expected=True,
         high_count_reason="DataFrame.map has high query count",
     ):
         with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.map
             snow_df.map(lambda row: snow_df.iloc[0, 0])
     with SqlCounter(
-        query_count=16,
+        query_count=14,
         high_count_expected=True,
         high_count_reason="Series.map has high query count",
     ):

@@ -29,6 +29,7 @@ from snowflake.snowpark._internal.data_source.datasource_reader import DataSourc
 from snowflake.snowpark._internal.data_source.drivers import (
     PyodbcDriver,
     SqliteDriver,
+    BaseDriver,
 )
 from snowflake.snowpark._internal.data_source.utils import (
     _task_fetch_data_from_source,
@@ -196,12 +197,14 @@ def test_dbapi_retry(session, fetch_with_process):
         with pytest.raises(
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
+            back_pressure = threading.BoundedSemaphore()
+            back_pressure.acquire()
             _upload_and_copy_into_table_with_retry(
                 session=session,
                 parquet_id="test.parquet",
                 parquet_buffer=BytesIO(b"test data"),
                 snowflake_stage_name="fake_stage",
-                backpressure_semaphore=threading.BoundedSemaphore(),
+                backpressure_semaphore=back_pressure,
                 snowflake_table_name="fake_table",
             )
         assert mock_task.call_count == _MAX_RETRY_TIME
@@ -1046,6 +1049,9 @@ def test_fetch_merge_count_unit(fetch_size, fetch_merge_count, expected_batch_cn
         assert all_fetched_data == example_data and batch_cnt == expected_batch_cnt
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS, reason="sqlite3 file can not be shared across processes on windows"
+)
 @pytest.mark.parametrize("fetch_with_process", [True, False])
 def test_fetch_merge_count_integ(session, caplog, fetch_with_process):
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -1312,21 +1318,36 @@ def test_case_sensitive_copy_into(session):
         parquet_buffer.close()
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS, reason="sqlite3 file can not be shared across processes on windows"
+)
 def test_threading_error_handling_with_stop_event(session):
     """Test that when one thread fails, it properly sets stop event and cancels other threads."""
+
+    # Helper function to drain a queue into a list
+    def drain_queue(q):
+        """Convert a queue to a list by draining all items."""
+        items = []
+        while not q.empty():
+            try:
+                items.append(q.get_nowait())
+            except queue.Empty:
+                break
+        return items
+
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, _, _, _ = sqlite3_db(dbpath)
 
         # Track which partitions have been processed to simulate error on specific partition
-        processed_partitions = set()
+        processed_partitions = queue.Queue()
         original_task_fetch = _task_fetch_data_from_source_with_retry
 
         def mock_task_fetch_with_selective_error(
             worker, partition, partition_idx, parquet_queue, stop_event=None
         ):
             assert stop_event
-            processed_partitions.add(partition_idx)
+            processed_partitions.put(partition_idx)
 
             # Simulate error on the second partition (partition_idx=1)
             if partition_idx == 1:
@@ -1365,8 +1386,8 @@ def test_threading_error_handling_with_stop_event(session):
             )
 
         # Track futures and their cancel calls to verify cancellation behavior
-        created_futures = []
-        cancelled_futures = []
+        created_futures = queue.Queue()
+        cancelled_futures = queue.Queue()
         original_submit = ThreadPoolExecutor.submit
 
         def track_submit(self, fn, *args, **kwargs):
@@ -1376,12 +1397,12 @@ def test_threading_error_handling_with_stop_event(session):
             original_cancel = future.cancel
 
             def track_cancel():
-                cancelled_futures.append(future)
+                cancelled_futures.put(future)
                 return original_cancel()
 
             future.cancel = track_cancel
 
-            created_futures.append(future)
+            created_futures.put(future)
             return future
 
         with mock.patch(
@@ -1404,37 +1425,27 @@ def test_threading_error_handling_with_stop_event(session):
                     custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
                     fetch_with_process=False,  # Use threading mode
                 )
-            # Verify that futures were created (confirming threading mode was used)
-            assert len(created_futures) == 3, "Should have created 3 thread futures"
-
             # Give threads a moment to be cancelled/complete
             import time
 
             time.sleep(0.2)
 
-            # Verify that at least one partition was processed before error
-            assert (
-                len(processed_partitions) >= 1
-            ), "At least one partition should have been processed"
+            # Convert queues to lists for assertion checks using helper function
+            processed_list = drain_queue(processed_partitions)
+            cancelled_list = drain_queue(cancelled_futures)
+            created_list = drain_queue(created_futures)
 
-            # Verify that partition 1 was the one that caused the error
+            # Verify threading behavior: 3 futures created, partition 1 failed, some (but not all) futures cancelled
             assert (
-                1 in processed_partitions
-            ), "Partition 1 should have been processed and caused error"
-
-            # Verify that cancel() was called on some futures
-            # Due to timing, at least some futures should have been cancelled
-            assert (
-                len(cancelled_futures) > 0
-            ), f"Expected some futures to be cancelled, but got {len(cancelled_futures)}"
-
-            # Verify that not all futures were cancelled (the one that errored should complete, not be cancelled)
-            assert len(cancelled_futures) < len(
-                created_futures
-            ), "Not all futures should be cancelled"
+                len(created_list) == 3
+                and len(processed_list) >= 1
+                and 1 in processed_list
+                and len(cancelled_list) > 0
+                and len(cancelled_list) < 3
+            ), f"Threading verification failed: created={len(created_list)}, processed={processed_list}, cancelled={len(cancelled_list)}"
 
             # Additional verification: check that cancelled futures were indeed not done when cancelled
-            for future in cancelled_futures:
+            for future in cancelled_list:
                 # The future should either be cancelled or done by now
                 assert (
                     future.cancelled() or future.done()
@@ -1665,3 +1676,33 @@ def test_queue_empty_thread_failure(exception, match_message):
             max_workers=1,
             fetch_with_process=False,
         )
+
+
+def test_incorrect_custom_schema(session):
+    with pytest.raises(ValueError, match="Schema contains duplicate column"):
+        session.read.dbapi(
+            create_connection=sql_server_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+            custom_schema="id Integer, id Integer",
+        )
+
+    with patch.object(
+        BaseDriver,
+        "infer_schema_from_description_with_error_control",
+        side_effect=ValueError("Fake error"),
+    ):
+        with pytest.raises(ValueError, match="Fake error"):
+            session.read.dbapi(
+                create_connection=sql_server_create_connection,
+                table=SQL_SERVER_TABLE_NAME,
+                custom_schema="id Integer, id Integer",
+            )
+
+
+def test_error_in_upload_is_raised(session):
+    with patch.object(session.file, "put_stream", side_effect=ValueError("Fake error")):
+        with pytest.raises(SnowparkDataframeReaderException, match="Fake error"):
+            session.read.dbapi(
+                create_connection=sql_server_create_connection,
+                table=SQL_SERVER_TABLE_NAME,
+            )

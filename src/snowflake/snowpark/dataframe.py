@@ -175,6 +175,7 @@ from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
+from snowflake.snowpark._internal.debug_utils import QueryProfiler
 from snowflake.snowpark.functions import (
     abs as abs_,
     col,
@@ -616,6 +617,7 @@ class DataFrame:
 
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
+        self._ops_after_agg = None
 
         # Whether all columns are VARIANT data type,
         # which support querying nested fields via dot notations
@@ -1964,18 +1966,43 @@ class DataFrame:
             else:
                 stmt = _ast_stmt
 
-        if self._select_statement:
+        # In snowpark_connect_compatible mode, we need to handle
+        # the filtering for dataframe after aggregation without nesting using HAVING
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._ops_after_agg is not None
+            and "filter" not in self._ops_after_agg
+        ):
+            having_plan = Filter(filter_col_expr, self._plan, is_having=True)
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            having_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(having_plan, _ast_stmt=stmt)
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("filter")
+            return df
+        else:
+            if self._select_statement:
+                return self._with_plan(
+                    self._select_statement.filter(filter_col_expr),
+                    _ast_stmt=stmt,
+                )
             return self._with_plan(
-                self._select_statement.filter(filter_col_expr),
+                Filter(
+                    filter_col_expr,
+                    self._plan,
+                    is_having=False,
+                ),
                 _ast_stmt=stmt,
             )
-        return self._with_plan(
-            Filter(
-                filter_col_expr,
-                self._plan,
-            ),
-            _ast_stmt=stmt,
-        )
 
     @df_api_usage
     @publicapi
@@ -2105,16 +2132,42 @@ class DataFrame:
                     SortOrder(exprs[idx], orders[idx] if orders else Ascending())
                 )
 
-        df = (
-            self._with_plan(self._select_statement.sort(sort_exprs))
-            if self._select_statement
-            else self._with_plan(Sort(sort_exprs, self._plan))
-        )
+        # In snowpark_connect_compatible mode, we need to handle
+        # the sorting for dataframe after aggregation without nesting
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._ops_after_agg is not None
+            and "sort" not in self._ops_after_agg
+        ):
+            sort_plan = Sort(sort_exprs, self._plan, is_order_by_append=True)
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            sort_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(sort_plan, _ast_stmt=stmt)
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("sort")
+            return df
+        else:
+            df = (
+                self._with_plan(self._select_statement.sort(sort_exprs))
+                if self._select_statement
+                else self._with_plan(
+                    Sort(sort_exprs, self._plan, is_order_by_append=False)
+                )
+            )
 
-        if _emit_ast:
-            df._ast_id = stmt.uid
+            if _emit_ast:
+                df._ast_id = stmt.uid
 
-        return df
+            return df
 
     @experimental(version="1.5.0")
     @publicapi
@@ -2806,13 +2859,39 @@ class DataFrame:
         else:
             stmt = None
 
-        if self._select_statement:
-            return self._with_plan(
-                self._select_statement.limit(n, offset=offset), _ast_stmt=stmt
+        # In snowpark_connect_compatible mode, we need to handle
+        # the limit for dataframe after aggregation without nesting
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._ops_after_agg is not None
+            and "limit" not in self._ops_after_agg
+        ):
+            limit_plan = Limit(
+                Literal(n), Literal(offset), self._plan, is_limit_append=True
             )
-        return self._with_plan(
-            Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
-        )
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            limit_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(limit_plan, _ast_stmt=stmt)
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("limit")
+            return df
+        else:
+            if self._select_statement:
+                return self._with_plan(
+                    self._select_statement.limit(n, offset=offset), _ast_stmt=stmt
+                )
+            return self._with_plan(
+                Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
+            )
 
     @df_api_usage
     @publicapi
@@ -6058,6 +6137,22 @@ class DataFrame:
 
         if _emit_ast:
             cached_df._ast_id = stmt.uid
+
+        # Preserve query history from the original dataframe for profiling
+        if (
+            self._session.dataframe_profiler._query_history is not None
+            and self._plan.uuid
+            in self._session.dataframe_profiler._query_history._dataframe_queries
+        ):
+            # Copy the original dataframe's query history to the cached dataframe's UUID
+            original_queries = (
+                self._session.dataframe_profiler._query_history._dataframe_queries[
+                    self._plan.uuid
+                ]
+            )
+            self._session.dataframe_profiler._query_history._dataframe_queries[
+                cached_df._plan.uuid
+            ] = original_queries.copy()
         return cached_df
 
     @publicapi
@@ -6198,6 +6293,29 @@ class DataFrame:
                     df._ast_id = obj_stmt.uid
 
             return res_dfs
+
+    def get_execution_profile(self, output_file: Optional[str] = None) -> None:
+        """
+        Get the execution profile of the dataframe. Output is written to the file specified by output_file if provided,
+        otherwise it is written to the console.
+        """
+        if self._session.dataframe_profiler._query_history is None:
+            _logger.warning(
+                "No query history found. Enable dataframe profiler using session.dataframe_profiler.enable()"
+            )
+            return
+        query_history = self._session.dataframe_profiler._query_history
+        if self._plan.uuid not in query_history.dataframe_queries:
+            _logger.warning(
+                f"No queries found for dataframe with plan uuid {self._plan.uuid}. Make sure to evaluate the dataframe before calling get_execution_profile."
+            )
+            return
+        try:
+            profiler = QueryProfiler(self._session, output_file)
+            for query_id in query_history.dataframe_queries[self._plan.uuid]:
+                profiler.profile_query(query_id)
+        finally:
+            profiler.close()
 
     @property
     def queries(self) -> Dict[str, List[str]]:

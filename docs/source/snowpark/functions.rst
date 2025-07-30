@@ -384,6 +384,7 @@ Functions
     trim
     trunc
     try_cast
+    try_parse_json
     try_to_binary
     typeof
     udaf

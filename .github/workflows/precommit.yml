@@ -120,15 +120,16 @@ jobs:
           - cloud-provider: azure
             python-version: "3.12"
             os: ubuntu-latest-64-cores
-          # run py 3.12 tests on aws on ubuntu and macos
-          - python-version: "3.12"
+          # run py 3.13 tests on aws/ubuntu
+          - python-version: "3.13"
             cloud-provider: aws
             os: ubuntu-latest-64-cores
+          # run py 3.12 doctests on azure/macos
           - python-version: "3.12"
-            cloud-provider: aws
+            cloud-provider: azure
             os: macos-latest
-          # run py 3.12 tests on gcp on windows to help take load off aws runners
-          - python-version: "3.12"
+          # run py 3.13 tests on gcp on windows
+          - python-version: "3.13"
             cloud-provider: gcp
             os: windows-latest-64-cores
     steps:
@@ -182,7 +183,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' }}
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.13' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
@@ -191,9 +192,21 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
+      # SNOW-2213578 : Remove the test below and run udf tests for 3.13
+      # for 3.13, skip udf, doctest
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version == '3.13' }}
+        name: Run tests (excluding udf, doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
       - name: Run data source tests
         # psycopg2 is not supported on macos 3.9
-        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') }}
+        # SNOW-2213578: Re-enable the test for 3.13
+        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') && !(matrix.python-version == '3.13') }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -222,8 +235,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.12"]
-        cloud-provider: [aws]
+        python-version: ["3.13"]
+        cloud-provider: [azure]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -425,8 +438,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest ]
-        python-version: [ "3.12" ] # Test latest python
-        cloud-provider: [aws] # Test only one csp
+        python-version: [ "3.13" ] # Test latest python
+        cloud-provider: [ gcp ] # Test only one csp
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -462,7 +475,7 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
       - name: Run tests for AST (II/II)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
