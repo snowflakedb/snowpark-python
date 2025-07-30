@@ -3661,7 +3661,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if len(index_column_pandas_labels_remained) == 0:
             index_column_snowflake_quoted_identifier = (
                 ordered_dataframe.generate_snowflake_quoted_identifiers(
-                    pandas_labels=[ROW_POSITION_COLUMN_LABEL],
+                    pandas_labels=[INDEX_LABEL],
                     wrap_double_underscore=True,
                 )[0]
             )
