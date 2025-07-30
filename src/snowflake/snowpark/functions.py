@@ -12748,7 +12748,7 @@ def ai_complete(
         ...     ).alias("structured_result")
         ... )
         >>> result = df.collect()[0][0] # doctest: +SKIP
-        >>> 'sentiment' in result and 'confidence' in result] # doctest: +SKIP
+        >>> 'sentiment' in result and 'confidence' in result # doctest: +SKIP
         True
 
         >>> # Using prompt object from prompt() function
