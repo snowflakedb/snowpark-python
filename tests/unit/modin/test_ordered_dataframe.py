@@ -162,6 +162,11 @@ def test_row_count_estimator_join_big():
         is None
     )
 
+    df1.row_count = 1e10
+    df1.row_count_upper_bound = 1e10
+    df2.row_count = 1e10
+    df2.row_count_upper_bound = 1e10
+
     assert (
         RowCountEstimator.upper_bound(
             df1, DataFrameOperation.ALIGN, {"right": df2, "how": "left"}
