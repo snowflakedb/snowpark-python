@@ -1,11 +1,75 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 from functools import cached_property
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Any
 
-from snowflake.snowpark.types import StructType
+from snowflake.snowpark._internal.data_source import DataSourcePartitioner
+from snowflake.snowpark._internal.data_source.drivers import BaseDriver
+from snowflake.snowpark.types import (
+    StructType,
+    DecimalType,
+    FloatType,
+    StringType,
+    DateType,
+    BooleanType,
+    ArrayType,
+    StructField,
+)
 from snowflake.snowpark.session import Session
+
+logger = logging.getLogger(__name__)
+
+# reference for java type to snowflake type:
+# https://docs.snowflake.com/en/developer-guide/udf-stored-procedure-data-type-mapping
+
+JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
+    "java.math.BigDecimal": DecimalType,
+    "java.math.BigInteger": DecimalType,
+    "java.lang.Float": FloatType,
+    "java.lang.Double": FloatType,
+    "java.lang.Boolean": BooleanType,
+    "java.lang.String": StringType,
+    "java.sql.Timestamp": StringType,
+    "java.sql.Date": DateType,
+    "java.sql.Array": ArrayType,
+    "java.lang.String[]": ArrayType,
+    "java.lang.Long": DecimalType,
+    "java.lang.Integer": DecimalType,
+    "java.lang.Short": DecimalType,
+}
+
+
+def to_snow_type(raw_schema: List[Any]) -> StructType:
+    fields = []
+    for (field_name, field_type, precision, scale, nullable) in raw_schema:
+        snow_type = JDBC_TYPE_TO_SNOWFLAKE_TYPE.get(field_type, StringType)
+        if snow_type == DecimalType:
+            if not BaseDriver.validate_numeric_precision_scale(precision, scale):
+                logger.debug(
+                    f"Snowpark does not support column"
+                    f" {field_name} of type {field_type} with precision {precision} and scale {scale}. "
+                    "The default Numeric precision and scale will be used."
+                )
+                precision, scale = None, None
+            data_type = snow_type(
+                precision if precision is not None else 38,
+                scale if scale is not None else 0,
+            )
+        else:
+            data_type = snow_type()
+
+        fields.append(StructField(field_name, data_type, nullable))
+    return StructType(fields)
+
+
+def generate_select_sql(table_or_query: str, raw_schema: List[str], is_query: bool):
+    if is_query:
+        return table_or_query
+    else:
+        cols = [col[0] for col in raw_schema]
+        return f"SELECT {', '.join(cols)} FROM {table_or_query}"
 
 
 class JDBCClient:
@@ -46,6 +110,7 @@ class JDBCClient:
         self.custom_schema = custom_schema
         self.predicates = predicates
         self.session_init_statement = session_init_statement
+        self.raw_schema = None
 
     @cached_property
     def schema(self) -> StructType:
@@ -62,7 +127,7 @@ class JDBCClient:
 
         INFER_SCHEMA_UDTF = f"""
             CREATE OR REPLACE FUNCTION jdbc_test(query VARCHAR)
-            RETURNS TABLE (field_name VARCHAR, field_type VARCHAR, nullable BOOLEAN)
+            RETURNS TABLE (field_name VARCHAR, field_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN)
             LANGUAGE JAVA
             RUNTIME_VERSION = '11'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
@@ -83,6 +148,8 @@ class JDBCClient:
 
                 public String field_name;
                 public String field_type;
+                public int precision;
+                public int scale;
                 public boolean nullable;
 
             }}
@@ -106,6 +173,8 @@ class JDBCClient:
                     return StructType.create(
                         new StructField("field_name", DataTypes.StringType),
                         new StructField("field_type", DataTypes.StringType),
+                        new StructField("precision", DataTypes.IntegerType),
+                        new StructField("scale", DataTypes.IntegerType),
                         new StructField("nullable", DataTypes.BooleanType)
                     );
                 }}
@@ -127,12 +196,11 @@ class JDBCClient:
                             for (int i = 1; i <= columnCount; i++) {{
                                 OutputRow row = new OutputRow();
 
-                                String name = meta.getColumnName(i);
-                                String type = meta.getColumnTypeName(i);
-                                boolean nullable = meta.isNullable(i) == ResultSetMetaData.columnNullable;
-                                row.field_name = name;
-                                row.field_type = type;
-                                row.nullable = nullable;
+                                row.field_name = meta.getColumnName(i);
+                                row.field_type = meta.getColumnClassName(i);
+                                row.precision = meta.getPrecision(i);
+                                row.scale = meta.getScale(i);
+                                row.nullable = meta.isNullable(i) == ResultSetMetaData.columnNullable;
                                 list.add(row);
                             }}
                         }}
@@ -157,8 +225,30 @@ class JDBCClient:
         )
 
         self.session.sql(INFER_SCHEMA_UDTF).collect()
-        df = self.session.sql(f"SELECT * FROM TABLE(jdbc_test('{infer_schema_sql}'))")
-        return df
+        self.raw_schema = self.session.sql(
+            f"SELECT * FROM TABLE(jdbc_test('{infer_schema_sql}'))"
+        ).collect()
+
+        return to_snow_type(self.raw_schema)
+
+    @cached_property
+    def partitions(self) -> List[str]:
+        select_query = generate_select_sql(
+            self.table_or_query,
+            self.raw_schema,
+            self.is_query,
+        )
+        logger.debug(f"Generated select query: {select_query}")
+
+        return DataSourcePartitioner.generate_partitions(
+            select_query,
+            self.schema,
+            self.predicates,
+            self.column,
+            self.lower_bound,
+            self.upper_bound,
+            self.num_partitions,
+        )
 
 
 JDBC_UDTF = """
