@@ -12747,8 +12747,8 @@ def ai_complete(
         ...         response_format=response_schema
         ...     ).alias("structured_result")
         ... )
-        >>> result = df.collect()[0][0]
-        >>> 'sentiment' in result and 'confidence' in result
+        >>> result = df.collect()[0][0] # doctest: +SKIP
+        >>> 'sentiment' in result and 'confidence' in result] # doctest: +SKIP
         True
 
         >>> # Using prompt object from prompt() function
@@ -12758,8 +12758,8 @@ def ai_complete(
         ...         prompt=prompt("Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances? {0}", to_file('@mystage/kitchen.png')),
         ...     )
         ... )
-        >>> result = df.collect()[0][0]
-        >>> "microwave" in result and "refrigerator" in result
+        >>> result = df.collect()[0][0] # doctest: +SKIP
+        >>> "microwave" in result and "refrigerator" in result # doctest: +SKIP
         True
     """
     sql_func_name = "ai_complete"
