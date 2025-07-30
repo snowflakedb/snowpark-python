@@ -569,7 +569,9 @@ def test_structured_dtypes_iceberg(
             else f"({table_name})"
         )
 
-        assert Utils.normalize_sql(dynamic_ddl[0][0]) == Utils.normalize_sql(
+        assert Utils.normalize_sql(
+            dynamic_ddl[0][0], structured_type_session._new_line_token
+        ) == Utils.normalize_sql(
             f"create or replace dynamic iceberg table {dynamic_table_name}(\n\tMAP,\n\tOBJ,\n\tARR\n)"
             " target_lag = '16 hours, 40 minutes' refresh_mode = AUTO initialize = ON_CREATE "
             f"warehouse = {warehouse} external_volume = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'  "

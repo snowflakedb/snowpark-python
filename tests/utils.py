@@ -487,7 +487,10 @@ class Utils:
         ), f"query tag '{query_tag}' not present in query history for given session"
 
     @staticmethod
-    def normalize_sql(sql_query: str) -> str:
+    def normalize_sql(sql_query: str, new_line_token: Optional[str] = None) -> str:
+        # remove any new line tokens
+        if new_line_token:
+            sql_query = sql_query.replace(new_line_token, "")
         # replace all whitespace with a single space
         stripped_sql = re.sub(r"\s+", " ", sql_query).strip()
         # remove space followed by parenthesis

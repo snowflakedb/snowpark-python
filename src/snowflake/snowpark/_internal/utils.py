@@ -1908,18 +1908,23 @@ def ttl_cache(ttl_seconds: float):
     return decorator
 
 
-def remove_comments(sql_query: str, uuids: List[str]) -> str:
+def remove_comments(
+    sql_query: str, uuids: List[str], new_line_token: Optional[str] = None
+) -> str:
     """Removes comments associated with child uuids in a query"""
     from snowflake.snowpark._internal.analyzer import analyzer_utils
 
     comment_placeholders = {
         analyzer_utils.format_uuid(uuid, with_new_line=False) for uuid in uuids
     }
-    return "\n".join(
-        line
-        for line in sql_query.split("\n")
-        if line not in comment_placeholders and line != ""
-    )
+    lines = []
+    for line in sql_query.split("\n"):
+        if new_line_token:
+            line = line.replace(new_line_token, "")
+        if line.strip() in comment_placeholders or line.strip() == "":
+            continue
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def get_line_numbers(
