@@ -250,16 +250,11 @@ class PandasOnSnowflakeIO(BaseIO):
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
         src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
-        dummy_row_pos_mode = (
-            os.environ.get("SNOWPARK_PANDAS_DUMMY_ROW_POS_MODE", "true").lower()
-            == "true"
-        )
         return cls.query_compiler_cls.from_snowflake(
             name_or_query,
             index_col,
             columns,
             enforce_ordering=enforce_ordering,
-            dummy_row_pos_mode=dummy_row_pos_mode,
         )
 
     @classmethod

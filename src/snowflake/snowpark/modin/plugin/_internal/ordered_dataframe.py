@@ -332,7 +332,7 @@ class OrderedDataFrame:
         """
         return [col.snowflake_quoted_identifier for col in self.ordering_columns]
 
-    def _row_position_snowpark_column(self, dummy_row_pos_mode: bool) -> Column:
+    def _row_position_snowpark_column(self, dummy_row_pos_mode: bool = False) -> Column:
         """
         Returns a row position Snowpark column for the dataframe.
         If row position column already exist in the current dataframe, it will be directly returned.
@@ -348,7 +348,7 @@ class OrderedDataFrame:
         if dummy_row_pos_mode:
             from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 
-            return pandas_lit(1)
+            return pandas_lit(0)
         else:
             return (
                 row_number().over(Window.order_by(self._ordering_snowpark_columns()))
