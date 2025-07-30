@@ -34,6 +34,8 @@ from tests.integ.modin.utils import (
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import RUNNING_ON_GH, running_on_public_ci
 
+pytestmark = [pytest.mark.udf]
+
 # TODO SNOW-891796: replace native_pd with pd after allowing using snowpandas module/function in UDF
 
 # test data which has a python type as return type that is not a pandas Series/pandas DataFrame/tuple/list

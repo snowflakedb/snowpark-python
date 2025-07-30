@@ -100,6 +100,7 @@ def test_all_any_invalid_types(data, msg):
 
 
 @sql_count_checker(query_count=4, join_count=1, udtf_count=1)
+@pytest.mark.udf
 def test_all_any_chained():
     data = {
         "by": ["a", "a", "b", "c", "c"],

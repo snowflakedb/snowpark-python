@@ -125,6 +125,7 @@ def test_sql_counter_with_context_manager_outside_loop(session):
 
 
 @sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+@pytest.mark.udf
 def test_sql_counter_with_df_udtf_count():
     df = pd.DataFrame([[1, 2], [3, 4]]).apply(lambda x: str(type(x)), axis=1, raw=True)
     assert len(df) == 2
