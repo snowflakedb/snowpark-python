@@ -159,7 +159,7 @@ def test_groupby_agg_with_decimal_dtype(session, agg_method) -> None:
         eval_snowpark_pandas_result(snowpark_pandas_groupby, pandas_groupby, agg_method)
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=9)
 def test_groupby_agg_with_decimal_dtype_named_agg(session) -> None:
     # create table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
