@@ -202,6 +202,7 @@ ICEBERG_VERSION = "ICEBERG_VERSION"
 RENAME_FIELDS = " RENAME FIELDS"
 ADD_FIELDS = " ADD FIELDS"
 NEW_LINE = "\n"
+NEW_LINE_TOKEN = ""
 TAB = "    "
 UUID_COMMENT = "-- {}"
 MODEL = "MODEL"
@@ -218,7 +219,7 @@ def format_uuid(uuid: Optional[str], with_new_line: bool = True) -> str:
     if not uuid:
         return EMPTY_STRING
     if with_new_line:
-        return f"\n{UUID_COMMENT.format(uuid)}\n"
+        return f"{NEW_LINE}{UUID_COMMENT.format(uuid)}{NEW_LINE}"
     return f"{UUID_COMMENT.format(uuid)}"
 
 
@@ -310,8 +311,22 @@ def table_function_partition_spec(
     )
 
 
+def indent_child_query(child: str) -> str:
+    if NEW_LINE_TOKEN != "":
+        return TAB + child.replace(NEW_LINE_TOKEN, NEW_LINE_TOKEN + TAB)
+    return child
+
+
 def subquery_expression(child: str) -> str:
     return LEFT_PARENTHESIS + child + RIGHT_PARENTHESIS
+
+
+def remove_new_line_tokens(query: str) -> str:
+    if NEW_LINE_TOKEN == "":
+        return query
+    query = query.replace(NEW_LINE_TOKEN, "")
+    query = query.replace(NEW_LINE_TOKEN.upper(), "")
+    return "\n".join(line for line in query.split("\n") if line != "")
 
 
 def binary_arithmetic_expression(op: str, left: str, right: str) -> str:
@@ -425,7 +440,7 @@ def lateral_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
@@ -470,7 +485,7 @@ def join_table_function_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
@@ -479,6 +494,7 @@ def join_table_function_statement(
         + NEW_LINE
         + JOIN
         + NEW_LINE
+        + TAB
         + table(func)
         + AS
         + RIGHT_ALIAS
@@ -523,7 +539,7 @@ def project_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
@@ -591,7 +607,7 @@ def sample_by_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
@@ -915,7 +931,7 @@ def snowflake_supported_join_statement(
         LEFT_PARENTHESIS
         + NEW_LINE
         + LEFT_UUID
-        + left
+        + indent_child_query(left)
         + NEW_LINE
         + LEFT_UUID
         + RIGHT_PARENTHESIS
@@ -929,7 +945,7 @@ def snowflake_supported_join_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + RIGHT_UUID
-        + right
+        + indent_child_query(right)
         + NEW_LINE
         + RIGHT_UUID
         + RIGHT_PARENTHESIS
@@ -1457,7 +1473,7 @@ def pivot_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
@@ -1497,7 +1513,7 @@ def unpivot_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
