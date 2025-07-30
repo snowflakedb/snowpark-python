@@ -4,6 +4,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import pytest
 import modin.pandas as pd
 import pandas as native_pd
 
@@ -12,12 +13,12 @@ from snowflake.snowpark.functions import sproc
 from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import multithreaded_run
 
+pytestmark = [pytest.mark.udf]
 
 # Must pin modin version to match version available in Snowflake Anaconda
-SPROC_MODIN_VERSION = "0.30.1"
+SPROC_MODIN_VERSION = "0.33.2"
 
 PACKAGE_LIST = [
-    # modin 0.30.1 supports any pandas 2.2.x, so just pick whichever one is installed in the client.
     # Note that because we specify `snowflake-snowpark-python` as a package here, it will pick whatever
     # version of the package is available in anaconda, not the latest `main` branch.
     # The behavior of stored procedures with `main` is verified in server-side tests and the stored

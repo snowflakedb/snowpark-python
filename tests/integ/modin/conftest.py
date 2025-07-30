@@ -5,6 +5,8 @@
 import pathlib
 import re
 from datetime import datetime
+from packaging import version
+import sys
 
 import modin.pandas as pd
 import numpy as np
@@ -60,6 +62,18 @@ def pytest_addoption(parser):
     parser.addoption(
         "--generate_pandas_api_coverage", action="store_true", default=False
     )
+
+
+def pytest_runtest_setup(item):
+    actual_pandas_version = version.parse(pandas.__version__)
+    # Tests that create UDFs or stored procedures must use a python runtime version that is
+    # supported on the server side, and must use a pandas version that is in the server-side
+    # Snowflake anaconda channel.
+    if len(list(item.iter_markers(name="udf"))) > 0:
+        if sys.version_info.major == 3 and sys.version_info.minor == 13:
+            pytest.skip("SNOW-2235396: skipping sproc/udf test with python 3.13")
+        elif actual_pandas_version.major == 2 and actual_pandas_version.minor == 3:
+            pytest.skip("SNOW-2235393: skipping sproc/udf test with pandas 2.3")
 
 
 @pytest.fixture(scope="session", autouse=True)

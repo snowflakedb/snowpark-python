@@ -4,6 +4,7 @@
 
 import tempfile
 import pandas as native_pd
+import pytest
 
 # We're comparing an object with the native pandas backend, so we use the pandas testing utility
 # here rather than our own internal one.
@@ -72,6 +73,7 @@ def test_from_list(us_holidays_data):
         assert_series_equal(row.to_pandas(), native_row)
 
 
+@pytest.mark.udf
 def test_move_threshold_setting():
     with config_context(NativePandasMaxRows=10):
         with SqlCounter(
