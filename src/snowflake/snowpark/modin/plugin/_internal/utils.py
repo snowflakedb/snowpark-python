@@ -439,12 +439,12 @@ def create_initial_ordered_dataframe(
         else:
             if dummy_row_pos_mode:
                 row_position_column_str = (
-                    f"1 as {row_position_snowflake_quoted_identifier}"
+                    f"0 as {row_position_snowflake_quoted_identifier}"
                 )
             else:
                 row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
             row_position_column_str_for_count = (
-                f"1 as {row_position_snowflake_quoted_identifier}"
+                f"0 as {row_position_snowflake_quoted_identifier}"
             )
 
         columns_to_select = ", ".join(
