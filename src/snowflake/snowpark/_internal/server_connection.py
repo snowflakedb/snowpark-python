@@ -431,6 +431,7 @@ class ServerConnection:
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
+
         notify_kwargs = {}
         if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
@@ -459,6 +460,7 @@ class ServerConnection:
     def execute_async_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
+
         notify_kwargs = {}
 
         if "_statement_params" in kwargs and kwargs["_statement_params"]:

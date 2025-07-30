@@ -120,6 +120,7 @@ from snowflake.snowpark._internal.utils import (
     escape_quotes,
     experimental,
     experimental_parameter,
+    generate_random_alphanumeric,
     get_connector_version,
     get_os_name,
     get_python_version,
@@ -135,6 +136,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     quote_name,
     random_name_for_temp_object,
+    remove_new_line_token,
     strip_double_quotes_in_like_statement_in_table_name,
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
@@ -671,6 +673,7 @@ class Session:
                 _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, False
             )
         )
+        self._new_line_token = generate_random_alphanumeric()
         if self._generate_multiline_queries:
             self._enable_multiline_queries()
         else:
@@ -817,13 +820,15 @@ class Session:
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
         self._generate_multiline_queries = True
-        analyzer_utils.NEW_LINE = "\n"
+        analyzer_utils.NEW_LINE_TOKEN = self._new_line_token
+        analyzer_utils.NEW_LINE = f"\n{self._new_line_token}"
         analyzer_utils.TAB = "    "
 
     def _disable_multiline_queries(self):
         import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
         self._generate_multiline_queries = False
+        analyzer_utils.NEW_LINE_TOKEN = ""
         analyzer_utils.NEW_LINE = ""
         analyzer_utils.TAB = ""
 
@@ -2840,6 +2845,7 @@ class Session:
             else:
                 stmt = _ast_stmt
 
+        query = remove_new_line_token(query, self._new_line_token)
         if (
             isinstance(self._conn, MockServerConnection)
             and not self._conn._suppress_not_implemented_error
