@@ -621,7 +621,6 @@ jobs:
             .tox/.coverage
             .tox/coverage.xml
 
-              test-unsupported-modin-or-pandas:
 
   test-snowpark-pandas-auto-switch-backend:
     name: Test Snowpark pandas AutoSwitchBackend
