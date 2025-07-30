@@ -2102,6 +2102,7 @@ def mock_concat(*columns: ColumnEmulator) -> ColumnEmulator:
         SnowparkLocalTestingException.raise_from_error(
             ValueError("concat expects one or more column(s) to be passed in.")
         )
+
     pdf = pandas.concat(columns, axis=1).reset_index(drop=True)
     result = pdf.T.apply(
         lambda c: None if c.isnull().values.any() else c.astype(str).str.cat()
@@ -2118,6 +2119,8 @@ def mock_concat_ws(*columns: ColumnEmulator) -> ColumnEmulator:
                 "concat_ws expects a seperator column and one or more value column(s) to be passed in."
             )
         )
+
+    # Don't reset index, to preserve original indices from filtered DataFrames
     pdf = pandas.concat(columns, axis=1)
     result = pdf.T.apply(
         lambda c: None

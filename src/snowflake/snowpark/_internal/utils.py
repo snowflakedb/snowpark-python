@@ -55,6 +55,7 @@ from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.lazy_import_utils import get_pandas
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
@@ -222,6 +223,7 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
+
 # TODO: merge fixed pandas importer changes to connector.
 def _pandas_importer():  # noqa: E302
     """Helper function to lazily import pandas and return MissingPandas if not installed."""
@@ -235,10 +237,6 @@ def _pandas_importer():  # noqa: E302
     except ImportError:  # pragma: no cover
         pass  # pragma: no cover
     return pandas
-
-
-pandas = _pandas_importer()
-installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 
 class TempObjectType(Enum):
@@ -1250,6 +1248,9 @@ def check_output_schema_type(  # noqa: F821
     """Helper function to ensure output_schema adheres to type hint."""
 
     from snowflake.snowpark.types import StructType
+
+    pandas = get_pandas()
+    installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
     if installed_pandas:
         from snowflake.snowpark.types import PandasDataFrameType
