@@ -6415,6 +6415,7 @@ Query List:
 
         if _ast_stmt is not None:
             df._ast_id = _ast_stmt.uid
+
         return df
 
     def _get_column_names_from_column_or_name_list(
