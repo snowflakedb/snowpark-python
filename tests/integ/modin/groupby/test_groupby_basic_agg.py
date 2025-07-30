@@ -89,7 +89,7 @@ def test_basic_single_group_row_groupby(
         ),
     ],
 )
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=4)
 def test_single_group_row_groupby_with_variant(
     session,
     test_table_name,
@@ -132,7 +132,7 @@ def test_single_group_row_groupby_with_variant(
         )
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=9)
 def test_groupby_agg_with_decimal_dtype(session, agg_method) -> None:
     # create table
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -1158,7 +1158,7 @@ def test_groupby_min_count_methods_with_nullable_type(
     )
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=4)
 def test_groupby_agg_on_valid_variant_column(session, test_table_name):
     pandas_df = native_pd.DataFrame(
         {

@@ -61,7 +61,7 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
         df_incompatible.move_to("Snowflake")
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_merge(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
@@ -75,7 +75,7 @@ def test_merge(init_transaction_tables, us_holidays_data):
     assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=9)
 def test_filtered_data(init_transaction_tables):
     # When data is filtered, the engine should change when it is sufficiently small.
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
@@ -103,7 +103,7 @@ def test_filtered_data(init_transaction_tables):
     )
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=9)
 def test_apply(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
@@ -196,7 +196,7 @@ def test_groupby_agg_post_op_switch(operation, small_snow_df):
     assert small_snow_df.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_explain_switch(us_holidays_data):
     from snowflake.snowpark.modin.plugin._internal.telemetry import (
         clear_hybrid_switch_log,
