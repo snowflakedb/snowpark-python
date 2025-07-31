@@ -33,7 +33,6 @@ from snowflake.connector.network import ReauthenticationRequest
 from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
-    remove_new_line_tokens,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -432,9 +431,6 @@ class ServerConnection:
     def execute_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> SnowflakeCursor:
-        # Remove NEW_LINE_TOKEN placeholders before executing the query
-        clean_query = remove_new_line_tokens(query)
-
         notify_kwargs = {}
         if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
@@ -443,12 +439,12 @@ class ServerConnection:
             if "_PLAN_UUID" in statement_params:
                 notify_kwargs["dataframe_uuid"] = statement_params["_PLAN_UUID"]
         try:
-            results_cursor = self._cursor.execute(clean_query, **kwargs)
+            results_cursor = self._cursor.execute(query, **kwargs)
         except Exception as ex:
             notify_kwargs["requestId"] = None
             notify_kwargs["exception"] = ex
             sfqid = ex.sfqid if isinstance(ex, Error) else None
-            err_query = ex.query if isinstance(ex, Error) else clean_query
+            err_query = ex.query if isinstance(ex, Error) else query
             self.notify_query_listeners(
                 QueryRecord(sfqid, err_query, False), is_error=True, **notify_kwargs
             )
@@ -463,9 +459,6 @@ class ServerConnection:
     def execute_async_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
-        # Remove NEW_LINE_TOKEN placeholders before executing the query
-        clean_query = remove_new_line_tokens(query)
-
         notify_kwargs = {}
 
         if "_statement_params" in kwargs and kwargs["_statement_params"]:
@@ -474,14 +467,14 @@ class ServerConnection:
                 notify_kwargs["dataframe_uuid"] = statement_params["_PLAN_UUID"]
 
         try:
-            results_cursor = self._cursor.execute_async(clean_query, **kwargs)
+            results_cursor = self._cursor.execute_async(query, **kwargs)
         except Error as err:
             self.notify_query_listeners(
                 QueryRecord(err.sfqid, err.query), is_error=True, **notify_kwargs
             )
             raise err
         self.notify_query_listeners(
-            QueryRecord(results_cursor["queryId"], clean_query), **notify_kwargs
+            QueryRecord(results_cursor["queryId"], query), **notify_kwargs
         )
         return results_cursor
 
@@ -517,7 +510,6 @@ class ServerConnection:
         **kwargs,
     ) -> Union[Dict[str, Any], AsyncJob]:
         try:
-            query = remove_new_line_tokens(query)
             # Set SNOWPARK_SKIP_TXN_COMMIT_IN_DDL to True to avoid DDL commands to commit the open transaction
             if is_ddl_on_temp_object:
                 if not kwargs.get("_statement_params"):
@@ -717,6 +709,7 @@ class ServerConnection:
                 final_queries = []
                 last_place_holder = None
                 for q in main_queries:
+                    q.sql = q.sql.replace(self.session._new_line_token, "")
                     final_queries.append(
                         q.sql.replace(f"'{last_place_holder}'", "LAST_QUERY_ID()")
                         if last_place_holder

@@ -1919,9 +1919,10 @@ def remove_comments(
     }
     lines = []
     for line in sql_query.split("\n"):
+        clean_line = line
         if new_line_token:
-            line = line.replace(new_line_token, "")
-        if line.strip() in comment_placeholders or line.strip() == "":
+            clean_line = line.replace(new_line_token, "")
+        if clean_line.strip() in comment_placeholders or clean_line.strip() == "":
             continue
         lines.append(line)
     return "\n".join(lines)

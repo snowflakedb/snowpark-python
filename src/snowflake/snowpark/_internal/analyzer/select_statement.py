@@ -296,6 +296,32 @@ class Selectable(LogicalPlan, ABC):
 
     @property
     @abstractmethod
+    def formatted_sql_query(self) -> str:
+        """
+        Returns the formatted sql query of this Selectable logical plan.
+        These SQL queries include new_line tokens, which are used for formatting.
+        The new_line_tokens tell us where we can add tabs (we can't just use '\n')
+        to delineate this because '\n' can be included in column names.
+        For example, when new_line_token is "ABCDEF" the formatted_sql_query is:
+        SELECT
+        ABCDEF    "A",
+        ABCDEF    "B",
+        ABCDEF    "C"
+        ABCDEF    FROM (
+        ABCDEF                 SELECT
+        ABCDEF                     DISTINCT  *
+        ABCDEF                 FROM
+        ABCDEF                    SNOWPARK_TEMP_TABLE_8B4DX08QFA
+        ABCDEF            )
+        ABCDEF         WHERE
+        ABCDEF            ("B" > 1)
+        ABCDEF         ORDER BY
+        ABCDEF            "C" ASC NULLS FIRST
+        """
+        pass
+
+    @property
+    @abstractmethod
     def commented_sql(self) -> str:
         """
         This is an abstract method that is implemented by any
@@ -341,13 +367,13 @@ class Selectable(LogicalPlan, ABC):
         """Return the sql when this Selectable is used in a subquery."""
         indented_subquery = analyzer_utils.indent_child_query(
             f"{analyzer_utils.NEW_LINE}"
-            f"{analyzer_utils.indent_child_query(self.sql_query)}"
+            f"{analyzer_utils.indent_child_query(self.formatted_sql_query)}"
             f"{analyzer_utils.NEW_LINE}"
         )
         return (
             f"{analyzer_utils.LEFT_PARENTHESIS}"
             f"{indented_subquery}"
-            f"{analyzer_utils.RIGHT_PARENTHESIS}"
+            f" {analyzer_utils.RIGHT_PARENTHESIS}"
         )
 
     @property
@@ -356,14 +382,14 @@ class Selectable(LogicalPlan, ABC):
         indented_subquery = analyzer_utils.indent_child_query(
             f"{analyzer_utils.NEW_LINE}"
             f"{UUID}"
-            f"{analyzer_utils.indent_child_query(self.sql_query)}"
+            f"{analyzer_utils.indent_child_query(self.formatted_sql_query)}"
             f"{analyzer_utils.NEW_LINE}"
             f"{UUID}"
         )
         return (
             f"{analyzer_utils.LEFT_PARENTHESIS}"
             f"{indented_subquery}"
-            f"{analyzer_utils.RIGHT_PARENTHESIS}"
+            f" {analyzer_utils.RIGHT_PARENTHESIS}"
         )
 
     @property
@@ -409,6 +435,7 @@ class Selectable(LogicalPlan, ABC):
                 self.commented_sql
                 if context._enable_trace_sql_errors_to_dataframe
                 else self.sql_query,
+                formatted_sql=self.formatted_sql_query,
                 params=self.query_params,
             )
             queries = [*self.pre_actions, query] if self.pre_actions else [query]
@@ -595,6 +622,10 @@ class SelectableEntity(Selectable):
         return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
 
     @property
+    def formatted_sql_query(self) -> str:
+        return self.sql_query
+
+    @property
     def commented_sql(self) -> str:
         return self.sql_query
 
@@ -658,6 +689,7 @@ class SelectSQL(Selectable):
         self,
         sql: str,
         *,
+        formatted_sql: Optional[str] = None,
         convert_to_select: bool = False,
         analyzer: "Analyzer",
         params: Optional[Sequence[Any]] = None,
@@ -689,10 +721,12 @@ class SelectSQL(Selectable):
             self._schema_query = sql
             self._query_param = params
         self._commented_sql = self._sql_query
+        self._formatted_sql_query = formatted_sql or self._sql_query
 
     def __deepcopy__(self, memodict={}) -> "SelectSQL":  # noqa: B006
         copied = SelectSQL(
             sql=self.original_sql,
+            formatted_sql=self.formatted_sql_query,
             # when convert_to_select is True, a describe call might be triggered
             # to construct the schema query. Since this is a pure copy method, and all
             # fields can be done with a pure copy, we set this parameter to False on
@@ -716,6 +750,10 @@ class SelectSQL(Selectable):
         return self._sql_query
 
     @property
+    def formatted_sql_query(self) -> str:
+        return self._formatted_sql_query
+
+    @property
     def commented_sql(self) -> str:
         return self._commented_sql
 
@@ -737,6 +775,7 @@ class SelectSQL(Selectable):
             return self
         new = SelectSQL(
             self._sql_query,
+            formatted_sql=self.formatted_sql_query,
             convert_to_select=True,
             analyzer=self.analyzer,
             params=self.query_params,
@@ -805,6 +844,10 @@ class SelectSnowflakePlan(Selectable):
         return self.sql_query
 
     @property
+    def formatted_sql_query(self) -> str:
+        return self._snowflake_plan.queries[-1].formatted_sql
+
+    @property
     def schema_query(self) -> Optional[str]:
         return self.snowflake_plan.schema_query
 
@@ -870,6 +913,7 @@ class SelectStatement(Selectable):
         self.pre_actions = self.from_.pre_actions
         self.post_actions = self.from_.post_actions
         self._sql_query = None
+        self._formatted_sql_query = None
         self._commented_sql = None
         self._schema_query = schema_query
         self.distinct_: bool = distinct
@@ -1043,7 +1087,15 @@ class SelectStatement(Selectable):
             self._sql_query = self.from_.sql_query
             return self._sql_query
         self._sql_query = self._generate_sql(generate_uuid_comments=False)
+        self._sql_query = self._sql_query.replace(self._session._new_line_token, "")
         return self._sql_query
+
+    @property
+    def formatted_sql_query(self) -> str:
+        if self._formatted_sql_query:
+            return self._formatted_sql_query
+        self._formatted_sql_query = self._generate_sql(generate_uuid_comments=False)
+        return self._formatted_sql_query
 
     @property
     def commented_sql(self) -> str:
@@ -1052,8 +1104,14 @@ class SelectStatement(Selectable):
         if not self.has_clause and not self.has_projection:
             UUID = analyzer_utils.format_uuid(self.from_.uuid)
             self._commented_sql = f"{UUID}{self.from_.sql_query}{UUID}"
+            self._commented_sql = self._commented_sql.replace(
+                self._session._new_line_token, ""
+            )
             return self._commented_sql
         self._commented_sql = self._generate_sql(generate_uuid_comments=True)
+        self._commented_sql = self._commented_sql.replace(
+            self._session._new_line_token, ""
+        )
         return self._commented_sql
 
     def _generate_sql(self, generate_uuid_comments: bool) -> str:
@@ -1718,6 +1776,10 @@ class SelectTableFunction(Selectable):
         return self._snowflake_plan.queries[-1].sql
 
     @property
+    def formatted_sql_query(self) -> str:
+        return self._snowflake_plan.queries[-1].formatted_sql
+
+    @property
     def commented_sql(self) -> str:
         return self.sql_query
 
@@ -1769,6 +1831,7 @@ class SetStatement(Selectable):
     def __init__(self, *set_operands: SetOperand, analyzer: "Analyzer") -> None:
         super().__init__(analyzer=analyzer)
         self._sql_query = None
+        self._formatted_sql_query = None
         self._commented_sql = None
         self.set_operands = set_operands
         self._nodes = []
@@ -1794,12 +1857,22 @@ class SetStatement(Selectable):
     def sql_query(self) -> str:
         if not self._sql_query:
             self._sql_query = self._generate_sql(generate_uuid_comments=False)
+            self._sql_query = self._sql_query.replace(self._session._new_line_token, "")
         return self._sql_query
+
+    @property
+    def formatted_sql_query(self) -> str:
+        if not self._formatted_sql_query:
+            self._formatted_sql_query = self._generate_sql(generate_uuid_comments=False)
+        return self._formatted_sql_query
 
     @property
     def commented_sql(self) -> str:
         if not self._commented_sql:
             self._commented_sql = self._generate_sql(generate_uuid_comments=True)
+            self._commented_sql = self._commented_sql.replace(
+                self._session._new_line_token, ""
+            )
         return self._commented_sql
 
     def _generate_sql(self, generate_uuid_comments: bool) -> str:
@@ -1810,7 +1883,7 @@ class SetStatement(Selectable):
         )
         sql = (
             f"({analyzer_utils.NEW_LINE}{FIRST_UUID}"
-            f"{analyzer_utils.indent_child_query(self.set_operands[0].selectable.sql_query)}"
+            f"{analyzer_utils.indent_child_query(self.set_operands[0].selectable.formatted_sql_query)}"
             f"{analyzer_utils.NEW_LINE}{FIRST_UUID})"
         )
         for i in range(1, len(self.set_operands)):
@@ -1822,7 +1895,7 @@ class SetStatement(Selectable):
             )
             child_sql = (
                 f"({analyzer_utils.NEW_LINE}{ITH_UUID}"
-                f"{analyzer_utils.indent_child_query(operand.selectable.sql_query)}"
+                f"{analyzer_utils.indent_child_query(operand.selectable.formatted_sql_query)}"
                 f"{analyzer_utils.NEW_LINE}{ITH_UUID})"
             )
             sql = f"{sql}{operand.operator}{child_sql}"

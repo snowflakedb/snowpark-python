@@ -53,7 +53,7 @@ def test_select_statement_sql_query(mock_session, mock_analyzer):
         analyzer=mock_analyzer,
     )
     assert (
-        select_statement.commented_sql
+        select_statement.commented_sql.replace(mock_session._new_line_token, "")
         == f"\n-- {mock_from.uuid}\nSELECT * FROM BASE_TABLE\n-- {mock_from.uuid}\n"
     )
     assert select_statement.sql_query == "SELECT * FROM BASE_TABLE"
@@ -87,12 +87,14 @@ def test_select_statement_sql_query_with_projection(mock_session, mock_analyzer)
         from_=mock_from,
         analyzer=mock_analyzer,
     )
-    assert Utils.normalize_sql(select_statement.commented_sql) == Utils.normalize_sql(
+    assert Utils.normalize_sql(
+        select_statement.commented_sql, mock_session._new_line_token
+    ) == Utils.normalize_sql(
         f"SELECT A FROM -- {mock_from.uuid}\nSELECT * FROM BASE_TABLE\n-- {mock_from.uuid}"
     )
-    assert Utils.normalize_sql(select_statement.sql_query) == Utils.normalize_sql(
-        "SELECT A FROM (SELECT * FROM BASE_TABLE)"
-    )
+    assert Utils.normalize_sql(
+        select_statement.sql_query, mock_session._new_line_token
+    ) == Utils.normalize_sql("SELECT A FROM (SELECT * FROM BASE_TABLE)")
 
 
 def test_selectable_entity_sql_query(mock_session, mock_analyzer):
@@ -132,12 +134,14 @@ def test_set_statement_sql_query_no_multiline(mock_session, mock_analyzer):
     operand1 = SetOperand(mock_selectable1, "UNION")
     operand2 = SetOperand(mock_selectable2, "UNION")
     set_statement = SetStatement(operand1, operand2, analyzer=mock_analyzer)
-    assert Utils.normalize_sql(set_statement.commented_sql) == Utils.normalize_sql(
+    assert Utils.normalize_sql(
+        set_statement.commented_sql, mock_session._new_line_token
+    ) == Utils.normalize_sql(
         "(-- uuid-1 SELECT 1 AS A -- uuid-1)UNION(-- uuid-2 SELECT 2 AS A -- uuid-2)"
     )
-    assert Utils.normalize_sql(set_statement.sql_query) == Utils.normalize_sql(
-        "(SELECT 1 AS A)UNION(SELECT 2 AS A)"
-    )
+    assert Utils.normalize_sql(
+        set_statement.sql_query, mock_session._new_line_token
+    ) == Utils.normalize_sql("(SELECT 1 AS A)UNION(SELECT 2 AS A)")
 
 
 def test_select_table_function_commented_sql(mock_session, mock_analyzer):
