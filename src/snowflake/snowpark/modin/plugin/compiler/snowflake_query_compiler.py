@@ -10,7 +10,9 @@ import inspect
 import itertools
 import json
 import logging
+import os
 import re
+import sys
 from collections import Counter, defaultdict
 import typing
 import uuid
@@ -98,6 +100,7 @@ from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
     parse_table_name,
     random_name_for_temp_object,
+    is_interactive,
 )
 from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
@@ -1213,7 +1216,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         try:
             from snowflake.ml.data.data_connector import DataConnector  # type: ignore[import]
-        except ImportError as e:
+        except ImportError as e:  # pragma: no cover
             logging.warning(
                 "DataConnector is required for efficient transfer to Ray. "
                 "Please `pip install snowflake-ml`."
@@ -1224,11 +1227,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         original_index_labels = self.get_index_names()
         original_column_labels = self.columns.tolist()
         snowflake_index_labels = [
-            unquote_name_if_quoted(label)
+            label if is_interactive() else unquote_name_if_quoted(label)
             for label in cached_qc._modin_frame.index_column_snowflake_quoted_identifiers
         ]
         snowflake_column_labels = [
-            unquote_name_if_quoted(label)
+            label if is_interactive() else unquote_name_if_quoted(label)
             for label in cached_qc._modin_frame.data_column_snowflake_quoted_identifiers
         ]
         snowpark_df = (
@@ -1289,15 +1292,36 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         try:
             import ray  # type: ignore[import]
             from ray.util.actor_pool import ActorPool  # type: ignore[import]
-        except ImportError as e:
+        except ImportError as e:  # pragma: no cover
             logging.warning(
                 "Ray is required for this operation. Please `pip install modin[ray]`."
             )
             raise ImportError from e
 
-        def get_session() -> Session:
+        def get_connection_creds() -> dict[str, Any]:  # pragma: no cover
+            """
+            Get the connection credentials from the notebook environment or an empty dict
+            otherwise to use default connection parameters.
+            """
+            if "snowbook" in sys.modules:
+                return {
+                    "host": os.getenv("SNOWFLAKE_HOST"),
+                    "port": os.getenv("SNOWFLAKE_PORT"),
+                    "protocol": "https",
+                    "account": os.getenv("SNOWFLAKE_ACCOUNT"),
+                    "authenticator": "oauth",
+                    "token": open("/snowflake/session/token").read(),
+                    "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
+                    "database": os.getenv("SNOWFLAKE_DATABASE"),
+                    "schema": os.getenv("SNOWFLAKE_SCHEMA"),
+                }
+            return {}
+
+        def get_session(
+            connection_creds: dict[str, Any]
+        ) -> Session:  # pragma: no cover
             try:
-                return Session.builder.getOrCreate()
+                return Session.builder.configs(connection_creds).getOrCreate()
             except Exception as e:
                 logging.error(
                     "Could not get or create Snowpark session. Ensure you have a "
@@ -1306,35 +1330,30 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
                 raise RuntimeError("Could not get or create Snowpark session.") from e
 
-        def write_batch_to_snowflake(
-            session: Session,
-            table_name: str,
-            batch: native_pd.DataFrame,
-            table_type: str = "",
-            parallel: int = 4,
-        ) -> None:
-            session.write_pandas(
-                df=batch,
-                table_name=table_name,
-                table_type=table_type,
-                parallel=parallel,
-                auto_create_table=True,
-                overwrite=False,
-            )
-
         @ray.remote
         class SnowflakeWriterActor:
-            def __init__(self, table_name: str) -> None:
+            def __init__(
+                self, table_name: str, connection_creds: dict[str, Any]
+            ) -> None:
                 self.table_name = table_name
-                self.session = get_session()
+                self.session = get_session(connection_creds)
 
             def write(self, batch: native_pd.DataFrame) -> None:
-                write_batch_to_snowflake(self.session, self.table_name, batch)
+                self.session.write_pandas(
+                    df=batch,
+                    table_name=self.table_name,
+                    table_type="",
+                    parallel=4,
+                    auto_create_table=True,
+                    overwrite=False,
+                )
 
+        connection_creds = get_connection_creds()
         table_name = random_name_for_temp_object(TempObjectType.TABLE)
         ray_df = pd.DataFrame(query_compiler=ray_qc)
 
         original_column_labels = ray_df.columns.tolist()
+        original_column_index_names = ray_df.columns.names
         data_column_snowflake_quoted_identifiers = (
             generate_snowflake_quoted_identifiers_helper(
                 pandas_labels=original_column_labels, excluded=[]
@@ -1362,6 +1381,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ]
         ray_df.reset_index(
             inplace=True,
+            allow_duplicates=True,
             names=index_names,
         )
         row_position_snowflake_quoted_identifier = (
@@ -1383,10 +1403,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             row_position_snowflake_quoted_identifier
         )
 
-        ray_ds = pd.io.to_ray(ray_df)
+        with config_context(Backend="Ray"):
+            ray_ds = pd.io.to_ray(ray_df)
         pool = ActorPool(
             [
-                SnowflakeWriterActor.remote(table_name)  # type: ignore[attr-defined]
+                SnowflakeWriterActor.remote(table_name, connection_creds)  # type: ignore[attr-defined]
                 for _ in range(max_sessions)
             ]
         )
@@ -1399,26 +1420,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         with config_context(Backend="Snowflake"):
-            snowpark_pandas_df = pd.read_snowflake(table_name, enforce_ordering=True)
+            snowpark_pandas_df = pd.read_snowflake(
+                table_name, index_col=index_names, enforce_ordering=True
+            )
 
         snowpark_pandas_df.sort_values(by=row_position_pandas_label, inplace=True)
-        snowpark_pandas_df.drop(
-            row_position_pandas_label,
-            axis=1,
-            inplace=True,
-        )
-        snowpark_pandas_df.columns = (
-            original_index_pandas_labels + original_column_labels
-        )
-        snowpark_pandas_df.set_index(
-            original_index_pandas_labels,
-            drop=True,
-            inplace=True,
-        )
-
+        snowpark_pandas_df.drop(row_position_pandas_label, axis=1, inplace=True)
         # Drop the permanent table and reference only the snapshot
-        get_session().sql(f"DROP TABLE IF EXISTS {table_name}").collect()
-        return snowpark_pandas_df._query_compiler
+        get_session(connection_creds).sql(
+            f"DROP TABLE IF EXISTS {table_name}"
+        ).collect()
+
+        return cls(
+            InternalFrame.create(
+                ordered_dataframe=snowpark_pandas_df._query_compiler._modin_frame.ordered_dataframe,
+                data_column_pandas_labels=original_column_labels,
+                data_column_pandas_index_names=original_column_index_names,
+                data_column_snowflake_quoted_identifiers=data_column_snowflake_quoted_identifiers,
+                index_column_pandas_labels=original_index_pandas_labels,
+                index_column_snowflake_quoted_identifiers=index_snowflake_quoted_identifiers,
+                data_column_types=None,
+                index_column_types=None,
+            )
+        )
 
     @classmethod
     def move_from(cls, source_qc: BaseQueryCompiler) -> Union[BaseQueryCompiler, Any]:
