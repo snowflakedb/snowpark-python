@@ -1318,7 +1318,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Args:
             ray_qc: The Ray-backed query compiler.
             max_sessions: The maximum number of sessions to use for writes.
-            connection_params: The connection parameters to create new Snowpark sessions.
 
         Returns:
             A new SnowflakeQueryCompiler with the data
