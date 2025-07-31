@@ -116,13 +116,8 @@ Configuring Transfer Costs
 
 Transfer costs are also considered for data moving between engines. For data moving
 from Snowflake this threshold can be configured with the SnowflakePandasTransferThreshold
-environment variable. This is set to 100k rows by default; which will penalize
+environment variable. This is set to 10M rows by default; which will penalize
 the movement of data as it nears this threshold.
-
-The default value, 100k was selected based on a variety of tests at different network
-speeds and latencies using a standard relational workload, but you may want to increase
-this value - particularly if you are using Snowpark pandas in an interactive environment
-where the initial download of row data is acceptable.
 
 .. code-block:: python
 

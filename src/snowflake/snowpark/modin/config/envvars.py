@@ -85,7 +85,7 @@ class SnowflakePandasTransferThreshold(EnvironmentVariable, type=int):
     """
 
     varname = "SNOWFLAKE_PANDAS_MAX_XFER_ROWS"
-    default = 100_000
+    default = 10_000_000
 
 
 # have to monkey patch this into modin right now to use config contexts

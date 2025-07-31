@@ -35,11 +35,11 @@ def test_snowflake_pandas_transfer_threshold():
     is correctly used in the cost model.
     """
     # Verify the default value of the configuration variable.
-    assert SnowflakePandasTransferThreshold.get() == 100_000
+    assert SnowflakePandasTransferThreshold.get() == 10_000_000
 
     # Create a SnowflakeQueryCompiler and verify that it has the default value.
     compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
-    assert compiler._transfer_threshold() == 100_000
+    assert compiler._transfer_threshold() == 10_000_000
 
     df = pd.DataFrame()
     assert df.get_backend() == "Pandas"
