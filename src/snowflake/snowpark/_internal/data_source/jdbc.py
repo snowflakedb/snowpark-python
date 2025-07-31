@@ -18,6 +18,7 @@ from snowflake.snowpark.types import (
     StructField,
 )
 from snowflake.snowpark.session import Session
+from snowflake.snowpark.dataframe import DataFrame
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
     "java.lang.Integer": DecimalType,
     "java.lang.Short": DecimalType,
 }
+PARTITION_TABLE_COLUMN_NAME = "partition"
 
 
 def to_snow_type(raw_schema: List[Any]) -> StructType:
@@ -91,6 +93,7 @@ class JDBCClient:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
+        _emit_ast: bool = True,
     ) -> None:
         self.session = session
         self.url = url
@@ -111,6 +114,7 @@ class JDBCClient:
         self.predicates = predicates
         self.session_init_statement = session_init_statement
         self.raw_schema = None
+        self._emit_ast = _emit_ast
         self.imports = (
             f"""IMPORTS =({",".join([f"'{imp}'" for imp in self.imports])})"""
             if self.imports is not None
@@ -125,7 +129,7 @@ class JDBCClient:
     @cached_property
     def schema(self) -> StructType:
 
-        INFER_SCHEMA_UDTF = f"""
+        infer_schema_udtf_registration = f"""
             CREATE OR REPLACE FUNCTION jdbc_test(query VARCHAR)
             RETURNS TABLE (field_name VARCHAR, field_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN)
             LANGUAGE JAVA
@@ -214,9 +218,12 @@ class JDBCClient:
             else f"SELECT * FROM {self.table_or_query} WHERE 1 = 0"
         )
 
-        self.session.sql(INFER_SCHEMA_UDTF).collect()
+        self.session.sql(
+            infer_schema_udtf_registration, _emit_ast=self._emit_ast
+        ).collect()
         self.raw_schema = self.session.sql(
-            f"SELECT * FROM TABLE(jdbc_test('{infer_schema_sql}'))"
+            f"SELECT * FROM TABLE(jdbc_test('{infer_schema_sql}'))",
+            _emit_ast=self._emit_ast,
         ).collect()
 
         return to_snow_type(self.raw_schema)
@@ -240,72 +247,55 @@ class JDBCClient:
             self.num_partitions,
         )
 
-    def read(self, partition_table: str):
+    def read(self, partition_table: str) -> "DataFrame":
         udtf_table_return_type = ", ".join(
             [f"{field.name} VARCHAR" for field in self.schema.fields]
         )
-        JDBC_UDTF = f"""
-        CREATE OR REPLACE FUNCTION jdbc(query VARCHAR)
-        RETURNS TABLE ({udtf_table_return_type})
-        LANGUAGE JAVA
-        RUNTIME_VERSION = '11'
-        EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
-        {self.imports}
-        {self.packages}
-        HANDLER = 'DataLoader'
-        as
-        $$
+        output_rows = "".join(
+            [f"public String {field.name};\n" for field in self.schema.fields]
+        )
+        create_output_row = "".join(
+            [
+                f"row.{field.name} = rs.getString({i+1});\n"
+                for i, field in enumerate(self.schema.fields)
+            ]
+        )
+        jdbc_udtf_registration = f"""
+            CREATE OR REPLACE FUNCTION jdbc(query VARCHAR)
+            RETURNS TABLE ({udtf_table_return_type})
+            LANGUAGE JAVA
+            RUNTIME_VERSION = '11'
+            EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
+            {self.imports}
+            {self.packages}
+            HANDLER = 'DataLoader'
+            as
+            $$
 
-        import java.sql.*;
-        import java.util.stream.Stream;
+            import java.sql.*;
+            import java.util.stream.Stream;
+            import java.util.ArrayList;
+            import java.util.List;
+            import com.snowflake.snowpark_java.types.*;
 
-        import com.snowflake.snowpark_java.types.*;
-        import com.snowflake.snowpark_java.udtf.*;
-        import com.snowflake.snowpark_java.types.SnowflakeSecrets;
-        import com.snowflake.snowpark_java.types.UsernamePassword;
 
-        class OutputRow {{
-
-            public String A;
-
-            public OutputRow(String A) {{
-                this.A = A;
+            class OutputRow {{
+                {output_rows}
             }}
 
-        }}
-
-
-
-        public class DataLoader{{
+            public class DataLoader{{
             private final Connection conn;
-
-            private static String escapeJson(String str) {{
-                return str.replace("\\", "\\\\")
-                          .replace("\"", "\\\"")
-                          .replace("\b", "\\b")
-                          .replace("\f", "\\f")
-                          .replace("\n", "\\n")
-                          .replace("\r", "\\r")
-                          .replace("\t", "\\t");
-            }}
-
-
-            public StructType outputSchema() {{
-                return StructType.create(new StructField("A", DataTypes.VariantType));
-            }}
-            public static Class getOutputClass() {{
-              return OutputRow.class;
-            }}
 
             private static Connection createConnection() {{
                 try {{
-                    Class.forName("com.wisecoders.dbschema.influxdb.JdbcDriver");
-                    //Class.forName("software.amazon.timestream.jdbc.TimestreamDriver");
-                    String url = "";
+                    String url = "{self.url}";
                     return DriverManager.getConnection(url);
                 }} catch (Exception e) {{
                     throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
                 }}
+            }}
+            public static Class<?> getOutputClass() {{
+                return OutputRow.class;
             }}
 
             public DataLoader() {{
@@ -313,41 +303,21 @@ class JDBCClient:
             }}
 
             public Stream<OutputRow> process(String query) {{
-                try {{
-                    ResultSet result = this.conn.createStatement().executeQuery(query);
-                    if (result.next()) {{
-                        ResultSetMetaData meta = result.getMetaData();
-                        int columnCount = meta.getColumnCount();
-                        StringBuilder json = new StringBuilder();
-                        json.append("{{");
-
-                        for (int i = 1; i <= columnCount; i++) {{
-                            String name = meta.getColumnLabel(i);
-                            Object value = result.getObject(i);
-
-                            json.append("\"").append(escapeJson(name)).append("\":");
-
-                            if (value == null) {{
-                                json.append("null");
-                            }} else if (value instanceof Number || value instanceof Boolean) {{
-                                json.append(value.toString());
-                            }} else {{
-                                json.append("\"").append(escapeJson(value.toString())).append("\"");
-                            }}
-
-                            if (i < columnCount) {{
-                                json.append(",");
-                            }}
+                List<OutputRow> list = new ArrayList<>();
+                 try {{
+                    PreparedStatement stmt = this.conn.prepareStatement(query);
+                    try (ResultSet rs = stmt.executeQuery()) {{
+                        while (rs.next()) {{
+                            OutputRow row = new OutputRow();
+                            {create_output_row}
+                            list.add(row);
                         }}
-
-                        json.append("}}");
-                        return Stream.of(new OutputRow(json.toString()));
                     }}
-
-                    return Stream.empty();
-                }} catch (Exception e) {{
-                    throw new RuntimeException("Failed to load data: " + e.getMessage());
+                }} catch (SQLException e) {{
+                    throw new RuntimeException("SQL error: " + e.getMessage(), e);
                 }}
+
+                return list.stream();
             }}
 
             public Stream<OutputRow> endPartition() {{
@@ -357,4 +327,14 @@ class JDBCClient:
         $$
         ;
         """
-        return JDBC_UDTF
+
+        jdbc_udtf = f"""
+            select result.* from {partition_table}, table(jdbc({PARTITION_TABLE_COLUMN_NAME})) AS result
+            """
+
+        self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()
+        return BaseDriver.to_result_snowpark_df_udtf(
+            self.session.sql(jdbc_udtf, _emit_ast=self._emit_ast),
+            self.schema,
+            _emit_ast=self._emit_ast,
+        )
