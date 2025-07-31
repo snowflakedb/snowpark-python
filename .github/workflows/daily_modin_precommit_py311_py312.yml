@@ -24,15 +24,19 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
+        run: uv pip install -U setuptools pip --system
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Run fix_lint
         run: python -m tox -e fix_lint
 
@@ -47,11 +51,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Generate wheel
         run: python -m pip wheel -v -w dist --no-deps .
       - name: Show wheels generated
@@ -85,6 +93,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -109,9 +121,9 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - if: ${{ contains('macos', matrix.os.download_name) }}
         name: Run Snowpark pandas API doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
@@ -173,15 +185,19 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
+        run: uv pip install -U setuptools pip --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Collect all coverages to one dir
         run: |
           python -c '
