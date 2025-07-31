@@ -133,6 +133,8 @@ def test_set_same_operator(session, set_operator):
         Utils.check_answer(result1, [Row(1, 2)], sort=False)
     else:
         result1 = df1.intersect(df2).intersect(df3.intersect(df4))
+        print(result1._plan.queries[-1].sql)
+        print(result1._plan.queries[-1].formatted_sql)
         Utils.check_answer(result1, [], sort=False)
 
     query1 = Utils.normalize_sql(result1._plan.queries[-1].sql, session._new_line_token)

@@ -66,11 +66,15 @@ def setup():
 def test_format_uuid():
     uuid_str = "123e4567-e89b-12d3-a456-426614174000"
     expected = f"-- {uuid_str}"
-    result = format_uuid(uuid_str, with_new_line=False)
+    result = format_uuid(uuid_str, with_new_line=False).replace(
+        analyzer_utils.NEW_LINE_TOKEN, ""
+    )
     assert result == expected
 
-    result_with_newline = format_uuid(uuid_str, with_new_line=True)
-    expected_with_newline = f"\n-- {uuid_str}\n"
+    result_with_newline = format_uuid(uuid_str, with_new_line=True).replace(
+        analyzer_utils.NEW_LINE_TOKEN, ""
+    )
+    expected_with_newline = f"-- {uuid_str}\n"
     assert result_with_newline == expected_with_newline
 
     empty_result = format_uuid(None, with_new_line=False)
