@@ -6,6 +6,7 @@
 import functools
 import inspect
 import re
+import time
 from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast
@@ -643,28 +644,61 @@ class TelemetryMeta(type):
         return type.__new__(cls, name, bases, attrs)
 
 
+_modin_event_log: list = [[]]
+MODIN_METRIC_FLUSH_INTERVAL = 5  # flush metrics every 5 seconds
+_next_modin_metric_flush: float = time.time() + MODIN_METRIC_FLUSH_INTERVAL
+MODIN_SWITCH_DECISION_METRICS = (
+    "modin.hybrid.merge.decision",
+    "modin.hybrid.auto.decision",
+)
+MODIN_PERFORMANCE_METRICS = ("modin.query-compiler",)
+MODIN_ALL_COLLECTED_METRICS = MODIN_SWITCH_DECISION_METRICS + MODIN_PERFORMANCE_METRICS
+
+
 def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -> None:
     """
     Telemetry hook that collects modin telemetry events of interest for
     transmission to Snowflake.
     """
-    useful_metrics = (
-        "modin.hybrid.merge.decision",
-        "modin.pandas-api",
-        "modin.query-compiler",
-        "modin.hybrid.auto.decision",
-    )
-    if metric_name.startswith(useful_metrics):
+    global _modin_event_log
+    global _next_modin_metric_flush
+    simplified_metric = metric_name
+
+    if not (
+        metric_name.startswith(MODIN_SWITCH_DECISION_METRICS)
+        or metric_name.startswith(MODIN_PERFORMANCE_METRICS)
+    ):
+        # ignore all metrics except for those above
+        return
+
+    if metric_name.startswith(MODIN_SWITCH_DECISION_METRICS):
+        # strip off the groups
+        simplified_metric = ".".join(metric_name.split(".")[0:5])
+    _modin_event_log.append([simplified_metric, metric_value])
+
+    # We will lose telemetry at the tail end of the process, but
+    # that's OK - this telemetry is meant to be lossy
+    if _next_modin_metric_flush < time.time():
         try:
-            session = snowflake.snowpark.session._get_active_session()
-            _send_modin_api_telemetry(
-                session=session,
-                event=metric_name,
-                value=metric_value,
-                aggregatable=False,
+            summary_stat_names = ["count", "median", "mean"]
+            processing_df = native_pd.DataFrame(
+                _modin_event_log, columns=["metric", "value"]
             )
+            summary_stats = processing_df.groupby("metric").agg(summary_stat_names)
+            session = snowflake.snowpark.session._get_active_session()
+            for row in summary_stats:
+                for stat in summary_stats:
+                    stat_specific_metric = f"{simplified_metric}.{stat}"
+                    _send_modin_api_telemetry(
+                        session=session,
+                        event=stat_specific_metric,
+                        value=row[stat],
+                        aggregatable=stat == "count",
+                    )
         except Exception:
             pass
+        _next_modin_metric_flush = time.time() + MODIN_METRIC_FLUSH_INTERVAL
+        _modin_event_log = [[]]
 
 
 hybrid_switch_log = native_pd.DataFrame({})
