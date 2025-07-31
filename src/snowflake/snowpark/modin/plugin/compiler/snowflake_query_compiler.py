@@ -13612,8 +13612,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             row_count = 0 if len(pandas_frame) == 0 else pandas_frame.iat[0, -1]
             pandas_frame = pandas_frame.iloc[:, :-1]
         col_count = len(pandas_frame.columns)
-        # update upper bound
-        frame.ordered_dataframe.row_count_upper_bound = row_count
+
         return row_count, col_count, pandas_frame
 
     def quantiles_along_axis0(

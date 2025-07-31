@@ -181,7 +181,7 @@ def test_row_count_estimator_invariants():
     df1.row_count = 100
     df1.row_count_upper_bound = 50
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError, match="row upper bound is less than row count"):
         RowCountEstimator.upper_bound(df1, DataFrameOperation.FILTER, {})
 
     df2 = mock.create_autospec(OrderedDataFrame)
@@ -192,12 +192,12 @@ def test_row_count_estimator_invariants():
     df3.row_count = 50
     df3.row_count_upper_bound = 100
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Unsupported operation/method"):
         RowCountEstimator.upper_bound(
             df2, DataFrameOperation.JOIN, {"right": df3, "how": "poodle_join"}
         )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Unsupported operation/method"):
         RowCountEstimator.upper_bound(
             df2, DataFrameOperation.ALIGN, {"right": df3, "how": "poodle_join"}
         )

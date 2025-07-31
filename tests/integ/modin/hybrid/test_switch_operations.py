@@ -21,7 +21,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     MODIN_IS_AT_LEAST_0_34_0,
 )
 
-
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
