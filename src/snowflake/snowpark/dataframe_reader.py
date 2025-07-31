@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_table_name,
     with_src_position,
 )
+from snowflake.snowpark._internal.data_source import JDBC
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
     DataSourcePartitioner,
 )
@@ -553,7 +554,16 @@ class DataFrameReader:
     @_format.setter
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
-        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
+        allowed_formats = [
+            "csv",
+            "json",
+            "avro",
+            "parquet",
+            "orc",
+            "xml",
+            "dbapi",
+            "jdbc",
+        ]
         if canon_format not in allowed_formats:
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
@@ -563,7 +573,7 @@ class DataFrameReader:
     @publicapi
     def format(
         self,
-        format: Literal["csv", "json", "avro", "parquet", "orc", "xml"],
+        format: Literal["csv", "json", "avro", "parquet", "orc", "xml", "jdbc"],
         _emit_ast: bool = True,
     ) -> "DataFrameReader":
         """Specify the format of the file(s) to load.
@@ -1283,6 +1293,159 @@ class DataFrameReader:
             set_api_call_source(df, XML_READER_API_SIGNATURE)
         else:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
+        return df
+
+    @private_preview(version="1.36.0")
+    @publicapi
+    def jdbc(
+        self,
+        url: str,
+        udtf_configs: dict,
+        *,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        query_timeout: Optional[int] = 0,
+        fetch_size: Optional[int] = 0,
+        custom_schema: Optional[Union[str, StructType]] = None,
+        predicates: Optional[List[str]] = None,
+        session_init_statement: Optional[List[str]] = None,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """
+        Reads data from a database table or query into a DataFrame using a DBAPI connection,
+        with support for optional partitioning, parallel processing, and query customization.
+
+        There are multiple methods to partition data and accelerate ingestion.
+        These methods can be combined to achieve optimal performance:
+
+        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
+        These must all be specified together, otherwise error will be raised.
+        2.Set max_workers to a proper positive integer.
+        This defines the maximum number of processes and threads used for parallel execution.
+        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
+        4.Use predicates to defining WHERE conditions for partitions,
+        predicates will be ignored if column is specified to generate partition.
+        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
+        column name with table in external data source.
+
+        Args:
+            create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
+                The callable must be picklable, as it will be passed to and executed in child processes.
+            table: The name of the table in the external data source.
+                This parameter cannot be used together with the `query` parameter.
+            query: A valid SQL query to be used as the data source in the FROM clause.
+                This parameter cannot be used together with the `table` parameter.
+            column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
+                The column must be of a numeric type (e.g., int or float) or a date type.
+                When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
+            lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            upper_bound: upper bound of partition, decide the stride of partition along with `lower_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
+                It must be provided when `column` is specified.
+            query_timeout: The timeout (in seconds) for each query execution. A default value of `0` means
+                the query will never time out. The timeout behavior can also be configured within
+                the `create_connection` method when establishing the database connection, depending on the capabilities
+                of the DBMS and its driver.
+            fetch_size: The number of rows to fetch per batch from the external data source.
+                This determines how many rows are retrieved in each round trip,
+                which can improve performance for drivers with a low default fetch size.
+            custom_schema: a custom snowflake table schema to read data from external data source,
+                the column names should be identical to corresponded column names external data source.
+                This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING",
+                or StructType, for example: StructType([StructField("ID", IntegerType(), False), StructField("INT_COL", IntegerType(), False), StructField("TEXT_COL", StringType(), False)])
+            predicates: A list of expressions suitable for inclusion in WHERE clauses, where each expression defines a partition.
+                Partitions will be retrieved in parallel.
+                If both `column` and `predicates` are specified, `column` takes precedence.
+            session_init_statement: One or more SQL statements executed before fetching data from
+                the external data source.
+                This can be used for session initialization tasks such as setting configurations.
+                For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
+                to avoid row locks and improve read performance.
+                The `session_init_statement` is executed only once at the beginning of each partition read.
+            udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
+                If this parameter is provided, the workload will be executed within a Snowflake UDTF context.
+
+                The dictionary may include the following keys:
+
+                - external_access_integration (str, required): The name of the external access integration,
+                    which allows the UDTF to access external endpoints.
+
+                - imports (List[str], optional): A list of stage file names to import into the UDTF.
+                    Use this to include any private packages required by your `create_connection()` function.
+
+                - packages (List[str], optional): A list of package names (with optional version numbers)
+                    required as dependencies for your `create_connection()` function.
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                df = session.read.dbapi(create_oracledb_connection, table=...)
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                if __name__ == "__main__":
+                    df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
+        """
+        if (not table and not query) or (table and query):
+            raise SnowparkDataframeReaderException(
+                "Either 'table' or 'query' must be provided, but not both."
+            )
+        external_access_integration = udtf_configs.get(
+            "external_access_integration", None
+        )
+        imports = udtf_configs.get("imports", None)
+        packages = udtf_configs.get("packages", None)
+        java_version = udtf_configs.get("java_version", 11)
+
+        if external_access_integration is None or imports is None:
+            raise ValueError(
+                "external_access_integration and imports must be specified in udtf configs"
+            )
+        jdbc_client = JDBC(
+            session=self._session,
+            url=url,
+            external_access_integration=external_access_integration,
+            imports=imports,
+            packages=packages,
+            java_version=java_version,
+            table_or_query=table or query,
+            is_query=True if query is not None else False,
+            column=column,
+            lower_bound=lower_bound,
+            upper_bound=upper_bound,
+            num_partitions=num_partitions,
+            query_timeout=query_timeout,
+            fetch_size=fetch_size,
+            custom_schema=custom_schema,
+            predicates=predicates,
+            session_init_statement=session_init_statement,
+        )
+
+        partitions = jdbc_client.partitions
+
+        partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+        self._session.create_dataframe(
+            [[query] for query in partitions], schema=["partition"]
+        ).write.save_as_table(partitions_table, table_type="temp")
+
+        df = jdbc_client.read(partitions_table)
         return df
 
     @private_preview(version="1.29.0")

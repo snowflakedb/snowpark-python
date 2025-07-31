@@ -115,22 +115,9 @@ class DataSourcePartitioner:
         if self.custom_schema is None:
             return auto_infer_schema
         else:
-            if isinstance(self.custom_schema, str):
-                custom_schema = type_string_to_type_object(self.custom_schema)
-                if not isinstance(custom_schema, StructType):
-                    raise ValueError(
-                        f"Invalid schema string: {self.custom_schema}. "
-                        f"You should provide a valid schema string representing a struct type."
-                        'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
-                    )
-            elif isinstance(self.custom_schema, StructType):
-                custom_schema = self.custom_schema
-            else:
-                raise ValueError(
-                    f"Invalid schema type: {type(self.custom_schema)}."
-                    'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
-                    'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
-                )
+            custom_schema = DataSourcePartitioner.formatting_custom_schema(
+                self.custom_schema
+            )
 
             if not auto_infer_successful:
                 return custom_schema
@@ -314,6 +301,26 @@ class DataSourcePartitioner:
         select_query: str, predicates: List[str]
     ) -> List[str]:
         return [select_query + f" WHERE {predicate}" for predicate in predicates]
+
+    @staticmethod
+    def formatting_custom_schema(custom_schema: Union[str, StructType]) -> StructType:
+        if isinstance(custom_schema, str):
+            schema = type_string_to_type_object(custom_schema)
+            if not isinstance(custom_schema, StructType):
+                raise ValueError(
+                    f"Invalid schema string: {custom_schema}. "
+                    f"You should provide a valid schema string representing a struct type."
+                    'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
+                )
+        elif isinstance(custom_schema, StructType):
+            schema = custom_schema
+        else:
+            raise ValueError(
+                f"Invalid schema type: {type(custom_schema)}."
+                'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
+                'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
+            )
+        return schema
 
 
 def to_internal_value(value: Union[int, str, float], column_type: DataType):

@@ -2,11 +2,13 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+from collections import defaultdict
 from functools import cached_property
-from typing import Optional, Union, List, Any
+from typing import Optional, Union, List, Any, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source import DataSourcePartitioner
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
+from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.types import (
     StructType,
     DecimalType,
@@ -17,8 +19,10 @@ from snowflake.snowpark.types import (
     ArrayType,
     StructField,
 )
-from snowflake.snowpark.session import Session
-from snowflake.snowpark.dataframe import DataFrame
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.session import Session
+    from snowflake.snowpark.dataframe import DataFrame
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +78,7 @@ def generate_select_sql(table_or_query: str, raw_schema: List[str], is_query: bo
         return f"SELECT {', '.join(cols)} FROM {table_or_query}"
 
 
-class JDBCClient:
+class JDBC:
     def __init__(
         self,
         session: "Session",
@@ -83,6 +87,7 @@ class JDBCClient:
         external_access_integration: str,
         imports: List[str],
         is_query: bool,
+        java_version: Optional[str] = "11",
         packages: Optional[List[str]] = None,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
@@ -102,6 +107,7 @@ class JDBCClient:
         self.external_access_integration = external_access_integration
         self.imports = imports
         self.packages = packages
+        self.java_version = java_version
 
         self.is_query = is_query
         self.column = column
@@ -128,12 +134,14 @@ class JDBCClient:
 
     @cached_property
     def schema(self) -> StructType:
-
+        infer_schema_udtf_name = (
+            f"JDBC_INFER_SCHEMA_{generate_random_alphanumeric().upper()}"
+        )
         infer_schema_udtf_registration = f"""
-            CREATE OR REPLACE FUNCTION jdbc_test(query VARCHAR)
+            CREATE OR REPLACE FUNCTION {infer_schema_udtf_name}(query VARCHAR)
             RETURNS TABLE (field_name VARCHAR, field_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN)
             LANGUAGE JAVA
-            RUNTIME_VERSION = '11'
+            RUNTIME_VERSION = '{self.java_version}'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
             {self.imports}
             {self.packages}
@@ -222,14 +230,41 @@ class JDBCClient:
             infer_schema_udtf_registration, _emit_ast=self._emit_ast
         ).collect()
         self.raw_schema = self.session.sql(
-            f"SELECT * FROM TABLE(jdbc_test('{infer_schema_sql}'))",
+            f"SELECT * FROM TABLE({infer_schema_udtf_name}('{infer_schema_sql}'))",
             _emit_ast=self._emit_ast,
         ).collect()
 
-        return to_snow_type(self.raw_schema)
+        auto_infer_schema = to_snow_type(self.raw_schema)
+
+        if self.custom_schema is None:
+            return auto_infer_schema
+        else:
+            custom_schema = DataSourcePartitioner.formatting_custom_schema(
+                self.custom_schema
+            )
+
+            # generate final schema with auto infer schema and custom schema
+            custom_schema_name_to_field = defaultdict()
+            for field in custom_schema.fields:
+                if field.name.lower() in custom_schema_name_to_field:
+                    raise ValueError(
+                        f"Invalid schema: {self.custom_schema}. "
+                        f"Schema contains duplicate column: {field.name.lower()}. "
+                        "Please choose another name or rename the existing column "
+                    )
+                custom_schema_name_to_field[field.name.lower()] = field
+            final_fields = []
+            for field in auto_infer_schema.fields:
+                final_fields.append(
+                    custom_schema_name_to_field.get(field.name.lower(), field)
+                )
+
+            return StructType(final_fields)
 
     @cached_property
     def partitions(self) -> List[str]:
+        if self.raw_schema is None:
+            self.schema
         select_query = generate_select_sql(
             self.table_or_query,
             self.raw_schema,
@@ -248,6 +283,7 @@ class JDBCClient:
         )
 
     def read(self, partition_table: str) -> "DataFrame":
+        jdbc_ingestion_name = f"JDBC_INGESTION_{generate_random_alphanumeric().upper()}"
         udtf_table_return_type = ", ".join(
             [f"{field.name} VARCHAR" for field in self.schema.fields]
         )
@@ -261,10 +297,10 @@ class JDBCClient:
             ]
         )
         jdbc_udtf_registration = f"""
-            CREATE OR REPLACE FUNCTION jdbc(query VARCHAR)
+            CREATE OR REPLACE FUNCTION {jdbc_ingestion_name}(query VARCHAR)
             RETURNS TABLE ({udtf_table_return_type})
             LANGUAGE JAVA
-            RUNTIME_VERSION = '11'
+            RUNTIME_VERSION = '{self.java_version}'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
             {self.imports}
             {self.packages}
@@ -306,6 +342,8 @@ class JDBCClient:
                 List<OutputRow> list = new ArrayList<>();
                  try {{
                     PreparedStatement stmt = this.conn.prepareStatement(query);
+                    stmt.setQueryTimeout({str(self.query_timeout)});
+                    stmt.setFetchSize({str(self.fetch_size)});
                     try (ResultSet rs = stmt.executeQuery()) {{
                         while (rs.next()) {{
                             OutputRow row = new OutputRow();
@@ -329,7 +367,7 @@ class JDBCClient:
         """
 
         jdbc_udtf = f"""
-            select result.* from {partition_table}, table(jdbc({PARTITION_TABLE_COLUMN_NAME})) AS result
+            select result.* from {partition_table}, table({jdbc_ingestion_name}({PARTITION_TABLE_COLUMN_NAME})) AS result
             """
 
         self.session.sql(jdbc_udtf_registration, _emit_ast=self._emit_ast).collect()
