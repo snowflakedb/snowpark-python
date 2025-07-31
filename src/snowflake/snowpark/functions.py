@@ -12949,7 +12949,8 @@ def ai_sentiment(
         >>> # Extract sentiment for specific categories
         >>> df = session.create_dataframe([
         ...     ["The movie had amazing visual effects but the plot was terrible."],
-        ...     ["The food was delicious but the service was slow."]
+        ...     ["The food was delicious but the service was slow."],
+        ...     ["The movie was great, but the acting was terrible."]
         ... ], schema=["review"])
         >>> df.select("review", ai_sentiment(col("review"), ['plot', 'visual effects', 'acting']).alias("sentiment")).show()
         ----------------------------------------------------------------------------------------
@@ -12992,6 +12993,26 @@ def ai_sentiment(
         |                                                    |    {                            |
         |                                                    |      "name": "visual effects",  |
         |                                                    |      "sentiment": "unknown"     |
+        |                                                    |    }                            |
+        |                                                    |  ]                              |
+        |                                                    |}                                |
+        |The movie was great, but the acting was terrible.   |{                                |
+        |                                                    |  "categories": [                |
+        |                                                    |    {                            |
+        |                                                    |      "name": "overall",         |
+        |                                                    |      "sentiment": "mixed"       |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "acting",          |
+        |                                                    |      "sentiment": "negative"    |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "plot",            |
+        |                                                    |      "sentiment": "positive"    |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "visual effects",  |
+        |                                                    |      "sentiment": "positive"    |
         |                                                    |    }                            |
         |                                                    |  ]                              |
         |                                                    |}                                |
