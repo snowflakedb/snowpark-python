@@ -30,6 +30,10 @@ class DataFrameOperation(Enum):
     SAMPLE = "sample"
 
 
+# The maximum number of rows we allow for estimates of joins/aligns
+MAX_ROW_COUNT_FOR_ESTIMATION = 1e15
+
+
 class RowCountEstimator:
     @staticmethod
     def upper_bound(
@@ -89,7 +93,14 @@ class RowCountEstimator:
             if right_bound is None:
                 # Cannot estimate row count: other DataFrame has no row count information
                 return None
-            return current * right_bound
+            # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
+            # When the product becomes very large we return None conservatively, as this can have
+            # a negative performance impact on alignment. This is a similar fix to what was added
+            # in SnowflakeQueryCompiler::_get_rows
+            cartesian_result = current * right_bound
+            if cartesian_result > MAX_ROW_COUNT_FOR_ESTIMATION:
+                return None
+            return cartesian_result
 
         # TODO: Implement a better estimate by having cases for different align types
         # Align can cause a Cartesian product with the row counts multiplying
@@ -99,7 +110,14 @@ class RowCountEstimator:
             if other_bound is None:
                 # Cannot estimate row count: other DataFrame has no row count information
                 return None
-            return current * other_bound
+            # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
+            # When the product becomes very large we return None conservatively, as this can have
+            # a negative performance impact on alignment. This is a similar fix to what was added
+            # in SnowflakeQueryCompiler::_get_rows
+            cartesian_result = current * other_bound
+            if cartesian_result > MAX_ROW_COUNT_FOR_ESTIMATION:
+                return None
+            return cartesian_result
 
         # Limit sets the upper bound to n rows
         elif operation == DataFrameOperation.LIMIT:

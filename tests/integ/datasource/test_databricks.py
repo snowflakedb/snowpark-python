@@ -3,6 +3,7 @@
 #
 
 import json
+import sys
 
 import pytest
 
@@ -32,8 +33,13 @@ from tests.resources.test_data_source_dir.test_databricks_data import (
     EXPECTED_TYPE,
     TEST_TABLE_NAME,
     DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION,
+    databricks_less_column_schema,
+    databricks_more_column_schema,
+    databricks_schema,
+    databricks_unicode_schema,
+    databricks_double_quoted_schema,
 )
-from tests.utils import IS_IN_STORED_PROC
+from tests.utils import IS_IN_STORED_PROC, IS_MACOS, Utils
 
 DEPENDENCIES_PACKAGE_UNAVAILABLE = True
 try:
@@ -47,6 +53,10 @@ except ImportError:
 pytestmark = [
     pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'databricks'"),
     pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration"),
+    pytest.mark.skipif(
+        IS_MACOS and sys.version_info[:2] == (3, 12),
+        reason="SNOW-2128983: databricks connector unable to fetch data on macOS with Python 3.12, skipping first",
+    ),
 ]
 
 
@@ -58,22 +68,34 @@ def create_databricks_connection():
 
 @pytest.mark.parametrize(
     "input_type, input_value",
-    [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
+    [
+        ("table", TEST_TABLE_NAME),
+        ("query", f"SELECT * FROM {TEST_TABLE_NAME}"),
+        ("query", f"(SELECT * FROM {TEST_TABLE_NAME})"),
+    ],
 )
-def test_basic_databricks(session, input_type, input_value):
-    input_dict = {
-        input_type: input_value,
-    }
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        databricks_schema,
+        databricks_less_column_schema,
+        databricks_more_column_schema,
+        None,
+    ],
+)
+def test_basic_databricks(session, input_type, input_value, custom_schema):
+    input_dict = {input_type: input_value, "custom_schema": custom_schema}
     df = session.read.dbapi(create_databricks_connection, **input_dict).order_by(
-        "COL_BYTE"
+        "COL_BYTE", ascending=True
     )
-    ret = df.collect()
-    assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
+    Utils.check_answer(df, EXPECTED_TEST_DATA)
+    assert df.schema == EXPECTED_TYPE
 
     table_name = random_name_for_temp_object(TempObjectType.TABLE)
     df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    df2 = session.table(table_name).order_by("COL_BYTE")
-    assert df2.collect() == EXPECTED_TEST_DATA and df2.schema == EXPECTED_TYPE
+    df2 = session.table(table_name).order_by("COL_BYTE", ascending=True)
+    Utils.check_answer(df2, EXPECTED_TEST_DATA)
+    assert df2.schema == EXPECTED_TYPE
 
 
 @pytest.mark.parametrize(
@@ -108,14 +130,34 @@ def test_unit_data_source_data_to_pandas_df():
     ]
 
 
-def test_unicode_column_databricks(session):
-    df = session.read.dbapi(create_databricks_connection, table="User_profile_unicode")
-
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        databricks_unicode_schema,
+        None,
+    ],
+)
+def test_unicode_column_databricks(session, custom_schema):
+    df = session.read.dbapi(
+        create_databricks_connection,
+        table="User_profile_unicode",
+        custom_schema=custom_schema,
+    )
     assert df.collect() == [Row(编号=1, 姓名="山田太郎", 国家="日本", 备注="これはUnicodeテストです")]
+    assert df.schema == databricks_unicode_schema
 
 
-def test_double_quoted_column_databricks(session):
-    df = session.read.dbapi(create_databricks_connection, table="User_profile")
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        databricks_double_quoted_schema,
+        None,
+    ],
+)
+def test_double_quoted_column_databricks(session, custom_schema):
+    df = session.read.dbapi(
+        create_databricks_connection, table="User_profile", custom_schema=custom_schema
+    )
     assert df.collect() == [
         Row(
             id=1,
@@ -124,11 +166,16 @@ def test_double_quoted_column_databricks(session):
             remarks="This is a test remark",
         )
     ]
+    assert df.schema == databricks_double_quoted_schema
 
 
 @pytest.mark.parametrize(
     "input_type, input_value",
     [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
+)
+@pytest.mark.udf
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 13), reason="driver not supported in python 3.13"
 )
 def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
     # we define here to avoid test_databricks.py to be pickled and unpickled in UDTF
@@ -146,9 +193,9 @@ def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
         udtf_configs={
             "external_access_integration": DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION
         },
-    ).order_by("COL_BYTE")
-    ret = df.collect()
-    assert ret == EXPECTED_TEST_DATA and df.schema == EXPECTED_TYPE
+    ).order_by("COL_BYTE", ascending=True)
+    Utils.check_answer(df, EXPECTED_TEST_DATA)
+    assert df.schema == EXPECTED_TYPE
 
     assert (
         "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text

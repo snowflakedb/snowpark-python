@@ -14,14 +14,28 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 )
 
 
+def setup_mock_qc() -> SnowflakeQueryCompiler:
+    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
+    mock_query_compiler.columnarize.return_value = mock_query_compiler
+
+    # Hybrid engine switching methods
+    # Actual values don't matter since we don't do any computation in unit tests, and AutoSwitchBackend
+    # is disabled in conftest.py.
+    mock_query_compiler.get_backend.return_value = "Snowflake"
+    mock_query_compiler.move_to_cost.return_value = 0
+    mock_query_compiler.move_to_me_cost.return_value = 0
+    mock_query_compiler.max_cost.return_value = 1000
+    mock_query_compiler.stay_cost.return_value = 0
+    mock_query_compiler._max_shape.return_value = (10, 10)
+    return mock_query_compiler
+
+
 @pytest.mark.parametrize(
     "io_method, kwargs",
     [
         ["read_gbq", {"query": ""}],
         ["read_clipboard", {}],
         ["read_hdf", {"path_or_buf": ""}],
-        ["read_feather", {"path": ""}],
-        ["read_stata", {"filepath_or_buffer": ""}],
         ["read_sql", {"sql": "", "con": ""}],
         ["read_fwf", {"filepath_or_buffer": ""}],
         ["read_sql_table", {"table_name": "", "con": ""}],
@@ -29,7 +43,6 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
         ["to_pickle", {"filepath_or_buffer": "", "obj": ""}],
         ["read_spss", {"path": ""}],
         ["json_normalize", {"data": ""}],
-        ["read_orc", {"path": ""}],
     ],
 )
 def test_unsupported_io(io_method, kwargs):
@@ -58,7 +71,6 @@ def test_unsupported_general(general_method, kwargs):
         ["at_time", {"time": ""}],
         ["between_time", {"start_time": "", "end_time": ""}],
         ["bool", {}],
-        ["boxplot", {}],
         ["clip", {}],
         ["combine", {"other": "", "func": ""}],
         ["combine_first", {"other": ""}],
@@ -90,7 +102,6 @@ def test_unsupported_general(general_method, kwargs):
         ["swapaxes", {"axis1": "", "axis2": ""}],
         ["swaplevel", {}],
         ["to_clipboard", {}],
-        ["to_excel", {"excel_writer": ""}],
         ["to_feather", {"path": ""}],
         ["to_gbq", {"destination_table": ""}],
         ["to_hdf", {"path_or_buf": "", "key": ""}],
@@ -113,9 +124,7 @@ def test_unsupported_general(general_method, kwargs):
     ],
 )
 def test_unsupported_df(df_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = DataFrame(query_compiler=mock_query_compiler)
+    mock_df = DataFrame(query_compiler=setup_mock_qc())
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, df_method)(**kwargs)
@@ -165,7 +174,6 @@ def test_unsupported_df(df_method, kwargs):
         ["swapaxes", {"axis1": "", "axis2": ""}],
         ["swaplevel", {}],
         ["to_clipboard", {}],
-        ["to_excel", {"excel_writer": ""}],
         ["to_hdf", {"path_or_buf": "", "key": ""}],
         ["to_json", {}],
         ["to_latex", {}],
@@ -182,9 +190,7 @@ def test_unsupported_df(df_method, kwargs):
     ],
 )
 def test_unsupported_series(series_method, kwargs):
-    mock_query_compiler = mock.create_autospec(SnowflakeQueryCompiler)
-    mock_query_compiler.columnarize.return_value = mock_query_compiler
-    mock_df = Series(query_compiler=mock_query_compiler)
+    mock_df = Series(query_compiler=setup_mock_qc())
 
     with pytest.raises(NotImplementedError):
         getattr(mock_df, series_method)(**kwargs)

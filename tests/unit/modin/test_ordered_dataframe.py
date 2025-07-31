@@ -9,8 +9,12 @@ import pytest
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     DataFrameReference,
+    DataFrameOperation,
     OrderedDataFrame,
     OrderingColumn,
+)
+from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
+    RowCountEstimator,
 )
 from snowflake.snowpark.types import (
     ColumnIdentifier,
@@ -137,3 +141,26 @@ def test_ordered_dataframe_missing_row_position_column_negative(
             ordering_columns=[OrderingColumn('"INDEX"')],
             row_position_snowflake_quoted_identifier='"E"',
         )
+
+
+def test_row_count_estimator_join_big():
+    # Create two mock OrderedDataFrame objects with large row counts
+    df1 = mock.create_autospec(OrderedDataFrame)
+    df1.row_count = 1e10
+    df1.row_count_upper_bound = None
+
+    df2 = mock.create_autospec(OrderedDataFrame)
+    df2.row_count = 1e10
+    df2.row_count_upper_bound = None
+
+    # Verify that the RowCountEstimator returns None for a JOIN operation
+    # which is "large"
+    assert (
+        RowCountEstimator.upper_bound(df1, DataFrameOperation.JOIN, {"right": df2})
+        is None
+    )
+
+    assert (
+        RowCountEstimator.upper_bound(df1, DataFrameOperation.ALIGN, {"right": df2})
+        is None
+    )

@@ -4,6 +4,8 @@
 
 import logging
 import math
+import sys
+
 import pytest
 
 from snowflake.snowpark import Row
@@ -21,6 +23,11 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     OracleDBType,
     oracledb_real_data,
     oracledb_real_data_small,
+    oracledb_real_schema,
+    oracledb_less_column_schema,
+    oracledb_more_column_schema,
+    oracledb_unicode_schema,
+    oracledb_double_quoted_schema,
 )
 from tests.utils import Utils, RUNNING_ON_JENKINS
 
@@ -68,14 +75,33 @@ def create_connection_oracledb():
     return connection
 
 
-def test_dbapi_oracledb(session):
-    df = session.read.dbapi(
-        create_connection_oracledb,
-        table=ORACLEDB_TABLE_NAME,
-        max_workers=4,
-        query_timeout=5,
-    )
-    Utils.check_answer(df, oracledb_real_data)
+@pytest.mark.parametrize(
+    "input_type, input_value",
+    [
+        ("table", ORACLEDB_TABLE_NAME),
+        ("query", f"SELECT * FROM {ORACLEDB_TABLE_NAME}"),
+        ("query", f"(SELECT * FROM {ORACLEDB_TABLE_NAME})"),
+    ],
+)
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        oracledb_real_schema,
+        oracledb_less_column_schema,
+        oracledb_more_column_schema,
+        None,
+    ],
+)
+def test_basic_oracledb(session, input_type, input_value, custom_schema):
+    input_dict = {
+        input_type: input_value,
+        "max_workers": 4,
+        "query_timeout": 5,
+        "custom_schema": custom_schema,
+    }
+    df = session.read.dbapi(create_connection_oracledb, **input_dict).order_by("ID")
+    assert df.collect() == oracledb_real_data
+    assert df.schema == oracledb_real_schema
 
 
 @pytest.mark.parametrize(
@@ -103,7 +129,7 @@ def test_dbapi_batch_fetch(
         )
         # we only expect math.ceil(len(expected_result) / fetch_size) parquet files to be generated
         # for example, 5 rows, fetch size 2, we expect 3 parquet files
-        assert caplog.text.count("Retrieved file from parquet queue") == math.ceil(
+        assert caplog.text.count("Retrieved BytesIO parquet from queue") == math.ceil(
             len(expected_result) / fetch_size
         )
         assert df.order_by("ID").collect() == expected_result
@@ -128,6 +154,10 @@ def test_oracledb_driver_coverage(caplog):
     assert "Snowpark does not support column" in caplog.text
 
 
+@pytest.mark.udf
+@pytest.mark.skipif(
+    sys.version_info[:2] == (3, 13), reason="driver not supported in python 3.13"
+)
 def test_udtf_ingestion_oracledb(session):
     from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 
@@ -177,13 +207,32 @@ def test_external_access_integration_not_set(session):
         )
 
 
-def test_unicode_column_name_oracledb(session):
-    df = session.read.dbapi(create_connection_oracledb, table='"用户資料"')
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        oracledb_unicode_schema,
+        None,
+    ],
+)
+def test_unicode_column_name_oracledb(session, custom_schema):
+    df = session.read.dbapi(
+        create_connection_oracledb, table='"用户資料"', custom_schema=custom_schema
+    )
     assert df.collect() == [Row(編號=1, 姓名="山田太郎", 國家="日本", 備註="これはUnicodeテストです")]
+    assert df.schema == oracledb_unicode_schema
 
 
-def test_double_quoted_column_name_oracledb(session):
-    df = session.read.dbapi(create_connection_oracledb, table='"UserProfile"')
+@pytest.mark.parametrize(
+    "custom_schema",
+    [
+        oracledb_double_quoted_schema,
+        None,
+    ],
+)
+def test_double_quoted_column_name_oracledb(session, custom_schema):
+    df = session.read.dbapi(
+        create_connection_oracledb, table='"UserProfile"', custom_schema=custom_schema
+    )
     assert df.collect() == [
         Row(
             Id=1,
@@ -192,3 +241,4 @@ def test_double_quoted_column_name_oracledb(session):
             Notes="This is a case-sensitive example.",
         )
     ]
+    assert df.schema == oracledb_double_quoted_schema

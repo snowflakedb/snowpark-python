@@ -23,10 +23,12 @@ except ImportError:
 
 import datetime
 import decimal
-
+import math
 import pytest
+from unittest import mock
 
 from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark.session import write_pandas, WRITE_PANDAS_CHUNK_SIZE
 from snowflake.snowpark.functions import col, div0, round, to_timestamp
 from snowflake.snowpark.types import (
     ArrayType,
@@ -201,19 +203,24 @@ def test_to_pandas_non_select(session):
         PandasDF,
     )
 
-    # non SELECT statements will fail
     def check_fetch_data_exception(query: str):
-        result = session.sql(query).to_pandas()
-        isinstance(result, PandasDF)
+        df = session.sql(query)
+        result = df.to_pandas()
+        assert df.columns == result.columns.to_list()
+        assert isinstance(result, PandasDF)
         return result
 
     temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     check_fetch_data_exception("show tables")
     res = check_fetch_data_exception(f"create temporary table {temp_table_name}(a int)")
-    expected_res = pd.DataFrame([(f"Table {temp_table_name} successfully created.",)])
+    expected_res = pd.DataFrame(
+        [(f"Table {temp_table_name} successfully created.",)], columns=['"status"']
+    )
     assert expected_res.equals(res)
     res = check_fetch_data_exception(f"drop table if exists {temp_table_name}")
-    expected_res = pd.DataFrame([(f"{temp_table_name} successfully dropped.",)])
+    expected_res = pd.DataFrame(
+        [(f"{temp_table_name} successfully dropped.",)], columns=['"status"']
+    )
     assert expected_res.equals(res)
 
     # to_pandas should work for the large dataframe
@@ -399,3 +406,69 @@ def test_df_to_pandas_df(session):
         }
     )
     assert_frame_equal(df.to_pandas(), pandas_df)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="write_pandas is not supported by local testing.",
+)
+def test_write_pandas_chunk_size(session):
+    table_name = Utils.random_table_name()
+    try:
+        chunk_size, expected_num_rows = 25, 101
+        # create medium-sized df that can be chunked
+        df = session.range(expected_num_rows)
+        table = df.to_pandas()
+        success, num_chunks, num_rows, _ = write_pandas(
+            session._conn._conn,
+            table,
+            table_name,
+            auto_create_table=True,
+            chunk_size=chunk_size,
+        )
+        assert (
+            success
+            and num_chunks == math.ceil(expected_num_rows / chunk_size)
+            and num_rows == expected_num_rows
+        )
+
+        # Import the original write_pandas to create a wrapper
+        from snowflake.snowpark.session import write_pandas as original_write_pandas
+
+        expected_chunk_size = 10
+
+        # Create a wrapper that intercepts calls but lets the real function execute
+        def write_pandas_wrapper(*args, **kwargs):
+            input_chunk_size = kwargs.get("chunk_size")
+            assert input_chunk_size == expected_chunk_size
+            expected_num_chunks = (
+                math.ceil(expected_num_rows / expected_chunk_size)
+                if input_chunk_size != WRITE_PANDAS_CHUNK_SIZE
+                else 1
+            )
+            # Call the real function and return its actual result
+            ret = original_write_pandas(*args, **kwargs)
+            success, num_chunks, num_rows, _ = ret
+            assert (
+                success
+                and num_chunks == expected_num_chunks
+                and num_rows == expected_num_rows
+            )
+            return ret
+
+        with mock.patch(
+            "snowflake.snowpark.session.write_pandas", side_effect=write_pandas_wrapper
+        ) as mock_write_pandas:
+            session.create_dataframe(table, chunk_size=10)
+            # Verify that write_pandas was called once
+            mock_write_pandas.assert_called_once()
+
+        expected_chunk_size = WRITE_PANDAS_CHUNK_SIZE
+        with mock.patch(
+            "snowflake.snowpark.session.write_pandas", side_effect=write_pandas_wrapper
+        ) as mock_write_pandas:
+            session.create_dataframe(table)
+            # Verify that write_pandas was called once
+            mock_write_pandas.assert_called_once()
+    finally:
+        Utils.drop_table(session, table_name)

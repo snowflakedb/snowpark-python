@@ -107,6 +107,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
     SnowflakePlan,
+    QueryLineInterval,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
@@ -198,8 +199,10 @@ class MockExecutionPlan(LogicalPlan):
         self.source_plan = source_plan
         self.session = session
         self.schema_query = None
+        self.uuid = "MOCK_UUID"
         mock_query = MagicMock()
         mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
+        mock_query.query_line_intervals = [QueryLineInterval(0, 0, self.uuid)]
         self.queries = [mock_query]
         self.child = child
         self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
@@ -208,7 +211,7 @@ class MockExecutionPlan(LogicalPlan):
         )
         self.api_calls = []
         self._attributes = None
-        self.df_ast_id = None
+        self.df_ast_ids = None
 
     @property
     def attributes(self) -> List[Attribute]:
@@ -241,6 +244,12 @@ class MockExecutionPlan(LogicalPlan):
 
     def add_aliases(self, to_add: Dict) -> None:
         self.expr_to_alias.update(to_add)
+
+    def add_df_ast_id(self, ast_id: int) -> None:
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [ast_id]
+        elif self.df_ast_ids[-1] != ast_id:
+            self.df_ast_ids.append(ast_id)
 
 
 class MockFileOperation(MockExecutionPlan):
@@ -659,8 +668,7 @@ def handle_udf_expression(
         # Resolve handler callable
         if type(udf.func) is tuple:
             module_name, handler_name = udf.func
-            exec(f"from {module_name} import {handler_name}")
-            udf_handler = eval(handler_name)
+            udf_handler = importlib.import_module(module_name).__dict__[handler_name]
         else:
             udf_handler = udf.func
 
@@ -744,8 +752,7 @@ def handle_udaf_expression(
         # Resolve handler callable
         if type(udaf.handler) is tuple:
             module_name, handler_name = udaf.func
-            exec(f"from {module_name} import {handler_name}")
-            udaf_class = eval(handler_name)
+            udaf_class = importlib.import_module(module_name).__dict__[handler_name]
         else:
             udaf_class = udaf.handler
 
@@ -943,8 +950,7 @@ def handle_sproc_expression(
         # Resolve handler callable
         if type(sproc.func) is tuple:
             module_name, handler_name = sproc.func
-            exec(f"from {module_name} import {handler_name}")
-            sproc_handler = eval(handler_name)
+            sproc_handler = importlib.import_module(module_name).__dict__[handler_name]
         else:
             sproc_handler = sproc.func
 
@@ -2596,6 +2602,7 @@ def calculate_expression(
 
         # Process window frame specification
         # Reference: https://docs.snowflake.com/en/sql-reference/functions-analytic#window-frame-usage-notes
+        pd_index = res_index
         if not window_spec.frame_spec or not isinstance(
             window_spec.frame_spec, SpecifiedWindowFrame
         ):
@@ -2609,13 +2616,18 @@ def calculate_expression(
                     True,
                     False,
                 )
+
+                # Pandas reindexes the data when generating rows in a RollingGroupby
+                # The resulting index is not exposed in the window groupings so calculate it here
+                if not isinstance(windows, list):
+                    pd_index = list(windows.count().index)
             else:
                 indexer = EntireWindowIndexer()
                 rolling = res.rolling(indexer)
                 windows = [ordered.loc[w.index] for w in rolling]
                 # rolling can unpredictably change the index of the data
                 # apply a trivial function to materialize the final index
-                res_index = list(rolling.count().index)
+                pd_index = list(rolling.count().index)
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
@@ -2663,14 +2675,16 @@ def calculate_expression(
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []
-            for current_row, w in zip(res_index, windows):
-                res_cols.append(
-                    handle_function_expression(
-                        window_function, w, analyzer, expr_to_alias, current_row
-                    )
+
+            for current_row, w in zip(pd_index, windows):
+                result = handle_function_expression(
+                    window_function, w, analyzer, expr_to_alias, current_row
                 )
+                result.index = [current_row]
+                res_cols.append(result)
+
             res_col = pd.concat(res_cols) if res_cols else ColumnEmulator([])
-            res_col.index = res_index
+            res_col.reindex(res_index)
             if res_cols:
                 res_col.sf_type = res_cols[0].sf_type
             else:

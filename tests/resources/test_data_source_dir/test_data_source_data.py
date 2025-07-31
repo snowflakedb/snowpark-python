@@ -29,6 +29,7 @@ from snowflake.snowpark.types import (
     DateType,
     TimestampType,
     NullType,
+    TimestampTimeZone,
 )
 
 
@@ -76,11 +77,93 @@ class FakeConnection:
 class FakeConnectionWithException(FakeConnection):
     def execute(self, sql: str):
         self.sql = sql
-        if sql.lower().startswith("select *") and "1 = 0" not in sql:
+        if sql.lower().startswith("select") and "1 = 0" not in sql:
             raise RuntimeError("Fake exception")
         else:
             return self
 
+
+oracledb_real_schema = StructType(
+    [
+        StructField("ID", LongType(), nullable=False),
+        StructField("NUMBER_COL", DecimalType(10, 2), nullable=True),
+        StructField("BINARY_FLOAT_COL", DoubleType(), nullable=True),
+        StructField("BINARY_DOUBLE_COL", DoubleType(), nullable=True),
+        StructField("VARCHAR2_COL", StringType(16777216), nullable=True),
+        StructField("CHAR_COL", StringType(16777216), nullable=True),
+        StructField("CLOB_COL", StringType(16777216), nullable=True),
+        StructField("NCHAR_COL", StringType(16777216), nullable=True),
+        StructField("NVARCHAR2_COL", StringType(16777216), nullable=True),
+        StructField("NCLOB_COL", StringType(16777216), nullable=True),
+        StructField("DATE_COL", DateType(), nullable=True),
+        StructField(
+            "TIMESTAMP_COL", TimestampType(TimestampTimeZone.NTZ), nullable=True
+        ),
+        StructField(
+            "TIMESTAMP_TZ_COL", TimestampType(TimestampTimeZone.TZ), nullable=True
+        ),
+        StructField(
+            "TIMESTAMP_LTZ_COL", TimestampType(TimestampTimeZone.LTZ), nullable=True
+        ),
+        StructField("BLOB_COL", BinaryType(), nullable=True),
+        StructField("RAW_COL", BinaryType(), nullable=True),
+        StructField("GUID_COL", BinaryType(), nullable=True),
+    ]
+)
+
+oracledb_less_column_schema = StructType(
+    [
+        StructField("ID", LongType(), nullable=False),
+        StructField("NUMBER_COL", DecimalType(10, 2), nullable=True),
+        StructField("BINARY_FLOAT_COL", DoubleType(), nullable=True),
+    ]
+)
+oracledb_more_column_schema = StructType(
+    [
+        StructField("EXTRA COLUMN", LongType(), nullable=False),
+        StructField("ID", LongType(), nullable=False),
+        StructField("NUMBER_COL", DecimalType(10, 2), nullable=True),
+        StructField("BINARY_FLOAT_COL", DoubleType(), nullable=True),
+        StructField("BINARY_DOUBLE_COL", DoubleType(), nullable=True),
+        StructField("VARCHAR2_COL", StringType(16777216), nullable=True),
+        StructField("CHAR_COL", StringType(16777216), nullable=True),
+        StructField("CLOB_COL", StringType(16777216), nullable=True),
+        StructField("NCHAR_COL", StringType(16777216), nullable=True),
+        StructField("NVARCHAR2_COL", StringType(16777216), nullable=True),
+        StructField("NCLOB_COL", StringType(16777216), nullable=True),
+        StructField("DATE_COL", DateType(), nullable=True),
+        StructField(
+            "TIMESTAMP_COL", TimestampType(TimestampTimeZone.NTZ), nullable=True
+        ),
+        StructField(
+            "TIMESTAMP_TZ_COL", TimestampType(TimestampTimeZone.TZ), nullable=True
+        ),
+        StructField(
+            "TIMESTAMP_LTZ_COL", TimestampType(TimestampTimeZone.LTZ), nullable=True
+        ),
+        StructField("BLOB_COL", BinaryType(), nullable=True),
+        StructField("RAW_COL", BinaryType(), nullable=True),
+        StructField("GUID_COL", BinaryType(), nullable=True),
+    ]
+)
+
+oracledb_unicode_schema = StructType(
+    [
+        StructField('"編號"', LongType(), nullable=False),
+        StructField('"姓名"', StringType(16777216), nullable=True),
+        StructField('"國家"', StringType(16777216), nullable=True),
+        StructField('"備註"', StringType(16777216), nullable=True),
+    ]
+)
+
+oracledb_double_quoted_schema = StructType(
+    [
+        StructField("ID", LongType(), nullable=False),
+        StructField("FULLNAME", StringType(16777216), nullable=True),
+        StructField("COUNTRY", StringType(16777216), nullable=True),
+        StructField("NOTES", StringType(16777216), nullable=True),
+    ]
+)
 
 oracledb_real_data = [
     Row(

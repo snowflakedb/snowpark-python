@@ -14,7 +14,7 @@ from setuptools.command.build_py import build_py as _build_py
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-MODIN_DEPENDENCY_VERSION = "==0.32.0"  # Snowpark pandas requires modin 0.32.0, which is compatible with pandas 2.2.x
+MODIN_DEPENDENCY_VERSION = ">=0.33.0, <0.35.0"  # Snowpark pandas requires modin 0.33.x or 0.34.x, which are compatible with pandas 2.2.x
 CONNECTOR_DEPENDENCY_VERSION = ">=3.14.0, <4.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
@@ -30,7 +30,7 @@ INSTALL_REQ_LIST = [
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
-REQUIRED_PYTHON_VERSION = ">=3.9, <3.13"
+REQUIRED_PYTHON_VERSION = ">=3.9, <3.14"
 
 if os.getenv("SNOWFLAKE_IS_PYTHON_RUNTIME_TEST", False):
     REQUIRED_PYTHON_VERSION = ">=3.9"
@@ -41,6 +41,8 @@ PANDAS_REQUIREMENTS = [
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     f"modin{MODIN_DEPENDENCY_VERSION}",
+    "tqdm",  # For progress bars during backend switching
+    "ipywidgets",  # For enhanced progress bars in Jupyter notebooks
 ]
 DEVELOPMENT_REQUIREMENTS = [
     "pytest<8.0.0",  # check SNOW-1022240 for more details on the pin here
@@ -210,6 +212,7 @@ setup(
             # TODO(SNOW-1938831): Test snowflake-ml-python on python 3.12 once
             # snowflake-ml-python is available on python 3.12.
             "snowflake-ml-python>=1.8.0; python_version<'3.12'",
+            "s3fs",  # Used in tests that read CSV files from s3
         ],
         "localtest": [
             "pandas",
@@ -236,6 +239,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Topic :: Database",
         "Topic :: Software Development",
         "Topic :: Software Development :: Libraries",

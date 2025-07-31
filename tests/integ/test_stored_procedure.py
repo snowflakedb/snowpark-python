@@ -4,7 +4,7 @@
 #
 
 import datetime
-import pkg_resources
+import importlib.metadata
 import logging
 import os
 import re
@@ -25,6 +25,7 @@ except ImportError:
     is_pandas_available = False
 
 from snowflake.snowpark import Session
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
 from snowflake.snowpark.dataframe import DataFrame
@@ -1947,12 +1948,15 @@ def test_register_sproc_after_switch_schema(session):
         session.use_schema(current_schema)
 
 
-@pytest.mark.xfail(reason="SNOW-2041110: flaky test", strict=False)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="artifact repository not supported in local testing",
 )
 @pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="need resources")
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Stored proc env does not have permissions to look up warehouse details",
+)
 @pytest.mark.skipif(
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )
@@ -1962,15 +1966,6 @@ def test_sproc_artifact_repository(session):
 
         return str(urllib3.exceptions.HTTPError("test"))
 
-    artifact_repo_sproc = sproc(
-        artifact_repo_test,
-        session=session,
-        return_type=StringType(),
-        artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
-        packages=["urllib3", "requests"],
-    )
-    assert artifact_repo_sproc(session=session) == "test"
-
     try:
         artifact_repo_sproc = sproc(
             artifact_repo_test,
@@ -1978,13 +1973,40 @@ def test_sproc_artifact_repository(session):
             return_type=StringType(),
             artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
             packages=["urllib3", "requests"],
-            resource_constraint={"architecture": "x86"},
         )
+        assert artifact_repo_sproc(session=session) == "test"
+
+        warehouse_info = (
+            session.sql(
+                f"show warehouses like '{unquote_if_quoted(session.get_current_warehouse())}'"
+            )
+            .select('"is_current"', '"resource_constraint"')
+            .collect()
+        )
+        active, resource_constraint = warehouse_info[0]
+
+        # Only test error case on ARM warehouse. X86 warehouse will have a resource constraint
+        if len(warehouse_info) == 1 and active == "Y" and resource_constraint is None:
+            try:
+                artifact_repo_sproc = sproc(
+                    artifact_repo_test,
+                    session=session,
+                    return_type=StringType(),
+                    artifact_repository="SNOWPARK_PYTHON_TEST_REPOSITORY",
+                    packages=["urllib3", "requests", "cloudpickle"],
+                    resource_constraint={"architecture": "x86"},
+                )
+            except SnowparkSQLException as ex:
+                assert "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse." in str(
+                    ex
+                ) or "Cannot create or execute a function with resource_constraint annotation on a standard warehouse." in str(
+                    ex
+                )
     except SnowparkSQLException as ex:
-        assert (
-            "Cannot create on a Python function with 'X86' architecture annotation using an 'ARM' warehouse."
-            in str(ex)
-        )
+        if "No matching distribution found for snowflake-snowpark-python" in str(ex):
+            pytest.mark.xfail(
+                "Unreleased snowpark versions are unavailable in artifact repository."
+            )
 
 
 @pytest.mark.skipif(
@@ -2037,23 +2059,6 @@ def test_sproc_artifact_repository_from_file(session, tmpdir):
 def test_snowpark_python_bugfix_version_warning(
     session, caplog, version_override, expect_warning
 ):
-    def mock_get_distribution(version_override):
-        """Returns a function that mocks pkg_resources.get_distribution."""
-        original_get_distribution = (
-            pkg_resources.get_distribution
-        )  # Store original function
-
-        def _mock(package_name):
-            if package_name == "snowflake-snowpark-python":
-
-                class FakeDistribution:
-                    version = version_override  # Override only this package
-
-                return FakeDistribution()
-            return original_get_distribution(package_name)
-
-        return _mock
-
     def run_test_case(caplog, version_override, expect_warning):
         """Runs a test case with a given package version override and expected warning presence."""
 
@@ -2061,8 +2066,10 @@ def test_snowpark_python_bugfix_version_warning(
             return x + 1
 
         with patch(
-            "pkg_resources.get_distribution",
-            side_effect=mock_get_distribution(version_override),
+            "importlib.metadata.version",
+            side_effect=lambda package_name: version_override
+            if package_name == "snowflake-snowpark-python"
+            else importlib.metadata.version(package_name),
         ), caplog.at_level(logging.WARNING):
             plus1_sp = sproc(
                 plus1,
@@ -2145,3 +2152,81 @@ $$;
     session.sql(sql).collect()
     df = session.call(temp_sp_name, 1, return_dataframe=True)
     Utils.check_answer(df, [Row(COL1=1, COL2="snowflake")])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="data source is not supported in local testing",
+    run=False,
+)
+def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
+    def core_ingestion_logic(session_):
+        from snowflake.snowpark._internal.utils import (
+            random_name_for_temp_object,
+            TempObjectType,
+        )
+        import multiprocessing as mp
+        from io import BytesIO
+        import pandas as pd
+
+        queue = mp.Queue()
+
+        def worker_process(parquet_queue):
+
+            # Create a sample DataFrame
+            data = {
+                "id": [1, 2, 3, 4, 5],
+                "name": ["Alice", "Bob", "Charlie", "David", "Eve"],
+                "value": [100, 200, 300, 400, 500],
+            }
+            parquet_buffer = BytesIO()
+            df = pd.DataFrame(data)
+            df.to_parquet(parquet_buffer)
+            parquet_buffer.seek(0)
+            parquet_queue.put(parquet_buffer)
+
+        process = mp.Process(target=worker_process, args=(queue,))
+        process.start()
+
+        # Wait for the process to complete
+        process.join()
+        if process.exitcode != 0 or process.is_alive():
+            return "failure"
+
+        # Get the parquet buffer from the queue
+        parquet_buffer = queue.get()
+        parquet_buffer.seek(0)
+
+        # Create a temporary stage
+        stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+        session_.sql(f"CREATE TEMPORARY STAGE {stage_name}").collect()
+
+        # Create a temporary table
+        table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        session_.sql(
+            f"CREATE TEMPORARY TABLE {table_name} (id INT, name STRING, value INT)"
+        ).collect()
+
+        session_.file.put_stream(
+            parquet_buffer, f"@{stage_name}/data.parquet", overwrite=True
+        )
+
+        # Copy the parquet buffer into the temporary table
+        session_.sql(
+            f"COPY INTO {table_name} FROM @{stage_name}/data.parquet FILE_FORMAT = (TYPE = PARQUET) MATCH_BY_COLUMN_NAME=CASE_INSENSITIVE"
+        ).collect()
+
+        # Check the results
+        df = session_.table(table_name).collect()
+        if df != [
+            (1, "Alice", 100),
+            (2, "Bob", 200),
+            (3, "Charlie", 300),
+            (4, "David", 400),
+            (5, "Eve", 500),
+        ]:
+            return "failure"
+        return "success"
+
+    ingestion = sproc(core_ingestion_logic, return_type=StringType())
+    assert ingestion() == "success"

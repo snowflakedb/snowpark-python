@@ -60,7 +60,9 @@ from tests.utils import (
     iceberg_supported,
     structured_types_enabled_session,
     structured_types_supported,
+    IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
+    RUNNING_ON_JENKINS,
 )
 
 # Map of structured type enabled state to test params
@@ -567,12 +569,12 @@ def test_structured_dtypes_iceberg(
             else f"({table_name})"
         )
 
-        assert dynamic_ddl[0][0] == (
+        assert Utils.normalize_sql(dynamic_ddl[0][0]) == Utils.normalize_sql(
             f"create or replace dynamic iceberg table {dynamic_table_name}(\n\tMAP,\n\tOBJ,\n\tARR\n)"
             " target_lag = '16 hours, 40 minutes' refresh_mode = AUTO initialize = ON_CREATE "
             f"warehouse = {warehouse} external_volume = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'  "
             "catalog = 'SNOWFLAKE'  base_location = 'python_connector_merge_gate/' \n as  "
-            f"SELECT  *  FROM ( SELECT  *  FROM {formatted_table_name});"
+            f"SELECT  * \n FROM (\n SELECT  *  FROM {formatted_table_name}\n);"
         )
 
     finally:
@@ -1327,6 +1329,7 @@ def test_structured_map_value_contains_null(
     "config.getoption('local_testing_mode', default=False)",
     reason="local testing does not fully support structured types yet.",
 )
+@pytest.mark.udf
 def test_structured_type_schema_expression(
     structured_type_session, local_testing_mode, structured_type_support, max_string
 ):
@@ -1459,6 +1462,7 @@ def test_structured_type_schema_expression(
     "config.getoption('local_testing_mode', default=False)",
     reason="Structured types are not supported in Local Testing",
 )
+@pytest.mark.udf
 def test_stored_procedure_with_structured_returns(
     structured_type_session,
     structured_type_support,
@@ -1724,3 +1728,24 @@ def test_nest_struct_field_names(structured_type_session, structured_type_suppor
         [{"A": {"field with space": "value"}}], schema
     )
     Utils.check_answer(df, [Row(A=Row(**{"field with space": "value"}))])
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC or RUNNING_ON_JENKINS,
+    reason="SNOW-2055478: LOB does not work reliably in stored procedures.",
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="local testing does not use lob.",
+)
+@pytest.mark.parametrize(
+    "type_string,datatype", [("STRING", StringType()), ("VARIANT", VariantType())]
+)
+def test_lob_collect_max_size(session, server_side_max_string, type_string, datatype):
+    # Test that the client can pull a row that contains a max sized record
+    # max size - 16 is used because variant result includes a little overhead
+    df = session.sql(
+        f"select randstr({server_side_max_string - 16}, random()) :: {type_string} as DATA"
+    )
+    assert df.schema == StructType([StructField("DATA", datatype, nullable=False)])
+    assert len(df.collect()[0][0]) >= server_side_max_string - 16

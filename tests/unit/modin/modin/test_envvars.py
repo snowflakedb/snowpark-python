@@ -146,7 +146,9 @@ class TestDocModule:
         # which is the same method as Series.astype.
         # TODO(https://github.com/modin-project/modin/issues/7113): Upstream
         # this change to modin.
-        assert pd.Series.astype is pd.base.BasePandasDataset.astype
+        assert (
+            pd.Series.astype.__wrapped__ is pd.base.BasePandasDataset.astype.__wrapped__
+        )
         assert pd.base.BasePandasDataset.astype.__doc__ == (
             "This is a test of the documentation module for BasePandasDataSet.astype."
         )

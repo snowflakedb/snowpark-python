@@ -306,3 +306,70 @@ mysql_schema = StructType(
         StructField("JSONCOL", VariantType(), nullable=True),
     ]
 )
+
+mysql_less_column_schema = StructType(
+    [
+        StructField("ID", LongType(), nullable=False),
+        StructField("DECIMALCOL", DecimalType(38, 10), nullable=True),
+        StructField("INTCOL", LongType(), nullable=True),
+        StructField("TINYINTCOL", LongType(), nullable=True),
+    ]
+)
+
+mysql_more_column_schema = StructType(
+    [
+        StructField("ID", LongType(), nullable=False),
+        StructField("EXTRA_COLUMN", LongType(), nullable=False),
+        StructField("DECIMALCOL", DecimalType(38, 10), nullable=True),
+        StructField("INTCOL", LongType(), nullable=True),
+        StructField("TINYINTCOL", LongType(), nullable=True),
+        StructField("SMALLINTCOL", LongType(), nullable=True),
+        StructField("MEDIUMINTCOL", LongType(), nullable=True),
+        StructField("BIGINTCOL", LongType(), nullable=True),
+        StructField("YEARCOL", LongType(), nullable=True),
+        StructField("FLOATCOL", DoubleType(), nullable=True),
+        StructField("DOUBLECOL", DoubleType(), nullable=True),
+        StructField("CHARCOL", StringType(16777216), nullable=True),
+        StructField("VARCHARCOL", StringType(16777216), nullable=True),
+        StructField("TINYTEXTCOL", StringType(16777216), nullable=True),
+        StructField("TEXTCOL", StringType(16777216), nullable=True),
+        StructField("MEDIUMTEXTCOL", StringType(16777216), nullable=True),
+        StructField("LONGTEXTCOL", StringType(16777216), nullable=True),
+        StructField("ENUMCOL", StringType(16777216), nullable=True),
+        StructField("SETCOL", StringType(16777216), nullable=True),
+        StructField("BITCOL", StringType(16777216), nullable=True),
+        StructField("BINARYCOL", BinaryType(), nullable=True),
+        StructField("VARBINARYCOL", BinaryType(), nullable=True),
+        StructField("TINYBLOBCOL", BinaryType(), nullable=True),
+        StructField("BLOBCOL", BinaryType(), nullable=True),
+        StructField("MEDIUMBLOBCOL", BinaryType(), nullable=True),
+        StructField("LONGBLOBCOL", BinaryType(), nullable=True),
+        StructField("DATECOL", DateType(), nullable=True),
+        StructField(
+            "DATETIMECOL", TimestampType(timezone=TimestampTimeZone.NTZ), nullable=True
+        ),
+        StructField(
+            "TIMESTAMPCOL", TimestampType(timezone=TimestampTimeZone.TZ), nullable=True
+        ),
+        StructField("TIMECOL", TimeType(), nullable=True),
+        StructField("JSONCOL", VariantType(), nullable=True),
+    ]
+)
+
+mysql_unicode_schema = StructType(
+    [
+        StructField('"編號"', LongType(), nullable=False),
+        StructField('"姓名"', StringType(16777216), nullable=True),
+        StructField('"國家"', StringType(16777216), nullable=True),
+        StructField('"備註"', StringType(16777216), nullable=True),
+    ]
+)
+
+mysql_double_quoted_schema = StructType(
+    [
+        StructField('"Id"', LongType(), nullable=False),
+        StructField('"FullName"', StringType(16777216), nullable=True),
+        StructField('"Country"', StringType(16777216), nullable=True),
+        StructField('"Notes"', StringType(16777216), nullable=True),
+    ]
+)

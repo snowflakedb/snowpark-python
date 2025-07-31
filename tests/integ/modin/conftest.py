@@ -15,6 +15,9 @@ from pandas.core.indexing import IndexingError
 from pytest import fail
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from snowflake.snowpark.modin.plugin._internal.apply_utils import (
+    clear_session_udf_and_udtf_caches,
+)
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
 from tests.integ.utils.sql_counter import (
     SqlCounter,
@@ -23,6 +26,18 @@ from tests.integ.utils.sql_counter import (
     is_sql_counter_called,
 )
 from tests.utils import Utils, running_on_jenkins
+
+from modin.config import AutoSwitchBackend
+
+# Disable automatic backend selection for hybrid execution by default.
+AutoSwitchBackend.disable()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def f(session):
+    # create a snowpark pandas dataframe so that modin keeps an empty query compiler
+    pd.DataFrame()
+
 
 INTEG_PANDAS_SUBPATH = "tests/integ/modin/"
 
@@ -52,6 +67,13 @@ def setup_pandas_api_coverage_generator(pytestconfig):
     enable_coverage = pytestconfig.getoption("generate_pandas_api_coverage")
     if enable_coverage:
         PandasAPICoverageGenerator()
+
+
+@pytest.fixture(scope="function", autouse=True)
+def clear_udf_and_udtf_caches():
+    # UDF/UDTFs are persisted across the entire session for performance reasons. To ensure tests
+    # remain independent from each other, we must clear the caches between runs.
+    clear_session_udf_and_udtf_caches()
 
 
 @pytest.fixture(scope="function")
@@ -270,6 +292,7 @@ def indices_dict():
 
 @pytest.fixture(scope="module", autouse=True)
 def session(session):
+    session._disable_multiline_queries()
     return session
 
 

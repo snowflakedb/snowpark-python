@@ -37,6 +37,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.schema_utils import (
+    cached_analyze_attributes,
     convert_result_meta_to_attribute,
     get_new_description,
     run_new_describe,
@@ -61,6 +62,7 @@ from snowflake.snowpark._internal.utils import (
     get_application_name,
     get_version,
     is_in_stored_procedure,
+    is_sql_select_statement,
     normalize_local_file,
     normalize_remote_file_or_dir,
     result_set_to_iter,
@@ -432,7 +434,10 @@ class ServerConnection:
         notify_kwargs = {}
         if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
-
+        if "_statement_params" in kwargs and kwargs["_statement_params"]:
+            statement_params = kwargs["_statement_params"]
+            if "_PLAN_UUID" in statement_params:
+                notify_kwargs["dataframe_uuid"] = statement_params["_PLAN_UUID"]
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
         except Exception as ex:
@@ -454,14 +459,23 @@ class ServerConnection:
     def execute_async_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
+        notify_kwargs = {}
+
+        if "_statement_params" in kwargs and kwargs["_statement_params"]:
+            statement_params = kwargs["_statement_params"]
+            if "_PLAN_UUID" in statement_params:
+                notify_kwargs["dataframe_uuid"] = statement_params["_PLAN_UUID"]
+
         try:
             results_cursor = self._cursor.execute_async(query, **kwargs)
         except Error as err:
             self.notify_query_listeners(
-                QueryRecord(err.sfqid, err.query), is_error=True
+                QueryRecord(err.sfqid, err.query), is_error=True, **notify_kwargs
             )
             raise err
-        self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
+        self.notify_query_listeners(
+            QueryRecord(results_cursor["queryId"], query), **notify_kwargs
+        )
         return results_cursor
 
     def execute_and_get_sfqid(
@@ -501,6 +515,8 @@ class ServerConnection:
                 if not kwargs.get("_statement_params"):
                     kwargs["_statement_params"] = {}
                 kwargs["_statement_params"]["SNOWPARK_SKIP_TXN_COMMIT_IN_DDL"] = True
+            if not is_sql_select_statement(query):
+                cached_analyze_attributes.clear_cache()
             if block:
                 results_cursor = self.execute_and_notify_query_listener(
                     query, params=params, **kwargs

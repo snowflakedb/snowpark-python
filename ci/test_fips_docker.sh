@@ -24,6 +24,7 @@ docker run --network=host \
     -e SF_PROJECT_ROOT \
     -e cloud_provider \
     -e PYTEST_ADDOPTS \
+    -e FIPS_TEST=true \
     --mount type=bind,source="${SNOWPARK_DIR}",target=/home/user/snowpark-python \
     ${CONTAINER_NAME}:1.0 \
     /home/user/snowpark-python/ci/test_fips.sh $1

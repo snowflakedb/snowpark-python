@@ -704,6 +704,7 @@ def _simple_unpivot(
 
     # create the initial set of columns to be retained as identifiers and those
     # which will be unpivoted. Collect data type information.
+    unpivot_pandas_columns = []
     unpivot_quoted_columns = []
     unpivot_quoted_column_types = []
 
@@ -725,6 +726,7 @@ def _simple_unpivot(
             ordering_decode_conditions.append(
                 col(var_quoted) == pandas_lit(pandas_label)
             )
+            unpivot_pandas_columns.append(pandas_label)
             unpivot_quoted_columns.append(snowflake_quoted_identifier)
             unpivot_quoted_column_types.append(sp_pandas_type)
         if is_id_col:
@@ -754,7 +756,7 @@ def _simple_unpivot(
     suffix_to_unpivot_map: dict[str, str] = {}
     cast_suffix = generate_column_identifier_random()
 
-    for c in unpivot_quoted_columns:
+    for i, c in enumerate(unpivot_quoted_columns):
         # Rename the columns to unpivot
         unquoted_col_name = c.strip('"') + "_" + cast_suffix
         renamed_quoted_unpivot_col = (
@@ -767,7 +769,9 @@ def _simple_unpivot(
         )
         renamed_quoted_unpivot_cols.append(renamed_quoted_unpivot_col)
         # create the column name mapper which is passed to unpivot
-        suffix_to_unpivot_map[renamed_quoted_unpivot_col] = c
+        suffix_to_unpivot_map[
+            renamed_quoted_unpivot_col
+        ] = quote_name_without_upper_casing(unpivot_pandas_columns[i])
 
     # select a subset of casted columns
     normalized_projection = unpivot_columns_normalized_types + id_col_quoted_identifiers

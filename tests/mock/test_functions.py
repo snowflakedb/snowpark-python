@@ -16,6 +16,7 @@ from snowflake.snowpark.functions import (
     asc,
     call_function,
     col,
+    concat_ws,
     contains,
     count,
     current_date,
@@ -29,6 +30,7 @@ from snowflake.snowpark.functions import (
     min,
     rank,
     row_number,
+    sum,
     to_char,
     to_date,
 )
@@ -511,6 +513,36 @@ def test_rank(session):
     )
 
 
+def test_window_indexing(session):
+    df = session.create_dataframe(
+        [
+            [1, 1, 1],
+            [2, 2, 1],
+            [2, 2, 1],
+            [2, 1, 1],
+        ],
+        ["A", "B", "VAL"],
+    )
+
+    window_a = Window.partition_by("A")
+    window_both = Window.partition_by("B", "A")
+
+    windowed = df.with_columns(
+        ["_A", "_BA"],
+        [sum("VAL").over(window_a), sum("VAL").over(window_both)],
+    )
+
+    Utils.check_answer(
+        windowed,
+        [
+            Row(1, 1, 1, 1, 1),
+            Row(2, 2, 1, 3, 2),
+            Row(2, 2, 1, 3, 2),
+            Row(2, 1, 1, 3, 1),
+        ],
+    )
+
+
 def test_get(session):
     data = [
         Row(101, 1, "cat"),
@@ -580,3 +612,10 @@ def test_array_construct_indexing(session):
         filtered = df.filter(col("a") == n)
         filtered = filtered.with_column("arr", array_construct(*["a", "b", "c"]))
         Utils.check_answer(filtered, result)
+
+
+def test_concat_ws_indexing(session):
+    df = session.create_dataframe([(1, "A"), (2, "B"), (3, "C")], schema=["A", "B"])
+    filtered = df.where(df.A > 1)
+    final = filtered.with_column("concat", concat_ws(lit("-"), "A", "B"))
+    Utils.check_answer(final, [Row(2, "B", "2-B"), Row(3, "C", "3-C")])

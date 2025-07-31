@@ -23,8 +23,12 @@ Functions
     acosh
     add_months
     ai_agg
+    ai_embed
     ai_classify
+    ai_complete
     ai_filter
+    ai_similarity
+    ai_summarize_agg
     any_value
     approx_count_distinct
     approx_percentile
@@ -262,6 +266,7 @@ Functions
     min_by
     minute
     mode
+    model
     monotonically_increasing_id
     month
     monthname
@@ -347,7 +352,6 @@ Functions
     substr
     substring
     sum
-    summarize_agg
     sum_distinct
     sysdate
     system_reference
@@ -380,6 +384,7 @@ Functions
     trim
     trunc
     try_cast
+    try_parse_json
     try_to_binary
     typeof
     udaf

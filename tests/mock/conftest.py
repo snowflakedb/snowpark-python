@@ -7,6 +7,7 @@ import pytest
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.mock._connection import MockServerConnection
+from tests.utils import Utils
 
 
 @pytest.fixture(scope="function")
@@ -18,9 +19,15 @@ def mock_server_connection():
 
 @pytest.fixture(scope="function")
 def session(mock_server_connection):
-    with Session(mock_server_connection) as s:
+    with Session.builder.config("local_testing", True).create() as s:
         yield s
 
 
 def pytest_sessionstart(session):
     os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
+
+
+@pytest.fixture(scope="function")
+def tmp_stage():
+    tmp_stage_name = Utils.random_stage_name()
+    yield tmp_stage_name
