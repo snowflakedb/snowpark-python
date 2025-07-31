@@ -9,6 +9,13 @@ import os
 import io
 from io import UnsupportedOperation
 
+try:
+    import pandas  # noqa: F401
+
+    is_pandas_available = True
+except ImportError:
+    is_pandas_available = False
+
 from snowflake.snowpark.files import SnowflakeFile, _DEFER_IMPLEMENTATION_ERR_MSG
 from typing import Union
 
@@ -27,6 +34,13 @@ _STANDARD_ARGVALUES = [
     ("r", "w", False),
     ("rb", "wb", True),
     ("rb", "wb", False),
+]
+
+pytestmark = [
+    pytest.mark.skipif(
+        not is_pandas_available,
+        reason="pandas is not available",
+    ),
 ]
 
 
