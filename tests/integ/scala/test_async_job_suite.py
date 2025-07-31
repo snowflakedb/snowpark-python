@@ -378,17 +378,27 @@ def test_async_is_running_and_cancel(session):
     while not async_job.is_done():
         sleep(1.0)
     assert async_job.is_done()
+    assert not async_job.is_failed()
 
     # set 20s to avoid flakiness
     async_job2 = session.sql("select SYSTEM$WAIT(20)").collect_nowait()
     assert not async_job2.is_done()
+    assert not async_job2.is_failed()
     async_job2.cancel()
     start = time()
     while not async_job2.is_done():
+        assert async_job2.status() in [
+            "RUNNING",
+            "ABORTING",
+            "ABORTED",
+            "FAILED_WITH_ERROR",
+        ]
         sleep(1.0)
     # If query is canceled, it takes less time than originally needed
     assert (time() - start) < 20
     assert async_job2.is_done()
+    # cancel/abort should fail the query
+    assert async_job2.is_failed()
 
 
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is not available")
@@ -514,3 +524,44 @@ def test_iter_cursor_wait_for_result(session, action):
     df = session.sql("call system$wait(5)")
     async_job = action(df)
     assert async_job.result() is not None
+
+
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="sproc is not supported in async job yet")
+def test_async_job_status_apis(session):
+    successful_queries = [
+        "select a from values (1, 2), (3, 4) as t(a, b)",
+        "select 1 + 1",
+    ]
+    for query in successful_queries:
+        async_job = session.sql(query).collect_nowait()
+        while not async_job.is_done():
+            assert not async_job.is_failed()
+            status = async_job.status()
+            assert status in [
+                "RUNNING",
+                "QUEUED",
+                "RESUMING_WAREHOUSE",
+                "QUEUED_REPARING_WAREHOUSE",
+                "SUCCESS",
+            ]
+            sleep(1.0)
+        assert not async_job.is_failed()
+        assert async_job.status() == "SUCCESS"
+        assert async_job.result() is not None
+
+    failed_queries = ["select c from values (1, 2), (3, 4) as t(a, b)", "select 1 / 0"]
+    for query in failed_queries:
+        async_job = session.sql(query).collect_nowait()
+        while not async_job.is_done():
+            sleep(1.0)
+            status = async_job.status()
+            assert status in [
+                "RUNNING",
+                "QUEUED",
+                "RESUMING_WAREHOUSE",
+                "QUEUED_REPARING_WAREHOUSE",
+                "FAILED_WITH_ERROR",
+                "FAILED_WITH_INCIDENT",
+            ]
+        assert async_job.is_failed()
+        assert async_job.status() in ["FAILED_WITH_ERROR", "FAILED_WITH_INCIDENT"]
