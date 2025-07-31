@@ -12890,3 +12890,140 @@ def ai_embed(
     return _call_function(
         sql_func_name, model_col, input_col, _ast=ast, _emit_ast=_emit_ast
     )
+
+
+@publicapi
+def ai_sentiment(
+    text: ColumnOrLiteralStr,
+    categories: Optional[List[str]] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns overall and category sentiment in the given input text.
+
+    Args:
+        text: A string containing the text in which sentiment is detected.
+        categories: An array containing up to ten categories (also called entities or aspects) for which sentiment should be extracted.
+            Each category is a string. For example, if extracting sentiment from a restaurant review, you might specify
+            ``['cost', 'quality', 'service', 'wait time']`` as the categories. Each category may be a maximum of 30 characters long.
+            If you do not provide this argument, AI_SENTIMENT returns only the overall sentiment.
+
+    Returns:
+        An OBJECT value containing a ``categories`` field. ``categories`` is an array of category records. Each category includes these fields:
+
+        - ``name``: The name of the category. The category names match the categories specified in the ``categories`` argument.
+        - ``sentiment``: The sentiment of the category. Each sentiment result is one of the following strings.
+
+            - ``unknown``: The category was not mentioned in the text.
+            - ``positive``: The category was mentioned positively in the text.
+            - ``negative``: The category was mentioned negatively in the text.
+            - ``neutral``: The category was mentioned in the text, but neither positively nor negatively.
+            - ``mixed``: The category was mentioned both positively and negatively in the text.
+
+        The ``overall`` category record is always included and contains the overall sentiment of the text.
+
+    Note:
+        AI_SENTIMENT can analyze sentiment in English, French, German, Hindi, Italian, Spanish, and Portuguese.
+        You can specify categories in the language of the text or in English.
+
+    Examples::
+
+        >>> # Get overall sentiment only
+        >>> session.range(1).select(
+        ...     ai_sentiment("A tourist's delight, in low urban light, Recommended gem, a pizza night sight. Swift arrival, a pleasure so right, Yet, pockets felt lighter, a slight pricey bite. 💰🍕🚀").alias("sentiment")
+        ... ).show()
+        ------------------------------
+        |"SENTIMENT"                 |
+        ------------------------------
+        |{                           |
+        |  "categories": [           |
+        |    {                       |
+        |      "name": "overall",    |
+        |      "sentiment": "mixed"  |
+        |    }                       |
+        |  ]                         |
+        |}                           |
+        ------------------------------
+        <BLANKLINE>
+
+        >>> # Extract sentiment for specific categories
+        >>> df = session.create_dataframe([
+        ...     ["The movie had amazing visual effects but the plot was terrible."],
+        ...     ["The food was delicious but the service was slow."]
+        ... ], schema=["review"])
+        >>> df.select("review", ai_sentiment(col("review"), ['plot', 'visual effects', 'acting']).alias("sentiment")).show()
+        ----------------------------------------------------------------------------------------
+        |"REVIEW"                                            |"SENTIMENT"                      |
+        ----------------------------------------------------------------------------------------
+        |The movie had amazing visual effects but the pl...  |{                                |
+        |                                                    |  "categories": [                |
+        |                                                    |    {                            |
+        |                                                    |      "name": "overall",         |
+        |                                                    |      "sentiment": "mixed"       |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "acting",          |
+        |                                                    |      "sentiment": "neutral"     |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "plot",            |
+        |                                                    |      "sentiment": "negative"    |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "visual effects",  |
+        |                                                    |      "sentiment": "positive"    |
+        |                                                    |    }                            |
+        |                                                    |  ]                              |
+        |                                                    |}                                |
+        |The food was delicious but the service was slow.    |{                                |
+        |                                                    |  "categories": [                |
+        |                                                    |    {                            |
+        |                                                    |      "name": "overall",         |
+        |                                                    |      "sentiment": "mixed"       |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "acting",          |
+        |                                                    |      "sentiment": "unknown"     |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "plot",            |
+        |                                                    |      "sentiment": "unknown"     |
+        |                                                    |    },                           |
+        |                                                    |    {                            |
+        |                                                    |      "name": "visual effects",  |
+        |                                                    |      "sentiment": "unknown"     |
+        |                                                    |    }                            |
+        |                                                    |  ]                              |
+        |                                                    |}                                |
+        ----------------------------------------------------------------------------------------
+        <BLANKLINE>
+
+    """
+    sql_func_name = "ai_sentiment"
+
+    # Convert text to column
+    text_col = _to_col_if_lit(text, sql_func_name)
+
+    if categories is None:
+        # Only one argument: text
+        ast = build_function_expr(sql_func_name, [text]) if _emit_ast else None
+        return _call_function(sql_func_name, text_col, _ast=ast, _emit_ast=_emit_ast)
+    else:
+        # Handle categories parameter - must be list of strings
+        if not isinstance(categories, list) or not all(
+            isinstance(x, str) for x in categories
+        ):
+            raise TypeError(
+                f"categories must be a list of str, got {type(categories).__name__}"
+            )
+
+        cat_col = lit(categories, datatype=ArrayType(StringType()), _emit_ast=False)
+
+        ast = (
+            build_function_expr(sql_func_name, [text, categories])
+            if _emit_ast
+            else None
+        )
+        return _call_function(
+            sql_func_name, text_col, cat_col, _ast=ast, _emit_ast=_emit_ast
+        )

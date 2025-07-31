@@ -11,6 +11,8 @@
   - `AsyncJob.is_failed()` returns a `bool` indicating if a job has failed. Can be used in combination with `AsyncJob.is_done()` to determine if a job is finished and errored.
   - `AsyncJob.status()` returns a string representing the current query status (e.g., "RUNNING", "SUCCESS", "FAILED_WITH_ERROR") for detailed monitoring without calling `result()`.
 - Added a dataframe profiler. To use, you can call get_execution_profile() on your desired dataframe. This profiler reports the queries executed to evaluate a dataframe, and statistics about each of the query operators. Currently an experimental feature
+- Added support for the following functions in `functions.py`:
+  - `ai_sentiment`
 
 ## 1.35.0 (2025-07-24)
 
