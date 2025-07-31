@@ -111,19 +111,19 @@ class JDBCClient:
         self.predicates = predicates
         self.session_init_statement = session_init_statement
         self.raw_schema = None
-
-    @cached_property
-    def schema(self) -> StructType:
-        imports = (
+        self.imports = (
             f"""IMPORTS =({",".join([f"'{imp}'" for imp in self.imports])})"""
             if self.imports is not None
             else ""
         )
-        packages = (
+        self.packages = (
             f"""PACKAGES=('com.snowflake:snowpark:latest', {','.join([f"'{pack}'" for pack in self.packages])})"""
             if self.packages is not None
             else "PACKAGES=('com.snowflake:snowpark:latest')"
         )
+
+    @cached_property
+    def schema(self) -> StructType:
 
         INFER_SCHEMA_UDTF = f"""
             CREATE OR REPLACE FUNCTION jdbc_test(query VARCHAR)
@@ -131,8 +131,8 @@ class JDBCClient:
             LANGUAGE JAVA
             RUNTIME_VERSION = '11'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
-            {imports}
-            {packages}
+            {self.imports}
+            {self.packages}
             HANDLER = 'DataLoader'
             as
             $$
@@ -167,16 +167,6 @@ class JDBCClient:
                 }}
                 public static Class<?> getOutputClass() {{
                     return OutputRow.class;
-                }}
-
-                public StructType outputSchema() {{
-                    return StructType.create(
-                        new StructField("field_name", DataTypes.StringType),
-                        new StructField("field_type", DataTypes.StringType),
-                        new StructField("precision", DataTypes.IntegerType),
-                        new StructField("scale", DataTypes.IntegerType),
-                        new StructField("nullable", DataTypes.BooleanType)
-                    );
                 }}
 
                 public DataLoader() {{
@@ -250,117 +240,121 @@ class JDBCClient:
             self.num_partitions,
         )
 
+    def read(self, partition_table: str):
+        udtf_table_return_type = ", ".join(
+            [f"{field.name} VARCHAR" for field in self.schema.fields]
+        )
+        JDBC_UDTF = f"""
+        CREATE OR REPLACE FUNCTION jdbc(query VARCHAR)
+        RETURNS TABLE ({udtf_table_return_type})
+        LANGUAGE JAVA
+        RUNTIME_VERSION = '11'
+        EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
+        {self.imports}
+        {self.packages}
+        HANDLER = 'DataLoader'
+        as
+        $$
 
-JDBC_UDTF = """
-CREATE OR REPLACE FUNCTION jdbc(query VARCHAR)
-RETURNS TABLE (A VARIANT)
-LANGUAGE JAVA
-RUNTIME_VERSION = '11'
-EXTERNAL_ACCESS_INTEGRATIONS=(snowpark_jdbc_influxdb_test_integration)
-packages=('com.snowflake:snowpark:latest')
-IMPORTS = ('@test_stage/influxdb-java-2.25.jar','@test_stage/amazon-timestream-jdbc-2.0.0.jar','@test_stage/amazon-timestream-jdbc-2.0.0-shaded.jar')
-HANDLER = 'DataLoader'
-as
-$$
+        import java.sql.*;
+        import java.util.stream.Stream;
 
-import java.sql.*;
-import java.util.stream.Stream;
+        import com.snowflake.snowpark_java.types.*;
+        import com.snowflake.snowpark_java.udtf.*;
+        import com.snowflake.snowpark_java.types.SnowflakeSecrets;
+        import com.snowflake.snowpark_java.types.UsernamePassword;
 
-import com.snowflake.snowpark_java.types.*;
-import com.snowflake.snowpark_java.udtf.*;
-import com.snowflake.snowpark_java.types.SnowflakeSecrets;
-import com.snowflake.snowpark_java.types.UsernamePassword;
+        class OutputRow {{
 
-class OutputRow {{
+            public String A;
 
-    public String A;
-
-    public OutputRow(String A) {{
-        this.A = A;
-    }}
-
-}}
-
-
-
-public class DataLoader{{
-    private final Connection conn;
-
-    private static String escapeJson(String str) {{
-        return str.replace("\\", "\\\\")
-                  .replace("\"", "\\\"")
-                  .replace("\b", "\\b")
-                  .replace("\f", "\\f")
-                  .replace("\n", "\\n")
-                  .replace("\r", "\\r")
-                  .replace("\t", "\\t");
-    }}
-
-
-    public StructType outputSchema() {{
-        return StructType.create(new StructField("A", DataTypes.VariantType));
-    }}
-    public static Class getOutputClass() {{
-      return OutputRow.class;
-    }}
-
-    private static Connection createConnection() {{
-        try {{
-            Class.forName("com.wisecoders.dbschema.influxdb.JdbcDriver");
-            //Class.forName("software.amazon.timestream.jdbc.TimestreamDriver");
-            String url = "";
-            return DriverManager.getConnection(url);
-        }} catch (Exception e) {{
-            throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
-        }}
-    }}
-
-    public DataLoader() {{
-        this.conn = createConnection();
-    }}
-
-    public Stream<OutputRow> process(String query) {{
-        try {{
-            ResultSet result = this.conn.createStatement().executeQuery(query);
-            if (result.next()) {{
-                ResultSetMetaData meta = result.getMetaData();
-                int columnCount = meta.getColumnCount();
-                StringBuilder json = new StringBuilder();
-                json.append("{{");
-
-                for (int i = 1; i <= columnCount; i++) {{
-                    String name = meta.getColumnLabel(i);
-                    Object value = result.getObject(i);
-
-                    json.append("\"").append(escapeJson(name)).append("\":");
-
-                    if (value == null) {{
-                        json.append("null");
-                    }} else if (value instanceof Number || value instanceof Boolean) {{
-                        json.append(value.toString());
-                    }} else {{
-                        json.append("\"").append(escapeJson(value.toString())).append("\"");
-                    }}
-
-                    if (i < columnCount) {{
-                        json.append(",");
-                    }}
-                }}
-
-                json.append("}}");
-                return Stream.of(new OutputRow(json.toString()));
+            public OutputRow(String A) {{
+                this.A = A;
             }}
 
-            return Stream.empty();
-        }} catch (Exception e) {{
-            throw new RuntimeException("Failed to load data: " + e.getMessage());
         }}
-    }}
 
-    public Stream<OutputRow> endPartition() {{
-        return Stream.empty();
-    }}
-}}
-$$
-;
-"""
+
+
+        public class DataLoader{{
+            private final Connection conn;
+
+            private static String escapeJson(String str) {{
+                return str.replace("\\", "\\\\")
+                          .replace("\"", "\\\"")
+                          .replace("\b", "\\b")
+                          .replace("\f", "\\f")
+                          .replace("\n", "\\n")
+                          .replace("\r", "\\r")
+                          .replace("\t", "\\t");
+            }}
+
+
+            public StructType outputSchema() {{
+                return StructType.create(new StructField("A", DataTypes.VariantType));
+            }}
+            public static Class getOutputClass() {{
+              return OutputRow.class;
+            }}
+
+            private static Connection createConnection() {{
+                try {{
+                    Class.forName("com.wisecoders.dbschema.influxdb.JdbcDriver");
+                    //Class.forName("software.amazon.timestream.jdbc.TimestreamDriver");
+                    String url = "";
+                    return DriverManager.getConnection(url);
+                }} catch (Exception e) {{
+                    throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
+                }}
+            }}
+
+            public DataLoader() {{
+                this.conn = createConnection();
+            }}
+
+            public Stream<OutputRow> process(String query) {{
+                try {{
+                    ResultSet result = this.conn.createStatement().executeQuery(query);
+                    if (result.next()) {{
+                        ResultSetMetaData meta = result.getMetaData();
+                        int columnCount = meta.getColumnCount();
+                        StringBuilder json = new StringBuilder();
+                        json.append("{{");
+
+                        for (int i = 1; i <= columnCount; i++) {{
+                            String name = meta.getColumnLabel(i);
+                            Object value = result.getObject(i);
+
+                            json.append("\"").append(escapeJson(name)).append("\":");
+
+                            if (value == null) {{
+                                json.append("null");
+                            }} else if (value instanceof Number || value instanceof Boolean) {{
+                                json.append(value.toString());
+                            }} else {{
+                                json.append("\"").append(escapeJson(value.toString())).append("\"");
+                            }}
+
+                            if (i < columnCount) {{
+                                json.append(",");
+                            }}
+                        }}
+
+                        json.append("}}");
+                        return Stream.of(new OutputRow(json.toString()));
+                    }}
+
+                    return Stream.empty();
+                }} catch (Exception e) {{
+                    throw new RuntimeException("Failed to load data: " + e.getMessage());
+                }}
+            }}
+
+            public Stream<OutputRow> endPartition() {{
+                return Stream.empty();
+            }}
+        }}
+        $$
+        ;
+        """
+        return JDBC_UDTF
