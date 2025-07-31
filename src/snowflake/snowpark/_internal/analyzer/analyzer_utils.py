@@ -219,7 +219,10 @@ def format_uuid(uuid: Optional[str], with_new_line: bool = True) -> str:
     if not uuid:
         return EMPTY_STRING
     if with_new_line:
-        return f"{NEW_LINE}{UUID_COMMENT.format(uuid)}{NEW_LINE}"
+        if NEW_LINE == "":
+            return f"\n{UUID_COMMENT.format(uuid)}\n"
+        else:
+            return f"{NEW_LINE}{UUID_COMMENT.format(uuid)}{NEW_LINE}"
     return f"{UUID_COMMENT.format(uuid)}"
 
 
