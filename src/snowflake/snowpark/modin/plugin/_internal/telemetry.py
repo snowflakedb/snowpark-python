@@ -16,6 +16,10 @@ from modin.logging.metrics import add_metric_handler
 from modin.config import MetricsMode
 from typing_extensions import ParamSpec
 
+from snowflake.snowpark.modin.config.envvars import (
+    SnowflakeModinTelemetryEnabled,
+    SnowflakeModinTelemetryFlushInterval,
+)
 import snowflake.snowpark.session
 from snowflake.connector.telemetry import TelemetryField as PCTelemetryField
 from snowflake.snowpark._internal.telemetry import TelemetryField, safe_telemetry
@@ -645,8 +649,9 @@ class TelemetryMeta(type):
 
 
 _modin_event_log: list = [[]]
-MODIN_METRIC_FLUSH_INTERVAL = 5  # flush metrics every 5 seconds
-_next_modin_metric_flush: float = time.time() + MODIN_METRIC_FLUSH_INTERVAL
+_next_modin_metric_flush: float = (
+    time.time() + SnowflakeModinTelemetryFlushInterval.get()
+)
 MODIN_SWITCH_DECISION_METRICS = (
     "modin.hybrid.merge.decision",
     "modin.hybrid.auto.decision",
@@ -697,7 +702,9 @@ def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -
                     )
         except Exception:
             pass
-        _next_modin_metric_flush = time.time() + MODIN_METRIC_FLUSH_INTERVAL
+        _next_modin_metric_flush = (
+            time.time() + SnowflakeModinTelemetryFlushInterval.get()
+        )
         _modin_event_log = [[]]
 
 
@@ -769,5 +776,6 @@ def hybrid_describe_telemetry_watcher(
 
 def connect_modin_telemetry() -> None:
     MetricsMode.enable()
-    add_metric_handler(modin_telemetry_watcher)
+    if SnowflakeModinTelemetryEnabled.get():
+        add_metric_handler(modin_telemetry_watcher)
     add_metric_handler(hybrid_describe_telemetry_watcher)
