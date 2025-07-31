@@ -1380,7 +1380,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             os.environ.get(
                 "SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED", "true"
             ).lower()
-            == "true"
+            == "false"
         )
         relaxed_query_compiler = None
         if (
