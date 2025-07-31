@@ -76,7 +76,7 @@ jobs:
             download_name: macos
           - image_name: windows-latest-64-cores
             download_name: windows
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13"]
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code

@@ -177,6 +177,7 @@ class TestCacheResultReducesQueryCount:
             )
 
     @pytest.mark.skipif(RUNNING_ON_GH, reason="Slow test")
+    @pytest.mark.udf
     def test_cache_result_post_apply(self, inplace, simple_test_data):
         # In this test, the caching doesn't aid in the query counts since
         # the implementation of apply(axis=1) itself contains intermediate

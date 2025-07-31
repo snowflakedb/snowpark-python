@@ -28,6 +28,8 @@ from tests.integ.modin.utils import (
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import RUNNING_ON_GH
 
+pytestmark = [pytest.mark.udf]
+
 # Use the workaround shown below for applying functions that are attributes
 # of this module.
 # https://github.com/cloudpipe/cloudpickle?tab=readme-ov-file#overriding-pickles-serialization-mechanism-for-importable-constructs

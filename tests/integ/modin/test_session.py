@@ -255,6 +255,7 @@ def test_snowpark_pandas_session_class_does_not_exist_snow_1022098():
         lambda df: df.groupby(0).apply(lambda x: x + 1),
     ],
 )
+@pytest.mark.udf
 class TestApplyLikeMethodsWithMultipleSessionsSnow1216902:
     """
     Test some cases from SNOW-1216902
