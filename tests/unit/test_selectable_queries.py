@@ -53,7 +53,7 @@ def test_select_statement_sql_query(mock_session, mock_analyzer):
     )
     assert (
         select_statement.commented_sql
-        == f"\n-- {mock_from.uuid}\nSELECT * FROM BASE_TABLE\n-- {mock_from.uuid}\n"
+        == f"-- {mock_from.uuid}\nSELECT * FROM BASE_TABLE\n-- {mock_from.uuid}"
     )
     assert select_statement.sql_query == "SELECT * FROM BASE_TABLE"
     assert select_statement.formatted_sql_query == "SELECT * FROM BASE_TABLE"
@@ -95,7 +95,9 @@ def test_select_statement_sql_query_with_projection(mock_session, mock_analyzer)
     )
     assert Utils.normalize_sql(
         select_statement.formatted_sql_query
-    ) == Utils.normalize_sql("SELECT A FROM (SELECT * FROM BASE_TABLE)")
+    ) == Utils.normalize_sql(
+        f"SELECT {mock_session._new_line_token} A {mock_session._new_line_token} FROM (SELECT * FROM BASE_TABLE)"
+    )
 
 
 def test_selectable_entity_sql_query(mock_session, mock_analyzer):

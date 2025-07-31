@@ -353,6 +353,8 @@ def get_snowflake_plan_queries(
                 final_query_params.extend(definition_query.params)
         with_query = cte_statement(definition_queries, table_names)
         plan_queries[-1].sql = with_query + plan_queries[-1].sql
+        # Also update formatted_sql to include CTE definitions
+        plan_queries[-1].formatted_sql = with_query + plan_queries[-1].formatted_sql
         final_query_params.extend(plan_queries[-1].params)
         plan_queries[-1].params = final_query_params
 

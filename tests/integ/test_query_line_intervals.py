@@ -102,6 +102,7 @@ def test_get_plan_from_line_numbers_sql_content(
     df = op(generate_test_data(session, sql_simplifier))
 
     for line_num, expected_sql in line_to_expected_sql.items():
+        print(df._plan.queries[-1].sql)
         plan = get_plan_from_line_numbers(df._plan, line_num)
         assert (
             plan is not None
