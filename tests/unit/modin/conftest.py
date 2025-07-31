@@ -15,6 +15,19 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 )
 from snowflake.snowpark.types import StringType
 
+from modin.config import AutoSwitchBackend
+
+# Disable automatic backend selection for hybrid execution by default.
+AutoSwitchBackend.disable()
+
+
+@pytest.fixture(scope="function", autouse=True)
+def mock_session():
+    # Temporary fix for SNOW-2132871
+    # Modin QC code tries to find an active session even with auto-switching disabled
+    with mock.patch("snowflake.snowpark.context.get_active_session"):
+        yield
+
 
 @pytest.fixture(scope="function")
 def mock_single_col_query_compiler() -> SnowflakeQueryCompiler:

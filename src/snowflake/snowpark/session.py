@@ -35,7 +35,9 @@ from typing import (
 )
 
 import cloudpickle
-import pkg_resources
+import importlib.metadata
+from packaging.requirements import Requirement
+from packaging.version import parse as parse_version
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
@@ -192,6 +194,7 @@ from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
+from snowflake.snowpark.dataframe_profiler import DataframeProfiler
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -289,6 +292,9 @@ _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
 )
 _PYTHON_SNOWPARK_USE_OPTIMIZED_SQL_FEATURES_VERSION = (
     "PYTHON_SNOWPARK_USE_OPTIMIZED_SQL_FEATURES_VERSION"
+)
+_PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES = (
+    "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES"
 )
 
 # AST encoding.
@@ -655,6 +661,16 @@ class Session:
                 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
             )
         )
+        self._generate_multiline_queries: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, False
+            )
+        )
+        if self._generate_multiline_queries:
+            self._enable_multiline_queries()
+        else:
+            self._disable_multiline_queries()
+
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
@@ -748,6 +764,7 @@ class Session:
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+        self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
 
         self._ast_batch = AstBatch(self)
@@ -783,6 +800,20 @@ class Session:
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
         )
 
+    def _enable_multiline_queries(self):
+        import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
+
+        self._generate_multiline_queries = True
+        analyzer_utils.NEW_LINE = "\n"
+        analyzer_utils.TAB = "    "
+
+    def _disable_multiline_queries(self):
+        import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
+
+        self._generate_multiline_queries = False
+        analyzer_utils.NEW_LINE = ""
+        analyzer_utils.TAB = ""
+
     def is_feature_enabled_for_version(self, parameter_name: str) -> bool:
         """
         This method checks if a feature is enabled for the current session based on
@@ -792,8 +823,7 @@ class Session:
         return (
             isinstance(version, str)
             and version != ""
-            and pkg_resources.parse_version(self.version)
-            >= pkg_resources.parse_version(version)
+            and parse_version(self.version) >= parse_version(version)
         )
 
     def _generate_new_action_id(self) -> int:
@@ -894,6 +924,7 @@ class Session:
         return is_ast_enabled()
 
     @ast_enabled.setter
+    @experimental_parameter(version="1.33.0")
     def ast_enabled(self, value: bool) -> None:
         # TODO: we could send here explicit telemetry if a user changes the behavior.
         # In addition, we could introduce a server-side parameter to enable AST capture or not.
@@ -909,13 +940,13 @@ class Session:
 
         # Auto temp cleaner has bad interactions with AST at the moment, disable when enabling AST.
         # This feature should get moved server-side anyways.
-        if value:
+        if value and self._auto_clean_up_temp_table_enabled:
             _logger.warning(
                 "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
-            self.auto_clean_up_temp_table_enabled = False
-        set_ast_state(AstFlagSource.LOCAL, value)
+            self._auto_clean_up_temp_table_enabled = False
+        set_ast_state(AstFlagSource.USER, value)
 
     @property
     def cte_optimization_enabled(self) -> bool:
@@ -1559,7 +1590,7 @@ class Session:
             >>> len(session.get_packages())
             0
         """
-        package_name = pkg_resources.Requirement.parse(package).key
+        package_name = Requirement(package).name
         with self._package_lock:
             if (
                 artifact_repository is not None
@@ -1703,49 +1734,53 @@ class Session:
         ignore_packages = {} if ignore_packages is None else ignore_packages
 
         packages = []
-        for package in pkg_resources.working_set:
-            if package.key in ignore_packages:
-                _logger.info(f"{package.key} found in environment, ignoring...")
+        for package in importlib.metadata.distributions():
+            if package.metadata["Name"].lower() in ignore_packages:
+                _logger.info(
+                    f"{package.metadata['Name'].lower()} found in environment, ignoring..."
+                )
                 continue
-            if package.key in DEFAULT_PACKAGES:
-                _logger.info(f"{package.key} is available by default, ignoring...")
+            if package.metadata["Name"].lower() in DEFAULT_PACKAGES:
+                _logger.info(
+                    f"{package.metadata['Name'].lower()} is available by default, ignoring..."
+                )
                 continue
             version_text = (
-                "==" + package.version if package.has_version() and not relax else ""
+                "==" + package.version if package.version and not relax else ""
             )
-            packages.append(f"{package.key}{version_text}")
+            packages.append(f"{package.metadata['Name'].lower()}{version_text}")
 
         self.add_packages(packages)
 
     @staticmethod
     def _parse_packages(
         packages: List[Union[str, ModuleType]]
-    ) -> Dict[str, Tuple[str, bool, pkg_resources.Requirement]]:
+    ) -> Dict[str, Tuple[str, bool, Requirement]]:
         package_dict = dict()
         for package in packages:
             if isinstance(package, ModuleType):
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
                 )
-                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
+                package = f"{package_name}=={importlib.metadata.version(package_name)}"
                 use_local_version = True
             else:
                 package = package.strip().lower()
                 if package.startswith("#"):
                     continue
                 use_local_version = False
-            package_req = pkg_resources.Requirement.parse(package)
+            package_req = Requirement(package)
             # get the standard package name if there is no underscore
             # underscores are discouraged in package names, but are still used in Anaconda channel
-            # pkg_resources.Requirement.parse will convert all underscores to dashes
+            # packaging.requirements.Requirement will convert all underscores to dashes
             # the regexp is to deal with case that "_" is in the package requirement as well as version restrictions
             # we only extract the valid package name from the string by following:
             # https://packaging.python.org/en/latest/specifications/name-normalization/
             # A valid name consists only of ASCII letters and numbers, period, underscore and hyphen.
             # It must start and end with a letter or number.
-            # however, we don't validate the pkg name as this is done by pkg_resources.Requirement.parse
+            # however, we don't validate the pkg name as this is done by packaging.requirements.Requirement
             # find the index of the first char which is not an valid package name character
-            package_name = package_req.key
+            package_name = package_req.name.lower()
             if not use_local_version and "_" in package:
                 reg_match = re.search(r"[^0-9a-zA-Z\-_.]", package)
                 package_name = package[: reg_match.start()] if reg_match else package
@@ -1755,12 +1790,12 @@ class Session:
 
     def _get_dependency_packages(
         self,
-        package_dict: Dict[str, Tuple[str, bool, pkg_resources.Requirement]],
+        package_dict: Dict[str, Tuple[str, bool, Requirement]],
         validate_package: bool,
         package_table: str,
         current_packages: Dict[str, str],
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         # Keep track of any package errors
         errors = []
 
@@ -1777,16 +1812,21 @@ class Session:
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
-            package_version_req = package_req.specs[0][1] if package_req.specs else None
+            # The `packaging.requirements.Requirement` object exposes a `packaging.requirements.SpecifierSet` object
+            # that handles a set of version specifiers.
+            package_specifier = package_req.specifier if package_req.specifier else None
 
             if validate_package:
                 if package_name not in valid_packages or (
-                    package_version_req
-                    and not any(v in package_req for v in valid_packages[package_name])
+                    package_specifier
+                    and not any(
+                        package_specifier.contains(v)
+                        for v in valid_packages[package_name]
+                    )
                 ):
                     version_text = (
-                        f"(version {package_version_req})"
-                        if package_version_req is not None
+                        f"(version {package_specifier})"
+                        if package_specifier is not None
                         else ""
                     )
                     if is_in_stored_procedure():  # pragma: no cover
@@ -1826,9 +1866,9 @@ class Session:
                     continue
                 elif not use_local_version:
                     try:
-                        package_client_version = pkg_resources.get_distribution(
+                        package_client_version = importlib.metadata.version(
                             package_name
-                        ).version
+                        )
 
                         def is_valid_version(
                             package_name, package_client_version, valid_packages
@@ -1856,7 +1896,7 @@ class Session:
                                 f"requirement '{package}'. Your UDF might not work when the package version "
                                 f"is different between the server and your local environment."
                             )
-                    except pkg_resources.DistributionNotFound:
+                    except importlib.metadata.PackageNotFoundError:
                         _logger.warning(
                             f"Package '{package_name}' is not installed in the local environment. "
                             f"Your UDF might not work when the package is installed on the server "
@@ -1886,7 +1926,7 @@ class Session:
         elif len(errors) > 0:
             raise RuntimeError(errors)
 
-        dependency_packages: List[pkg_resources.Requirement] = []
+        dependency_packages: List[Requirement] = []
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}."
@@ -2030,7 +2070,10 @@ class Session:
             # Add dependency packages
             for package in dependency_packages:
                 name = package.name
-                version = package.specs[0][1] if package.specs else None
+                package_specs = [
+                    (spec.operator, spec.version) for spec in package.specifier
+                ]
+                version = package_specs[0][1] if package_specs else None
 
                 if name in result_dict:
                     if version is not None:
@@ -2056,7 +2099,7 @@ class Session:
         package_table: str,
         package_dict: Dict[str, str],
         custom_package_usage_config: Dict[str, Any],
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
 
@@ -2067,7 +2110,7 @@ class Session:
                 been added explicitly so far using add_packages() or other such methods.
 
         Returns:
-            List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
+            List[packaging.requirements.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
             to the package dictionary.
 
         Raises:
@@ -2215,7 +2258,7 @@ class Session:
 
     def _load_unsupported_packages_from_stage(
         self, environment_signature: str, cache_path: str
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         """
         Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
         saves time spent on pip install, native package detection and zip upload to stage.
@@ -2236,7 +2279,7 @@ class Session:
             environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
             a sorted tuple of unsupported package requirements (package versioning included).
         Returns:
-            Optional[List[pkg_resources.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
+            Optional[List[packaging.requirements.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
         """
         # Ensure that metadata file exists
         metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
@@ -2270,8 +2313,7 @@ class Session:
         }
 
         dependency_packages = [
-            pkg_resources.Requirement.parse(package)
-            for package in metadata[environment_signature]
+            Requirement(package) for package in metadata[environment_signature]
         ]
         _logger.info(
             f"Loading dependency packages list - {metadata[environment_signature]}."
@@ -2919,8 +2961,11 @@ class Session:
             table_name: Table name where we want to insert into.
             database: Database schema and table is in, if not provided the default one will be used (Default value = None).
             schema: Schema table is in, if not provided the default one will be used (Default value = None).
-            chunk_size: Number of elements to be inserted in each batch, if not provided all elements will be dumped
-                (Default value = None).
+            chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
+                Default to None normally, 100,000 if inside a stored procedure.
+                Note: If auto_create_table or overwrite is set to True, the chunk size may affect schema
+                inference because different chunks might contain varying data types,
+                especially when None values are present. This can lead to inconsistencies in inferred types.
             compression: The compression used on the Parquet files, can only be gzip, or snappy. Gzip gives a
                 better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
             on_error: Action to take when COPY INTO statements fail, default follows documentation at:
@@ -3095,6 +3140,9 @@ class Session:
             schema: Schema that the table is in. If not provided, the default one will be used.
             chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
                 Default to None normally, 100,000 if inside a stored procedure.
+                Note: If auto_create_table or overwrite is set to True, the chunk size may affect schema
+                inference because different chunks might contain varying data types,
+                especially when None values are present. This can lead to inconsistencies in inferred types.
             compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
                 better compression, while snappy is faster. Use whichever is more appropriate.
             on_error: Action to take when COPY INTO statements fail. See details at
@@ -3332,14 +3380,18 @@ class Session:
         data: Union[List, Tuple, "pandas.DataFrame", "pyarrow.Table"],
         schema: Optional[Union[StructType, Iterable[str], str]] = None,
         _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
-        If creating a new DataFrame from a pandas Dataframe, we will store the pandas
-        DataFrame in a temporary table and return a DataFrame pointing to that temporary
+        If creating a new DataFrame from a pandas Dataframe or a PyArrow Table, we will store
+        the data in a temporary table and return a DataFrame pointing to that temporary
         table for you to then do further transformations on. This temporary table will be
-        dropped at the end of your session. If you would like to save the pandas DataFrame,
-        use the :meth:`write_pandas` method instead.
+        dropped at the end of your session. If you would like to save the pandas DataFrame or PyArrow Table,
+        use the :meth:`write_pandas` or :meth:`write_arrow` method instead.
+        Note: When ``data`` is a pandas DataFrame or pyarrow Table, schema inference may be affected by chunk size.
+        You can control it by passing the ``chunk_size`` keyword argument. For details, see :meth:`write_pandas`
+        or :meth:`write_arrow`, which are used internally by this function.
 
         Args:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
@@ -3357,6 +3409,9 @@ class Session:
 
                 To improve performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
+            **kwargs: Additional keyword arguments passed to :meth:`write_pandas` or :meth:`write_arrow`
+                when ``data`` is a pandas DataFrame or pyarrow Table, respectively. These can include
+                options such as chunk_size or compression.
 
         Examples::
 
@@ -3452,6 +3507,7 @@ class Session:
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
                         _emit_ast=False,
+                        **kwargs,
                     )
                     set_api_call_source(table, "Session.create_dataframe[arrow]")
                 else:
@@ -3465,6 +3521,7 @@ class Session:
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
                         _emit_ast=False,
+                        **kwargs,
                     )
                     set_api_call_source(table, "Session.create_dataframe[pandas]")
 
@@ -4085,6 +4142,14 @@ class Session:
         """
         return self._sp_profiler
 
+    @property
+    def dataframe_profiler(self) -> DataframeProfiler:
+        """
+        Returns a :class:`dataframe_profiler.DataframeProfiler` object that you can use to profile dataframe operations.
+        See details of how to use this object in :class:`dataframe_profiler.DataframeProfiler`.
+        """
+        return self._dataframe_profiler
+
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
@@ -4366,6 +4431,7 @@ class Session:
         include_describe: bool = False,
         include_thread_id: bool = False,
         include_error: bool = False,
+        include_dataframe_profiling: bool = False,
     ) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
@@ -4383,7 +4449,11 @@ class Session:
         >>> assert not query_history.queries[1].is_describe
         """
         query_listener = QueryHistory(
-            self, include_describe, include_thread_id, include_error
+            self,
+            include_describe,
+            include_thread_id,
+            include_error,
+            include_dataframe_profiling,
         )
         self._conn.add_query_listener(query_listener)
         return query_listener

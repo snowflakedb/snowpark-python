@@ -48,3 +48,10 @@ General functions
     date_range
     bdate_range
     to_datetime
+
+.. rubric:: Hybrid Execution functions
+
+.. autosummary::
+    :toctree: pandas_api/
+
+    explain_switch

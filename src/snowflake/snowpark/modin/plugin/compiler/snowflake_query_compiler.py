@@ -11,15 +11,29 @@ import itertools
 import json
 import logging
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
 from datetime import timedelta, tzinfo
 from functools import reduce
-from typing import Any, Callable, List, Literal, Optional, TypeVar, Union, get_args
+from types import MappingProxyType
+from typing import (
+    Any,
+    Callable,
+    List,
+    Literal,
+    Optional,
+    TypeVar,
+    Union,
+    get_args,
+    Set,
+    Tuple,
+)
 
 import modin.pandas as pd
+from modin.pandas import Series, DataFrame
+from modin.pandas.base import BasePandasDataset
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
@@ -29,6 +43,7 @@ from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeD
 import pandas.io.parsers.readers
 import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
+from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -61,6 +76,7 @@ from pandas.api.types import (
     is_integer_dtype,
     is_named_tuple,
     is_numeric_dtype,
+    is_object_dtype,
     is_re_compilable,
     is_scalar,
     is_string_dtype,
@@ -206,7 +222,6 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     make_series_map_snowpark_function,
     sort_apply_udtf_result_columns_by_pandas_positions,
 )
-from collections import defaultdict
 from snowflake.snowpark.modin.plugin._internal.binary_op_utils import (
     BinaryOp,
     merge_label_and_identifier_pairs,
@@ -294,6 +309,9 @@ from snowflake.snowpark.modin.plugin._internal.resample_utils import (
     rule_to_snowflake_width_and_slice_unit,
     validate_resample_supported_by_snowflake,
     compute_resample_start_and_end_date,
+)
+from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
+    MAX_ROW_COUNT_FOR_ESTIMATION,
 )
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasColumn,
@@ -459,6 +477,24 @@ _RESET_ATTRS_METHODS = [
     # agg, crosstab, and concat depend on their inputs, and are handled separately
 ]
 
+# Functions which should be considered for execution outside of snowflake
+HYBRID_HIGH_OVERHEAD_METHODS = [
+    "apply",
+    "describe",
+    "quantile",
+    "read_csv",
+    "read_json",
+    "T",
+    "concat",
+    "merge",
+]
+HYBRID_ITERATIVE_STYLE_METHODS = ["iterrows", "itertuples", "items", "plot"]
+HYBRID_ALL_EXPENSIVE_METHODS = (
+    HYBRID_HIGH_OVERHEAD_METHODS + HYBRID_ITERATIVE_STYLE_METHODS
+)
+# Set of (class name, method name) tuples for methods that are wholly unimplemented by
+# Snowpark pandas. This list is populated by the register_*_not_implemented decorators.
+HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS: Set[Tuple[str, str]] = set()
 
 T = TypeVar("T", bound=Callable[..., Any])
 
@@ -538,6 +574,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     lazy_column_labels = False
     lazy_column_count = False
 
+    _MAX_SIZE_THIS_ENGINE_CAN_HANDLE = 10_000_000_000_000
+    _OPERATION_INITIALIZATION_OVERHEAD = 100
+    _OPERATION_PER_ROW_OVERHEAD = 10
+    _TRANSFER_THRESHOLD = 10_000_000
+
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
         assert frame is not None and isinstance(
@@ -550,6 +591,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self.snowpark_pandas_api_calls: list = []
         self._attrs: dict[Any, Any] = {}
         self._method_call_counts: Counter[str] = Counter[str]()
+
+    engine = property(lambda self: "Snowflake")
+    storage_format = property(lambda self: "Snowflake")
 
     def _raise_not_implemented_error_for_timedelta(
         self, frame: InternalFrame = None
@@ -723,6 +767,176 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self.index_dtypes[idx] if is_index else self.dtypes[idx]
         )
 
+    # BEGIN: hybrid auto-switching helpers
+
+    @classmethod
+    def _get_rows(cls, query_compiler: BaseQueryCompiler) -> int:
+        if isinstance(query_compiler, SnowflakeQueryCompiler):
+            internal_frame = query_compiler._modin_frame
+            ordered_dataframe = internal_frame.ordered_dataframe
+            num_rows = ordered_dataframe.row_count_upper_bound
+            # SNOW-2042703 - TODO: Performance regression in cartiesian products with row estimate
+            # It's possible this bit of code is related to the performance regression
+            # hack to work around large numbers when things are an estimate
+            if (
+                ordered_dataframe.row_count_upper_bound is None
+                or ordered_dataframe.row_count_upper_bound
+                > MAX_ROW_COUNT_FOR_ESTIMATION
+            ):
+                num_rows = query_compiler.get_axis_len(0)
+            if num_rows is None:
+                return 1000000000
+        else:
+            num_rows = query_compiler.get_axis_len(0)
+        return num_rows
+
+    def _max_shape(self) -> tuple[int, int]:
+        ordered_dataframe = self._modin_frame.ordered_dataframe
+        num_rows = ordered_dataframe.row_count_upper_bound
+        num_columns = len(self.columns)
+        # hack to work around large numbers when things are an estimate
+        if (
+            ordered_dataframe.row_count_upper_bound is None
+            or ordered_dataframe.row_count_upper_bound > MAX_ROW_COUNT_FOR_ESTIMATION
+        ):
+            num_rows = self.get_axis_len(0)
+        if num_rows is None:
+            num_rows = 10_000_000_000
+        return num_rows, num_columns
+
+    @classmethod
+    def _is_in_memory_init(
+        cls, api_cls_name: Optional[str], operation: Optional[str], arguments: Any
+    ) -> bool:
+        if api_cls_name in ("DataFrame", "Series") and operation == "__init__":
+            if (query_compiler := arguments.get("query_compiler")) is not None:
+                return True if isinstance(query_compiler, cls) else False
+        return False
+
+    @classmethod
+    def _are_dtypes_compatible_with_snowflake(cls, compiler: BaseQueryCompiler) -> bool:
+        """
+        Inspects the dtypes in a BaseQueryCompiler object to ensure that they are
+        compatible with Snowpark pandas.
+
+        Args:
+            compiler: The BaseQueryCompiler object to inspect.
+
+        Returns:
+            True if all dtypes are compatible, False otherwise.
+        """
+        for dtype in compiler.dtypes:
+            try:
+                TypeMapper.to_snowflake(dtype)
+            except NotImplementedError:
+                WarningMessage.single_warning(
+                    f"The {compiler.get_backend()} dtype {dtype} is not directly compatible with the Snowflake backend. "
+                    "Use astype to convert the dtype to allow for automatic switching of engines."
+                )
+                return False
+        return True
+
+    def move_to_cost(
+        self,
+        other_qc_type: type,
+        api_cls_name: Optional[str],
+        operation: str,
+        arguments: MappingProxyType[str, Any],
+    ) -> Optional[int]:
+        if (
+            api_cls_name in ("DataFrame", "Series")
+            and operation == "__init__"
+            and (data := arguments.get("data")) is not None
+        ) and (
+            (
+                isinstance(data, (pd.Series, pd.DataFrame))
+                and isinstance(data._query_compiler, type(self))
+            )
+            or (
+                is_dict_like(data)
+                and not isinstance(data, native_pd.DataFrame)
+                and not isinstance(data, native_pd.Series)
+                and all(
+                    isinstance(v, pd.Series)
+                    and isinstance(v._query_compiler, type(self))
+                    for v in data.values()
+                )
+            )
+        ):
+            return QCCoercionCost.COST_IMPOSSIBLE
+        # Transfer cost for data-centric operations is zero
+        if self._is_in_memory_init(api_cls_name, operation, arguments):
+            return QCCoercionCost.COST_ZERO
+        return super().move_to_cost(other_qc_type, api_cls_name, operation, arguments)
+
+    def stay_cost(
+        self,
+        api_cls_name: Optional[str],
+        operation: str,
+        arguments: MappingProxyType[str, Any],
+    ) -> Optional[int]:
+        if (
+            self._is_in_memory_init(api_cls_name, operation, arguments)
+            or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
+        ):
+            return QCCoercionCost.COST_IMPOSSIBLE
+        # Strongly discourage the use of these methods in snowflake
+        if operation in HYBRID_ALL_EXPENSIVE_METHODS:
+            return QCCoercionCost.COST_HIGH
+        return super().stay_cost(api_cls_name, operation, arguments)
+
+    @classmethod
+    def move_to_me_cost(
+        cls,
+        other_qc: BaseQueryCompiler,
+        api_cls_name: Optional[str] = None,
+        operation: Optional[str] = None,
+        arguments: Optional[MappingProxyType[str, Any]] = None,
+    ) -> int:
+        """
+        Return the coercion costs from other_qc to this qc type.
+
+        Values returned must be within the acceptable range of
+        QCCoercionCost
+
+        Parameters
+        ----------
+        other_qc : BaseQueryCompiler
+            The query compiler from which we should return the cost of switching.
+
+        Returns
+        -------
+        int
+            Cost of migrating the data from other_qc to this qc or
+            None if the cost cannot be determined.
+        """
+        # in-memory intialization should not move to Snowflake
+        if (
+            cls._is_in_memory_init(api_cls_name, operation, arguments)
+            or not cls._are_dtypes_compatible_with_snowflake(other_qc)
+            or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
+        ):
+            return QCCoercionCost.COST_IMPOSSIBLE
+        # Strongly discourage the use of these methods in snowflake
+        if operation in HYBRID_ALL_EXPENSIVE_METHODS:
+            return QCCoercionCost.COST_HIGH
+
+        return super().move_to_me_cost(other_qc, api_cls_name, operation, arguments)
+
+    def max_cost(self) -> int:
+        """
+        Return the max coercion cost allowed for switching to this engine.
+
+        Returns
+        -------
+        int
+            Max cost allowed for migrating the data to this qc.
+        """
+        # We should have a way to express "no max"
+        return QCCoercionCost.COST_IMPOSSIBLE * 10_000_000_000
+
+    # END: hybrid auto-switching helpers
+
     @classmethod
     def from_pandas(
         cls, df: native_pd.DataFrame, *args: Any, **kwargs: Any
@@ -840,7 +1054,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def from_arrow(cls, at: Any, *args: Any, **kwargs: Any) -> "SnowflakeQueryCompiler":
         return cls(at.to_pandas())
 
-    def to_dataframe(
+    def to_interchange_dataframe(
         self, nan_as_null: bool = False, allow_copy: bool = True
     ) -> InterchangeDataframe:
         return self.to_pandas().__dataframe__(
@@ -848,7 +1062,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @classmethod
-    def from_dataframe(cls, df: native_pd.DataFrame, data_cls: Any) -> None:
+    def from_interchange_dataframe(cls, df: native_pd.DataFrame, data_cls: Any) -> None:
         pass
 
     @classmethod
@@ -1011,6 +1225,121 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 message="copy is ignored in Snowflake backend",
             )
         return self.to_pandas().to_numpy(dtype=dtype, na_value=na_value, **kwargs)
+
+    # TODO: MODIN_IS_AT_LEAST_0_34_0
+    # delete this comment and pragma: no cover once we no longer support 0.33.x
+    def do_array_ufunc_implementation(
+        self,
+        frame: BasePandasDataset,
+        ufunc: np.ufunc,
+        method: str,
+        *inputs: Any,
+        **kwargs: Any,
+    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
+        """
+        Apply the provided NumPy ufunc to the underlying data.
+
+        This method is called by the ``__array_ufunc__`` dispatcher on BasePandasDataset.
+
+        Unlike other query compiler methods, this function directly operates on the input DataFrame/Series
+        to allow for easier argument processing. The default implementation defaults to pandas, but
+        a query compiler sub-class may override this method to provide a distributed implementation.
+
+        See NumPy docs: https://numpy.org/doc/stable/user/basics.subclassing.html#array-ufunc-for-ufuncs
+
+        Parameters
+        ----------
+        frame : BasePandasDataset
+            The DataFrame or Series on which the ufunc was called. Its query compiler must match ``self``.
+
+        ufunc : np.ufunc
+            The function to apply.
+
+        method : str
+            The name of the function to apply.
+
+        *inputs : Any
+            Positional arguments to pass to ``ufunc``.
+
+        **kwargs : Any
+            Keyword arguments to pass to ``ufunc``.
+
+        Returns
+        -------
+        DataFrame, Series, or Any
+            The result of applying the ufunc to ``frame``.
+        """
+        assert (
+            self is frame._query_compiler
+        ), "array ufunc called with mismatched query compiler and input frame"
+        # Use pandas version of ufunc if it exists
+        if method != "__call__":
+            # Return sentinel value NotImplemented
+            return NotImplemented  # pragma: no cover
+        from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
+            numpy_to_pandas_universal_func_map,
+        )
+
+        if ufunc.__name__ in numpy_to_pandas_universal_func_map:
+            ufunc = numpy_to_pandas_universal_func_map[ufunc.__name__]
+            if ufunc == NotImplemented:
+                return NotImplemented
+            # We cannot support the out argument
+            if kwargs.get("out") is not None:
+                return NotImplemented
+            return ufunc(frame, inputs[1:])
+        # return the sentinel NotImplemented if we do not support this function
+        return NotImplemented  # pragma: no cover
+
+    # TODO: MODIN_IS_AT_LEAST_0_34_0
+    # delete this comment and pragma: no cover once we no longer support 0.33.x
+    def do_array_function_implementation(
+        self,
+        frame: BasePandasDataset,
+        func: Callable,
+        types: tuple,
+        args: tuple,
+        kwargs: dict,
+    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
+        """
+        Apply the provided NumPy array function to the underlying data.
+
+        This method is called by the ``__array_function__`` dispatcher on BasePandasDataset.
+
+        Unlike other query compiler methods, this function directly operates on the input DataFrame/Series
+        to allow for easier argument processing. The default implementation defaults to pandas, but
+        a query compiler sub-class may override this method to provide a distributed implementation.
+
+        See NumPy docs: https://numpy.org/neps/nep-0018-array-function-protocol.html#nep18
+
+        Parameters
+        ----------
+        frame : BasePandasDataset
+            The DataFrame or Series on which the ufunc was called. Its query compiler must match ``self``.
+        func : np.func
+            The NumPy func to apply.
+        types : tuple
+            The types of the args.
+        args : tuple
+            The args to the func.
+        kwargs : dict
+            Additional keyword arguments.
+
+        Returns
+        -------
+        DataFrame | Series | Any
+            The result of applying the function to this dataset. Unlike modin, which returns a
+            numpy array by default, this will return a DataFrame/Series object or NotImplemented.
+        """
+        from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
+            numpy_to_pandas_func_map,
+        )
+
+        if func.__name__ in numpy_to_pandas_func_map:
+            return numpy_to_pandas_func_map[func.__name__](*args, **kwargs)
+        else:
+            # per NEP18 we raise NotImplementedError so that numpy can intercept
+            return NotImplemented  # pragma: no cover
 
     def repartition(self, axis: Any = None) -> "SnowflakeQueryCompiler":
         # let Snowflake handle partitioning, it makes no sense to repartition the dataframe.
@@ -2152,7 +2481,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 If data in both corresponding DataFrame locations is missing the result will be missing.
                 only arithmetic binary operation has this parameter (e.g., add() has, but eq() doesn't have).
         """
-        from modin.pandas import Series
 
         # Step 1: Convert other to a Series and join on the row position with self.
         other_qc = Series(other)._query_compiler
@@ -2302,8 +2630,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Native pandas does not support binary operations between a Series and a list-like object.
 
-        from modin.pandas import Series
-        from modin.pandas.dataframe import DataFrame
         from modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios
@@ -9973,10 +10299,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if is_scalar(index):
                 index = (index,)
         elif is_scalar(index):
-            index = pd.Series([index])._query_compiler
+            # SNOW-2084670
+            # Force this query compiler to be an SFQC, since with auto-switch behavior
+            # it may become a NativeQueryCompiler.
+            index = pd.Series([index]).set_backend("Snowflake")._query_compiler
         # convert list like to series
         elif is_list_like(index):
-            index = pd.Series(index)
+            index = pd.Series(index).set_backend("Snowflake")
             if index.dtype == "bool":
                 # boolean list like indexer is always select rows by row position
                 return SnowflakeQueryCompiler(
@@ -10551,8 +10880,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
             New QueryCompiler that contains specified rows.
         """
-
-        from modin.pandas import Series
 
         # convert key to internal frame via Series
         key_frame = None
@@ -11449,7 +11776,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             # prepare label_to_value_map
             if is_scalar(value):
-                label_to_value_map = {label: value for label in self.columns}
+                if isinstance(value, (int, float, complex)):
+                    label_to_value_map: dict[
+                        str, Union[Hashable, Mapping[Any, Any], Any, Any, None]
+                    ] = {}
+                    label_to_value_map = {
+                        column: value
+                        for column, dtype in self.dtypes.items()
+                        if is_numeric_dtype(dtype) or is_object_dtype(dtype)
+                    }
+                else:
+                    label_to_value_map = {label: value for label in self.columns}
             elif isinstance(value, dict):
                 label_to_value_map = fillna_label_to_value_map(value, self.columns)
             else:

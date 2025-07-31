@@ -8,11 +8,14 @@ as `DataFrame.to_snowflake`.
 """
 
 from collections.abc import Iterable
+import functools
 from typing import Any, List, Literal, Optional, Union
 
 import modin.pandas as pd
+from modin.pandas.api.extensions import (
+    register_dataframe_accessor as _register_dataframe_accessor,
+)
 import pandas
-from modin.pandas.api.extensions import register_dataframe_accessor
 from pandas._typing import IndexLabel
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
@@ -23,6 +26,21 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
 )
 from snowflake.snowpark.row import Row
+
+register_dataframe_accessor = functools.partial(
+    _register_dataframe_accessor, backend="Snowflake"
+)
+_register_dataframe_accessor(name="to_pandas", backend="Pandas")(
+    pd.DataFrame._to_pandas
+)
+_register_dataframe_accessor(name="to_snowflake", backend="Pandas")(
+    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowflake(
+        *args, **kwargs
+    )
+)
+_register_dataframe_accessor(name="to_snowpark", backend="Pandas")(
+    lambda self, *args, **kwargs: self.move_to("Snowflake").to_snowpark(*args, **kwargs)
+)
 
 
 # Snowflake specific dataframe methods

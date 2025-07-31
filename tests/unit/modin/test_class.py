@@ -54,20 +54,27 @@ def test_class_equivalence():
     assert pd.UInt16Dtype is native_pd.UInt16Dtype
     assert pd.UInt32Dtype is native_pd.UInt32Dtype
     assert pd.UInt64Dtype is native_pd.UInt64Dtype
+    assert pd.options is native_pd.options
+    assert pd.set_option is native_pd.set_option
     # TODO: SNOW-1316523
     # Modin defines its own `modin.pandas.api.extensions` module, which overwrites the attempted re-export
     # of the native `pandas.api` module. Since our `modin.pandas` module follows this
     # structure, we also overwrite this export.
     # assert pd.api is native_pd.api
-    assert pd.array is native_pd.array
-    assert pd.eval is native_pd.eval
-    assert pd.factorize is native_pd.factorize
-    assert pd.from_dummies is native_pd.from_dummies
-    assert pd.infer_freq is native_pd.infer_freq
-    assert pd.interval_range is native_pd.interval_range
-    assert pd.options is native_pd.options
-    assert pd.period_range is native_pd.period_range
-    assert pd.set_eng_float_format is native_pd.set_eng_float_format
-    assert pd.set_option is native_pd.set_option
-    assert pd.test is native_pd.test
-    assert pd.timedelta_range is native_pd.timedelta_range
+
+    # After modin 0.33, re-exported pandas functions are wrapped in a dispatcher to support backend switching
+    reexport_functions = [
+        "array",
+        "eval",
+        "factorize",
+        "from_dummies",
+        "infer_freq",
+        "interval_range",
+        "period_range",
+        "set_eng_float_format",
+        "test",
+        "timedelta_range",
+    ]
+    for name in reexport_functions:
+        assert getattr(pd, name)._wrapped_method_for_casting is getattr(native_pd, name)
+    assert pd.array._wrapped_method_for_casting is native_pd.array

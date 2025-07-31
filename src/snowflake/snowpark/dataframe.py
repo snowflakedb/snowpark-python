@@ -27,6 +27,7 @@ from typing import (
 )
 
 import snowflake.snowpark
+import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 
@@ -135,6 +136,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrSqlExpr,
     LiteralType,
     snow_type_to_dtype_str,
+    type_string_to_type_object,
 )
 from snowflake.snowpark._internal.udf_utils import add_package_to_existing_packages
 from snowflake.snowpark._internal.utils import (
@@ -164,6 +166,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     global_counter,
     string_half_width,
+    warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
@@ -172,6 +175,7 @@ from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
+from snowflake.snowpark._internal.debug_utils import QueryProfiler
 from snowflake.snowpark.functions import (
     abs as abs_,
     col,
@@ -205,6 +209,7 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
     _NumericType,
+    _FractionalType,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -612,6 +617,7 @@ class DataFrame:
 
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
+        self._ops_after_agg = None
 
         # Whether all columns are VARIANT data type,
         # which support querying nested fields via dot notations
@@ -645,6 +651,11 @@ class DataFrame:
 
         self._alias: Optional[str] = None
 
+        if context._debug_eager_schema_validation:
+            # Getting the plan attributes may run a describe query
+            # and populates the schema for the dataframe.
+            self._plan.attributes
+
     def _set_ast_ref(self, dataframe_expr_builder: Any) -> None:
         """
         Given a field builder expression of the AST type Expr, points the builder to reference this dataframe.
@@ -669,7 +680,7 @@ class DataFrame:
     def _ast_id(self, value: Optional[int]) -> None:
         self.__ast_id = value
         if self._plan is not None:
-            self._plan.df_ast_id = value
+            self._plan.add_df_ast_id(value)
         if self._select_statement is not None:
             self._select_statement.add_df_ast_id(value)
 
@@ -1069,7 +1080,9 @@ class DataFrame:
         # e.g., session.sql("create ...").to_pandas()
         if block:
             if not isinstance(result, pandas.DataFrame):
-                return pandas.DataFrame(result)
+                return pandas.DataFrame(
+                    result, columns=[attr.name for attr in self._plan.attributes]
+                )
 
         return result
 
@@ -1324,7 +1337,8 @@ class DataFrame:
                 all columns except ones configured in index_col.
             enforce_ordering: If False, Snowpark pandas will provide relaxed consistency and ordering guarantees for the returned
                 DataFrame object. Otherwise, strict consistency and ordering guarantees are provided. Please refer to the
-                documentation of :func:`~modin.pandas.read_snowflake` for more details.
+                documentation of :func:`~modin.pandas.read_snowflake` for more details. If DDL or DML queries have been
+                used in this query this parameter is ignored and ordering is enforced.
 
 
         Returns:
@@ -1406,8 +1420,16 @@ class DataFrame:
                 )
             if columns is not None:
                 ast.columns.extend(columns if isinstance(columns, list) else [columns])
+        has_existing_ddl_dml_queries = False
+        if not enforce_ordering and len(self.queries["queries"]) > 1:
+            has_existing_ddl_dml_queries = True
+            warning(
+                "enforce_ordering_ddl",
+                "enforce_ordering is enabled when using DML/DDL operations regardless of user setting",
+                warning_times=1,
+            )
 
-        if enforce_ordering:
+        if enforce_ordering or has_existing_ddl_dml_queries:
             # create a temporary table out of the current snowpark dataframe
             temporary_table_name = random_name_for_temp_object(
                 TempObjectType.TABLE
@@ -1429,11 +1451,6 @@ class DataFrame:
                 enforce_ordering=True,
             )  # pragma: no cover
         else:
-            if len(self.queries["queries"]) > 1:
-                raise NotImplementedError(
-                    "Setting 'enforce_ordering=False' in 'to_snowpark_pandas' is not supported when the input "
-                    "dataframe includes DDL or DML operations. Please use 'enforce_ordering=True' instead."
-                )
             snowpandas_df = pd.read_snowflake(
                 name_or_query=self.queries["queries"][0],
                 index_col=index_col,
@@ -1567,6 +1584,8 @@ class DataFrame:
 
         names = []
         table_func = None
+        table_func_col_names = None
+        string_col_names = []
         join_plan = None
 
         ast_cols = []
@@ -1581,6 +1600,8 @@ class DataFrame:
                     )
                 else:
                     names.append(e._named())
+                if isinstance(e._expression, (Attribute, UnresolvedAttribute)):
+                    string_col_names.append(e._expression.name)
                 if _emit_ast and _ast_stmt is None:
                     ast_cols.append(e._ast)
 
@@ -1595,6 +1616,7 @@ class DataFrame:
                     e, _ast=col_expr_ast, _is_qualified_name=self._all_variant_cols
                 )
                 names.append(col._named())
+                string_col_names.append(e)
 
             elif isinstance(e, TableFunctionCall):
                 if table_func:
@@ -1612,7 +1634,9 @@ class DataFrame:
                 func_expr = _create_table_function_expression(func=table_func)
 
                 if isinstance(e, _ExplodeFunctionCall):
-                    new_cols, alias_cols = _get_cols_after_explode_join(e, self._plan)
+                    new_cols, alias_cols = _get_cols_after_explode_join(
+                        e, self._plan, self._select_statement
+                    )
                 else:
                     # this join plan is created here to extract output columns after the join. If a better way
                     # to extract this information is found, please update this function.
@@ -1630,31 +1654,57 @@ class DataFrame:
                 #
                 # Therefore if columns names are aliased, then subsequent select must use the aliased name.
                 names.extend(alias_cols or new_cols)
-                new_col_names = [
+                table_func_col_names = [
                     self._session._analyzer.analyze(col, {}) for col in new_cols
                 ]
-
-                # a special case when dataframe.select only selects the output of table
-                # function join, we set left_cols = []. This is done in-order to handle the
-                # overlapping column case of DF and table function output with no aliases.
-                # This generates a sql like so,
-                #
-                #     SELECT T_RIGHT."COL1" FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
-                #
-                # In the above case, if the original DF had a column named "COL1", we would not
-                # have any collisions.
-                join_plan = self._session._analyzer.resolve(
-                    TableFunctionJoin(
-                        self._plan,
-                        func_expr,
-                        left_cols=[] if len(exprs) == 1 else ["*"],
-                        right_cols=new_col_names,
-                    )
-                )
             else:
                 raise TypeError(
                     "The input of select() must be Column, column name, TableFunctionCall, or a list of them"
                 )
+
+        if table_func is not None:
+            """
+            When the select statement contains a table function, and all columns are strings, we can generate
+            a better SQL query that does not have any collisions.
+                SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+
+            Case 1:
+                df.select(table_function(...))
+
+            This is a special case when dataframe.select only selects the output of table
+            function join, we set left_cols = []. This is done in-order to handle the
+            overlapping column case of DF and table function output with no aliases.
+            This generates a sql like so:
+                SELECT T_RIGHT."COL1" FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+
+            Case 2:
+                df.select("col1", "col2", table_function(...))
+
+            In this case, all columns are strings except for the table function. This is a simpler case
+            where generating the join plan like below is simple.
+                SELECT T_LEFT."COL1", T_LEFT."COL2", T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+
+            Case 3:
+                df.select(col("col1"), col("col2").cast(IntegerType()), table_function(...))
+
+            In this case, the ideal SQL generation would be
+                SELECT T_LEFT."COL1", CAST(T_LEFT."COL2" AS INTEGER), T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+            However, this is not possible with the current SQL generation so we generate the join plan like below.
+                SELECT T_LEFT.*, T_RIGHT."COL1" AS "COL1_ALIASED", ... FROM () AS T_LEFT JOIN TABLE() AS T_RIGHT
+            """
+            if len(string_col_names) + 1 == len(exprs):
+                # This covers both Case 1 and Case 2.
+                left_cols = string_col_names
+            else:
+                left_cols = ["*"]
+            join_plan = self._session._analyzer.resolve(
+                TableFunctionJoin(
+                    self._plan,
+                    func_expr,
+                    left_cols=left_cols,
+                    right_cols=table_func_col_names,
+                )
+            )
 
         # AST.
         stmt = _ast_stmt
@@ -1916,18 +1966,43 @@ class DataFrame:
             else:
                 stmt = _ast_stmt
 
-        if self._select_statement:
+        # In snowpark_connect_compatible mode, we need to handle
+        # the filtering for dataframe after aggregation without nesting using HAVING
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._ops_after_agg is not None
+            and "filter" not in self._ops_after_agg
+        ):
+            having_plan = Filter(filter_col_expr, self._plan, is_having=True)
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            having_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(having_plan, _ast_stmt=stmt)
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("filter")
+            return df
+        else:
+            if self._select_statement:
+                return self._with_plan(
+                    self._select_statement.filter(filter_col_expr),
+                    _ast_stmt=stmt,
+                )
             return self._with_plan(
-                self._select_statement.filter(filter_col_expr),
+                Filter(
+                    filter_col_expr,
+                    self._plan,
+                    is_having=False,
+                ),
                 _ast_stmt=stmt,
             )
-        return self._with_plan(
-            Filter(
-                filter_col_expr,
-                self._plan,
-            ),
-            _ast_stmt=stmt,
-        )
 
     @df_api_usage
     @publicapi
@@ -2057,16 +2132,42 @@ class DataFrame:
                     SortOrder(exprs[idx], orders[idx] if orders else Ascending())
                 )
 
-        df = (
-            self._with_plan(self._select_statement.sort(sort_exprs))
-            if self._select_statement
-            else self._with_plan(Sort(sort_exprs, self._plan))
-        )
+        # In snowpark_connect_compatible mode, we need to handle
+        # the sorting for dataframe after aggregation without nesting
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._ops_after_agg is not None
+            and "sort" not in self._ops_after_agg
+        ):
+            sort_plan = Sort(sort_exprs, self._plan, is_order_by_append=True)
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            sort_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(sort_plan, _ast_stmt=stmt)
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("sort")
+            return df
+        else:
+            df = (
+                self._with_plan(self._select_statement.sort(sort_exprs))
+                if self._select_statement
+                else self._with_plan(
+                    Sort(sort_exprs, self._plan, is_order_by_append=False)
+                )
+            )
 
-        if _emit_ast:
-            df._ast_id = stmt.uid
+            if _emit_ast:
+                df._ast_id = stmt.uid
 
-        return df
+            return df
 
     @experimental(version="1.5.0")
     @publicapi
@@ -2758,13 +2859,39 @@ class DataFrame:
         else:
             stmt = None
 
-        if self._select_statement:
-            return self._with_plan(
-                self._select_statement.limit(n, offset=offset), _ast_stmt=stmt
+        # In snowpark_connect_compatible mode, we need to handle
+        # the limit for dataframe after aggregation without nesting
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._ops_after_agg is not None
+            and "limit" not in self._ops_after_agg
+        ):
+            limit_plan = Limit(
+                Literal(n), Literal(offset), self._plan, is_limit_append=True
             )
-        return self._with_plan(
-            Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
-        )
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            limit_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(limit_plan, _ast_stmt=stmt)
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("limit")
+            return df
+        else:
+            if self._select_statement:
+                return self._with_plan(
+                    self._select_statement.limit(n, offset=offset), _ast_stmt=stmt
+                )
+            return self._with_plan(
+                Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
+            )
 
     @df_api_usage
     @publicapi
@@ -4877,6 +5004,13 @@ class DataFrame:
                     )
                     + "}"
                 )
+            elif isinstance(cell, float) and isinstance(datatype, _FractionalType):
+                if cell == float("inf"):
+                    res = "Infinity"
+                elif cell == float("-inf"):
+                    res = "-Infinity"
+                else:
+                    res = str(cell).replace("e+", "E").replace("e-", "E-")
             else:
                 res = str(cell)
             return res.replace("\n", "\\n")
@@ -6003,6 +6137,22 @@ class DataFrame:
 
         if _emit_ast:
             cached_df._ast_id = stmt.uid
+
+        # Preserve query history from the original dataframe for profiling
+        if (
+            self._session.dataframe_profiler._query_history is not None
+            and self._plan.uuid
+            in self._session.dataframe_profiler._query_history._dataframe_queries
+        ):
+            # Copy the original dataframe's query history to the cached dataframe's UUID
+            original_queries = (
+                self._session.dataframe_profiler._query_history._dataframe_queries[
+                    self._plan.uuid
+                ]
+            )
+            self._session.dataframe_profiler._query_history._dataframe_queries[
+                cached_df._plan.uuid
+            ] = original_queries.copy()
         return cached_df
 
     @publicapi
@@ -6143,6 +6293,30 @@ class DataFrame:
                     df._ast_id = obj_stmt.uid
 
             return res_dfs
+
+    @experimental(version="1.36.0")
+    def get_execution_profile(self, output_file: Optional[str] = None) -> None:
+        """
+        Get the execution profile of the dataframe. Output is written to the file specified by output_file if provided,
+        otherwise it is written to the console.
+        """
+        if self._session.dataframe_profiler._query_history is None:
+            _logger.warning(
+                "No query history found. Enable dataframe profiler using session.dataframe_profiler.enable()"
+            )
+            return
+        query_history = self._session.dataframe_profiler._query_history
+        if self._plan.uuid not in query_history.dataframe_queries:
+            _logger.warning(
+                f"No queries found for dataframe with plan uuid {self._plan.uuid}. Make sure to evaluate the dataframe before calling get_execution_profile."
+            )
+            return
+        try:
+            profiler = QueryProfiler(self._session, output_file)
+            for query_id in query_history.dataframe_queries[self._plan.uuid]:
+                profiler.profile_query(query_id)
+        finally:
+            profiler.close()
 
     @property
     def queries(self) -> Dict[str, List[str]]:
@@ -6289,7 +6463,7 @@ Query List:
 
         def convert(col: ColumnOrName) -> Expression:
             if isinstance(col, str):
-                return self._resolve(col)
+                return Column(col)._expression
             elif isinstance(col, Column):
                 return col._expression
             else:
@@ -6642,3 +6816,125 @@ def map(
     return dataframe.join_table_function(
         map_udtf(*df_columns).over(partition_by=partition_by)
     ).select(*output_columns)
+
+
+def map_in_pandas(
+    dataframe: DataFrame,
+    func: Callable,
+    schema: Union[StructType, str],
+    *,
+    partition_by: Optional[Union[ColumnOrName, List[ColumnOrName]]] = None,
+    imports: Optional[List[Union[str, Tuple[str, str]]]] = None,
+    packages: Optional[List[Union[str, ModuleType]]] = None,
+    immutable: bool = False,
+    max_batch_size: Optional[int] = None,
+):
+    """Returns a new DataFrame with the result of applying `func` to each batch of data in
+    the dataframe. Func is expected to be a python function that takes an iterator of pandas
+    DataFrames as both input and provides them as output. Number of input and output DataFrame
+    batches can be different.
+
+    This function registers a temporary `UDTF
+    <https://docs.snowflake.com/en/developer-guide/udf/python/udf-python-tabular-functions>`_
+
+    Args:
+        dataframe: The DataFrame instance.
+        func: A function to be applied to the batches of rows.
+        schema: A StructType or type string that represents the expected output schema
+            of the `func` parameter.
+        partition_by: A column or list of columns that will be used to partition the data
+            before passing it to the func.
+        imports: A list of imports that are required to run the function. This argument is passed
+            on when registering the UDTF.
+        packages: A list of packages that are required to run the function. This argument is passed
+            on when registering the UDTF.
+        immutable: A flag to specify if the result of the func is deterministic for the same input.
+        max_batch_size: The maximum number of rows per input pandas DataFrame when using vectorized option.
+
+    Example 1::
+
+        >>> from snowflake.snowpark.dataframe import map_in_pandas
+        >>> df = session.create_dataframe([(1, 21), (2, 30), (3, 30)], schema=["ID", "AGE"])
+        >>> def filter_func(iterator):
+        ...     for pdf in iterator:
+        ...         yield pdf[pdf.ID == 1]
+        ...
+        >>> map_in_pandas(df, filter_func, df.schema).show()
+        ----------------
+        |"ID"  |"AGE"  |
+        ----------------
+        |1     |21     |
+        ----------------
+        <BLANKLINE>
+
+    Example 2::
+
+        >>> def mean_age(iterator):
+        ...     for pdf in iterator:
+        ...         yield pdf.groupby("ID").mean().reset_index()
+        ...
+        >>> map_in_pandas(df, mean_age, "ID: bigint, AGE: double").order_by("ID").show()
+        ----------------
+        |"ID"  |"AGE"  |
+        ----------------
+        |1     |21.0   |
+        |2     |30.0   |
+        |3     |30.0   |
+        ----------------
+        <BLANKLINE>
+
+    Example 3::
+
+        >>> def double_age(iterator):
+        ...     for pdf in iterator:
+        ...         pdf["DOUBLE_AGE"] = pdf["AGE"] * 2
+        ...         yield pdf
+        ...
+        >>> map_in_pandas(df, double_age, "ID: bigint, AGE: bigint, DOUBLE_AGE: bigint").order_by("ID").show()
+        -------------------------------
+        |"ID"  |"AGE"  |"DOUBLE_AGE"  |
+        -------------------------------
+        |1     |21     |42            |
+        |2     |30     |60            |
+        |3     |30     |60            |
+        -------------------------------
+        <BLANKLINE>
+
+    Example 4::
+
+        >>> def count(iterator):
+        ...     for pdf in iterator:
+        ...         rows, _ = pdf.shape
+        ...         pdf["COUNT"] = rows
+        ...         yield pdf
+        >>> map_in_pandas(df, count, "ID: bigint, AGE: bigint, COUNT: bigint", partition_by="AGE", max_batch_size=2).order_by("ID").show()
+        --------------------------
+        |"ID"  |"AGE"  |"COUNT"  |
+        --------------------------
+        |1     |21     |1        |
+        |2     |30     |2        |
+        |3     |30     |2        |
+        --------------------------
+        <BLANKLINE>
+    """
+    if isinstance(schema, str):
+        schema = type_string_to_type_object(schema)
+
+    partition_by = partition_by or dataframe.columns
+
+    def wrapped_func(input):  # pragma: no cover
+        import pandas
+
+        return pandas.concat(func([input]))
+
+    return dataframe.group_by(partition_by).applyInPandas(
+        wrapped_func,
+        schema,
+        imports=imports,
+        packages=packages,
+        immutable=immutable,
+        max_batch_size=max_batch_size,
+    )
+
+
+mapInPandas = map_in_pandas

@@ -13,10 +13,6 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Cursor,
 )
 from snowflake.snowpark._internal.type_utils import NoneType
-from snowflake.snowpark._internal.utils import (
-    random_name_for_temp_object,
-    TempObjectType,
-)
 from snowflake.snowpark.functions import to_variant, parse_json, column
 from snowflake.snowpark.types import (
     StructType,
@@ -110,18 +106,26 @@ BASE_PYMYSQL_TYPE_TO_SNOW_TYPE = {
 
 
 class PymysqlDriver(BaseDriver):
-    def infer_schema_from_description(
-        self, table_or_query: str, cursor: "Cursor", is_query: bool
-    ) -> StructType:
-        if is_query:
-            random_table_alias = random_name_for_temp_object(TempObjectType.TABLE)
-            cursor.execute(
-                f"select {random_table_alias}.* from ({table_or_query}) {random_table_alias} limit {_MYSQL_INFER_TYPE_SAMPLE_LIMIT}"
-            )
-        else:
-            cursor.execute(
-                f"select * from `{table_or_query}` limit {_MYSQL_INFER_TYPE_SAMPLE_LIMIT}"
-            )
+    @staticmethod
+    def generate_infer_schema_sql(
+        table_or_query: str, is_query: bool, query_input_alias: str
+    ):
+        return (
+            f"SELECT * FROM ({table_or_query}) {query_input_alias} LIMIT {_MYSQL_INFER_TYPE_SAMPLE_LIMIT}"
+            if is_query
+            else f"SELECT * FROM `{table_or_query}` LIMIT {_MYSQL_INFER_TYPE_SAMPLE_LIMIT}"
+        )
+
+    def get_raw_schema(
+        self,
+        table_or_query: str,
+        cursor: "Cursor",
+        is_query: bool,
+        query_input_alias: str,
+    ) -> None:
+        cursor.execute(
+            self.generate_infer_schema_sql(table_or_query, is_query, query_input_alias)
+        )
         data = cursor.fetchall()
         raw_schema = cursor.description
         raw_types = self.infer_type_from_data(data, len(raw_schema))
@@ -133,7 +137,6 @@ class PymysqlDriver(BaseDriver):
             processed_raw_schema.append(new_col)
 
         self.raw_schema = processed_raw_schema
-        return self.to_snow_type(processed_raw_schema)
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         """

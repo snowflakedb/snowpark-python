@@ -23,6 +23,9 @@ from snowflake.snowpark.types import (
     DataType,
     DateType,
     DecimalType,
+    DoubleType,
+    FileType,
+    FloatType,
     GeographyType,
     GeometryType,
     MapType,
@@ -34,7 +37,6 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
-    FileType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -128,7 +130,10 @@ def to_sql(
     if isinstance(datatype, _IntegralType):
         if value is None:
             return "NULL :: INT"
-    if isinstance(datatype, _FractionalType):
+    if isinstance(datatype, DecimalType):
+        if value is None:
+            return f"NULL :: DECIMAL({datatype.precision},{datatype.scale})"
+    if isinstance(datatype, (FloatType, DoubleType)):
         if value is None:
             return "NULL :: FLOAT"
     if isinstance(datatype, StringType):

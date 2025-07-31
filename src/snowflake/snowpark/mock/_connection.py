@@ -314,6 +314,7 @@ class MockServerConnection:
                 "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
                 "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
                 "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
+                "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES": True,
             }
         )
         self._active_account = self._options.get(
@@ -724,6 +725,8 @@ class MockServerConnection:
         notify_kwargs = {"requestId": str(uuid.uuid4())}
         if DATAFRAME_AST_PARAMETER in kwargs:
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        if "dataframe_uuid" in kwargs:
+            notify_kwargs["dataframe_uuid"] = kwargs["dataframe_uuid"]
         from snowflake.snowpark.query_history import QueryRecord
 
         self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
@@ -791,6 +794,8 @@ class MockServerConnection:
         notify_kwargs = {"requestId": str(uuid.uuid4())}
         if DATAFRAME_AST_PARAMETER in kwargs:
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        if "dataframe_uuid" in kwargs:
+            notify_kwargs["dataframe_uuid"] = kwargs["dataframe_uuid"]
         from snowflake.snowpark.query_history import QueryRecord
 
         self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)

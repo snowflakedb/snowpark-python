@@ -1,6 +1,138 @@
 # Release History
 
-## 1.33.0 (YYYY-MM-DD)
+## 1.36.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- `Session.create_dataframe` now accepts keyword arguments that are forwarded to the internal call to `Session.write_pandas` or `Session.write_arrow` when creating a DataFrame from a pandas DataFrame or a pyarrow Table.
+- Added new APIs for `AsyncJob`:
+  - `AsyncJob.is_failed()` returns a `bool` indicating if a job has failed. Can be used in combination with `AsyncJob.is_done()` to determine if a job is finished and errored.
+  - `AsyncJob.status()` returns a string representing the current query status (e.g., "RUNNING", "SUCCESS", "FAILED_WITH_ERROR") for detailed monitoring without calling `result()`.
+- Added a dataframe profiler. To use, you can call get_execution_profile() on your desired dataframe. This profiler reports the queries executed to evaluate a dataframe, and statistics about each of the query operators. Currently an experimental feature
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
+
+#### Bug Fixes
+
+- Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically.
+
+## 1.35.0 (2025-07-24)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following functions in `functions.py`:
+  - `ai_embed`
+  - `try_parse_json`
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` accept illegal schema.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` does not work when connecting to Postgres and Mysql.
+- Fixed a bug in schema inference that would cause it to fail for external stages.
+
+#### Improvements
+
+- Improved `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+- Improved error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added local testing support for reading files with `SnowflakeFile` using local file paths, the Snow URL semantic (snow://...), local testing framework stages, and Snowflake stages (@stage/file_path).
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `DataFrame.boxplot`.
+
+#### Improvements
+
+- Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
+- Added an example for reading a file from a stage in the docstring for `pd.read_excel`.
+
+#### Bug Fixes
+
+- Added an upper bound to the row estimation when the cartesian product from an align or join results in a very large number. This mitigates a performance regression.
+- Fix a `pd.read_excel` bug when reading files inside stage inner directory.
+
+## 1.34.0 (2025-07-15)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added a new option `TRY_CAST` to `DataFrameReader`. When `TRY_CAST` is True columns are wrapped in a `TRY_CAST` statement rather than a hard cast when loading data.
+- Added a new option `USE_RELAXED_TYPES` to the `INFER_SCHEMA_OPTIONS` of `DataFrameReader`. When set to True this option casts all strings to max length strings and all numeric types to `DoubleType`.
+- Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
+- Added a new function `snowflake.snowpark.dataframe.map_in_pandas` that allows users map a function across a dataframe. The mapping function takes an iterator of pandas dataframes as input and provides one as output.
+- Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
+- Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
+- Added a new function `snowflake.snowpark.functions.model` that allows users to call methods of a model.
+
+#### Improvements
+
+- Added support for row validation using XSD schema using `rowValidationXSDPath` option when reading XML files with a row tag using `rowTag` option.
+- Improved SQL generation for `session.table().sample()` to generate a flat SQL statement.
+- Added support for complex column expression as input for `functions.explode`.
+- Added debuggability improvements to show which Python lines an SQL compilation error corresponds to. Enable it using `snowflake.snowpark.context.configure_development_features()`. This feature also depends on AST collection to be enabled in the session which can be done using `session.ast_enabled = True`.
+- Set enforce_ordering=True when calling `to_snowpark_pandas()` from a snowpark dataframe containing DML/DDL queries instead of throwing a NotImplementedError.
+
+#### Bug Fixes
+
+- Fixed a bug caused by redundant validation when creating an iceberg table.
+- Fixed a bug in `DataFrameReader.dbapi` (PrPr) where closing the cursor or connection could unexpectedly raise an error and terminate the program.
+- Fixed ambiguous column errors when using table functions in `DataFrame.select()` that have output columns matching the input DataFrame's columns. This improvement works when dataframe columns are provided as `Column` objects.
+- Fixed a bug where having a NULL in a column with DecimalTypes would cast the column to FloatTypes instead and lead to precision loss.
+
+### Snowpark Local Testing Updates
+
+#### Bug Fixes
+
+- Fixed a bug when processing windowed functions that lead to incorrect indexing in results.
+- When a scalar numeric is passed to fillna we will ignore non-numeric columns instead of producing an error.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `DataFrame.to_excel` and `Series.to_excel`.
+- Added support for `pd.read_feather`, `pd.read_orc`, and `pd.read_stata`.
+- Added support for `pd.explain_switch()` to return debugging information on hybrid execution decisions.
+- Support `pd.read_snowflake` when the global modin backend is `Pandas`.
+- Added support for `pd.to_dynamic_table`, `pd.to_iceberg`, and `pd.to_view`.
+
+#### Improvements
+
+- Added modin telemetry on API calls and hybrid engine switches.
+- Show more helpful error messages to Snowflake Notebook users when the `modin` or `pandas` version does not match our requirements.
+- Added a data type guard to the cost functions for hybrid execution mode (PrPr) which checks for data type compatibility.
+- Added automatic switching to the pandas backend in hybrid execution mode (PrPr) for many methods that are not directly implemented in Snowpark pandas.
+- Set the 'type' and other standard fields for Snowpark pandas telemetry.
+
+#### Dependency Updates
+
+- Added tqdm and ipywidgets as dependencies so that progress bars appear when switching between modin backends.
+- Updated the supported `modin` versions to >=0.33.0 and <0.35.0 (was previously >= 0.32.0 and <0.34.0).
+
+#### Bug Fixes
+
+- Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
+- Fixed a bug in hybrid execution mode (PrPr) where calling numpy operations like `np.where` on modin objects with the Pandas backend would raise an `AttributeError`. This fix requires `modin` version 0.34.0 or newer.
+- Fixed issue in `df.melt` where the resulting values have an additional suffix applied.
+
+## 1.33.0 (2025-06-19)
 
 ### Snowpark Python API Updates
 
@@ -9,33 +141,72 @@
 - Added support for MySQL in `DataFrameWriter.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
 - Added support for PostgreSQL in `DataFrameReader.dbapi` (PrPr) for both Parquet and UDTF-based ingestion.
 - Added support for Databricks in `DataFrameWriter.dbapi` (PrPr) for UDTF-based ingestion.
+- Added support to `DataFrameReader` to enable use of `PATTERN` when reading files with `INFER_SCHEMA` enabled.
+- Added support for the following AI-powered functions in `functions.py`:
+  - `ai_complete`
+  - `ai_similarity`
+  - `ai_summarize_agg` (originally `summarize_agg`)
+  - different config options for `ai_classify`
+- Added support for more options when reading XML files with a row tag using `rowTag` option:
+  - Added support for removing namespace prefixes from col names using `ignoreNamespace` option.
+  - Added support for specifying the prefix for the attribute column in the result table using `attributePrefix` option.
+  - Added support for excluding attributes from the XML element using `excludeAttributes` option.
+  - Added support for specifying the column name for the value when there are attributes in an element that has no child elements using `valueTag` option.
+  - Added support for specifying the value to treat as a ``null`` value using `nullValue` option.
+  - Added support for specifying the character encoding of the XML file using `charset` option.
+  - Added support for ignoring surrounding whitespace in the XML element using `ignoreSurroundingWhitespace` option.
+- Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
+- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
+- Added support for retrieving `Edge.properties` when retrieving lineage from `DGQL` in `DataFrame.lineage.trace`.
+- Added a parameter `table_exists` to `DataFrameWriter.save_as_table` that allows specifying if a table already exists. This allows skipping a table lookup that can be expensive.
 
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where the `create_connection` defined as local function was incompatible with multiprocessing.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) where databricks `TIMESTAMP` type was converted to Snowflake `TIMESTAMP_NTZ` type which should be `TIMESTAMP_LTZ` type.
+- Fixed a bug in `DataFrameReader.json` where repeated reads with the same reader object would create incorrectly quoted columns.
+- Fixed a bug in `DataFrame.to_pandas()` that would drop column names when converting a dataframe that did not originate from a select statement.
+- Fixed a bug that `DataFrame.create_or_replace_dynamic_table` raises error when the dataframe contains a UDTF and `SELECT *` in UDTF not being parsed correctly.
+- Fixed a bug where casted columns could not be used in the values-clause of in functions.
 
 #### Improvements
 
-- Added support for reading XML files with namespaces using `rowTag` and `stripNamespaces` options.
-- Added support for specifying the prefix for the attribute column in the result table when reading XML files using `rowTag` and  `attributePrefix` option.
-- Added support for parameter `return_dataframe` in `Session.call`, which can be used to set the return type of the functions to a `DataFrame` object.
-- Added a new argument to `Dataframe.describe` called `strings_include_math_stats` that triggers `stddev` and `mean` to be calculated for String columns.
 - Improved the error message for `Session.write_pandas()` and `Session.create_dataframe()` when the input pandas DataFrame does not have a column.
+- Improved `DataFrame.select` when the arguments contain a table function with output columns that collide with columns of current dataframe. With the improvement, if user provides non-colliding columns in `df.select("col1", "col2", table_func(...))` as string arguments, then the query generated by snowpark client will not raise ambiguous column error.
+- Improved `DataFrameReader.dbapi` (PrPr) to use in-memory Parquet-based ingestion for better performance and security.
+- Improved `DataFrameReader.dbapi` (PrPr) to use `MATCH_BY_COLUMN_NAME=CASE_SENSITIVE` in copy into table operation.
 
 ### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support for snow urls (snow://) in local file testing.
 
 #### Bug Fixes
 
 - Fixed a bug in `Column.isin` that would cause incorrect filtering on joined or previously filtered data.
+- Fixed a bug in `snowflake.snowpark.functions.concat_ws` that would cause results to have an incorrect index.
 
 ### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Updated `modin` dependency constraint from 0.32.0 to >=0.32.0, <0.34.0. The latest version tested with Snowpark pandas is `modin` 0.33.1.
+
+#### New Features
+
+- Added support for **Hybrid Execution (PrPr)**. By running `from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()`, Snowpark pandas will automatically choose whether to run certain pandas operations locally or on Snowflake. This feature is disabled by default.
 
 #### Improvements
 
 - Set the default value of the `index` parameter to `False` for `DataFrame.to_view`, `Series.to_view`, `DataFrame.to_dynamic_table`, and `Series.to_dynamic_table`.
 - Added `iceberg_version` option to table creation functions.
 - Reduced query count for many operations, including `insert`, `repr`, and `groupby`, that previously issued a query to retrieve the input data's size.
+
+#### Bug Fixes
+
+- Fixed a bug in `Series.where` when the `other` parameter is an unnamed `Series`.
+
 
 ## 1.32.0 (2025-05-15)
 
@@ -54,6 +225,7 @@
 
 - Fixed a bug in `DataFrameWriter.dbapi` (PrPr) that unicode or double-quoted column name in external database causes error because not quoted correctly.
 - Fixed a bug where named fields in nested OBJECT data could cause errors when containing spaces.
+- Fixed a bug duplicated `native_app_params` parameters in register udaf function.
 
 ### Snowpark Local Testing Updates
 
@@ -1849,7 +2021,7 @@ This is a re-release of 1.22.0. Please refer to the 1.22.0 release notes for det
 ### Bug Fixes
 
 - Fixed a bug that overwrote `paramstyle` to `qmark` when creating a Snowpark session.
-- Fixed a bug where `df.join(..., how="cross")` fails with `SnowparkJoinException: (1112): Unsupported using join type 'Cross'`.
+- Fixed a bug where `df.join(..., how="cross")` fails with `SnowparkJoinException: (1112): Unsupported using join type 'Cross'`.
 - Fixed a bug where querying a `DataFrame` column created from chained function calls used a wrong column name.
 
 ## 1.1.0 (2023-01-26)

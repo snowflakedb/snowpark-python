@@ -26,9 +26,12 @@ from snowflake.snowpark.functions import (
     stddev_pop,
     sum as sum_,
     upper,
+    grouping,
+    grouping_id,
 )
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 from snowflake.snowpark.types import DoubleType, IntegerType, StructType, StructField
+import snowflake.snowpark.context as context
 from tests.utils import Utils
 
 
@@ -634,3 +637,434 @@ def test_agg_on_empty_df(session):
     Utils.check_answer(
         agged_no_group_by, [Row(None, 0, 0, "", None, None, None, None, None, None)]
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="HAVING clause is not supported in local testing mode",
+)
+def test_agg_filter_snowpark_connect_compatible(session):
+    original_value = context._is_snowpark_connect_compatible_mode
+
+    try:
+        context._is_snowpark_connect_compatible_mode = True
+        df = session.create_dataframe(
+            [(1, 2, 3), (3, 2, 1), (3, 2, 1)], ["a", "b", "c"]
+        )
+        df1 = df.group_by("a").agg(sum_("c")).filter(count("a") > 1)
+        assert "HAVING" in df1.queries["queries"][0]
+        Utils.check_answer(df1, [Row(3, 2)])
+
+        # Test with grouping function
+        df2 = df.group_by("a", "b").agg(
+            sum_("c").alias("sum_c"),
+            grouping("a").alias("ga"),
+            grouping("b").alias("gb"),
+        )
+        # Filter on grouping column - should use HAVING
+        df3 = df2.filter(col("ga") == 0)
+        assert "HAVING" in df3.queries["queries"][0]
+        Utils.check_answer(df3, [Row(1, 2, 3, 0, 0), Row(3, 2, 2, 0, 0)])
+
+        # original behavior on dataframe without group by
+        with pytest.raises(
+            SnowparkSQLException, match="Invalid aggregate function in where clause"
+        ):
+            df.filter(count("a") > 1).collect()
+
+        # Test that filtering on grouping without group by is invalid
+        with pytest.raises(
+            SnowparkSQLException, match="GROUPING function without a GROUP BY"
+        ):
+            df.filter(grouping("a") == 0).collect()
+
+        Utils.check_answer(df.filter(col("a") > 1), [Row(3, 2, 1), Row(3, 2, 1)])
+    finally:
+        context._is_snowpark_connect_compatible_mode = original_value
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ORDER BY append is not supported in local testing mode",
+)
+def test_agg_sort_snowpark_connect_compatible(session):
+    original_value = context._is_snowpark_connect_compatible_mode
+
+    try:
+        context._is_snowpark_connect_compatible_mode = True
+        df = session.create_dataframe(
+            [(1, 2, 3), (3, 2, 1), (3, 2, 1)], ["a", "b", "c"]
+        )
+        df1 = df.group_by("a").agg(sum_("c")).sort("a", ascending=False)
+        Utils.check_answer(df1, [Row(3, 2), Row(1, 3)])
+
+        # Test with grouping function
+        df2 = df.group_by("a", "b").agg(
+            sum_("c").alias("sum_c"),
+            grouping("a").alias("ga"),
+            grouping("b").alias("gb"),
+        )
+        # Sort on grouping column
+        df3 = df2.sort(col("ga").desc(), col("gb").desc())
+        Utils.check_answer(df3, [Row(1, 2, 3, 0, 0), Row(3, 2, 2, 0, 0)])
+
+        # Test that sorting on grouping without group by is invalid
+        with pytest.raises(
+            SnowparkSQLException, match="GROUPING function without a GROUP BY"
+        ):
+            df.sort(grouping("a")).collect()
+
+        # original behavior on dataframe without group by
+        df4 = df.sort(col("a"))
+        Utils.check_answer(df4, [Row(1, 2, 3), Row(3, 2, 1), Row(3, 2, 1)])
+    finally:
+        context._is_snowpark_connect_compatible_mode = original_value
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="HAVING and ORDER BY append are not supported in local testing mode",
+)
+def test_agg_filter_and_sort_with_grouping_snowpark_connect_compatible(session):
+    original_value = context._is_snowpark_connect_compatible_mode
+
+    try:
+        context._is_snowpark_connect_compatible_mode = True
+        df = session.create_dataframe(
+            [
+                ("dotNET", 2012, 10000),
+                ("Java", 2012, 20000),
+                ("dotNET", 2012, 5000),
+                ("dotNET", 2013, 48000),
+                ("Java", 2013, 30000),
+            ],
+            ["course", "year", "earnings"],
+        )
+
+        # Test 1: cube with filter on grouping columns and orderBy
+        df1 = (
+            df.cube("course", "year")
+            .agg(
+                sum_("earnings").alias("sum_earnings"),
+                grouping("course").alias("gc"),
+                grouping("year").alias("gy"),
+                grouping_id("course", "year").alias("gid"),
+            )
+            .filter((col("gy") == 1) & (col("gid") > 0))
+            .sort("course", "year")
+        )
+
+        # Verify results
+        Utils.check_answer(
+            df1,
+            [
+                Row(None, None, 113000, 1, 1, 3),
+                Row("Java", None, 50000, 0, 1, 1),
+                Row("dotNET", None, 63000, 0, 1, 1),
+            ],
+        )
+
+        # Test 2: cube with orderBy on grouping columns
+        df2 = (
+            df.cube("course", "year")
+            .agg(
+                sum_("earnings").alias("sum_earnings"),
+                grouping("course").alias("gc"),
+                grouping("year").alias("gy"),
+            )
+            .sort(col("gc"), col("gy"), "course", "year")
+        )
+
+        # Verify results - first rows should have gc=0, gy=0
+        results2 = df2.collect()
+        assert len(results2) == 9  # 3x3 cube results
+        # Check first few rows are sorted correctly
+        assert results2[0][3] == 0 and results2[0][4] == 0  # gc=0, gy=0
+        assert results2[1][3] == 0 and results2[1][4] == 0  # gc=0, gy=0
+
+        # Test 3: rollup with filter and orderBy
+        df3 = (
+            df.rollup("course")
+            .agg(sum_("earnings").alias("sum_earnings"), grouping("course").alias("gc"))
+            .filter(col("gc") > 0)
+            .sort(col("gc"), "course")
+        )
+
+        Utils.check_answer(df3, [Row(None, 113000, 1)])
+
+        # Test 4: Complex filter and sort with multiple grouping functions
+        df4 = (
+            df.cube("course", "year")
+            .agg(
+                count("*").alias("count"),
+                grouping("course").alias("gc"),
+                grouping("year").alias("gy"),
+            )
+            .filter((col("gc") == 0) | (col("gy") == 0))
+            .sort(col("gc").desc(), col("gy").desc(), "course", "year")
+        )
+
+        # Verify results include rows where at least one grouping is 0
+        results4 = df4.collect()
+        for row in results4:
+            assert row[3] == 0 or row[4] == 0  # gc=0 or gy=0
+
+        # Test 5: Combination of multiple operations
+        df5 = (
+            df.rollup("course", "year")
+            .agg(
+                sum_("earnings").alias("sum_earnings"),
+                grouping("course").alias("gc"),
+                grouping("year").alias("gy"),
+                grouping_id("course", "year").alias("gid"),
+            )
+            .filter(col("gid") < 3)
+            .sort("gid", "course", "year")
+        )
+
+        # Verify gid values are less than 3 and sorted
+        results5 = df5.collect()
+        assert all(row[4] < 3 for row in results5)
+        # Check sorting by gid
+        for i in range(1, len(results5)):
+            assert results5[i - 1][4] <= results5[i][4]  # gid is sorted
+
+        # Test 6: cube with orderBy using grouping in sort expression
+        df6 = (
+            df.cube("course")
+            .agg(count("*").alias("count"), grouping("course").alias("gc"))
+            .sort(grouping("course").desc(), "course")
+        )
+
+        # First row should have highest grouping value (1)
+        results6 = df6.collect()
+        assert results6[0][2] == 1  # gc=1 for NULL course
+    finally:
+        context._is_snowpark_connect_compatible_mode = original_value
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="HAVING, ORDER BY append, and limit append are not supported in local testing mode",
+)
+def test_filter_sort_limit_snowpark_connect_compatible(session):
+    original_value = context._is_snowpark_connect_compatible_mode
+
+    try:
+        context._is_snowpark_connect_compatible_mode = True
+        df = session.create_dataframe(
+            [(1, 2, 3), (3, 2, 1), (3, 2, 1)], ["a", "b", "c"]
+        )
+
+        # Basic aggregation with filter, sort, limit - should be in same level
+        agg_df = df.group_by("a").agg(
+            sum_("b").alias("sum_b"), count("c").alias("count_c")
+        )
+        result_df1 = agg_df.filter(col("sum_b") > 1).sort("a").limit(10)
+
+        # Check the result
+        Utils.check_answer(result_df1, [Row(1, 2, 1), Row(3, 4, 2)])
+
+        # Check that filter, sort, and limit are in the same query level (single SELECT)
+        query1 = result_df1.queries["queries"][-1]
+        # Count SELECT statements - should be 3 for operations in same level
+        assert query1.upper().count("SELECT") == 3
+        assert "ORDER BY" in query1.upper()
+        assert "LIMIT" in query1.upper()
+        assert "HAVING" in query1.upper()
+
+        # Duplicate sort operations - second sort should be in next level
+        result_df2 = agg_df.sort("a").sort("sum_b")
+
+        # Check the result
+        Utils.check_answer(result_df2, [Row(1, 2, 1), Row(3, 4, 2)])
+
+        # Check that the second sort creates a new query level
+        query2 = result_df2.queries["queries"][-1]
+        # Should have 4 SELECT statements for nested query
+        assert query2.upper().count("SELECT") == 4
+
+        # filter.sort().limit().sort() - last sort should be in next level
+        result_df3 = (
+            agg_df.filter(col("count_c") >= 1)
+            .sort("a")
+            .limit(10)
+            .sort("sum_b", ascending=False)
+        )
+
+        # Check the result
+        Utils.check_answer(result_df3, [Row(3, 4, 2), Row(1, 2, 1)])
+
+        # Check query structure - should have nested SELECT due to sort after limit
+        query3 = result_df3.queries["queries"][-1]
+        assert query3.upper().count("SELECT") == 4
+
+        # limit().limit() - second limit should create new level
+        result_df5 = agg_df.limit(10).limit(1)
+
+        # Check the result (should return only first row)
+        assert result_df5.count() == 1
+
+        # Check query structure - nested due to second limit
+        query5 = result_df5.queries["queries"][-1]
+        assert query5.upper().count("SELECT") == 4
+
+        # Complex chain - filter().sort().limit().filter().sort()
+        result_df6 = (
+            agg_df.filter(col("sum_b") >= 2)
+            .sort("a")
+            .limit(10)
+            .filter(col("count_c") > 1)
+            .sort("sum_b", ascending=False)
+        )
+
+        # Check the result
+        Utils.check_answer(result_df6, [Row(3, 4, 2)])
+
+        # Check query structure - should have multiple levels due to operations after limit
+        query6 = result_df6.queries["queries"][-1]
+        # Should have 4 SELECT statements
+        assert query6.upper().count("SELECT") == 4
+
+    finally:
+        context._is_snowpark_connect_compatible_mode = original_value
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="exclude_grouping_columns is not supported",
+)
+def test_group_by_exclude_grouping_columns(session):
+    """Test the exclude_grouping_columns parameter for all aggregate functions."""
+
+    # Create test data
+    df = session.create_dataframe(
+        [
+            ("A", "X", 1, 100),
+            ("A", "X", 2, 200),
+            ("A", "Y", 3, 300),
+            ("B", "X", 4, 400),
+            ("B", "Y", 5, 500),
+            ("B", "Y", 6, 600),
+        ],
+        schema=["group1", "group2", "value1", "value2"],
+    )
+
+    # Test agg() with exclude_grouping_columns
+    # Default behavior (include grouping columns)
+    result_default = df.group_by("group1").agg(sum_("value1").alias("sum_v1")).collect()
+    assert len(result_default[0]) == 2  # group1 + sum_v1
+    Utils.check_answer(result_default, [Row("A", 6), Row("B", 15)])
+
+    # Exclude grouping columns
+    result_exclude = (
+        df.group_by("group1")
+        .agg(sum_("value1").alias("sum_v1"), exclude_grouping_columns=True)
+        .collect()
+    )
+    assert len(result_exclude[0]) == 1  # only sum_v1
+    print(result_exclude)
+    Utils.check_answer(result_exclude, [Row(6), Row(15)])
+
+    # Test with multiple grouping columns
+    result_multi_default = (
+        df.group_by("group1", "group2").agg(sum_("value1").alias("sum_v1")).collect()
+    )
+    assert len(result_multi_default[0]) == 3  # group1 + group2 + sum_v1
+
+    result_multi_exclude = (
+        df.group_by("group1", "group2")
+        .agg(sum_("value1").alias("sum_v1"), exclude_grouping_columns=True)
+        .collect()
+    )
+    assert len(result_multi_exclude[0]) == 1  # only sum_v1
+    # Group by produces [('A', 'X', 3), ('A', 'Y', 3), ('B', 'X', 4), ('B', 'Y', 11)]
+    Utils.check_answer(result_multi_exclude, [Row(3), Row(3), Row(4), Row(11)])
+
+    # Test with multiple aggregations
+    result_multi_agg = (
+        df.group_by("group1")
+        .agg(
+            sum_("value1").alias("sum_v1"),
+            avg("value2").alias("avg_v2"),
+            exclude_grouping_columns=True,
+        )
+        .collect()
+    )
+    assert len(result_multi_agg[0]) == 2  # sum_v1 + avg_v2
+    Utils.check_answer(result_multi_agg, [Row(6, 200.0), Row(15, 500.0)])
+
+    # Test count() with exclude_grouping_columns
+    result_count_default = df.group_by("group1").count().collect()
+    assert len(result_count_default[0]) == 2  # group1 + count
+    Utils.check_answer(result_count_default, [Row("A", 3), Row("B", 3)])
+
+    result_count_exclude = (
+        df.group_by("group1").count(exclude_grouping_columns=True).collect()
+    )
+    assert len(result_count_exclude[0]) == 1  # only count
+    Utils.check_answer(result_count_exclude, [Row(3), Row(3)])
+
+    # Test avg() with exclude_grouping_columns
+    result_avg_default = df.group_by("group1").avg("value1").collect()
+    assert len(result_avg_default[0]) == 2  # group1 + avg
+
+    result_avg_exclude = (
+        df.group_by("group1").avg("value1", exclude_grouping_columns=True).collect()
+    )
+    assert len(result_avg_exclude[0]) == 1  # only avg
+    Utils.check_answer(result_avg_exclude, [Row(2.0), Row(5.0)])
+
+    # Test sum() with exclude_grouping_columns
+    result_sum_default = df.group_by("group1").sum("value1", "value2").collect()
+    assert len(result_sum_default[0]) == 3  # group1 + sum(value1) + sum(value2)
+
+    result_sum_exclude = (
+        df.group_by("group1")
+        .sum("value1", "value2", exclude_grouping_columns=True)
+        .collect()
+    )
+    assert len(result_sum_exclude[0]) == 2  # only sums
+    Utils.check_answer(result_sum_exclude, [Row(6, 600), Row(15, 1500)])
+
+    # Test min() with exclude_grouping_columns
+    result_min_default = df.group_by("group1").min("value1").collect()
+    assert len(result_min_default[0]) == 2  # group1 + min
+
+    result_min_exclude = (
+        df.group_by("group1").min("value1", exclude_grouping_columns=True).collect()
+    )
+    assert len(result_min_exclude[0]) == 1  # only min
+    Utils.check_answer(result_min_exclude, [Row(1), Row(4)])
+
+    # Test max() with exclude_grouping_columns
+    result_max_default = df.group_by("group1").max("value1").collect()
+    assert len(result_max_default[0]) == 2  # group1 + max
+
+    result_max_exclude = (
+        df.group_by("group1").max("value1", exclude_grouping_columns=True).collect()
+    )
+    assert len(result_max_exclude[0]) == 1  # only max
+    Utils.check_answer(result_max_exclude, [Row(3), Row(6)])
+
+    # Test median() with exclude_grouping_columns
+    result_median_default = df.group_by("group1").median("value1").collect()
+    assert len(result_median_default[0]) == 2  # group1 + median
+
+    result_median_exclude = (
+        df.group_by("group1").median("value1", exclude_grouping_columns=True).collect()
+    )
+    assert len(result_median_exclude[0]) == 1  # only median
+    Utils.check_answer(result_median_exclude, [Row(2.0), Row(5.0)])
+
+    # Test function() / builtin() with exclude_grouping_columns
+    result_builtin_default = df.group_by("group1").builtin("sum")("value1").collect()
+    assert len(result_builtin_default[0]) == 2  # group1 + sum
+
+    result_builtin_exclude = (
+        df.group_by("group1")
+        .builtin("sum", exclude_grouping_columns=True)("value1")
+        .collect()
+    )
+    assert len(result_builtin_exclude[0]) == 1  # only sum
+    Utils.check_answer(result_builtin_exclude, [Row(6), Row(15)])

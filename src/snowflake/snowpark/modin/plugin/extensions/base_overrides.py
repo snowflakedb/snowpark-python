@@ -12,7 +12,7 @@ and if possible, whether this can be reconciled with upstream Modin.
 """
 from __future__ import annotations
 
-import copy
+import functools
 import pickle as pkl
 import warnings
 from collections.abc import Sequence
@@ -22,11 +22,11 @@ import modin.pandas as pd
 import numpy as np
 import numpy.typing as npt
 import pandas
-from modin.pandas import Series
-from modin.pandas.api.extensions import (
-    register_dataframe_accessor,
-    register_series_accessor,
+from modin.core.storage_formats.pandas.query_compiler_caster import (
+    register_function_for_pre_op_switch,
 )
+from modin.pandas import Series
+from modin.pandas.api.extensions import register_base_accessor
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.utils import is_scalar
 from pandas._libs import lib
@@ -66,7 +66,11 @@ from pandas.util._validators import (
     validate_percentile,
 )
 
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_34_0
 from snowflake.snowpark.modin.plugin._typing import ListLike
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
+)
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
     extract_validate_and_try_convert_named_aggs_from_kwargs,
@@ -89,47 +93,17 @@ _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
 )
 
 
-def register_base_override(method_name: str):
-    """
-    Decorator function to override a method on BasePandasDataset. Since Modin does not provide a mechanism
-    for directly overriding methods on BasePandasDataset, we mock this by performing the override on
-    DataFrame and Series, and manually performing a `setattr` on the base class. These steps are necessary
-    to allow both the docstring extension and method dispatch to work properly.
-    """
-
-    def decorator(base_method: Any):
-        parent_method = getattr(BasePandasDataset, method_name, None)
-        if isinstance(parent_method, property):
-            parent_method = parent_method.fget
-        # If the method was not defined on Series/DataFrame and instead inherited from the superclass
-        # we need to override it as well.
-        series_method = getattr(pd.Series, method_name, None)
-        if isinstance(series_method, property):
-            series_method = series_method.fget
-        if (
-            series_method is None
-            or series_method is parent_method
-            or parent_method is None
-        ):
-            register_series_accessor(method_name)(base_method)
-        df_method = getattr(pd.DataFrame, method_name, None)
-        if isinstance(df_method, property):
-            df_method = df_method.fget
-        if df_method is None or df_method is parent_method or parent_method is None:
-            register_dataframe_accessor(method_name)(base_method)
-        # Replace base method
-        setattr(BasePandasDataset, method_name, base_method)
-        return base_method
-
-    return decorator
+register_base_override = functools.partial(register_base_accessor, backend="Snowflake")
 
 
 def register_base_not_implemented():
     def decorator(base_method: Any):
-        func = base_not_implemented()(base_method)
-        register_series_accessor(base_method.__name__)(func)
-        register_dataframe_accessor(base_method.__name__)(func)
-        return func
+        name = base_method.__name__
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("BasePandasDataset", name))
+        register_function_for_pre_op_switch(
+            class_name="BasePandasDataset", backend="Snowflake", method=name
+        )
+        return register_base_override(name=name)(base_not_implemented()(base_method))
 
     return decorator
 
@@ -310,30 +284,6 @@ def to_clipboard(
 
 
 @register_base_not_implemented()
-def to_excel(
-    self,
-    excel_writer,
-    sheet_name="Sheet1",
-    na_rep="",
-    float_format=None,
-    columns=None,
-    header=True,
-    index=True,
-    index_label=None,
-    startrow=0,
-    startcol=0,
-    engine=None,
-    merge_cells=True,
-    encoding=no_default,
-    inf_rep="inf",
-    verbose=no_default,
-    freeze_panes=None,
-    storage_options: StorageOptions = None,
-):  # pragma: no cover  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
 def to_hdf(
     self, path_or_buf, key, format="table", **kwargs
 ):  # pragma: no cover  # noqa: PR01, RT01, D200
@@ -448,11 +398,6 @@ def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
 def truncate(
     self, before=None, after=None, axis=None, copy=True
 ):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
-def update(self, other) -> None:  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
@@ -819,19 +764,6 @@ def var(
         numeric_only=numeric_only,
         **kwargs,
     )
-
-
-def _set_attrs(self, value: dict) -> None:  # noqa: RT01, D200
-    # Use a field on the query compiler instead of self to avoid any possible ambiguity with
-    # a column named "_attrs"
-    self._query_compiler._attrs = copy.deepcopy(value)
-
-
-def _get_attrs(self) -> dict:  # noqa: RT01, D200
-    return self._query_compiler._attrs
-
-
-register_base_override("attrs")(property(_get_attrs, _set_attrs))
 
 
 @register_base_override("align")
@@ -1714,6 +1646,8 @@ def where(
     if isinstance(self, Series):
         self._query_compiler._shape_hint = "column"
     if isinstance(other, Series):
+        if other.name is None and isinstance(self, Series):
+            other.name = self.name
         other._query_compiler._shape_hint = "column"
 
     if not isinstance(cond, BasePandasDataset):
@@ -2375,45 +2309,48 @@ def rename_axis(
 
 
 # Snowpark pandas has custom dispatch logic for ufuncs, while modin defaults to pandas.
-@register_base_override("__array_ufunc__")
-def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
-    """
-    Apply the `ufunc` to the `BasePandasDataset`.
+# TODO delete this method once 0.33.x is no longer supported
+if not MODIN_IS_AT_LEAST_0_34_0:
 
-    Parameters
-    ----------
-    ufunc : np.ufunc
-        The NumPy ufunc to apply.
-    method : str
-        The method to apply.
-    *inputs : tuple
-        The inputs to the ufunc.
-    **kwargs : dict
-        Additional keyword arguments.
+    @register_base_override("__array_ufunc__")
+    def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
+        """
+        Apply the `ufunc` to the `BasePandasDataset`.
 
-    Returns
-    -------
-    BasePandasDataset
-        The result of the ufunc applied to the `BasePandasDataset`.
-    """
-    # Use pandas version of ufunc if it exists
-    if method != "__call__":
-        # Return sentinel value NotImplemented
+        Parameters
+        ----------
+        ufunc : np.ufunc
+            The NumPy ufunc to apply.
+        method : str
+            The method to apply.
+        *inputs : tuple
+            The inputs to the ufunc.
+        **kwargs : dict
+            Additional keyword arguments.
+
+        Returns
+        -------
+        BasePandasDataset
+            The result of the ufunc applied to the `BasePandasDataset`.
+        """
+        # Use pandas version of ufunc if it exists
+        if method != "__call__":
+            # Return sentinel value NotImplemented
+            return NotImplemented  # pragma: no cover
+        from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
+            numpy_to_pandas_universal_func_map,
+        )
+
+        if ufunc.__name__ in numpy_to_pandas_universal_func_map:
+            ufunc = numpy_to_pandas_universal_func_map[ufunc.__name__]
+            if ufunc == NotImplemented:
+                return NotImplemented
+            # We cannot support the out argument
+            if kwargs.get("out") is not None:
+                return NotImplemented
+            return ufunc(self, inputs[1:])
+        # return the sentinel NotImplemented if we do not support this function
         return NotImplemented  # pragma: no cover
-    from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
-        numpy_to_pandas_universal_func_map,
-    )
-
-    if ufunc.__name__ in numpy_to_pandas_universal_func_map:
-        ufunc = numpy_to_pandas_universal_func_map[ufunc.__name__]
-        if ufunc == NotImplemented:
-            return NotImplemented
-        # We cannot support the out argument
-        if kwargs.get("out") is not None:
-            return NotImplemented
-        return ufunc(self, inputs[1:])
-    # return the sentinel NotImplemented if we do not support this function
-    return NotImplemented  # pragma: no cover
 
 
 # Snowpark pandas does extra argument validation.

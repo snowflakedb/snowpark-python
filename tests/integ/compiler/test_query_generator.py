@@ -4,12 +4,17 @@
 
 import copy
 from typing import List
+from unittest.mock import patch
 
 import pytest
+
+import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
+
 from snowflake.connector import IntegrityError
 
 from snowflake.snowpark import Window
 from snowflake.snowpark._internal.analyzer import analyzer
+from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
     SelectSnowflakePlan,
@@ -76,6 +81,7 @@ def reset_node(node: LogicalPlan, query_generator: QueryGenerator) -> None:
             selectable_node._snowflake_plan = None
         if isinstance(selectable_node, (SelectStatement, SetStatement)):
             selectable_node._sql_query = None
+            selectable_node._commented_sql = None
             selectable_node._projection_in_str = None
         if isinstance(selectable_node, SelectStatement):
             selectable_node.expr_to_alias = selectable_node.from_.expr_to_alias
@@ -245,9 +251,10 @@ def test_table_create_from_large_query_breakdown(session, plan_source_generator)
     assert len(queries[PlanQueryType.QUERIES]) == 1
     assert len(queries[PlanQueryType.POST_ACTIONS]) == 0
 
-    assert (
+    assert Utils.normalize_sql(
         queries[PlanQueryType.QUERIES][0].sql
-        == f" CREATE  SCOPED TEMPORARY  TABLE  {table_name}    AS  SELECT  *  FROM (select 1 as a, 2 as b)"
+    ) == Utils.normalize_sql(
+        f"CREATE SCOPED TEMPORARY TABLE {table_name} AS SELECT * FROM ( select 1 as a, 2 as b )"
     )
 
 
@@ -483,7 +490,8 @@ def test_in_with_subquery(session):
     check_generated_plan_queries(df_in._plan)
 
 
-def test_in_with_subquery_multiple_query(session):
+@patch.object(snowflake_plan, "cached_analyze_attributes", wraps=analyze_attributes)
+def test_in_with_subquery_multiple_query(_, session):
     # multiple queries
     original_threshold = analyzer.ARRAY_BIND_THRESHOLD
     try:

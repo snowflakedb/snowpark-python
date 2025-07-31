@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 import inspect
 import json
 import logging
@@ -9,8 +11,11 @@ import sys
 from collections import namedtuple
 from collections.abc import Hashable
 from enum import Enum, auto
-from typing import Any, Callable, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Literal
+from types import ModuleType
 from datetime import datetime
+import dataclasses
+from dataclasses import dataclass
 
 import cloudpickle
 import numpy as np
@@ -21,7 +26,10 @@ from pandas.api.types import is_scalar
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
 from collections.abc import Mapping
-from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
+from snowflake.snowpark._internal.udf_utils import (
+    get_types_from_type_hints,
+    pickle_function,
+)
 import functools
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
@@ -43,6 +51,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     TempObjectType,
     append_columns,
     generate_snowflake_quoted_identifiers_helper,
+    generate_column_identifier_random,
     get_default_snowpark_pandas_statement_params,
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
@@ -130,6 +139,203 @@ except ImportError:
     ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple()
 
 
+PERSIST_KWARG_NAME = "snowflake_udf_params"
+
+
+@dataclass(eq=True, frozen=True)
+class UDxFPersistParams:
+    """
+    Parameters describing persistence properties of a UDxF.
+
+    If its name is unspecified, then a name will be automatically generated.
+
+    If `replace=False`, the original UDxF is not checked to ensure its typing matches the
+    requirements of this function call.
+    """
+
+    udf_name: str
+    stage_name: str
+    immutable: bool
+    # Ignore replace and if_not_exists for caching purposes since we cache on the contents
+    # of the pickled bytes of the function.
+    replace: bool | None = dataclasses.field(default=None, hash=None, compare=False)
+    if_not_exists: bool | None = dataclasses.field(
+        default=None, hash=None, compare=False
+    )
+
+
+# Maps lambda functions to an auto-generated name. If a lambda with a given pickle blob was already seen,
+# we should re-use its name.
+generated_lambda_names: dict[bytes, str] = {}
+
+
+def process_persist_params(
+    f: Callable, blob: bytes, persist_info: dict | None
+) -> UDxFPersistParams | None:
+    """
+    Process parameters from the "snowflake_udf_params" argument of an `apply` call.
+
+    `blob` is the pickled contents of `f`'s wrapper function/class. It is used to reuse auto-generated
+    names if the function is a lambda.
+
+    These parameters describe information about a UDF persistence. If absent, the UDxF is assumed
+    to be transient, and this function should return None.
+    """
+    if persist_info is None:
+        return None
+    STAGE_KEY = "stage_location"
+    NAME_KEY = "name"
+    REPLACE_KEY = "replace"
+    IF_NOT_EXISTS_KEY = "if_not_exists"
+    IMMUTABLE_KEY = "immutable"
+    # If is_permanent is unspecified, assume it is transient.
+    if STAGE_KEY not in persist_info:
+        raise ValueError(
+            f"`{STAGE_KEY}` must be set when calling apply/map/transform when creating a permanent UDF with `{PERSIST_KWARG_NAME}`."
+        )
+    supported_args = {
+        STAGE_KEY,
+        NAME_KEY,
+        REPLACE_KEY,
+        IF_NOT_EXISTS_KEY,
+        IMMUTABLE_KEY,
+    }
+    unsupported_args = [f"`{key}`" for key in persist_info if key not in supported_args]
+    if len(unsupported_args) > 0:
+        if len(unsupported_args) > 1:
+            unsupported_args[-1] = "and " + unsupported_args[-1]
+            be = "are"
+        else:
+            be = "is"
+        joiner = ", " if len(unsupported_args) > 2 else " "
+        raise ValueError(
+            f"{joiner.join(unsupported_args)} {be} unsupported in `{PERSIST_KWARG_NAME}` when creating a permanent UDF in Snowpark pandas."
+        )
+    if not hasattr(f, "__name__") or f.__name__.startswith("<lambda>"):
+        generated_lambda_names[blob] = generated_lambda_names.get(
+            blob, "lambda_" + generate_column_identifier_random()
+        )
+    name = persist_info.get(NAME_KEY, generated_lambda_names.get(blob, f.__name__))
+    return UDxFPersistParams(
+        name,
+        persist_info[STAGE_KEY],
+        persist_info.get(IMMUTABLE_KEY, False),
+        persist_info.get(REPLACE_KEY),
+        persist_info.get(IF_NOT_EXISTS_KEY),
+    )
+
+
+# Reuse UDFs that have already been constructed in each session.
+@dataclass(eq=True, frozen=True)
+class UDFCacheKey:
+    # The result of calling pickle_function(func), where func is the wrapper method that
+    # is used in the UDF. This pickled object itself is not necessarily the same as what's uploaded
+    # to the server, but we pickle the wrapper to ensure closure-captured variables are checked.
+    func_pickle_blob: bytes
+    return_type: DataType  # The inferred return type of the column
+    input_type: DataType
+    strict: bool
+    # No packages param in the key; we assume packages will be the same for the UDF every time
+    persist_params: UDxFPersistParams | None
+
+
+session_udf_cache: dict[Session, dict[UDFCacheKey, UserDefinedFunction]] = defaultdict(
+    dict
+)
+
+
+# Reuse UDTFs that have already been constructed in each session
+@dataclass(eq=True, frozen=True)
+class UDTFCacheKey:
+    # The result of calling pickle_function(func), where func is the end_partition method of the
+    # wrapper class is used in the UDTF. We cannot pickle the wrapper class directly because pickle
+    # will serialize each class differently even if they have the same body and closure variables
+    # because they are technically different classes.
+    func_pickle_blob: bytes
+    col_types: tuple[DataType, ...]
+    col_names: tuple[str, ...]
+    input_types: tuple[DataType, ...]
+    # Because UDTFs allow user-specified packages when a UDF is passed, we need to consider package names in the key as well.
+    package_names: tuple[str, ...]
+    persist_params: UDxFPersistParams | None
+
+
+# Each UDTF construction helper function manipulates the input function slightly differently, and thus needs a different cache.
+session_apply_axis_1_udtf_cache: dict[
+    Session, dict[UDTFCacheKey, UserDefinedTableFunction]
+] = defaultdict(dict)
+session_groupby_apply_no_pivot_udtf_cache: dict[
+    Session, dict[UDTFCacheKey, UserDefinedTableFunction]
+] = defaultdict(dict)
+session_groupby_apply_udtf_cache: dict[
+    Session, dict[UDTFCacheKey, UserDefinedTableFunction]
+] = defaultdict(dict)
+
+
+all_caches: list[
+    dict[Session, dict[UDFCacheKey, UserDefinedFunction]]
+    | dict[
+        Session,
+        dict[UDTFCacheKey, UserDefinedTableFunction],
+    ]
+] = [
+    session_udf_cache,
+    session_apply_axis_1_udtf_cache,
+    session_groupby_apply_no_pivot_udtf_cache,
+    session_groupby_apply_udtf_cache,
+]
+
+
+def get_cached_lambda_names(session: Session) -> list[str]:
+    """
+    Return the auto-generated names of every lambda in this session.
+    """
+    return list(generated_lambda_names.values())
+
+
+def drop_named_udf_and_udtfs() -> None:
+    """
+    Issue a DROP FUNCTION IF EXISTS directive for every cached function in this session with a persist_params field.
+    """
+    for session_cache in all_caches:
+        for session, function_cache in session_cache.items():
+            for cache_key in function_cache.keys():
+                if cache_key.persist_params:
+                    types = (
+                        [cache_key.input_type.simple_string()]
+                        if isinstance(cache_key, UDFCacheKey)
+                        else [tpe.simple_string() for tpe in cache_key.col_types]
+                    )
+                    session.sql(
+                        f"DROP FUNCTION IF EXISTS {cache_key.persist_params.udf_name}({', '.join(types)})"
+                    )
+
+
+def clear_session_udf_and_udtf_caches() -> None:
+    """
+    Clear all cached UDF and UDTFs. If any were persisted to the server, they are unaffected by
+    this function.
+    """
+    generated_lambda_names.clear()
+    for cache in all_caches:
+        cache.clear()
+
+
+def cache_key_to_init_params(
+    key: UDFCacheKey | UDTFCacheKey,
+) -> dict[str, str | bool | None]:
+    if key.persist_params is None:
+        return {}
+    return {
+        "is_permanent": True,
+        "name": key.persist_params.udf_name,
+        "stage_location": key.persist_params.stage_name,
+        "immutable": key.persist_params.immutable,
+        "replace": key.persist_params.replace,
+        "if_not_exists": key.persist_params.if_not_exists,
+    }
+
+
 class GroupbyApplySortMethod(Enum):
     """
     A rule for sorting the rows resulting from groupby.apply.
@@ -210,9 +416,9 @@ def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, Data
 
 def create_udtf_for_apply_axis_1(
     row_position_snowflake_quoted_identifier: str,
-    func: Union[Callable, UserDefinedFunction],
+    func: Callable | UserDefinedFunction,
     raw: bool,
-    result_type: Optional[Literal["expand", "reduce", "broadcast"]],
+    result_type: Literal["expand", "reduce", "broadcast"] | None,
     args: tuple,
     column_index: native_pd.Index,
     input_types: list[DataType],
@@ -242,7 +448,6 @@ def create_udtf_for_apply_axis_1(
     Returns:
         Snowpark vectorized UDTF producing 3 columns.
     """
-
     # If given as Snowpark function, extract packages.
     udf_packages = []
     if isinstance(func, UserDefinedFunction):
@@ -343,25 +548,44 @@ def create_udtf_for_apply_axis_1(
     ApplyFunc.end_partition._sf_vectorized_input = native_pd.DataFrame  # type: ignore[attr-defined]
 
     packages = list(session.get_packages().values()) + udf_packages
+    col_types = [LongType(), StringType(), VariantType()]
+    col_identifiers = [
+        row_position_snowflake_quoted_identifier,
+        APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
+        APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
+    ]
     try:
-        func_udtf = sp_func.udtf(
-            ApplyFunc,
-            output_schema=PandasDataFrameType(
-                [LongType(), StringType(), VariantType()],
-                [
-                    row_position_snowflake_quoted_identifier,
-                    APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
-                    APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
-                ],
+        persist_info = kwargs.pop(
+            PERSIST_KWARG_NAME, None
+        )  # Pop persistence params from kwargs before pickling.
+        pickled = pickle_function(ApplyFunc.end_partition)
+        cache_key = UDTFCacheKey(
+            pickled,
+            tuple(col_types),
+            tuple(col_identifiers),
+            tuple([LongType()] + input_types),
+            tuple(
+                pkg.__name__ if isinstance(pkg, ModuleType) else pkg for pkg in packages
             ),
-            input_types=[PandasDataFrameType([LongType()] + input_types)],
-            # We have to use the current pandas version to ensure the behavior consistency
-            packages=[native_pd] + packages,
-            session=session,
-            statement_params=get_default_snowpark_pandas_statement_params(),
+            process_persist_params(func, pickled, persist_info),
         )
-        return func_udtf
-    except NotImplementedError:
+        cache = session_apply_axis_1_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
+                ApplyFunc,
+                **cache_key_to_init_params(cache_key),
+                output_schema=PandasDataFrameType(
+                    col_types,
+                    col_identifiers,
+                ),
+                input_types=[PandasDataFrameType([LongType()] + input_types)],
+                # We have to use the current pandas version to ensure the behavior consistency
+                packages=[native_pd] + packages,
+                session=session,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
         # When a Snowpark object is passed to a UDF, a NotImplementedError with message
         # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
         # catch this exception and return a more user-friendly error message.
@@ -510,7 +734,7 @@ def apply_groupby_func_to_df(
     args: tuple,
     kwargs: dict,
     force_list_like_to_series: bool = False,
-) -> Tuple[native_pd.DataFrame, native_pd.Series, GroupbyApplyFuncType, Tuple]:
+) -> tuple[native_pd.DataFrame, native_pd.Series, GroupbyApplyFuncType, tuple]:
     """
     Restore input dataframe received in udtf to original schema.
     Args:
@@ -725,19 +949,35 @@ def create_udtf_for_groupby_no_pivot(
             return func_result
 
     try:
-        return sp_func.udtf(
-            ApplyFunc,
-            output_schema=PandasDataFrameType(
-                output_schema.column_types, output_schema.column_ids
-            ),
-            input_types=[PandasDataFrameType(col_types=input_column_types)],
-            # We have to specify the local pandas package so that the UDF's pandas
-            # behavior is consistent with client-side pandas behavior.
-            packages=[native_pd] + list(session.get_packages().values()),
-            session=session,
-            statement_params=get_default_snowpark_pandas_statement_params(),
+        persist_info = kwargs.pop(
+            PERSIST_KWARG_NAME, None
+        )  # Pop persistence params from kwargs before pickling.
+        pickled = pickle_function(ApplyFunc.end_partition)
+        cache_key = UDTFCacheKey(
+            pickled,
+            tuple(output_schema.column_types),
+            tuple(output_schema.column_ids),
+            tuple(input_column_types),
+            tuple(session.get_packages().values()),
+            process_persist_params(func, pickled, persist_info),
         )
-    except NotImplementedError:
+        cache = session_groupby_apply_no_pivot_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
+                ApplyFunc,
+                **cache_key_to_init_params(cache_key),
+                output_schema=PandasDataFrameType(
+                    output_schema.column_types, output_schema.column_ids
+                ),
+                input_types=[PandasDataFrameType(col_types=input_column_types)],
+                # We have to specify the local pandas package so that the UDF's pandas
+                # behavior is consistent with client-side pandas behavior.
+                packages=[native_pd] + list(session.get_packages().values()),
+                session=session,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
         # When a Snowpark object is passed to a UDF, a NotImplementedError with message
         # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
         # catch this exception and return a more user-friendly error message.
@@ -754,7 +994,7 @@ def infer_output_schema_for_apply(
     input_types: list[DataType],
     series_groupby: bool,
     force_list_like_to_series: bool = False,
-) -> Optional[GroupbyApplyOutputSchema]:
+) -> GroupbyApplyOutputSchema | None:
     """
     Infers the output schema of a groupby apply function. Returns None if the schema
     cannot be inferred.
@@ -861,7 +1101,7 @@ def create_udtf_for_groupby_apply(
     force_list_like_to_series: bool,
     is_transform: bool,
     force_single_group: bool,
-) -> Tuple[Optional[GroupbyApplyOutputSchema], UserDefinedTableFunction]:
+) -> tuple[GroupbyApplyOutputSchema | None, UserDefinedTableFunction]:
     """
     Create a UDTF from the Python function for groupby.apply.
 
@@ -1092,27 +1332,44 @@ def create_udtf_for_groupby_apply(
         excluded=existing_identifiers,
         wrap_double_underscore=False,
     )
+    col_types = [
+        StringType(),
+        IntegerType(),
+        VariantType(),
+        IntegerType(),
+        IntegerType(),
+    ]
     try:
-        return None, sp_func.udtf(
-            ApplyFunc,
-            output_schema=PandasDataFrameType(
-                [
-                    StringType(),
-                    IntegerType(),
-                    VariantType(),
-                    IntegerType(),
-                    IntegerType(),
-                ],
-                col_names,
-            ),
-            input_types=[PandasDataFrameType(col_types=input_types)],
-            # We have to specify the local pandas package so that the UDF's pandas
-            # behavior is consistent with client-side pandas behavior.
-            packages=[native_pd] + list(session.get_packages().values()),
-            session=session,
-            statement_params=get_default_snowpark_pandas_statement_params(),
+        persist_info = kwargs.pop(
+            PERSIST_KWARG_NAME, None
+        )  # Pop persistence params from kwargs before pickling.
+        pickled = pickle_function(ApplyFunc.end_partition)
+        cache_key = UDTFCacheKey(
+            pickled,
+            tuple(col_types),
+            tuple(col_names),
+            tuple(input_types),
+            tuple(session.get_packages().values()),
+            process_persist_params(func, pickled, persist_info),
         )
-    except NotImplementedError:
+        cache = session_groupby_apply_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
+                ApplyFunc,
+                **cache_key_to_init_params(cache_key),
+                output_schema=PandasDataFrameType(
+                    col_types,
+                    col_names,
+                ),
+                input_types=[PandasDataFrameType(col_types=input_types)],
+                # We have to specify the local pandas package so that the UDF's pandas
+                # behavior is consistent with client-side pandas behavior.
+                packages=[native_pd] + list(session.get_packages().values()),
+                session=session,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return None, cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
         # When a Snowpark object is passed to a UDF, a NotImplementedError with message
         # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
         # catch this exception and return a more user-friendly error message.
@@ -1120,10 +1377,10 @@ def create_udtf_for_groupby_apply(
 
 
 def create_udf_for_series_apply(
-    func: Union[Callable, UserDefinedFunction],
+    func: Callable | UserDefinedFunction,
     return_type: DataType,
     input_type: DataType,
-    na_action: Optional[Literal["ignore"]],
+    na_action: Literal["ignore"] | None,
     session: Session,
     args: tuple[Any, ...],
     **kwargs: Any,
@@ -1181,18 +1438,33 @@ def create_udf_for_series_apply(
             #  actual type.
             return x.apply(func, args=args, **kwargs)
 
+    strict = na_action == "ignore"
     try:
-        func_udf = sp_func.udf(
-            apply_func,
-            return_type=PandasSeriesType(return_type),
-            input_types=[PandasSeriesType(input_type)],
-            strict=bool(na_action == "ignore"),
-            session=session,
-            packages=packages,
-            statement_params=get_default_snowpark_pandas_statement_params(),
+        persist_info = kwargs.pop(
+            PERSIST_KWARG_NAME, None
+        )  # Pop persistence params from kwargs before pickling.
+        pickled = pickle_function(apply_func)
+        cache_key = UDFCacheKey(
+            pickled,
+            return_type,
+            input_type,
+            strict,
+            process_persist_params(func, pickled, persist_info),
         )
-        return func_udf
-    except NotImplementedError:
+        cache = session_udf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udf(
+                apply_func,
+                **cache_key_to_init_params(cache_key),
+                return_type=PandasSeriesType(return_type),
+                input_types=[PandasSeriesType(input_type)],
+                strict=strict,
+                session=session,
+                packages=packages,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
         # When a Snowpark object is passed to a UDF, a NotImplementedError with message
         # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
         # catch this exception and return a more user-friendly error message.
@@ -1288,7 +1560,7 @@ DUMMY_TIMESTAMP_INPUT = native_pd.to_datetime(
 
 def infer_return_type_using_dummy_data(
     func: Callable, input_type: DataType, **kwargs: Any
-) -> Optional[DataType]:
+) -> DataType | None:
     """
     Infer the return type of given function by applying it to a dummy input.
     This method only supports the following input types: _IntegralType, _FractionalType,
@@ -1368,10 +1640,10 @@ def infer_return_type_using_dummy_data(
 
 
 def deduce_return_type_from_function(
-    func: Union[AggFuncType, UserDefinedFunction],
-    input_type: Optional[DataType],
+    func: AggFuncType | UserDefinedFunction,
+    input_type: DataType | None,
     **kwargs: Any,
-) -> Optional[DataType]:
+) -> DataType | None:
     """
     Deduce return type if possible from a function, list, dict or type object. List will be mapped to ArrayType(),
     dict to MapType(), and if a type object (e.g., str) is given a mapping will be consulted.
@@ -1951,7 +2223,7 @@ def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
 
 
 def make_series_map_snowpark_function(
-    mapping: Union[Mapping, native_pd.Series], self_type: DataType
+    mapping: Mapping | native_pd.Series, self_type: DataType
 ) -> Callable[[SnowparkColumn], SnowparkColumn]:
     """
     Make a snowpark function that implements Series.map() with a dict mapping.

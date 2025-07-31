@@ -348,6 +348,7 @@ class Literal(Expression):
                 type(value)
             )
         self.value = value
+        self.nullable = value is None
 
         self.datatype: DataType
         # check datatype
@@ -549,6 +550,31 @@ class SubfieldInt(Expression):
         )
 
 
+class ModelExpression(Expression):
+    def __init__(
+        self,
+        model_name: str,
+        version_or_alias_name: Optional[str],
+        method_name: str,
+        arguments: List[Expression],
+    ) -> None:
+        super().__init__()
+        self.model_name = model_name
+        self.version_or_alias_name = version_or_alias_name
+        self.method_name = method_name
+        self.children = arguments
+
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        return derive_dependent_columns(*self.children)
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(*self.children)
+
+    @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.FUNCTION
+
+
 class FunctionExpression(Expression):
     def __init__(
         self,
@@ -576,6 +602,38 @@ class FunctionExpression(Expression):
         return (
             f"{self.pretty_name}({distinct}{', '.join([c.sql for c in self.children])})"
         )
+
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        return derive_dependent_columns(*self.children)
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(*self.children)
+
+    @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.FUNCTION
+
+
+class NamedFunctionExpression(Expression):
+    def __init__(
+        self,
+        name: str,
+        named_arguments: Dict[str, Expression],
+        api_call_source: Optional[str] = None,
+    ) -> None:
+        super().__init__()
+        self.name = name
+        self.named_arguments = named_arguments
+        self.children = list(named_arguments.values())
+        self.api_call_source = api_call_source
+
+    @property
+    def pretty_name(self) -> str:
+        return self.name
+
+    @property
+    def sql(self) -> str:
+        return f"{self.pretty_name}({', '.join([f'{k} => {v.sql}' for k, v in self.named_arguments.items()])})"
 
     def dependent_column_names(self) -> Optional[AbstractSet[str]]:
         return derive_dependent_columns(*self.children)

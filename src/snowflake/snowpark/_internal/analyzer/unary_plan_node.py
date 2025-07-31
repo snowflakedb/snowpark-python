@@ -88,9 +88,15 @@ class SampleBy(UnaryNode):
 
 
 class Sort(UnaryNode):
-    def __init__(self, order: List[SortOrder], child: LogicalPlan) -> None:
+    def __init__(
+        self,
+        order: List[SortOrder],
+        child: LogicalPlan,
+        is_order_by_append: bool = False,
+    ) -> None:
         super().__init__(child)
         self.order = order
+        self.is_order_by_append = is_order_by_append
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -242,13 +248,16 @@ class Rename(UnaryNode):
 
 
 class Filter(UnaryNode):
-    def __init__(self, condition: Expression, child: LogicalPlan) -> None:
+    def __init__(
+        self, condition: Expression, child: LogicalPlan, is_having: bool = False
+    ) -> None:
         super().__init__(child)
         self.condition = condition
+        self.is_having = is_having
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # child WHERE condition
+        # child WHERE condition or HAVING condition
         return sum_node_complexities(
             {PlanNodeCategory.FILTER: 1},
             self.condition.cumulative_node_complexity,

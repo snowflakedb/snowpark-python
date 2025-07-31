@@ -29,16 +29,19 @@ logger = logging.getLogger(__name__)
 
 
 class DatabricksDriver(BaseDriver):
-    def infer_schema_from_description(
-        self, table_or_query: str, cursor: "Cursor", is_query: bool
-    ) -> StructType:
+    def get_raw_schema(
+        self,
+        table_or_query: str,
+        cursor: "Cursor",
+        is_query: bool,
+        query_input_alias: str,
+    ) -> None:
         # The following query gives a more detailed schema information than
         # just running "SELECT * FROM {table_or_query} WHERE 1 = 0"
         query = f"DESCRIBE QUERY SELECT * FROM ({table_or_query})"
         logger.debug(f"trying to get schema using query: {query}")
         raw_schema = cursor.execute(query).fetchall()
         self.raw_schema = raw_schema
-        return self.to_snow_type(raw_schema)
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         # https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-query

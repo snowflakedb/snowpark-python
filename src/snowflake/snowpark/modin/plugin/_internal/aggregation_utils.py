@@ -317,17 +317,44 @@ class SnowflakeAggFunc(NamedTuple):
     supported_in_pivot: bool
 
 
-class AggFuncWithLabel(NamedTuple):
+class AggFuncWithLabel(
+    NamedTuple(
+        "AggFuncWithLabel", [("func", AggFuncTypeBase), ("pandas_label", Hashable)]
+    )
+):
     """
     This class is used to process NamedAgg's internally, and represents an AggFunc that
     also includes a label to be used on the column that it generates.
     """
 
-    # The aggregate function
-    func: AggFuncTypeBase
+    # Temporary workaround for a modin bug:
+    # https://github.com/modin-project/modin/issues/7594
+    # The query compiler caster may call this constructor with a single list as argument,
+    # trying to match the behavior of vanilla `tuple`.
+    # Go back to directly using a NamedTuple after this is fixed.
 
-    # The label to provide the new column produced by `func`.
-    pandas_label: Hashable
+    # # The aggregate function
+    # func: AggFuncTypeBase
+
+    # # The label to provide the new column produced by `func`.
+    # pandas_label: Hashable
+
+    def __new__(
+        cls,
+        func: Union[AggFuncTypeBase, list[Any]],
+        pandas_label: Optional[Hashable] = None,
+    ) -> "AggFuncWithLabel":
+        if isinstance(func, list) and pandas_label is None:
+            assert (
+                len(func) == 2
+            ), "AggFuncWithLabel was constructed with too many arguments in list"
+            return super().__new__(cls, *func)
+        else:
+            if pandas_label is None:
+                raise TypeError(
+                    "AggFuncWithLabel.__new__() missing 1 required positional argument: 'pandas_label'"
+                )
+            return super().__new__(cls, func, pandas_label)
 
 
 class AggFuncInfo(NamedTuple):

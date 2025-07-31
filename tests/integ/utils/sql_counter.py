@@ -123,6 +123,8 @@ class SqlCounter(QueryListener):
     query_count is 0 through the sql_count_checker decorator.  If we do not check at all then if the underlying code
     changes, and later introduce queries we would not catch this.  In the rare case where we need to ensure that no
     query validation happens (as opposed to validating no query happens) we can use the no_check=True argument.
+
+    When strict=False the expected query counts are used as upper bounds.
     """
 
     _record_mode = False
@@ -133,6 +135,7 @@ class SqlCounter(QueryListener):
         log_stack_trace=True,
         high_count_expected=False,
         high_count_reason=None,
+        strict=True,
         **kwargs,
     ) -> "SqlCounter":
         from tests.conftest import SKIP_SQL_COUNT_CHECK
@@ -162,6 +165,10 @@ class SqlCounter(QueryListener):
 
         # Record mode is used when auto-annotating step runs.
         self._record_mode = False
+
+        # Strict mode checks that query counts are exactly as expected. Non-strict
+        # checks that queries are at most the expected counts.
+        self._strict = strict
 
         self._log_stack_trace = log_stack_trace
 
@@ -251,9 +258,14 @@ class SqlCounter(QueryListener):
             expected_count = kwargs[key]
             if expected_count is None:
                 expected_count = 0
-            failed = failed or expected_count != actual_count
+            valid_count = (
+                expected_count == actual_count
+                if self._strict
+                else actual_count <= expected_count
+            )
+            failed = failed or not valid_count
             pytest.assume(
-                expected_count == actual_count,
+                valid_count,
                 f"Sql count check '{key}' failed.  expected_{key}={expected_count}, actual_{key}={actual_count}{stack_trace}",
             )
 
@@ -291,18 +303,35 @@ class SqlCounter(QueryListener):
 
         self.clear()
 
+    def _normalize_sql(self, sql: str) -> str:
+        """Normalize SQL query by
+        converting to uppercase and removing
+        tabs and new lines.
+        """
+        sql = sql.upper()
+        sql = re.sub(r"\s+", " ", sql)
+        sql = re.sub(r"\(\s+", "(", sql)
+        sql = re.sub(r"\s+\)", ")", sql)
+        return sql
+
     def _get_actual_queries(self):
+        """Get actual queries after filtering out system queries and normalizing."""
         return list(
             filter(
                 lambda q: not any(
                     [
-                        all([p.upper() in q.upper() for p in fw])
+                        all(
+                            [
+                                self._normalize_sql(p) in self._normalize_sql(q)
+                                for p in fw
+                            ]
+                        )
                         for fw in FILTER_OUT_QUERIES
                     ]
                 ),
                 list(
                     map(
-                        lambda q: q.sql_text,
+                        lambda q: self._normalize_sql(q.sql_text),
                         [q for q in self._queries if not q.is_describe],
                     )
                 ),
@@ -314,6 +343,11 @@ class SqlCounter(QueryListener):
             starts_with = []
         if contains is None:
             contains = []
+
+        # Normalize the search patterns
+        starts_with = [self._normalize_sql(sw) for sw in starts_with]
+        contains = [self._normalize_sql(c) for c in contains]
+
         return sum(
             bool(x)
             for x in map(
@@ -328,6 +362,10 @@ class SqlCounter(QueryListener):
     def _count_instances_by_query_substr(self, starts_with=None, contains=None):
         starts_with = starts_with or []
         contains = contains or []
+
+        starts_with = [self._normalize_sql(sw) for sw in starts_with]
+        contains = [self._normalize_sql(c) for c in contains]
+
         return sum(
             map(
                 lambda q: sum(

@@ -20,9 +20,15 @@ from snowflake.snowpark.types import (
     DoubleType,
     TimestampTimeZone,
     VariantType,
+    ArrayType,
+    IntegerType,
+    MapType,
+    ByteType,
+    ShortType,
+    FloatType,
 )
 
-TEST_TABLE_NAME = "ALL_TYPE_TABLE_2"  # ALL_TYPE_TABLE_2 contains None data while ALL_TYPE_TABLE doesn't
+TEST_TABLE_NAME = "ALL_TYPE_TABLE_3"  # ALL_TYPE_TABLE_3 contains None data while ALL_TYPE_TABLE doesn't
 TZ_INFO = pytz.timezone("America/Los_Angeles")
 EXPECTED_TEST_DATA = [
     tuple([None] * 18),
@@ -44,7 +50,7 @@ EXPECTED_TEST_DATA = [
         datetime.datetime(2025, 4, 16, 17, 51, 18, 565000),
         "[\n  6,\n  87\n]",
         '{\n  "key1": 83,\n  "key2": 12\n}',
-        '{\n  "field1": "f_77",\n  "field2": 13\n}',
+        '{\n  "field1": "f_77",\n  "field2": "13"\n}',
         "1-8",
         "0 23:14:09.000000000",
     ),
@@ -66,7 +72,7 @@ EXPECTED_TEST_DATA = [
         datetime.datetime(2025, 4, 16, 17, 42, 39, 565000),
         "[\n  0,\n  89\n]",
         '{\n  "key1": 97,\n  "key2": 33\n}',
-        '{\n  "field1": "f_84",\n  "field2": 1\n}',
+        '{\n  "field1": "f_84",\n  "field2": "1"\n}',
         "1-10",
         "2 11:12:05.000000000",
     ),
@@ -88,7 +94,7 @@ EXPECTED_TEST_DATA = [
         datetime.datetime(2025, 4, 16, 17, 49, 8, 565000),
         "[\n  82,\n  40\n]",
         '{\n  "key1": 71,\n  "key2": 81\n}',
-        '{\n  "field1": "f_25",\n  "field2": 25\n}',
+        '{\n  "field1": "f_25",\n  "field2": "25"\n}',
         "3-10",
         "18 14:29:08.000000000",
     ),
@@ -110,7 +116,7 @@ EXPECTED_TEST_DATA = [
         datetime.datetime(2025, 4, 16, 17, 47, 9, 565000),
         "[\n  81,\n  65\n]",
         '{\n  "key1": 67,\n  "key2": 88\n}',
-        '{\n  "field1": "f_98",\n  "field2": 69\n}',
+        '{\n  "field1": "f_98",\n  "field2": "69"\n}',
         "0-7",
         "19 06:25:08.000000000",
     ),
@@ -132,11 +138,101 @@ EXPECTED_TEST_DATA = [
         datetime.datetime(2025, 4, 16, 17, 50, 8, 565000),
         "[\n  92,\n  27\n]",
         '{\n  "key1": 52,\n  "key2": 65\n}',
-        '{\n  "field1": "f_85",\n  "field2": 50\n}',
+        '{\n  "field1": "f_85",\n  "field2": "50"\n}',
         "7-4",
         "22 04:52:41.000000000",
     ),
 ]
+
+databricks_schema = StructType(
+    [
+        StructField("COL_BYTE", ByteType(), nullable=True),
+        StructField("COL_SHORT", ShortType(), nullable=True),
+        StructField("COL_INT", IntegerType(), nullable=True),
+        StructField("COL_LONG", LongType(), nullable=True),
+        StructField("COL_FLOAT", FloatType(), nullable=True),
+        StructField("COL_DOUBLE", DoubleType(), nullable=True),
+        StructField("COL_DECIMAL", DecimalType(10, 2), nullable=True),
+        StructField("COL_STRING", StringType(), nullable=True),
+        StructField("COL_BOOLEAN", BooleanType(), nullable=True),
+        StructField("COL_BINARY", BinaryType(), nullable=True),
+        StructField("COL_DATE", DateType(), nullable=True),
+        StructField(
+            "COL_TIMESTAMP",
+            TimestampType(timezone=TimestampTimeZone.LTZ),
+            nullable=True,
+        ),
+        StructField(
+            "COL_TIMESTAMP_NTZ",
+            TimestampType(timezone=TimestampTimeZone.NTZ),
+            nullable=True,
+        ),
+        StructField("COL_ARRAY", ArrayType(IntegerType()), nullable=True),
+        StructField("COL_MAP", MapType(StringType(), IntegerType()), nullable=True),
+        StructField(
+            "COL_STRUCT",
+            StructType(
+                [
+                    StructField("FIELD1", StringType(), nullable=True),
+                    StructField("FIELD2", StringType(), nullable=True),
+                ]
+            ),
+            nullable=True,
+        ),
+        StructField("COL_INTERVAL_YEAR_MONTH", StringType(), nullable=True),
+        StructField("COL_INTERVAL_DAY_TIME", StringType(), nullable=True),
+    ]
+)
+
+databricks_less_column_schema = StructType(
+    [
+        StructField("COL_BYTE", ByteType(), nullable=True),
+        StructField("COL_SHORT", ShortType(), nullable=True),
+        StructField("COL_INT", IntegerType(), nullable=True),
+    ]
+)
+
+databricks_more_column_schema = StructType(
+    [
+        StructField("EXTRA_COLUMN", ByteType(), nullable=True),
+        StructField("COL_BYTE", ByteType(), nullable=True),
+        StructField("COL_SHORT", ShortType(), nullable=True),
+        StructField("COL_INT", IntegerType(), nullable=True),
+        StructField("COL_LONG", LongType(), nullable=True),
+        StructField("COL_FLOAT", FloatType(), nullable=True),
+        StructField("COL_DOUBLE", DoubleType(), nullable=True),
+        StructField("COL_DECIMAL", DecimalType(10, 2), nullable=True),
+        StructField("COL_STRING", StringType(), nullable=True),
+        StructField("COL_BOOLEAN", BooleanType(), nullable=True),
+        StructField("COL_BINARY", BinaryType(), nullable=True),
+        StructField("COL_DATE", DateType(), nullable=True),
+        StructField(
+            "COL_TIMESTAMP",
+            TimestampType(timezone=TimestampTimeZone.LTZ),
+            nullable=True,
+        ),
+        StructField(
+            "COL_TIMESTAMP_NTZ",
+            TimestampType(timezone=TimestampTimeZone.NTZ),
+            nullable=True,
+        ),
+        StructField("COL_ARRAY", ArrayType(IntegerType()), nullable=True),
+        StructField("COL_MAP", MapType(StringType(), IntegerType()), nullable=True),
+        StructField(
+            "COL_STRUCT",
+            StructType(
+                [
+                    StructField("FIELD1", StringType(), nullable=True),
+                    StructField("FIELD2", StringType(), nullable=True),
+                ]
+            ),
+            nullable=True,
+        ),
+        StructField("COL_INTERVAL_YEAR_MONTH", StringType(), nullable=True),
+        StructField("COL_INTERVAL_DAY_TIME", StringType(), nullable=True),
+    ]
+)
+
 EXPECTED_TYPE = StructType(
     [
         StructField("COL_BYTE", LongType(), nullable=True),
@@ -167,6 +263,25 @@ EXPECTED_TYPE = StructType(
         StructField("COL_INTERVAL_DAY_TIME", StringType(), nullable=True),
     ]
 )
+
+databricks_unicode_schema = StructType(
+    [
+        StructField('"编号"', LongType(), nullable=True),
+        StructField('"姓名"', StringType(), nullable=True),
+        StructField('"国家"', StringType(), nullable=True),
+        StructField('"备注"', StringType(), nullable=True),
+    ]
+)
+
+databricks_double_quoted_schema = StructType(
+    [
+        StructField('"id"', LongType(), nullable=True),
+        StructField('"name"', StringType(), nullable=True),
+        StructField('"country"', StringType(), nullable=True),
+        StructField('"remarks"', StringType(), nullable=True),
+    ]
+)
+
 DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION = (
     "snowpark_dbapi_databricks_test_integration"
 )

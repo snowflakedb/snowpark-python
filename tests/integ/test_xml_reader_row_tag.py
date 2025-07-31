@@ -19,6 +19,7 @@ pytestmark = [
         "config.getoption('local_testing_mode', default=False)",
         reason="xml not supported in local testing mode",
     ),
+    pytest.mark.udf,
 ]
 
 
@@ -34,6 +35,8 @@ test_file_malformed_not_self_closing_xml = "malformed_not_self_closing.xml"
 test_file_malformed_record_xml = "malformed_record.xml"
 test_file_xml_declared_namespace = "declared_namespace.xml"
 test_file_xml_undeclared_namespace = "undeclared_namespace.xml"
+test_file_null_value_xml = "null_value.xml"
+test_file_books_xsd = "books.xsd"
 
 # Global stage name for uploading test files
 tmp_stage_name = Utils.random_stage_name()
@@ -92,6 +95,18 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name,
         test_files.test_xml_undeclared_namespace,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
+        test_files.test_null_value_xml,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
+        test_files.test_books_xsd,
         compress=False,
     )
 
@@ -220,12 +235,12 @@ def test_read_xml_declared_namespace(session):
 
     df = (
         session.read.option("rowTag", row_tag)
-        .option("stripNamespaces", True)
+        .option("ignoreNamespace", True)
         .xml(f"@{tmp_stage_name}/{test_file_xml_declared_namespace}")
     )
     result = df.collect()
     assert len(result) == 1
-    # Namespaces should be stripped
+    # Namespaces should be ignored
     assert result[0]["'item'"] == expected_data
 
     expected_items_with_ns = [
@@ -244,23 +259,24 @@ def test_read_xml_declared_namespace(session):
 
     df = (
         session.read.option("rowTag", row_tag)
-        .option("stripNamespaces", False)
+        .option("ignoreNamespace", False)
         .xml(f"@{tmp_stage_name}/{test_file_xml_declared_namespace}")
     )
     result = df.collect()
+    print(result)
     assert len(result) == 1
     # Namespaces should be replaced with URI
     assert result[0]["'{http://example.com/px}item'"] == expected_data
 
 
-@pytest.mark.parametrize("strip_namespaces", [True, False])
-def test_read_xml_undeclared_namespace(session, strip_namespaces):
-    # Read with undeclared namespace, stripNamespaces=true and false should have the same result
+@pytest.mark.parametrize("ignore_namespace", [True, False])
+def test_read_xml_undeclared_namespace(session, ignore_namespace):
+    # Read with undeclared namespace, ignoreNamespace=true and false should have the same result
     # Prefixes without declarations should remain as they don't follow {namespace}tag format
     row_tag = "px:item"
     df = (
         session.read.option("rowTag", row_tag)
-        .option("stripNamespaces", strip_namespaces)
+        .option("ignoreNamespace", ignore_namespace)
         .xml(f"@{tmp_stage_name}/{test_file_xml_undeclared_namespace}")
     )
     result = df.collect()
@@ -278,5 +294,115 @@ def test_read_xml_attribute_prefix(session, attribute_prefix):
         .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
     result = df.collect()
-    print(result[0][f"'{attribute_prefix}id'"])
+    assert len(result[0]) == 7
     assert result[0][f"'{attribute_prefix}id'"] is not None
+
+
+def test_read_xml_exclude_attributes(session):
+    row_tag = "book"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("excludeAttributes", True)
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    result = df.collect()
+    assert len(result[0]) == 6
+    with pytest.raises(KeyError):
+        _ = result[0]["'_id'"]
+
+
+def test_read_xml_value_tag(session):
+    row_tag = "author"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("valueTag", "value")
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    result = df.collect()
+    assert len(result) == 12
+    assert len(result[0]) == 1
+    assert result[0]["'value'"] is not None
+
+    row_tag = "str3"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("valueTag", "value")
+        .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
+    )
+    result = df.collect()
+    assert len(result) == 1
+    assert len(result[0]) == 2
+    assert result[0]["'value'"] == '"xxx"'
+
+
+@pytest.mark.parametrize(
+    "null_value, expected_row",
+    [
+        (
+            "",
+            Row('"1"', '"NULL"', "null", '{\n  "_VALUE": "xxx",\n  "_id": "empty"\n}'),
+        ),
+        (
+            "NULL",
+            Row('"1"', "null", "null", '{\n  "_VALUE": "xxx",\n  "_id": "empty"\n}'),
+        ),
+        (
+            "empty",
+            Row('"1"', '"NULL"', "null", '{\n  "_VALUE": "xxx",\n  "_id": null\n}'),
+        ),
+    ],
+)
+def test_read_xml_null_value(session, null_value, expected_row):
+    row_tag = "test"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("nullValue", null_value)
+        .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
+    )
+    Utils.check_answer(df, [expected_row])
+
+
+@pytest.mark.parametrize(
+    "ignore_surrounding_whitespace, expected_row",
+    [
+        (
+            True,
+            Row('{\n  "_VALUE": "xxx",\n  "_id": null\n}'),
+        ),
+        (
+            False,
+            Row('{\n  "_VALUE": " xxx  ",\n  "_id": "  empty"\n}'),
+        ),
+    ],
+)
+def test_read_xml_ignore_surrounding_whitespace(
+    session, ignore_surrounding_whitespace, expected_row
+):
+    row_tag = "test2"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("nullValue", "empty")
+        .option("ignoreSurroundingWhitespace", ignore_surrounding_whitespace)
+        .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
+    )
+    Utils.check_answer(df, [expected_row])
+
+
+def test_read_xml_row_validation_xsd_path(session):
+    row_tag = "book"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}")
+        .option("mode", "dropmalformed")
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+
+    # Only bk101 should pass XSD validation (author must be "Gambardella, Matthew")
+    result = df.collect()
+    assert len(result) == 1
+    assert result[0]["'author'"] == '"Gambardella, Matthew"'
+    assert result[0]["'title'"] == '"XML Developer\'s Guide"'
+    assert result[0]["'genre'"] == '"Computer"'
+    assert result[0]["'price'"] == '"44.95"'
+    assert result[0]["'publish_date'"] == '"2000-10-01"'
+    assert result[0]["'_id'"] == '"bk101"'

@@ -49,6 +49,11 @@ Series
     Series.to_view
     Series.to_dynamic_table
     Series.to_iceberg
+    Series.get_backend
+    Series.set_backend
+    Series.move_to
+    Series.pin_backend
+    Series.unpin_backend
 
 .. rubric:: Conversion
 
@@ -327,4 +332,5 @@ Series
     :toctree: pandas_api/
 
     Series.to_csv
+    Series.to_excel
     Series.to_string

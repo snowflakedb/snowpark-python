@@ -18,3 +18,10 @@ def add_doctest_imports(doctest_namespace) -> None:  # pragma: no cover
     """
     doctest_namespace["np"] = np  # pragma: no cover
     doctest_namespace["pd"] = pd  # pragma: no cover
+
+
+@pytest.fixture(autouse=True, scope="module")
+def toggle_multiline_queries() -> None:
+    pd.session._disable_multiline_queries()
+    yield
+    pd.session._enable_multiline_queries()
