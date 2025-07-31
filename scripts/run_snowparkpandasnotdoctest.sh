@@ -12,4 +12,4 @@ for test_file in tests/integ/modin/hybrid/auto_switch_backend/test_*.py; do
 done
 
 echo "Running main modin tests..."
-${MODIN_PYTEST_CMD} --durations=20 -m "${SNOWFLAKE_TEST_TYPE}" "$@" ${SNOW_1314507_WORKAROUND_RERUN_FLAGS} tests/unit/modin tests/integ/modin tests/integ/test_df_to_snowpark_pandas.py
+${MODIN_PYTEST_CMD} --durations=20 -m "${SNOWFLAKE_TEST_TYPE}" "$@"  tests/unit/modin tests/integ/modin tests/integ/test_df_to_snowpark_pandas.py
