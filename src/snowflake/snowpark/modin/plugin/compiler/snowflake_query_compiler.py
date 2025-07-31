@@ -565,6 +565,39 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
     return cls
 
 
+class SnowflakeWriterActorBase:
+    def __init__(self, table_name: str, connection_creds: dict[str, Any]) -> None:
+        self.table_name = table_name
+        try:
+            self.session = Session.builder.configs(connection_creds).getOrCreate()
+        except Exception as e:
+            logging.error(
+                "Could not get or create Snowpark session. Ensure you have a "
+                "~/.snowflake/connections.toml file with the correct credentials. "
+                f"{e}"
+            )
+            raise RuntimeError("Could not get or create Snowpark session.") from e
+
+    def write(self, batch: native_pd.DataFrame) -> None:
+        self.session.write_pandas(
+            df=batch,
+            table_name=self.table_name,
+            table_type="",
+            parallel=4,
+            auto_create_table=True,
+            overwrite=False,
+        )
+
+
+try:
+    import ray  # type: ignore[import]
+    from ray.util.actor_pool import ActorPool  # type: ignore[import]
+
+    SnowflakeWriterActor = ray.remote(SnowflakeWriterActorBase)
+except ImportError:  # pragma: no cover
+    SnowflakeWriterActor = None
+
+
 @_propagate_attrs_on_methods
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
@@ -1221,11 +1254,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         try:
             from snowflake.ml.data.data_connector import DataConnector  # type: ignore[import]
         except ImportError as e:  # pragma: no cover
-            logging.warning(
+            raise ImportError(
                 "DataConnector is required for efficient transfer to Ray. "
                 "Please `pip install snowflake-ml`."
-            )
-            raise ImportError from e
+            ) from e
 
         cached_qc = self.cache_result()
         original_index_labels = self.get_index_names()
@@ -1243,19 +1275,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 sort=True
             )
         )
+        # Drop all metadata (ordering, row position, row count) columns
+        snowpark_df = snowpark_df.drop(
+            snowpark_df.columns[
+                len(snowflake_index_labels) + len(snowflake_column_labels) :
+            ],
+        )
 
         data_connector = DataConnector.from_dataframe(snowpark_df)
         ray_ds = data_connector.to_ray_dataset()
         with config_context(Backend="Ray"):
             ray_df = pd.io.from_ray(ray_ds)
-        # Drop all metadata (ordering, row position, row count) columns
-        ray_df.drop(
-            ray_df.columns[
-                len(snowflake_index_labels) + len(snowflake_column_labels) :
-            ],
-            axis=1,
-            inplace=True,
-        )
 
         ray_df.set_index(
             snowflake_index_labels,
@@ -1293,14 +1323,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new SnowflakeQueryCompiler with the data
         """
-        try:
-            import ray  # type: ignore[import]
-            from ray.util.actor_pool import ActorPool  # type: ignore[import]
-        except ImportError as e:  # pragma: no cover
-            logging.warning(
+        if SnowflakeWriterActor is None:  # pragma: no cover
+            raise ImportError(
                 "Ray is required for this operation. Please `pip install modin[ray]`."
             )
-            raise ImportError from e
 
         def get_connection_creds() -> dict[str, Any]:  # pragma: no cover
             """
@@ -1308,49 +1334,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             otherwise to use default connection parameters.
             """
             if "snowbook" in sys.modules:
-                return {
-                    "host": os.getenv("SNOWFLAKE_HOST"),
-                    "port": os.getenv("SNOWFLAKE_PORT"),
-                    "protocol": "https",
-                    "account": os.getenv("SNOWFLAKE_ACCOUNT"),
-                    "authenticator": "oauth",
-                    "token": open("/snowflake/session/token").read(),
-                    "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
-                    "database": os.getenv("SNOWFLAKE_DATABASE"),
-                    "schema": os.getenv("SNOWFLAKE_SCHEMA"),
-                }
+                try:
+                    with open("/snowflake/session/token") as token_file:
+                        return {
+                            "host": os.getenv("SNOWFLAKE_HOST"),
+                            "account": os.getenv("SNOWFLAKE_ACCOUNT"),
+                            "token": token_file.read(),
+                            "authenticator": "oauth",
+                            "protocol": "https",
+                            "database": os.getenv("SNOWFLAKE_DATABASE"),
+                            "schema": os.getenv("SNOWFLAKE_SCHEMA"),
+                            "port": os.getenv("SNOWFLAKE_PORT"),
+                            "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE", ""),
+                        }
+                except Exception:
+                    logging.error(
+                        "Could not read session token from notebook environment. "
+                        "Attempting to use default connection parameters."
+                    )
+                    return {}
             return {}
-
-        def get_session(
-            connection_creds: dict[str, Any]
-        ) -> Session:  # pragma: no cover
-            try:
-                return Session.builder.configs(connection_creds).getOrCreate()
-            except Exception as e:
-                logging.error(
-                    "Could not get or create Snowpark session. Ensure you have a "
-                    "~/.snowflake/connections.toml file with the correct credentials. "
-                    f"{e}"
-                )
-                raise RuntimeError("Could not get or create Snowpark session.") from e
-
-        @ray.remote
-        class SnowflakeWriterActor:
-            def __init__(
-                self, table_name: str, connection_creds: dict[str, Any]
-            ) -> None:
-                self.table_name = table_name
-                self.session = get_session(connection_creds)
-
-            def write(self, batch: native_pd.DataFrame) -> None:
-                self.session.write_pandas(
-                    df=batch,
-                    table_name=self.table_name,
-                    table_type="",
-                    parallel=4,
-                    auto_create_table=True,
-                    overwrite=False,
-                )
 
         connection_creds = get_connection_creds()
         table_name = random_name_for_temp_object(TempObjectType.TABLE)
@@ -1431,9 +1434,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         snowpark_pandas_df.sort_values(by=row_position_pandas_label, inplace=True)
         snowpark_pandas_df.drop(row_position_pandas_label, axis=1, inplace=True)
         # Drop the permanent table and reference only the snapshot
-        get_session(connection_creds).sql(
-            f"DROP TABLE IF EXISTS {table_name}"
-        ).collect()
+        pd.session.sql(f"DROP TABLE IF EXISTS {table_name}").collect()
 
         return cls(
             InternalFrame.create(
