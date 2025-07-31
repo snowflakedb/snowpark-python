@@ -1877,9 +1877,7 @@ class SetStatement(Selectable):
     def commented_sql(self) -> str:
         if not self._commented_sql:
             self._commented_sql = self._generate_sql(generate_uuid_comments=True)
-            self._commented_sql = self._commented_sql.replace(
-                self._session._new_line_token, ""
-            )
+            self._commented_sql = remove_new_line_tokens(self._commented_sql)
         return self._commented_sql
 
     def _generate_sql(self, generate_uuid_comments: bool) -> str:

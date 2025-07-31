@@ -1980,7 +1980,7 @@ def get_line_numbers(
     current_child_uuid = None
 
     for line in sql_lines:
-        if line in comment_placeholders:
+        if line.strip() in comment_placeholders:
             if found_start and current_child_uuid:
                 child_intervals.append(
                     QueryLineInterval(child_start, idx - 1, current_child_uuid)
@@ -1990,7 +1990,7 @@ def get_line_numbers(
             elif not found_start:
                 found_start = True
                 child_start = idx
-                current_child_uuid = comment_placeholders[line]
+                current_child_uuid = comment_placeholders[line.strip()]
         elif line != "":
             idx += 1
 
