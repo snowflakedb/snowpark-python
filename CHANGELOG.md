@@ -18,6 +18,10 @@
 
 - Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
 
+#### Bug Fixes
+
+- Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically.
+
 ## 1.35.0 (2025-07-24)
 
 ### Snowpark Python API Updates
