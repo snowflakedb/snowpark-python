@@ -27,6 +27,7 @@ Functions
     ai_classify
     ai_complete
     ai_filter
+    ai_sentiment
     ai_similarity
     ai_summarize_agg
     any_value
