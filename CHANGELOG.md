@@ -67,7 +67,7 @@
 
 - Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
 - Added an example for reading a file from a stage in the docstring for `pd.read_excel`.
-- Implemented custom data transfer logic between the Snowflake and Ray backends.
+- Implemented more efficient data transfer between the Snowflake and Ray backends of Modin (requires modin>=0.35.0 to use).
 
 #### Bug Fixes
 
