@@ -121,7 +121,7 @@ def test_merge(init_transaction_tables, us_holidays_data):
     assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=9)
+@sql_count_checker(query_count=7)
 def test_filtered_data(init_transaction_tables):
     # When data is filtered, the engine should change when it is sufficiently small.
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
@@ -131,18 +131,15 @@ def test_filtered_data(init_transaction_tables):
     assert df_transactions.get_backend() == "Snowflake"
     base_date = pd.Timestamp("2025-06-09").date()
     df_transactions_filter1 = df_transactions[
-        (df_transactions["DATE"] >= base_date - pd.Timedelta("1 days"))
+        (df_transactions["DATE"] >= base_date - pd.Timedelta("7 days"))
         & (df_transactions["DATE"] < base_date)
     ]
-    df_transactions_filter1 = df_transactions_filter1.sort_values(
-        by="TRANSACTION_ID"
-    ).head(1000)
     assert df_transactions_filter1.get_backend() == "Snowflake"
     # The smaller dataframe does operations in pandas
     df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()["REVENUE"]
     assert df_transactions_filter1.get_backend() == "Pandas"
     df_transactions_filter2 = pd.read_snowflake(
-        "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -1, '2025-06-09' ) and Date < '2025-06-09' ORDER BY TRANSACTION_ID LIMIT 1000"
+        "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09'"
     )
     assert df_transactions_filter2.get_backend() == "Pandas"
     assert_array_equal(
