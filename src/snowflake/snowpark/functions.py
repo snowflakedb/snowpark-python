@@ -12742,7 +12742,7 @@ def ai_complete(
         ... }
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='mistral-large2',
+        ...         model='llama2-70b-chat',
         ...         prompt='Analyze the sentiment of this text: I love this product!',
         ...         response_format=response_schema
         ...     ).alias("structured_result")
@@ -12754,7 +12754,7 @@ def ai_complete(
         >>> # Using prompt object from prompt() function
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='openai-gpt-4.1',
+        ...         model='claude-3-7-sonnet',
         ...         prompt=prompt("Extract the kitchen appliances identified in this image. Respond in JSON only with the identified appliances? {0}", to_file('@mystage/kitchen.png')),
         ...     )
         ... )
