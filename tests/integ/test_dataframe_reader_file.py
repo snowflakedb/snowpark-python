@@ -18,7 +18,6 @@ pytestmark = [
 
 def test_file_basic(session, resources_path):
     """Test basic file listing functionality."""
-    # Create a fresh stage for this test
     test_stage = Utils.random_stage_name()
     Utils.create_stage(session, test_stage, is_temporary=True)
 
@@ -96,7 +95,6 @@ def test_file_with_pattern(session, resources_path):
 
 def test_file_with_subdirectories(session, resources_path):
     """Test file listing with subdirectories."""
-    # Create a fresh stage for this test
     test_stage = Utils.random_stage_name()
     Utils.create_stage(session, test_stage, is_temporary=True)
 
@@ -139,7 +137,6 @@ def test_file_with_subdirectories(session, resources_path):
 
 def test_file_empty_stage(session):
     """Test file listing on an empty stage."""
-    # Create a new empty stage
     empty_stage = Utils.random_stage_name()
     Utils.create_stage(session, empty_stage, is_temporary=True)
 
@@ -153,7 +150,6 @@ def test_file_empty_stage(session):
 
 def test_file_compressed_files(session, resources_path):
     """Test file listing with compressed files."""
-    # Create a fresh stage for this test
     test_stage = Utils.random_stage_name()
     Utils.create_stage(session, test_stage, is_temporary=True)
 
@@ -253,7 +249,6 @@ def test_file_complex_patterns(session, resources_path):
 
 def test_file_chained_operations(session, resources_path):
     """Test chaining operations after file listing."""
-    # Create a fresh stage for this test
     test_stage = Utils.random_stage_name()
     Utils.create_stage(session, test_stage, is_temporary=True)
 
@@ -279,10 +274,6 @@ def test_file_chained_operations(session, resources_path):
 
 def test_file_special_characters_in_filenames(session, resources_path):
     """Test handling files with special characters in names."""
-    # Note: This test might need adjustment based on what special characters
-    # are allowed in Snowflake stage file names
-
-    # Create a new stage for this test to avoid interference
     special_stage = Utils.random_stage_name()
     Utils.create_stage(session, special_stage, is_temporary=True)
 
