@@ -28,7 +28,7 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=9, union_count=1)
 def test_snowflake_pandas_transfer_threshold():
     """
     Tests that the SnowflakePandasTransferThreshold configuration variable
@@ -69,6 +69,9 @@ def test_snowflake_pandas_transfer_threshold():
             type(df._query_compiler), "DataFrame", "test_op", {}
         )
         assert cost == QCCoercionCost.COST_IMPOSSIBLE
+        assert snow_df.get_backend() == "Snowflake"
+        result_df = snow_df.transpose()
+        assert result_df.get_backend() == "Snowflake"
 
 
 @sql_count_checker(query_count=0)
