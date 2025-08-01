@@ -1424,6 +1424,7 @@ class DataFrameReader:
         is_query = True if table is None else False
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
+        logger.debug(f"ingestion start at: {start_time}")
         if session_init_statement and isinstance(session_init_statement, str):
             session_init_statement = [session_init_statement]
         partitioner = DataSourcePartitioner(
@@ -1466,9 +1467,12 @@ class DataFrameReader:
                 packages=udtf_configs.get("packages", None),
                 _emit_ast=_emit_ast,
             )
-            telemetry_json_string["end_to_end_duration"] = (
-                time.perf_counter() - start_time
+            end_time = time.perf_counter()
+            telemetry_json_string["end_to_end_duration"] = end_time - start_time
+            logger.debug(
+                f"ingestion end at: {end_time}, total time: {end_time - start_time}"
             )
+
             self._session._conn._telemetry_client.send_data_source_perf_telemetry(
                 telemetry_json_string
             )
@@ -1576,8 +1580,16 @@ class DataFrameReader:
             telemetry_json_string["fetch_to_local_duration"] = (
                 fetch_to_local_end_time - fetch_to_local_start_time
             )
+            logger.debug(f"fetch to local start at: {fetch_to_local_start_time}")
+            logger.debug(
+                f"fetch to local end at {fetch_to_local_end_time}, total time: {fetch_to_local_end_time - fetch_to_local_start_time}"
+            )
             telemetry_json_string["upload_and_copy_into_sf_table_duration"] = (
                 upload_to_sf_end_time - upload_to_sf_start_time
+            )
+            logger.debug(f"upload and copy into start at: {upload_to_sf_start_time}")
+            logger.debug(
+                f"upload and copy into end at {upload_to_sf_end_time}, total time: {upload_to_sf_end_time - upload_to_sf_start_time}"
             )
 
         except BaseException as exc:
@@ -1608,7 +1620,8 @@ class DataFrameReader:
                 data_fetching_thread_pool_executor.shutdown(wait=True)
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
-        telemetry_json_string["end_to_end_duration"] = time.perf_counter() - start_time
+        end_time = time.perf_counter()
+        telemetry_json_string["end_to_end_duration"] = end_time - start_time
 
         # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
         # with the new name for the temporary table into which the external db data was ingressed.
@@ -1620,6 +1633,9 @@ class DataFrameReader:
         telemetry_json_string["schema"] = res_df.schema.simple_string()
         self._session._conn._telemetry_client.send_data_source_perf_telemetry(
             telemetry_json_string
+        )
+        logger.debug(
+            f"ingestion end at: {end_time}, total time: {end_time - start_time}"
         )
         logger.debug(f"recorded telemetry: {json.dumps(telemetry_json_string)}")
         set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
