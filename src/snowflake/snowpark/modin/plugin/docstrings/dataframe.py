@@ -809,6 +809,9 @@ class DataFrame(BasePandasDataset):
         ``func``. If you need to call a general pandas API like ``pd.Timestamp`` inside ``func``,
         please use the original ``pandas`` module (with ``import pandas``) as a workaround.
 
+        9. To create a permanent function, pass the "snowflake_udf_params" dictionary argument to
+        ``apply``. See examples below for details.
+
         Examples
         --------
         >>> df = pd.DataFrame([[2, 0], [3, 7], [4, 9]], columns=['A', 'B'])
@@ -844,6 +847,51 @@ class DataFrame(BasePandasDataset):
         1    14.50
         2    24.25
         dtype: float64
+
+        To generate a permanent UDTF, pass a dictionary as the `snowflake_udf_params` argument to `apply`.
+        The following example generates a permanent UDTF named "permanent_double":
+
+        >>> session.sql("CREATE STAGE sample_upload_stage").collect()  # doctest: +SKIP
+        >>> def double(x: int) -> int:  # doctest: +SKIP
+        ...     return x * 2
+        ...
+        >>> df.apply(double, snowflake_udf_params={"name": "permanent_double", "stage_location": "@sample_upload_stage"})  # doctest: +SKIP
+           A   B
+        0  4   0
+        1  6  14
+        2  8  18
+
+        You may also pass "replace" and "if_not_exists" in the dictionary to overwrite or re-use existing UDTFs.
+
+        With the "replace" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ... })
+
+        With the "if_not_exists" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "if_not_exists": True,
+        ... })
+
+        Note that Snowpark pandas may still attempt to upload a new UDTF even when "if_not_exists"
+        is passed; the generated SQL will just contain a `CREATE FUNCTION IF NOT EXISTS` query
+        instead. Subsequent calls to `apply` within the same session may skip this query.
+
+        Passing the `immutable` keyword creates an immutable UDTF, which assumes that the
+        UDTF will return the same result for the same inputs.
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ...     "immutable": True,
+        ... })
         """
 
     def assign():
@@ -5221,6 +5269,50 @@ class DataFrame(BasePandasDataset):
                    0          1
         0   1.000000   4.494400
         1  11.262736  20.857489
+
+        To generate a permanent UDF, pass a dictionary as the `snowflake_udf_params` argument to `apply`.
+        The following example generates a permanent UDF named "permanent_double":
+
+        >>> session.sql("CREATE STAGE sample_upload_stage").collect()  # doctest: +SKIP
+        >>> def double(x: float) -> float:  # doctest: +SKIP
+        ...     return x * 2  # doctest: +SKIP
+        ...
+        >>> df.map(double, snowflake_udf_params={"name": "permanent_double", "stage_location": "@sample_upload_stage"})  # doctest: +SKIP
+                 0      1
+        0.0  2.000  4.240
+        1.0  6.712  9.134
+
+        You may also pass "replace" and "if_not_exists" in the dictionary to overwrite or re-use existing UDTFs.
+
+        With the "replace" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ... })
+
+        With the "if_not_exists" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "if_not_exists": True,
+        ... })
+
+        Note that Snowpark pandas may still attempt to upload a new UDTF even when "if_not_exists"
+        is passed; the generated SQL will just contain a `CREATE FUNCTION IF NOT EXISTS` query
+        instead. Subsequent calls to `apply` within the same session may skip this query.
+
+        Passing the `immutable` keyword creates an immutable UDTF, which assumes that the
+        UDTF will return the same result for the same inputs.
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ...     "immutable": True,
+        ... })
         """
 
     def mask():
