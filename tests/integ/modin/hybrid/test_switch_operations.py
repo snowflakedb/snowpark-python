@@ -29,7 +29,6 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.utils.sql_counter import sql_count_checker
-from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 
 
 @sql_count_checker(query_count=0)
