@@ -31,6 +31,9 @@ def pytest_addoption(parser):
         "--local_testing_mode" in opt.names() for opt in parser._anonymous.options
     ):
         parser.addoption("--local_testing_mode", action="store_true", default=False)
+    parser.addoption("--disable_cte_optimization", action="store_true", default=False)
+    parser.addoption("--join_alias_fix", action="store_true", default=False)
+    parser.addoption("--disable_sql_simplifier", action="store_true", default=False)
 
 
 def pytest_runtest_makereport(item, call):
