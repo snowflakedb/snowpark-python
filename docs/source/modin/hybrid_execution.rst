@@ -122,7 +122,7 @@ the movement of data as it nears this threshold.
 .. code-block:: python
 
     # Change row transfer threshold to 500k
-    from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
+    from modin.config import SnowflakePandasTransferThreshold, context as config_context
     SnowflakePandasTransferThreshold.put(500_000)
 
     # Use a config context to set the transfer limit
