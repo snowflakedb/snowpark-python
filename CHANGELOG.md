@@ -18,6 +18,10 @@
 
 #### New Features
 
+#### Improvements
+- Hybrid execution row estimate improvements and a reduction of eager calls.
+
+#### Bug Fixes
 - Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
 
 #### Bug Fixes

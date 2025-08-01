@@ -783,9 +783,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 or ordered_dataframe.row_count_upper_bound
                 > MAX_ROW_COUNT_FOR_ESTIMATION
             ):
-                num_rows = query_compiler.get_axis_len(0)
-            if num_rows is None:
-                return 1000000000
+                return MAX_ROW_COUNT_FOR_ESTIMATION
         else:
             num_rows = query_compiler.get_axis_len(0)
         return num_rows
@@ -799,9 +797,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ordered_dataframe.row_count_upper_bound is None
             or ordered_dataframe.row_count_upper_bound > MAX_ROW_COUNT_FOR_ESTIMATION
         ):
-            num_rows = self.get_axis_len(0)
-        if num_rows is None:
-            num_rows = 10_000_000_000
+            return MAX_ROW_COUNT_FOR_ESTIMATION, num_columns
         return num_rows, num_columns
 
     @classmethod
