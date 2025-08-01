@@ -306,7 +306,7 @@ class DataSourcePartitioner:
     def formatting_custom_schema(custom_schema: Union[str, StructType]) -> StructType:
         if isinstance(custom_schema, str):
             schema = type_string_to_type_object(custom_schema)
-            if not isinstance(custom_schema, StructType):
+            if not isinstance(schema, StructType):
                 raise ValueError(
                     f"Invalid schema string: {custom_schema}. "
                     f"You should provide a valid schema string representing a struct type."
