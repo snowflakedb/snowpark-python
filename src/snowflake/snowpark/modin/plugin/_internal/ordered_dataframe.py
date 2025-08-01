@@ -1247,48 +1247,18 @@ class OrderedDataFrame:
             is_join_needed = False
 
         if is_join_needed and dummy_row_pos_mode and how not in ["asof", "cross"]:
-            if left.row_position_snowflake_quoted_identifier in left_on_cols:
-                new_col = (
-                    row_number().over(
-                        Window.order_by(left._ordering_snowpark_columns())
-                    )
-                    - 1
-                )
-                new_identifier = left.generate_snowflake_quoted_identifiers(
-                    pandas_labels=["row_position_left"],
-                    wrap_double_underscore=True,
-                )[0]
-                new_col = new_col.as_(new_identifier)
-                new_ordered_dataframe = left.select("*", new_col)
-                new_ordered_dataframe.row_position_snowflake_quoted_identifier = (
-                    new_identifier
-                )
-                new_ordered_dataframe = new_ordered_dataframe.sort(
-                    OrderingColumn(new_identifier)
-                )
-                left = new_ordered_dataframe
-                left_on_cols = [new_identifier]
-            if right.row_position_snowflake_quoted_identifier in right_on_cols:
-                new_col = (
-                    row_number().over(
-                        Window.order_by(right._ordering_snowpark_columns())
-                    )
-                    - 1
-                )
-                new_identifier = right.generate_snowflake_quoted_identifiers(
-                    pandas_labels=["row_position_right"],
-                    wrap_double_underscore=True,
-                )[0]
-                new_col = new_col.as_(new_identifier)
-                new_ordered_dataframe = right.select("*", new_col)
-                new_ordered_dataframe.row_position_snowflake_quoted_identifier = (
-                    new_identifier
-                )
-                new_ordered_dataframe = new_ordered_dataframe.sort(
-                    OrderingColumn(new_identifier)
-                )
-                right = new_ordered_dataframe
-                right_on_cols = [new_identifier]
+            # Replace the dummy row position with a real one before performing a join on the row position
+            # This currently does not handle the unlikely case of joining on both the row position and a data column
+            if left_on_cols == [left.row_position_snowflake_quoted_identifier]:
+                left.row_position_snowflake_quoted_identifier = None
+                left = left.ensure_row_position_column(dummy_row_pos_mode=False)
+                assert left.row_position_snowflake_quoted_identifier is not None
+                left_on_cols = [left.row_position_snowflake_quoted_identifier]
+            if right_on_cols == [right.row_position_snowflake_quoted_identifier]:
+                right.row_position_snowflake_quoted_identifier = None
+                assert right.row_position_snowflake_quoted_identifier is not None
+                right = right.ensure_row_position_column(dummy_row_pos_mode=False)
+                right_on_cols = [right.row_position_snowflake_quoted_identifier]
 
         original_right_quoted_identifiers = (
             right.projected_column_snowflake_quoted_identifiers
