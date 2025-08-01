@@ -1356,6 +1356,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         connection_creds = get_connection_creds()
         table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        pool = ActorPool(
+            [
+                SnowflakeWriterActor.remote(table_name, connection_creds)  # type: ignore[attr-defined]
+                for _ in range(max_sessions)
+            ]
+        )
         ray_df = pd.DataFrame(query_compiler=ray_qc)
 
         original_column_labels = ray_df.columns.tolist()
@@ -1411,12 +1417,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         with config_context(Backend="Ray"):
             ray_ds = pd.io.to_ray(ray_df)
-        pool = ActorPool(
-            [
-                SnowflakeWriterActor.remote(table_name, connection_creds)  # type: ignore[attr-defined]
-                for _ in range(max_sessions)
-            ]
-        )
         # Wait for all actors to finish writing
         list(
             pool.map_unordered(
