@@ -17,7 +17,9 @@ AsyncJob
 
     AsyncJob.cancel
     AsyncJob.is_done
+    AsyncJob.is_failed
     AsyncJob.result
+    AsyncJob.status
     AsyncJob.to_df
 
 
