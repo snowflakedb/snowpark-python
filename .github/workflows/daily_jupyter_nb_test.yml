@@ -119,6 +119,8 @@ jobs:
               run: uv pip install -U setuptools pip wheel tox --system
             - name: Build protobuf Python files
               run: python -m tox -e protoc
+            - name: Install llvmlite and numba for uv  # https://github.com/astral-sh/uv/issues/9413
+              run: uv pip install "llvmlite>=0.43.0" "numba>=0.60.0" --system
             - name: Install project
               run: uv pip install -e ".[modin-development]" --system
             - name: Install test requirements
