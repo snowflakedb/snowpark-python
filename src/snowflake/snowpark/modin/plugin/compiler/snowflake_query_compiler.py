@@ -566,7 +566,9 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
 
 
 class SnowflakeWriterActorBase:
-    def __init__(self, table_name: str, connection_creds: dict[str, Any]) -> None:
+    def __init__(
+        self, table_name: str, connection_creds: dict[str, Any]
+    ) -> None:  # pragma: no cover
         self.table_name = table_name
         try:
             self.session = Session.builder.configs(connection_creds).getOrCreate()
@@ -578,7 +580,7 @@ class SnowflakeWriterActorBase:
             )
             raise RuntimeError("Could not get or create Snowpark session.") from e
 
-    def write(self, batch: native_pd.DataFrame) -> None:
+    def write(self, batch: native_pd.DataFrame) -> None:  # pragma: no cover
         self.session.write_pandas(
             df=batch,
             table_name=self.table_name,
@@ -589,12 +591,12 @@ class SnowflakeWriterActorBase:
         )
 
 
-try:
+try:  # pragma: no cover
     import ray  # type: ignore[import]
     from ray.util.actor_pool import ActorPool  # type: ignore[import]
 
     SnowflakeWriterActor = ray.remote(SnowflakeWriterActorBase)
-except ImportError:  # pragma: no cover
+except ImportError:
     SnowflakeWriterActor = None
 
 
@@ -1240,7 +1242,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def execute(self) -> None:
         pass
 
-    def _move_to_ray(self) -> PandasQueryCompiler:
+    def _move_to_ray(self) -> PandasQueryCompiler:  # pragma: no cover
         """
         Move the QueryCompiler to a Ray backend using the `ml.data.DataConnector`.
 
@@ -1292,7 +1294,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ray_df.columns = original_column_labels
         return ray_df._query_compiler
 
-    def move_to(self, target_backend: str) -> Union[BaseQueryCompiler, Any]:
+    def move_to(
+        self, target_backend: str
+    ) -> Union[BaseQueryCompiler, Any]:  # pragma: no cover
         try:
             if target_backend == "Ray":
                 return self._move_to_ray()
@@ -1306,7 +1310,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ray_qc: BaseQueryCompiler,
         *,
         max_sessions: int,
-    ) -> "SnowflakeQueryCompiler":
+    ) -> "SnowflakeQueryCompiler":  # pragma: no cover
         """
         Move the data from Ray to Snowflake by writing to a Snowflake table. Preserves
         the row position order from the original dataframe.
@@ -1445,7 +1449,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @classmethod
-    def move_from(cls, source_qc: BaseQueryCompiler) -> Union[BaseQueryCompiler, Any]:
+    def move_from(
+        cls, source_qc: BaseQueryCompiler
+    ) -> Union[BaseQueryCompiler, Any]:  # pragma: no cover
         try:
             if source_qc.get_backend() == "Ray":
                 return cls._move_from_ray(source_qc, max_sessions=8)
