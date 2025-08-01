@@ -3,6 +3,7 @@
 #
 
 import pytest
+import sys
 
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -10,9 +11,7 @@ from snowflake.snowpark.functions import (
     col,
     sum,
 )
-from snowflake.snowpark._internal.utils import (
-    TempObjectType,
-)
+from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.window import Window
 from tests.utils import Utils
 
@@ -20,6 +19,11 @@ pytestmark = [
     pytest.mark.xfail(
         "config.getoption('local_testing_mode', default=False)",
         reason="This is a SQL test suite",
+        run=False,
+    ),
+    pytest.mark.skipif(
+        sys.version_info < (3, 10),
+        reason="Line numbers are flaky in Python 3.9",
         run=False,
     ),
 ]
@@ -42,6 +46,8 @@ def test_python_source_location_in_sql_error(session):
     assert "SQL compilation error corresponds to Python source" in str(
         ex.value.debug_context
     )
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 6}" in str(ex.value.debug_context)
 
 
 def test_python_source_location_in_session_sql(session):
@@ -55,6 +61,8 @@ def test_python_source_location_in_session_sql(session):
     assert "SQL compilation error corresponds to Python source" in str(
         ex.value.debug_context
     )
+    line_number = Utils.get_current_line_number_sys()
+    assert f"lines {line_number - 8}-{line_number - 6}" in str(ex.value.debug_context)
 
 
 def test_join_ambiguous_column_error(session):
@@ -67,6 +75,8 @@ def test_join_ambiguous_column_error(session):
     assert "SQL compilation error corresponds to Python source" in str(
         ex.value.debug_context
     )
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 6}" in str(ex.value.debug_context)
 
 
 def test_window_function_error(session):
@@ -80,6 +90,8 @@ def test_window_function_error(session):
     assert "SQL compilation error corresponds to Python source" in str(
         ex.value.debug_context
     )
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 6}" in str(ex.value.debug_context)
 
 
 def test_invalid_identifier_error_message(session):
@@ -95,6 +107,8 @@ def test_invalid_identifier_error_message(session):
     )
     assert "Do you mean '\"abc\"'?" in str(ex.value)
     assert "SQL compilation error corresponds to Python source" in str(ex.value)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 9}" in str(ex.value)
 
     with pytest.raises(SnowparkSQLException) as ex:
         df.select("_ab").collect()
@@ -105,6 +119,8 @@ def test_invalid_identifier_error_message(session):
     )
     assert "Do you mean '\"abd\"' or '\"abc\"'?" in str(ex.value)
     assert "SQL compilation error corresponds to Python source" in str(ex.value)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 8}" in str(ex.value)
 
     with pytest.raises(SnowparkSQLException) as ex:
         df.select('"abC"').collect()
@@ -115,6 +131,8 @@ def test_invalid_identifier_error_message(session):
     )
     assert "Do you mean" not in str(ex.value)
     assert "SQL compilation error corresponds to Python source" in str(ex.value)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 8}" in str(ex.value)
 
     df = session.create_dataframe([list(range(20))], schema=[str(i) for i in range(20)])
     with pytest.raises(
@@ -122,6 +140,8 @@ def test_invalid_identifier_error_message(session):
     ) as ex:
         df.select("20").collect()
     assert "SQL compilation error corresponds to Python source" in str(ex.value)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 2}" in str(ex.value)
 
     df = session.create_dataframe([1, 2, 3], schema=["A"])
     with pytest.raises(
@@ -130,6 +150,8 @@ def test_invalid_identifier_error_message(session):
         df.select("B").schema
     assert "There are existing quoted column identifiers: ['\"A\"']" in str(ex.value)
     assert "SQL compilation error corresponds to Python source" in str(ex.value)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 3}" in str(ex.value)
 
 
 def test_missing_table_with_session_table(session):
@@ -139,6 +161,8 @@ def test_missing_table_with_session_table(session):
     assert "Missing object 'NON_EXISTENT_TABLE' corresponds to Python source" in str(
         ex.value.debug_context
     )
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 5}" in str(ex.value)
 
 
 def test_missing_table_context_with_session_sql(session):
@@ -148,6 +172,8 @@ def test_missing_table_context_with_session_sql(session):
     assert "Missing object 'NON_EXISTENT_TABLE' corresponds to Python source" in str(
         ex.value.debug_context
     )
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 5}" in str(ex.value.debug_context)
 
 
 @pytest.mark.parametrize(
@@ -216,6 +242,9 @@ def test_existing_table_with_save_as_table(session):
         df.write.save_as_table(table_name)
 
     assert f"Object '{table_name}' was first referenced" in str(ex.value.debug_context)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 5}" in str(ex.value.debug_context)
+
     Utils.drop_table(session, table_name)
 
 
@@ -318,9 +347,9 @@ def test_existing_object_with_schema_qualified_names(session):
     db = db.strip('"')
     sc = sc.strip('"')
     expected_message = f"Object '{db}.{sc}.{temp_table_name}' was first referenced"
-    assert expected_message in str(
-        ex.value.debug_context
-    ), f"Expected message '{expected_message}' not found in debug context: {ex.value.debug_context}"
+    assert expected_message in str(ex.value.debug_context)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 9}" in str(ex.value.debug_context)
     Utils.drop_table(session, temp_table_name)
 
 
@@ -338,9 +367,9 @@ def test_existing_object_with_schema_qualified_names_using_session_sql(session):
     db = db.strip('"')
     sc = sc.strip('"')
     expected_message = f"Object '{db}.{sc}.{temp_table_name}' was first referenced"
-    assert expected_message in str(
-        ex.value.debug_context
-    ), f"Expected message '{expected_message}' not found in debug context: {ex.value.debug_context}"
+    assert expected_message in str(ex.value.debug_context)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 11}" in str(ex.value.debug_context)
     Utils.drop_table(session, temp_table_name)
 
 
@@ -360,9 +389,9 @@ def test_existing_view_with_schema_qualified_names_using_session_sql(session):
     db = db.strip('"')
     sc = sc.strip('"')
     expected_message = f"Object '{db}.{sc}.{temp_view_name}' was first referenced"
-    assert expected_message in str(
-        ex.value.debug_context
-    ), f"Expected message '{expected_message}' not found in debug context: {ex.value.debug_context}"
+    assert expected_message in str(ex.value.debug_context)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"lines {line_number - 13}-{line_number - 11}" in str(ex.value.debug_context)
     Utils.drop_view(session, temp_view_name)
 
 
@@ -379,9 +408,9 @@ def test_existing_view_with_schema_qualified_names_using_dataframe_methods(sessi
     db = db.strip('"')
     sc = sc.strip('"')
     expected_message = f"Object '{db}.{sc}.{temp_view_name}' was first referenced"
-    assert expected_message in str(
-        ex.value.debug_context
-    ), f"Expected message '{expected_message}' not found in debug context: {ex.value.debug_context}"
+    assert expected_message in str(ex.value.debug_context)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 9}" in str(ex.value.debug_context)
     Utils.drop_view(session, temp_view_name)
 
 
@@ -409,6 +438,8 @@ def test_existing_table_with_dataframe_write_operations(session):
         df2.write.save_as_table(table_name, mode="errorifexists")
 
     assert f"Object '{table_name}' was first referenced" in str(ex.value.debug_context)
+    line_number = Utils.get_current_line_number_sys()
+    assert f"line {line_number - 6}" in str(ex.value.debug_context)
     Utils.drop_table(session, table_name)
 
 

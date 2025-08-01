@@ -17,6 +17,7 @@ from typing import Dict, List, NamedTuple, Optional, Union
 from threading import Thread
 from unittest import mock
 import re
+import sys
 
 import pytest
 import pytz
@@ -599,6 +600,11 @@ class Utils:
         Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
         file_location = Utils.get_file_name(file_location)
         return lines, f"@{tmp_stage}/{file_location}"
+
+    @staticmethod
+    def get_current_line_number_sys():
+        """Returns the current line number of the caller using sys._getframe()."""
+        return sys._getframe(1).f_lineno
 
 
 class TestData:
