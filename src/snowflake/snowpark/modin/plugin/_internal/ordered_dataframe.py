@@ -1239,11 +1239,7 @@ class OrderedDataFrame:
             is_join_needed = False
 
         if is_join_needed and dummy_row_pos_mode and how not in ["asof", "cross"]:
-            if (
-                left_on_cols is not None
-                and len(left_on_cols) == 1
-                and "row_position" in left_on_cols[0]
-            ):
+            if left_on_cols == [left.row_position_snowflake_quoted_identifier]:
                 new_col = (
                     row_number().over(
                         Window.order_by(left._ordering_snowpark_columns())
@@ -1264,11 +1260,7 @@ class OrderedDataFrame:
                 )
                 left = new_ordered_dataframe
                 left_on_cols = [new_identifier]
-            if (
-                right_on_cols is not None
-                and len(right_on_cols) == 1
-                and "row_position" in right_on_cols[0]
-            ):
+            if right_on_cols == [right.row_position_snowflake_quoted_identifier]:
                 new_col = (
                     row_number().over(
                         Window.order_by(right._ordering_snowpark_columns())

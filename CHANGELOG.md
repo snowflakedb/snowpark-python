@@ -51,6 +51,10 @@
 
 - Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
 - Added an example for reading a file from a stage in the docstring for `pd.read_excel`.
+- Improved performance by deferring row position computation. 
+  - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
+  - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
+
 
 #### Bug Fixes
 
@@ -121,10 +125,6 @@
 - Fixed a bug in hybrid execution mode (PrPr) where certain Series operations would raise `TypeError: numpy.ndarray object is not callable`.
 - Fixed a bug in hybrid execution mode (PrPr) where calling numpy operations like `np.where` on modin objects with the Pandas backend would raise an `AttributeError`. This fix requires `modin` version 0.34.0 or newer.
 - Fixed issue in `df.melt` where the resulting values have an additional suffix applied.
-
-#### Improvements
-
-- Improved performance by deferring row position computation.
 
 ## 1.33.0 (2025-06-19)
 

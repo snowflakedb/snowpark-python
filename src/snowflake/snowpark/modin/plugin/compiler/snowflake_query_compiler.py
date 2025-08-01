@@ -13858,6 +13858,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if len(new_frame.index_column_snowflake_quoted_identifiers) == 1 and (
                 ROW_POSITION_COLUMN_LABEL
                 in new_frame.index_column_snowflake_quoted_identifiers[0]
+                or INDEX_LABEL in new_frame.index_column_snowflake_quoted_identifiers[0]
             ):
                 new_col = (
                     row_number().over(
