@@ -17,8 +17,8 @@ from tests.utils import Utils
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_basic_cte(session, enforce_ordering):
-    expected_query_count = 6 if enforce_ordering else 3
-    expected_union_count = 2 if enforce_ordering else 4
+    expected_query_count = 6 if enforce_ordering else 4
+    expected_union_count = 2 if enforce_ordering else 6
     with SqlCounter(query_count=expected_query_count, union_count=expected_union_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -37,8 +37,8 @@ def test_read_snowflake_query_basic_cte(session, enforce_ordering):
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_recursive_cte(enforce_ordering):
-    expected_query_count = 5 if enforce_ordering else 2
-    expected_union_count = 1 if enforce_ordering else 2
+    expected_query_count = 5 if enforce_ordering else 3
+    expected_union_count = 1 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count, union_count=expected_union_count):
         SQL_QUERY = """WITH RECURSIVE current_f (current_val, previous_val) AS
                         (
@@ -64,9 +64,9 @@ def test_read_snowflake_query_recursive_cte(enforce_ordering):
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_complex_recursive_cte(session, enforce_ordering):
-    expected_query_count = 6 if enforce_ordering else 3
-    expected_join_count = 1 if enforce_ordering else 2
-    expected_union_count = 1 if enforce_ordering else 2
+    expected_query_count = 6 if enforce_ordering else 4
+    expected_join_count = 1 if enforce_ordering else 3
+    expected_union_count = 1 if enforce_ordering else 3
     with SqlCounter(
         query_count=expected_query_count,
         join_count=expected_join_count,

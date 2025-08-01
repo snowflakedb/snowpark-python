@@ -109,6 +109,7 @@ class ValidIndex(Enum):
 def get_valid_index_values(
     frame: InternalFrame,
     first_or_last: ValidIndex,
+    dummy_row_pos_mode: bool = False,
 ) -> "Optional[Row]":  # type: ignore # noqa
     """
     Given an InternalFrame consisting of an array of booleans, filter for True values
@@ -124,7 +125,7 @@ def get_valid_index_values(
     -------
     Optional[Row]: The desired index (a Snowpark Row) if it exists, else None.
     """
-    frame = frame.ensure_row_position_column()
+    frame = frame.ensure_row_position_column(dummy_row_pos_mode)
     index_quoted_identifier = frame.index_column_snowflake_quoted_identifiers
     data_quoted_identifier = frame.data_column_snowflake_quoted_identifiers
     row_position_quoted_identifier = frame.row_position_snowflake_quoted_identifier
@@ -218,6 +219,7 @@ def validate_out_of_bound(key_max: Any, key_min: Any, axis_len: int) -> None:
 def get_frame_by_row_pos_frame(
     internal_frame: InternalFrame,
     key: InternalFrame,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Select rows from this internal_frame by row positions in the key frame
@@ -239,7 +241,9 @@ def get_frame_by_row_pos_frame(
 
     # boolean indexer
     if isinstance(key_datatype, BooleanType):
-        return _get_frame_by_row_pos_boolean_frame(internal_frame, key)
+        return _get_frame_by_row_pos_boolean_frame(
+            internal_frame, key, dummy_row_pos_mode
+        )
 
     # int indexer
     if isinstance(key_datatype, _FractionalType):
@@ -259,11 +263,13 @@ def get_frame_by_row_pos_frame(
             data_column_types=key.cached_data_column_snowpark_pandas_types[1:],
             index_column_types=key.cached_index_column_snowpark_pandas_types,
         )
-    return _get_frame_by_row_pos_int_frame(internal_frame, key)
+    return _get_frame_by_row_pos_int_frame(internal_frame, key, dummy_row_pos_mode)
 
 
 def _get_frame_by_row_pos_boolean_frame(
-    internal_frame: InternalFrame, key: InternalFrame
+    internal_frame: InternalFrame,
+    key: InternalFrame,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Select rows using the boolean frame positional key. The two frames will be inner joined on their row position column
@@ -276,8 +282,8 @@ def _get_frame_by_row_pos_boolean_frame(
     Returns:
         new frame with selected rows
     """
-    internal_frame = internal_frame.ensure_row_position_column()
-    key = key.ensure_row_position_column()
+    internal_frame = internal_frame.ensure_row_position_column(dummy_row_pos_mode)
+    key = key.ensure_row_position_column(dummy_row_pos_mode)
 
     # inner join internal_frame with key frame on row_position
     joined_frame, result_column_mapper = join(
@@ -286,6 +292,7 @@ def _get_frame_by_row_pos_boolean_frame(
         how="inner",
         left_on=[internal_frame.row_position_snowflake_quoted_identifier],
         right_on=[key.row_position_snowflake_quoted_identifier],
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
 
     # only true value in key's data column will be selected
@@ -311,7 +318,9 @@ def _get_frame_by_row_pos_boolean_frame(
 
 
 def _get_frame_by_row_pos_int_frame(
-    internal_frame: InternalFrame, key: InternalFrame
+    internal_frame: InternalFrame,
+    key: InternalFrame,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Select rows using the int frame positional key. The two frames will be inner joined on the internal_frame's row
@@ -324,9 +333,11 @@ def _get_frame_by_row_pos_int_frame(
     Returns:
         new frame with selected rows
     """
-    joined_key_frame = _get_adjusted_key_frame_by_row_pos_int_frame(internal_frame, key)
+    joined_key_frame = _get_adjusted_key_frame_by_row_pos_int_frame(
+        internal_frame, key, dummy_row_pos_mode
+    )
 
-    internal_frame = internal_frame.ensure_row_position_column()
+    internal_frame = internal_frame.ensure_row_position_column(dummy_row_pos_mode)
 
     # join the new value column of the key with the row position column of the original dataframe
     # to get the new rows. The result will be ordered by the key frame order followed by internal
@@ -338,6 +349,7 @@ def _get_frame_by_row_pos_int_frame(
         right_on=[internal_frame.row_position_snowflake_quoted_identifier],
         how="inner",
         inherit_join_index=InheritJoinIndex.FROM_RIGHT,
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
 
     # Note:
@@ -360,7 +372,9 @@ def _get_frame_by_row_pos_int_frame(
 
 
 def _get_adjusted_key_frame_by_row_pos_int_frame(
-    internal_frame: InternalFrame, key: InternalFrame
+    internal_frame: InternalFrame,
+    key: InternalFrame,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Return the key frame with any negative row positions adjusted by the internal frame.  For example, if the original
@@ -373,8 +387,8 @@ def _get_adjusted_key_frame_by_row_pos_int_frame(
     Returns:
         new frame with adjusted row positions
     """
-    internal_frame = internal_frame.ensure_row_position_column()
-    key = key.ensure_row_position_column()
+    internal_frame = internal_frame.ensure_row_position_column(dummy_row_pos_mode)
+    key = key.ensure_row_position_column(dummy_row_pos_mode)
 
     # The value in the key can be negative, and can be transformed into a positive value by adding the row count of the
     # internal frame. For example: if the key is pd.Series([-1, 0, 2, -2]), and the internal frame has total 4 rows,
@@ -396,7 +410,9 @@ def _get_adjusted_key_frame_by_row_pos_int_frame(
     count_ordered_dataframe = count_ordered_dataframe.limit(1, sort=False)
 
     # step 2: add a row position column (actually, value 0) as index column\
-    count_ordered_dataframe = count_ordered_dataframe.ensure_row_position_column()
+    count_ordered_dataframe = count_ordered_dataframe.ensure_row_position_column(
+        dummy_row_pos_mode
+    )
 
     count_frame = InternalFrame.create(
         ordered_dataframe=count_ordered_dataframe,
@@ -432,6 +448,7 @@ def _get_adjusted_key_frame_by_row_pos_int_frame(
         count_frame,
         "cross",
         inherit_join_index=InheritJoinIndex.FROM_LEFT,
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
 
     # project a new column to create the new value column
@@ -460,7 +477,9 @@ def _get_adjusted_key_frame_by_row_pos_int_frame(
 
 
 def get_frame_by_row_pos_slice_frame(
-    internal_frame: InternalFrame, key: slice
+    internal_frame: InternalFrame,
+    key: slice,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Select rows using the slice frame positional key. A filter will be applied on the frame based on the slice.
@@ -478,7 +497,7 @@ def get_frame_by_row_pos_slice_frame(
         raise ValueError("slice step cannot be zero.")
 
     # Row position column required for left and right bound comparison.
-    frame = internal_frame.ensure_row_position_column()
+    frame = internal_frame.ensure_row_position_column(dummy_row_pos_mode)
     row_pos_col = col(frame.row_position_snowflake_quoted_identifier)
 
     def get_count_col() -> Column:
@@ -1081,6 +1100,7 @@ def get_index_frame_by_row_label_slice(
 def get_frame_by_row_label(
     internal_frame: InternalFrame,
     key: Union[InternalFrame, slice, tuple],
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Select rows by labels in the key.
@@ -1112,7 +1132,9 @@ def get_frame_by_row_label(
     if isinstance(key_datatype, BooleanType):
         return _get_frame_by_row_label_boolean_frame(internal_frame, key)
 
-    return _get_frame_by_row_label_non_boolean_frame(internal_frame, key)
+    return _get_frame_by_row_label_non_boolean_frame(
+        internal_frame, key, dummy_row_pos_mode
+    )
 
 
 def _get_frame_by_row_multiindex_label_tuple(
@@ -1188,6 +1210,7 @@ def _get_frame_by_row_label_slice(
     internal_frame: InternalFrame,
     key: slice,
     key_level: Optional[int] = None,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Select rows with slice key, e.g., slice(start, stop, step).
@@ -1251,7 +1274,7 @@ def _get_frame_by_row_label_slice(
         return slice_val
 
     start, stop, step = to_tuple(key.start), to_tuple(key.stop), key.step
-    frame = internal_frame.ensure_row_position_column()
+    frame = internal_frame.ensure_row_position_column(dummy_row_pos_mode)
     row_pos_col = col(frame.row_position_snowflake_quoted_identifier)
 
     if key_level is not None:
@@ -1498,6 +1521,7 @@ def _get_frame_by_row_label_boolean_frame(
 def _get_frame_by_row_label_non_boolean_frame(
     internal_frame: InternalFrame,
     key: InternalFrame,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Select rows where its index is equal to the index in the key value.
@@ -1550,6 +1574,7 @@ def _get_frame_by_row_label_non_boolean_frame(
         left_on=left_on,
         right_on=right_on,
         inherit_join_index=InheritJoinIndex.FROM_RIGHT,
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
 
     # Note: reuse pandas labels from internal frame
@@ -1615,6 +1640,7 @@ def _set_2d_labels_helper_for_frame_item(
     matching_item_rows_by_label: bool,
     col_info: LocSetColInfo,
     index_is_bool_indexer: bool,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     This set 2d label helper method handles df[index, columns] = item where index is a non-boolean indexer and item is a
@@ -1672,14 +1698,17 @@ def _set_2d_labels_helper_for_frame_item(
             # values of each column, to match pandas broadcasting behavior in the case that we are
             # doing a loc set of multiple rows, but only provide 1 row (in which case pandas would
             # just set all of the rows to the provided rows).
-            internal_frame = internal_frame.ensure_row_position_column()
-            item = item.ensure_row_position_column()
+            internal_frame = internal_frame.ensure_row_position_column(
+                dummy_row_pos_mode
+            )
+            item = item.ensure_row_position_column(dummy_row_pos_mode)
             frame, mapping = join(
                 internal_frame,
                 item,
                 how="left",
                 left_on=[internal_frame.row_position_snowflake_quoted_identifier],
                 right_on=[item.row_position_snowflake_quoted_identifier],
+                dummy_row_pos_mode=dummy_row_pos_mode,
             )
             return _propagate_last_row_if_columns_are_short(
                 frame,
@@ -1760,9 +1789,9 @@ def _set_2d_labels_helper_for_frame_item(
     ), "TODO: SNOW-966427 handle it well in multiindex case"
 
     if not matching_item_rows_by_label:
-        index = index.ensure_row_position_column()
+        index = index.ensure_row_position_column(dummy_row_pos_mode)
         left_on = [index.row_position_snowflake_quoted_identifier]
-        item = item.ensure_row_position_column()
+        item = item.ensure_row_position_column(dummy_row_pos_mode)
         right_on = [item.row_position_snowflake_quoted_identifier]
     else:
         left_on = index.data_column_snowflake_quoted_identifiers
@@ -1774,10 +1803,12 @@ def _set_2d_labels_helper_for_frame_item(
         left_on=left_on,
         right_on=right_on,
         how="left",
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
 
     index_with_item = index_with_item.strip_duplicates(
-        quoted_identifiers=[index.data_column_snowflake_quoted_identifiers[0]]
+        quoted_identifiers=[index.data_column_snowflake_quoted_identifiers[0]],
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
 
     if not matching_item_rows_by_label:
@@ -1809,6 +1840,7 @@ def _set_2d_labels_helper_for_frame_item(
         left_on=internal_frame.index_column_snowflake_quoted_identifiers,
         right_on=index_with_item.data_column_snowflake_quoted_identifiers[:1],
         how="left",
+        dummy_row_pos_mode=dummy_row_pos_mode,
     ).result_frame
 
 
@@ -1816,6 +1848,7 @@ def _set_2d_labels_helper_for_non_frame_item(
     internal_frame: InternalFrame,
     index: Union[slice, Scalar, InternalFrame],
     index_is_bool_indexer: bool,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     The helper method for the case where item is not an internal frame
@@ -1851,6 +1884,7 @@ def _set_2d_labels_helper_for_non_frame_item(
             right_on=index_frame.index_column_snowflake_quoted_identifiers,
             how="outer",
             join_key_coalesce_config=[JoinKeyCoalesceConfig.LEFT],
+            dummy_row_pos_mode=dummy_row_pos_mode,
         ).result_frame
     elif index_is_bool_indexer:
         return align_on_index(
@@ -1860,7 +1894,8 @@ def _set_2d_labels_helper_for_non_frame_item(
         ).result_frame
     elif isinstance(index, InternalFrame):
         index = index.strip_duplicates(
-            quoted_identifiers=[index.data_column_snowflake_quoted_identifiers[0]]
+            quoted_identifiers=[index.data_column_snowflake_quoted_identifiers[0]],
+            dummy_row_pos_mode=dummy_row_pos_mode,
         )
 
         return join(
@@ -1869,6 +1904,7 @@ def _set_2d_labels_helper_for_non_frame_item(
             left_on=internal_frame.index_column_snowflake_quoted_identifiers,
             right_on=index.data_column_snowflake_quoted_identifiers,
             how="left",
+            dummy_row_pos_mode=dummy_row_pos_mode,
         ).result_frame
 
     # No need to join index, only need one join between the internal_frame and item
@@ -1884,6 +1920,7 @@ def _set_2d_labels_helper_for_single_column_wise_item(
     item_data_column_pandas_labels: list[Hashable],
     index_is_bool_indexer: bool,
     enforce_match_item_by_row_labels: bool,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     # If it's a single column with an item list, then we set the item values column-wise, for example,
@@ -1913,15 +1950,17 @@ def _set_2d_labels_helper_for_single_column_wise_item(
         columns=item_data_column_pandas_labels,
     )._query_compiler._modin_frame
 
-    item = item.ensure_row_position_column()
-    index = index.ensure_row_position_column()
+    item = item.ensure_row_position_column(dummy_row_pos_mode)
+    index = index.ensure_row_position_column(dummy_row_pos_mode)
 
     if index_is_bool_indexer:
-        index = _get_frame_by_row_pos_boolean_frame(internal_frame, key=index)
+        index = _get_frame_by_row_pos_boolean_frame(
+            internal_frame, key=index, dummy_row_pos_mode=dummy_row_pos_mode
+        )
         index = index.project_columns(
             [DEFAULT_DATA_COLUMN_LABEL],
             [col(id) for id in index.index_column_snowflake_quoted_identifiers],
-        ).ensure_row_position_column()
+        ).ensure_row_position_column(dummy_row_pos_mode)
 
     # First, we join the index and item based on the relative row positions.
     index_with_item_res = align(
@@ -1930,6 +1969,7 @@ def _set_2d_labels_helper_for_single_column_wise_item(
         left_on=[index.row_position_snowflake_quoted_identifier],
         right_on=[item.row_position_snowflake_quoted_identifier],
         how="coalesce",
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
     index_with_item = index_with_item_res.result_frame
     index_with_item_mapper = index_with_item_res.result_column_mapper
@@ -1968,14 +2008,15 @@ def _set_2d_labels_helper_for_single_column_wise_item(
         # with the labels of index, which become the first data column of index_with_item after the join.
         # deduplicate row index in index_with_item and use the last_value for the duplicate index
         index_with_item = index_with_item.strip_duplicates(
-            quoted_identifiers=[index.data_column_snowflake_quoted_identifiers[0]]
+            quoted_identifiers=[index.data_column_snowflake_quoted_identifiers[0]],
+            dummy_row_pos_mode=dummy_row_pos_mode,
         )
         left_on = internal_frame.index_column_snowflake_quoted_identifiers
         right_on = index_with_item.data_column_snowflake_quoted_identifiers[:1]
     else:
-        internal_frame = internal_frame.ensure_row_position_column()
+        internal_frame = internal_frame.ensure_row_position_column(dummy_row_pos_mode)
         left_on = [internal_frame.row_position_snowflake_quoted_identifier]
-        index_with_item = index_with_item.ensure_row_position_column()
+        index_with_item = index_with_item.ensure_row_position_column(dummy_row_pos_mode)
         right_on = [index_with_item.row_position_snowflake_quoted_identifier]
 
     return align(
@@ -1984,6 +2025,7 @@ def _set_2d_labels_helper_for_single_column_wise_item(
         left_on=left_on,
         right_on=right_on,
         how="coalesce",
+        dummy_row_pos_mode=dummy_row_pos_mode,
     ).result_frame
 
 
@@ -2094,6 +2136,7 @@ def set_frame_2d_labels(
     index_is_bool_indexer: bool,
     deduplicate_columns: bool,
     frame_is_df_and_item_is_series: bool,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Helper function to handle the general loc set functionality. The general idea here is to join the key from ``index``
@@ -2236,11 +2279,12 @@ def set_frame_2d_labels(
             matching_item_rows_by_label,
             col_info,
             index_is_bool_indexer,
+            dummy_row_pos_mode,
         )
 
     if item_is_scalar:
         result_frame = _set_2d_labels_helper_for_non_frame_item(
-            internal_frame, index, index_is_bool_indexer
+            internal_frame, index, index_is_bool_indexer, dummy_row_pos_mode
         )
     elif not item_is_frame:
         assert is_list_like(item) and not any(
@@ -2278,7 +2322,7 @@ def set_frame_2d_labels(
         if len(item_values) == 1:
             # handle single value list similar to scalar
             result_frame = _set_2d_labels_helper_for_non_frame_item(
-                internal_frame, index, index_is_bool_indexer
+                internal_frame, index, index_is_bool_indexer, dummy_row_pos_mode
             )
             item_is_scalar = True
             item = item_values[0]
@@ -2316,7 +2360,7 @@ def set_frame_2d_labels(
                     raise ValueError(LOC_SET_ITEM_KV_MISMATCH_ERROR_MESSAGE)
                 item_column_values = item_values
                 result_frame = _set_2d_labels_helper_for_non_frame_item(
-                    internal_frame, index, index_is_bool_indexer
+                    internal_frame, index, index_is_bool_indexer, dummy_row_pos_mode
                 )
     # After 2-joins, we need to
     #   1) update original columns existed in ``columns``, e.g., "B", "C", "D";
@@ -2560,6 +2604,7 @@ def set_frame_2d_positional(
     set_as_coords: bool,
     item: Union[InternalFrame, Scalar],
     is_item_series: bool,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Helper function to handle the general (worst case) 2-join case where index (aka row_key) and item are both frames.
@@ -2619,7 +2664,9 @@ def set_frame_2d_positional(
     if isinstance(index_data_type, BooleanType):
         index = get_row_position_index_from_bool_indexer(index)
     else:
-        index = _get_adjusted_key_frame_by_row_pos_int_frame(internal_frame, index)
+        index = _get_adjusted_key_frame_by_row_pos_int_frame(
+            internal_frame, index, dummy_row_pos_mode
+        )
 
     assert isinstance(index_data_type, (_IntegralType, BooleanType))
     if isinstance(item, InternalFrame):
@@ -2630,7 +2677,9 @@ def set_frame_2d_positional(
 
         # Combine the index (key) and item (values) into one key-value frame.  Note that the column length of index
         # may be changed here and we need this to properly index into the kv_frame later.
-        kv_frame = get_kv_frame_from_index_and_item_frames(index, item)
+        kv_frame = get_kv_frame_from_index_and_item_frames(
+            index, item, dummy_row_pos_mode
+        )
         item_data_columns_len = len(item.data_column_snowflake_quoted_identifiers)
     else:
         item_type = SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(
@@ -2653,8 +2702,8 @@ def set_frame_2d_positional(
     #
     # In the join result, the original dataframe data is aligned with the items that are to replace for the rows.
 
-    frame = internal_frame.ensure_row_position_column()
-    kv_frame = kv_frame.ensure_row_position_column()
+    frame = internal_frame.ensure_row_position_column(dummy_row_pos_mode)
+    kv_frame = kv_frame.ensure_row_position_column(dummy_row_pos_mode)
     item_type = kv_frame.cached_data_column_snowpark_pandas_types[-1]
 
     # To match the columns of the original dataframe (see [df] above) and the item values (see [item] above) we
@@ -2672,6 +2721,7 @@ def set_frame_2d_positional(
         how="left",
         left_on=[frame.row_position_snowflake_quoted_identifier],
         right_on=[kv_frame.data_column_snowflake_quoted_identifiers[0]],
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
 
     # Get the row position column from the index of the combined join (frame, index, item)
@@ -2700,7 +2750,7 @@ def set_frame_2d_positional(
         )
     )
 
-    df_kv_frame = df_kv_frame.ensure_row_position_column()
+    df_kv_frame = df_kv_frame.ensure_row_position_column(dummy_row_pos_mode)
 
     new_data_column_types = []
     for col_pos, snowflake_quoted_identifier_pair in enumerate(
@@ -2781,7 +2831,9 @@ def set_frame_2d_positional(
 
 
 def get_kv_frame_from_index_and_item_frames(
-    index: InternalFrame, item: InternalFrame
+    index: InternalFrame,
+    item: InternalFrame,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Return the key-value frame from the key (index) and item (values) frames by aligning on the row positions.
@@ -2812,8 +2864,8 @@ def get_kv_frame_from_index_and_item_frames(
     # to be selected to replace with item values.  If the item has fewer rows, we follow the join with
     # a conditional lag to project down the last item row to the empty item rows.
 
-    index = index.ensure_row_position_column()
-    item = item.ensure_row_position_column()
+    index = index.ensure_row_position_column(dummy_row_pos_mode)
+    item = item.ensure_row_position_column(dummy_row_pos_mode)
 
     kv_frame, result_column_mapper = join(
         left=index,
@@ -2821,6 +2873,7 @@ def get_kv_frame_from_index_and_item_frames(
         left_on=[index.row_position_snowflake_quoted_identifier],
         right_on=[item.row_position_snowflake_quoted_identifier],
         how="left",
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
 
     index_row_position_snowflake_quoted_identifier = (
@@ -2938,6 +2991,7 @@ def get_item_series_as_single_row_frame(
     item: InternalFrame,
     num_columns: int,
     move_index_to_cols: Optional[bool] = False,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Get an internal frame that transpose single data column into frame with single row.  For example, if the
@@ -2965,7 +3019,7 @@ def get_item_series_as_single_row_frame(
     -------
         Frame containing single row with columns for each row.
     """
-    item = item.ensure_row_position_column()
+    item = item.ensure_row_position_column(dummy_row_pos_mode)
     item_series_pandas_labels = (
         list(range(num_columns))
         if not move_index_to_cols
@@ -3061,7 +3115,9 @@ def get_item_series_as_single_row_frame(
     return item
 
 
-def get_row_position_index_from_bool_indexer(index: InternalFrame) -> InternalFrame:
+def get_row_position_index_from_bool_indexer(
+    index: InternalFrame, dummy_row_pos_mode: bool = False
+) -> InternalFrame:
     """
     Get the index positions for a bool_indexer frame.  Note that we the number of rows in the resulting dataframe
     can be less since rows with False value are omitted in the result.
@@ -3111,7 +3167,7 @@ def get_row_position_index_from_bool_indexer(index: InternalFrame) -> InternalFr
     #     2     |     2       |        1
     #     4     |     4       |        2
 
-    index = index.ensure_row_position_column()
+    index = index.ensure_row_position_column(dummy_row_pos_mode)
 
     (
         index_column_snowflake_quoted_identifier,
@@ -3168,6 +3224,7 @@ def get_row_pos_frame_from_row_key(
         "snowflake_query_compiler.SnowflakeQueryCompiler", Scalar, list, slice, tuple
     ],
     frame: InternalFrame,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Return a frame that contains the row positions if provided as a scalar/list/slice/etc
@@ -3189,7 +3246,7 @@ def get_row_pos_frame_from_row_key(
 
     if isinstance(key, slice):
         # If it is a slice, then use the row_position from the original frame and filter down based on the slice.
-        frame = frame.ensure_row_position_column()
+        frame = frame.ensure_row_position_column(dummy_row_pos_mode)
 
         key_frame = frame.project_columns(
             [MODIN_UNNAMED_SERIES_LABEL],

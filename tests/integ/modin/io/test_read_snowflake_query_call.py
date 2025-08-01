@@ -103,7 +103,7 @@ def filter_by_role(session, table_name, role):
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_system_function(session, enforce_ordering):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 6 if enforce_ordering else 4
     with SqlCounter(query_count=expected_query_count):
         df = pd.read_snowflake(
             "SELECT SYSTEM$TYPEOF(TRUE)",
