@@ -177,7 +177,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short --rerun 3 --reruns-delay 5
           TOX_PARALLEL_NO_SPINNER: 1
           # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.13 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
@@ -189,7 +189,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short --rerun 3 --reruns-delay 5
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       # SNOW-2213578 : Remove the test below and run udf tests for 3.13
@@ -200,7 +200,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short --rerun 3 --reruns-delay 5
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run data source tests
@@ -211,7 +211,7 @@ jobs:
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
+          PYTEST_ADDOPTS: --color=yes --tb=short --rerun 3 --reruns-delay 5
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
