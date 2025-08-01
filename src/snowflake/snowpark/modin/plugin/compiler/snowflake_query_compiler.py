@@ -2083,9 +2083,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self._shift_values_axis_1(periods, fill_value)
 
     def _shift_values_axis_0(
-        self,
-        periods: int,
-        fill_value: Hashable,
+        self, periods: int, fill_value: Hashable,
     ) -> "SnowflakeQueryCompiler":
         """
         Shift rows and fill new columns with fill_value.
