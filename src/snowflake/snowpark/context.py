@@ -80,7 +80,7 @@ def configure_development_features(
             session.ast_enabled = True
         except Exception as e:
             _logger.warning(
-                f"Cannot enable AST collection in the session due to {e.message}. Some development features may not work as expected.",
+                f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
             )
 
 
