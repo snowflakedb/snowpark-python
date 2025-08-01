@@ -1333,8 +1333,23 @@ class DataFrameReader:
         column name with table in external data source.
 
         Args:
-            create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
-                The callable must be picklable, as it will be passed to and executed in child processes.
+            url: A connection string used to establish connections to external data source with JDBC driver.
+                The string shall contain external data source endpoint, user name and password.
+            udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
+                This parameter is required for jdbc.
+
+                The dictionary may include the following keys:
+
+                - external_access_integration (str, required): The name of the external access integration,
+                    which allows the UDTF to access external endpoints.
+
+                - imports (List[str], required): A list of stage file names to import into the UDTF.
+                    Please include Jar file of jdbc driver to establish connection to external data source.
+                    Note that java udtf currently only support java 11, please include corresponding Jar file.
+
+                - packages (List[str], optional): A list of package names (with optional version numbers)
+                    required as dependencies for your `create_connection()` function.
+
             table: The name of the table in the external data source.
                 This parameter cannot be used together with the `query` parameter.
             query: A valid SQL query to be used as the data source in the FROM clause.
@@ -1368,40 +1383,6 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
-            udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
-                If this parameter is provided, the workload will be executed within a Snowflake UDTF context.
-
-                The dictionary may include the following keys:
-
-                - external_access_integration (str, required): The name of the external access integration,
-                    which allows the UDTF to access external endpoints.
-
-                - imports (List[str], optional): A list of stage file names to import into the UDTF.
-                    Use this to include any private packages required by your `create_connection()` function.
-
-                - packages (List[str], optional): A list of package names (with optional version numbers)
-                    required as dependencies for your `create_connection()` function.
-
-        Example::
-            .. code-block:: python
-
-                import oracledb
-                def create_oracledb_connection():
-                    connection = oracledb.connect(...)
-                    return connection
-
-                df = session.read.dbapi(create_oracledb_connection, table=...)
-
-        Example::
-            .. code-block:: python
-
-                import oracledb
-                def create_oracledb_connection():
-                    connection = oracledb.connect(...)
-                    return connection
-
-                if __name__ == "__main__":
-                    df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
@@ -1412,7 +1393,6 @@ class DataFrameReader:
         )
         imports = udtf_configs.get("imports", None)
         packages = udtf_configs.get("packages", None)
-        java_version = udtf_configs.get("java_version", 11)
 
         if external_access_integration is None or imports is None:
             raise ValueError(
@@ -1424,7 +1404,6 @@ class DataFrameReader:
             external_access_integration=external_access_integration,
             imports=imports,
             packages=packages,
-            java_version=java_version,
             table_or_query=table or query,
             is_query=True if query is not None else False,
             column=column,

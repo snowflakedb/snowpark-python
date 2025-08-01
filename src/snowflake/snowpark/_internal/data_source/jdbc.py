@@ -87,7 +87,6 @@ class JDBC:
         external_access_integration: str,
         imports: List[str],
         is_query: bool,
-        java_version: Optional[str] = "11",
         packages: Optional[List[str]] = None,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
@@ -107,7 +106,6 @@ class JDBC:
         self.external_access_integration = external_access_integration
         self.imports = imports
         self.packages = packages
-        self.java_version = java_version
 
         self.is_query = is_query
         self.column = column
@@ -141,7 +139,7 @@ class JDBC:
             CREATE OR REPLACE FUNCTION {infer_schema_udtf_name}(query VARCHAR)
             RETURNS TABLE (field_name VARCHAR, field_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN)
             LANGUAGE JAVA
-            RUNTIME_VERSION = '{self.java_version}'
+            RUNTIME_VERSION = '11'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
             {self.imports}
             {self.packages}
@@ -300,7 +298,7 @@ class JDBC:
             CREATE OR REPLACE FUNCTION {jdbc_ingestion_name}(query VARCHAR)
             RETURNS TABLE ({udtf_table_return_type})
             LANGUAGE JAVA
-            RUNTIME_VERSION = '{self.java_version}'
+            RUNTIME_VERSION = '11'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
             {self.imports}
             {self.packages}
