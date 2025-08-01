@@ -25,7 +25,6 @@ from tests.utils import (
     running_on_jenkins,
     running_on_public_ci,
 )
-import snowflake.snowpark.context as context
 
 RUNNING_ON_GH = os.getenv("GITHUB_ACTIONS") == "true"
 RUNNING_ON_JENKINS = "JENKINS_HOME" in os.environ
