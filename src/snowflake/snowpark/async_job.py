@@ -149,6 +149,21 @@ class AsyncJob:
             >>> df.select(col("A").as_("D"), "B").collect()
             [Row(D=1, B=2)]
 
+    Example 10
+        Checking the status of a failed query (division by zero) using the new status APIs::
+
+            >>> import time
+            >>> failing_query = session.sql("select 1/0 as result")
+            >>> async_job = failing_query.collect_nowait()
+            >>> while not async_job.is_done():
+            ...     time.sleep(1.0)
+            >>> async_job.is_done()
+            True
+            >>> async_job.is_failed()
+            True
+            >>> async_job.status()
+            'FAILED_WITH_ERROR'
+
     Note:
         - If a dataframe is associated with multiple queries:
 
