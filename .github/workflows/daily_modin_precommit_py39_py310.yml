@@ -310,7 +310,7 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run Snowpark pandas API tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasdailynotdoctest-modin-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -473,7 +473,7 @@ jobs:
         # do not run other tests for macos on aws
       - if: ${{ !(matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws') }}
         name: Run Snowpark pandas API tests (excluding doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasdailynotdoctest-modin-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
