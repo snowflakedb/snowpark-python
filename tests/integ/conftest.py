@@ -285,9 +285,6 @@ def session(
     session.ast_enabled = ast_enabled
     if not session._generate_multiline_queries:
         session._enable_multiline_queries()
-    context.configure_development_features(
-        enable_trace_sql_errors_to_dataframe=True, enable_eager_schema_validation=False
-    )
 
     if (RUNNING_ON_GH or RUNNING_ON_JENKINS) and not local_testing_mode:
         set_up_external_access_integration_resources(
