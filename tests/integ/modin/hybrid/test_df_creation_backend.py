@@ -75,8 +75,8 @@ def test_from_list(us_holidays_data):
 def test_move_threshold_setting():
     with config_context(NativePandasMaxRows=10):
         with SqlCounter(
-            query_count=11,
-            join_count=3,
+            query_count=10,
+            join_count=2,
             udtf_count=2,
             high_count_expected=True,
             high_count_reason="Apply in Snowflake creates UDTF",
@@ -86,7 +86,7 @@ def test_move_threshold_setting():
             # Above threshold; no move
             df_small = df_small.apply(lambda x: x + 1)
             assert df_small.get_backend() == "Snowflake"
-        with SqlCounter(query_count=2):
+        with SqlCounter(query_count=1):
             # Below threshold; should move before apply is performed
             df_small = df_small.head(5)
             df_small = df_small.apply(lambda x: x + 1)

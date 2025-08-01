@@ -236,8 +236,6 @@ class OrderedDataFrame:
     # row count snowflake quoted identifier
     row_count_snowflake_quoted_identifier: Optional[str]
 
-    # possible cached value of exact row count for this dataframe
-    row_count: Optional[int]
     # possible cached estimate for the upper limit of the number of rows in this frame
     row_count_upper_bound: Optional[int]
 
@@ -305,12 +303,22 @@ class OrderedDataFrame:
         self.row_count_snowflake_quoted_identifier = (
             row_count_snowflake_quoted_identifier
         )
-        self.row_count: Optional[int] = None
+        self._row_count: Optional[int] = None
         self.row_count_upper_bound: Optional[int] = None
 
     @property
     def ordering_columns(self) -> list[OrderingColumn]:
         return list(self._ordering_columns_tuple)
+
+    # possible cached value of exact row count for this dataframe
+    @property
+    def row_count(self) -> Optional[int]:
+        return self._row_count
+
+    @row_count.setter
+    def row_count(self, value: int) -> None:
+        self._row_count = value
+        self.row_count_upper_bound = value
 
     def _ordering_snowpark_columns(self) -> list[Column]:
         """
@@ -1239,7 +1247,7 @@ class OrderedDataFrame:
             is_join_needed = False
 
         if is_join_needed and dummy_row_pos_mode and how not in ["asof", "cross"]:
-            if left_on_cols == [left.row_position_snowflake_quoted_identifier]:
+            if left.row_position_snowflake_quoted_identifier in left_on_cols:
                 new_col = (
                     row_number().over(
                         Window.order_by(left._ordering_snowpark_columns())
@@ -1260,7 +1268,7 @@ class OrderedDataFrame:
                 )
                 left = new_ordered_dataframe
                 left_on_cols = [new_identifier]
-            if right_on_cols == [right.row_position_snowflake_quoted_identifier]:
+            if right.row_position_snowflake_quoted_identifier in right_on_cols:
                 new_col = (
                     row_number().over(
                         Window.order_by(right._ordering_snowpark_columns())
@@ -1579,7 +1587,7 @@ class OrderedDataFrame:
             new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
                 self,
                 DataFrameOperation.ALIGN,
-                args={"right": right},
+                args={"right": right, "how": how},
             )
             return new_df
 
@@ -1889,7 +1897,7 @@ class OrderedDataFrame:
         new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
             self,
             DataFrameOperation.ALIGN,
-            args={"right": right},
+            args={"right": right, "how": how},
         )
         return new_df
 

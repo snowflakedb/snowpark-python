@@ -435,7 +435,6 @@ def create_initial_ordered_dataframe(
         # if no snowflake_quoted_identifiers is specified, all columns will be selected
         if enforce_ordering:
             row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
-            row_position_column_str_for_count = row_position_column_str
         else:
             if dummy_row_pos_mode:
                 row_position_column_str = (
@@ -443,15 +442,9 @@ def create_initial_ordered_dataframe(
                 )
             else:
                 row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
-            row_position_column_str_for_count = (
-                f"0 as {row_position_snowflake_quoted_identifier}"
-            )
 
         columns_to_select = ", ".join(
             [row_position_column_str] + snowflake_quoted_identifiers
-        )
-        columns_to_select_for_count = ", ".join(
-            [row_position_column_str_for_count] + snowflake_quoted_identifiers
         )
         # Create or get the row position columns requires access to the metadata column of the table.
         # However, snowpark_df = session().table(table_name) generates query (SELECT * from <table_name>),
@@ -460,14 +453,9 @@ def create_initial_ordered_dataframe(
         # dataframe, we create dataframe through sql which access the corresponding metadata column.
         if enforce_ordering:
             dataframe_sql = f"SELECT {columns_to_select} FROM {readonly_table_name}"
-            dataframe_sql_for_count = dataframe_sql
         else:
             dataframe_sql = f"SELECT {columns_to_select} FROM ({table_name_or_query})"
-            dataframe_sql_for_count = (
-                f"SELECT {columns_to_select_for_count} FROM ({table_name_or_query})"
-            )
         snowpark_df = session.sql(dataframe_sql, _emit_ast=False)
-        snowpark_df_for_count = session.sql(dataframe_sql_for_count, _emit_ast=False)
         # assert dataframe_sql is None
 
         result_columns_quoted_identifiers = [
@@ -475,14 +463,6 @@ def create_initial_ordered_dataframe(
         ] + snowflake_quoted_identifiers
         ordered_dataframe = OrderedDataFrame(
             DataFrameReference(snowpark_df, result_columns_quoted_identifiers),
-            projected_column_snowflake_quoted_identifiers=result_columns_quoted_identifiers,
-            ordering_columns=[OrderingColumn(row_position_snowflake_quoted_identifier)],
-            row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
-        )
-        ordered_dataframe_for_count = OrderedDataFrame(
-            DataFrameReference(
-                snowpark_df_for_count, result_columns_quoted_identifiers
-            ),
             projected_column_snowflake_quoted_identifiers=result_columns_quoted_identifiers,
             ordering_columns=[OrderingColumn(row_position_snowflake_quoted_identifier)],
             row_position_snowflake_quoted_identifier=row_position_snowflake_quoted_identifier,
@@ -521,13 +501,12 @@ def create_initial_ordered_dataframe(
         ordered_dataframe = (
             snowpark_pandas_df._query_compiler._modin_frame.ordered_dataframe
         )
-        ordered_dataframe_for_count = ordered_dataframe
         row_position_snowflake_quoted_identifier = (
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
     # Set the materialized row count
     materialized_row_count = (
-        ordered_dataframe_for_count._dataframe_ref.snowpark_dataframe.count(
+        initial_ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
             statement_params=get_default_snowpark_pandas_statement_params(),
             _emit_ast=False,
         )

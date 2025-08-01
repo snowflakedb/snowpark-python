@@ -786,9 +786,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 or ordered_dataframe.row_count_upper_bound
                 > MAX_ROW_COUNT_FOR_ESTIMATION
             ):
-                num_rows = query_compiler.get_axis_len(0)
-            if num_rows is None:
-                return 1000000000
+                return MAX_ROW_COUNT_FOR_ESTIMATION
         else:
             num_rows = query_compiler.get_axis_len(0)
         return num_rows
@@ -802,9 +800,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ordered_dataframe.row_count_upper_bound is None
             or ordered_dataframe.row_count_upper_bound > MAX_ROW_COUNT_FOR_ESTIMATION
         ):
-            num_rows = self.get_axis_len(0)
-        if num_rows is None:
-            num_rows = 10_000_000_000
+            return MAX_ROW_COUNT_FOR_ESTIMATION, num_columns
         return num_rows, num_columns
 
     @classmethod
@@ -3631,6 +3627,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         relaxed_query_compiler = None
         if self._relaxed_query_compiler is not None and not drop:
+            # When drop is True, we would still compute the row postion;
+            # i.e., reset_index is currently supported in Faster pandas only when drop is False.
             relaxed_query_compiler = self._relaxed_query_compiler.reset_index(
                 level=level,
                 drop=drop,
@@ -13855,6 +13853,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 data_column_types=frame.cached_data_column_snowpark_pandas_types,
                 index_column_types=frame.cached_index_column_snowpark_pandas_types,
             )
+
+            # If the index column will display the row positions, then adjust the values such that
+            # the first half of the selected rows using the limit clause get the row positions of the top rows,
+            # while the second half get the positions of the bottom rows.
             if len(new_frame.index_column_snowflake_quoted_identifiers) == 1 and (
                 ROW_POSITION_COLUMN_LABEL
                 in new_frame.index_column_snowflake_quoted_identifiers[0]

@@ -22,6 +22,7 @@
 
 #### Improvements
 
+- Hybrid execution row estimate improvements and a reduction of eager calls.
 - Improved performance by deferring row position computation. 
   - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
   - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
