@@ -49,14 +49,11 @@ from typing import (
 )
 
 import snowflake.snowpark
-from snowflake.connector.constants import FIELD_ID_TO_NAME
-from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
-from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
-from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.lazy_import_utils import get_pandas
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
+from snowflake.connector.description import PLATFORM
 
 if TYPE_CHECKING:
     from snowflake.snowpark._internal.analyzer.snowflake_plan import (
@@ -64,6 +61,7 @@ if TYPE_CHECKING:
         QueryLineInterval,
     )
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+    from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2
@@ -222,6 +220,7 @@ SCOPED_TEMPORARY_STRING = "SCOPED TEMPORARY"
 
 SUPPORTED_TABLE_TYPES = ["temp", "temporary", "transient"]
 
+
 # TODO: merge fixed pandas importer changes to connector.
 def _pandas_importer():  # noqa: E302
     """Helper function to lazily import pandas and return MissingPandas if not installed."""
@@ -235,10 +234,6 @@ def _pandas_importer():  # noqa: E302
     except ImportError:  # pragma: no cover
         pass  # pragma: no cover
     return pandas
-
-
-pandas = _pandas_importer()
-installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
 
 class TempObjectType(Enum):
@@ -351,6 +346,8 @@ def is_interactive() -> bool:
 
 @lru_cache
 def get_connector_version() -> str:
+    from snowflake.connector.version import VERSION as connector_version
+
     return ".".join([str(d) for d in connector_version if d is not None])
 
 
@@ -406,6 +403,8 @@ def normalize_path(path: str, is_local: bool) -> str:
     a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
     we do nothing.
     """
+    from snowflake.connector.description import OPERATING_SYSTEM
+
     prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES_FOR_GET
     if is_single_quoted(path):
         return path
@@ -750,7 +749,7 @@ def column_to_bool(col_):
 
 
 def _parse_result_meta(
-    result_meta: Union[List[ResultMetadata], List["ResultMetadataV2"]]
+    result_meta: Union[List["ResultMetadata"], List["ResultMetadataV2"]]
 ) -> Tuple[Optional[List[str]], Optional[List[Callable]]]:
     """
     Takes a list of result metadata objects and returns a list containing the names of all fields as
@@ -761,6 +760,7 @@ def _parse_result_meta(
     represented as Row objects.
     """
     from snowflake.snowpark.context import _should_use_structured_type_semantics
+    from snowflake.connector.constants import FIELD_ID_TO_NAME
 
     if not result_meta:
         return None, None
@@ -781,7 +781,9 @@ def _parse_result_meta(
 
 def result_set_to_rows(
     result_set: List[Any],
-    result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]] = None,
+    result_meta: Optional[
+        Union[List["ResultMetadata"], List["ResultMetadataV2"]]
+    ] = None,
     case_sensitive: bool = True,
 ) -> List[Row]:
     col_names, wrappers = _parse_result_meta(result_meta or [])
@@ -803,8 +805,8 @@ def result_set_to_rows(
 
 
 def result_set_to_iter(
-    result_set: SnowflakeCursor,
-    result_meta: Optional[List[ResultMetadata]] = None,
+    result_set: "SnowflakeCursor",
+    result_meta: Optional[List["ResultMetadata"]] = None,
     case_sensitive: bool = True,
 ) -> Iterator[Row]:
     col_names, wrappers = _parse_result_meta(result_meta)
@@ -1250,6 +1252,10 @@ def check_output_schema_type(  # noqa: F821
     """Helper function to ensure output_schema adheres to type hint."""
 
     from snowflake.snowpark.types import StructType
+    from snowflake.connector.options import MissingOptionalDependency
+
+    pandas = get_pandas()
+    installed_pandas = not isinstance(pandas, MissingOptionalDependency)
 
     if installed_pandas:
         from snowflake.snowpark.types import PandasDataFrameType
@@ -1580,13 +1586,23 @@ def check_agg_exprs(
                 )
 
 
-class MissingModin(MissingOptionalDependency):
-    """The class is specifically for modin optional dependency."""
-
-    _dep_name = "modin"
-
-
-def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
+# class MissingModin(MissingOptionalDependency):
+#     """The class is specifically for modin optional dependency."""
+#
+#     _dep_name = "modin"
+#
+#
+# def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
+#     """This function tries importing the following packages: modin.pandas
+#
+#     If available it returns modin package with a flag of whether it was imported.
+#     """
+#     try:
+#         modin = importlib.import_module("modin.pandas")
+#         return modin, True
+#     except ImportError:
+#         return MissingModin(), False
+def import_or_missing_modin_pandas() -> Tuple[object, bool]:
     """This function tries importing the following packages: modin.pandas
 
     If available it returns modin package with a flag of whether it was imported.
@@ -1595,6 +1611,13 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
         modin = importlib.import_module("modin.pandas")
         return modin, True
     except ImportError:
+        from snowflake.connector.options import MissingOptionalDependency
+
+        class MissingModin(MissingOptionalDependency):
+            """The class is specifically for modin optional dependency."""
+
+            _dep_name = "modin"
+
         return MissingModin(), False
 
 
