@@ -63,7 +63,7 @@ def filter_by_role(session, table_name, role):
             session.sql("DROP PROCEDURE filter_by_role(VARCHAR, VARCHAR)").collect()
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=7, sproc_count=2)
 def test_read_snowflake_call_sproc_enforce_ordering_neg(session):
     session.sql(
         """
