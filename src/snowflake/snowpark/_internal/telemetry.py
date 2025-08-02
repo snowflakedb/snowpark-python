@@ -103,6 +103,10 @@ class TelemetryField(Enum):
     SQL_SIMPLIFIER_ENABLED = "sql_simplifier_enabled"
     CTE_OPTIMIZATION_ENABLED = "cte_optimization_enabled"
     LARGE_QUERY_BREAKDOWN_ENABLED = "large_query_breakdown_enabled"
+    REDUCE_DESCRIBE_QUERY_ENABLED = "reduce_describe_query_enabled"
+    QUERY_COMPILATION_STAGE_ENABLED = "query_compilation_stage_enabled"
+    JOIN_ALIAS_FIX_ENABLED = "join_alias_fix_enabled"
+    USE_OPTIMIZED_SQL_FEATURES_ENABLED = "use_optimized_sql_features_enabled"
     # temp table cleanup
     TYPE_TEMP_TABLE_CLEANUP = "snowpark_temp_table_cleanup"
     NUM_TEMP_TABLES_CLEANED = "num_temp_tables_cleaned"
@@ -703,6 +707,21 @@ class TelemetryClient:
                 TelemetryField.SESSION_ID.value: session_id,
                 TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_SNOWFLAKE_PLAN_METRICS.value,
                 **data,
+            },
+        }
+        self.send(message)
+
+    def send_optimization_state_telemetry(
+        self, session_id: int, optimization_state_dict: Dict[str, Any]
+    ) -> None:
+        message = {
+            **self._create_basic_telemetry_data(
+                CompilationStageTelemetryField.TYPE_COMPILATION_STAGE_STATISTICS.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.SESSION_ID.value: session_id,
+                TelemetryField.KEY_CATEGORY.value: CompilationStageTelemetryField.CAT_OPTIMIZATION_STATE.value,
+                **optimization_state_dict,
             },
         }
         self.send(message)
