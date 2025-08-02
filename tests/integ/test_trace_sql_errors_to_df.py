@@ -3,6 +3,7 @@
 #
 
 import pytest
+import snowflake.snowpark.context as context
 
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -29,7 +30,9 @@ pytestmark = [
 def setup(request, session):
     original = session.ast_enabled
     set_ast_state(AstFlagSource.TEST, True)
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
     yield
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
     set_ast_state(AstFlagSource.TEST, original)
 
 

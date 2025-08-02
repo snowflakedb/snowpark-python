@@ -5,8 +5,13 @@
 
 import pytest
 import re
+import snowflake.snowpark.context as context
 
-from snowflake.snowpark._internal.utils import get_plan_from_line_numbers
+from snowflake.snowpark._internal.utils import (
+    get_plan_from_line_numbers,
+    set_ast_state,
+    AstFlagSource,
+)
 from snowflake.snowpark import functions as F
 from tests.utils import Utils
 
@@ -17,6 +22,16 @@ pytestmark = [
         run=False,
     ),
 ]
+
+
+@pytest.fixture(autouse=True)
+def setup(request, session):
+    original = session.ast_enabled
+    set_ast_state(AstFlagSource.TEST, True)
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
+    yield
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
+    set_ast_state(AstFlagSource.TEST, original)
 
 
 def generate_test_data(session, sql_simplifier_enabled):

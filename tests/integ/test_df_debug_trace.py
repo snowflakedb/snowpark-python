@@ -39,16 +39,12 @@ pytestmark = [
 @pytest.fixture(autouse=True)
 def setup(request, session):
     original = session.ast_enabled
-    context.configure_development_features(
-        enable_dataframe_trace_on_error=True, enable_eager_schema_validation=False
-    )
+    context.configure_development_features(enable_dataframe_trace_on_error=True)
     set_ast_state(AstFlagSource.TEST, True)
     if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
         del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
     yield
-    context.configure_development_features(
-        enable_dataframe_trace_on_error=False, enable_eager_schema_validation=False
-    )
+    context.configure_development_features(enable_dataframe_trace_on_error=False)
     set_ast_state(AstFlagSource.TEST, original)
     if SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH in os.environ:
         del os.environ[SNOWPARK_PYTHON_DATAFRAME_TRANSFORM_TRACE_LENGTH]
