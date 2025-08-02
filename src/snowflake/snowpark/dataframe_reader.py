@@ -1580,11 +1580,9 @@ class DataFrameReader:
             )
             logger.debug(f"upload and copy into start at: {upload_to_sf_start_time}")
             logger.debug(
-                f"fetch to local end at {fetch_to_local_end_time}, total time: {fetch_to_local_end_time - fetch_to_local_start_time}"
+                f"fetch to local total time: {fetch_to_local_end_time - fetch_to_local_start_time}"
             )
-            logger.debug(
-                f"upload and copy into end at {upload_to_sf_end_time}, total time: {upload_to_sf_end_time - upload_to_sf_start_time}"
-            )
+
             telemetry_json_string["fetch_to_local_duration"] = (
                 fetch_to_local_end_time - fetch_to_local_start_time
             )

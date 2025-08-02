@@ -532,5 +532,10 @@ def process_parquet_queue_with_threads(
                 raise SnowparkDataframeReaderException(
                     f"Partition {idx} data fetching thread failed with error: {e}"
                 )
+    logger.debug(f"fetch to local end at {fetch_to_local_end_time}")
+    logger.debug(f"upload and copy into end at {upload_to_sf_end_time}")
+    logger.debug(
+        f"upload and copy into total time: {upload_to_sf_end_time - upload_to_sf_start_time}"
+    )
 
     return fetch_to_local_end_time, upload_to_sf_start_time, upload_to_sf_end_time
