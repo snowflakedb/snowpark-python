@@ -498,9 +498,10 @@ def create_initial_ordered_dataframe(
                 f"Failed to create Snowpark pandas DataFrame out of query {table_name_or_query} with error {ex}",
                 error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
             ) from ex
-        ordered_dataframe = (
+        initial_ordered_dataframe = (
             snowpark_pandas_df._query_compiler._modin_frame.ordered_dataframe
         )
+        ordered_dataframe = initial_ordered_dataframe
         row_position_snowflake_quoted_identifier = (
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
