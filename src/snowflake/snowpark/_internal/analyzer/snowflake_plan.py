@@ -77,6 +77,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     merge_statement,
     pivot_statement,
     project_statement,
+    remove_new_line_tokens,
     rename_statement,
     result_scan_statement,
     sample_by_statement,
@@ -721,13 +722,15 @@ class SnowflakePlan(LogicalPlan):
         for child in self.children_plan_nodes:
             if isinstance(child, (Selectable, SnowflakePlan)):
                 child_uuids.append(child.uuid)
-
+        last_query_sql = "\n".join(
+            line for line in last_query.sql.split("\n") if line.strip() != ""
+        )
         query_line_intervals = get_line_numbers(
-            last_query.sql,
+            last_query_sql,
             child_uuids,
             self.uuid,
         )
-        final_sql = remove_comments(last_query.sql, child_uuids)
+        final_sql = remove_comments(last_query_sql, child_uuids)
         last_query.sql = final_sql
         last_query.query_line_intervals = query_line_intervals
 
@@ -846,9 +849,12 @@ class SnowflakePlanBuilder:
         is_ddl_on_temp_object: bool = False,
     ) -> SnowflakePlan:
         select_child = self.add_result_scan_if_not_select(child)
+        formatted_sql = sql_generator(select_child.queries[-1].formatted_sql)
+        clean_sql = remove_new_line_tokens(formatted_sql)
         queries = select_child.queries[:-1] + [
             Query(
-                sql_generator(select_child.queries[-1].sql),
+                clean_sql,
+                formatted_sql=formatted_sql,
                 query_id_place_holder="",
                 is_ddl_on_temp_object=is_ddl_on_temp_object,
                 params=select_child.queries[-1].params,
@@ -862,6 +868,7 @@ class SnowflakePlanBuilder:
                 child.schema_query is not None
             ), "No schema query is available in child SnowflakePlan"
             new_schema_query = schema_query or sql_generator(child.schema_query)
+            new_schema_query = remove_new_line_tokens(new_schema_query)
 
         return SnowflakePlan(
             queries,
@@ -892,7 +899,7 @@ class SnowflakePlanBuilder:
             left_schema_query = schema_value_statement(select_left.attributes)
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
-
+            schema_query = remove_new_line_tokens(schema_query)
         if self.session._join_alias_fix:
             new_expr_to_alias = merge_multiple_snowflake_plan_expr_to_alias(
                 [select_left, select_right]
@@ -936,11 +943,15 @@ class SnowflakePlanBuilder:
                 select_left.referenced_ctes, select_right.referenced_ctes
             )
 
+        formatted_sql = sql_generator(
+            select_left.queries[-1].formatted_sql,
+            select_right.queries[-1].formatted_sql,
+        )
+        clean_sql = remove_new_line_tokens(formatted_sql)
         queries = merged_queries + [
             Query(
-                sql_generator(
-                    select_left.queries[-1].sql, select_right.queries[-1].sql
-                ),
+                clean_sql,
+                formatted_sql=formatted_sql,
                 params=[
                     *select_left.queries[-1].params,
                     *select_right.queries[-1].params,
@@ -967,9 +978,10 @@ class SnowflakePlanBuilder:
         params: Optional[Sequence[Any]] = None,
         schema_query: Optional[str] = None,
     ) -> SnowflakePlan:
+        clean_sql = remove_new_line_tokens(sql)
         return SnowflakePlan(
-            queries=[Query(sql, params=params)],
-            schema_query=schema_query or sql,
+            queries=[Query(clean_sql, formatted_sql=sql, params=params)],
+            schema_query=schema_query or clean_sql,
             session=self.session,
             source_plan=source_plan,
             api_calls=api_calls,
@@ -1005,7 +1017,10 @@ class SnowflakePlanBuilder:
             [attr.name for attr in attributes],
             self.session._conn._conn._paramstyle,
         )
-        select_stmt = project_statement([], temp_table_name)
+        formatted_select_stmt = project_statement([], temp_table_name)
+        clean_select_stmt = formatted_select_stmt.replace(
+            self.session._new_line_token, ""
+        )
         drop_table_stmt = drop_table_if_exists_statement(temp_table_name)
         if self._skip_schema_query:
             schema_query = None
@@ -1022,7 +1037,7 @@ class SnowflakePlanBuilder:
                 ),
             ),
             BatchInsertQuery(insert_stmt, data),
-            Query(select_stmt),
+            Query(clean_select_stmt, formatted_sql=formatted_select_stmt),
         ]
         new_plan = SnowflakePlan(
             queries=queries,
@@ -1375,16 +1390,21 @@ class SnowflakePlanBuilder:
             # so that dataframes created from non-select statements,
             # such as table sprocs, work
             child = self.add_result_scan_if_not_select(child)
+            formatted_insert_stmt = insert_into_statement(
+                table_name=full_table_name,
+                child=child.queries[-1].sql,
+                column_names=column_names,
+            )
+            clean_insert_stmt = formatted_insert_stmt.replace(
+                self.session._new_line_token, ""
+            )
             return SnowflakePlan(
                 [
                     *child.queries[0:-1],
                     Query(create_table, is_ddl_on_temp_object=is_temp_table_type),
                     Query(
-                        insert_into_statement(
-                            table_name=full_table_name,
-                            child=child.queries[-1].sql,
-                            column_names=column_names,
-                        ),
+                        clean_insert_stmt,
+                        formatted_sql=formatted_insert_stmt,
                         params=child.queries[-1].params,
                         is_ddl_on_temp_object=is_temp_table_type,
                     ),
@@ -2005,6 +2025,24 @@ class SnowflakePlanBuilder:
                 if thread_safe_session_enabled
                 else random_name_for_temp_object(TempObjectType.TABLE)
             )
+            formatted_copy_stmt = copy_into_table(
+                temp_table_name,
+                path,
+                format,
+                format_type_options,
+                copy_options_with_force,
+                pattern,
+                transformations=transformations,
+            )
+            clean_copy_stmt = remove_new_line_tokens(formatted_copy_stmt)
+            formatted_project_stmt = project_statement(
+                [
+                    f"{new_att.name} AS {input_att.name}"
+                    for new_att, input_att in zip(temp_table_schema, schema)
+                ],
+                temp_table_name,
+            )
+            clean_project_stmt = remove_new_line_tokens(formatted_project_stmt)
             queries = [
                 Query(
                     create_table_statement(
@@ -2023,24 +2061,12 @@ class SnowflakePlanBuilder:
                     ),
                 ),
                 Query(
-                    copy_into_table(
-                        temp_table_name,
-                        path,
-                        format,
-                        format_type_options,
-                        copy_options_with_force,
-                        pattern,
-                        transformations=transformations,
-                    )
+                    clean_copy_stmt,
+                    formatted_sql=formatted_copy_stmt,
                 ),
                 Query(
-                    project_statement(
-                        [
-                            f"{new_att.name} AS {input_att.name}"
-                            for new_att, input_att in zip(temp_table_schema, schema)
-                        ],
-                        temp_table_name,
-                    )
+                    clean_project_stmt,
+                    formatted_sql=formatted_project_stmt,
                 ),
             ]
 
@@ -2092,7 +2118,7 @@ class SnowflakePlanBuilder:
             self.session._conn._telemetry_client.send_copy_pattern_telemetry()
 
         full_table_name = ".".join(table_name)
-        copy_command = copy_into_table(
+        formatted_copy_command = copy_into_table(
             table_name=full_table_name,
             file_path=path,
             files=files,
@@ -2104,8 +2130,9 @@ class SnowflakePlanBuilder:
             column_names=column_names,
             transformations=transformations,
         )
+        clean_copy_command = remove_new_line_tokens(formatted_copy_command)
         if self.session._table_exists(table_name):
-            queries = [Query(copy_command)]
+            queries = [Query(clean_copy_command, formatted_sql=formatted_copy_command)]
         elif user_schema and (
             (file_format.upper() == "CSV" and not transformations)
             or (
@@ -2126,14 +2153,14 @@ class SnowflakePlanBuilder:
                     # table on behalf of the user automatically.
                     is_ddl_on_temp_object=True,
                 ),
-                Query(copy_command),
+                Query(clean_copy_command, formatted_sql=formatted_copy_command),
             ]
         else:
             raise SnowparkClientExceptionMessages.DF_COPY_INTO_CANNOT_CREATE_TABLE(
                 full_table_name
             )
         return SnowflakePlan(
-            queries, copy_command, [], {}, source_plan, session=self.session
+            queries, clean_copy_command, [], {}, source_plan, session=self.session
         )
 
     def copy_into_location(
@@ -2327,12 +2354,15 @@ class SnowflakePlanBuilder:
                 "schema query for WithQueryBlock is currently not supported"
             )
         name = with_query_block.name
-        new_query = project_statement([], name)
+        formatted_new_query = project_statement([], name)
+        clean_new_query = remove_new_line_tokens(formatted_new_query)
 
         # note we do not propagate the query parameter of the child here,
         # the query parameter will be propagate along with the definition during
         # query generation stage.
-        queries = child.queries[:-1] + [Query(sql=new_query)]
+        queries = child.queries[:-1] + [
+            Query(sql=clean_new_query, formatted_sql=formatted_new_query)
+        ]
         # propagate the WithQueryBlock references
         referenced_ctes = merge_referenced_ctes(
             child.referenced_ctes, {with_query_block: 1}
@@ -2370,6 +2400,7 @@ class Query:
         self,
         sql: str,
         *,
+        formatted_sql: Optional[str] = None,
         query_id_place_holder: Optional[str] = None,
         is_ddl_on_temp_object: bool = False,
         temp_obj_name_placeholder: Optional[Tuple[str, TempObjectType]] = None,
@@ -2377,6 +2408,7 @@ class Query:
         query_line_intervals: Optional[List[QueryLineInterval]] = None,
     ) -> None:
         self.sql = sql
+        self.formatted_sql = formatted_sql or sql
         self.query_id_place_holder = (
             query_id_place_holder
             if query_id_place_holder
