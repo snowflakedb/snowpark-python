@@ -1528,6 +1528,7 @@ class DataFrameReader:
             )
 
             fetch_to_local_start_time = time.perf_counter()
+            logger.debug(f"fetch to local start at: {fetch_to_local_start_time}")
 
             if fetch_with_process:
                 for _worker_id in range(max_workers):
@@ -1577,19 +1578,18 @@ class DataFrameReader:
                 on_error="abort_statement",
                 fetch_with_process=fetch_with_process,
             )
-            telemetry_json_string["fetch_to_local_duration"] = (
-                fetch_to_local_end_time - fetch_to_local_start_time
-            )
-            logger.debug(f"fetch to local start at: {fetch_to_local_start_time}")
+            logger.debug(f"upload and copy into start at: {upload_to_sf_start_time}")
             logger.debug(
                 f"fetch to local end at {fetch_to_local_end_time}, total time: {fetch_to_local_end_time - fetch_to_local_start_time}"
             )
-            telemetry_json_string["upload_and_copy_into_sf_table_duration"] = (
-                upload_to_sf_end_time - upload_to_sf_start_time
-            )
-            logger.debug(f"upload and copy into start at: {upload_to_sf_start_time}")
             logger.debug(
                 f"upload and copy into end at {upload_to_sf_end_time}, total time: {upload_to_sf_end_time - upload_to_sf_start_time}"
+            )
+            telemetry_json_string["fetch_to_local_duration"] = (
+                fetch_to_local_end_time - fetch_to_local_start_time
+            )
+            telemetry_json_string["upload_and_copy_into_sf_table_duration"] = (
+                upload_to_sf_end_time - upload_to_sf_start_time
             )
 
         except BaseException as exc:
