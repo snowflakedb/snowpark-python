@@ -193,6 +193,7 @@ pre_op_switch_points: list[dict[str, Union[str, None]]] = [
     {"class_name": "Series", "method": "plot"},
     {"class_name": "Series", "method": "quantile"},
     {"class_name": "DataFrame", "method": "T"},
+    {"class_name": "DataFrame", "method": "transpose"},
     {"class_name": None, "method": "read_csv"},
     {"class_name": None, "method": "read_json"},
     {"class_name": None, "method": "concat"},
