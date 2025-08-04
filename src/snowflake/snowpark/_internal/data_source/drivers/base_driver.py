@@ -141,7 +141,7 @@ class BaseDriver:
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
 
         udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
-        start = time.time()
+        start = time.perf_counter()
         session.udtf.register(
             self.udtf_class_builder(fetch_size=fetch_size, schema=schema),
             name=udtf_name,
