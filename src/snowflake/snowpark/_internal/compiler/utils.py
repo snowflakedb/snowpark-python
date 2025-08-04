@@ -235,7 +235,6 @@ def update_resolvable_node(
         # clean up the cached sql query and snowflake plan to allow
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
-        node._formatted_sql_query = None
         node._commented_sql = None
         node._snowflake_plan = None
         # make sure we also clean up the cached _projection_in_str, so that
@@ -267,7 +266,6 @@ def update_resolvable_node(
         # clean up the cached sql query and snowflake plan to allow
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
-        node._formatted_sql_query = None
         node._commented_sql = None
         node._snowflake_plan = None
         node.analyzer = query_generator
@@ -353,8 +351,6 @@ def get_snowflake_plan_queries(
                 final_query_params.extend(definition_query.params)
         with_query = cte_statement(definition_queries, table_names)
         plan_queries[-1].sql = with_query + plan_queries[-1].sql
-        # Also update formatted_sql to include CTE definitions
-        plan_queries[-1].formatted_sql = with_query + plan_queries[-1].formatted_sql
         final_query_params.extend(plan_queries[-1].params)
         plan_queries[-1].params = final_query_params
 

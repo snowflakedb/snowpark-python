@@ -37,7 +37,6 @@ def setup(request, session):
 def test_select_statement_sql_query(mock_session, mock_analyzer):
     mock_from = mock.create_autospec(SelectableEntity)
     mock_from.sql_query = "SELECT * FROM BASE_TABLE"
-    mock_from.formatted_sql_query = "SELECT * FROM BASE_TABLE"
     mock_from.uuid = "test-uuid-123"
     mock_from.analyzer = mock_analyzer
     mock_from.query_params = None
@@ -53,10 +52,9 @@ def test_select_statement_sql_query(mock_session, mock_analyzer):
     )
     assert (
         select_statement.commented_sql
-        == f"-- {mock_from.uuid}\nSELECT * FROM BASE_TABLE\n-- {mock_from.uuid}"
+        == f"\n-- {mock_from.uuid}\nSELECT * FROM BASE_TABLE\n-- {mock_from.uuid}\n"
     )
     assert select_statement.sql_query == "SELECT * FROM BASE_TABLE"
-    assert select_statement.formatted_sql_query == "SELECT * FROM BASE_TABLE"
 
 
 def test_select_statement_sql_query_with_projection(mock_session, mock_analyzer):
@@ -93,11 +91,6 @@ def test_select_statement_sql_query_with_projection(mock_session, mock_analyzer)
     assert Utils.normalize_sql(select_statement.sql_query) == Utils.normalize_sql(
         "SELECT A FROM (SELECT * FROM BASE_TABLE)"
     )
-    assert Utils.normalize_sql(
-        select_statement.formatted_sql_query
-    ) == Utils.normalize_sql(
-        f"SELECT {mock_session._new_line_token} A {mock_session._new_line_token} FROM (SELECT * FROM BASE_TABLE)"
-    )
 
 
 def test_selectable_entity_sql_query(mock_session, mock_analyzer):
@@ -108,9 +101,6 @@ def test_selectable_entity_sql_query(mock_session, mock_analyzer):
     assert Utils.normalize_sql(selectable_entity.sql_query) == Utils.normalize_sql(
         expected
     )
-    assert Utils.normalize_sql(
-        selectable_entity.formatted_sql_query
-    ) == Utils.normalize_sql(expected)
     assert Utils.normalize_sql(selectable_entity.commented_sql) == Utils.normalize_sql(
         expected
     )
@@ -121,20 +111,19 @@ def test_select_sql_sql_query(mock_session, mock_analyzer):
     select_sql = SelectSQL(sql, analyzer=mock_analyzer)
 
     assert select_sql.sql_query == sql
-    assert select_sql.formatted_sql_query == sql
     assert select_sql.commented_sql == sql
 
 
 def test_set_statement_sql_query_no_multiline(mock_session, mock_analyzer):
     mock_selectable1 = mock.create_autospec(SelectableEntity)
-    mock_selectable1.formatted_sql_query = "SELECT 1 AS A"
     mock_selectable1.uuid = "uuid-1"
+    mock_selectable1.sql_query = "SELECT 1 AS A"
     mock_selectable1.pre_actions = None
     mock_selectable1.post_actions = None
 
     mock_selectable2 = mock.create_autospec(SelectableEntity)
-    mock_selectable2.formatted_sql_query = "SELECT 2 AS A"
     mock_selectable2.uuid = "uuid-2"
+    mock_selectable2.sql_query = "SELECT 2 AS A"
     mock_selectable2.pre_actions = None
     mock_selectable2.post_actions = None
 
@@ -153,7 +142,6 @@ def test_select_table_function_commented_sql(mock_session, mock_analyzer):
     mock_snowflake_plan = mock.create_autospec(SnowflakePlan)
     mock_query = mock.create_autospec(Query)
     mock_query.sql = "SELECT * FROM TABLE(test_func())"
-    mock_query.formatted_sql = "SELECT * FROM TABLE(test_func())"
     mock_snowflake_plan.queries = [mock_query]
     mock_snowflake_plan.post_actions = None
     mock_snowflake_plan.api_calls = []
@@ -168,14 +156,12 @@ def test_select_table_function_commented_sql(mock_session, mock_analyzer):
     expected_sql = "SELECT * FROM TABLE(test_func())"
     assert select_table_function.sql_query == expected_sql
     assert select_table_function.commented_sql == expected_sql
-    assert select_table_function.formatted_sql_query == expected_sql
 
 
 def test_select_snowflake_plan_commented_sql(mock_session, mock_analyzer):
     mock_snowflake_plan = mock.create_autospec(SnowflakePlan)
     mock_query = mock.create_autospec(Query)
     mock_query.sql = "SELECT A, B FROM test_table WHERE A > 10"
-    mock_query.formatted_sql = "SELECT A, B FROM test_table WHERE A > 10"
     mock_query.params = None
     mock_snowflake_plan.queries = [mock_query]
     mock_snowflake_plan.post_actions = None
@@ -192,5 +178,4 @@ def test_select_snowflake_plan_commented_sql(mock_session, mock_analyzer):
 
     expected_sql = "SELECT A, B FROM test_table WHERE A > 10"
     assert select_snowflake_plan.sql_query == expected_sql
-    assert select_snowflake_plan.formatted_sql_query == expected_sql
     assert select_snowflake_plan.commented_sql == expected_sql

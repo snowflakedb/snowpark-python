@@ -1919,10 +1919,7 @@ def ttl_cache(ttl_seconds: float):
     return decorator
 
 
-def remove_comments(
-    sql_query: str,
-    uuids: List[str],
-) -> str:
+def remove_comments(sql_query: str, uuids: List[str]) -> str:
     """Removes comments associated with child uuids in a query"""
     from snowflake.snowpark._internal.analyzer import analyzer_utils
 
@@ -1991,7 +1988,7 @@ def get_line_numbers(
                 found_start = True
                 child_start = idx
                 current_child_uuid = comment_placeholders[line.strip()]
-        elif line != "":
+        elif line.strip() != "":
             idx += 1
 
     current_pos = 0

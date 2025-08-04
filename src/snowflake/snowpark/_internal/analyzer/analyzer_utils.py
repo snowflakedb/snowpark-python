@@ -202,7 +202,6 @@ ICEBERG_VERSION = "ICEBERG_VERSION"
 RENAME_FIELDS = " RENAME FIELDS"
 ADD_FIELDS = " ADD FIELDS"
 NEW_LINE = "\n"
-NEW_LINE_TOKEN = ""
 TAB = "    "
 UUID_COMMENT = "-- {}"
 MODEL = "MODEL"
@@ -315,21 +314,47 @@ def table_function_partition_spec(
 
 
 def indent_child_query(child: str) -> str:
-    if NEW_LINE_TOKEN != "":
-        return TAB + child.replace(NEW_LINE_TOKEN, NEW_LINE_TOKEN + TAB)
-    return child
+    if NEW_LINE == "":
+        return child
+    result = []
+    i = 0
+    in_single_quote = False
+    in_double_quote = False
+
+    while i < len(child):
+        if child[i] == NEW_LINE:
+            result.append(NEW_LINE)
+            if not in_single_quote and not in_double_quote:
+                result.append(TAB)
+            i += 1
+            continue
+        char = child[i]
+        if char == "'" and not in_double_quote:
+            num_backslashes = 0
+            j = i - 1
+            while j >= 0 and child[j] == "\\":
+                num_backslashes += 1
+                j -= 1
+            if num_backslashes % 2 == 0:
+                in_single_quote = not in_single_quote
+        elif char == '"' and not in_single_quote:
+            num_backslashes = 0
+            j = i - 1
+            while j >= 0 and child[j] == "\\":
+                num_backslashes += 1
+                j -= 1
+            if num_backslashes % 2 == 0:
+                in_double_quote = not in_double_quote
+
+        result.append(char)
+        i += 1
+
+    final_result = "".join(result)
+    return TAB + final_result
 
 
 def subquery_expression(child: str) -> str:
     return LEFT_PARENTHESIS + child + RIGHT_PARENTHESIS
-
-
-def remove_new_line_tokens(query: str) -> str:
-    if NEW_LINE_TOKEN == "":
-        return query
-    query = query.replace(NEW_LINE_TOKEN, "")
-    query = query.replace(NEW_LINE_TOKEN.upper(), "")
-    return "\n".join(line for line in query.split("\n") if line != "")
 
 
 def binary_arithmetic_expression(op: str, left: str, right: str) -> str:
