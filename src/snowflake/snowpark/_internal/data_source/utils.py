@@ -340,13 +340,11 @@ def worker_process(
 
 def process_completed_futures(thread_futures) -> float:
     """Process completed futures with simplified error handling."""
-    upload_to_sf_end_time = -math.inf
     for parquet_id, future in list(thread_futures):  # Iterate over a copy of the set
         if future.done():
             thread_futures.discard((parquet_id, future))
             try:
                 future.result()
-                upload_to_sf_end_time = time.perf_counter()
                 logger.debug(
                     f"Thread future for parquet {parquet_id} completed successfully."
                 )
@@ -362,7 +360,7 @@ def process_completed_futures(thread_futures) -> float:
                         )
                 thread_futures.clear()  # Clear the set since all are cancelled
                 raise
-    return upload_to_sf_end_time
+    return time.perf_counter()
 
 
 def _drain_process_status_queue(
