@@ -8,7 +8,6 @@ import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
-    remove_new_line_tokens,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.type_utils import convert_metadata_to_sp_type
