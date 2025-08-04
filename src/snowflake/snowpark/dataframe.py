@@ -1077,15 +1077,21 @@ class DataFrame:
 
         if block:
             if not isinstance(result, pandas.DataFrame):
-                _logger.warning(
-                    "to_pandas() did not return a pandas dataframe. "
-                    "If the query result format is set to JSON, accuracy of returned data is not guaranteed. "
-                    "Please set query result format to ARROW for best accuracy."
-                )
+                query = self._plan.queries[-1].sql.strip().lower()
+                is_select_statement = is_sql_select_statement(query)
+                if is_select_statement:
+                    _logger.warning(
+                        "to_pandas() did not return a pandas dataframe. "
+                        "If the query result format is set to JSON, accuracy of returned data is not guaranteed. "
+                        "Please set query result format to ARROW for best accuracy."
+                    )
                 return pandas.DataFrame(
                     result,
                     columns=[
-                        unquote_if_quoted(attr.name) for attr in self._plan.attributes
+                        unquote_if_quoted(attr.name)
+                        if is_select_statement
+                        else attr.name
+                        for attr in self._plan.attributes
                     ],
                 )
 
