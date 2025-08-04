@@ -16,7 +16,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug that `to_pandas()` has different column name when query result format is set to 'JSON' and 'ARROW'.
+- Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
 
 ### Snowpark pandas API Updates
 
