@@ -83,6 +83,9 @@ def configure_development_features(
             _logger.warning(
                 f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
             )
+    else:
+        _enable_dataframe_trace_on_error = False
+        _enable_trace_sql_errors_to_dataframe = False
 
 
 def _should_use_structured_type_semantics():
