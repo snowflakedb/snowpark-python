@@ -230,6 +230,67 @@ class TimeType(_AtomicType):
         ast.time_type = True
 
 
+class AnsiIntervalType(_AtomicType):
+    """The interval type which conforms to the ANSI SQL standard."""
+
+    pass
+
+
+class YearMonthIntervalType(AnsiIntervalType):
+    """YearMonthIntervalType data type. This maps to the INTERVAL YEAR TO MONTH data type in Snowflake.
+
+    Args:
+        startField: The start field of the interval (0=YEAR, 1=MONTH)
+        endField: The end field of the interval (0=YEAR, 1=MONTH)
+    """
+
+    YEAR = 0
+    MONTH = 1
+
+    _FIELD_NAMES = {YEAR: "year", MONTH: "month"}
+
+    _FIELD_VALUES_TO_NAMES = {value: key for key, value in _FIELD_NAMES.items()}
+
+    def __init__(
+        self, start_field: Optional[int] = None, end_field: Optional[int] = None
+    ) -> None:
+        if start_field is None and end_field is None:
+            start_field = YearMonthIntervalType.YEAR
+            end_field = YearMonthIntervalType.MONTH
+        if start_field is not None and end_field is None:
+            end_field = start_field
+
+        fields = self._FIELD_NAMES.keys()
+        if start_field not in fields or end_field not in fields:
+            raise RuntimeError(f"interval {start_field} to {end_field} is invalid")
+
+        self.start_field = start_field
+        self.end_field = end_field
+
+    def __repr__(self) -> str:
+        return f"YearMonthIntervalType({self.start_field}, {self.end_field})"
+
+    def simple_string(self) -> str:
+        fields = self._FIELD_NAMES
+        if self.start_field != self.end_field:
+            return f"interval {fields[self.start_field]} to {fields[self.end_field]}"
+        else:
+            return f"interval {fields[self.start_field]}"
+
+    def json_value(self) -> str:
+        return self.simple_string()
+
+    simpleString = simple_string
+    jsonValue = json_value
+
+    def _fill_ast(self, ast: proto.DataType) -> None:
+        # TODO: Add protobuf support when available
+        # ast.year_month_interval_type = True
+        raise NotImplementedError(
+            "YearMonthIntervalType protobuf support is not yet implemented. "
+        )
+
+
 # Numeric types
 class _IntegralType(_NumericType):
     pass
@@ -955,6 +1016,7 @@ _atomic_types: List[Type[DataType]] = [
     IntegerType,
     LongType,
     DateType,
+    YearMonthIntervalType,
     NullType,
 ]
 
@@ -965,10 +1027,16 @@ _timestamp_types: List[DataType] = [
     TimestampType(timezone=TimestampTimeZone.TZ),
 ]
 
+_interval_types: List[DataType] = [
+    YearMonthIntervalType(),
+    # TODO: Add DayToSecondIntervalType when implemented
+]
+
 _all_atomic_types: Dict[str, Type[DataType]] = {t.typeName(): t for t in _atomic_types}
 _all_timestamp_types: Dict[str, DataType] = {
     t.json_value(): t for t in _timestamp_types
 }
+_all_interval_types: Dict[str, DataType] = {t.json_value(): t for t in _interval_types}
 
 _complex_types: List[Type[Union[ArrayType, MapType, StructType]]] = [
     ArrayType,
@@ -982,6 +1050,7 @@ _all_complex_types: Dict[str, Type[Union[ArrayType, MapType, StructType]]] = {
 
 _FIXED_VECTOR_PATTERN = re.compile(r"vector\(\s*(int|float)\s*,\s*(\d+)\s*\)")
 _FIXED_DECIMAL_PATTERN = re.compile(r"decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)")
+_INTERVAL_YEARMONTH_PATTERN = re.compile(r"interval (year|month)( to (year|month))?")
 
 
 def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
@@ -990,6 +1059,8 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
             return _all_atomic_types[json_value]()
         if json_value in _all_timestamp_types:
             return TimestampType(timezone=_all_timestamp_types[json_value].tz)
+        elif json_value in _all_interval_types:
+            return _all_interval_types[json_value]
         elif json_value == "decimal":
             return DecimalType()
         elif json_value == "variant":
@@ -1000,6 +1071,14 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
         elif _FIXED_VECTOR_PATTERN.match(json_value):
             m = _FIXED_VECTOR_PATTERN.match(json_value)
             return VectorType(m.group(1), int(m.group(2)))  # type: ignore[union-attr]
+        elif _INTERVAL_YEARMONTH_PATTERN.match(json_value):
+            m = _INTERVAL_YEARMONTH_PATTERN.match(json_value)
+            field_values_to_names = YearMonthIntervalType._FIELD_VALUES_TO_NAMES
+            first_field = field_values_to_names.get(m.group(1))  # type: ignore[union-attr]
+            second_field = field_values_to_names.get(m.group(3))  # type: ignore[union-attr]
+            if first_field is not None and second_field is None:
+                return YearMonthIntervalType(first_field)
+            return YearMonthIntervalType(first_field, second_field)
         else:
             raise ValueError(f"Cannot parse data type: {str(json_value)}")
     else:

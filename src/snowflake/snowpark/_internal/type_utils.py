@@ -71,6 +71,7 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -290,6 +291,8 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
         return "DATE"
     if isinstance(datatype, TimeType):
         return "TIME"
+    if isinstance(datatype, YearMonthIntervalType):
+        return "INTERVAL YEAR TO MONTH"
     if isinstance(datatype, TimestampType):
         if datatype.tz == TimestampTimeZone.NTZ:
             return "TIMESTAMP_NTZ"
@@ -771,6 +774,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             DateType,
             TimestampType,
             TimeType,
+            YearMonthIntervalType,
             GeographyType,
             GeometryType,
             VariantType,
@@ -1002,6 +1006,8 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_tz"] = functools.partial(
 DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
     TimestampType, timezone=TimestampTimeZone.LTZ
 )
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_to_month"] = YearMonthIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval"] = YearMonthIntervalType
 
 DECIMAL_RE = re.compile(
     r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
