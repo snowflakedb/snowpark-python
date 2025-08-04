@@ -476,34 +476,35 @@ class TelemetryClient:
         self.python_version: str = get_python_version()
         self.os: str = get_os_name()
         self.is_interactive = is_interactive()
+        self._enabled = True
 
         # Initializing telemetry client for stored procedures
         # In stored procs, we can't import this package at the top level, so we need to do it here
-        try:
-            from _snowflake import internal_metrics
+        internal_metrics_available = None
+        if is_in_stored_procedure():
+            try:
+                from _snowflake import internal_metrics
 
-            internal_metrics_available = True
-        except ImportError:
-            internal_metrics_available = False
-        self.stored_proc_meter_enabled = (
-            is_in_stored_procedure() and internal_metrics_available
-        )
+                internal_metrics_available = True
+            except ImportError:
+                internal_metrics_available = False
         self.stored_proc_meter = (
             internal_metrics.get_meter("snowpark-python-client")
-            if self.stored_proc_meter_enabled
+            if is_in_stored_procedure() and internal_metrics_available
             else None
         )
-        self.gauge_count = 0
         # We periodically clean out the stored procedure meter of unused gauges
-        self.clean_up_stored_proc_meter_interval = 500
+        self.clean_up_stored_proc_meter_interval = 1000
 
     def send(self, msg: Dict, timestamp: Optional[int] = None):
+        if not self._enabled:
+            return
         if self.telemetry:
             if not timestamp:
                 timestamp = get_time_millis()
             telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
             self.telemetry.try_add_log_to_batch(telemetry_data)
-        elif self.stored_proc_meter and self.stored_proc_meter_enabled:
+        elif self.stored_proc_meter is not None:
             if not timestamp:
                 timestamp = get_time_millis()
             id = generate_random_alphanumeric(10)
@@ -512,7 +513,6 @@ class TelemetryClient:
                 description=json.dumps(msg, ensure_ascii=False, separators=(",", ":")),
                 unit="data",
             ).set(200)
-            self.gauge_count += 1
             if (
                 len(self.stored_proc_meter._instrument_id_instrument)
                 >= self.clean_up_stored_proc_meter_interval

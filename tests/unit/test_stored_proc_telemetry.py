@@ -44,17 +44,16 @@ class MockMeter:
             return instrument
 
 
-@patch("snowflake.snowpark._internal.utils.is_in_stored_procedure")
+@patch("snowflake.snowpark._internal.telemetry.is_in_stored_procedure")
 def test_telemetry_client_with_mock_meter(mock_is_in_stored_proc):
     mock_is_in_stored_proc.return_value = True
     mock_meter = MockMeter()
     mock_conn = MagicMock()
     client = TelemetryClient(mock_conn)
+    client._enabled = True
     client.telemetry = None
-    client.stored_proc_meter_enabled = True
     client.stored_proc_meter = mock_meter
-    client.clean_up_stored_proc_meter_interval = 10
-    client.gauge_count = 0
+    client.clean_up_stored_proc_meter_interval = 200
     test_message = {"test": "data", "func_name": "test_function"}
     client.send(test_message)
     assert len(mock_meter._instrument_id_instrument) == 1
@@ -67,17 +66,16 @@ def test_telemetry_client_with_mock_meter(mock_is_in_stored_proc):
     assert gauge.get_value() == 200
 
 
-@patch("snowflake.snowpark._internal.utils.is_in_stored_procedure")
+@patch("snowflake.snowpark._internal.telemetry.is_in_stored_procedure")
 def test_telemetry_client_multiple_sends(mock_is_in_stored_proc):
     mock_is_in_stored_proc.return_value = True
     mock_meter = MockMeter()
     mock_conn = MagicMock()
     client = TelemetryClient(mock_conn)
+    client._enabled = True
     client.telemetry = None
-    client.stored_proc_meter_enabled = True
     client.stored_proc_meter = mock_meter
     client.clean_up_stored_proc_meter_interval = 200
-    client.gauge_count = 0
     for i in range(100):
         client.send({"test": f"data_{i}"})
     assert len(mock_meter._instrument_id_instrument) == 100
@@ -87,18 +85,17 @@ def test_telemetry_client_multiple_sends(mock_is_in_stored_proc):
         assert gauge.get_value() == 200
 
 
-@patch("snowflake.snowpark._internal.utils.is_in_stored_procedure")
+@patch("snowflake.snowpark._internal.telemetry.is_in_stored_procedure")
 def test_telemetry_client_cleanup(mock_is_in_stored_proc):
     """Test TelemetryClient cleanup mechanism"""
     mock_is_in_stored_proc.return_value = True
     mock_meter = MockMeter()
     mock_conn = MagicMock()
     client = TelemetryClient(mock_conn)
+    client._enabled = True
     client.telemetry = None
-    client.stored_proc_meter_enabled = True
     client.stored_proc_meter = mock_meter
     client.clean_up_stored_proc_meter_interval = 100
-    client.gauge_count = 0
     for i in range(client.clean_up_stored_proc_meter_interval):
         client.send({"test": f"data_{i}"})
     assert len(mock_meter._instrument_id_instrument) == 0
