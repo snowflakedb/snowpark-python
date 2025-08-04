@@ -11,7 +11,6 @@ from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query, SnowflakePlan
 from snowflake.snowpark._internal.server_connection import ServerConnection
-from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from tests.utils import Utils
 from snowflake.snowpark.session import (
     Session,
@@ -88,12 +87,10 @@ def mock_session(mock_analyzer) -> Session:
     fake_session._join_alias_fix = False
     fake_session._analyzer = mock_analyzer
     fake_session._plan_lock = mock.MagicMock()
-    fake_session._new_line_token = generate_random_alphanumeric()
     mock_analyzer.session = fake_session
     import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 
-    analyzer_utils.NEW_LINE_TOKEN = fake_session._new_line_token
-    analyzer_utils.NEW_LINE = f"\n{fake_session._new_line_token}"
+    analyzer_utils.NEW_LINE = "\n"
     analyzer_utils.TAB = "    "
     return fake_session
 

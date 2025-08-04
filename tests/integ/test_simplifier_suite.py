@@ -242,8 +242,6 @@ def test_union_by_name(session):
     df1 = session.create_dataframe([[1, 2, 11], [3, 4, 33]], schema=["a", "b", "c"])
     df2 = session.create_dataframe([[5, 6, 55], [3, 4, 33]], schema=["a", "b", "c"])
 
-    print(df1._plan.queries[-1].sql)
-    print(df2._plan.queries[-1].sql)
     # test flattening union_by_name works with basic example
     df = df1.union_by_name(df2)
     Utils.check_answer(df, [Row(1, 2, 11), Row(3, 4, 33), Row(5, 6, 55)])

@@ -9,7 +9,6 @@ import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
-    remove_new_line_tokens,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.type_utils import convert_metadata_to_sp_type
@@ -88,9 +87,7 @@ def analyze_attributes(
     if lowercase.startswith("get"):
         return get_attributes()
     if lowercase.startswith("describe"):
-        # Remove NEW_LINE_TOKENS from describe queries before execution
-        cleaned_sql = remove_new_line_tokens(sql)
-        session._run_query(cleaned_sql)
+        session._run_query(sql)
         return convert_result_meta_to_attribute(
             session._conn._cursor.description, session._conn.max_string_size
         )
@@ -99,9 +96,7 @@ def analyze_attributes(
     stack = traceback.extract_stack(limit=10)[:-1]
     stack_trace = [frame.line for frame in stack] if len(stack) > 0 else None
     start_time = time.time()
-    # Remove NEW_LINE_TOKENS from schema queries before execution
-    cleaned_sql = remove_new_line_tokens(sql)
-    attributes = session._get_result_attributes(cleaned_sql)
+    attributes = session._get_result_attributes(sql)
     e2e_time = time.time() - start_time
     session._conn._telemetry_client.send_describe_query_details(
         session._session_id, sql, e2e_time, stack_trace
