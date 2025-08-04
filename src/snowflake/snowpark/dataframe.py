@@ -1075,13 +1075,18 @@ class DataFrame:
                 **kwargs,
             )
 
-        # if the returned result is not a pandas dataframe, raise Exception
-        # this might happen when calling this method with non-select commands
-        # e.g., session.sql("create ...").to_pandas()
         if block:
             if not isinstance(result, pandas.DataFrame):
+                _logger.warning(
+                    "to_pandas() did not return a pandas dataframe"
+                    "If the query result format is set to JSON, accuracy of returned data is not guaranteed."
+                    "Please set query result format to ARROW for best accuracy."
+                )
                 return pandas.DataFrame(
-                    result, columns=[attr.name for attr in self._plan.attributes]
+                    result,
+                    columns=[
+                        unquote_if_quoted(attr.name) for attr in self._plan.attributes
+                    ],
                 )
 
         return result

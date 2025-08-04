@@ -14,6 +14,10 @@
 - Added support for the following functions in `functions.py`:
   - `ai_sentiment`
 
+#### Bug Fixes
+
+- Fixed a bug that `to_pandas()` has different column name when query result format is set to 'JSON' and 'ARROW'.
+
 ### Snowpark pandas API Updates
 
 #### New Features
