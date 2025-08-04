@@ -1639,7 +1639,7 @@ class DataFrameReader:
         # Execute the LIST command and create DataFrame
         # LIST returns columns: name, size, md5, last_modified
         # We only want the 'name' column renamed to 'FILE'
-        df = self._session.sql(list_query, _emit_ast=False).select(
+        df = self._session.sql(list_query, _emit_ast=_emit_ast).select(
             to_file(concat(lit("@"), col('"name"'))).alias("file")
         )
 
