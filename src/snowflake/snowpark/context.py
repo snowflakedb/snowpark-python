@@ -72,7 +72,8 @@ def configure_development_features(
             session = get_active_session()
             if session is None:
                 _logger.warning(
-                    "No active session found. Please create a session first and call configure_development_features() after creating the session.",
+                    "No active session found. Please create a session first and call "
+                    "`configure_development_features()` after creating the session.",
                 )
                 return
             _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
