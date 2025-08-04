@@ -8,7 +8,6 @@ import json
 import threading
 from enum import Enum, unique
 import time
-import json
 from typing import Any, Dict, List, Optional
 
 from snowflake.connector import SnowflakeConnection

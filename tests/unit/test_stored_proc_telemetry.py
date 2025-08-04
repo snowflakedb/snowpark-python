@@ -9,6 +9,7 @@ from typing import Dict
 import json
 
 from snowflake.snowpark._internal.telemetry import TelemetryClient
+from snowflake.snowpark import Session
 
 
 class MockGauge:
@@ -101,3 +102,51 @@ def test_telemetry_client_cleanup(mock_is_in_stored_proc):
     assert len(mock_meter._instrument_id_instrument) == 0
     client.send({"test": "data_after_cleanup"})
     assert len(mock_meter._instrument_id_instrument) == 1
+
+
+@patch("snowflake.snowpark.session.is_in_stored_procedure")
+@patch("snowflake.snowpark.session._logger")
+def test_internal_telemetry_disabled(mock_logger, mock_is_in_stored_proc):
+    """Test that Session logs debug message when telemetry is enabled but stored proc telemetry is disabled"""
+    mock_is_in_stored_proc.return_value = True
+    mock_session = MagicMock(spec=Session)
+    mock_session._stored_proc_telemetry_enabled = False
+    mock_session._conn = MagicMock()
+    mock_session._conn._conn = MagicMock()
+    mock_session._conn._telemetry_client = MagicMock()
+    Session.telemetry_enabled.fset(mock_session, True)
+    mock_logger.debug.assert_called_once_with(
+        "Client side parameter ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY is set to False, telemetry could not be enabled"
+    )
+
+
+@patch("snowflake.snowpark._internal.telemetry.is_in_stored_procedure")
+def test_telemetry_client_internal_metrics_import_fails(mock_is_in_stored_proc):
+    """Test TelemetryClient handles ImportError when _snowflake.internal_metrics import fails"""
+    mock_is_in_stored_proc.return_value = True
+    mock_conn = MagicMock()
+    with patch(
+        "builtins.__import__", side_effect=ImportError("No module named '_snowflake'")
+    ):
+        client = TelemetryClient(mock_conn)
+        assert client is not None
+        assert client._enabled is True
+        assert client.stored_proc_meter is None
+        test_message = {"test": "data", "func_name": "test_function"}
+        client.send(test_message)
+
+
+@patch("snowflake.snowpark._internal.telemetry.is_in_stored_procedure")
+def test_telemetry_client_disabled(mock_is_in_stored_proc):
+    """Test that no message is sent when telemetry client is not enabled"""
+    mock_is_in_stored_proc.return_value = True
+    mock_meter = MockMeter()
+    mock_conn = MagicMock()
+    client = TelemetryClient(mock_conn)
+    client._enabled = False
+    client.telemetry = None
+    client.stored_proc_meter = mock_meter
+    client.clean_up_stored_proc_meter_interval = 200
+    test_message = {"test": "data", "func_name": "test_function"}
+    client.send(test_message)
+    assert len(mock_meter._instrument_id_instrument) == 0
