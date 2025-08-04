@@ -66,17 +66,17 @@ def configure_development_features(
     global _enable_dataframe_trace_on_error
     global _enable_trace_sql_errors_to_dataframe
     _debug_eager_schema_validation = enable_eager_schema_validation
-    _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
-    _enable_trace_sql_errors_to_dataframe = enable_trace_sql_errors_to_dataframe
 
-    if _enable_dataframe_trace_on_error or _enable_trace_sql_errors_to_dataframe:
+    if enable_dataframe_trace_on_error or enable_trace_sql_errors_to_dataframe:
         try:
             session = get_active_session()
             if session is None:
                 _logger.warning(
-                    "No active session found. Please create a session first to enable development features.",
+                    "No active session found. Please create a session first and call configure_development_features() after creating the session.",
                 )
                 return
+            _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
+            _enable_trace_sql_errors_to_dataframe = enable_trace_sql_errors_to_dataframe
             session.ast_enabled = True
         except Exception as e:
             _logger.warning(
