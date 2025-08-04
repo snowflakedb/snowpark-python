@@ -131,6 +131,7 @@ class StoredProcedure:
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         _emit_ast: bool = True,
     ) -> Any:
         args, session = self._validate_call(args, session)
@@ -154,14 +155,46 @@ class StoredProcedure:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
             query = f"{self._anonymous_sp_sql}{call_sql}"
             if self._is_return_table:
-                qid = session._conn.execute_and_get_sfqid(
-                    query, statement_params=statement_params
+                if block:
+                    qid = session._conn.execute_and_get_sfqid(
+                        query, statement_params=statement_params
+                    )
+                    df = session.sql(result_scan_statement(qid))
+                    df._ast = sproc_expr
+                    return df
+                else:
+                    # Async execution for anonymous table stored procedures
+                    from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
+
+                    results_cursor = (
+                        session._conn.execute_async_and_notify_query_listener(
+                            query, _statement_params=statement_params
+                        )
+                    )
+                    return AsyncJob(
+                        results_cursor["queryId"],
+                        query,
+                        session,
+                        _AsyncResultType.ROW,  # Table SP returns List[Row]
+                    )
+            if block:
+                df = session.sql(query)
+                res = df._internal_collect_with_tag(statement_params=statement_params)[
+                    0
+                ][0]
+            else:
+                # Async execution for anonymous scalar stored procedures
+                from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
+
+                results_cursor = session._conn.execute_async_and_notify_query_listener(
+                    query, _statement_params=statement_params
                 )
-                df = session.sql(result_scan_statement(qid))
-                df._ast = sproc_expr
-                return df
-            df = session.sql(query)
-            res = df._internal_collect_with_tag(statement_params=statement_params)[0][0]
+                return AsyncJob(
+                    results_cursor["queryId"],
+                    query,
+                    session,
+                    _AsyncResultType.ROW,  # Scalar SP returns result_data[0][0] directly
+                )
         else:
             res = session._call(
                 self.name,
@@ -169,6 +202,7 @@ class StoredProcedure:
                 is_return_table=self._is_return_table,
                 statement_params=statement_params,
                 _emit_ast=self._is_return_table,
+                block=block,
             )
 
         if self._is_return_table:

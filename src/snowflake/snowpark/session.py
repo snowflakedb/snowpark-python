@@ -145,7 +145,7 @@ from snowflake.snowpark._internal.utils import (
     AstFlagSource,
     AstMode,
 )
-from snowflake.snowpark.async_job import AsyncJob
+from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
@@ -4183,20 +4183,27 @@ class Session:
         sproc_name: str,
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
+        block: bool = True,
         log_on_exception: bool = False,
         return_dataframe: Optional[bool] = None,
         _emit_ast: bool = True,
-    ) -> Any:
+    ) -> Union[Any, AsyncJob]:
         """Calls a stored procedure by name.
 
         Args:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Whether to block until the result is available. When it is ``False``, this function
+                executes the stored procedure asynchronously and returns an :class:`AsyncJob`.
             log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
                 as a table return type.
             return_dataframe: When set to True, the return value of this function is a DataFrame object.
                 This is useful when the given stored procedure's return type is a table.
+
+        Returns:
+            When block=True: The stored procedure result (scalar value or DataFrame)
+            When block=False: An AsyncJob object for retrieving results later
 
         Example::
 
@@ -4235,8 +4242,63 @@ class Session:
             sproc_name,
             *args,
             statement_params=statement_params,
+            block=block,
             log_on_exception=log_on_exception,
             is_return_table=return_dataframe,
+            _emit_ast=_emit_ast,
+        )
+
+    @publicapi
+    def call_nowait(
+        self,
+        sproc_name: str,
+        *args: Any,
+        statement_params: Optional[Dict[str, Any]] = None,
+        log_on_exception: bool = False,
+        return_dataframe: Optional[bool] = None,
+        _emit_ast: bool = True,
+    ) -> AsyncJob:
+        """Calls a stored procedure by name asynchronously and returns an AsyncJob.
+        It is equivalent to ``call(block=False)``.
+
+        Args:
+            sproc_name: The name of stored procedure in Snowflake.
+            args: Arguments should be basic Python types.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
+                as a table return type.
+            return_dataframe: When set to True, the return value of this function is a DataFrame object.
+                This is useful when the given stored procedure's return type is a table.
+
+        Returns:
+            An AsyncJob object that can be used to retrieve results or check status.
+
+        Example::
+
+            >>> import snowflake.snowpark
+            >>> from snowflake.snowpark.functions import sproc
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>>
+            >>> @sproc(name="my_copy_sp", replace=True)
+            ... def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
+            ...     session.table(from_table).limit(count).write.save_as_table(to_table)
+            ...     return "SUCCESS"
+            >>> async_job = session.call_nowait("my_copy_sp", "test_from", "test_to", 10)
+            >>> result = async_job.result()  # This will block until completion
+            >>> print(result)
+            'SUCCESS'
+
+        See also:
+            :meth:`call()`
+        """
+        return self.call(
+            sproc_name,
+            *args,
+            statement_params=statement_params,
+            block=False,
+            log_on_exception=log_on_exception,
+            return_dataframe=return_dataframe,
             _emit_ast=_emit_ast,
         )
 
@@ -4248,7 +4310,8 @@ class Session:
         is_return_table: Optional[bool] = None,
         log_on_exception: bool = False,
         _emit_ast: bool = True,
-    ) -> Any:
+        block: bool = True,
+    ) -> Union[Any, AsyncJob]:
         """Private implementation of session.call
 
         Args:
@@ -4292,13 +4355,41 @@ class Session:
                 sproc_name, *args, log_on_exception=log_on_exception
             )
         if is_return_table:
-            qid = self._conn.execute_and_get_sfqid(
-                query, statement_params=statement_params
-            )
-            df = self.sql(result_scan_statement(qid), _ast_stmt=stmt)
-            set_api_call_source(df, "Session.call")
-            return df
+            if block:
+                qid = self._conn.execute_and_get_sfqid(
+                    query, statement_params=statement_params
+                )
+                df = self.sql(result_scan_statement(qid), _ast_stmt=stmt)
+                set_api_call_source(df, "Session.call")
+                return df
+            else:
+                # Async execution for table stored procedures
+                results_cursor = self._conn.execute_async_and_notify_query_listener(
+                    query, _statement_params=statement_params
+                )
+                return AsyncJob(
+                    results_cursor["queryId"],
+                    query,
+                    self,
+                    _AsyncResultType.ROW,
+                    log_on_exception=log_on_exception,
+                )
 
+        # Scalar stored procedure execution
+        if not block:
+            # Async execution for scalar stored procedures
+            results_cursor = self._conn.execute_async_and_notify_query_listener(
+                query, _statement_params=statement_params
+            )
+            return AsyncJob(
+                results_cursor["queryId"],
+                query,
+                self,
+                _AsyncResultType.COUNT,
+                log_on_exception=log_on_exception,
+            )
+
+        # Synchronous execution for scalar stored procedures
         # TODO SNOW-1672561: This here needs to emit an eval as well.
         df = self.sql(query, _ast_stmt=stmt)
         set_api_call_source(df, "Session.call")
