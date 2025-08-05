@@ -18,6 +18,7 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
+from tests.utils import Utils, TempObjectType
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
@@ -546,6 +547,30 @@ def test_binary_add_between_series(native_df):
         native_df,
         lambda df: df[0] + df[1],
     )
+
+
+@pytest.fixture
+def temp_table_name(session):
+    """Create a temporary table with 1x2 data for testing read_snowflake binary operations."""
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(
+        session, table_name, '"col1" integer, "col2" integer', is_temporary=True
+    )
+    session.sql(f"insert into {table_name} values (1, 2)").collect()
+
+    try:
+        yield table_name
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@sql_count_checker(query_count=4, join_count=0)
+def test_binary_add_between_series_from_read_snowflake_SNOW_2250244(temp_table_name):
+    df = pd.read_snowflake(temp_table_name)
+    native_df = df.to_pandas()
+    snow_result_repr = repr(df["col1"] + df["col2"])
+    native_result_repr = repr(native_df["col1"] + native_df["col2"])
+    assert snow_result_repr == native_result_repr
 
 
 def _gen_random_int_list_with_nones(N: int) -> list[int]:
