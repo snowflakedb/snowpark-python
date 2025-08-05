@@ -2930,6 +2930,7 @@ class Session:
         chunk_size: Optional[int] = WRITE_ARROW_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
+        use_vectorized_scanner: bool = True,
         parallel: int = 4,
         quote_identifiers: bool = True,
         auto_create_table: bool = False,
@@ -2962,6 +2963,8 @@ class Session:
             on_error: Action to take when COPY INTO statements fail, default follows documentation at:
                 https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
                 (Default value = 'abort_statement').
+            use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
+                `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
             parallel: Number of threads to be used when uploading chunks, default follows documentation at:
                 https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
             quote_identifiers: By default, identifiers, specifically database, schema, table and column names
@@ -3000,6 +3003,7 @@ class Session:
             chunk_size=chunk_size,
             compression=compression,
             on_error=on_error,
+            use_vectorized_scanner=use_vectorized_scanner,
             parallel=parallel,
             quote_identifiers=quote_identifiers,
             auto_create_table=auto_create_table,

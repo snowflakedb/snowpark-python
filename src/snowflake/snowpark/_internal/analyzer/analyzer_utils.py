@@ -1924,6 +1924,7 @@ def write_arrow(
     chunk_size: Optional[int] = None,
     compression: str = "gzip",
     on_error: str = "abort_statement",
+    use_vectorized_scanner: bool = True,
     parallel: int = 4,
     quote_identifiers: bool = True,
     auto_create_table: bool = False,
@@ -1971,6 +1972,8 @@ def write_arrow(
         on_error: Action to take when COPY INTO statements fail, default follows documentation at:
             https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
             (Default value = 'abort_statement').
+        use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
+            `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
         parallel: Number of threads to be used when uploading chunks, default follows documentation at:
             https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
         quote_identifiers: By default, identifiers, specifically database, schema, table and column names
@@ -2126,6 +2129,7 @@ def write_arrow(
             f"FROM (SELECT {parquet_columns} FROM @{stage_location}) "
             f"FILE_FORMAT=("
             f"TYPE=PARQUET "
+            f"USE_VECTORIZED_SCANNER={use_vectorized_scanner} "
             f"COMPRESSION={compression_map[compression]}"
             f"{' BINARY_AS_TEXT=FALSE' if auto_create_table or overwrite else ''}"
             f"{sql_use_logical_type}"
