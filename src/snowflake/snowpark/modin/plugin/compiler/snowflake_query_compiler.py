@@ -172,6 +172,7 @@ from snowflake.snowpark.functions import (
     when,
     year,
 )
+from snowflake.snowpark.modin.config.envvars import SnowflakePandasTransferThreshold
 from snowflake.snowpark.modin.plugin._internal import (
     concat_utils,
     generator_utils,
@@ -600,7 +601,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     _MAX_SIZE_THIS_ENGINE_CAN_HANDLE = 10_000_000_000_000
     _OPERATION_INITIALIZATION_OVERHEAD = 100
     _OPERATION_PER_ROW_OVERHEAD = 10
-    _TRANSFER_THRESHOLD = 10_000_000
 
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
@@ -856,6 +856,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
                 return False
         return True
+
+    @classmethod
+    def _transfer_threshold(cls) -> int:
+        return SnowflakePandasTransferThreshold.get()
 
     def move_to_cost(
         self,

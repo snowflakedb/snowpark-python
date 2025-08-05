@@ -112,9 +112,28 @@ backend is 10M rows. This can be configured through the modin environment variab
 
     # Use a config context to set the Pandas backend parameters
     with config_context(NativePandasMaxRows=1234):
-        # Operations only performed using the Pandas backend
+        # Operations on local data frames discouraged above 1234
         df = pd.DataFrame([4, 5, 6])
 
+Configuring Transfer Costs
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Transfer costs are also considered for data moving between engines. For data moving
+from Snowflake this threshold can be configured with the SnowflakePandasTransferThreshold
+environment variable. This is set to 10M rows by default; which will penalize
+the movement of data as it nears this threshold.
+
+.. code-block:: python
+
+    # Change row transfer threshold to 500k
+    from modin.config import SnowflakePandasTransferThreshold, context as config_context
+    SnowflakePandasTransferThreshold.put(500_000)
+
+    # Use a config context to set the transfer limit
+    with config_context(SnowflakePandasTransferThreshold=1234):
+        # Data movement out of Snowflake strongly discouraged above
+        # 617 rows ( 1234 / 2 )
+        df = pd.DataFrame([4, 5, 6])
 
 Debugging Hybrid Execution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
