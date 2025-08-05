@@ -4585,6 +4585,7 @@ class Session:
                     input_types=[StringType(), StringType()],
                     packages=["snowflake-snowpark-python", "lxml<6"],
                     replace=True,
+                    _emit_ast=False,
                 )
 
                 self._xpath_udf_cache[cache_key] = xpath_udf

@@ -11776,25 +11776,30 @@ def xpath(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
         col: Column containing XML data (string or parsed XML)
         path: XPath expression string
 
-    Returns:
-        Column containing array of matched values as strings
-
     Example::
 
         >>> df = session.create_dataframe([['<root><a>1</a><a>2</a></root>']], schema=['xml'])
-        >>> df.select(xpath('xml', '//a/text()').alias('result')).collect()
-        [Row(RESULT=['1', '2'])]
+        >>> result = df.select(xpath('xml', '//a/text()').alias('result')).collect()
+        >>> json.loads(result[0].RESULT)
+        ['1', '2']
 
         >>> # With attributes
         >>> df2 = session.create_dataframe([['<root><item id="1">A</item><item id="2">B</item></root>']], schema=['xml'])
-        >>> df2.select(xpath('xml', '//item[@id="2"]/text()').alias('result')).collect()
-        [Row(RESULT=['B'])]
+        >>> result = df2.select(xpath('xml', '//item[@id="2"]/text()').alias('result')).collect()
+        >>> json.loads(result[0].RESULT)
+        ['B']
     """
     session = snowflake.snowpark.session._get_active_session()
     xml_col = _to_col_if_str(col, "xpath")
     xpath_udf = session._get_or_register_xpath_udf("array")
-
-    return xpath_udf(xml_col, lit(path))
+    ast = (
+        build_function_expr("xpath", [xml_col, lit(path, _emit_ast=False)])
+        if _emit_ast
+        else None
+    )
+    ans = xpath_udf(xml_col, lit(path), _emit_ast=False)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -11808,9 +11813,6 @@ def xpath_string(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column
         col: Column containing XML data
         path: XPath expression string
 
-    Returns:
-        Column containing string value of first match or NULL
-
     Example::
 
         >>> df = session.create_dataframe([['<root><a>1</a><a>2</a></root>']], schema=['xml'])
@@ -11820,8 +11822,14 @@ def xpath_string(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column
     session = snowflake.snowpark.session._get_active_session()
     xml_col = _to_col_if_str(col, "xpath_string")
     xpath_udf = session._get_or_register_xpath_udf("string")
-
-    return xpath_udf(xml_col, lit(path))
+    ast = (
+        build_function_expr("xpath_string", [xml_col, lit(path, _emit_ast=False)])
+        if _emit_ast
+        else None
+    )
+    ans = xpath_udf(xml_col, lit(path), _emit_ast=False)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -11835,9 +11843,6 @@ def xpath_boolean(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Colum
         col: Column containing XML data
         path: XPath expression string
 
-    Returns:
-        Column containing boolean result
-
     Example::
 
         >>> df = session.create_dataframe([['<root><a>1</a></root>']], schema=['xml'])
@@ -11847,8 +11852,14 @@ def xpath_boolean(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Colum
     session = snowflake.snowpark.session._get_active_session()
     xml_col = _to_col_if_str(col, "xpath_boolean")
     xpath_udf = session._get_or_register_xpath_udf("boolean")
-
-    return xpath_udf(xml_col, lit(path))
+    ast = (
+        build_function_expr("xpath_boolean", [xml_col, lit(path, _emit_ast=False)])
+        if _emit_ast
+        else None
+    )
+    ans = xpath_udf(xml_col, lit(path), _emit_ast=False)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -11862,9 +11873,6 @@ def xpath_number(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column
         col: Column containing XML data
         path: XPath expression string
 
-    Returns:
-        Column containing float value or NULL
-
     Example::
 
         >>> df = session.create_dataframe([['<root><price>19.99</price></root>']], schema=['xml'])
@@ -11874,8 +11882,14 @@ def xpath_number(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column
     session = snowflake.snowpark.session._get_active_session()
     xml_col = _to_col_if_str(col, "xpath_number")
     xpath_udf = session._get_or_register_xpath_udf("float")
-
-    return xpath_udf(xml_col, lit(path))
+    ast = (
+        build_function_expr("xpath_number", [xml_col, lit(path, _emit_ast=False)])
+        if _emit_ast
+        else None
+    )
+    ans = xpath_udf(xml_col, lit(path), _emit_ast=False)
+    ans._ast = ast
+    return ans
 
 
 @publicapi
@@ -11890,9 +11904,6 @@ def xpath_int(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
         col: Column containing XML data
         path: XPath expression string
 
-    Returns:
-        Column containing integer value or NULL
-
     Example::
 
         >>> df = session.create_dataframe([['<root><count>42</count></root>']], schema=['xml'])
@@ -11902,8 +11913,14 @@ def xpath_int(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
     session = snowflake.snowpark.session._get_active_session()
     xml_col = _to_col_if_str(col, "xpath_int")
     xpath_udf = session._get_or_register_xpath_udf("int")
-
-    return xpath_udf(xml_col, lit(path))
+    ast = (
+        build_function_expr("xpath_int", [xml_col, lit(path, _emit_ast=False)])
+        if _emit_ast
+        else None
+    )
+    ans = xpath_udf(xml_col, lit(path), _emit_ast=False)
+    ans._ast = ast
+    return ans
 
 
 # Spark compatibility aliases
