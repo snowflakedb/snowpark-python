@@ -1,7 +1,7 @@
 [build-system]
 requires = [
     "setuptools",
-    "setuptools-scm",
+    "setuptools-scm<=9.0.1",
     "protoc-wheel-0==21.1", # Protocol buffer compiler for Snowpark IR
     "mypy-protobuf", # used in generating typed Python code from protobuf for Snowpark IR
 ]
