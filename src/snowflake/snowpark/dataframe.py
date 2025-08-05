@@ -679,9 +679,9 @@ class DataFrame:
     @_ast_id.setter
     def _ast_id(self, value: Optional[int]) -> None:
         self.__ast_id = value
-        if self._plan is not None:
+        if self._plan is not None and value is not None:
             self._plan.add_df_ast_id(value)
-        if self._select_statement is not None:
+        if self._select_statement is not None and value is not None:
             self._select_statement.add_df_ast_id(value)
 
     @publicapi
@@ -4987,7 +4987,7 @@ class DataFrame:
                     "{"
                     + ", ".join(
                         [
-                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.key_type or StringType())}"
+                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.value_type or StringType())}"
                             for k, v in sorted(cell.items())
                         ]
                     )
@@ -6411,7 +6411,7 @@ Query List:
         """
         :param proto.Bind ast_stmt: The AST statement protobuf corresponding to this value.
         """
-        df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt, _emit_ast=False)
+        df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt)
         df._statement_params = self._statement_params
 
         if _ast_stmt is not None:

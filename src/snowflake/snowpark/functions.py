@@ -12520,10 +12520,9 @@ def ai_similarity(
     Currently supports both text and image similarity computation.
 
     Args:
-        input1: The first input for comparison. Can be a string with text, an image (FILE data type),
-            or a SQL object from :func:`prompt()`.
-        input2: The second input for comparison. Can be a string with text, an image (FILE data type),
-            or a SQL object from :func:`prompt()`. Must be the same type as input1 (both text or both images).
+        input1: The first input for comparison. Can be a string with text or an image (FILE data type).
+        input2: The second input for comparison. Can be a string with text or an image (FILE data type).
+            Must be the same type as input1 (both text or both images).
         **kwargs: Configuration settings specified as key/value pairs. Supported keys:
 
             - model: The embedding model used for embedding. For STRING input, defaults to 'snowflake-arctic-embed-l-v2'.
@@ -12537,7 +12536,10 @@ def ai_similarity(
 
     Note:
         AI_SIMILARITY does not support computing the similarity between text and image inputs.
-        Both inputs must be of the same type.
+        Both inputs must be of the same type:
+
+            - They are both Python ``str``.
+            - They are both :class:`Column` objects representing a FILE data type.
 
     Examples::
 

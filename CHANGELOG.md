@@ -13,20 +13,29 @@
 - Added a dataframe profiler. To use, you can call get_execution_profile() on your desired dataframe. This profiler reports the queries executed to evaluate a dataframe, and statistics about each of the query operators. Currently an experimental feature
 - Added support for the following functions in `functions.py`:
   - `ai_sentiment`
+- Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 
-#### Improvements
-- Hybrid execution row estimate improvements and a reduction of eager calls.
-
-#### Bug Fixes
 - Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
+
+#### Improvements
+
+- Hybrid execution row estimate improvements and a reduction of eager calls.
+- Improved performance by deferring row position computation. 
+  - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
+  - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 
 #### Bug Fixes
 
 - Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically.
+
+### Snowpark pandas API Updates
+
+#### Improvements
+- Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution. Lower the default to 100k from 10M.
 
 ## 1.35.0 (2025-07-24)
 

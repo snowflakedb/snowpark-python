@@ -4,6 +4,7 @@
 
 import logging
 import contextlib
+from unittest import mock
 import pytest
 from unittest.mock import patch
 import tqdm.auto
@@ -13,6 +14,7 @@ import numpy as np
 from numpy.testing import assert_array_equal
 from modin.config import context as config_context
 import modin.pandas as pd
+from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
     MAX_ROW_COUNT_FOR_ESTIMATION,
@@ -20,13 +22,13 @@ from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
 from snowflake.snowpark.modin.plugin._internal.utils import (
     MODIN_IS_AT_LEAST_0_34_0,
 )
-
+from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
+from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.utils.sql_counter import sql_count_checker
-from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 
 
 @sql_count_checker(query_count=0)
@@ -56,6 +58,52 @@ def test_get_rows_with_large_and_none_upper_bound():
         )
         == QCCoercionCost.COST_IMPOSSIBLE
     )
+
+
+@sql_count_checker(query_count=9, union_count=1)
+def test_snowflake_pandas_transfer_threshold():
+    """
+    Tests that the SnowflakePandasTransferThreshold configuration variable
+    is correctly used in the cost model.
+    """
+    # Verify the default value of the configuration variable.
+    assert SnowflakePandasTransferThreshold.get() == 10_000_000
+
+    # Create a SnowflakeQueryCompiler and verify that it has the default value.
+    compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
+    assert compiler._transfer_threshold() == 10_000_000
+
+    df = pd.DataFrame()
+    assert df.get_backend() == "Pandas"
+    snow_df = pd.DataFrame({"A": [1, 2, 3] * 100})
+    snow_df = snow_df.move_to("Snowflake")
+    assert snow_df.get_backend() == "Snowflake"
+    cost = snow_df._query_compiler.move_to_cost(
+        type(df._query_compiler), "DataFrame", "test_op", {}
+    )
+    assert cost < QCCoercionCost.COST_LOW
+    pandas_df = snow_df.transpose()
+
+    assert pandas_df.get_backend() == "Pandas"
+
+    # Set and verify that we can set the transfer cost to
+    # something low and it works.
+    # TODO: Allow for usage of this variable with the modin
+    # config context.
+    with config_context(SnowflakePandasTransferThreshold=10):
+        compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
+        assert compiler._transfer_threshold() == 10
+
+        snow_df = pd.DataFrame({"A": [1, 2, 3] * 100})
+        snow_df = snow_df.move_to("Snowflake")
+        # Verify that the move_to_cost changes when this value is changed.
+        cost = snow_df._query_compiler.move_to_cost(
+            type(df._query_compiler), "DataFrame", "test_op", {}
+        )
+        assert cost == QCCoercionCost.COST_IMPOSSIBLE
+        assert snow_df.get_backend() == "Snowflake"
+        result_df = snow_df.transpose()
+        assert result_df.get_backend() == "Snowflake"
 
 
 @sql_count_checker(query_count=0)
@@ -93,7 +141,7 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
         df_incompatible.move_to("Snowflake")
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_merge(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
@@ -107,7 +155,7 @@ def test_merge(init_transaction_tables, us_holidays_data):
     assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=6)
 def test_filtered_data(init_transaction_tables):
     # When data is filtered, the engine should change when it is sufficiently small.
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
@@ -138,7 +186,7 @@ def test_filtered_data(init_transaction_tables):
     )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=5)
 def test_apply(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS").head(1000)
     assert df_transactions.get_backend() == "Snowflake"
@@ -238,7 +286,7 @@ def test_groupby_agg_post_op_switch(operation, small_snow_df):
     assert small_snow_df.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_explain_switch(init_transaction_tables, us_holidays_data):
     from snowflake.snowpark.modin.plugin._internal.telemetry import (
         clear_hybrid_switch_log,
@@ -341,7 +389,7 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
 
 
 @sql_count_checker(
-    query_count=12,
+    query_count=13,
     join_count=6,
     udtf_count=2,
     high_count_expected=True,

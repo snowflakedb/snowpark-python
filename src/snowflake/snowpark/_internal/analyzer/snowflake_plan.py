@@ -193,10 +193,7 @@ class SnowflakePlan(LogicalPlan):
                         df_ast_id = top_plan.df_ast_ids[-1]
                         stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
 
-                    df_transform_debug_trace = ""
-                    error_source_context = ""
-                    missing_object_context = ""
-                    existing_object_context = ""
+                    debug_context_arr = []
                     try:
                         if (
                             "SQL compilation error:" in e.msg
@@ -204,33 +201,37 @@ class SnowflakePlan(LogicalPlan):
                             and top_plan is not None
                             and _enable_trace_sql_errors_to_dataframe
                         ):
-                            error_source_context = get_python_source_from_sql_error(
+                            if error_source_context := get_python_source_from_sql_error(
                                 top_plan, e.msg
-                            )
+                            ):
+                                debug_context_arr.append(error_source_context)
                         if (
                             _enable_dataframe_trace_on_error
                             and df_ast_id is not None
                             and stmt_cache is not None
                         ):
-                            df_transform_debug_trace = get_df_transform_trace_message(
+                            if df_transform_trace := get_df_transform_trace_message(
                                 df_ast_id, stmt_cache
-                            )
+                            ):
+                                debug_context_arr.append(df_transform_trace)
                         if (
                             "does not exist or not authorized" in e.msg
                             and top_plan is not None
                             and _enable_trace_sql_errors_to_dataframe
                         ):
-                            missing_object_context = get_missing_object_context(
+                            if missing_object_context := get_missing_object_context(
                                 top_plan, e.msg
-                            )
+                            ):
+                                debug_context_arr.append(missing_object_context)
                         if (
                             ("already exists" in e.msg)
                             and top_plan is not None
                             and context._enable_trace_sql_errors_to_dataframe
                         ):
-                            existing_object_context = get_existing_object_context(
+                            if existing_object_context := get_existing_object_context(
                                 top_plan, e.msg
-                            )
+                            ):
+                                debug_context_arr.append(existing_object_context)
                     except Exception as trace_error:
                         # If we encounter an error when getting the df_transform_debug_trace,
                         # we will ignore the error and not add the debug trace to the error message.
@@ -239,15 +240,10 @@ class SnowflakePlan(LogicalPlan):
                         )
                         pass
 
-                    debug_header = "\n\n--- Additional Debug Information ---\n"
-                    debug_context = (
-                        debug_header
-                        + df_transform_debug_trace
-                        + error_source_context
-                        + missing_object_context
-                        + existing_object_context
-                    )
-                    if debug_context == debug_header:
+                    if debug_context_arr:
+                        debug_header = "\n\n--- Additional Debug Information ---\n"
+                        debug_context = debug_header + "\n".join(debug_context_arr)
+                    else:
                         debug_context = ""
 
                     if "unexpected 'as'" in e.msg.lower():
