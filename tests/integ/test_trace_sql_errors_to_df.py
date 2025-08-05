@@ -385,22 +385,29 @@ def test_existing_view_with_schema_qualified_names_using_session_sql(session):
     temp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     db = session.get_current_database()
     sc = session.get_current_schema()
-    session.sql(
-        f"CREATE VIEW {db}.{sc}.{temp_view_name} AS SELECT 1 AS a, 2 AS b"
-    ).collect()
-
-    with pytest.raises(SnowparkSQLException) as ex:
+    try:
         session.sql(
-            f"CREATE VIEW {db}.{sc}.{temp_view_name} AS SELECT 3 AS a, 4 AS b"
+            f"CREATE VIEW {db}.{sc}.{temp_view_name} AS SELECT 1 AS a, 2 AS b"
         ).collect()
 
-    db = db.strip('"')
-    sc = sc.strip('"')
-    expected_message = f"Object '{db}.{sc}.{temp_view_name}' was first referenced"
-    assert expected_message in str(ex.value.debug_context)
-    line_number = Utils.get_current_line_number_sys()
-    assert f"lines {line_number - 13}-{line_number - 11}" in str(ex.value.debug_context)
-    Utils.drop_view(session, temp_view_name)
+        with pytest.raises(SnowparkSQLException) as ex:
+            session.sql(
+                f"CREATE VIEW {db}.{sc}.{temp_view_name} AS SELECT 3 AS a, 4 AS b"
+            ).collect()
+
+        db = db.strip('"')
+        sc = sc.strip('"')
+        expected_message = f"Object '{db}.{sc}.{temp_view_name}' was first referenced"
+        assert expected_message in str(ex.value.debug_context)
+        line_number = Utils.get_current_line_number_sys()
+        if sys.version_info < (3, 11):
+            assert f"line {line_number - 13}" in str(ex.value.debug_context)
+        else:
+            assert f"lines {line_number - 13}-{line_number - 11}" in str(
+                ex.value.debug_context
+            )
+    finally:
+        Utils.drop_view(session, temp_view_name)
 
 
 def test_existing_view_with_schema_qualified_names_using_dataframe_methods(session):
