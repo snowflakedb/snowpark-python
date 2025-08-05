@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Run fix_lint
-        run: python -m tox -e fix_lint
+        run: python -m tox -e fix_lint --no-build-isolation
 
   type_checking:
     name: Type Checking
