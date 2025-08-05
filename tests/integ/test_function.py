@@ -2452,9 +2452,6 @@ def test_ln(session):
     reason="TODO: SNOW-1859087 snowflake.cortex.summarize SSL error",
 )
 def test_snowflake_cortex_summarize(session):
-    # TODO: SNOW-1758914 snowflake.cortex.summarize error on GCP
-    if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-        return
 
     content = """In Snowpark, the main way in which you query and process data is through a DataFrame. This topic explains how to work with DataFrames.
 
@@ -2498,9 +2495,6 @@ The next sections explain these steps in more detail.
     reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
 )
 def test_snowflake_cortex_sentiment(session):
-    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
-    if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-        return
     content = "A very very bad review!"
     df = session.create_dataframe([[content]], schema=["content"])
 
