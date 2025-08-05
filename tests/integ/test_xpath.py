@@ -4,6 +4,8 @@
 #
 
 import json
+import pytest
+
 from snowflake.snowpark.functions import (
     xpath,
     xpath_string,
@@ -23,6 +25,13 @@ from snowflake.snowpark.types import (
     DoubleType,
     LongType,
 )
+
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="list command not supported in local testing mode",
+    ),
+]
 
 
 def test_xpath(session):
