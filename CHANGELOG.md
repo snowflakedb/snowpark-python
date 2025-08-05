@@ -1,5 +1,13 @@
 # Release History
 
+## 1.37.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
+
 ## 1.36.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -14,6 +22,10 @@
 - Added support for the following functions in `functions.py`:
   - `ai_sentiment`
 - Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
+
+#### Bug Fixes
+
+- Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
 
 ### Snowpark pandas API Updates
 
