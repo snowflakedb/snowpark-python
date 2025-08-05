@@ -1285,7 +1285,7 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-952138 Table sproc is not supported in Local Testing",
+    reason="Async Job is a SQL feature",
 )
 def test_async_stored_procedure_execution(session):
     """Test asynchronous stored procedure execution with both table and scalar return types for the following scenarios:
@@ -1476,7 +1476,7 @@ def test_async_anonymous_stored_procedure(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="SNOW-952138 Table sproc is not supported in Local Testing",
+    reason="Async Job is a SQL feature",
 )
 def test_async_stored_procedure_failure(session):
     """Test asynchronous stored procedure execution with error propagation:
