@@ -336,7 +336,14 @@ def indent_child_query(child: str) -> str:
                 num_backslashes += 1
                 j -= 1
             if num_backslashes % 2 == 0:
-                in_single_quote = not in_single_quote
+                if i + 1 < len(child) and child[i + 1] == "'" and in_single_quote:
+                    result.append(char)
+                    i += 1
+                    result.append(child[i])
+                    i += 1
+                    continue
+                else:
+                    in_single_quote = not in_single_quote
         elif char == '"' and not in_single_quote:
             num_backslashes = 0
             j = i - 1
@@ -344,7 +351,14 @@ def indent_child_query(child: str) -> str:
                 num_backslashes += 1
                 j -= 1
             if num_backslashes % 2 == 0:
-                in_double_quote = not in_double_quote
+                if i + 1 < len(child) and child[i + 1] == '"' and in_double_quote:
+                    result.append(char)
+                    i += 1
+                    result.append(child[i])
+                    i += 1
+                    continue
+                else:
+                    in_double_quote = not in_double_quote
 
         result.append(char)
         i += 1
