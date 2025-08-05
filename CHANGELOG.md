@@ -38,7 +38,6 @@
 #### Improvements
 - Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution. Lower the default to 100k from 10M.
 
-
 ## 1.35.0 (2025-07-24)
 
 ### Snowpark Python API Updates
