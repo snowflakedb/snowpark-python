@@ -27,6 +27,7 @@
 - Improved performance by deferring row position computation. 
   - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
   - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
+- Supported applying Snowpark functions and Snowflake Cortex functions to dataframes and series using the `Pandas` backend.
 
 #### Bug Fixes
 
