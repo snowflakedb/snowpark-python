@@ -1,12 +1,12 @@
 [build-system]
 requires = [
     "setuptools",
-    "setuptools-scm",
+    "setuptools-scm<=8.3.1",
     "protoc-wheel-0==21.1", # Protocol buffer compiler for Snowpark IR
     "mypy-protobuf", # used in generating typed Python code from protobuf for Snowpark IR
 ]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
-version_scheme = "guess-next-dev"
-local_scheme = "node-and-date"
+version_scheme = "no-guess"
+local_scheme = "no-local-version"
