@@ -14,6 +14,7 @@ import threading
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    convert_value_to_sql_option,
     create_file_format_statement,
     drop_file_format_if_exists_statement,
     infer_schema_statement,
@@ -1004,8 +1005,10 @@ class DataFrameReader:
         ):
             # matches has schema (name, size, md5, last_modified)
             # Name is fully qualified with stage path
+            # Use proper SQL escaping to prevent SQL injection
+            escaped_pattern = convert_value_to_sql_option(pattern)
             matches = self._session._conn.run_query(
-                f"list {path} pattern = '{pattern}'"
+                f"list {path} pattern = {escaped_pattern}"
             )["data"]
 
             if len(matches):
@@ -1634,7 +1637,9 @@ class DataFrameReader:
         # Add pattern option if specified
         if "PATTERN" in self._cur_options:
             pattern = self._cur_options["PATTERN"]
-            list_query += f" PATTERN = '{pattern}'"
+            # Use proper SQL escaping to prevent SQL injection
+            escaped_pattern = convert_value_to_sql_option(pattern)
+            list_query += f" PATTERN = {escaped_pattern}"
 
         # Execute the LIST command and create DataFrame
         # LIST returns columns: name, size, md5, last_modified
@@ -1642,14 +1647,6 @@ class DataFrameReader:
         df = self._session.sql(list_query, _emit_ast=_emit_ast).select(
             to_file(concat(lit("@"), col('"name"'))).alias("file")
         )
-
-        # AST handling
-        if _emit_ast and self._ast is not None:
-            stmt = self._session._ast_batch.bind()
-            ast = with_src_position(stmt.expr.read_file, stmt)
-            ast.path = path
-            ast.reader.CopyFrom(self._ast)
-            df._ast_id = stmt.uid
 
         set_api_call_source(df, "DataFrameReader.file")
         return df

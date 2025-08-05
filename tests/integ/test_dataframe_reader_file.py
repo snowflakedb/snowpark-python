@@ -320,3 +320,39 @@ def test_file_different_stage_prefixes(session, resources_path, stage_prefix):
         except Exception as e:
             # Should not be a ValueError about invalid stage location
             assert "invalid Snowflake stage location" not in str(e)
+
+
+def test_file_pattern_escape_single_quotes(session, resources_path):
+    """Test that patterns with single quotes are properly escaped to prevent SQL injection."""
+    test_stage = Utils.random_stage_name()
+    Utils.create_stage(session, test_stage, is_temporary=True)
+
+    try:
+        # Upload a test file
+        test_files = TestFiles(resources_path)
+        session.file.put(
+            test_files.test_file_csv, f"@{test_stage}", auto_compress=False
+        )
+
+        # Test patterns with single quotes that could cause SQL injection if not escaped
+        dangerous_patterns = [
+            "'; DROP TABLE users; --",
+            "test' OR '1'='1",
+            ".*'.csv",
+        ]
+
+        for pattern in dangerous_patterns:
+            # This should not raise SQL syntax errors - quotes should be escaped
+            df = session.read.option("pattern", pattern).file(f"@{test_stage}")
+            result = df.collect()
+            # These patterns won't match our test file, but shouldn't cause SQL errors
+            assert len(result) == 0
+
+        # Verify a normal pattern still works
+        df = session.read.option("pattern", r".*\.csv").file(f"@{test_stage}")
+        result = df.collect()
+        assert len(result) == 1
+        assert "testCSV.csv" in result[0]["FILE"]
+
+    finally:
+        Utils.drop_stage(session, test_stage)
