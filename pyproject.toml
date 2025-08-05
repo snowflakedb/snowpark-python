@@ -7,6 +7,10 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "snowflake-snowpark-python"
+dynamic = ["version"]
+
 [tool.setuptools_scm]
 version_scheme = "no-guess"
 local_scheme = "no-local-version"
