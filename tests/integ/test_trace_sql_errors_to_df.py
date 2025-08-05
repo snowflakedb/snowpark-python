@@ -23,7 +23,7 @@ pytestmark = [
         run=False,
     ),
     pytest.mark.skipif(
-        sys.version_info < (3, 11),
+        sys.version_info < (3, 10),
         reason="Line numbers are flaky in Python 3.9",
         run=False,
     ),
@@ -65,7 +65,12 @@ def test_python_source_location_in_session_sql(session):
         ex.value.debug_context
     )
     line_number = Utils.get_current_line_number_sys()
-    assert f"lines {line_number - 8}-{line_number - 6}" in str(ex.value.debug_context)
+    if sys.version_info < (3, 11):
+        assert f"line {line_number - 8}" in str(ex.value.debug_context)
+    else:
+        assert f"lines {line_number - 8}-{line_number - 6}" in str(
+            ex.value.debug_context
+        )
 
 
 def test_join_ambiguous_column_error(session):
