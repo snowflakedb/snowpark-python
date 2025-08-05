@@ -5,7 +5,3 @@ requires = [
     "mypy-protobuf", # used in generating typed Python code from protobuf for Snowpark IR
 ]
 build-backend = "setuptools.build_meta"
-
-[project]
-name = "snowflake-snowpark-python"
-dynamic = ["version"]
