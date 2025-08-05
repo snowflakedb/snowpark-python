@@ -14,6 +14,10 @@
 - Added support for the following functions in `functions.py`:
   - `ai_sentiment`
 
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
+
 ### Snowpark pandas API Updates
 
 #### New Features

@@ -1068,14 +1068,15 @@ class DataFrameReader:
             transformations: List["snowflake.snowpark.column.Column"] = []
             read_file_transformations = None
             for r in results:
-                # Columns for r [column_name, type, nullable, expression, filenames]
-                name = quote_name_without_upper_casing(r[0])
+                # Columns for r [column_name, type, nullable, expression, filenames, order_id]
+                column_name, type, nullable, expression = r[0], r[1], r[2], r[3]
+                name = quote_name_without_upper_casing(column_name)
                 # Parse the type returned by infer_schema command to
                 # pass to determine datatype for schema
-                data_type_parts = r[1].split("(")
+                data_type_parts = type.split("(")
                 parts_length = len(data_type_parts)
                 if parts_length == 1:
-                    data_type = r[1]
+                    data_type = type
                     precision = 0
                     scale = 0
                 else:
@@ -1091,19 +1092,23 @@ class DataFrameReader:
                     Attribute(
                         name,
                         datatype,
-                        r[2],
+                        nullable=nullable,
                     )
                 )
 
                 if try_cast:
-                    id = r[3].split(":")[0]
+                    id = expression.split(":")[0]
                     identifier = f"TRY_CAST({id} AS {convert_sp_to_sf_type(datatype)})"
                 elif format == "CSV":
-                    identifier = r[3]
+                    identifier = expression
+                elif format == "PARQUET" and expression.upper().startswith(
+                    "GET_IGNORE_CASE"
+                ):
+                    identifier = expression
                 else:
-                    identifier = f"$1:{name}::{r[1]}"
+                    identifier = f"$1:{name}::{type}"
 
-                schema_to_cast.append((identifier, r[0]))
+                schema_to_cast.append((identifier, column_name))
                 transformations.append(sql_expr(identifier))
             self._user_schema = StructType._from_attributes(new_schema)
             # If the user sets transformations, we should not override this
