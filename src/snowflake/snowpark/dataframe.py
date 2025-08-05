@@ -1081,9 +1081,8 @@ class DataFrame:
                 is_select_statement = is_sql_select_statement(query)
                 if is_select_statement:
                     _logger.warning(
-                        "to_pandas() did not return a pandas dataframe. "
-                        "If the query result format is set to JSON, accuracy of returned data is not guaranteed. "
-                        "Please set query result format to ARROW for best accuracy."
+                        "to_pandas() was called when query result format is JSON. "
+                        "Use to_pandas() with query result format ARROW is the best practice."
                     )
                 return pandas.DataFrame(
                     result,
