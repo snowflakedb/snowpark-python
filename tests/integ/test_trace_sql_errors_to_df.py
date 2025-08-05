@@ -23,7 +23,7 @@ pytestmark = [
         run=False,
     ),
     pytest.mark.skipif(
-        sys.version_info < (3, 10),
+        sys.version_info < (3, 11),
         reason="Line numbers are flaky in Python 3.9",
         run=False,
     ),

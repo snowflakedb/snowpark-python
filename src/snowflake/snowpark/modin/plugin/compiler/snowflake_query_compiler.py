@@ -406,6 +406,10 @@ from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
     NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION,
 )
+from snowflake.snowpark.modin.plugin.compiler.ray_utils import (
+    move_from_ray_helper,
+    move_to_ray_helper,
+)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -1254,6 +1258,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def execute(self) -> None:
         pass
+
+    def move_to(
+        self, target_backend: str
+    ) -> Union[BaseQueryCompiler, Any]:  # pragma: no cover
+        try:
+            if target_backend == "Ray":
+                return move_to_ray_helper(self)
+            return NotImplemented
+        except Exception:
+            return NotImplemented
+
+    @classmethod
+    def move_from(
+        cls, source_qc: BaseQueryCompiler
+    ) -> Union[BaseQueryCompiler, Any]:  # pragma: no cover
+        try:
+            if source_qc.get_backend() == "Ray":
+                return move_from_ray_helper(source_qc, max_sessions=8)
+            return NotImplemented
+        except Exception:
+            return NotImplemented
 
     def to_numpy(
         self,
