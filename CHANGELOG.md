@@ -13,6 +13,7 @@
 - Added a dataframe profiler. To use, you can call get_execution_profile() on your desired dataframe. This profiler reports the queries executed to evaluate a dataframe, and statistics about each of the query operators. Currently an experimental feature
 - Added support for the following functions in `functions.py`:
   - `ai_sentiment`
+- Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
 
 ### Snowpark pandas API Updates
 
