@@ -186,7 +186,7 @@ try:  # pragma: no cover
         # Wait for all actors to finish writing
         list(
             pool.map_unordered(
-                lambda a, v: a.write.remote(v),
+                lambda actor, v: actor.write.remote(v),
                 ray_ds.iter_batches(batch_size=None, batch_format="pandas"),
             )
         )
