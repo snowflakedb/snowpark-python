@@ -210,6 +210,16 @@ XML_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "xml_reader.py")
 XML_READER_API_SIGNATURE = "DataFrameReader.xml[rowTag]"
 XML_READER_SQL_COMMENT = f"/* Python:snowflake.snowpark.{XML_READER_API_SIGNATURE} */"
 
+# Map of XPath return types to handler function names
+XPATH_HANDLER_MAP = {
+    "array": "xpath_array_handler",
+    "string": "xpath_string_handler",
+    "boolean": "xpath_boolean_handler",
+    "int": "xpath_int_handler",
+    "float": "xpath_float_handler",
+}
+XPATH_HANDLERS_FILE_PATH = os.path.join(os.path.dirname(__file__), "xpath_handlers.py")
+
 QUERY_TAG_STRING = "QUERY_TAG"
 SKIP_LEVELS_TWO = (
     2  # limit traceback to return up to 2 stack trace entries from traceback object tb

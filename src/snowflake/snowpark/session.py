@@ -108,6 +108,8 @@ from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
+    XPATH_HANDLERS_FILE_PATH,
+    XPATH_HANDLER_MAP,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
@@ -202,8 +204,10 @@ from snowflake.snowpark.table_function import (
 )
 from snowflake.snowpark.types import (
     ArrayType,
+    BooleanType,
     DateType,
     DecimalType,
+    FloatType,
     GeographyType,
     GeometryType,
     IntegerType,
@@ -225,6 +229,7 @@ from snowflake.snowpark.udtf import UDTFRegistration
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
+    from snowflake.snowpark.udf import UserDefinedFunction  # pragma: no cover
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -745,7 +750,17 @@ class Session:
         # of SnowflakePlan or Selectable objects
         self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
+        # this lock is used to protect XPath UDF cache to avoid race conditions during
+        # UDF registration and retrieval
+        self._xpath_udf_cache_lock = create_rlock(
+            self._conn._thread_safe_session_enabled
+        )
+
         self._custom_package_usage_config: Dict = {}
+
+        # Cache for XPath UDFs (thread-safe)
+        self._xpath_udf_cache: Dict[str, Any] = {}
+
         self._collect_snowflake_plan_telemetry_at_critical_path: bool = (
             self.is_feature_enabled_for_version(
                 _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION
@@ -4511,5 +4526,69 @@ class Session:
         except ProgrammingError:
             _logger.warning("query `%s` cannot be explained", query)
             return None
+
+    def _get_or_register_xpath_udf(
+        self, return_type: Literal["array", "string", "boolean", "int", "float"]
+    ) -> "UserDefinedFunction":
+        """
+        Get or register an XPath UDF for the specified return type.
+
+        This function manages UDF registration for XPath evaluation. It uses session-level
+        caching to avoid re-registering the same UDF multiple times. The cache is stored
+        in the session object for thread safety.
+        """
+        # Use session's xpath UDF cache with thread safety
+        with self._xpath_udf_cache_lock:
+            cache_key = return_type
+
+            if cache_key not in self._xpath_udf_cache:
+                # Determine Snowpark return type
+                return_type_map = {
+                    "array": ArrayType(StringType()),
+                    "string": StringType(),
+                    "boolean": BooleanType(),
+                    "int": IntegerType(),
+                    "float": FloatType(),
+                }
+
+                # Get the handler function name for this return type
+                handler_name = XPATH_HANDLER_MAP[return_type]
+
+                # Handle stored procedure case
+                if is_in_stored_procedure():  # pragma: no cover
+                    # create a temp stage for UDF import files
+                    # we have to use "temp" object instead of "scoped temp" object in stored procedure
+                    # so we need to upload the file to the temp stage first to use register_from_file
+                    temp_stage = random_name_for_temp_object(TempObjectType.STAGE)
+                    sql_create_temp_stage = (
+                        f"create temp stage if not exists {temp_stage}"
+                    )
+                    self.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                        _emit_ast=False
+                    )
+                    self._conn.upload_file(
+                        XPATH_HANDLERS_FILE_PATH,
+                        temp_stage,
+                        compress_data=False,
+                        overwrite=True,
+                        skip_upload_on_content_match=True,
+                    )
+                    python_file_path = f"{STAGE_PREFIX}{temp_stage}/{os.path.basename(XPATH_HANDLERS_FILE_PATH)}"
+                else:
+                    python_file_path = XPATH_HANDLERS_FILE_PATH
+
+                # Register UDF from file
+                xpath_udf = self.udf.register_from_file(
+                    python_file_path,
+                    handler_name,
+                    return_type=return_type_map[return_type],
+                    input_types=[StringType(), StringType()],
+                    packages=["snowflake-snowpark-python", "lxml<6"],
+                    replace=True,
+                )
+
+                self._xpath_udf_cache[cache_key] = xpath_udf
+
+            return self._xpath_udf_cache[cache_key]
 
     createDataFrame = create_dataframe

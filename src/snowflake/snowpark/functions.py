@@ -11765,6 +11765,153 @@ def randn(
 
 
 @publicapi
+def xpath(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
+    """
+    Extracts values from an XML column using an XPath expression.
+
+    Returns an array of strings containing all matches in document order.
+    Returns an empty array if no matches are found.
+
+    Args:
+        col: Column containing XML data (string or parsed XML)
+        path: XPath expression string
+
+    Returns:
+        Column containing array of matched values as strings
+
+    Example::
+
+        >>> df = session.create_dataframe([['<root><a>1</a><a>2</a></root>']], schema=['xml'])
+        >>> df.select(xpath('xml', '//a/text()').alias('result')).collect()
+        [Row(RESULT=['1', '2'])]
+
+        >>> # With attributes
+        >>> df2 = session.create_dataframe([['<root><item id="1">A</item><item id="2">B</item></root>']], schema=['xml'])
+        >>> df2.select(xpath('xml', '//item[@id="2"]/text()').alias('result')).collect()
+        [Row(RESULT=['B'])]
+    """
+    session = snowflake.snowpark.session._get_active_session()
+    xml_col = _to_col_if_str(col, "xpath")
+    xpath_udf = session._get_or_register_xpath_udf("array")
+
+    return xpath_udf(xml_col, lit(path))
+
+
+@publicapi
+def xpath_string(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
+    """
+    Extracts the first value from an XML column using an XPath expression as a string.
+
+    Returns NULL if no matches are found.
+
+    Args:
+        col: Column containing XML data
+        path: XPath expression string
+
+    Returns:
+        Column containing string value of first match or NULL
+
+    Example::
+
+        >>> df = session.create_dataframe([['<root><a>1</a><a>2</a></root>']], schema=['xml'])
+        >>> df.select(xpath_string('xml', '//a/text()').alias('result')).collect()
+        [Row(RESULT='1')]
+    """
+    session = snowflake.snowpark.session._get_active_session()
+    xml_col = _to_col_if_str(col, "xpath_string")
+    xpath_udf = session._get_or_register_xpath_udf("string")
+
+    return xpath_udf(xml_col, lit(path))
+
+
+@publicapi
+def xpath_boolean(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
+    """
+    Evaluates an XPath expression and returns the result as a boolean.
+
+    Returns FALSE if no matches are found. Follows XPath boolean coercion rules.
+
+    Args:
+        col: Column containing XML data
+        path: XPath expression string
+
+    Returns:
+        Column containing boolean result
+
+    Example::
+
+        >>> df = session.create_dataframe([['<root><a>1</a></root>']], schema=['xml'])
+        >>> df.select(xpath_boolean('xml', 'count(//a) > 0').alias('has_a')).collect()
+        [Row(HAS_A=True)]
+    """
+    session = snowflake.snowpark.session._get_active_session()
+    xml_col = _to_col_if_str(col, "xpath_boolean")
+    xpath_udf = session._get_or_register_xpath_udf("boolean")
+
+    return xpath_udf(xml_col, lit(path))
+
+
+@publicapi
+def xpath_number(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
+    """
+    Extracts a numeric value from an XML column using an XPath expression.
+
+    Returns NULL if no matches are found or value cannot be converted to float.
+
+    Args:
+        col: Column containing XML data
+        path: XPath expression string
+
+    Returns:
+        Column containing float value or NULL
+
+    Example::
+
+        >>> df = session.create_dataframe([['<root><price>19.99</price></root>']], schema=['xml'])
+        >>> df.select(xpath_number('xml', '//price/text()').alias('price')).collect()
+        [Row(PRICE=19.99)]
+    """
+    session = snowflake.snowpark.session._get_active_session()
+    xml_col = _to_col_if_str(col, "xpath_number")
+    xpath_udf = session._get_or_register_xpath_udf("float")
+
+    return xpath_udf(xml_col, lit(path))
+
+
+@publicapi
+def xpath_int(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
+    """
+    Extracts an integer value from an XML column using an XPath expression.
+
+    Returns NULL if no matches are found or value cannot be converted to integer.
+    Floats are truncated to integers (e.g., 1.9 becomes 1).
+
+    Args:
+        col: Column containing XML data
+        path: XPath expression string
+
+    Returns:
+        Column containing integer value or NULL
+
+    Example::
+
+        >>> df = session.create_dataframe([['<root><count>42</count></root>']], schema=['xml'])
+        >>> df.select(xpath_int('xml', '//count/text()').alias('count')).collect()
+        [Row(COUNT=42)]
+    """
+    session = snowflake.snowpark.session._get_active_session()
+    xml_col = _to_col_if_str(col, "xpath_int")
+    xpath_udf = session._get_or_register_xpath_udf("int")
+
+    return xpath_udf(xml_col, lit(path))
+
+
+# Spark compatibility aliases
+xpath_float = xpath_double = xpath_number
+xpath_long = xpath_short = xpath_int
+
+
+@publicapi
 def build_stage_file_url(
     stage_name: str, relative_file_path: str, _emit_ast: bool = True
 ) -> Column:
