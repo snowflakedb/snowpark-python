@@ -78,55 +78,45 @@ def test_format_uuid():
 
 
 @pytest.mark.parametrize(
-    "test_name,query,expected",
+    "query,expected",
     [
         (
-            "basic_indentation",
             "SELECT col1\nFROM table1",
             "    SELECT col1\n    FROM table1",
         ),
         (
-            "single_quotes_with_newlines",
             "SELECT 'line1\nline2' as col1\nFROM table1",
             "    SELECT 'line1\nline2' as col1\n    FROM table1",
         ),
         (
-            "double_quotes_with_newlines",
             'SELECT "line1\nline2" as col1\nFROM table1',
             '    SELECT "line1\nline2" as col1\n    FROM table1',
         ),
         (
-            "escaped_single_quotes",
             "SELECT 'Don\\'t indent this\nnewline' as col1\nFROM table1",
             "    SELECT 'Don\\'t indent this\nnewline' as col1\n    FROM table1",
         ),
         (
-            "escaped_double_quotes",
             'SELECT "He said \\"Hello\nworld\\"" as col1\nFROM table1',
             '    SELECT "He said \\"Hello\nworld\\"" as col1\n    FROM table1',
         ),
         (
-            "multiple_backslashes_even",
             "SELECT 'test\\\\'\nFROM table1",
             "    SELECT 'test\\\\'\n    FROM table1",
         ),
         (
-            "multiple_backslashes_odd",
             "SELECT 'test\\\\\\'still in string\nnewline' as col1\nFROM table1",
             "    SELECT 'test\\\\\\'still in string\nnewline' as col1\n    FROM table1",
         ),
         (
-            "mixed_quotes",
             "SELECT 'single \"double\" inside' as col1,\n\"double 'single' inside\" as col2\nFROM table1",
             "    SELECT 'single \"double\" inside' as col1,\n    \"double 'single' inside\" as col2\n    FROM table1",
         ),
         (
-            "nested_quotes_with_newlines",
             "SELECT 'First line\nSecond \"quoted\" line\nThird line' as col1\nFROM table1",
             "    SELECT 'First line\nSecond \"quoted\" line\nThird line' as col1\n    FROM table1",
         ),
         (
-            "complex_sql_multiple_scenarios",
             """SELECT
     'Complex string with\nmultiple lines' as str_col,
     "Another string\nwith newlines" as str_col2,
@@ -144,12 +134,32 @@ ORDER BY str_col""",
         AND other_condition = "another\nvalue"
     ORDER BY str_col""",
         ),
-        ("empty_string", "", "    "),
-        ("no_newlines", "SELECT * FROM table1", "    SELECT * FROM table1"),
-        ("only_newlines", "\n\n\n", "    \n    \n    \n    "),
+        ("", "    "),
+        ("SELECT * FROM table1", "    SELECT * FROM table1"),
+        ("\n\n\n", "    \n    \n    \n    "),
+        (
+            'CREATE TABLE "quote""andun\nquote""" AS SELECT 1',
+            '    CREATE TABLE "quote""andun\nquote""" AS SELECT 1',
+        ),
+        (
+            "SELECT * FROM 'table''name\nwith''quotes'",
+            "    SELECT * FROM 'table''name\nwith''quotes'",
+        ),
+        (
+            'SELECT "col""with""quotes\nand""newlines" FROM table1\nWHERE condition = 1',
+            '    SELECT "col""with""quotes\nand""newlines" FROM table1\n    WHERE condition = 1',
+        ),
+        (
+            "INSERT INTO 'test''table\nname' VALUES ('val''with\nquotes')",
+            "    INSERT INTO 'test''table\nname' VALUES ('val''with\nquotes')",
+        ),
+        (
+            'SELECT "start""middle""end\nwith\nnewlines" as col\nFROM "table""name"',
+            '    SELECT "start""middle""end\nwith\nnewlines" as col\n    FROM "table""name"',
+        ),
     ],
 )
-def test_indent_child_query(test_name, query, expected):
+def test_indent_child_query(query, expected):
     """Test indent_child_query function with various quote and newline scenarios."""
     assert indent_child_query(query) == expected
 
