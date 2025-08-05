@@ -236,8 +236,6 @@ class OrderedDataFrame:
     # row count snowflake quoted identifier
     row_count_snowflake_quoted_identifier: Optional[str]
 
-    # possible cached value of exact row count for this dataframe
-    row_count: Optional[int]
     # possible cached estimate for the upper limit of the number of rows in this frame
     row_count_upper_bound: Optional[int]
 
@@ -305,12 +303,22 @@ class OrderedDataFrame:
         self.row_count_snowflake_quoted_identifier = (
             row_count_snowflake_quoted_identifier
         )
-        self.row_count: Optional[int] = None
+        self._row_count: Optional[int] = None
         self.row_count_upper_bound: Optional[int] = None
 
     @property
     def ordering_columns(self) -> list[OrderingColumn]:
         return list(self._ordering_columns_tuple)
+
+    # possible cached value of exact row count for this dataframe
+    @property
+    def row_count(self) -> Optional[int]:
+        return self._row_count
+
+    @row_count.setter
+    def row_count(self, value: int) -> None:
+        self._row_count = value
+        self.row_count_upper_bound = value
 
     def _ordering_snowpark_columns(self) -> list[Column]:
         """
@@ -332,7 +340,7 @@ class OrderedDataFrame:
         """
         return [col.snowflake_quoted_identifier for col in self.ordering_columns]
 
-    def _row_position_snowpark_column(self) -> Column:
+    def _row_position_snowpark_column(self, dummy_row_pos_mode: bool = False) -> Column:
         """
         Returns a row position Snowpark column for the dataframe.
         If row position column already exist in the current dataframe, it will be directly returned.
@@ -345,7 +353,15 @@ class OrderedDataFrame:
         if self.row_position_snowflake_quoted_identifier is not None:
             return Column(self.row_position_snowflake_quoted_identifier)
 
-        return row_number().over(Window.order_by(self._ordering_snowpark_columns())) - 1
+        if dummy_row_pos_mode:
+            from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
+
+            return pandas_lit(0)
+        else:
+            return (
+                row_number().over(Window.order_by(self._ordering_snowpark_columns()))
+                - 1
+            )
 
     @property
     def projected_column_snowflake_quoted_identifiers(self) -> list[str]:
@@ -355,7 +371,9 @@ class OrderedDataFrame:
         """
         return list(self._projected_column_snowflake_quoted_identifiers_tuple)
 
-    def ensure_row_position_column(self) -> "OrderedDataFrame":
+    def ensure_row_position_column(
+        self, dummy_row_pos_mode: bool = False
+    ) -> "OrderedDataFrame":
         """
         Returns an OrderedDataFrame with a row position column, and the row position column is guaranteed to
         be part of the projected column.
@@ -389,7 +407,7 @@ class OrderedDataFrame:
         )
         ordered_dataframe = self.select(
             *self.projected_column_snowflake_quoted_identifiers,
-            self._row_position_snowpark_column().as_(
+            self._row_position_snowpark_column(dummy_row_pos_mode).as_(
                 row_position_snowflake_quoted_identifier
             ),
         )
@@ -1133,6 +1151,7 @@ class OrderedDataFrame:
             "MatchComparator"  # noqa: F821
         ] = None,
         how: JoinTypeLit = "inner",
+        dummy_row_pos_mode: bool = False,
     ) -> "OrderedDataFrame":
         """
         Performs equi join of the specified type (``how``) with the current
@@ -1182,6 +1201,7 @@ class OrderedDataFrame:
                     For other join methods, the ordering columns preserves the left order, followed by right order.
 
         """
+        left = self
         left_on_cols = left_on_cols or []
         right_on_cols = right_on_cols or []
         assert len(left_on_cols) == len(
@@ -1189,7 +1209,7 @@ class OrderedDataFrame:
         ), "left_on_cols and right_on_cols must be of same length"
         _raise_if_identifier_not_exists(
             left_on_cols,
-            self.projected_column_snowflake_quoted_identifiers,
+            left.projected_column_snowflake_quoted_identifiers,
             "join left_on_cols",
         )
 
@@ -1204,7 +1224,7 @@ class OrderedDataFrame:
             assert right_match_col, "right_match_col was not provided to ASOF Join"
             _raise_if_identifier_not_exists(
                 [left_match_col],
-                self.projected_column_snowflake_quoted_identifiers,
+                left.projected_column_snowflake_quoted_identifiers,
                 "join left_match_col",
             )
             _raise_if_identifier_not_exists(
@@ -1221,10 +1241,24 @@ class OrderedDataFrame:
             "right",
             "inner",
             "outer",
-        ] and self._is_self_join_on_row_position_column(
+        ] and left._is_self_join_on_row_position_column(
             left_on_cols, right, right_on_cols
         ):
             is_join_needed = False
+
+        if is_join_needed and dummy_row_pos_mode and how not in ["asof", "cross"]:
+            # Replace the dummy row position with a real one before performing a join on the row position
+            # This currently does not handle the unlikely case of joining on both the row position and a data column
+            if left_on_cols == [left.row_position_snowflake_quoted_identifier]:
+                left.row_position_snowflake_quoted_identifier = None
+                left = left.ensure_row_position_column(dummy_row_pos_mode=False)
+                assert left.row_position_snowflake_quoted_identifier is not None
+                left_on_cols = [left.row_position_snowflake_quoted_identifier]
+            if right_on_cols == [right.row_position_snowflake_quoted_identifier]:
+                right.row_position_snowflake_quoted_identifier = None
+                assert right.row_position_snowflake_quoted_identifier is not None
+                right = right.ensure_row_position_column(dummy_row_pos_mode=False)
+                right_on_cols = [right.row_position_snowflake_quoted_identifier]
 
         original_right_quoted_identifiers = (
             right.projected_column_snowflake_quoted_identifiers
@@ -1241,9 +1275,9 @@ class OrderedDataFrame:
             right.projected_column_snowflake_quoted_identifiers
         )
 
-        # the new projected columns are set to self._projected_columns + right._projected_column after de-conflict
+        # the new projected columns are set to left._projected_columns + right._projected_column after de-conflict
         projected_column_snowflake_quoted_identifiers = (
-            self.projected_column_snowflake_quoted_identifiers
+            left.projected_column_snowflake_quoted_identifiers
             + right.projected_column_snowflake_quoted_identifiers
         )
 
@@ -1254,9 +1288,9 @@ class OrderedDataFrame:
             new_df = OrderedDataFrame(
                 right._dataframe_ref,
                 projected_column_snowflake_quoted_identifiers=projected_column_snowflake_quoted_identifiers,
-                ordering_columns=self.ordering_columns,
-                row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
-                row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
+                ordering_columns=left.ordering_columns,
+                row_position_snowflake_quoted_identifier=left.row_position_snowflake_quoted_identifier,
+                row_count_snowflake_quoted_identifier=left.row_count_snowflake_quoted_identifier,
             )
             new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
                 self,
@@ -1274,7 +1308,7 @@ class OrderedDataFrame:
             return new_df
 
         # reproject the snowpark dataframe with only necessary columns
-        left_snowpark_dataframe_ref = self._to_projected_snowpark_dataframe_reference(
+        left_snowpark_dataframe_ref = left._to_projected_snowpark_dataframe_reference(
             include_ordering_columns=True
         )
         right_snowpark_dataframe_ref = right._to_projected_snowpark_dataframe_reference(
@@ -1334,9 +1368,9 @@ class OrderedDataFrame:
         # for right join, we preserve the right order first, then left order.
         # for all join type, left order is preserved first, then right order.
         if how == "right":
-            ordering_columns = right.ordering_columns + self.ordering_columns
+            ordering_columns = right.ordering_columns + left.ordering_columns
         else:
-            ordering_columns = self.ordering_columns + right.ordering_columns
+            ordering_columns = left.ordering_columns + right.ordering_columns
 
         new_df = OrderedDataFrame(
             DataFrameReference(
@@ -1429,6 +1463,7 @@ class OrderedDataFrame:
         right_on_cols: list[str],
         how: AlignTypeLit = "outer",
         enable_default_sort: bool = True,
+        dummy_row_pos_mode: bool = False,
     ) -> "OrderedDataFrame":
         """
         Performs align operation of the specified join type (``how``) with the current
@@ -1522,7 +1557,7 @@ class OrderedDataFrame:
             new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
                 self,
                 DataFrameOperation.ALIGN,
-                args={"right": right},
+                args={"right": right, "how": how},
             )
             return new_df
 
@@ -1540,8 +1575,8 @@ class OrderedDataFrame:
             right.projected_column_snowflake_quoted_identifiers
         )
         # generate row position column for self and right, which is needed for align on column equivalence check
-        left = self.ensure_row_position_column()
-        right = right.ensure_row_position_column()
+        left = self.ensure_row_position_column(dummy_row_pos_mode)
+        right = right.ensure_row_position_column(dummy_row_pos_mode)
 
         # whether the alignment is performed on the row position column of each dataframe.
         # In other words, this indicates whether the alignment is applied on a unique column
@@ -1560,6 +1595,7 @@ class OrderedDataFrame:
             left_on_cols=left_on_cols,
             right_on_cols=right_on_cols,
             how=how if direct_join_map else "outer",
+            dummy_row_pos_mode=dummy_row_pos_mode,
         )
 
         sort = False
@@ -1831,7 +1867,7 @@ class OrderedDataFrame:
         new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
             self,
             DataFrameOperation.ALIGN,
-            args={"right": right},
+            args={"right": right, "how": how},
         )
         return new_df
 
@@ -1873,7 +1909,7 @@ class OrderedDataFrame:
         See detailed docstring in Snowpark DataFrame's limit.
         """
         projected_dataframe_ref = self._to_projected_snowpark_dataframe_reference(
-            include_ordering_columns=True, sort=sort
+            include_ordering_columns=True, include_row_position_column=True, sort=sort
         )
         snowpark_dataframe = projected_dataframe_ref.snowpark_dataframe.limit(
             n=n, offset=offset
@@ -1886,6 +1922,7 @@ class OrderedDataFrame:
             ),
             projected_column_snowflake_quoted_identifiers=projected_dataframe_ref.snowflake_quoted_identifiers,
             ordering_columns=self.ordering_columns,
+            row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
         )
         new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
             self,

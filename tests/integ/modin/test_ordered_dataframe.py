@@ -895,7 +895,7 @@ def test_limit(ordered_df):
         '"b"',
     ]
     assert new_ordered_df.ordering_columns == ordered_df.ordering_columns
-    assert new_ordered_df.row_position_snowflake_quoted_identifier is None
+    assert new_ordered_df.row_position_snowflake_quoted_identifier is not None
 
 
 @sql_count_checker(query_count=1)
@@ -1166,11 +1166,11 @@ def test_ordered_dataframe_row_count(session, columns):
     ordered_df2 = ordered_df2.join(ordered_df1, ['"A"'], ['"A"'])
     assert ordered_df2.row_count_upper_bound == 30  # Set upper bound to 3 * 10 = 30
     ordered_df2 = ordered_df2.align(ordered_df1, ['"C"'], ['"C"'])
-    assert ordered_df2.row_count_upper_bound == 300  # Set upper bound to 30 * 10 = 300
+    assert ordered_df2.row_count_upper_bound == 40  # Set upper bound to 30 + 10 = 40
 
     # Ensure UNION_ALL sets row_count_upper_bound to row_count_upper_bound + other.row_count_upper_bound
     ordered_df2 = ordered_df2.union_all(ordered_df1)
-    assert ordered_df2.row_count_upper_bound == 310  # Set upper bound to 300 + 10 = 310
+    assert ordered_df2.row_count_upper_bound == 50  # Set upper bound to 40 + 10 = 50
 
     # Ensure AGG sets row_count_upper_bound to 1
     ordered_df1 = ordered_df1.agg(max_(col('"B"')).alias("max"))
