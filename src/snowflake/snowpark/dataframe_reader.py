@@ -16,6 +16,7 @@ import threading
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    convert_value_to_sql_option,
     create_file_format_statement,
     drop_file_format_if_exists_statement,
     infer_schema_statement,
@@ -72,6 +73,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     random_name_for_temp_object,
     warning,
+    experimental,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -79,7 +81,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
     SnowparkDataframeReaderException,
 )
-from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.functions import sql_expr, col, concat, lit, to_file
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
@@ -1005,8 +1007,10 @@ class DataFrameReader:
         ):
             # matches has schema (name, size, md5, last_modified)
             # Name is fully qualified with stage path
+            # Use proper SQL escaping to prevent SQL injection
+            escaped_pattern = convert_value_to_sql_option(pattern)
             matches = self._session._conn.run_query(
-                f"list {path} pattern = '{pattern}'"
+                f"list {path} pattern = {escaped_pattern}"
             )["data"]
 
             if len(matches):
@@ -1638,3 +1642,58 @@ class DataFrameReader:
         logger.debug(f"recorded telemetry: {json.dumps(telemetry_json_string)}")
         set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
         return res_df
+
+    @publicapi
+    @experimental(version="1.37.0")
+    def file(self, path: str, _emit_ast: bool = True) -> DataFrame:
+        """
+        Returns a DataFrame with a single column ``FILE`` containing a list of files
+        in the specified Snowflake stage location (either internal or external).
+
+        Args:
+            path: The stage location to list files from (e.g., "@mystage", "@mystage/path/").
+
+        Example::
+
+            >>> # Create a temp stage and upload some test files
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage").collect()
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/testCSVheader.csv", "@mystage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/testJson.json", "@mystage", auto_compress=False)
+
+            >>> # List all files in the stage
+            >>> df = session.read.file("@mystage")
+            >>> df.count()
+            3
+
+            >>> # List files matching a pattern (only CSV files)
+            >>> df = session.read.option("pattern", ".*\\.csv").file("@mystage")
+            >>> df.count()
+            2
+
+            >>> # List files with a more specific pattern
+            >>> df = session.read.option("pattern", ".*header.*").file("@mystage")
+            >>> df.count()
+            1
+        """
+        path = _validate_stage_path(path)
+
+        # Build the LIST command
+        list_query = f"LIST {path}"
+
+        # Add pattern option if specified
+        if "PATTERN" in self._cur_options:
+            pattern = self._cur_options["PATTERN"]
+            # Use proper SQL escaping to prevent SQL injection
+            escaped_pattern = convert_value_to_sql_option(pattern)
+            list_query += f" PATTERN = {escaped_pattern}"
+
+        # Execute the LIST command and create DataFrame
+        # LIST returns columns: name, size, md5, last_modified
+        # We only want the 'name' column renamed to 'FILE'
+        df = self._session.sql(list_query, _emit_ast=_emit_ast).select(
+            to_file(concat(lit("@"), col('"name"'))).alias("file")
+        )
+
+        set_api_call_source(df, "DataFrameReader.file")
+        return df
