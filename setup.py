@@ -19,6 +19,7 @@ CONNECTOR_DEPENDENCY_VERSION = ">=3.14.0, <4.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
+    "setuptools-scm<=9.0.1",
     "wheel",
     CONNECTOR_DEPENDENCY,
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
