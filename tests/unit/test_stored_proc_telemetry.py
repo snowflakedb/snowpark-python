@@ -59,7 +59,7 @@ def test_telemetry_client_with_mock_meter(mock_is_in_stored_proc):
     client.send(test_message)
     assert len(mock_meter._instrument_id_instrument) == 1
     gauge = list(mock_meter._instrument_id_instrument.values())[0]
-    assert "snowflake.snowpark.test.gauge" in gauge.name
+    assert "snowflake.snowpark.client.gauge" in gauge.name
     assert gauge.unit == "data"
     assert gauge.description == json.dumps(
         test_message, ensure_ascii=False, separators=(",", ":")
@@ -82,7 +82,7 @@ def test_telemetry_client_multiple_sends(mock_is_in_stored_proc):
     assert len(mock_meter._instrument_id_instrument) == 100
     gauges = list(mock_meter._instrument_id_instrument.values())
     for gauge in gauges:
-        assert "snowflake.snowpark.test.gauge" in gauge.name
+        assert "snowflake.snowpark.client.gauge" in gauge.name
         assert gauge.get_value() == 200
 
 

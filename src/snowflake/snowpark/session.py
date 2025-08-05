@@ -293,7 +293,7 @@ _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
 _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES = (
     "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES"
 )
-_PYTHON_SNOWPARK_TELEMETRY_ENABLED = "ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY"
+_PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED = "ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY"
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -671,9 +671,9 @@ class Session:
         else:
             self._disable_multiline_queries()
 
-        self._stored_proc_telemetry_enabled: bool = (
+        self._internal_telemetry_enabled: bool = (
             self._conn._get_client_side_session_parameter(
-                _PYTHON_SNOWPARK_TELEMETRY_ENABLED, False
+                _PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED, False
             )
         )
 
@@ -4087,6 +4087,7 @@ class Session:
                 _logger.debug(
                     "Client side parameter ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY is set to False, telemetry could not be enabled"
                 )
+                self._conn._telemetry_client._enabled = False
 
         else:
             self._conn._conn.telemetry_enabled = False

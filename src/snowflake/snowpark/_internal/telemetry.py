@@ -7,6 +7,7 @@ import functools
 import json
 import threading
 from enum import Enum, unique
+from logging import getLogger
 import time
 from typing import Any, Dict, List, Optional
 
@@ -44,6 +45,8 @@ try:
     PS_UTIL_AVAILABLE = True
 except ImportError:
     PS_UTIL_AVAILABLE = False
+
+_logger = getLogger(__name__)
 
 
 @unique
@@ -489,7 +492,7 @@ class TelemetryClient:
                 internal_metrics_available = False
         self.stored_proc_meter = (
             internal_metrics.get_meter("snowpark-python-client")
-            if is_in_stored_procedure() and internal_metrics_available
+            if internal_metrics_available
             else None
         )
         # We periodically clean out the stored procedure meter of unused gauges
@@ -497,21 +500,22 @@ class TelemetryClient:
 
     def send(self, msg: Dict, timestamp: Optional[int] = None):
         if not self._enabled:
+            _logger.info("Telemetry client is disabled, skipping telemetry")
             return
+        if not timestamp:
+            timestamp = get_time_millis()
         if self.telemetry:
-            if not timestamp:
-                timestamp = get_time_millis()
             telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
             self.telemetry.try_add_log_to_batch(telemetry_data)
         elif self.stored_proc_meter is not None:
-            if not timestamp:
-                timestamp = get_time_millis()
             id = generate_random_alphanumeric(10)
             self.stored_proc_meter.create_gauge(
-                f"snowflake.snowpark.test.gauge{id}",
+                f"snowflake.snowpark.client.gauge{id}",
                 description=json.dumps(msg, ensure_ascii=False, separators=(",", ":")),
                 unit="data",
-            ).set(200)
+            ).set(
+                200
+            )  # this is a dummy value
             if (
                 len(self.stored_proc_meter._instrument_id_instrument)
                 >= self.clean_up_stored_proc_meter_interval
