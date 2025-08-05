@@ -4277,20 +4277,25 @@ class Session:
 
             >>> import snowflake.snowpark
             >>> from snowflake.snowpark.functions import sproc
+            >>> import time
             >>>
             >>> session.add_packages('snowflake-snowpark-python')
             >>>
-            >>> @sproc(name="my_copy_sp", replace=True)
-            ... def my_copy(session: snowflake.snowpark.Session, from_table: str, to_table: str, count: int) -> str:
-            ...     session.table(from_table).limit(count).write.save_as_table(to_table)
-            ...     return "SUCCESS"
-            >>> async_job = session.call_nowait("my_copy_sp", "test_from", "test_to", 10)
-            >>> result = async_job.result()  # This will block until completion
-            >>> print(result)
+            >>> @sproc(name="simple_add_sp", replace=True)
+            ... def simple_add(session: snowflake.snowpark.Session, a: int, b: int) -> int:
+            ...     return a + b
+            >>> async_job = session.call_nowait("simple_add_sp", 1, 2)
+            >>> while not async_job.is_done():
+            ...     time.sleep(1.0)
+            >>> async_job.is_done()
+            True
+            >>> async_job.is_failed()
+            False
+            >>> async_job.status()
             'SUCCESS'
-
-        See also:
-            :meth:`call()`
+            >>> result = async_job.result()
+            >>> print(result)
+            3
         """
         return self.call(
             sproc_name,
@@ -4354,48 +4359,15 @@ class Session:
             is_return_table = self._infer_is_return_table(
                 sproc_name, *args, log_on_exception=log_on_exception
             )
-        if is_return_table:
-            if block:
-                qid = self._conn.execute_and_get_sfqid(
-                    query, statement_params=statement_params
-                )
-                df = self.sql(result_scan_statement(qid), _ast_stmt=stmt)
-                set_api_call_source(df, "Session.call")
-                return df
-            else:
-                # Async execution for table stored procedures
-                results_cursor = self._conn.execute_async_and_notify_query_listener(
-                    query, _statement_params=statement_params
-                )
-                return AsyncJob(
-                    results_cursor["queryId"],
-                    query,
-                    self,
-                    _AsyncResultType.ROW,
-                    log_on_exception=log_on_exception,
-                )
 
-        # Scalar stored procedure execution
-        if not block:
-            # Async execution for scalar stored procedures
-            results_cursor = self._conn.execute_async_and_notify_query_listener(
-                query, _statement_params=statement_params
-            )
-            return AsyncJob(
-                results_cursor["queryId"],
-                query,
-                self,
-                _AsyncResultType.COUNT,
-                log_on_exception=log_on_exception,
-            )
-
-        # Synchronous execution for scalar stored procedures
-        # TODO SNOW-1672561: This here needs to emit an eval as well.
-        df = self.sql(query, _ast_stmt=stmt)
-        set_api_call_source(df, "Session.call")
-
-        # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
-        return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
+        return self._execute_sproc_internal(
+            query=query,
+            is_return_table=is_return_table,
+            block=block,
+            statement_params=statement_params,
+            ast_stmt=stmt,
+            log_on_exception=log_on_exception,
+        )
 
     @deprecated(
         version="0.7.0",
@@ -4604,3 +4576,53 @@ class Session:
             return None
 
     createDataFrame = create_dataframe
+
+    def _execute_sproc_internal(
+        self,
+        query: str,
+        is_return_table: bool,
+        block: bool,
+        statement_params: Optional[Dict[str, Any]] = None,
+        ast_stmt=None,
+        log_on_exception: bool = False,
+    ) -> Union[Any, AsyncJob]:
+        """Unified internal executor for sync/async, table/scalar SPROCs."""
+        if is_return_table:
+            if block:
+                qid = self._conn.execute_and_get_sfqid(
+                    query, statement_params=statement_params
+                )
+                df = self.sql(result_scan_statement(qid), _ast_stmt=ast_stmt)
+                set_api_call_source(df, "Session.call")
+                return df
+            else:
+                results_cursor = self._conn.execute_async_and_notify_query_listener(
+                    query, _statement_params=statement_params
+                )
+                return AsyncJob(
+                    results_cursor["queryId"],
+                    query,
+                    self,
+                    _AsyncResultType.ROW,
+                    log_on_exception=log_on_exception,
+                )
+        else:
+            if block:
+                # TODO SNOW-1672561: This here needs to emit an eval as well.
+                df = self.sql(query, _ast_stmt=ast_stmt)
+                set_api_call_source(df, "Session.call")
+                # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
+                return df.collect(statement_params=statement_params, _emit_ast=False)[
+                    0
+                ][0]
+            else:
+                results_cursor = self._conn.execute_async_and_notify_query_listener(
+                    query, _statement_params=statement_params
+                )
+                return AsyncJob(
+                    results_cursor["queryId"],
+                    query,
+                    self,
+                    _AsyncResultType.COUNT,
+                    log_on_exception=log_on_exception,
+                )
