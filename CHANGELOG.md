@@ -1,5 +1,13 @@
 # Release History
 
+## 1.37.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
+
 ## 1.36.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -13,10 +21,6 @@
 - Added a dataframe profiler. To use, you can call get_execution_profile() on your desired dataframe. This profiler reports the queries executed to evaluate a dataframe, and statistics about each of the query operators. Currently an experimental feature
 - Added support for the following functions in `functions.py`:
   - `ai_sentiment`
-
-#### Bug Fixes
-
-- Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
 
 ### Snowpark pandas API Updates
 
