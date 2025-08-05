@@ -1,6 +1,6 @@
 # Release History
 
-## 1.36.0 (YYYY-MM-DD)
+## 1.36.0 (2025-08-05)
 
 ### Snowpark Python API Updates
 
@@ -24,18 +24,14 @@
 #### Improvements
 
 - Hybrid execution row estimate improvements and a reduction of eager calls.
-- Improved performance by deferring row position computation. 
-  - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
-  - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
+- Improved performance by deferring row position computation.
+- The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
+- If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
+- Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution. Lower the default to 100k from 10M.
 
 #### Bug Fixes
 
 - Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically.
-
-### Snowpark pandas API Updates
-
-#### Improvements
-- Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution. Lower the default to 100k from 10M.
 
 ## 1.35.0 (2025-07-24)
 
