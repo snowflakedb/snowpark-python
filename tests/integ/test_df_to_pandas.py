@@ -518,6 +518,6 @@ def test_to_pandas_json_format(session, caplog):
     assert df3_json.equals(result_pandas_df_3)
 
     assert (
-        "Use to_pandas() with query result format ARROW is the best practice."
+        "For best compatibility with to_pandas(), set the query result format to ARROW."
         in caplog.text
     )
