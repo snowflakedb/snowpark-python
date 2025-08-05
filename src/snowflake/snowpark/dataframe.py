@@ -4987,7 +4987,7 @@ class DataFrame:
                     "{"
                     + ", ".join(
                         [
-                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.key_type or StringType())}"
+                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.value_type or StringType())}"
                             for k, v in sorted(cell.items())
                         ]
                     )
