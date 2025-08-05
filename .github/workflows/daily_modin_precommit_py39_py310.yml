@@ -38,7 +38,7 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
       - name: Run fix_lint
-        run: python -m tox -e fix_lint --no-build-isolation
+        run: python -m tox -e fix_lint
 
   build:
     needs: lint
