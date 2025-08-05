@@ -37,6 +37,7 @@ Snowpark Session
       Session.add_requirements
       Session.append_query_tag
       Session.call
+      Session.call_nowait
       Session.cancel_all
       Session.catalog
       Session.clear_imports
