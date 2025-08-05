@@ -12,3 +12,4 @@ name = "snowflake-snowpark-python"
 dynamic = ["version"]
 
 [tool.setuptools_scm]
+version_scheme = "trigger"
