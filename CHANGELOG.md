@@ -31,7 +31,6 @@
 #### Bug Fixes
 
 - Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically.
-- Fixed a bug in displaying Map values in `Dataframe._show_string_spark`.
 
 ### Snowpark pandas API Updates
 
