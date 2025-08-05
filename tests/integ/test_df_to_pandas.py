@@ -472,3 +472,52 @@ def test_write_pandas_chunk_size(session):
             mock_write_pandas.assert_called_once()
     finally:
         Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported by local testing.",
+)
+def test_to_pandas_json_format(session, caplog):
+    session.sql(
+        "ALTER SESSION SET PYTHON_CONNECTOR_QUERY_RESULT_FORMAT='json';"
+    ).collect()
+    df1_json = session.sql(
+        """SELECT 'example1' AS "'c1'", 'example2' AS "c'2" """
+    ).to_pandas()
+    df2_json = session.sql("""SELECT 'example1' AS c1, 'example2' AS c2 """).to_pandas()
+    df3_json = session.sql(
+        """SELECT 'example1' AS "c1", 'example2' AS "c2" """
+    ).to_pandas()
+
+    session.sql(
+        "ALTER SESSION SET PYTHON_CONNECTOR_QUERY_RESULT_FORMAT='arrow';"
+    ).collect()
+    df1_arrow = session.sql(
+        """SELECT 'example1' AS "'c1'", 'example2' AS "c'2" """
+    ).to_pandas()
+    df2_arrow = session.sql(
+        """SELECT 'example1' AS c1, 'example2' AS c2 """
+    ).to_pandas()
+    df3_arrow = session.sql(
+        """SELECT 'example1' AS "c1", 'example2' AS "c2" """
+    ).to_pandas()
+
+    result_pandas_df_1 = pd.DataFrame(
+        [["example1", "example2"]], columns=["'c1'", "c'2"]
+    )
+    result_pandas_df_2 = pd.DataFrame([["example1", "example2"]], columns=["C1", "C2"])
+    result_pandas_df_3 = pd.DataFrame([["example1", "example2"]], columns=["c1", "c2"])
+
+    assert df1_json.equals(df1_arrow)
+    assert df2_json.equals(df2_arrow)
+    assert df3_json.equals(df3_arrow)
+
+    assert df1_json.equals(result_pandas_df_1)
+    assert df2_json.equals(result_pandas_df_2)
+    assert df3_json.equals(result_pandas_df_3)
+
+    assert (
+        "For best compatibility with to_pandas(), set the query result format to ARROW."
+        in caplog.text
+    )
