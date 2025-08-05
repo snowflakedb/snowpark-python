@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import sys
+import time
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 from textwrap import dedent
@@ -24,7 +25,7 @@ try:
 except ImportError:
     is_pandas_available = False
 
-from snowflake.snowpark import Session
+from snowflake.snowpark import Session, AsyncJob
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
@@ -1280,6 +1281,160 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
         session._run_query(f"drop procedure if exists {temp_sp_name_register}(string)")
         session._run_query(f"drop procedure if exists {temp_sp_name_decorator}(string)")
         Utils.drop_stage(session, stage_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-952138 Table sproc is not supported in Local Testing",
+)
+def test_async_stored_procedure_execution(session):
+    """Test asynchronous stored procedure execution with both table and scalar return types for the following scenarios:
+    - session.call(block=False) returns AsyncJob
+    - session.call_nowait() convenience method
+    - StoredProcedure.__call__() with block=False for both named and anonymous sprocs
+    - Both table-returning and scalar-returning stored procedures
+    - Proper AsyncJob result types (_AsyncResultType.ROW vs COUNT)
+    """
+
+    tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, tmp_table_name, "id INT, title STRING")
+    table_df = session.create_dataframe(
+        [
+            [1, "Movie One"],
+            [2, "Movie Two"],
+            [17, "Movie 17"],
+            [99, "Movie 99"],
+        ],
+        schema=["id", "title"],
+    )
+    table_df.write.save_as_table(tmp_table_name, mode="overwrite")
+    scalar_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    table_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+
+    try:
+        # ================ Test 1: Scalar sproc ================
+        def scalar_movie(session_: Session, movie_id: int) -> str:
+            df = (
+                session_.table(tmp_table_name).select("title").where(f"id = {movie_id}")
+            )
+            return df.collect()[0][0]
+
+        scalar_sproc = session.sproc.register(
+            func=scalar_movie,
+            name=scalar_sp_name,
+            input_types=[IntegerType()],
+            return_type=StringType(),
+            replace=True,
+        )
+
+        # 1a: session.call(block=False)
+        async_job_scalar = session.call(scalar_sp_name, 17, block=False)
+        assert isinstance(async_job_scalar, AsyncJob)
+        while not async_job_scalar.is_done():
+            time.sleep(1)
+        result_scalar = async_job_scalar.result()
+        assert result_scalar == "Movie 17", f"Expected 'Movie 17', got {result_scalar}"
+
+        # 1b: session.call_nowait()
+        async_job_nowait_scalar = session.call_nowait(scalar_sp_name, 2)
+        while not async_job_nowait_scalar.is_done():
+            time.sleep(1)
+        result_nowait_scalar = async_job_nowait_scalar.result()
+        assert (
+            result_nowait_scalar == "Movie Two"
+        ), f"Expected 'Movie Two', got {result_nowait_scalar}"
+
+        # 1c: StoredProcedure.__call__(block=False)
+        async_job_sproc_scalar = scalar_sproc(99, block=False)
+        while not async_job_sproc_scalar.is_done():
+            time.sleep(1)
+        result_sproc_scalar = async_job_sproc_scalar.result()
+        assert (
+            result_sproc_scalar == "Movie 99"
+        ), f"Expected 'Movie 99', got {result_sproc_scalar}"
+
+        # ================ Test 2: Table sproc ================
+        def table_movie(session_: Session) -> DataFrame:
+            return session_.table(tmp_table_name).select("id", "title")
+
+        table_sproc = session.sproc.register(
+            func=table_movie,
+            name=table_sp_name,
+            input_types=[],
+            return_type=StructType(
+                [StructField("id", IntegerType()), StructField("title", StringType())]
+            ),
+            replace=True,
+        )
+
+        # 2a: session.call(block=False)
+        async_job_table = session.call(table_sp_name, block=False)
+        assert isinstance(async_job_table, AsyncJob)
+        while not async_job_table.is_done():
+            time.sleep(1)
+        result_table = async_job_table.result()
+        assert isinstance(result_table, list), "Table sproc should return List[Row]"
+        assert (
+            len(result_table) == table_df.count()
+        ), f"Expected {table_df.count()} rows, got {len(result_table)}"
+        assert result_table[0]["TITLE"] == "Movie One", "Should contain test data"
+
+        # 2b: session.call_nowait()
+        async_job_nowait_table = session.call_nowait(table_sp_name)
+        while not async_job_nowait_table.is_done():
+            time.sleep(1)
+        result_nowait_table = async_job_nowait_table.result()
+        assert (
+            len(result_nowait_table) == table_df.count()
+        ), f"Expected {table_df.count()} rows, got {len(result_nowait_table)}"
+        assert (
+            result_nowait_table[0]["TITLE"] == "Movie One"
+        ), "Should contain test data"
+
+        # 2c: StoredProcedure.__call__(block=False)
+        async_job_sproc_table = table_sproc(block=False)
+        while not async_job_sproc_table.is_done():
+            time.sleep(1)
+        result_sproc_table = async_job_sproc_table.result()
+        assert (
+            len(result_sproc_table) == 4
+        ), "StoredProcedure async call should return same data"
+        assert result_sproc_table[1]["TITLE"] == "Movie Two", "Should contain test data"
+
+        # ================ Test 3: Anonymous sproc ================
+        def anonymous_movie_proc(session_: Session) -> int:
+            df = session_.table(tmp_table_name).select("id").where("title = 'Movie 99'")
+            return df.collect()[0][0]
+
+        anonymous_sproc = session.sproc.register(
+            func=anonymous_movie_proc,
+            replace=True,
+            anonymous=True,
+        )
+
+        assert (
+            anonymous_sproc._anonymous_sp_sql is not None
+        ), "Anonymous sproc should have _anonymous_sp_sql"
+        async_job_anon = anonymous_sproc(block=False)
+        assert isinstance(async_job_anon, AsyncJob)
+        while not async_job_anon.is_done():
+            time.sleep(1)
+        result_anon = async_job_anon.result()
+        assert result_anon == 99, f"Expected 99, got {result_anon}"
+
+        # ================ Test 4: Verify sync behavior ================
+        sync_result = session.call(scalar_sp_name, 1, block=True)
+        assert sync_result == "Movie One", "Sync execution should still work"
+
+        sync_sproc_result = scalar_sproc(1, block=True)
+        assert (
+            sync_sproc_result == "Movie One"
+        ), "Sync StoredProcedure call should still work"
+
+    finally:
+        session._run_query(f"drop procedure if exists {scalar_sp_name}(int)")
+        session._run_query(f"drop procedure if exists {table_sp_name}()")
+        Utils.drop_table(session, tmp_table_name)
 
 
 @pytest.mark.skipif(
