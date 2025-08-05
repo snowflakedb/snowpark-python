@@ -899,6 +899,7 @@ class SnowflakePlanBuilder:
             left_schema_query = schema_value_statement(select_left.attributes)
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
+
         if self.session._join_alias_fix:
             new_expr_to_alias = merge_multiple_snowflake_plan_expr_to_alias(
                 [select_left, select_right]
