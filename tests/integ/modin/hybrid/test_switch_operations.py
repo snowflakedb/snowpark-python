@@ -16,6 +16,7 @@ from pytest import param
 from modin.config import context as config_context
 import modin.pandas as pd
 import snowflake.snowpark.functions as snowpark_functions
+from tests.utils import running_on_jenkins
 import re
 from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -544,6 +545,10 @@ class TestApplySnowparkAndCortexFunctions:
             (pd.DataFrame, pd.DataFrame.applymap),
             (pd.DataFrame, pd.DataFrame.map),
         ],
+    )
+    @pytest.mark.skipif(
+        running_on_jenkins(),
+        reason="TODO: SNOW-1859087 applying snowflake.cortex functions causes SSL error",
     )
     def test_applying_cortex_function_causes_backend_switch(self, data_class, method):
         """Test that applying Snowflake Cortex functions triggers switch from pandas backend to Snowflake."""
