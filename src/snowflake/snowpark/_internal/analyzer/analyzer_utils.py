@@ -1924,7 +1924,7 @@ def write_arrow(
     chunk_size: Optional[int] = None,
     compression: str = "gzip",
     on_error: str = "abort_statement",
-    use_vectorized_scanner: bool = True,
+    use_vectorized_scanner: bool = False,
     parallel: int = 4,
     quote_identifiers: bool = True,
     auto_create_table: bool = False,

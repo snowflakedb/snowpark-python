@@ -2930,7 +2930,7 @@ class Session:
         chunk_size: Optional[int] = WRITE_ARROW_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
-        use_vectorized_scanner: bool = True,
+        use_vectorized_scanner: bool = False,
         parallel: int = 4,
         quote_identifiers: bool = True,
         auto_create_table: bool = False,
