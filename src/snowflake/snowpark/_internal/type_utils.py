@@ -189,6 +189,8 @@ def convert_metadata_to_sp_type(
             metadata.scale or 0,
             metadata.internal_size or 0,
             max_string_size,
+            0,
+            0,
         )
 
 
@@ -198,6 +200,8 @@ def convert_sf_to_sp_type(
     scale: int,
     internal_size: int,
     max_string_size: int,
+    start_field: int,
+    end_field: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     semi_structured_fill = (
