@@ -240,8 +240,8 @@ class YearMonthIntervalType(AnsiIntervalType):
     """YearMonthIntervalType data type. This maps to the INTERVAL YEAR TO MONTH data type in Snowflake.
 
     Args:
-        startField: The start field of the interval (0=YEAR, 1=MONTH)
-        endField: The end field of the interval (0=YEAR, 1=MONTH)
+        start_field: The start field of the interval (0=YEAR, 1=MONTH)
+        end_field: The end field of the interval (0=YEAR, 1=MONTH)
     """
 
     YEAR = 0
@@ -284,11 +284,8 @@ class YearMonthIntervalType(AnsiIntervalType):
     jsonValue = json_value
 
     def _fill_ast(self, ast: proto.DataType) -> None:
-        # TODO: Add protobuf support when available
-        # ast.year_month_interval_type = True
-        raise NotImplementedError(
-            "YearMonthIntervalType protobuf support is not yet implemented. "
-        )
+        ast.year_month_interval_type.start_field = self.start_field
+        ast.year_month_interval_type.end_field = self.end_field
 
 
 # Numeric types
