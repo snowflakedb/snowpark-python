@@ -7,6 +7,7 @@
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
+- Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
 
 ## 1.36.0 (YYYY-MM-DD)
 
@@ -22,6 +23,10 @@
 - Added support for the following functions in `functions.py`:
   - `ai_sentiment`
 - Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
+
+#### Bug Fixes
+
+- Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
 
 ### Snowpark pandas API Updates
 
@@ -84,6 +89,7 @@
 
 - Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
 - Added an example for reading a file from a stage in the docstring for `pd.read_excel`.
+- Implemented more efficient data transfer between the Snowflake and Ray backends of Modin (requires modin>=0.35.0 to use).
 
 #### Bug Fixes
 

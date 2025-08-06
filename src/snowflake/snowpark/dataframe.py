@@ -1075,13 +1075,24 @@ class DataFrame:
                 **kwargs,
             )
 
-        # if the returned result is not a pandas dataframe, raise Exception
-        # this might happen when calling this method with non-select commands
-        # e.g., session.sql("create ...").to_pandas()
         if block:
             if not isinstance(result, pandas.DataFrame):
+                query = self._plan.queries[-1].sql.strip().lower()
+                is_select_statement = is_sql_select_statement(query)
+                if is_select_statement:
+                    _logger.warning(
+                        "The query result format is set to JSON. "
+                        "The result of to_pandas() may not align with the result returned in the ARROW format. "
+                        "For best compatibility with to_pandas(), set the query result format to ARROW."
+                    )
                 return pandas.DataFrame(
-                    result, columns=[attr.name for attr in self._plan.attributes]
+                    result,
+                    columns=[
+                        unquote_if_quoted(attr.name)
+                        if is_select_statement
+                        else attr.name
+                        for attr in self._plan.attributes
+                    ],
                 )
 
         return result
@@ -4987,7 +4998,7 @@ class DataFrame:
                     "{"
                     + ", ".join(
                         [
-                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.key_type or StringType())}"
+                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.value_type or StringType())}"
                             for k, v in sorted(cell.items())
                         ]
                     )
