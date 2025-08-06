@@ -40,6 +40,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
 )
 
 
@@ -66,6 +67,7 @@ def test_to_sql():
     assert to_sql(None, StructType([])) == "NULL"
     assert to_sql(None, GeographyType()) == "NULL"
     assert to_sql(None, GeometryType()) == "NULL"
+    assert to_sql(None, YearMonthIntervalType()) == "NULL"
 
     assert to_sql(None, IntegerType()) == "NULL :: INT"
     assert to_sql(None, ShortType()) == "NULL :: INT"
@@ -165,6 +167,19 @@ def test_to_sql():
     assert (
         to_sql([1, 2, 31234567, -1928, 0, -3], VectorType(int, 5))
         == "[1, 2, 31234567, -1928, 0, -3] :: VECTOR(int,5)"
+    )
+
+    assert (
+        to_sql("INTERVAL 1-2 YEAR TO MONTH", YearMonthIntervalType())
+        == "'INTERVAL 1-2 YEAR TO MONTH' :: INTERVAL YEAR TO MONTH"
+    )
+    assert (
+        to_sql("INTERVAL 5-0 YEAR TO MONTH", YearMonthIntervalType(0, 0))
+        == "'INTERVAL 5-0 YEAR TO MONTH' :: INTERVAL YEAR TO MONTH"
+    )
+    assert (
+        to_sql("INTERVAL 0-3 YEAR TO MONTH", YearMonthIntervalType(1, 1))
+        == "'INTERVAL 0-3 YEAR TO MONTH' :: INTERVAL YEAR TO MONTH"
     )
 
 
@@ -271,6 +286,19 @@ def test_to_sql_system_function():
         == "[1, 2, 31234567, -1928, 0, -3]"
     )
 
+    assert (
+        to_sql_no_cast("INTERVAL 1-2 YEAR TO MONTH", YearMonthIntervalType())
+        == "'INTERVAL 1-2 YEAR TO MONTH'"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 5-0 YEAR TO MONTH", YearMonthIntervalType(0, 0))
+        == "'INTERVAL 5-0 YEAR TO MONTH'"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 0-3 YEAR TO MONTH", YearMonthIntervalType(1, 1))
+        == "'INTERVAL 0-3 YEAR TO MONTH'"
+    )
+
 
 def test_generate_call_python_sp_sql():
     fake_session = MagicMock(Session)
@@ -360,6 +388,10 @@ def test_schema_expression():
     assert schema_expression(BinaryType(), True) == "NULL :: BINARY"
     assert schema_expression(VectorType(int, 3), True) == "NULL :: VECTOR(int,3)"
     assert schema_expression(VectorType(float, 2), True) == "NULL :: VECTOR(float,2)"
+    assert (
+        schema_expression(YearMonthIntervalType(), True)
+        == "NULL :: INTERVAL YEAR TO MONTH"
+    )
 
     assert (
         schema_expression(GeographyType(), False)
@@ -415,3 +447,7 @@ def test_schema_expression():
         == "[0.0, 1.0, 2.0] :: VECTOR(float,3)"
     )
     assert schema_expression(StructType([]), False) == "to_object(parse_json('{}'))"
+    assert (
+        schema_expression(YearMonthIntervalType(), False)
+        == "INTERVAL '1-0' YEAR TO MONTH"
+    )
