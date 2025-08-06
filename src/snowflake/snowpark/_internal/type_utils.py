@@ -71,6 +71,7 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
     VectorType,
+    YearMonthInterval,
     YearMonthIntervalType,
     _FractionalType,
     _IntegralType,
@@ -188,6 +189,8 @@ def convert_metadata_to_sp_type(
             metadata.scale or 0,
             metadata.internal_size or 0,
             max_string_size,
+            0,
+            0,
         )
 
 
@@ -197,6 +200,8 @@ def convert_sf_to_sp_type(
     scale: int,
     internal_size: int,
     max_string_size: int,
+    start_field: int,
+    end_field: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     semi_structured_fill = (
@@ -220,6 +225,8 @@ def convert_sf_to_sp_type(
         return BooleanType()
     if column_type_name == "BINARY":
         return BinaryType()
+    if column_type_name == "YEARMONTHINTERVAL":
+        return YearMonthIntervalType(start_field, end_field)
     if column_type_name == "TEXT":
         if internal_size > 0:
             return StringType(internal_size, internal_size == max_string_size)
@@ -606,7 +613,9 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
             for k, v in curr_dict.items()
         }
 
-    if isinstance(tp, (GeometryType, GeographyType, VariantType, FileType)):
+    if isinstance(
+        tp, (GeometryType, GeographyType, VariantType, FileType, YearMonthIntervalType)
+    ):
         if value.strip() == "None":
             return None
         return value
@@ -744,6 +753,9 @@ def python_type_to_snow_type(
 
     if tp == File:
         return FileType(), False
+
+    if tp == YearMonthInterval:
+        return YearMonthIntervalType(), False
 
     if tp == Timestamp or tp_origin == Timestamp:
         if not tp_args:
