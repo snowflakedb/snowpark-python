@@ -1098,6 +1098,9 @@ Geometry = TypeVar("Geometry")
 #: The type hint for annotating Geometry data when registering UDFs.
 File = TypeVar("File")
 
+#: The type hint for annotating YearMonthInterval data when registering UDFs.
+YearMonthInterval = TypeVar("YearMonthInterval")
+
 # TODO(SNOW-969479): Add a type hint that can be used to annotate Vector data. Python does not
 # currently support integer type parameters (which are needed to represent a vector's dimension).
 # typing.Annotate can be used as a temporary bypass once the minimum supported Python version is

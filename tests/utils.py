@@ -443,6 +443,8 @@ class Utils:
                 meta.scale,
                 meta.internal_size,
                 max_string_size or session._conn.max_string_size,
+                0,
+                0,
             )
             assert (
                 sp_type == field.datatype
