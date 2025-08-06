@@ -106,6 +106,7 @@ env/
 venv*/
 ENV/
 env.bak/
+snowpark-venv/
 
 # Spyder project settings
 .spyderproject
