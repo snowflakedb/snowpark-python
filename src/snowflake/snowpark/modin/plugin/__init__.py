@@ -170,10 +170,7 @@ from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: 
 )
 from modin.config import AutoSwitchBackend  # isort: skip  # noqa: E402
 
-if (
-    AutoSwitchBackend.get() is not AutoSwitchBackend.default
-    and AutoSwitchBackend.get_value_source() is not ValueSource.DEFAULT
-):
+if AutoSwitchBackend.get_value_source() is ValueSource.DEFAULT:
     AutoSwitchBackend.disable()
 
 # Hybrid Mode Registration

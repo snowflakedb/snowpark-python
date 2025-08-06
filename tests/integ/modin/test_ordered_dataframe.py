@@ -895,7 +895,7 @@ def test_limit(ordered_df):
         '"b"',
     ]
     assert new_ordered_df.ordering_columns == ordered_df.ordering_columns
-    assert new_ordered_df.row_position_snowflake_quoted_identifier is not None
+    assert new_ordered_df.row_position_snowflake_quoted_identifier is None
 
 
 @sql_count_checker(query_count=1)

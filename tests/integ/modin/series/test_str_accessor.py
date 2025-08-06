@@ -725,7 +725,7 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
     expected_udf_count = 2
     if session.sql_simplifier_enabled:
         expected_udf_count = 1
-    with SqlCounter(query_count=5):
+    with SqlCounter(query_count=9, udf_count=expected_udf_count):
         from tests.utils import Utils
 
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -740,8 +740,6 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
         df = pd.read_snowflake(table_name)
         # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
         df = df.sort_values(df.columns.to_list(), ignore_index=True)
-
-    with SqlCounter(query_count=5, udf_count=expected_udf_count):
 
         def compute_num_shared_card_users(x):
             """

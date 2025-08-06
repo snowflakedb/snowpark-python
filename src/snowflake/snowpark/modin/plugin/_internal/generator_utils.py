@@ -79,7 +79,6 @@ def generate_regular_range(
 
 def _create_qc_from_snowpark_dataframe(
     sp_df: DataFrame,
-    dummy_row_pos_mode: bool = False,
 ) -> "snowflake_query_compiler.SnowflakeQueryCompiler":
     """
     Create a Snowflake query compiler from a Snowpark DataFrame, assuming the DataFrame only contains one column.
@@ -90,9 +89,7 @@ def _create_qc_from_snowpark_dataframe(
     Returns:
         A Snowflake query compiler
     """
-    odf = OrderedDataFrame(DataFrameReference(sp_df)).ensure_row_position_column(
-        dummy_row_pos_mode
-    )
+    odf = OrderedDataFrame(DataFrameReference(sp_df)).ensure_row_position_column()
 
     from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
         SnowflakeQueryCompiler,
