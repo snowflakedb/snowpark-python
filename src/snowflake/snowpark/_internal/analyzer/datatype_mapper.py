@@ -37,6 +37,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -82,6 +83,8 @@ def to_sql_no_cast(
             return f"TO_GEOGRAPHY({str_to_sql(value)})"
         if isinstance(datatype, GeometryType):
             return f"TO_GEOMETRY({str_to_sql(value)})"
+        if isinstance(datatype, YearMonthIntervalType):
+            return str_to_sql(value)
         return str_to_sql(value)
     if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
         cast_value = float_nan_inf_to_sql(value)
@@ -120,7 +123,15 @@ def to_sql(
     # Handle null values
     if isinstance(
         datatype,
-        (NullType, ArrayType, MapType, StructType, GeographyType, GeometryType),
+        (
+            NullType,
+            ArrayType,
+            MapType,
+            StructType,
+            GeographyType,
+            GeometryType,
+            YearMonthIntervalType,
+        ),
     ):
         if value is None:
             return "NULL"
@@ -240,6 +251,9 @@ def to_sql(
     if isinstance(value, str) and isinstance(datatype, FileType):
         return f"TO_FILE({str_to_sql(value)})"
 
+    if isinstance(value, str) and isinstance(datatype, YearMonthIntervalType):
+        return f"{str_to_sql(value)} :: {convert_sp_to_sf_type(datatype)}"
+
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
 
@@ -327,6 +341,8 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             "'STAGE_FILE_URL', 'some_new_file.jpeg', 'SIZE', 123, 'ETAG', 'xxx', 'CONTENT_TYPE', 'image/jpeg', "
             "'LAST_MODIFIED', '2025-01-01'))"
         )
+    if isinstance(data_type, YearMonthIntervalType):
+        return "INTERVAL '1-0' YEAR TO MONTH"
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
