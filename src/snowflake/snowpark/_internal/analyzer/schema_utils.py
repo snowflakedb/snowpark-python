@@ -3,7 +3,7 @@
 #
 import time
 import traceback
-from typing import TYPE_CHECKING, List, Union
+from typing import TYPE_CHECKING, List, Union, Optional
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -68,7 +68,9 @@ def get_attributes() -> List[Attribute]:
 
 
 def analyze_attributes(
-    sql: str, session: "snowflake.snowpark.session.Session"
+    sql: str,
+    session: "snowflake.snowpark.session.Session",
+    dataframe_uuid: Optional[str] = None,
 ) -> List[Attribute]:
     lowercase = sql.strip().lower()
 
@@ -87,12 +89,18 @@ def analyze_attributes(
     if lowercase.startswith("get"):
         return get_attributes()
     if lowercase.startswith("describe"):
+        start_time = time.time()
         session._run_query(sql)
+        e2e_time = time.time() - start_time
+        # Add the time taken to describe the dataframe to query history
+        if dataframe_uuid:
+            session.dataframe_profiler.add_describe_query_time(dataframe_uuid, e2e_time)
+
         return convert_result_meta_to_attribute(
             session._conn._cursor.description, session._conn.max_string_size
         )
 
-    # collect describe query details for telemetry
+    # collect describe query details for telemetry and dataframe profiling
     stack = traceback.extract_stack(limit=10)[:-1]
     stack_trace = [frame.line for frame in stack] if len(stack) > 0 else None
     start_time = time.time()
@@ -101,15 +109,17 @@ def analyze_attributes(
     session._conn._telemetry_client.send_describe_query_details(
         session._session_id, sql, e2e_time, stack_trace
     )
+    if dataframe_uuid:
+        session.dataframe_profiler.add_describe_query_time(dataframe_uuid, e2e_time)
 
     return attributes
 
 
 @ttl_cache(ttl_seconds=15)
 def cached_analyze_attributes(
-    sql: str, session: "snowflake.snowpark.session.Session"  # type: ignore
+    sql: str, session: "snowflake.snowpark.session.Session", dataframe_uuid: Optional[str] = None  # type: ignore
 ) -> List[Attribute]:
-    return analyze_attributes(sql, session)
+    return analyze_attributes(sql, session, dataframe_uuid)
 
 
 def convert_result_meta_to_attribute(

@@ -7,6 +7,7 @@
 #### New Features
 
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_arrow()`.
+- Dataframe profiler adds the following information about each query: describe query time, execution time, and sql query text. To view this information, call session.dataframe_profiler.enable() and call get_execution_profile on a dataframe.
 
 #### Bug Fixes
 

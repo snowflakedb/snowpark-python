@@ -19,12 +19,14 @@ class DataframeProfiler:
         session: "snowflake.snowpark.Session",
     ) -> None:
         self._session = session
+        self._enabled = False
         self._query_history = None
 
     def enable(self) -> None:
         """
         Enables dataframe profiling.
         """
+        self._enabled = True
         if self._query_history is None:
             logger.info("Enabling dataframe profiling")
             self._query_history = self._session.query_history(
@@ -37,6 +39,16 @@ class DataframeProfiler:
         """
         Disable profiler.
         """
+        self._enabled = False
         if self._query_history is not None:
             self._session._conn.remove_query_listener(self._query_history)  # type: ignore
             self._query_history = None
+
+    def add_describe_query_time(self, dataframe_uuid: str, time: float) -> None:
+        """
+        Add the time taken to describe a dataframe to query history.
+        """
+        if self._enabled:
+            self._query_history._describe_query_time[dataframe_uuid] = (
+                self._query_history._describe_query_time.get(dataframe_uuid, 0) + time
+            )

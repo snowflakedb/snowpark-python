@@ -49,6 +49,14 @@ def validate_execution_profile(df, expected_patterns=None):
                 content = f.read()
 
             assert len(content) > 0, "Profile output should not be empty"
+            assert (
+                "QUERY EXECUTION INFORMATION" in content
+            ), "Should contain query execution information header"
+            assert (
+                "Describe Query Time" in content
+            ), "Should contain describe query time"
+            assert "Execution Time" in content, "Should contain execution time"
+            assert "Query Text" in content, "Should contain query text"
             assert "Analyzing Query" in content, "Should contain query analysis header"
             assert (
                 "QUERY OPERATOR TREE" in content

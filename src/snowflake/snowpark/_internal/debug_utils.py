@@ -586,16 +586,44 @@ class QueryProfiler:
     def profile_query(
         self,
         query_id: str,
+        describe_time: float = 0,
+        verbose: bool = False,
     ) -> None:
         """
         Profile a query and save the results to a file.
 
         Args:
             query_id: The query ID to profile
+            describe_time: The time taken to describe the dataframe
+            verbose: Whether to print the full query text
 
         Returns:
             None - output either to the console or to the file specified by output_file
         """
+        execution_time_ms = None
+        sql_text = "N/A"
+        start_time = None
+        end_time = None
+        query_info_sql = f"""
+            SELECT
+                query_text,
+                total_elapsed_time,
+                start_time,
+                end_time
+            FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY())
+            WHERE query_id = '{query_id}'
+            LIMIT 1
+        """
+
+        cursor = self.session._conn._conn.cursor()
+        cursor.execute(query_info_sql)
+        result = cursor.fetchone()
+
+        if result:
+            sql_text = result[0] if result[0] else "N/A"
+            execution_time_ms = result[1] if result[1] is not None else None
+            start_time = result[2] if result[2] else None
+            end_time = result[3] if result[3] else None
 
         stats_query = f"""
             SELECT
@@ -623,31 +651,61 @@ class QueryProfiler:
         nodes, children, root_nodes = self.build_operator_tree(stats_result)
 
         self._write_output(f"\n=== Analyzing Query {query_id} ===")
+
         self._write_output(f"\n{'='*80}")
-        self._write_output("QUERY OPERATOR TREE")
+        self._write_output("QUERY EXECUTION INFORMATION")
         self._write_output(f"{'='*80}")
-
-        root_list = sorted(list(root_nodes))
-        for i, root_id in enumerate(root_list):
-            is_last_root = i == len(root_list) - 1
-            self.print_operator_tree(nodes, children, root_id, "", is_last_root)
-
-        self._write_output(f"\n{'='*160}")
-        self._write_output("DETAILED OPERATOR STATISTICS")
-        self._write_output(f"{'='*160}")
         self._write_output(
-            f"{'Operator':<15} {'Type':<15} {'Input Rows':<12} {'Output Rows':<12} {'Row Multiple':<12} {'Overall %':<12} {'Attributes':<50}",
+            f"Describe Query Time (Fetching metadata): {describe_time:.3f} seconds"
         )
-        self._write_output(f"{'='*160}")
 
-        for row in stats_result:
-            node_info = self._get_node_info(row)
-            operator_attrs = (
-                node_info["attributes"].replace("\n", " ").replace("  ", " ")
-            )
-
+        if execution_time_ms is not None:
             self._write_output(
-                f"{node_info['id']:<15} {node_info['type']:<15} {node_info['input_rows']:<12} {node_info['output_rows']:<12} {node_info['row_multiple']:<12.2f} {node_info['exec_time']:<12} {operator_attrs:<50}",
+                f"Query Execution Time: {execution_time_ms/1000:.3f} seconds"
             )
+        else:
+            self._write_output("Query Execution Time: N/A")
 
-        self._write_output(f"{'='*160}")
+        if start_time and end_time:
+            self._write_output(f"Query Start Time: {start_time}")
+            self._write_output(f"Query End Time: {end_time}")
+
+        self._write_output("\nQuery Text:")
+        formatted_sql = sql_text.strip() if sql_text != "N/A" else sql_text
+        if len(formatted_sql) > 500 and not verbose:
+            self._write_output(f"{formatted_sql[:500]}...")
+            self._write_output(
+                "(Query truncated for display - set verbose = True to see full output)"
+            )
+        else:
+            self._write_output(formatted_sql)
+
+        if len(stats_result) > 0:
+            self._write_output(f"\n{'='*80}")
+            self._write_output("QUERY OPERATOR TREE")
+            self._write_output(f"{'='*80}")
+
+            root_list = sorted(list(root_nodes))
+            for i, root_id in enumerate(root_list):
+                is_last_root = i == len(root_list) - 1
+                self.print_operator_tree(nodes, children, root_id, "", is_last_root)
+
+            self._write_output(f"\n{'='*160}")
+            self._write_output("DETAILED OPERATOR STATISTICS")
+            self._write_output(f"{'='*160}")
+            self._write_output(
+                f"{'Operator':<15} {'Type':<15} {'Input Rows':<12} {'Output Rows':<12} {'Row Multiple':<12} {'Overall %':<12} {'Attributes':<50}",
+            )
+            self._write_output(f"{'='*160}")
+
+            for row in stats_result:
+                node_info = self._get_node_info(row)
+                operator_attrs = (
+                    node_info["attributes"].replace("\n", " ").replace("  ", " ")
+                )
+
+                self._write_output(
+                    f"{node_info['id']:<15} {node_info['type']:<15} {node_info['input_rows']:<12} {node_info['output_rows']:<12} {node_info['row_multiple']:<12.2f} {node_info['exec_time']:<12} {operator_attrs:<50}",
+                )
+
+            self._write_output(f"{'='*160}")
