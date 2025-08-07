@@ -13,6 +13,10 @@
 - Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
 - Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
 
+#### Dependency Updates
+
+- Added a dependency on `protobuf<6.32`
+
 ## 1.36.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
