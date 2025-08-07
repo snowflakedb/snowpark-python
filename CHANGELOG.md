@@ -12,6 +12,12 @@
 
 - Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
 - Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
+#### New Features
+
+- **Asynchronous Stored Procedure**: Added support for non-blocking stored procedure calls that return `AsyncJob` objects.
+  - Added `block: bool = True` parameter to `Session.call()`. When `block=False`, returns an `AsyncJob` instead of blocking until completion.
+  - Added `block: bool = True` parameter to `StoredProcedure.__call__()` for async support across both named and anonymous stored procedures.
+  - Added `Session.call_nowait()` that is equivalent to `Session.call(block=False)`.
 
 ## 1.36.0 (YYYY-MM-DD)
 

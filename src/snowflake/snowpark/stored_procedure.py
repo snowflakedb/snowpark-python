@@ -12,7 +12,6 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
-from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.ast.utils import (
     build_sproc,
     build_sproc_apply,
@@ -131,6 +130,7 @@ class StoredProcedure:
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         _emit_ast: bool = True,
     ) -> Any:
         args, session = self._validate_call(args, session)
@@ -153,15 +153,17 @@ class StoredProcedure:
         if self._anonymous_sp_sql:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
             query = f"{self._anonymous_sp_sql}{call_sql}"
-            if self._is_return_table:
-                qid = session._conn.execute_and_get_sfqid(
-                    query, statement_params=statement_params
-                )
-                df = session.sql(result_scan_statement(qid))
-                df._ast = sproc_expr
-                return df
-            df = session.sql(query)
-            res = df._internal_collect_with_tag(statement_params=statement_params)[0][0]
+
+            res = session._execute_sproc_internal(
+                query=query,
+                is_return_table=self._is_return_table,
+                block=block,
+                statement_params=statement_params,
+                ast_stmt=self._ast_stmt,
+            )
+
+            if not block:
+                return res
         else:
             res = session._call(
                 self.name,
@@ -169,6 +171,7 @@ class StoredProcedure:
                 is_return_table=self._is_return_table,
                 statement_params=statement_params,
                 _emit_ast=self._is_return_table,
+                block=block,
             )
 
         if self._is_return_table:
