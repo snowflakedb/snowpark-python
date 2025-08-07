@@ -1331,15 +1331,11 @@ def test_async_stored_procedure_execution(session):
         # 1a: session.call(block=False)
         async_job_scalar = session.call(scalar_sp_name, 17, block=False)
         assert isinstance(async_job_scalar, AsyncJob)
-        while not async_job_scalar.is_done():
-            time.sleep(1)
         result_scalar = async_job_scalar.result()
         assert result_scalar == "Movie 17", f"Expected 'Movie 17', got {result_scalar}"
 
         # 1b: session.call_nowait()
         async_job_nowait_scalar = session.call_nowait(scalar_sp_name, 2)
-        while not async_job_nowait_scalar.is_done():
-            time.sleep(1)
         result_nowait_scalar = async_job_nowait_scalar.result()
         assert (
             result_nowait_scalar == "Movie Two"
@@ -1347,8 +1343,6 @@ def test_async_stored_procedure_execution(session):
 
         # 1c: StoredProcedure.__call__(block=False)
         async_job_sproc_scalar = scalar_sproc(99, block=False)
-        while not async_job_sproc_scalar.is_done():
-            time.sleep(1)
         result_sproc_scalar = async_job_sproc_scalar.result()
         assert (
             result_sproc_scalar == "Movie 99"
@@ -1371,8 +1365,6 @@ def test_async_stored_procedure_execution(session):
         # 2a: session.call(block=False)
         async_job_table = session.call(table_sp_name, block=False)
         assert isinstance(async_job_table, AsyncJob)
-        while not async_job_table.is_done():
-            time.sleep(1)
         result_table = async_job_table.result()
         assert isinstance(result_table, list), "Table sproc should return List[Row]"
         assert (
@@ -1382,8 +1374,6 @@ def test_async_stored_procedure_execution(session):
 
         # 2b: session.call_nowait()
         async_job_nowait_table = session.call_nowait(table_sp_name)
-        while not async_job_nowait_table.is_done():
-            time.sleep(1)
         result_nowait_table = async_job_nowait_table.result()
         assert (
             len(result_nowait_table) == table_df.count()
@@ -1394,8 +1384,6 @@ def test_async_stored_procedure_execution(session):
 
         # 2c: StoredProcedure.__call__(block=False)
         async_job_sproc_table = table_sproc(block=False)
-        while not async_job_sproc_table.is_done():
-            time.sleep(1)
         result_sproc_table = async_job_sproc_table.result()
         assert (
             len(result_sproc_table) == 4
@@ -1417,22 +1405,16 @@ def test_async_stored_procedure_execution(session):
         # 3a: session.call(block=False)
         async_job_none = session.call(none_sp_name, block=False)
         assert isinstance(async_job_none, AsyncJob)
-        while not async_job_none.is_done():
-            time.sleep(1)
         result_none = async_job_none.result()
         assert result_none is None, f"Expected None, got {result_none}"
 
         # 3b: session.call_nowait()
         async_job_none_nowait = session.call_nowait(none_sp_name)
-        while not async_job_none_nowait.is_done():
-            time.sleep(1)
         result_none_nowait = async_job_none_nowait.result()
         assert result_none_nowait is None, f"Expected None, got {result_none_nowait}"
 
         # 3c: StoredProcedure.__call__(block=False)
         async_job_none_sproc = none_sproc(block=False)
-        while not async_job_none_sproc.is_done():
-            time.sleep(1)
         result_none_sproc = async_job_none_sproc.result()
         assert result_none_sproc is None, f"Expected None, got {result_none_sproc}"
 
@@ -1468,8 +1450,6 @@ def test_async_anonymous_stored_procedure(session):
     assert anonymous_sproc._anonymous_sp_sql is not None
     async_job_anon = anonymous_sproc(1, 2, block=False)
     assert isinstance(async_job_anon, AsyncJob)
-    while not async_job_anon.is_done():
-        time.sleep(1)
     result_anon = async_job_anon.result()
     assert result_anon == 3, f"Expected 3, got {result_anon}"
 
@@ -1544,7 +1524,6 @@ def test_async_stored_procedure_failure(session):
         async_job_sproc_error = error_sproc("division_by_zero", block=False)
         while not async_job_sproc_error.is_done():
             time.sleep(1)
-
         assert async_job_sproc_error.is_failed(), "AsyncJob should be in failed state"
 
         try:

@@ -4587,42 +4587,28 @@ class Session:
         log_on_exception: bool = False,
     ) -> Union[Any, AsyncJob]:
         """Unified internal executor for sync/async, table/scalar SPROCs."""
+        if not block:
+            results_cursor = self._conn.execute_async_and_notify_query_listener(
+                query, _statement_params=statement_params
+            )
+            return AsyncJob(
+                results_cursor["queryId"],
+                query,
+                self,
+                _AsyncResultType.ROW if is_return_table else _AsyncResultType.COUNT,
+                log_on_exception=log_on_exception,
+            )
+
         if is_return_table:
-            if block:
-                qid = self._conn.execute_and_get_sfqid(
-                    query, statement_params=statement_params
-                )
-                df = self.sql(result_scan_statement(qid), _ast_stmt=ast_stmt)
-                set_api_call_source(df, "Session.call")
-                return df
-            else:
-                results_cursor = self._conn.execute_async_and_notify_query_listener(
-                    query, _statement_params=statement_params
-                )
-                return AsyncJob(
-                    results_cursor["queryId"],
-                    query,
-                    self,
-                    _AsyncResultType.ROW,
-                    log_on_exception=log_on_exception,
-                )
+            qid = self._conn.execute_and_get_sfqid(
+                query, statement_params=statement_params
+            )
+            df = self.sql(result_scan_statement(qid), _ast_stmt=ast_stmt)
+            set_api_call_source(df, "Session.call")
+            return df
         else:
-            if block:
-                # TODO SNOW-1672561: This here needs to emit an eval as well.
-                df = self.sql(query, _ast_stmt=ast_stmt)
-                set_api_call_source(df, "Session.call")
-                # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
-                return df.collect(statement_params=statement_params, _emit_ast=False)[
-                    0
-                ][0]
-            else:
-                results_cursor = self._conn.execute_async_and_notify_query_listener(
-                    query, _statement_params=statement_params
-                )
-                return AsyncJob(
-                    results_cursor["queryId"],
-                    query,
-                    self,
-                    _AsyncResultType.COUNT,
-                    log_on_exception=log_on_exception,
-                )
+            # TODO SNOW-1672561: This here needs to emit an eval as well.
+            df = self.sql(query, _ast_stmt=ast_stmt)
+            set_api_call_source(df, "Session.call")
+            # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
+            return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
