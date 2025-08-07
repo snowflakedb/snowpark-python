@@ -19,6 +19,10 @@
   - Added `block: bool = True` parameter to `StoredProcedure.__call__()` for async support across both named and anonymous stored procedures.
   - Added `Session.call_nowait()` that is equivalent to `Session.call(block=False)`.
 
+#### Dependency Updates
+
+- Added a dependency on `protobuf<6.32`
+
 ## 1.36.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
