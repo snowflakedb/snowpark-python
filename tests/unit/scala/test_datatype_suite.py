@@ -19,6 +19,7 @@ from snowflake.snowpark.types import (
     StructType,
     TimestampType,
     TimeType,
+    YearMonthIntervalType,
     _AtomicType,
     _FractionalType,
     _IntegralType,
@@ -138,6 +139,21 @@ def test_time_type():
     assert isinstance(tpe, DataType)
     assert str(tpe) == "TimeType()"
     assert repr(tpe) == "TimeType()"
+
+
+def test_yearmonthinterval_type():
+    tpe = YearMonthIntervalType()
+    assert isinstance(tpe, DataType)
+    assert str(tpe) == "YearMonthIntervalType(0, 1)"
+    assert repr(tpe) == "YearMonthIntervalType(0, 1)"
+
+    tpe_year = YearMonthIntervalType(0, 0)
+    assert str(tpe_year) == "YearMonthIntervalType(0, 0)"
+    assert repr(tpe_year) == "YearMonthIntervalType(0, 0)"
+
+    tpe_month = YearMonthIntervalType(1, 1)
+    assert str(tpe_month) == "YearMonthIntervalType(1, 1)"
+    assert repr(tpe_month) == "YearMonthIntervalType(1, 1)"
 
 
 def test_structtype():
