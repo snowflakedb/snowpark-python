@@ -52,6 +52,7 @@ from snowflake.snowpark.types import (
     VariantType,
     VectorType,
     FileType,
+    YearMonthIntervalType,
 )
 from tests.utils import (
     TempObjectType,
@@ -218,6 +219,7 @@ def server_side_max_string(structured_type_session):
     reason="FEAT: function to_geography not supported",
 )
 def test_verify_datatypes_reference(session):
+    session.sql("alter session set feature_interval_types=enabled;").collect()
     schema = StructType(
         [
             StructField("var", VariantType()),
@@ -236,6 +238,7 @@ def test_verify_datatypes_reference(session):
             StructField("float", FloatType()),
             StructField("double", DoubleType()),
             StructField("decimal", DecimalType(10, 2)),
+            StructField("yearmonthinterval", YearMonthIntervalType()),
             StructField("array", ArrayType(IntegerType())),
             StructField("map", MapType(ByteType(), TimeType())),
         ]
@@ -260,6 +263,7 @@ def test_verify_datatypes_reference(session):
                 5.0,
                 6.0,
                 Decimal(123),
+                None,  # Test with None first to verify schema inference
                 None,
                 None,
             ]
@@ -285,6 +289,7 @@ def test_verify_datatypes_reference(session):
             StructField("FLOAT", DoubleType()),
             StructField("DOUBLE", DoubleType()),
             StructField("DECIMAL", DecimalType(10, 2)),
+            StructField("YEARMONTHINTERVAL", YearMonthIntervalType()),
             StructField("ARRAY", ArrayType(StringType())),
             StructField("MAP", MapType(StringType(), StringType())),
         ]
@@ -360,6 +365,7 @@ def test_dtypes(session):
             StructField("float", FloatType()),
             StructField("double", DoubleType()),
             StructField("decimal", DecimalType(10, 2)),
+            StructField("yearmonthinterval", YearMonthIntervalType()),
             StructField("array", ArrayType(IntegerType())),
             StructField("map", MapType(ByteType(), TimeType())),
         ]
@@ -384,6 +390,7 @@ def test_dtypes(session):
                 5.0,
                 6.0,
                 Decimal(123),
+                "INTERVAL 1-2 YEAR TO MONTH",
                 None,
                 None,
             ]
@@ -408,6 +415,7 @@ def test_dtypes(session):
         ("FLOAT", "double"),
         ("DOUBLE", "double"),
         ("DECIMAL", "decimal(10,2)"),
+        ("YEARMONTHINTERVAL", "yearmonthinterval"),
         ("ARRAY", "array<string>"),
         ("MAP", "map<string,string>"),
     ]
