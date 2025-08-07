@@ -220,6 +220,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
     FileType,
     _AtomicType,
 )
@@ -3639,6 +3640,7 @@ class Session:
                         TimestampType,
                         VariantType,
                         VectorType,
+                        YearMonthIntervalType,
                         FileType,
                     ),
                 )
@@ -3720,6 +3722,8 @@ class Session:
                     converted_row.append(value)
                 elif isinstance(data_type, VectorType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
+                elif isinstance(data_type, YearMonthIntervalType):
+                    converted_row.append(value)
                 else:
                     raise TypeError(
                         f"Cannot cast {type(value)}({value}) to {str(data_type)}."
@@ -3768,6 +3772,8 @@ class Session:
                 )
             elif isinstance(field.datatype, FileType):
                 project_columns.append(to_file(column(name)).as_(name))
+            elif isinstance(field.datatype, YearMonthIntervalType):
+                project_columns.append(column(name).cast(field.datatype).as_(name))
             else:
                 project_columns.append(column(name))
 
