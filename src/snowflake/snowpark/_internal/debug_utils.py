@@ -568,7 +568,7 @@ class QueryProfiler:
         node_info = (
             f"[{node['id']}] {node['type']} "
             f"(In: {node['input_rows']:,}, Out: {node['output_rows']:,}, "
-            f"Mult: {node['row_multiple']:.2f}, Time: {node['exec_time']:.2f}%)"
+            f"Mult: {float(node['row_multiple']):.2f}, Time: {float(node['exec_time']):.2f}%)"
         )
 
         self._write_output(f"{prefix}{connector}{node_info}")
@@ -656,12 +656,12 @@ class QueryProfiler:
         self._write_output("QUERY EXECUTION INFORMATION")
         self._write_output(f"{'='*80}")
         self._write_output(
-            f"Describe Query Time (Fetching metadata): {describe_time:.3f} seconds"
+            f"Describe Query Time (Fetching metadata): {float(describe_time):.3f} seconds"
         )
 
         if execution_time_ms is not None:
             self._write_output(
-                f"Query Execution Time: {execution_time_ms/1000:.3f} seconds"
+                f"Query Execution Time: {float(execution_time_ms)/1000:.3f} seconds"
             )
         else:
             self._write_output("Query Execution Time: N/A")
@@ -671,7 +671,9 @@ class QueryProfiler:
             self._write_output(f"Query End Time: {end_time}")
 
         self._write_output("\nQuery Text:")
-        formatted_sql = sql_text.strip() if sql_text != "N/A" else sql_text
+        formatted_sql = (
+            str(sql_text).strip() if str(sql_text) != "N/A" else str(sql_text)
+        )
         if len(formatted_sql) > 500 and not verbose:
             self._write_output(f"{formatted_sql[:500]}...")
             self._write_output(
@@ -705,7 +707,7 @@ class QueryProfiler:
                 )
 
                 self._write_output(
-                    f"{node_info['id']:<15} {node_info['type']:<15} {node_info['input_rows']:<12} {node_info['output_rows']:<12} {node_info['row_multiple']:<12.2f} {node_info['exec_time']:<12} {operator_attrs:<50}",
+                    f"{node_info['id']:<15} {node_info['type']:<15} {node_info['input_rows']:<12} {node_info['output_rows']:<12} {float(node_info['row_multiple']):<12.2f} {node_info['exec_time']:<12} {operator_attrs:<50}",
                 )
 
             self._write_output(f"{'='*160}")
