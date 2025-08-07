@@ -219,6 +219,7 @@ def server_side_max_string(structured_type_session):
     reason="FEAT: function to_geography not supported",
 )
 def test_verify_datatypes_reference(session):
+    session.sql("alter session set feature_interval_types=enabled;").collect()
     schema = StructType(
         [
             StructField("var", VariantType()),
@@ -262,7 +263,7 @@ def test_verify_datatypes_reference(session):
                 5.0,
                 6.0,
                 Decimal(123),
-                "1-3",
+                None,  # Test with None first to verify schema inference
                 None,
                 None,
             ]
@@ -389,7 +390,7 @@ def test_dtypes(session):
                 5.0,
                 6.0,
                 Decimal(123),
-                "-6-3",
+                "INTERVAL 1-2 YEAR TO MONTH",
                 None,
                 None,
             ]

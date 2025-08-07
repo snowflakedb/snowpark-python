@@ -141,7 +141,7 @@ def test_time_type():
     assert repr(tpe) == "TimeType()"
 
 
-def test_year_month_interval_type():
+def test_yearmonthinterval_type():
     tpe = YearMonthIntervalType()
     assert isinstance(tpe, DataType)
     assert str(tpe) == "YearMonthIntervalType(0, 1)"
