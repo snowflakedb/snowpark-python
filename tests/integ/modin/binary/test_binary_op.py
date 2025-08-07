@@ -6,6 +6,7 @@ import datetime
 import math
 import operator
 import random
+from typing import Generator
 
 import modin.pandas as pd
 import numpy as np
@@ -15,6 +16,7 @@ import pytest
 from pandas.core.dtypes.common import is_object_dtype
 from pandas.testing import assert_frame_equal, assert_series_equal
 
+from tests.utils import TempObjectType
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
@@ -26,7 +28,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import running_on_public_ci
+from tests.utils import Utils, running_on_public_ci
 
 
 @pytest.mark.parametrize(
@@ -545,6 +547,55 @@ def test_binary_add_between_series(native_df):
         snow_df,
         native_df,
         lambda df: df[0] + df[1],
+    )
+
+
+@pytest.fixture
+def testing_dfs_from_read_snowflake(
+    request, session
+) -> Generator[tuple[pd.DataFrame, native_pd.DataFrame], None, None]:
+    pandas_df = request.param
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.write_pandas(
+        df=pandas_df,
+        table_name=table_name,
+        overwrite=True,
+        table_type="temp",
+        auto_create_table=True,
+    )
+    yield (pd.read_snowflake(table_name), pandas_df)
+    Utils.drop_table(session, table_name)
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "testing_dfs_from_read_snowflake",
+    [native_pd.DataFrame({"col0": [0]})],
+    indirect=True,
+)
+def test_add_dataframe_from_read_snowflake_to_self_SNOW_2252101(
+    testing_dfs_from_read_snowflake,
+):
+    eval_snowpark_pandas_result(
+        *testing_dfs_from_read_snowflake,
+        lambda df: repr(df + df),
+        comparator=str.__eq__,
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "testing_dfs_from_read_snowflake",
+    [native_pd.DataFrame({"col0": ["a"], "col1": ["b"]})],
+    indirect=True,
+)
+def test_comparing_series_from_same_read_snowflake_result_does_not_require_join_SNOW_2250244(
+    testing_dfs_from_read_snowflake,
+):
+    eval_snowpark_pandas_result(
+        *testing_dfs_from_read_snowflake,
+        lambda df: repr(df["col0"] == df["col1"]),
+        comparator=str.__eq__,
     )
 
 

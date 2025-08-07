@@ -15,10 +15,18 @@
   - `xpath_double`
   - `xpath_long`
   - `xpath_short`
+- Added support for parameter `use_vectorized_scanner` in function `Session.write_arrow()`.
 
 #### Bug Fixes
 
+- Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
 - Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
+#### New Features
+
+- **Asynchronous Stored Procedure**: Added support for non-blocking stored procedure calls that return `AsyncJob` objects.
+  - Added `block: bool = True` parameter to `Session.call()`. When `block=False`, returns an `AsyncJob` instead of blocking until completion.
+  - Added `block: bool = True` parameter to `StoredProcedure.__call__()` for async support across both named and anonymous stored procedures.
+  - Added `Session.call_nowait()` that is equivalent to `Session.call(block=False)`.
 
 ## 1.36.0 (YYYY-MM-DD)
 
@@ -43,14 +51,9 @@
 
 #### New Features
 
-- Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
-
 #### Improvements
-
 - Hybrid execution row estimate improvements and a reduction of eager calls.
-- Improved performance by deferring row position computation. 
-  - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
-  - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
+- Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
 
 #### Bug Fixes
 

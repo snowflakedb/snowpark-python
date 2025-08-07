@@ -888,9 +888,7 @@ class InternalFrame:
     ###########################################################################
     # START: Internal Frame mutation APIs.
     # APIs that creates a new InternalFrame instance, should only be added below
-    def ensure_row_position_column(
-        self, dummy_row_pos_mode: bool = False
-    ) -> "InternalFrame":
+    def ensure_row_position_column(self) -> "InternalFrame":
         """
         Ensure row position column is computed for given internal frame.
 
@@ -898,9 +896,7 @@ class InternalFrame:
             A new InternalFrame instance with computed virtual index.
         """
         return InternalFrame.create(
-            ordered_dataframe=self.ordered_dataframe.ensure_row_position_column(
-                dummy_row_pos_mode
-            ),
+            ordered_dataframe=self.ordered_dataframe.ensure_row_position_column(),
             data_column_pandas_labels=self.data_column_pandas_labels,
             data_column_snowflake_quoted_identifiers=self.data_column_snowflake_quoted_identifiers,
             data_column_pandas_index_names=self.data_column_pandas_index_names,
@@ -1354,9 +1350,7 @@ class InternalFrame:
         )
 
     def strip_duplicates(
-        self: "InternalFrame",
-        quoted_identifiers: list[str],
-        dummy_row_pos_mode: bool = False,
+        self: "InternalFrame", quoted_identifiers: list[str]
     ) -> "InternalFrame":
         """
         When assigning frames via index operations for duplicates only the last entry is used, as entries are repeatedly overwritten.
@@ -1370,7 +1364,7 @@ class InternalFrame:
             new internal frame with unique index.
         """
 
-        frame = self.ensure_row_position_column(dummy_row_pos_mode)
+        frame = self.ensure_row_position_column()
 
         # To remove the duplicates, first compute via windowing over index columns the value of the last row position.
         # with this join then select only the relevant rows. Note that an EXISTS subquery doesn't work here because
@@ -1406,15 +1400,12 @@ class InternalFrame:
             left_on_cols=[frame.row_position_snowflake_quoted_identifier],
             right_on_cols=[relevant_last_value_row_positions_quoted_identifier],
             how="inner",
-            dummy_row_pos_mode=dummy_row_pos_mode,
         )
 
         # Because we reuse row position to select the relevant columns, we need to
         # generate a new row position column here so locational indexing after this operation
         # continues to work correctly.
-        new_ordered_dataframe = joined_ordered_dataframe.ensure_row_position_column(
-            dummy_row_pos_mode
-        )
+        new_ordered_dataframe = joined_ordered_dataframe.ensure_row_position_column()
         return InternalFrame.create(
             ordered_dataframe=new_ordered_dataframe,
             data_column_pandas_labels=frame.data_column_pandas_labels,

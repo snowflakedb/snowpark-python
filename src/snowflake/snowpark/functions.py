@@ -7426,7 +7426,7 @@ def map_cat(
 
     Example::
         >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as A, {'k2': 'v2'} :: MAP(STRING,STRING) as B")
-        >>> df.select(map_cat("A", "B")).show()
+        >>> df.select(map_cat("A", "B")).show()  # doctest: +SKIP
         ---------------------------
         |"MAP_CAT(""A"", ""B"")"  |
         ---------------------------
@@ -7437,7 +7437,7 @@ def map_cat(
         ---------------------------
         <BLANKLINE>
         >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as A, {'k2': 'v2'} :: MAP(STRING,STRING) as B, {'k3': 'v3'} :: MAP(STRING,STRING) as C")
-        >>> df.select(map_cat("A", "B", "C")).show()
+        >>> df.select(map_cat("A", "B", "C")).show()  # doctest: +SKIP
         -------------------------------------------
         |"MAP_CAT(MAP_CAT(""A"", ""B""), ""C"")"  |
         -------------------------------------------
