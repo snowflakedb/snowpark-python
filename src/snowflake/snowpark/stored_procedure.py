@@ -164,10 +164,6 @@ class StoredProcedure:
 
             if not block:
                 return res
-            else:
-                if self._is_return_table:
-                    res._ast = sproc_expr
-                    return res
         else:
             res = session._call(
                 self.name,
