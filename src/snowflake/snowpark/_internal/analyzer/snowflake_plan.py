@@ -733,7 +733,7 @@ class SnowflakePlan(LogicalPlan):
             plan = SnowflakePlan(
                 [copy.copy(q) for q in (self.queries or [])],
                 self.schema_query,
-                copy.deepcopy(self.post_actions) if self.post_actions else None,
+                copy.copy(self.post_actions) if self.post_actions else None,
                 copy.copy(self.expr_to_alias) if self.expr_to_alias else None,
                 self.source_plan,
                 self.is_ddl_on_temp_object,
