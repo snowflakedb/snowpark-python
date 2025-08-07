@@ -189,8 +189,6 @@ def convert_metadata_to_sp_type(
             metadata.scale or 0,
             metadata.internal_size or 0,
             max_string_size,
-            0,
-            0,
         )
 
 
@@ -200,8 +198,6 @@ def convert_sf_to_sp_type(
     scale: int,
     internal_size: int,
     max_string_size: int,
-    start_field: int,
-    end_field: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     semi_structured_fill = (
@@ -226,7 +222,19 @@ def convert_sf_to_sp_type(
     if column_type_name == "BINARY":
         return BinaryType()
     if column_type_name == "YEARMONTHINTERVAL":
-        return YearMonthIntervalType(start_field, end_field)
+        if scale == 0:
+            # Year to Month
+            return YearMonthIntervalType(0, 1)
+        elif scale == 1:
+            # Year
+            return YearMonthIntervalType(0)
+        elif scale == 2:
+            # Month
+            return YearMonthIntervalType(1)
+        else:
+            raise ValueError(
+                f"Invalid scale value {scale} for YearMonthIntervalType. Expected 0, 1, or 2."
+            )
     if column_type_name == "TEXT":
         if internal_size > 0:
             return StringType(internal_size, internal_size == max_string_size)
