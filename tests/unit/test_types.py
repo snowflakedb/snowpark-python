@@ -878,45 +878,35 @@ def {func_name}() -> 1:
 
 
 def test_convert_sf_to_sp_type_basic():
-    assert isinstance(convert_sf_to_sp_type("ARRAY", 0, 0, 0, 0, 0, 0), ArrayType)
-    assert isinstance(convert_sf_to_sp_type("VARIANT", 0, 0, 0, 0, 0, 0), VariantType)
-    assert isinstance(convert_sf_to_sp_type("OBJECT", 0, 0, 0, 0, 0, 0), MapType)
-    assert isinstance(
-        convert_sf_to_sp_type("GEOGRAPHY", 0, 0, 0, 0, 0, 0), GeographyType
-    )
-    assert isinstance(convert_sf_to_sp_type("GEOMETRY", 0, 0, 0, 0, 0, 0), GeometryType)
-    assert isinstance(convert_sf_to_sp_type("BOOLEAN", 0, 0, 0, 0, 0, 0), BooleanType)
-    assert isinstance(convert_sf_to_sp_type("BINARY", 0, 0, 0, 0, 0, 0), BinaryType)
-    assert isinstance(convert_sf_to_sp_type("TEXT", 0, 0, 0, 0, 0, 0), StringType)
-    assert isinstance(convert_sf_to_sp_type("TIME", 0, 0, 0, 0, 0, 0), TimeType)
-    assert isinstance(
-        convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0, 0, 0, 0), TimestampType
-    )
-    assert isinstance(
-        convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0, 0, 0, 0), TimestampType
-    )
-    assert isinstance(
-        convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0, 0, 0, 0), TimestampType
-    )
-    assert isinstance(
-        convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0, 0, 0, 0), TimestampType
-    )
-    assert isinstance(convert_sf_to_sp_type("DATE", 0, 0, 0, 0, 0, 0), DateType)
-    assert isinstance(convert_sf_to_sp_type("REAL", 0, 0, 0, 0, 0, 0), DoubleType)
+    assert isinstance(convert_sf_to_sp_type("ARRAY", 0, 0, 0, 0), ArrayType)
+    assert isinstance(convert_sf_to_sp_type("VARIANT", 0, 0, 0, 0), VariantType)
+    assert isinstance(convert_sf_to_sp_type("OBJECT", 0, 0, 0, 0), MapType)
+    assert isinstance(convert_sf_to_sp_type("GEOGRAPHY", 0, 0, 0, 0), GeographyType)
+    assert isinstance(convert_sf_to_sp_type("GEOMETRY", 0, 0, 0, 0), GeometryType)
+    assert isinstance(convert_sf_to_sp_type("BOOLEAN", 0, 0, 0, 0), BooleanType)
+    assert isinstance(convert_sf_to_sp_type("BINARY", 0, 0, 0, 0), BinaryType)
+    assert isinstance(convert_sf_to_sp_type("TEXT", 0, 0, 0, 0), StringType)
+    assert isinstance(convert_sf_to_sp_type("TIME", 0, 0, 0, 0), TimeType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0, 0), TimestampType)
+    assert isinstance(convert_sf_to_sp_type("DATE", 0, 0, 0, 0), DateType)
+    assert isinstance(convert_sf_to_sp_type("REAL", 0, 0, 0, 0), DoubleType)
 
     with pytest.raises(NotImplementedError, match="Unsupported type"):
-        convert_sf_to_sp_type("FAKE", 0, 0, 0, 0, 0, 0)
+        convert_sf_to_sp_type("FAKE", 0, 0, 0, 0)
 
 
 def test_convert_sp_to_sf_type_tz():
-    assert convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0, 0, 0, 0) == TimestampType()
-    assert convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0, 0, 0, 0) == TimestampType(
+    assert convert_sf_to_sp_type("TIMESTAMP", 0, 0, 0, 0) == TimestampType()
+    assert convert_sf_to_sp_type("TIMESTAMP_NTZ", 0, 0, 0, 0) == TimestampType(
         timezone=TimestampTimeZone.NTZ
     )
-    assert convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0, 0, 0, 0) == TimestampType(
+    assert convert_sf_to_sp_type("TIMESTAMP_LTZ", 0, 0, 0, 0) == TimestampType(
         timezone=TimestampTimeZone.LTZ
     )
-    assert convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0, 0, 0, 0) == TimestampType(
+    assert convert_sf_to_sp_type("TIMESTAMP_TZ", 0, 0, 0, 0) == TimestampType(
         timezone=TimestampTimeZone.TZ
     )
 
@@ -924,14 +914,14 @@ def test_convert_sp_to_sf_type_tz():
 def test_convert_sf_to_sp_type_precision_scale():
     def assert_type_with_precision(type_name):
         sp_type = convert_sf_to_sp_type(
-            type_name, DecimalType._MAX_PRECISION + 1, 20, 0, 0, 0, 0
+            type_name, DecimalType._MAX_PRECISION + 1, 20, 0, 0
         )
         assert isinstance(sp_type, DecimalType)
         assert sp_type.precision == DecimalType._MAX_PRECISION
         assert sp_type.scale == 21
 
         sp_type = convert_sf_to_sp_type(
-            type_name, DecimalType._MAX_PRECISION - 1, 20, 0, 0, 0, 0
+            type_name, DecimalType._MAX_PRECISION - 1, 20, 0, 0
         )
         assert isinstance(sp_type, DecimalType)
         assert sp_type.precision == DecimalType._MAX_PRECISION - 1
@@ -941,42 +931,39 @@ def test_convert_sf_to_sp_type_precision_scale():
     assert_type_with_precision("FIXED")
     assert_type_with_precision("NUMBER")
 
-    snowpark_type = convert_sf_to_sp_type("DECIMAL", 0, 0, 0, 0, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("DECIMAL", 0, 0, 0, 0)
     assert isinstance(snowpark_type, DecimalType)
     assert snowpark_type.precision == 38
     assert snowpark_type.scale == 18
 
 
-def test_convert_sf_to_sp_year_month_interval_type():
-    snowpark_type = convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 0, 0, 0)
+def test_convert_sf_to_sp_type_start_field_end_field():
+    snowpark_type = convert_sf_to_sp_type("YEARMONTHINTERVAL", 0, 0, 0, 0)
     assert isinstance(snowpark_type, YearMonthIntervalType)
     assert snowpark_type.start_field == YearMonthIntervalType.YEAR
     assert snowpark_type.end_field == YearMonthIntervalType.MONTH
 
-    snowpark_type = convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 1, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("YEARMONTHINTERVAL", 0, 1, 0, 0)
     assert isinstance(snowpark_type, YearMonthIntervalType)
     assert snowpark_type.start_field == YearMonthIntervalType.YEAR
     assert snowpark_type.end_field == YearMonthIntervalType.YEAR
 
-    snowpark_type = convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 2, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("YEARMONTHINTERVAL", 0, 2, 0, 0)
     assert isinstance(snowpark_type, YearMonthIntervalType)
     assert snowpark_type.start_field == YearMonthIntervalType.MONTH
     assert snowpark_type.end_field == YearMonthIntervalType.MONTH
 
-    with pytest.raises(ValueError):
-        convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 3, 0, 0)
-
 
 def test_convert_sf_to_sp_type_internal_size():
-    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 0, 16777216, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 0, 16777216)
     assert isinstance(snowpark_type, StringType)
     assert snowpark_type.length is None
 
-    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 31, 16777216, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 31, 16777216)
     assert isinstance(snowpark_type, StringType)
     assert snowpark_type.length == 31
 
-    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 16777216, 16777216, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 16777216, 16777216)
     assert isinstance(snowpark_type, StringType)
     assert snowpark_type.length == 16777216
     assert snowpark_type._is_max_size
@@ -984,7 +971,7 @@ def test_convert_sf_to_sp_type_internal_size():
     with pytest.raises(
         ValueError, match="Negative value is not a valid input for StringType"
     ):
-        snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, -1, 16777216, 0, 0)
+        snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, -1, 16777216)
 
 
 def test_convert_sp_to_sf_type():
@@ -1427,6 +1414,13 @@ def test_snow_type_to_dtype_str():
             "yearmonthinterval",
             "interval year",
         ),
+        (
+            YearMonthIntervalType(1, 0),
+            "interval month to year",
+            '"interval month to year"',
+            "yearmonthinterval",
+            "interval month to year",
+        ),
     ],
 )
 def test_datatype(tpe, simple_string, json, type_name, json_value):
@@ -1683,7 +1677,7 @@ def test_type_string_to_type_object_timestamp():
     assert dt.tz == TimestampTimeZone.LTZ
 
 
-def test_type_string_to_type_object_year_month_interval():
+def test_type_string_to_type_object_yearmonthinterval():
     dt = type_string_to_type_object("yearmonthinterval")
     assert isinstance(dt, YearMonthIntervalType)
 
@@ -2172,20 +2166,6 @@ def test_extract_nullable_keyword_mix_of_no_keywords():
     # This doesn't match 'NOT NULL', so it returns original string with is_nullable=True
     assert base_str == "mytype null"
     assert is_nullable is True
-
-
-def test_year_month_interval_type_invalid_fields():
-    with pytest.raises(ValueError, match="interval 5 to 0 is invalid"):
-        YearMonthIntervalType(5, 0)
-
-    with pytest.raises(ValueError, match="interval 0 to 5 is invalid"):
-        YearMonthIntervalType(0, 5)
-
-    with pytest.raises(ValueError, match="interval 10 to 20 is invalid"):
-        YearMonthIntervalType(10, 20)
-
-    with pytest.raises(ValueError, match="interval 1 to 0 is invalid"):
-        YearMonthIntervalType(1, 0)
 
 
 def test_most_permissive_type():

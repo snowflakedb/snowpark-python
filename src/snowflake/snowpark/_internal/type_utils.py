@@ -189,8 +189,6 @@ def convert_metadata_to_sp_type(
             metadata.scale or 0,
             metadata.internal_size or 0,
             max_string_size,
-            0,
-            0,
         )
 
 
@@ -200,8 +198,6 @@ def convert_sf_to_sp_type(
     scale: int,
     internal_size: int,
     max_string_size: int,
-    start_field: int,
-    end_field: int,
 ) -> DataType:
     """Convert the Snowflake logical type to the Snowpark type."""
     semi_structured_fill = (
@@ -225,15 +221,16 @@ def convert_sf_to_sp_type(
         return BooleanType()
     if column_type_name == "BINARY":
         return BinaryType()
-    if column_type_name == "INTERVAL_YEAR_MONTH":
+    if column_type_name == "YEARMONTHINTERVAL":
         if scale == 0:
-            return YearMonthIntervalType(
-                YearMonthIntervalType.YEAR, YearMonthIntervalType.MONTH
-            )
+            # Year to Month
+            return YearMonthIntervalType(0, 1)
         elif scale == 1:
-            return YearMonthIntervalType(YearMonthIntervalType.YEAR)
+            # Year
+            return YearMonthIntervalType(0)
         elif scale == 2:
-            return YearMonthIntervalType(YearMonthIntervalType.MONTH)
+            # Month
+            return YearMonthIntervalType(1)
         else:
             raise ValueError(
                 f"Invalid scale value {scale} for YearMonthIntervalType. Expected 0, 1, or 2."
@@ -310,7 +307,7 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     if isinstance(datatype, TimeType):
         return "TIME"
     if isinstance(datatype, YearMonthIntervalType):
-        return datatype.simple_string().upper()
+        return "INTERVAL YEAR TO MONTH"
     if isinstance(datatype, TimestampType):
         if datatype.tz == TimestampTimeZone.NTZ:
             return "TIMESTAMP_NTZ"
@@ -1030,10 +1027,7 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
     TimestampType, timezone=TimestampTimeZone.LTZ
 )
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_to_month"] = YearMonthIntervalType
-DATA_TYPE_STRING_OBJECT_MAPPINGS["intervalyeartomonth"] = YearMonthIntervalType
-DATA_TYPE_STRING_OBJECT_MAPPINGS["str"] = StringType
-DATA_TYPE_STRING_OBJECT_MAPPINGS["varchar"] = StringType
-
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval"] = YearMonthIntervalType
 
 DECIMAL_RE = re.compile(
     r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
