@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for parameter `use_vectorized_scanner` in function `Session.write_arrow()`.
+
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
