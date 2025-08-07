@@ -107,6 +107,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     DynamicTableCreateMode,
+    LeafNode,
     LogicalPlan,
     ReadFileNode,
     SaveMode,
@@ -730,13 +731,13 @@ class SnowflakePlan(LogicalPlan):
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
             plan = SnowflakePlan(
-                copy.deepcopy(self.queries) if self.queries else [],
+                [copy.copy(q) for q in (self.queries or [])],
                 self.schema_query,
                 copy.deepcopy(self.post_actions) if self.post_actions else None,
                 copy.copy(self.expr_to_alias) if self.expr_to_alias else None,
                 self.source_plan,
                 self.is_ddl_on_temp_object,
-                copy.deepcopy(self.api_calls) if self.api_calls else None,
+                self.api_calls.copy() if self.api_calls else None,
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
@@ -759,12 +760,17 @@ class SnowflakePlan(LogicalPlan):
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
         if self.source_plan:
-            copied_source_plan = copy.deepcopy(self.source_plan, memodict)
+            if isinstance(self.source_plan, LeafNode):
+                # Shallow copy LeafNode as they may have large data that should not be
+                # modified during the optimization stage.
+                copied_source_plan = copy.copy(self.source_plan)
+            else:
+                copied_source_plan = copy.deepcopy(self.source_plan, memodict)
         else:
             copied_source_plan = None
 
         copied_plan = SnowflakePlan(
-            queries=copy.deepcopy(self.queries) if self.queries else [],
+            queries=[copy.copy(q) for q in (self.queries or [])],
             schema_query=self.schema_query,
             post_actions=(
                 copy.deepcopy(self.post_actions) if self.post_actions else None
@@ -2402,6 +2408,16 @@ class Query:
             + ")"
         )
 
+    def __copy__(self) -> "Query":
+        return Query(
+            sql=self.sql,
+            query_id_place_holder=self.query_id_place_holder,
+            is_ddl_on_temp_object=self.is_ddl_on_temp_object,
+            temp_obj_name_placeholder=self.temp_obj_name_placeholder,
+            params=self.params,
+            query_line_intervals=self.query_line_intervals,
+        )
+
     def __eq__(self, other: "Query") -> bool:
         return (
             self.sql == other.sql
@@ -2420,3 +2436,11 @@ class BatchInsertQuery(Query):
     ) -> None:
         super().__init__(sql)
         self.rows = rows
+
+    def __copy__(self) -> "BatchInsertQuery":
+        copied_query = BatchInsertQuery(
+            sql=self.sql,
+            rows=self.rows,
+        )
+        copied_query.query_id_place_holder = self.query_id_place_holder
+        return copied_query
