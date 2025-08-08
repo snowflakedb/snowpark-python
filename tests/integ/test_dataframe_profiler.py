@@ -14,7 +14,8 @@ from snowflake.snowpark.functions import (
     avg,
     count,
 )
-from tests.utils import IS_IN_STORED_PROC
+from snowflake.snowpark._internal.utils import TempObjectType
+from tests.utils import IS_IN_STORED_PROC, Utils
 
 pytestmark = [
     pytest.mark.xfail(
@@ -35,7 +36,9 @@ def setup(request, session):
     session.sql("ALTER SESSION UNSET USE_CACHED_RESULT").collect()
 
 
-def validate_execution_profile(df, expected_patterns=None):
+def validate_execution_profile(
+    df, expected_patterns=None, expects_describe_queries=False
+):
     with tempfile.NamedTemporaryFile(
         mode="w", delete=False, suffix=".txt", encoding="utf-8"
     ) as temp_file:
@@ -52,9 +55,10 @@ def validate_execution_profile(df, expected_patterns=None):
             assert (
                 "QUERY EXECUTION INFORMATION" in content
             ), "Should contain query execution information header"
-            assert (
-                "Describe Query Time" in content
-            ), "Should contain describe query time"
+            if expects_describe_queries:
+                assert (
+                    "DESCRIBE QUERY INFORMATION" in content
+                ), "Should contain describe query information header"
             assert "Execution Time" in content, "Should contain execution time"
             assert "Query Text" in content, "Should contain query text"
             assert "Analyzing Query" in content, "Should contain query analysis header"
@@ -322,4 +326,35 @@ def test_dataframe_cache_result_preserves_profile(session):
         ), "Should be able to get profile for filtered cached dataframe"
 
     finally:
+        profiler.disable()
+
+
+def test_profiler_with_describe_queries(session):
+    """Test that describe queries are captured in the execution profile when accessing schema."""
+    profiler = session.dataframe_profiler
+    profiler.enable()
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    try:
+        test_data = [(1, "A", 100.0), (2, "B", 200.0), (3, "C", 150.0)]
+        df_source = session.create_dataframe(test_data, schema=["id", "name", "amount"])
+        df_source.write.save_as_table(
+            table_name, mode="overwrite", table_type="temporary"
+        )
+        df = session.table(table_name)
+        schema = df.schema
+        assert len(schema.fields) == 3
+        assert schema.fields[0].name == "ID"
+        assert schema.fields[1].name == "NAME"
+        assert schema.fields[2].name == "AMOUNT"
+        result = df.collect()
+        assert len(result) == 3
+        assert validate_execution_profile(
+            df,
+            ["TableScan", "Input Rows", "Output Rows"],
+            expects_describe_queries=True,
+        ), "Should contain describe query information in profile"
+
+    finally:
+        Utils.drop_table(session, table_name)
         profiler.disable()

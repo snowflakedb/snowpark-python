@@ -93,7 +93,7 @@ def analyze_attributes(
         # Add the time taken to describe the dataframe to query history
         if dataframe_uuid:
             session.dataframe_profiler.add_describe_query_time(
-                dataframe_uuid, e2e_time()
+                dataframe_uuid, sql, e2e_time()
             )
 
         return convert_result_meta_to_attribute(
@@ -109,7 +109,9 @@ def analyze_attributes(
         session._session_id, sql, e2e_time(), stack_trace
     )
     if dataframe_uuid:
-        session.dataframe_profiler.add_describe_query_time(dataframe_uuid, e2e_time())
+        session.dataframe_profiler.add_describe_query_time(
+            dataframe_uuid, sql, e2e_time()
+        )
 
     return attributes
 

@@ -44,11 +44,13 @@ class DataframeProfiler:
             self._session._conn.remove_query_listener(self._query_history)  # type: ignore
             self._query_history = None
 
-    def add_describe_query_time(self, dataframe_uuid: str, time: float) -> None:
+    def add_describe_query_time(
+        self, dataframe_uuid: str, query: str, time: float
+    ) -> None:
         """
         Add the time taken to describe a dataframe to query history.
         """
         if self._enabled:
-            self._query_history._describe_query_time[dataframe_uuid] = (
-                self._query_history._describe_query_time.get(dataframe_uuid, 0) + time
-            )
+            if dataframe_uuid not in self._query_history._describe_queries:
+                self._query_history._describe_queries[dataframe_uuid] = []
+            self._query_history._describe_queries[dataframe_uuid].append((query, time))

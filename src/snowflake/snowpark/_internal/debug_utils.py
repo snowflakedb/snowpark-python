@@ -583,10 +583,20 @@ class QueryProfiler:
                 nodes, children, child_id, new_prefix, is_last_child
             )
 
+    def print_describe_queries(self, describe_queries: List[Tuple[str, float]]) -> None:
+        """
+        Prints sql queries and time taken for descrisbe queries
+        """
+        self._write_output(f"\n{'='*80}")
+        self._write_output("DESCRIBE QUERY INFORMATION")
+        self._write_output(f"{'='*80}")
+        for query, time in describe_queries:
+            self._write_output(f"Query: {query}")
+            self._write_output(f"Time: {time:.3f} seconds\n")
+
     def profile_query(
         self,
         query_id: str,
-        describe_time: float = 0,
         verbose: bool = False,
     ) -> None:
         """
@@ -594,7 +604,6 @@ class QueryProfiler:
 
         Args:
             query_id: The query ID to profile
-            describe_time: The time taken to describe the dataframe
             verbose: Whether to print the full query text
 
         Returns:
@@ -655,9 +664,6 @@ class QueryProfiler:
         self._write_output(f"\n{'='*80}")
         self._write_output("QUERY EXECUTION INFORMATION")
         self._write_output(f"{'='*80}")
-        self._write_output(
-            f"Describe Query Time (Fetching metadata): {float(describe_time):.3f} seconds"
-        )
 
         if execution_time_ms is not None:
             self._write_output(

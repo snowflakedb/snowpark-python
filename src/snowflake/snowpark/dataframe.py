@@ -6326,11 +6326,12 @@ class DataFrame:
             return
         try:
             profiler = QueryProfiler(self._session, output_file)
-            for query_id in query_history.dataframe_queries[self._plan.uuid]:
-                describe_time = query_history._describe_query_time.get(
-                    self._plan.uuid, 0
+            if self._plan.uuid in query_history._describe_queries:
+                profiler.print_describe_queries(
+                    query_history._describe_queries[self._plan.uuid]
                 )
-                profiler.profile_query(query_id, describe_time, verbose)
+            for query_id in query_history.dataframe_queries[self._plan.uuid]:
+                profiler.profile_query(query_id, verbose)
         finally:
             profiler.close()
 
