@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from abc import abstractmethod
-from typing import Dict, List, NamedTuple
+from typing import Dict, List, NamedTuple, Tuple
 
 import snowflake.snowpark
 
@@ -61,8 +61,10 @@ class QueryHistory(QueryListener):
         self._include_thread_id = include_thread_id
         self._include_error = include_error
         self._include_dataframe_profiling = include_dataframe_profiling
-        # if dataframe profiling is enabled, we will map dataframe ast ids to query ids
+        # if dataframe profiling is enabled, we will map dataframe plan uuids to query ids
         self._dataframe_queries: Dict[int, List[str]] = {}
+        # if dataframe profiling is enabled, we will map dataframe plan uuids to the time taken to describe the dataframe
+        self._describe_queries: Dict[str, List[Tuple[str, float]]] = {}
 
     def __enter__(self):
         return self

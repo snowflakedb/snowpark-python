@@ -588,9 +588,9 @@ class SnowflakePlan(LogicalPlan):
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
         if self.session.reduce_describe_query_enabled:
-            return cached_analyze_attributes(self.schema_query, self.session)
+            return cached_analyze_attributes(self.schema_query, self.session, self.uuid)
         else:
-            return analyze_attributes(self.schema_query, self.session)
+            return analyze_attributes(self.schema_query, self.session, self.uuid)
 
     @property
     def attributes(self) -> List[Attribute]:
@@ -725,6 +725,8 @@ class SnowflakePlan(LogicalPlan):
             self.uuid,
         )
         final_sql = remove_comments(last_query.sql, child_uuids)
+        if self.schema_query:
+            self.schema_query = remove_comments(self.schema_query, child_uuids)
         last_query.sql = final_sql
         last_query.query_line_intervals = query_line_intervals
 

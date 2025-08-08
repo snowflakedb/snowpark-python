@@ -473,6 +473,15 @@ def test_profile_query_with_mock_data():
     mock_cursor = mock.MagicMock()
     mock_session._conn._conn.cursor.return_value = mock_cursor
 
+    # Mock the query info result (for fetchone)
+    mock_cursor.fetchone.return_value = (
+        "SELECT * FROM test",
+        5000,
+        "2023-01-01 10:00:00",
+        "2023-01-01 10:00:05",
+    )
+
+    # Mock the operator stats result (for fetchall)
     mock_cursor.fetchall.return_value = [
         (1, "TableScan", "table=test_table", 1000, 1000, 1.0, 50.0),
         (2, "Filter", "condition=col1>10", 1000, 500, 0.5, 30.0),
@@ -492,7 +501,17 @@ def test_profile_query_with_mock_data():
 
     with mock.patch("sys.stdout") as mock_stdout:
         profiler.profile_query(query_id)
-        expected_query = f"""
+        expected_info_query = f"""
+            SELECT
+                query_text,
+                total_elapsed_time,
+                start_time,
+                end_time
+            FROM TABLE(INFORMATION_SCHEMA.QUERY_HISTORY())
+            WHERE query_id = '{query_id}'
+            LIMIT 1
+        """
+        expected_stats_query = f"""
             SELECT
                 operator_id,
                 operator_type,
@@ -508,7 +527,10 @@ def test_profile_query_with_mock_data():
             FROM TABLE(get_query_operator_stats('{query_id}'))
             ORDER BY step_id, operator_id
             """
-        mock_cursor.execute.assert_called_once_with(expected_query)
+        assert mock_cursor.execute.call_count == 2
+        calls = mock_cursor.execute.call_args_list
+        assert calls[0][0][0] == expected_info_query
+        assert calls[1][0][0] == expected_stats_query
         assert mock_stdout.write.call_count > 0
         output_calls = [call.args[0] for call in mock_stdout.write.call_args_list]
         header_found = any(
@@ -522,6 +544,12 @@ def test_profile_query_output_to_file():
     mock_session = mock.MagicMock()
     mock_cursor = mock.MagicMock()
     mock_session._conn._conn.cursor.return_value = mock_cursor
+    mock_cursor.fetchone.return_value = (
+        "SELECT * FROM test",
+        3000,
+        "2023-01-01 09:00:00",
+        "2023-01-01 09:00:03",
+    )
     mock_cursor.fetchall.return_value = [
         (1, "TableScan", "table=test_table", 1000, 1000, 1.0, 50.0),
     ]
@@ -561,8 +589,12 @@ def test_profile_query_empty_results():
     mock_session = mock.MagicMock()
     mock_cursor = mock.MagicMock()
     mock_session._conn._conn.cursor.return_value = mock_cursor
-
-    # Mock empty results
+    mock_cursor.fetchone.return_value = (
+        "SELECT * FROM empty",
+        1000,
+        "2023-01-01 08:00:00",
+        "2023-01-01 08:00:01",
+    )
     mock_cursor.fetchall.return_value = []
     mock_cursor.description = [
         ("OPERATOR_ID",),
@@ -576,20 +608,15 @@ def test_profile_query_empty_results():
 
     query_id = "empty_query_789"
     profiler = QueryProfiler(mock_session)
-
-    # Mock stdout to capture output
     with mock.patch("sys.stdout") as mock_stdout:
         profiler.profile_query(query_id)
-
-        # Verify basic structure was still written
         output_calls = [call.args[0] for call in mock_stdout.write.call_args_list]
         header_found = any(
             "=== Analyzing Query empty_query_789 ===" in call for call in output_calls
         )
         assert header_found
-
         tree_header_found = any("QUERY OPERATOR TREE" in call for call in output_calls)
-        assert tree_header_found
+        assert not tree_header_found
 
 
 def test_profile_query_with_complex_attributes():
@@ -597,7 +624,12 @@ def test_profile_query_with_complex_attributes():
     mock_session = mock.MagicMock()
     mock_cursor = mock.MagicMock()
     mock_session._conn._conn.cursor.return_value = mock_cursor
-
+    mock_cursor.fetchone.return_value = (
+        "SELECT * FROM complex",
+        2000,
+        "2023-01-01 07:00:00",
+        "2023-01-01 07:00:02",
+    )
     complex_attrs = "join_condition=table1.id=table2.id\ntype=inner\nrows=1000"
     mock_cursor.fetchall.return_value = [
         (1, "Join", complex_attrs, 2000, 1500, 0.75, 40.0),
