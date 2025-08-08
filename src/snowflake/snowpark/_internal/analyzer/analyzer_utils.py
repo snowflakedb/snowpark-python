@@ -310,6 +310,67 @@ def table_function_partition_spec(
     )
 
 
+def indent_child_query(child: str) -> str:
+    if NEW_LINE == "":
+        return child
+    result = []
+    if child and child[0] != NEW_LINE:
+        result.append(TAB)
+    i = 0
+    in_single_quote = False
+    in_double_quote = False
+
+    while i < len(child):
+        if child[i] == NEW_LINE:
+            result.append(NEW_LINE)
+            if not in_single_quote and not in_double_quote:
+                result.append(TAB)
+            i += 1
+            continue
+        char = child[i]
+        if char == "'" and not in_double_quote:
+            num_backslashes = 0
+            j = i - 1
+            while j >= 0 and child[j] == "\\":
+                num_backslashes += 1
+                j -= 1
+            # check for the case we escape a single quote using \
+            if num_backslashes % 2 == 0:
+                # check for the case we escape a single quote using ''
+                if i + 1 < len(child) and child[i + 1] == "'" and in_single_quote:
+                    result.append(char)
+                    i += 1
+                    result.append(child[i])
+                    i += 1
+                    continue
+                else:
+                    # if we have an even number of backslashes, we are not escaping the single quote
+                    in_single_quote = not in_single_quote
+        elif char == '"' and not in_single_quote:
+            num_backslashes = 0
+            j = i - 1
+            while j >= 0 and child[j] == "\\":
+                num_backslashes += 1
+                j -= 1
+            # check for the case we escape a double quote using \
+            if num_backslashes % 2 == 0:
+                # check for the case we escape a double quote using ""
+                if i + 1 < len(child) and child[i + 1] == '"' and in_double_quote:
+                    result.append(char)
+                    i += 1
+                    result.append(child[i])
+                    i += 1
+                    continue
+                else:
+                    # if we have an even number of backslashes, we are not escaping the double quote
+                    in_double_quote = not in_double_quote
+
+        result.append(char)
+        i += 1
+
+    return "".join(result)
+
+
 def subquery_expression(child: str) -> str:
     return LEFT_PARENTHESIS + child + RIGHT_PARENTHESIS
 
@@ -425,7 +486,7 @@ def lateral_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
@@ -470,7 +531,7 @@ def join_table_function_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
@@ -479,6 +540,7 @@ def join_table_function_statement(
         + NEW_LINE
         + JOIN
         + NEW_LINE
+        + TAB
         + table(func)
         + AS
         + RIGHT_ALIAS
@@ -523,7 +585,7 @@ def project_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
@@ -591,7 +653,7 @@ def sample_by_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
@@ -714,11 +776,18 @@ def schema_query_for_values_statement(output: List[Attribute]) -> str:
 
     query = (
         SELECT
-        + COMMA.join([f"{DOLLAR}{i+1}{AS}{attr.name}" for i, attr in enumerate(output)])
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(
+            [f"{DOLLAR}{i+1}{AS}{attr.name}" for i, attr in enumerate(output)]
+        )
+        + NEW_LINE
         + FROM
         + VALUES
         + LEFT_PARENTHESIS
-        + COMMA.join(cells)
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(cells)
         + RIGHT_PARENTHESIS
     )
     return query
@@ -737,10 +806,17 @@ def values_statement(output: List[Attribute], data: List[Row]) -> str:
 
     query = (
         SELECT
-        + COMMA.join([f"{DOLLAR}{i+1}{AS}{c}" for i, c in enumerate(names)])
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(
+            [f"{DOLLAR}{i+1}{AS}{c}" for i, c in enumerate(names)]
+        )
+        + NEW_LINE
         + FROM
         + VALUES
-        + COMMA.join(rows)
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(rows)
     )
     return query
 
@@ -915,7 +991,7 @@ def snowflake_supported_join_statement(
         LEFT_PARENTHESIS
         + NEW_LINE
         + LEFT_UUID
-        + left
+        + indent_child_query(left)
         + NEW_LINE
         + LEFT_UUID
         + RIGHT_PARENTHESIS
@@ -929,7 +1005,7 @@ def snowflake_supported_join_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + RIGHT_UUID
-        + right
+        + indent_child_query(right)
         + NEW_LINE
         + RIGHT_UUID
         + RIGHT_PARENTHESIS
@@ -1457,7 +1533,7 @@ def pivot_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS
@@ -1497,7 +1573,7 @@ def unpivot_statement(
         + LEFT_PARENTHESIS
         + NEW_LINE
         + UUID
-        + child
+        + indent_child_query(child)
         + NEW_LINE
         + UUID
         + RIGHT_PARENTHESIS

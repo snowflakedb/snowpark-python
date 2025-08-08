@@ -18,6 +18,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     OR,
     REPLACE,
     format_uuid,
+    indent_child_query,
     convert_value_to_sql_option,
     create_file_format_statement,
     create_or_replace_dynamic_table_statement,
@@ -50,8 +51,8 @@ import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 def setup():
     original_new_line = analyzer_utils.NEW_LINE
     original_tab = analyzer_utils.TAB
-    analyzer_utils.NEW_LINE = "\n"
     analyzer_utils.TAB = "    "
+    analyzer_utils.NEW_LINE = "\n"
     yield
     analyzer_utils.NEW_LINE = original_new_line
     analyzer_utils.TAB = original_tab
@@ -64,7 +65,9 @@ def test_format_uuid():
     assert result == expected
 
     result_with_newline = format_uuid(uuid_str, with_new_line=True)
-    expected_with_newline = f"\n-- {uuid_str}\n"
+    expected_with_newline = (
+        f"{analyzer_utils.NEW_LINE}-- {uuid_str}{analyzer_utils.NEW_LINE}"
+    )
     assert result_with_newline == expected_with_newline
 
     empty_result = format_uuid(None, with_new_line=False)
@@ -72,6 +75,99 @@ def test_format_uuid():
 
     empty_result_with_newline = format_uuid(None, with_new_line=True)
     assert empty_result_with_newline == ""
+
+
+@pytest.mark.parametrize(
+    "query,expected",
+    [
+        (
+            "SELECT col1\nFROM table1",
+            "    SELECT col1\n    FROM table1",
+        ),
+        (
+            "SELECT 'line1\nline2' as col1\nFROM table1",
+            "    SELECT 'line1\nline2' as col1\n    FROM table1",
+        ),
+        (
+            'SELECT "line1\nline2" as col1\nFROM table1',
+            '    SELECT "line1\nline2" as col1\n    FROM table1',
+        ),
+        (
+            "SELECT 'Don\\'t indent this\nnewline' as col1\nFROM table1",
+            "    SELECT 'Don\\'t indent this\nnewline' as col1\n    FROM table1",
+        ),
+        (
+            'SELECT "He said \\"Hello\nworld\\"" as col1\nFROM table1',
+            '    SELECT "He said \\"Hello\nworld\\"" as col1\n    FROM table1',
+        ),
+        (
+            "SELECT 'test\\\\'\nFROM table1",
+            "    SELECT 'test\\\\'\n    FROM table1",
+        ),
+        (
+            "SELECT 'test\\\\\\'still in string\nnewline' as col1\nFROM table1",
+            "    SELECT 'test\\\\\\'still in string\nnewline' as col1\n    FROM table1",
+        ),
+        (
+            "SELECT 'single \"double\" inside' as col1,\n\"double 'single' inside\" as col2\nFROM table1",
+            "    SELECT 'single \"double\" inside' as col1,\n    \"double 'single' inside\" as col2\n    FROM table1",
+        ),
+        (
+            "SELECT 'First line\nSecond \"quoted\" line\nThird line' as col1\nFROM table1",
+            "    SELECT 'First line\nSecond \"quoted\" line\nThird line' as col1\n    FROM table1",
+        ),
+        (
+            """SELECT
+    'Complex string with\nmultiple lines' as str_col,
+    "Another string\nwith newlines" as str_col2,
+    regular_column
+FROM table1
+WHERE condition = 'value\nwith newline'
+    AND other_condition = "another\nvalue"
+ORDER BY str_col""",
+            """    SELECT
+        'Complex string with\nmultiple lines' as str_col,
+        "Another string\nwith newlines" as str_col2,
+        regular_column
+    FROM table1
+    WHERE condition = 'value\nwith newline'
+        AND other_condition = "another\nvalue"
+    ORDER BY str_col""",
+        ),
+        ("SELECT * FROM table1", "    SELECT * FROM table1"),
+        ("\n\n\n", "\n    \n    \n    "),
+        (
+            'CREATE TABLE "quote""andun\nquote""" AS SELECT 1',
+            '    CREATE TABLE "quote""andun\nquote""" AS SELECT 1',
+        ),
+        (
+            "SELECT * FROM 'table''name\nwith''quotes'",
+            "    SELECT * FROM 'table''name\nwith''quotes'",
+        ),
+        (
+            'SELECT "col""with""quotes\nand""newlines" FROM table1\nWHERE condition = 1',
+            '    SELECT "col""with""quotes\nand""newlines" FROM table1\n    WHERE condition = 1',
+        ),
+        (
+            "INSERT INTO 'test''table\nname' VALUES ('val''with\nquotes')",
+            "    INSERT INTO 'test''table\nname' VALUES ('val''with\nquotes')",
+        ),
+        (
+            'SELECT "start""middle""end\nwith\nnewlines" as col\nFROM "table""name"',
+            '    SELECT "start""middle""end\nwith\nnewlines" as col\n    FROM "table""name"',
+        ),
+    ],
+)
+def test_indent_child_query(query, expected):
+    """Test indent_child_query function with various quote and newline scenarios."""
+    assert indent_child_query(query) == expected
+
+
+@mock.patch("snowflake.snowpark._internal.analyzer.analyzer_utils.NEW_LINE", "")
+def test_indent_child_query_new_line_empty():
+    """Test that function returns input unchanged when NEW_LINE is empty."""
+    query = "SELECT col1\nFROM table1"
+    assert indent_child_query(query) == query
 
 
 def test_generate_scoped_temp_objects():
@@ -304,7 +400,7 @@ def test_create_or_replace_dynamic_table_statement():
         child="select * from foo",
     ) == (
         f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}     "
-        "AS  SELECT  * \n FROM (\nselect * from foo\n)"
+        "AS  SELECT  * \n FROM (\n    select * from foo\n)"
     )
 
     assert create_or_replace_dynamic_table_statement(
@@ -323,7 +419,7 @@ def test_create_or_replace_dynamic_table_statement():
         child="select * from foo",
     ) == (
         f" CREATE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}     "
-        "AS  SELECT  * \n FROM (\nselect * from foo\n)"
+        "AS  SELECT  * \n FROM (\n    select * from foo\n)"
     )
     assert create_or_replace_dynamic_table_statement(
         name=dt_name,
@@ -341,7 +437,7 @@ def test_create_or_replace_dynamic_table_statement():
         child="select * from foo",
     ) == (
         f" CREATE  DYNAMIC  TABLE  If  NOT  EXISTS {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}     "
-        "AS  SELECT  * \n FROM (\nselect * from foo\n)"
+        "AS  SELECT  * \n FROM (\n    select * from foo\n)"
     )
     assert create_or_replace_dynamic_table_statement(
         name=dt_name,
@@ -362,7 +458,7 @@ def test_create_or_replace_dynamic_table_statement():
         f"REFRESH_MODE  = '{refresh_mode}'  INITIALIZE  = '{initialize}'  CLUSTER BY ({cluster_by[0]})  "
         f"DATA_RETENTION_TIME_IN_DAYS  = '{data_retention_time}'  MAX_DATA_EXTENSION_TIME_IN_DAYS  = "
         f"'{max_data_extension_time}'  COMMENT  = '{comment}' AS  SELECT  * \n"
-        " FROM (\nselect * from foo\n)"
+        " FROM (\n    select * from foo\n)"
     )
 
 
@@ -433,7 +529,7 @@ def test_create_iceberg_table_as_select_statement():
         " CREATE    ICEBERG  TABLE  test_table  EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = "
         "'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  "
         "STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED'   AS  SELECT  * \n"
-        " FROM (\nselect * from foo\n)"
+        " FROM (\n    select * from foo\n)"
     )
 
 
@@ -467,17 +563,22 @@ def test_create_dynamic_iceberg_table():
         "my_warehouse    EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = 'example_catalog'  "
         "BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY "
         " = 'OPTIMIZED' AS  SELECT  * \n"
-        " FROM (\nselect * from foo\n)"
+        " FROM (\n    select * from foo\n)"
     )
 
 
 def test_project_statement_formatting():
     assert project_statement(["col1", "col2"], "table1") == (
-        " SELECT \n" "    col1, \n" "    col2\n" " FROM (\n" "table1\n" ")"
+        " SELECT \n" "    col1, \n" "    col2\n" " FROM (\n" "    table1\n" ")"
     )
 
     assert project_statement(["col1 as a", "col2 as b"], "table1") == (
-        " SELECT \n" "    col1 as a, \n" "    col2 as b\n" " FROM (\n" "table1\n" ")"
+        " SELECT \n"
+        "    col1 as a, \n"
+        "    col2 as b\n"
+        " FROM (\n"
+        "    table1\n"
+        ")"
     )
 
     assert project_statement(
@@ -487,28 +588,33 @@ def test_project_statement_formatting():
         "    CASE WHEN col1 > 0 THEN 1 ELSE 0 END as flag, \n"
         "    COUNT(*) as cnt\n"
         " FROM (\n"
-        "table1\n"
+        "    table1\n"
         ")"
     )
 
-    child_query = "SELECT a, b\nFROM table1\nWHERE x > 0"
+    child_query = f"SELECT a, b{analyzer_utils.NEW_LINE}FROM table1{analyzer_utils.NEW_LINE}WHERE x > 0"
     assert project_statement(["col1", "col2"], child_query) == (
         " SELECT \n"
         "    col1, \n"
         "    col2\n"
         " FROM (\n"
-        "SELECT a, b\n"
-        "FROM table1\n"
-        "WHERE x > 0\n"
+        "    SELECT a, b\n"
+        "    FROM table1\n"
+        "    WHERE x > 0\n"
         ")"
     )
 
     assert project_statement([], "table1") == (
-        " SELECT  * \n" " FROM (\n" "table1\n" ")"
+        " SELECT  * \n" " FROM (\n" "    table1\n" ")"
     )
 
     assert project_statement(["col1", "col2"], "table1", is_distinct=True) == (
-        " SELECT  DISTINCT \n" "    col1, \n" "    col2\n" " FROM (\n" "table1\n" ")"
+        " SELECT  DISTINCT \n"
+        "    col1, \n"
+        "    col2\n"
+        " FROM (\n"
+        "    table1\n"
+        ")"
     )
 
 
@@ -522,19 +628,19 @@ def test_nested_query_formatting():
         "    t.col1, \n"
         "    t.col2\n"
         " FROM (\n"
-        " SELECT \n"
-        "    inner.a as col1, \n"
-        "    inner.b as col2\n"
-        " FROM (\n"
-        "base_table inner\n"
-        ")\n"
+        "     SELECT \n"
+        "        inner.a as col1, \n"
+        "        inner.b as col2\n"
+        "     FROM (\n"
+        "        base_table inner\n"
+        "    )\n"
         ")"
     )
 
 
 def test_table_function_statement_formatting():
     assert table_function_statement("my_table_func()") == (
-        " SELECT  * \n" " FROM (\n" " TABLE (my_table_func())\n" ")"
+        " SELECT  * \n" " FROM (\n" "     TABLE (my_table_func())\n" ")"
     )
 
     assert table_function_statement("my_table_func()", ["col1", "col2"]) == (
@@ -542,7 +648,7 @@ def test_table_function_statement_formatting():
         "    col1, \n"
         "    col2\n"
         " FROM (\n"
-        " TABLE (my_table_func())\n"
+        "     TABLE (my_table_func())\n"
         ")"
     )
 
@@ -550,7 +656,7 @@ def test_table_function_statement_formatting():
 def test_filter_statement_formatting():
     # Test with is_having=False (WHERE clause)
     assert filter_statement("x > 0 AND y < 10", False, "my_table") == (
-        " SELECT  * \n" " FROM (\n" "my_table\n" ")\n" " WHERE x > 0 AND y < 10"
+        " SELECT  * \n" " FROM (\n" "    my_table\n" ")\n" " WHERE x > 0 AND y < 10"
     )
 
     # Test with is_having=True (HAVING clause)
@@ -563,9 +669,9 @@ def test_filter_statement_formatting():
     assert filter_statement("cnt > 10", False, child_query) == (
         " SELECT  * \n"
         " FROM (\n"
-        "SELECT a, b, COUNT(*) as cnt\n"
-        "FROM table1\n"
-        "GROUP BY a, b\n"
+        "    SELECT a, b, COUNT(*) as cnt\n"
+        "    FROM table1\n"
+        "    GROUP BY a, b\n"
         ")\n"
         " WHERE cnt > 10"
     )
@@ -590,7 +696,7 @@ def test_sample_by_statement_formatting(mock_random_name):
     expected = (
         " SELECT SNOWPARK_LEFT.* EXCLUDE SNOWPARK_TEMP_COLUMN_T9IE0TMCWC FROM (\n"
         " SELECT  * , PERCENT_RANK() OVER (PARTITION BY category ORDER BY RANDOM()) AS SNOWPARK_TEMP_COLUMN_T9IE0TMCWC FROM (\n"
-        "my_table\n"
+        "    my_table\n"
         ")\n"
         ") AS SNOWPARK_LEFT JOIN (\n"
         'SELECT KEY, VALUE FROM TABLE(FLATTEN(input => parse_json(\'{"A": 0.1, "B": 0.5, "C": 1.0}\')))\n'
@@ -602,7 +708,7 @@ def test_sample_by_statement_formatting(mock_random_name):
     expected = (
         " SELECT SNOWPARK_LEFT.* EXCLUDE SNOWPARK_TEMP_COLUMN_T9IE0TMCWC FROM (\n"
         " SELECT  * , PERCENT_RANK() OVER (PARTITION BY category ORDER BY RANDOM()) AS SNOWPARK_TEMP_COLUMN_T9IE0TMCWC FROM (\n"
-        "my_table\n"
+        "    my_table\n"
         ")\n"
         ") AS SNOWPARK_LEFT JOIN (\n"
         "SELECT KEY, VALUE FROM TABLE(FLATTEN(input => parse_json('{}')))\n"
@@ -613,14 +719,14 @@ def test_sample_by_statement_formatting(mock_random_name):
 
 def test_aggregate_statement_formatting():
     assert aggregate_statement([], ["COUNT(*) as cnt"], "my_table") == (
-        " SELECT \n" "    COUNT(*) as cnt\n" " FROM (\n" "my_table\n" ") LIMIT 1"
+        " SELECT \n" "    COUNT(*) as cnt\n" " FROM (\n" "    my_table\n" ") LIMIT 1"
     )
 
     assert aggregate_statement(["dept", "title"], ["COUNT(*) as cnt"], "my_table") == (
         " SELECT \n"
         "    COUNT(*) as cnt\n"
         " FROM (\n"
-        "my_table\n"
+        "    my_table\n"
         ")\n"
         " GROUP BY \n"
         "    dept, \n"
@@ -630,13 +736,13 @@ def test_aggregate_statement_formatting():
 
 def test_sort_statement_formatting():
     assert sort_statement(["col1 ASC"], False, "my_table") == (
-        " SELECT  * \n" " FROM (\n" "my_table\n" ")\n" " ORDER BY \n" "    col1 ASC"
+        " SELECT  * \n" " FROM (\n" "    my_table\n" ")\n" " ORDER BY \n" "    col1 ASC"
     )
 
     assert sort_statement(["col1 ASC", "col2 DESC"], False, "my_table") == (
         " SELECT  * \n"
         " FROM (\n"
-        "my_table\n"
+        "    my_table\n"
         ")\n"
         " ORDER BY \n"
         "    col1 ASC, \n"
@@ -668,10 +774,10 @@ def test_join_table_function_statement_formatting():
         "    T_RIGHT.index, \n"
         "    T_RIGHT.value\n"
         " FROM (\n"
-        "my_table\n"
+        "    my_table\n"
         ") AS T_LEFT\n"
         " JOIN \n"
-        " TABLE (split_to_table(col1, ' ')) AS T_RIGHT"
+        "     TABLE (split_to_table(col1, ' ')) AS T_RIGHT"
     )
 
 
@@ -679,7 +785,7 @@ def test_lateral_statement_formatting():
     assert lateral_statement("TABLE(split_to_table(col1, ' '))", "my_table") == (
         " SELECT  * \n"
         " FROM (\n"
-        "my_table\n"
+        "    my_table\n"
         "), \n"
         " LATERAL TABLE(split_to_table(col1, ' '))"
     )
@@ -690,7 +796,7 @@ def test_pivot_statement_formatting():
         "month", ["JAN", "FEB", "MAR"], "sum(amount)", None, "sales_data", True
     ) == (
         ' SELECT  *  EXCLUDE ("JAN", "FEB", "MAR"), "JAN" AS "JAN_sum(amount)", "FEB" AS "FEB_sum(amount)", "MAR" AS "MAR_sum(amount)" FROM (\n'
-        "sales_data\n"
+        "    sales_data\n"
         ")\n"
         " PIVOT (\n"
         "    sum(amount) FOR month IN (JAN, FEB, MAR)\n"
@@ -699,7 +805,7 @@ def test_pivot_statement_formatting():
 
     assert pivot_statement("month", None, "sum(amount)", "0", "sales_data", False) == (
         " SELECT  *  FROM (\n"
-        "sales_data\n"
+        "    sales_data\n"
         ")\n"
         " PIVOT (\n"
         "    sum(amount) FOR month IN ( ANY ) DEFAULT ON NULL (0)\n"
@@ -712,7 +818,7 @@ def test_unpivot_statement_formatting():
         "sales_amount", "month", ["JAN", "FEB", "MAR"], False, "sales_data"
     ) == (
         " SELECT  *  FROM (\n"
-        "sales_data\n"
+        "    sales_data\n"
         ")\n"
         " UNPIVOT (\n"
         "    sales_amount FOR month IN (JAN, FEB, MAR)\n)"
@@ -722,7 +828,7 @@ def test_unpivot_statement_formatting():
         "sales_amount", "month", ["JAN", "FEB", "MAR"], True, "sales_data"
     ) == (
         " SELECT  *  FROM (\n"
-        "sales_data\n"
+        "    sales_data\n"
         ")\n"
         " UNPIVOT  INCLUDE NULLS (\n"
         "    sales_amount FOR month IN (JAN, FEB, MAR)\n)"
