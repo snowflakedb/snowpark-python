@@ -66,7 +66,7 @@ def generate_test_data(session, sql_simplifier_enabled):
             {
                 0: '( SELECT "_1" AS "ID", "_2" AS "NAME", "_3" AS "VALUE" FROM ( SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT) ) ) UNION ( SELECT "_1" AS "ID", "_2" AS "NAME", "_3" AS "VALUE" FROM ( SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (3 :: INT, \'C\' :: STRING, 300 :: INT), (4 :: INT, \'D\' :: STRING, 400 :: INT) ) )',
                 6: 'SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT)',
-                10: 'SELECT "_1" AS "ID", "_2" AS "NAME", "_3" AS "VALUE" FROM ( SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (3 :: INT, \'C\' :: STRING, 300 :: INT), (4 :: INT, \'D\' :: STRING, 400 :: INT) )',
+                15: 'SELECT "_1" AS "ID", "_2" AS "NAME", "_3" AS "VALUE" FROM ( SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (3 :: INT, \'C\' :: STRING, 300 :: INT), (4 :: INT, \'D\' :: STRING, 400 :: INT) )',
             },
         ),
         (
@@ -90,7 +90,7 @@ def generate_test_data(session, sql_simplifier_enabled):
             {
                 0: 'SELECT * FROM ( SELECT "_1" AS "ID", "_2" AS "NAME", "_3" AS "VALUE" FROM ( SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT) ) ) PIVOT ( sum("VALUE") FOR "NAME" IN ( ANY ) )',
                 6: 'SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT)',
-                9: 'SELECT * FROM ( SELECT "_1" AS "ID", "_2" AS "NAME", "_3" AS "VALUE" FROM ( SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT) ) ) PIVOT ( sum("VALUE") FOR "NAME" IN ( ANY ) )',
+                15: 'SELECT * FROM ( SELECT "_1" AS "ID", "_2" AS "NAME", "_3" AS "VALUE" FROM ( SELECT $1 AS "_1", $2 AS "_2", $3 AS "_3" FROM VALUES (1 :: INT, \'A\' :: STRING, 100 :: INT), (2 :: INT, \'B\' :: STRING, 200 :: INT) ) ) PIVOT ( sum("VALUE") FOR "NAME" IN ( ANY ) )',
             },
         ),
     ],
@@ -102,6 +102,7 @@ def test_get_plan_from_line_numbers_sql_content(
     df = op(generate_test_data(session, sql_simplifier))
 
     for line_num, expected_sql in line_to_expected_sql.items():
+        print(df._plan.queries[-1].sql)
         plan = get_plan_from_line_numbers(df._plan, line_num)
         assert (
             plan is not None
@@ -137,7 +138,7 @@ def test_get_plan_from_line_numbers_join_operations(session):
     line_to_expected_pattern = {
         2: r'SELECT \* FROM \(\(SELECT "ID" AS "l_\d+_ID", "NAME" AS "NAME" FROM \(SELECT \$1 AS "ID", \$2 AS "NAME" FROM VALUES \(1 :: INT, \'A\' :: STRING\), \(2 :: INT, \'B\' :: STRING\)\)\) AS SNOWPARK_LEFT INNER JOIN \(SELECT "ID" AS "r_\d+_ID", "VALUE" AS "VALUE" FROM \(SELECT \$1 AS "ID", \$2 AS "VALUE" FROM VALUES \(1 :: INT, 10 :: INT\), \(2 :: INT, 20 :: INT\)\)\) AS SNOWPARK_RIGHT ON \("l_\d+_ID" = "r_\d+_ID"\)\)',
         7: r'SELECT \$1 AS "ID", \$2 AS "NAME" FROM VALUES \(1 :: INT, \'A\' :: STRING\), \(2 :: INT, \'B\' :: STRING\)',
-        14: r'SELECT "ID" AS "r_\d+_ID", "VALUE" AS "VALUE" FROM \(SELECT \$1 AS "ID", \$2 AS "VALUE" FROM VALUES \(1 :: INT, 10 :: INT\), \(2 :: INT, 20 :: INT\)\)',
+        17: r'SELECT "ID" AS "r_\d+_ID", "VALUE" AS "VALUE" FROM \(SELECT \$1 AS "ID", \$2 AS "VALUE" FROM VALUES \(1 :: INT, 10 :: INT\), \(2 :: INT, 20 :: INT\)\)',
     }
 
     for line_num, expected_pattern in line_to_expected_pattern.items():
@@ -167,7 +168,7 @@ def test_get_plan_from_line_numbers_join_operations(session):
 @pytest.mark.parametrize(
     "line_num,expected_error",
     [
-        (6, "Line number 6 does not fall within any interval"),
+        (20, "Line number 20 does not fall within any interval"),
     ],
 )
 def test_get_plan_from_line_numbers_error_cases(session, line_num, expected_error):
