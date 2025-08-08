@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import time
 import traceback
 from typing import TYPE_CHECKING, List, Union, Optional
 
@@ -12,7 +11,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.type_utils import convert_metadata_to_sp_type
-from snowflake.snowpark._internal.utils import ttl_cache
+from snowflake.snowpark._internal.utils import ttl_cache, measure_time
 from snowflake.snowpark.types import DecimalType, LongType, StringType
 
 if TYPE_CHECKING:
@@ -89,12 +88,13 @@ def analyze_attributes(
     if lowercase.startswith("get"):
         return get_attributes()
     if lowercase.startswith("describe"):
-        start_time = time.time()
-        session._run_query(sql)
-        e2e_time = time.time() - start_time
+        with measure_time() as e2e_time:
+            session._run_query(sql)
         # Add the time taken to describe the dataframe to query history
         if dataframe_uuid:
-            session.dataframe_profiler.add_describe_query_time(dataframe_uuid, e2e_time)
+            session.dataframe_profiler.add_describe_query_time(
+                dataframe_uuid, e2e_time()
+            )
 
         return convert_result_meta_to_attribute(
             session._conn._cursor.description, session._conn.max_string_size
@@ -103,14 +103,13 @@ def analyze_attributes(
     # collect describe query details for telemetry and dataframe profiling
     stack = traceback.extract_stack(limit=10)[:-1]
     stack_trace = [frame.line for frame in stack] if len(stack) > 0 else None
-    start_time = time.time()
-    attributes = session._get_result_attributes(sql)
-    e2e_time = time.time() - start_time
+    with measure_time() as e2e_time:
+        attributes = session._get_result_attributes(sql)
     session._conn._telemetry_client.send_describe_query_details(
-        session._session_id, sql, e2e_time, stack_trace
+        session._session_id, sql, e2e_time(), stack_trace
     )
     if dataframe_uuid:
-        session.dataframe_profiler.add_describe_query_time(dataframe_uuid, e2e_time)
+        session.dataframe_profiler.add_describe_query_time(dataframe_uuid, e2e_time())
 
     return attributes
 
