@@ -313,7 +313,9 @@ def table_function_partition_spec(
 def indent_child_query(child: str) -> str:
     if NEW_LINE == "":
         return child
-    result = [TAB]
+    result = []
+    if child and child[0] != NEW_LINE:
+        result.append(TAB)
     i = 0
     in_single_quote = False
     in_double_quote = False

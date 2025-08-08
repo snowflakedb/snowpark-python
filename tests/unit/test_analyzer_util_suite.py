@@ -134,9 +134,8 @@ ORDER BY str_col""",
         AND other_condition = "another\nvalue"
     ORDER BY str_col""",
         ),
-        ("", "    "),
         ("SELECT * FROM table1", "    SELECT * FROM table1"),
-        ("\n\n\n", "    \n    \n    \n    "),
+        ("\n\n\n", "\n    \n    \n    "),
         (
             'CREATE TABLE "quote""andun\nquote""" AS SELECT 1',
             '    CREATE TABLE "quote""andun\nquote""" AS SELECT 1',
