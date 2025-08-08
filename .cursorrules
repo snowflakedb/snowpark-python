@@ -1,0 +1,57 @@
+# Cursor Rules for Snowflake Snowpark Python
+
+This is the official Snowflake Snowpark Python library repository (snowflakedb/snowpark-python).
+
+## Repository Structure
+
+### Core Library (`src/snowflake/snowpark/`)
+- **Main API**: Session, DataFrame, Column, Row, Window, and related classes form the core Snowpark API
+- **Functions module** (`functions.py`): Contains all SQL functions exposed as Python functions (e.g., `col`, `lit`, `sum`, `when`)
+- **Internal modules** (`_internal/`):
+  - `analyzer/`: SQL generation and query analysis
+  - `compiler/`: Query compilation and optimization
+  - `ast/`: Abstract syntax tree for Snowpark IR (intermediate representation)
+  - `proto/`: Protocol buffer definitions and generated code for AST serialization
+  - `server_connection.py`: Handles actual Snowflake connections
+- **Mock module** (`mock/`): Local testing framework for running Snowpark code without Snowflake connection
+- **Modin module** (`modin/`): Snowpark pandas API implementation using Modin as the distributed computing framework
+
+### Test Organization (`tests/`)
+- `unit/`: Pure unit tests that don't require Snowflake connection
+- `integ/`: Integration tests requiring live Snowflake connection
+- `mock/`: Tests for the local testing framework
+- `ast/`: Tests for AST/compiler functionality
+
+## Coding Style and Best Practices
+
+### Snowpark Style Guide
+- Follow the [Snowpark Style Guide](snowpark_style_guide.md)
+
+### Internal Implementation Details
+- SQL generation happens lazily - DataFrames build up an execution plan
+- The `_internal/analyzer` converts the plan to SQL
+- SQL simplifier `_internal/analyzer/select_statement.py` is enabled by default for query optimization
+- CTE (Common Table Expression) optimization can be enabled for complex queries
+
+### Testing Considerations
+- Mock/local testing available via `MockServerConnection` for development without Snowflake
+- Use pytest fixtures for test setup and teardown
+- Use appropriate pytest markers for test categorization
+
+### Snowpark-Specific Patterns
+- **Lazy evaluation**: Operations are not executed until an action (like `collect()`, `show()`, `count()`) is called
+- **Session management**: All operations require an active Session and you should be aware of the thread-safety of the Session
+- **Local vs. remote**: Be aware of what executes locally (Python) vs. remotely (Snowflake SQL)
+
+## Architecture Notes
+- Snowpark translates DataFrame operations into SQL that runs on Snowflake
+- The AST (Abstract Syntax Tree) represents the logical plan before SQL generation
+- Snowpark pandas (Modin integration) provides pandas-compatible API on top of Snowpark DataFrames
+- Mock framework simulates Snowflake behavior locally using pandas for testing
+
+When writing code for this repository:
+1. Follow existing patterns in similar modules
+2. Maintain consistency with Snowpark's functional programming style
+3. Ensure new features work with both regular and mock connections
+4. Consider SQL generation efficiency in DataFrame operations
+5. Write comprehensive tests covering unit, integration, and mock scenarios
