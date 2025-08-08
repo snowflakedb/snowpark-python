@@ -721,6 +721,19 @@ def test_agg_sort_snowpark_connect_compatible(session):
         context._is_snowpark_connect_compatible_mode = original_value
 
 
+def test_agg_no_grouping_exprs_limit_snowpark_connect_compatible(session):
+    original_value = context._is_snowpark_connect_compatible_mode
+    try:
+        context._is_snowpark_connect_compatible_mode = True
+        df = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
+        result = df.agg(sum_(col("a"))).limit(2)
+        Utils.check_answer(result, [Row(5)])
+        result = df.group_by().agg(sum_(col("b"))).limit(2)
+        Utils.check_answer(result, [Row(10)])
+    finally:
+        context._is_snowpark_connect_compatible_mode = original_value
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="HAVING and ORDER BY append are not supported in local testing mode",
