@@ -255,6 +255,22 @@ for point in post_op_switch_points:
         method=point["method"],
         backend="Snowflake",
     )
+
+# On the pandas backend, auto-switch for apply-like methods so that those
+# methods can apply Snowpark and Cortex functions.
+for class_name, method in (
+    ("DataFrame", "apply"),
+    ("DataFrame", "applymap"),
+    ("DataFrame", "map"),
+    ("Series", "apply"),
+    ("Series", "map"),
+):
+    register_function_for_pre_op_switch(
+        class_name=class_name,
+        method=method,
+        backend="Pandas",
+    )
+
 Backend.set_active_backends(["Snowflake", "Pandas"])
 
 
