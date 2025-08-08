@@ -209,6 +209,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     DEFAULT_UDTF_PARTITION_SIZE,
     GroupbyApplySortMethod,
     SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY,
+    SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY,
     check_return_variant_and_get_return_type,
     create_udf_for_series_apply,
     create_udtf_for_apply_axis_1,
@@ -566,6 +567,27 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
     return cls
 
 
+def _apply_func_has_snowpark_function(func: Any) -> bool:
+    """
+    Check if the function passed to an apply-like method is a Snowpark or Cortex function.
+
+    Args:
+        func: The function to check. Could be a single function, a list-like
+              of functions, or a dict-like of functions.
+
+    Returns:
+        True if the function is a Snowpark or Cortex function, False otherwise.
+    """
+    if is_dict_like(func):
+        return any(_apply_func_has_snowpark_function(func[key]) for key in func.keys())
+    if is_list_like(func):
+        return any(_apply_func_has_snowpark_function(each_item) for each_item in func)
+    return (
+        func in SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY
+        or func in SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY
+    )
+
+
 @_propagate_attrs_on_methods
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
@@ -921,6 +943,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
+
+        if arguments is not None and (
+            (
+                (
+                    (
+                        api_cls_name == "DataFrame"
+                        and operation in ("apply", "applymap", "map")
+                    )
+                    or (api_cls_name == "Series" and operation == "apply")
+                )
+                and _apply_func_has_snowpark_function(arguments.get("func"))
+            )
+            or (
+                api_cls_name == "Series"
+                and operation == "map"
+                and _apply_func_has_snowpark_function(arguments.get("arg"))
+            )
+        ):
+            # Force switch to Snowflake by making the cost really negative,
+            # so that regardless of the value of move_to_cost() and stay_cost(),
+            # we switch to Snowflake. Cost 0 does not force the switch.
+            return -3 * QCCoercionCost.COST_IMPOSSIBLE
+
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
             return QCCoercionCost.COST_HIGH

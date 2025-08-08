@@ -25,6 +25,10 @@ called. This includes most methods that are ordinarily completely unsupported by
 and have `N` in their implemented status in the :doc:`DataFrame <supported/dataframe_supported>` and
 :doc:`Series <supported/series_supported>` supported API lists.
 
+Applying Snowpark functions like `floor` and `abs`, or Snowflake Cortex functions
+like `snowflake.cortex.sentiment`, to a DataFrame or Series on the `Pandas`
+backend will automatically move data to the `Snowflake` backend for execution.
+
 Post-Operation Switchpoints:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 read_snowflake, value_counts, tail, var, std, sum, sem, max, min, mean, agg, aggregate, count, nunique, cummax, cummin, cumprod, cumsum
