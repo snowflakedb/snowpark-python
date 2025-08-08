@@ -218,10 +218,7 @@ def format_uuid(uuid: Optional[str], with_new_line: bool = True) -> str:
     if not uuid:
         return EMPTY_STRING
     if with_new_line:
-        if NEW_LINE == "":
-            return f"\n{UUID_COMMENT.format(uuid)}\n"
-        else:
-            return f"{NEW_LINE}{UUID_COMMENT.format(uuid)}{NEW_LINE}"
+        return f"\n{UUID_COMMENT.format(uuid)}\n"
     return f"{UUID_COMMENT.format(uuid)}"
 
 
@@ -316,7 +313,7 @@ def table_function_partition_spec(
 def indent_child_query(child: str) -> str:
     if NEW_LINE == "":
         return child
-    result = []
+    result = [TAB]
     i = 0
     in_single_quote = False
     in_double_quote = False
@@ -335,7 +332,9 @@ def indent_child_query(child: str) -> str:
             while j >= 0 and child[j] == "\\":
                 num_backslashes += 1
                 j -= 1
+            # check for the case we escape a single quote using \
             if num_backslashes % 2 == 0:
+                # check for the case we escape a single quote using ''
                 if i + 1 < len(child) and child[i + 1] == "'" and in_single_quote:
                     result.append(char)
                     i += 1
@@ -343,6 +342,7 @@ def indent_child_query(child: str) -> str:
                     i += 1
                     continue
                 else:
+                    # if we have an even number of backslashes, we are not escaping the single quote
                     in_single_quote = not in_single_quote
         elif char == '"' and not in_single_quote:
             num_backslashes = 0
@@ -350,7 +350,9 @@ def indent_child_query(child: str) -> str:
             while j >= 0 and child[j] == "\\":
                 num_backslashes += 1
                 j -= 1
+            # check for the case we escape a double quote using \
             if num_backslashes % 2 == 0:
+                # check for the case we escape a double quote using ""
                 if i + 1 < len(child) and child[i + 1] == '"' and in_double_quote:
                     result.append(char)
                     i += 1
@@ -358,13 +360,13 @@ def indent_child_query(child: str) -> str:
                     i += 1
                     continue
                 else:
+                    # if we have an even number of backslashes, we are not escaping the double quote
                     in_double_quote = not in_double_quote
 
         result.append(char)
         i += 1
 
-    final_result = "".join(result)
-    return TAB + final_result
+    return "".join(result)
 
 
 def subquery_expression(child: str) -> str:
@@ -772,11 +774,18 @@ def schema_query_for_values_statement(output: List[Attribute]) -> str:
 
     query = (
         SELECT
-        + COMMA.join([f"{DOLLAR}{i+1}{AS}{attr.name}" for i, attr in enumerate(output)])
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(
+            [f"{DOLLAR}{i+1}{AS}{attr.name}" for i, attr in enumerate(output)]
+        )
+        + NEW_LINE
         + FROM
         + VALUES
         + LEFT_PARENTHESIS
-        + COMMA.join(cells)
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(cells)
         + RIGHT_PARENTHESIS
     )
     return query
@@ -795,10 +804,17 @@ def values_statement(output: List[Attribute], data: List[Row]) -> str:
 
     query = (
         SELECT
-        + COMMA.join([f"{DOLLAR}{i+1}{AS}{c}" for i, c in enumerate(names)])
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(
+            [f"{DOLLAR}{i+1}{AS}{c}" for i, c in enumerate(names)]
+        )
+        + NEW_LINE
         + FROM
         + VALUES
-        + COMMA.join(rows)
+        + NEW_LINE
+        + TAB
+        + (COMMA + NEW_LINE + TAB).join(rows)
     )
     return query
 
