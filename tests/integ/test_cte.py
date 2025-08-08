@@ -4,6 +4,7 @@
 
 import logging
 import re
+import tracemalloc
 
 import pytest
 
@@ -332,6 +333,33 @@ def test_variable_binding_binary(session, type, action):
         union_count=union_count,
         join_count=join_count,
     )
+
+
+def test_memory_usage(session):
+    data = [(i, i * 2) for i in range(int(1e5))]
+
+    def create_and_collect_large_df():
+        df = session.create_dataframe(data, schema=["a", "b"])
+        df = df.filter(df.a < 10).with_column("c", df.b + 1)
+        df.union_all(df).collect()
+
+    def get_memory_usage_for_function(func):
+        tracemalloc.start()
+        initial_memory = tracemalloc.get_traced_memory()[0]
+        func()
+        current_memory = tracemalloc.get_traced_memory()[0]
+        memory_used = current_memory - initial_memory
+        tracemalloc.stop()
+        return memory_used
+
+    session._cte_optimization_enabled = False
+    disabled_memory = get_memory_usage_for_function(create_and_collect_large_df)
+    session._cte_optimization_enabled = True
+    enabled_memory = get_memory_usage_for_function(create_and_collect_large_df)
+    memory_used_ratio = enabled_memory / disabled_memory
+    assert (
+        memory_used_ratio < 1.1
+    ), "Memory usage should be less than 10% higher when CTE optimization is enabled"
 
 
 def test_variable_binding_multiple(session):
