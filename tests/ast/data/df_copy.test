@@ -164,10 +164,10 @@ body {
         }
         src {
           end_column: 24
-          end_line: 80
+          end_line: 84
           file: 2
           start_column: 15
-          start_line: 80
+          start_line: 84
         }
         variant {
           table_init: true
@@ -193,10 +193,10 @@ body {
         }
         src {
           end_column: 24
-          end_line: 80
+          end_line: 84
           file: 2
           start_column: 15
-          start_line: 80
+          start_line: 84
         }
         variant {
           table_init: true
@@ -342,10 +342,10 @@ body {
         }
         src {
           end_column: 24
-          end_line: 80
+          end_line: 84
           file: 2
           start_column: 15
-          start_line: 80
+          start_line: 84
         }
         variant {
           table_init: true
@@ -401,10 +401,10 @@ body {
         }
         src {
           end_column: 24
-          end_line: 80
+          end_line: 84
           file: 2
           start_column: 15
-          start_line: 80
+          start_line: 84
         }
         variant {
           table_init: true
@@ -460,10 +460,10 @@ body {
         }
         src {
           end_column: 24
-          end_line: 80
+          end_line: 84
           file: 2
           start_column: 15
-          start_line: 80
+          start_line: 84
         }
         variant {
           table_init: true
@@ -489,10 +489,10 @@ body {
         }
         src {
           end_column: 24
-          end_line: 80
+          end_line: 84
           file: 2
           start_column: 15
-          start_line: 80
+          start_line: 84
         }
         variant {
           table_init: true
@@ -542,10 +542,10 @@ body {
         id: 5
         src {
           end_column: 24
-          end_line: 80
+          end_line: 84
           file: 2
           start_column: 15
-          start_line: 80
+          start_line: 84
         }
       }
     }
@@ -562,10 +562,10 @@ body {
         id: 6
         src {
           end_column: 24
-          end_line: 80
+          end_line: 84
           file: 2
           start_column: 15
-          start_line: 80
+          start_line: 84
         }
       }
     }
@@ -672,10 +672,10 @@ body {
         id: 6
         src {
           end_column: 24
-          end_line: 80
+          end_line: 84
           file: 2
           start_column: 15
-          start_line: 80
+          start_line: 84
         }
       }
     }
@@ -722,10 +722,10 @@ body {
         id: 5
         src {
           end_column: 24
-          end_line: 80
+          end_line: 84
           file: 2
           start_column: 15
-          start_line: 80
+          start_line: 84
         }
       }
     }
