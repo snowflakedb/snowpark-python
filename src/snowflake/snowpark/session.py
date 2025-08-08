@@ -4075,13 +4075,12 @@ class Session:
             >>> session.telemetry_enabled
             True
         """
-        return self._conn._conn.telemetry_enabled
+        return self._conn._telemetry_client._enabled
 
     @telemetry_enabled.setter
     def telemetry_enabled(self, value):
         # Set both in-band and out-of-band telemetry to True/False
         if value:
-            self._conn._conn.telemetry_enabled = True
             self._conn._telemetry_client._enabled = True
             if is_in_stored_procedure() and not self._stored_proc_telemetry_enabled:
                 _logger.debug(
@@ -4090,7 +4089,6 @@ class Session:
                 self._conn._telemetry_client._enabled = False
 
         else:
-            self._conn._conn.telemetry_enabled = False
             self._conn._telemetry_client._enabled = False
 
     @property

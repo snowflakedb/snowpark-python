@@ -114,6 +114,8 @@ def test_internal_telemetry_disabled(mock_logger, mock_is_in_stored_proc):
     mock_session._conn = MagicMock()
     mock_session._conn._conn = MagicMock()
     mock_session._conn._telemetry_client = MagicMock()
+    Session.telemetry_enabled.fset(mock_session, False)
+    assert mock_session._conn._telemetry_client._enabled is False
     Session.telemetry_enabled.fset(mock_session, True)
     mock_logger.debug.assert_called_once_with(
         "Client side parameter ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY is set to False, telemetry could not be enabled"

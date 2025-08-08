@@ -508,9 +508,9 @@ class TelemetryClient:
             telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
             self.telemetry.try_add_log_to_batch(telemetry_data)
         elif self.stored_proc_meter is not None:
-            id = generate_random_alphanumeric(10)
+            gauge_id = generate_random_alphanumeric(10)
             self.stored_proc_meter.create_gauge(
-                f"snowflake.snowpark.client.gauge{id}",
+                f"snowflake.snowpark.client.gauge{gauge_id}",
                 description=json.dumps(msg, ensure_ascii=False, separators=(",", ":")),
                 unit="data",
             ).set(
