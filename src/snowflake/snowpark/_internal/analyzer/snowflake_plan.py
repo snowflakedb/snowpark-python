@@ -725,7 +725,8 @@ class SnowflakePlan(LogicalPlan):
             self.uuid,
         )
         final_sql = remove_comments(last_query.sql, child_uuids)
-        self.schema_query = remove_comments(self.schema_query, child_uuids)
+        if self.schema_query:
+            self.schema_query = remove_comments(self.schema_query, child_uuids)
         last_query.sql = final_sql
         last_query.query_line_intervals = query_line_intervals
 
