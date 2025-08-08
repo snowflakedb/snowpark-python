@@ -1632,10 +1632,10 @@ def test_cache_result_query(session):
 
     assert len(history.queries) == 2
     assert "CREATE  SCOPED TEMPORARY  TABLE" in history.queries[0].sql_text
+    assert "INSERT INTO" in Utils.normalize_sql(history.queries[1].sql_text)
     assert (
-        "INSERT  INTO" in history.queries[1].sql_text
-        and 'SELECT $1 AS "A", $2 AS "B" FROM  VALUES (1 :: INT, 2 :: INT)'
-        in history.queries[1].sql_text
+        'SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, 2 :: INT)'
+        in Utils.normalize_sql(history.queries[1].sql_text)
     )
 
 
