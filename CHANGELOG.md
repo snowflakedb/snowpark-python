@@ -6,6 +6,15 @@
 
 #### New Features
 
+- Added support for the following `xpath` functions in `functions.py`:
+  - `xpath`
+  - `xpath_string`
+  - `xpath_boolean`
+  - `xpath_int`
+  - `xpath_float`
+  - `xpath_double`
+  - `xpath_long`
+  - `xpath_short`
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_arrow()`.
 
 #### Bug Fixes
