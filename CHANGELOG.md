@@ -22,6 +22,7 @@
 - Fixed a bug in CTE optimization stage where `deepcopy` of internal plans would cause a memory spike when a dataframe is created locally using `session.create_dataframe()` using a large input data.
 - Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
 - Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
+
 #### New Features
 
 - **Asynchronous Stored Procedure**: Added support for non-blocking stored procedure calls that return `AsyncJob` objects.
@@ -33,7 +34,7 @@
 
 - Added a dependency on `protobuf<6.32`
 
-## 1.36.0 (YYYY-MM-DD)
+## 1.36.0 (2025-08-05)
 
 ### Snowpark Python API Updates
 
@@ -48,27 +49,18 @@
   - `ai_sentiment`
 - Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
 
-#### Bug Fixes
-
-- Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
-
 ### Snowpark pandas API Updates
 
 #### New Features
 
 #### Improvements
 - Hybrid execution row estimate improvements and a reduction of eager calls.
+- Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution.
 - Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
-- Supported applying Snowpark functions and Snowflake Cortex functions to dataframes and series using the `Pandas` backend.
 
 #### Bug Fixes
 
 - Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically.
-
-### Snowpark pandas API Updates
-
-#### Improvements
-- Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution. Lower the default to 100k from 10M.
 
 ## 1.35.0 (2025-07-24)
 
