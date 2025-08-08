@@ -298,6 +298,7 @@ _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
 _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES = (
     "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES"
 )
+_PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED = "ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY"
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -674,6 +675,12 @@ class Session:
             self._enable_multiline_queries()
         else:
             self._disable_multiline_queries()
+
+        self._internal_telemetry_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED, False
+            )
+        )
 
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
@@ -4083,17 +4090,21 @@ class Session:
             >>> session.telemetry_enabled
             True
         """
-        return self._conn._conn.telemetry_enabled
+        return self._conn._telemetry_client._enabled
 
     @telemetry_enabled.setter
     def telemetry_enabled(self, value):
         # Set both in-band and out-of-band telemetry to True/False
         if value:
-            self._conn._conn.telemetry_enabled = True
-            self._conn._telemetry_client.telemetry._enabled = True
+            self._conn._telemetry_client._enabled = True
+            if is_in_stored_procedure() and not self._stored_proc_telemetry_enabled:
+                _logger.debug(
+                    "Client side parameter ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY is set to False, telemetry could not be enabled"
+                )
+                self._conn._telemetry_client._enabled = False
+
         else:
-            self._conn._conn.telemetry_enabled = False
-            self._conn._telemetry_client.telemetry._enabled = False
+            self._conn._telemetry_client._enabled = False
 
     @property
     def file(self) -> FileOperation:
