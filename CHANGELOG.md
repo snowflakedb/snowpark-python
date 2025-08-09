@@ -9,6 +9,7 @@
 - Added support for the scalar functions in `functions.py`:
   - `div0null`
   - `all_user_names`
+  - `application_json`
 
 - Added support for the following `xpath` functions in `functions.py`:
   - `xpath`

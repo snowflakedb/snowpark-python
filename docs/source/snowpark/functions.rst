@@ -32,6 +32,7 @@ Functions
     ai_summarize_agg
     all_user_names
     any_value
+    application_json
     approx_count_distinct
     approx_percentile
     approx_percentile_accumulate
