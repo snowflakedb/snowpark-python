@@ -334,7 +334,9 @@ class RelationalGroupedDataFrame:
             exclude_grouping_columns=exclude_grouping_columns,
             _emit_ast=False,
         )
-        df._ops_after_agg = set()
+        # if no grouping exprs, there is already a LIMIT 1 in the query
+        # see aggregate_statement in analyzer_utils.py
+        df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
 
         if _emit_ast:
             df._ast_id = stmt.uid
@@ -525,7 +527,9 @@ class RelationalGroupedDataFrame:
             ),
             _emit_ast=False,
         )
-        df._ops_after_agg = set()
+        # if no grouping exprs, there is already a LIMIT 1 in the query
+        # see aggregate_statement in analyzer_utils.py
+        df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
 
         if _emit_ast:
             stmt = working_dataframe._session._ast_batch.bind()
@@ -758,7 +762,9 @@ class RelationalGroupedDataFrame:
             exclude_grouping_columns=exclude_grouping_columns,
             _emit_ast=False,
         )
-        df._ops_after_agg = set()
+        # if no grouping exprs, there is already a LIMIT 1 in the query
+        # see aggregate_statement in analyzer_utils.py
+        df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
 
         # TODO: count seems similar to mean, min, .... Can we unify implementation here?
         if _emit_ast:
@@ -805,7 +811,9 @@ class RelationalGroupedDataFrame:
             agg_exprs.append(expr)
 
         df = self._to_df(agg_exprs, exclude_grouping_columns=exclude_grouping_columns)
-        df._ops_after_agg = set()
+        # if no grouping exprs, there is already a LIMIT 1 in the query
+        # see aggregate_statement in analyzer_utils.py
+        df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
 
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.bind()
