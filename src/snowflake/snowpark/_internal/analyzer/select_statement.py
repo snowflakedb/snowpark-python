@@ -208,8 +208,10 @@ def _deepcopy_selectable_fields(
     """
     Make a deep copy of the fields from the from_selectable to the to_selectable
     """
-    to_selectable.pre_actions = deepcopy(from_selectable.pre_actions)
-    to_selectable.post_actions = deepcopy(from_selectable.post_actions)
+    # shallow copy pre_actions as it can have large data for BatchInsertQuery which should
+    # never be modified during the optimization stage.
+    to_selectable.pre_actions = copy(from_selectable.pre_actions)
+    to_selectable.post_actions = copy(from_selectable.post_actions)
     to_selectable.flatten_disabled = from_selectable.flatten_disabled
     to_selectable._column_states = deepcopy(from_selectable._column_states)
     to_selectable.expr_to_alias = deepcopy(from_selectable.expr_to_alias)

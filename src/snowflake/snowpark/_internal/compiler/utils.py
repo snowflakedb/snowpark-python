@@ -336,8 +336,8 @@ def get_snowflake_plan_queries(
     ):
         # make a copy of the original query to avoid any update to the
         # original query object
-        plan_queries = copy.deepcopy(plan.queries)
-        post_action_queries = copy.deepcopy(plan.post_actions)
+        plan_queries = copy.copy(plan.queries)
+        post_action_queries = copy.copy(plan.post_actions)
         table_names = []
         definition_queries = []
         final_query_params = []

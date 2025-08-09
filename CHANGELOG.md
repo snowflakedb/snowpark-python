@@ -6,12 +6,23 @@
 
 #### New Features
 
+- Added support for the following `xpath` functions in `functions.py`:
+  - `xpath`
+  - `xpath_string`
+  - `xpath_boolean`
+  - `xpath_int`
+  - `xpath_float`
+  - `xpath_double`
+  - `xpath_long`
+  - `xpath_short`
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_arrow()`.
 
 #### Bug Fixes
 
+- Fixed a bug in CTE optimization stage where `deepcopy` of internal plans would cause a memory spike when a dataframe is created locally using `session.create_dataframe()` using a large input data.
 - Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
 - Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
+
 #### New Features
 
 - **Asynchronous Stored Procedure**: Added support for non-blocking stored procedure calls that return `AsyncJob` objects.
@@ -19,7 +30,11 @@
   - Added `block: bool = True` parameter to `StoredProcedure.__call__()` for async support across both named and anonymous stored procedures.
   - Added `Session.call_nowait()` that is equivalent to `Session.call(block=False)`.
 
-## 1.36.0 (YYYY-MM-DD)
+#### Dependency Updates
+
+- Added a dependency on `protobuf<6.32`
+
+## 1.36.0 (2025-08-05)
 
 ### Snowpark Python API Updates
 
@@ -34,26 +49,18 @@
   - `ai_sentiment`
 - Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
 
-#### Bug Fixes
-
-- Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
-
 ### Snowpark pandas API Updates
 
 #### New Features
 
 #### Improvements
 - Hybrid execution row estimate improvements and a reduction of eager calls.
+- Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution.
 - Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
 
 #### Bug Fixes
 
 - Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically.
-
-### Snowpark pandas API Updates
-
-#### Improvements
-- Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution. Lower the default to 100k from 10M.
 
 ## 1.35.0 (2025-07-24)
 
