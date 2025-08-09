@@ -13050,3 +13050,32 @@ def ai_sentiment(
         return _call_function(
             sql_func_name, text_col, cat_col, _ast=ast, _emit_ast=_emit_ast
         )
+
+
+@publicapi
+def div0null(
+    dividend: Union[ColumnOrName, int, float],
+    divisor: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Performs division like the division operator (/),
+    but returns 0 when the divisor is 0 or NULL (rather than reporting an error).
+
+    Example::
+
+        >>> df = session.create_dataframe([[10, 2], [10, 0], [10, None]], schema=["dividend", "divisor"])
+        >>> df.select(div0null(df["dividend"], df["divisor"]).alias("result")).collect()
+        [Row(RESULT=Decimal('5.000000')), Row(RESULT=Decimal('0.000000')), Row(RESULT=Decimal('0.000000'))]
+    """
+    dividend_col = (
+        lit(dividend)
+        if isinstance(dividend, (int, float))
+        else _to_col_if_str(dividend, "div0null")
+    )
+    divisor_col = (
+        lit(divisor)
+        if isinstance(divisor, (int, float))
+        else _to_col_if_str(divisor, "div0null")
+    )
+    return builtin("div0null", _emit_ast=_emit_ast)(dividend_col, divisor_col)
