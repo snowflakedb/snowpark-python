@@ -13273,8 +13273,7 @@ def application_json(message: ColumnOrName, _emit_ast: bool = True) -> Column:
     Example::
 
         >>> df = session.create_dataframe([['{"data": "hello world"}']], schema=["message"])
-        >>> result = df.select(application_json(df["message"]).alias("result")).collect()
-        >>> assert len(result) == 1 and "application/json" in result[0]["RESULT"]
+        >>> df.select(application_json(df["message"]).alias("result")).collect()
         [Row(RESULT='{"application/json":"{\\"data\\": \\"hello world\\"}"}')]
     """
     c = _to_col_if_str(message, "application_json")
