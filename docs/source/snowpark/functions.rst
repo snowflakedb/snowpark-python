@@ -30,6 +30,7 @@ Functions
     ai_sentiment
     ai_similarity
     ai_summarize_agg
+    all_user_names
     any_value
     approx_count_distinct
     approx_percentile

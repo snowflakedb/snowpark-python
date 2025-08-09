@@ -13243,3 +13243,17 @@ def div0null(
         else _to_col_if_str(divisor, "div0null")
     )
     return builtin("div0null", _emit_ast=_emit_ast)(dividend_col, divisor_col)
+
+
+def all_user_names(_emit_ast: bool = True) -> Column:
+    """
+    Returns a list of all user names in the current account.
+
+    Example::
+
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(all_user_names()).collect()
+        >>> assert result[0]['ALL_USER_NAMES()'] is not None
+        >>> assert isinstance(result[0]['ALL_USER_NAMES()'], str)
+    """
+    return builtin("all_user_names", _emit_ast=_emit_ast)()
