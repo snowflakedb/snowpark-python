@@ -116,22 +116,9 @@ class DataSourcePartitioner:
         if self.custom_schema is None:
             return auto_infer_schema
         else:
-            if isinstance(self.custom_schema, str):
-                custom_schema = type_string_to_type_object(self.custom_schema)
-                if not isinstance(custom_schema, StructType):
-                    raise ValueError(
-                        f"Invalid schema string: {self.custom_schema}. "
-                        f"You should provide a valid schema string representing a struct type."
-                        'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
-                    )
-            elif isinstance(self.custom_schema, StructType):
-                custom_schema = self.custom_schema
-            else:
-                raise ValueError(
-                    f"Invalid schema type: {type(self.custom_schema)}."
-                    'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
-                    'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
-                )
+            custom_schema = DataSourcePartitioner.formatting_custom_schema(
+                self.custom_schema
+            )
 
             if not auto_infer_successful:
                 return custom_schema
@@ -164,63 +151,82 @@ class DataSourcePartitioner:
             self._query_input_alias,
         )
         logger.debug(f"Generated select query: {select_query}")
-        if self.column is None:
+
+        return DataSourcePartitioner.generate_partitions(
+            select_query,
+            self.schema,
+            self.predicates,
+            self.column,
+            self.lower_bound,
+            self.upper_bound,
+            self.num_partitions,
+        )
+
+    @staticmethod
+    def generate_partitions(
+        select_query: str,
+        schema: StructType,
+        predicates: Optional[List[str]] = None,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+    ):
+        if column is None:
             if (
-                self.lower_bound is not None
-                or self.upper_bound is not None
-                or self.num_partitions is not None
+                lower_bound is not None
+                or upper_bound is not None
+                or num_partitions is not None
             ):
                 raise ValueError(
                     "when column is not specified, lower_bound, upper_bound, num_partitions are expected to be None"
                 )
-            if self.predicates is None:
+            if predicates is None:
                 partitioned_queries = [select_query]
             else:
-                partitioned_queries = self.generate_partition_with_predicates(
-                    select_query, self.predicates
+                partitioned_queries = (
+                    DataSourcePartitioner.generate_partition_with_predicates(
+                        select_query, predicates
+                    )
                 )
         else:
-            if (
-                self.lower_bound is None
-                or self.upper_bound is None
-                or self.num_partitions is None
-            ):
+            if lower_bound is None or upper_bound is None or num_partitions is None:
                 raise ValueError(
                     "when column is specified, lower_bound, upper_bound, num_partitions must be specified"
                 )
 
             column_type = None
-            for field in self.schema.fields:
+            for field in schema.fields:
                 col = (
-                    self.column
-                    if self.column[0] == '"' and self.column[-1] == '"'
-                    else self.column.upper()
+                    column if column[0] == '"' and column[-1] == '"' else column.upper()
                 )
                 if field.name == col:
                     column_type = field.datatype
                     break
             if column_type is None:
-                raise ValueError(f"Specified column {self.column} does not exist")
+                raise ValueError(f"Specified column {column} does not exist")
 
             if not isinstance(column_type, (_NumericType, DateType)):
                 raise ValueError(
                     f"unsupported type {column_type}, column must be a numeric type like int and float, or date type"
                 )
-            partitioned_queries = self.generate_partition(
-                select_query,
-                column_type,
-                self.column,
-                self.lower_bound,
-                self.upper_bound,
-                self.num_partitions,
+            partitioned_queries = (
+                DataSourcePartitioner.generate_partition_with_column_name(
+                    select_query,
+                    column_type,
+                    column,
+                    lower_bound,
+                    upper_bound,
+                    num_partitions,
+                )
             )
         return partitioned_queries
 
     @staticmethod
-    def generate_partition(
+    def generate_partition_with_column_name(
         select_query: str,
         column_type: DataType,
-        column: Optional[str] = None,
+        column: str,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
         num_partitions: Optional[int] = None,
@@ -296,6 +302,26 @@ class DataSourcePartitioner:
         select_query: str, predicates: List[str]
     ) -> List[str]:
         return [select_query + f" WHERE {predicate}" for predicate in predicates]
+
+    @staticmethod
+    def formatting_custom_schema(custom_schema: Union[str, StructType]) -> StructType:
+        if isinstance(custom_schema, str):
+            schema = type_string_to_type_object(custom_schema)
+            if not isinstance(schema, StructType):
+                raise ValueError(
+                    f"Invalid schema string: {custom_schema}. "
+                    f"You should provide a valid schema string representing a struct type."
+                    'For example: "id INTEGER, int_col INTEGER, text_col STRING".'
+                )
+        elif isinstance(custom_schema, StructType):
+            schema = custom_schema
+        else:
+            raise ValueError(
+                f"Invalid schema type: {type(custom_schema)}."
+                'The schema should be either a valid schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING".'
+                'or a valid StructType, for example: StructType([StructField("ID", IntegerType(), False)])'
+            )
+        return schema
 
 
 def to_internal_value(value: Union[int, str, float], column_type: DataType):
