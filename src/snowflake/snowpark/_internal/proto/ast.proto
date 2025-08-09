@@ -64,7 +64,7 @@ message ColumnAliasFn {
   }
 }
 
-// type.ir:32
+// type.ir:33
 message ColumnRef {
   oneof sealed_value {
     ColumnIdentifier column_identifier = 1;
@@ -72,12 +72,12 @@ message ColumnRef {
   }
 }
 
-// type.ir:33
+// type.ir:34
 message ColumnIdentifier {
   string name = 1;
 }
 
-// type.ir:34
+// type.ir:35
 message ColumnName {
   string name = 1;
 }
@@ -110,6 +110,7 @@ message DataType {
     TimestampType timestamp_type = 23;
     bool variant_type = 24;
     VectorType vector_type = 25;
+    YearMonthIntervalType year_month_interval_type = 26;
   }
 }
 
@@ -161,12 +162,18 @@ message VectorType {
   DataType ty = 2;
 }
 
-// type.ir:27
+// type.ir:26
+message YearMonthIntervalType {
+  int64 end_field = 1;
+  int64 start_field = 2;
+}
+
+// type.ir:28
 message PandasSeriesType {
   DataType el_ty = 1;
 }
 
-// type.ir:28
+// type.ir:29
 message PandasDataFrameType {
   repeated string col_names = 1;
   repeated DataType col_types = 2;
@@ -196,7 +203,7 @@ message DataframeData_Pandas {
   StagedPandasDataframe v = 1;
 }
 
-// type.ir:44
+// type.ir:45
 message DataframeSchema {
   oneof sealed_value {
     DataframeSchema_List dataframe_schema__list = 1;
@@ -204,12 +211,12 @@ message DataframeSchema {
   }
 }
 
-// type.ir:45
+// type.ir:46
 message DataframeSchema_List {
   repeated string vs = 1;
 }
 
-// type.ir:46
+// type.ir:47
 message DataframeSchema_Struct {
   StructType v = 1;
 }
@@ -327,7 +334,7 @@ message TableVariant {
   }
 }
 
-// type.ir:37
+// type.ir:38
 message TimestampTimeZone {
   oneof variant {
     bool timestamp_time_zone_default = 1;
