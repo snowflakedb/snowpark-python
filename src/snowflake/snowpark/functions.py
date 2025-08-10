@@ -13295,6 +13295,7 @@ def array_remove_at(
             (e.g. -1 removes the last element in the array).
 
     Example::
+
         >>> df = session.create_dataframe([([2, 5, 7], 0), ([2, 5, 7], -1), ([2, 5, 7], 10)], schema=["array_col", "position_col"])
         >>> df.select(array_remove_at("array_col", "position_col").alias("result")).collect()
         [Row(RESULT='[\n  5,\n  7\n]'), Row(RESULT='[\n  2,\n  5\n]'), Row(RESULT='[\n  2,\n  5,\n  7\n]')]
