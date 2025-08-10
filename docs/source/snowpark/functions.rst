@@ -57,6 +57,7 @@ Functions
     array_position
     array_prepend
     array_remove
+    array_remove_at
     array_reverse
     array_size
     array_slice
