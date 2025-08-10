@@ -10,6 +10,7 @@
   - `div0null`
   - `all_user_names`
   - `application_json`
+  - `array_remove_at`
 
 - Added support for the following `xpath` functions in `functions.py`:
   - `xpath`
