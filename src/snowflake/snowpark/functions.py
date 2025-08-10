@@ -13278,3 +13278,27 @@ def application_json(message: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = _to_col_if_str(message, "application_json")
     return builtin("snowflake.notification.application_json", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def array_remove_at(
+    array: ColumnOrName, position: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns an ARRAY with the element at the specified position removed.
+
+    Args:
+        array: Column containing the source ARRAY.
+        position: Column containing a (zero-based) position in the source ARRAY.
+            The element at this position is removed from the resulting ARRAY.
+            A negative position is interpreted as an index from the back of the array
+            (e.g. -1 removes the last element in the array).
+
+    Example::
+        >>> df = session.create_dataframe([([2, 5, 7], 0), ([2, 5, 7], -1), ([2, 5, 7], 10)], schema=["array_col", "position_col"])
+        >>> df.select(array_remove_at("array_col", "position_col").alias("result")).collect()
+        [Row(RESULT='[\n  5,\n  7\n]'), Row(RESULT='[\n  2,\n  5\n]'), Row(RESULT='[\n  2,\n  5,\n  7\n]')]
+    """
+    a = _to_col_if_str(array, "array_remove_at")
+    p = _to_col_if_str(position, "array_remove_at")
+    return builtin("array_remove_at", _emit_ast=_emit_ast)(a, p)
