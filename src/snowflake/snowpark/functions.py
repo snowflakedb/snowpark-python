@@ -13303,3 +13303,18 @@ def array_remove_at(
     a = _to_col_if_str(array, "array_remove_at")
     p = _to_col_if_str(position, "array_remove_at")
     return builtin("array_remove_at", _emit_ast=_emit_ast)(a, p)
+
+
+@publicapi
+def as_boolean(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Casts a VARIANT value to a boolean.
+
+    Example::
+
+        >>> df = session.sql("select true::variant as a, false::variant as b, 'text'::variant as c")
+        >>> df.select(as_boolean(col("a")).alias("true_result"), as_boolean(col("b")).alias("false_result"), as_boolean(col("c")).alias("null_result")).collect()
+        [Row(TRUE_RESULT=True, FALSE_RESULT=False, NULL_RESULT=None)]
+    """
+    c = _to_col_if_str(variant, "as_boolean")
+    return builtin("as_boolean", _emit_ast=_emit_ast)(c)

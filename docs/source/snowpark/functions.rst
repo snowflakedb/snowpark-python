@@ -69,6 +69,7 @@ Functions
     arrays_zip
     as_array
     as_binary
+    as_boolean
     as_char
     as_date
     as_decimal

@@ -11,6 +11,7 @@
   - `all_user_names`
   - `application_json`
   - `array_remove_at`
+  - `as_boolean`
 
 - Added support for the following `xpath` functions in `functions.py`:
   - `xpath`
