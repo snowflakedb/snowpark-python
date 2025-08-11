@@ -76,6 +76,7 @@ MINUS = " - "
 PLUS = " + "
 DISTINCT = " DISTINCT "
 LIKE = " LIKE "
+ILIKE = " ILIKE "
 CAST = " CAST "
 TRY_CAST = " TRY_CAST "
 IN = " IN "
@@ -508,11 +509,14 @@ def project_statement(
     child: str,
     is_distinct: bool = False,
     child_uuid: Optional[str] = None,
+    ilike_pattern: Optional[str] = None,
 ) -> str:
     if not project:
         columns = STAR
     else:
         columns = NEW_LINE + TAB + (COMMA + NEW_LINE + TAB).join(project)
+    if ilike_pattern:
+        columns = f"{columns}{ILIKE}{SINGLE_QUOTE}{ilike_pattern}{SINGLE_QUOTE}"
     UUID = format_uuid(child_uuid)
     return (
         SELECT

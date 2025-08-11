@@ -4866,6 +4866,54 @@ def test_select_star_and_more_columns(session):
     Utils.check_answer(df3, [Row(1, 2, 3)])
 
 
+def test_col_ilike(session):
+    """Test col_ilike functionality for selecting columns by pattern."""
+    df = session.create_dataframe(
+        [
+            [1, "A", 101, "HR"],
+            [2, "B", 102, "Fin"],
+            [3, "C", 103, "Eng"],
+            [4, "D", 104, "Prod"],
+        ],
+        schema=["USER_ID", "name", "dept_id", "DEPARTMENT"],
+    )
+
+    # Test 1: Select columns containing 'id' (case-insensitive)
+    df_id = df.col_ilike("%Id%").limit(1)
+    result = df_id.collect()
+    assert (
+        len(result) == 1
+        and len(result[0]) == 2
+        and result[0]["USER_ID"] == 1
+        and result[0]["DEPT_ID"] == 101
+    )
+
+    # Test 2: Test error case when no columns match the pattern (with SQL simplifier enabled)
+    df_no_match = df.col_ilike("%xyz%")  # Pattern that doesn't match any column
+    with pytest.raises(SnowparkSQLException, match="SELECT with no columns"):
+        df_no_match.collect()
+
+    # Test 3: Test select a subset of columns and then using col_ilike
+    res = df.select("USER_ID", "name").col_ilike("%id%").collect()
+    assert len(res) == 4 and len(res[0]) == 1  # USER_ID columns
+
+    # Test 4: Test select start explicitly and then using col_ilike
+    res = df.select("*").col_ilike("%id%").collect()
+    assert len(res) == 4 and len(res[0]) == 2  # USER_ID and dept_id columns
+
+    # Test 5: Test drop/exclude a column and then using col_ilike
+    if (
+        session.conf.get("use_simplified_query_generation")
+        and session.sql_simplifier_enabled
+    ):
+        with pytest.raises(SnowparkSQLException, match="SQL compilation error"):
+            # IKIKE can not be used at the same time with EXCLUDE
+            df.drop("name").col_ilike("%id%").collect()
+    else:
+        res = df.drop("name").col_ilike("%id%").collect()
+        assert len(res) == 4 and len(res[0]) == 2  # USER_ID and dept_id columns
+
+
 def test_drop_columns_special_names(session):
     """Test whether columns with newlines can be dropped."""
     table_name = Utils.random_table_name()

@@ -1936,6 +1936,61 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    def col_ilike(
+        self,
+        pattern: str,
+        _ast_stmt: proto.Bind = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Returns a new DataFrame with only the columns whose names match the specified
+        pattern using case-insensitive ILIKE matching (similar to SELECT * ILIKE 'pattern' in SQL).
+
+        Args:
+            pattern: The ILIKE pattern to match column names against. You can use the following wildcards:
+                - Use an underscore (_) to match any single character.
+                - Use a percent sign (%) to match any sequence of zero or more characters.
+                - To match a sequence anywhere within the column name, begin and end the pattern with %.
+
+        Returns:
+            DataFrame: A new DataFrame containing only columns matching the pattern.
+
+        Raises:
+            ValueError: If SQL simplifier is not enabled.
+            SnowparkSQLException: If no columns match the specified pattern.
+
+        Examples::
+
+            >>> # Select all columns containing 'id' (case-insensitive)
+            >>> df = session.create_dataframe([[1, "John", 101], [2, "Jane", 102]],
+            ...                                 schema=["USER_ID", "Name", "dept_id"])
+            >>> df.col_ilike("%id%").show()
+            -------------------------
+            |"USER_ID"  |"dept_id"  |
+            -------------------------
+            |1          |101        |
+            |2          |102        |
+            -------------------------
+            <BLANKLINE>
+        """
+
+        # If SQL simplifier is enabled AND we have a select statement, use the SelectStatement approach
+        if self._select_statement:
+            df = self._with_plan(
+                self._select_statement.ilike(pattern), _ast_stmt=_ast_stmt
+            )
+        else:
+            # Otherwise, use the Project node with ilike_pattern
+            from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+
+            df = self._with_plan(
+                Project([], self._plan, ilike_pattern=pattern), _ast_stmt=_ast_stmt
+            )
+
+        add_api_call(df, "DataFrame.col_ilike")
+        return df
+
+    @df_api_usage
+    @publicapi
     def filter(
         self,
         expr: ColumnOrSqlExpr,
