@@ -97,6 +97,7 @@ class JDBC:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
+        single_column_if_infer_schema_fail: Optional[bool] = False,
         _emit_ast: bool = True,
     ) -> None:
         self.session = session
@@ -118,6 +119,7 @@ class JDBC:
         self.predicates = predicates
         self.session_init_statement = session_init_statement
         self.raw_schema = None
+        self.single_column_if_infer_schema_fail = single_column_if_infer_schema_fail
         self._emit_ast = _emit_ast
         self.imports = (
             f"""IMPORTS =({",".join([f"'{imp}'" for imp in self.imports])})"""
@@ -187,8 +189,6 @@ class JDBC:
                     List<OutputRow> list = new ArrayList<>();
                      try {{
                         PreparedStatement stmt = this.conn.prepareStatement(query);
-                        // Avoid fetching data – get only metadata
-                        stmt.setMaxRows(1);
                         try (ResultSet rs = stmt.executeQuery()) {{
                             ResultSetMetaData meta = rs.getMetaData();
                             int columnCount = meta.getColumnCount();
