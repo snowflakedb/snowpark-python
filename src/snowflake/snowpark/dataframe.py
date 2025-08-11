@@ -4364,9 +4364,12 @@ class DataFrame:
          Args:
             prompt: The prompt template string. Use placeholders like ``{name}`` when passing a dict of columns,
                 or ``{0}``, ``{1}`` when passing a list.
-            input_columns: A list of Columns (positional placeholders {0},{1},...) or a dict mapping placeholder names to Columns.
-            output_column: The name of the output column to be appended. If not provided, a column named ``AI_COMPLETE_OUTPUT`` is appended.
-            model: Model name to pass to the underlying function. Required.
+            input_columns: A list of Columns (positional placeholders ``{0}``, ``{1}``, ...)
+                or a dict mapping placeholder names to Columns.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_COMPLETE_OUTPUT`` is appended.
+            model: Model name to pass to the underlying function.
+                It must be specified.
             model_parameters: Optional dict containing model hyperparameters:
 
                 - temperature: Value from 0 to 1 controlling randomness (default: 0)

@@ -20,6 +20,7 @@ DataFrame
     :toctree: api/
 
     DataFrame.agg
+    DataFrame.ai_complete
     DataFrame.approxQuantile
     DataFrame.approx_quantile
     DataFrame.cache_result
