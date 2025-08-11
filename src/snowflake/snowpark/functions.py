@@ -13296,9 +13296,9 @@ def array_remove_at(
 
     Example::
 
-        >>> df = session.create_dataframe([([2,5,7], 0), ([2,5,7], -1), ([2,5,7], 10)], schema=["array_col", "position_col"])
+        >>> df = session.create_dataframe([([2, 5, 7], 0), ([2, 5, 7], -1), ([2, 5, 7], 10)], schema=["array_col", "position_col"])
         >>> df.select(array_remove_at("array_col", "position_col").alias("result")).collect()
-        [Row(RESULT='[\n5,\n 7\n]'), Row(RESULT='[\n 2,\n 5\n]'), Row(RESULT='[\n 2,\n5,\n 7\n]')]
+        [Row(RESULT='[\n 5,\n 7\n]'), Row(RESULT='[\n 2,\n 5\n]'), Row(RESULT='[\n 2,\n 5,\n 7\n]')]
     """
     a = _to_col_if_str(array, "array_remove_at")
     p = _to_col_if_str(position, "array_remove_at")
