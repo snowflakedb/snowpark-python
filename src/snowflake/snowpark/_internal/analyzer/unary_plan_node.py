@@ -355,3 +355,23 @@ class CreateDynamicTableCommand(UnaryNode):
         self.data_retention_time = data_retention_time
         self.max_data_extension_time = max_data_extension_time
         self.iceberg_config = iceberg_config
+
+
+class Before(UnaryNode):
+    def __init__(
+        self,
+        child: LogicalPlan,
+        timestamp: Optional[str] = None,
+        offset: Optional[int] = None,
+        statement: Optional[str] = None,
+    ) -> None:
+        super().__init__(child)
+        self.timestamp = timestamp
+        self.offset = offset
+        self.statement = statement
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        return {
+            PlanNodeCategory.BEFORE: 1,
+        }

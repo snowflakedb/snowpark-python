@@ -207,6 +207,9 @@ UUID_COMMENT = "-- {}"
 MODEL = "MODEL"
 EXCLAMATION_MARK = "!"
 HAVING = " HAVING "
+BEFORE = " BEFORE "
+STATEMENT = " STATEMENT "
+TIMESTAMP = " TIMESTAMP "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -542,6 +545,36 @@ def filter_statement(
             + WHERE
             + condition
         )
+
+
+def before_statement(
+    child: str,
+    timestamp: Optional[str] = None,
+    offset: Optional[int] = None,
+    statement: Optional[str] = None,
+):
+    sql_query = child + BEFORE + LEFT_PARENTHESIS
+    if statement is not None:
+        sql_query += (
+            STATEMENT
+            + RIGHT_ARROW
+            + SINGLE_QUOTE
+            + statement
+            + SINGLE_QUOTE
+            + RIGHT_PARENTHESIS
+        )
+    elif offset is not None:
+        sql_query += OFFSET + RIGHT_ARROW + str(offset) + RIGHT_PARENTHESIS
+    elif timestamp is not None:
+        sql_query += (
+            TIMESTAMP
+            + RIGHT_ARROW
+            + SINGLE_QUOTE
+            + timestamp
+            + SINGLE_QUOTE
+            + RIGHT_PARENTHESIS
+        )
+    return sql_query
 
 
 def sample_statement(

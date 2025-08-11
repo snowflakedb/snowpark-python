@@ -5600,3 +5600,131 @@ def test_order_by_col(session, sql_simplifier_enabled, local_testing_mode):
 
     df = session.create_dataframe([(1, 2.0, "foo"), (2, None, "bar")], ["a", "b", "c"])
     Utils.check_answer(df.select("c").orderBy("b"), df.select("c").orderBy(col("b")))
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Time travel is not supported in Local Testing",
+)
+def test_before_functionality(session):
+    """Test before() function with table operations, DataFrame transformations, and SQL generation."""
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    try:
+        initial_data = [
+            (1, "electronics", 100, None),
+            (2, "clothes", 200, 50),
+            (3, "cars", 300, 75),
+        ]
+        df_initial = session.create_dataframe(
+            initial_data, schema=["id", "dept", "sales", "discount"]
+        )
+        df_initial.write.save_as_table(table_name, table_type="temporary")
+
+        ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][
+            0
+        ]
+
+        with session.query_history() as query_history:
+            session.sql(
+                f"UPDATE {table_name} SET sales = sales * 2 WHERE id <= 2"
+            ).collect()
+
+        update_query_id = query_history.queries[-1].query_id
+
+        # Test 1: Basic before() with DataFrame operations (select 2 columns)
+        df_selected = session.table(table_name).select("id", "sales")
+        df_before = df_selected.before(statement=update_query_id)
+        expected_before = [
+            Row(1, 100),
+            Row(2, 200),
+            Row(3, 300),
+        ]
+        Utils.check_answer(df_before.sort("id"), expected_before)
+
+        ts_now = session.sql("select current_timestamp() as CT").collect()[0][0]
+        offset_seconds = int((ts_now - ts_before_update).total_seconds())
+        df_before_offset = df_selected.before(offset=-offset_seconds)
+        Utils.check_answer(df_before_offset.sort("id"), expected_before)
+
+        # Test 2: before() with DataFrame transformations and aggregation
+        df_agg_before = (
+            session.table(table_name)
+            .before(statement=update_query_id)
+            .filter(col("sales") >= 200)
+            .agg({"sales": "sum"})
+        )
+        result_agg = df_agg_before.collect()
+        assert result_agg[0][0] == 500  # 200 + 300 = 500
+
+        df_agg_current = session.table(table_name).agg({"sales": "sum"})
+        result_current = df_agg_current.collect()
+        assert result_current[0][0] == 900  # 200 + 400 + 300 = 900
+
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Time travel is not supported in Local Testing",
+)
+def test_before_with_joins_and_complex_operations(session):
+    """Test before() function with joins, window functions, and complex query chains."""
+    table1_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table2_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    try:
+        df1_initial = session.create_dataframe(
+            [(1, "user1"), (2, "user2")], schema=["user_id", "username"]
+        )
+        df1_initial.write.save_as_table(table1_name, table_type="temporary")
+
+        df2_initial = session.create_dataframe(
+            [(1, 100), (2, 200)], schema=["user_id", "score"]
+        )
+        df2_initial.write.save_as_table(table2_name, table_type="temporary")
+
+        with session.query_history() as query_history:
+            # Update scores in table2
+            session.sql(f"UPDATE {table2_name} SET score = score + 50").collect()
+
+        update_query_id = query_history.queries[-1].query_id
+
+        # Test 1: before() with join operations
+        df_table1 = session.table(table1_name)
+        df_table2_before = session.table(table2_name).before(update_query_id)
+
+        df_joined = (
+            df_table1.join(
+                df_table2_before, df_table1.user_id == df_table2_before.user_id
+            )
+            .select(df_table1.username, df_table2_before.score)
+            .sort(df_table1.user_id)
+        )
+
+        expected_joined = [Row("user1", 100), Row("user2", 200)]
+        Utils.check_answer(df_joined, expected_joined)
+
+        # Test 2: before() with window functions
+        df_window = (
+            session.table(table2_name)
+            .before(update_query_id)
+            .with_column("rank", rank().over(Window.order_by(col("score").desc())))
+            .sort("user_id")
+        )
+
+        expected_window = [Row(1, 100, 2), Row(2, 200, 1)]
+        Utils.check_answer(df_window, expected_window)
+
+        # Test 3: before() with aggregation on joined data
+        df_agg_joined = df_table1.join(
+            df_table2_before, df_table1.user_id == df_table2_before.user_id
+        ).agg({"score": "avg"})
+
+        result_avg = df_agg_joined.collect()
+        assert result_avg[0][0] == 150  # (100 + 200) / 2 = 150
+
+    finally:
+        Utils.drop_table(session, table1_name)
+        Utils.drop_table(session, table2_name)

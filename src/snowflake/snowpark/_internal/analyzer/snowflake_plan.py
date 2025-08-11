@@ -90,6 +90,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     table_function_statement,
     unpivot_statement,
     update_statement,
+    before_statement,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
@@ -1050,6 +1051,22 @@ class SnowflakePlanBuilder:
                 QueryLineInterval(0, queries[i].sql.count("\n"), new_plan.uuid)
             ]
         return new_plan
+
+    def before(
+        self,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+        timestamp: Optional[str] = None,
+        offset: Optional[int] = None,
+        statement: Optional[str] = None,
+    ) -> SnowflakePlan:
+        sql = before_statement(
+            child=child.queries[-1].sql,
+            timestamp=timestamp,
+            offset=offset,
+            statement=statement,
+        )
+        return self.query(sql, source_plan)
 
     def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
         return self.query(project_statement([], table_name), source_plan)
