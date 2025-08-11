@@ -18,5 +18,9 @@ def test_custom_schema(session):
     pass
 
 
-def test_type_mapping(session):
+def test_unsupported_dbms_type(session):
+    pass
+
+
+def test_timestamp_type(session):
     pass
