@@ -67,7 +67,6 @@ def test_to_sql():
     assert to_sql(None, StructType([])) == "NULL"
     assert to_sql(None, GeographyType()) == "NULL"
     assert to_sql(None, GeometryType()) == "NULL"
-    assert to_sql(None, YearMonthIntervalType()) == "NULL"
 
     assert to_sql(None, IntegerType()) == "NULL :: INT"
     assert to_sql(None, ShortType()) == "NULL :: INT"
@@ -77,6 +76,7 @@ def test_to_sql():
     assert to_sql(None, StringType()) == "NULL :: STRING"
     assert to_sql(None, DoubleType()) == "NULL :: FLOAT"
     assert to_sql(None, BooleanType()) == "NULL :: BOOLEAN"
+    assert to_sql(None, YearMonthIntervalType()) == "NULL :: INTERVAL YEAR TO MONTH"
 
     assert to_sql(None, "Not any of the previous types") == "NULL"
 
@@ -171,15 +171,15 @@ def test_to_sql():
 
     assert (
         to_sql("INTERVAL 1-2 YEAR TO MONTH", YearMonthIntervalType())
-        == "'INTERVAL 1-2 YEAR TO MONTH' :: INTERVAL YEAR TO MONTH"
+        == "INTERVAL '1-2' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
     )
     assert (
         to_sql("INTERVAL 5-0 YEAR TO MONTH", YearMonthIntervalType(0, 0))
-        == "'INTERVAL 5-0 YEAR TO MONTH' :: INTERVAL YEAR TO MONTH"
+        == "INTERVAL '5' YEAR :: INTERVAL YEAR"
     )
     assert (
         to_sql("INTERVAL 0-3 YEAR TO MONTH", YearMonthIntervalType(1, 1))
-        == "'INTERVAL 0-3 YEAR TO MONTH' :: INTERVAL YEAR TO MONTH"
+        == "INTERVAL '3' MONTH :: INTERVAL MONTH"
     )
 
 
@@ -200,6 +200,7 @@ def test_to_sql_system_function():
     assert to_sql_no_cast(None, StringType()) == "NULL"
     assert to_sql_no_cast(None, DoubleType()) == "NULL"
     assert to_sql_no_cast(None, BooleanType()) == "NULL"
+    assert to_sql_no_cast(None, YearMonthIntervalType()) == "NULL"
 
     assert to_sql_no_cast(None, "Not any of the previous types") == "NULL"
 
@@ -288,15 +289,15 @@ def test_to_sql_system_function():
 
     assert (
         to_sql_no_cast("INTERVAL 1-2 YEAR TO MONTH", YearMonthIntervalType())
-        == "'INTERVAL 1-2 YEAR TO MONTH'"
+        == "INTERVAL '1-2' YEAR TO MONTH"
     )
     assert (
         to_sql_no_cast("INTERVAL 5-0 YEAR TO MONTH", YearMonthIntervalType(0, 0))
-        == "'INTERVAL 5-0 YEAR TO MONTH'"
+        == "INTERVAL '5' YEAR"
     )
     assert (
         to_sql_no_cast("INTERVAL 0-3 YEAR TO MONTH", YearMonthIntervalType(1, 1))
-        == "'INTERVAL 0-3 YEAR TO MONTH'"
+        == "INTERVAL '3' MONTH"
     )
 
 
