@@ -2066,7 +2066,7 @@ def get_plan_from_line_numbers(
 @contextlib.contextmanager
 def measure_time() -> Callable[[], float]:
     """
-    A a simple context manager that measures the time taken to execute a code block
+    A simple context manager that measures the time taken to execute a code block
     """
     start_time = end_time = perf_counter()
     yield lambda: end_time - start_time
