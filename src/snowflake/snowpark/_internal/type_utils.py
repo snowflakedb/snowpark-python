@@ -307,7 +307,7 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     if isinstance(datatype, TimeType):
         return "TIME"
     if isinstance(datatype, YearMonthIntervalType):
-        return "INTERVAL YEAR TO MONTH"
+        return datatype.simple_string().upper()
     if isinstance(datatype, TimestampType):
         if datatype.tz == TimestampTimeZone.NTZ:
             return "TIMESTAMP_NTZ"

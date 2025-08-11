@@ -52,6 +52,20 @@ def str_to_sql(value: str) -> str:
     return f"'{sql_str}'"
 
 
+def str_to_sql_for_year_month_interval(
+    value: str, datatype: YearMonthIntervalType
+) -> str:
+    extracted_values = value.split(" ")[1]
+    if datatype.start_field == datatype.end_field:
+        extracted_values = extracted_values.split("-")
+        extracted_value = extracted_values[0]
+        if datatype.start_field == 1 and len(extracted_values) == 2:
+            extracted_value = extracted_values[1]
+        return f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[datatype.start_field].upper()}"
+    else:
+        return f"INTERVAL '{extracted_values}' {datatype._FIELD_NAMES[datatype.start_field].upper()} TO {datatype._FIELD_NAMES[datatype.end_field].upper()}"
+
+
 def float_nan_inf_to_sql(value: float) -> str:
     """
     convert the float nan and inf value to a snowflake compatible sql.
@@ -84,7 +98,7 @@ def to_sql_no_cast(
         if isinstance(datatype, GeometryType):
             return f"TO_GEOMETRY({str_to_sql(value)})"
         if isinstance(datatype, YearMonthIntervalType):
-            return str_to_sql(value)
+            return str_to_sql_for_year_month_interval(value, datatype)
         return str_to_sql(value)
     if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
         cast_value = float_nan_inf_to_sql(value)
@@ -130,7 +144,6 @@ def to_sql(
             StructType,
             GeographyType,
             GeometryType,
-            YearMonthIntervalType,
         ),
     ):
         if value is None:
@@ -162,6 +175,9 @@ def to_sql(
     if isinstance(datatype, FileType):
         if value is None:
             return "TO_FILE(NULL)"
+    if isinstance(datatype, YearMonthIntervalType):
+        if value is None:
+            return "NULL :: INTERVAL YEAR TO MONTH"
     if value is None:
         return "NULL"
 
@@ -252,7 +268,7 @@ def to_sql(
         return f"TO_FILE({str_to_sql(value)})"
 
     if isinstance(value, str) and isinstance(datatype, YearMonthIntervalType):
-        return f"{str_to_sql(value)} :: {convert_sp_to_sf_type(datatype)}"
+        return f"{str_to_sql_for_year_month_interval(value, datatype)} :: {convert_sp_to_sf_type(datatype)}"
 
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
