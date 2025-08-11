@@ -3,6 +3,7 @@
 #
 from collections import defaultdict
 from unittest import mock
+from snowflake.snowpark.functions import col
 
 import pytest
 import uuid
@@ -16,6 +17,7 @@ from snowflake.snowpark._internal.utils import (
     remove_comments,
     get_line_numbers,
     get_plan_from_line_numbers,
+    create_prompt_column_from_template,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
@@ -563,3 +565,129 @@ GROUP BY u.name"""
         ValueError, match="Line number 4 does not fall within any interval"
     ):
         get_plan_from_line_numbers(orphan_plan, 4)
+
+
+def test_create_prompt_column_from_template():
+    # Mock the prompt function to capture its calls
+    with mock.patch("snowflake.snowpark.functions.prompt") as mock_prompt:
+        mock_prompt.return_value = mock.Mock(name="prompt_column")
+
+        # Test: Dict with named placeholders - all placeholders used
+        template = "Analyze {review} with rating {rating}"
+        columns_dict = {"review": col("review_col"), "rating": col("rating_col")}
+        _ = create_prompt_column_from_template(template, columns_dict)
+
+        # Check that prompt was called with positional template
+        mock_prompt.assert_called()
+        call_args = mock_prompt.call_args
+        assert "{0}" in call_args[0][0] and "{1}" in call_args[0][0]
+        assert len(call_args[0]) == 3  # template + 2 columns
+
+        # Test: Dict with unused columns - should raise error
+        template = "Analyze {review}"
+        columns_dict = {
+            "review": col("review_col"),
+            "rating": col("rating_col"),
+            "unused": col("unused_col"),
+        }
+        with pytest.raises(
+            ValueError, match="not used in the template.*rating.*unused"
+        ):
+            create_prompt_column_from_template(template, columns_dict)
+
+        # Test: Dict with missing placeholder - should raise error
+        template = "Analyze {review} and {sentiment}"
+        columns_dict = {"review": col("review_col")}
+        with pytest.raises(ValueError, match="Placeholder.*sentiment.*not found"):
+            create_prompt_column_from_template(template, columns_dict)
+
+        # Test: List with matching positional placeholders
+        mock_prompt.reset_mock()
+        template = "Analyze {0} with rating {1}"
+        columns_list = [col("review_col"), col("rating_col")]
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        # Check that prompt was called with the original template
+        mock_prompt.assert_called_once()
+        call_args = mock_prompt.call_args
+        assert call_args[0][0] == template
+        assert len(call_args[0]) == 3  # template + 2 columns
+
+        # Test: List with no placeholders - should auto-append
+        mock_prompt.reset_mock()
+        template = "Analyze this review and rating:"
+        columns_list = [col("review_col"), col("rating_col")]
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        # Check that placeholders were appended
+        mock_prompt.assert_called_once()
+        call_args = mock_prompt.call_args
+        expected_template = "Analyze this review and rating: {0} {1}"
+        assert call_args[0][0] == expected_template
+
+        # Test: List with mismatched placeholder count - should raise error
+        template = "Analyze {0} with rating {1}"
+        columns_list = [col("review_col"), col("rating_col"), col("extra_col")]
+        with pytest.raises(
+            ValueError, match="Number of positional placeholders.*2.*does not match.*3"
+        ):
+            create_prompt_column_from_template(template, columns_list)
+
+        # Test: Invalid input type - should raise error
+        template = "Some template"
+        invalid_input = "not_a_dict_or_list"
+        with pytest.raises(TypeError, match="must be a list of Columns or a dict"):
+            create_prompt_column_from_template(template, invalid_input)
+
+        # Test: List with single column and no placeholder
+        mock_prompt.reset_mock()
+        template = "Process this:"
+        columns_list = [col("data_col")]
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        mock_prompt.assert_called_once()
+        call_args = mock_prompt.call_args
+        expected_template = "Process this: {0}"
+        assert call_args[0][0] == expected_template
+
+        # Test: Dict with repeated placeholders
+        mock_prompt.reset_mock()
+        template = "Compare {value} with {value} and rate {rating}"
+        columns_dict = {"value": col("value_col"), "rating": col("rating_col")}
+        _ = create_prompt_column_from_template(template, columns_dict)
+
+        # Should work fine, using same column twice
+        mock_prompt.assert_called()
+        call_args = mock_prompt.call_args
+        # Should have converted to "{0} with {0} and rate {1}"
+        assert call_args[0][0].count("{0}") == 2
+        assert "{1}" in call_args[0][0]
+
+        # Test: Empty list - should just append placeholders
+        mock_prompt.reset_mock()
+        template = "No placeholders here"
+        columns_list = []
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        mock_prompt.assert_called_once()
+        call_args = mock_prompt.call_args
+        # With no columns, template should remain unchanged (no placeholders to add)
+        assert call_args[0][0] == "No placeholders here "
+
+        # Test: List with duplicate placeholders
+        template = "Compare {0} with {0} and {1}"
+        columns_list = [col("first_col"), col("second_col")]
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        # Should work - {0} appears twice but we still have 2 unique placeholders
+        mock_prompt.assert_called()
+
+        # Test: List with out-of-order placeholders
+        mock_prompt.reset_mock()
+        template = "First: {2}, Second: {0}, Third: {1}"
+        columns_list = [col("col_0"), col("col_1"), col("col_2")]
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        mock_prompt.assert_called_once()
+        call_args = mock_prompt.call_args
+        assert call_args[0][0] == template  # Should keep original template
