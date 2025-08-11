@@ -155,6 +155,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     SampleBy,
     Sort,
     Unpivot,
+    Before,
 )
 from snowflake.snowpark._internal.analyzer.window_expression import (
     RankRelatedFunctionExpression,
@@ -1033,6 +1034,15 @@ class Analyzer:
                 logical_plan.is_having,
                 resolved_children[logical_plan.child],
                 logical_plan,
+            )
+
+        if isinstance(logical_plan, Before):
+            return self.plan_builder.before(
+                child=resolved_children[logical_plan.child],
+                source_plan=logical_plan,
+                timestamp=logical_plan.timestamp,
+                offset=logical_plan.offset,
+                statement=logical_plan.statement,
             )
 
         # Add a sample stop to the plan being built

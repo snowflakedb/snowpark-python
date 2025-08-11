@@ -570,3 +570,44 @@ def test_nullable_is_false_dataframe(session):
         session.create_dataframe(
             [None for _ in range(ARRAY_BIND_THRESHOLD + 1)], schema=schema
         ).collect()
+
+
+def test_before_time_travel(session):
+    """Test BEFORE time travel functionality with various DataFrame operations and table creation methods."""
+
+    with session.query_history() as query_history:
+        session.sql(
+            """create or replace temp table test_time_travel_table(id int, name string)
+                as select * from values
+                (1, 'alice'),
+                (2, 'bob'),
+                (3, 'charlie'),
+                (4, 'david')"""
+        ).collect()
+        session.sql(
+            """insert into test_time_travel_table values (5, 'eve'), (6, 'frank')"""
+        ).collect()
+    query_id = query_history.queries[-1].query_id
+
+    df_1 = session.table("test_time_travel_table").before(query_id)
+    check_generated_plan_queries(df_1._plan)
+
+    df_2 = (
+        session.sql("select name from test_time_travel_table")
+        .select("id")
+        .before(query_id)
+    )
+    check_generated_plan_queries(df_2._plan)
+
+    df_3 = (
+        session.table("test_time_travel_table")
+        .before(query_id)
+        .select("id", "name")
+        .filter(col("id") > 3)
+    )
+    check_generated_plan_queries(df_3._plan)
+
+    df_4 = session.create_dataframe([(10, "jack"), (11, "kate")], schema=["id", "name"])
+    df_4.create_or_replace_temp_view("test_time_travel_view")
+    df_4 = session.table("test_time_travel_view").before(query_id).select("name")
+    check_generated_plan_queries(df_4._plan)

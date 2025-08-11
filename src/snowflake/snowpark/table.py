@@ -320,6 +320,61 @@ class Table(DataFrame):
         # created from Session object
         set_api_call_source(self, "Table.__init__")
 
+    @publicapi
+    def before(
+        self,
+        timestamp: Optional[str] = None,
+        offset: Optional[int] = None,
+        statement: Optional[str] = None,
+        _ast_stmt: proto.Bind = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Selects historical data from a table as it existed immediately before a specified
+        statement completed, using Snowflake Time Travel.
+
+        Retrieves the state of the data just prior to the completion of a given statement
+        (identified by its query ID).
+
+        Examples::
+
+            >>> df_before = session.table("MY_TABLE").before("01a12345-0600-1234-0000-987605123abc")
+
+        Args:
+            statement: A query ID string identifying the statement whose completion time
+                determines the cutoff point for returned data.
+            _ast_stmt: When invoked internally, supplies the AST to use for the resulting dataframe.
+            _emit_ast: Whether to emit the AST for this operation.
+
+        See Also:
+            Snowflake Time Travel documentation on the BEFORE clause.
+            <https://docs.snowflake.com/en/sql-reference/constructs/at-before#using-the-before-clause>
+        """
+        num_provided = sum(v is not None for v in (statement, offset, timestamp))
+        if num_provided != 1:
+            raise ValueError(
+                "Exactly one of 'timestamp', 'offset', or 'statement' must be provided."
+            )
+
+        stmt = None
+        if _emit_ast:
+            # AST.
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.table_sample, stmt)
+            self._set_ast_ref(ast.df)
+
+        sql_text = f"SELECT * FROM {self.table_name} BEFORE "
+        if statement is not None:
+            sql_text += f"(STATEMENT => '{statement}')"
+        elif offset is not None:
+            if offset > 0:
+                raise ValueError("'offset' must be a negative integer (seconds).")
+            sql_text += f"(OFFSET => {offset})"
+        else:
+            sql_text += f"(TIMESTAMP => '{timestamp}')"
+
+        new_df = self._session.sql(sql_text, _ast_stmt=stmt)
+        return new_df
+
     def _copy_without_ast(self):
         return Table(
             self.table_name,
