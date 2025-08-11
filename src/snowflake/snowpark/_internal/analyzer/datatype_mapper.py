@@ -55,40 +55,15 @@ def str_to_sql(value: str) -> str:
 def str_to_sql_for_year_month_interval(
     value: str, datatype: YearMonthIntervalType
 ) -> str:
-    """
-    Converts "INTERVAL YY-MM [YEAR TO MONTH | YEAR | MONTH]" to quoted format:
-    - Same start/end field: extracts specific value (YEAR or MONTH only)
-    - Different fields: uses full "YEAR TO MONTH" format
-    - Supports passthrough for already-quoted intervals
-
-    Examples:
-        "INTERVAL 1-2 YEAR TO MONTH", YearMonthIntervalType(0,1) -> "INTERVAL '1-2' YEAR TO MONTH"
-        "INTERVAL 5-0 YEAR TO MONTH", YearMonthIntervalType(0,0) -> "INTERVAL '5' YEAR"
-        "INTERVAL 0-3 YEAR TO MONTH", YearMonthIntervalType(1,1) -> "INTERVAL '3' MONTH"
-        "INTERVAL '1-2' YEAR TO MONTH", YearMonthIntervalType(0,1) -> "INTERVAL '1-2' YEAR TO MONTH" (passthrough)
-    """
-    parts = value.split(" ")
-    if len(parts) < 2:
-        raise ValueError(f"Invalid interval format: {value}")
-
-    if len(parts[1]) > 1 and parts[1].startswith("'") and parts[1].endswith("'"):
-        return value  # passthrough
-
-    extracted_values = parts[1]
-    start_field = datatype.start_field if datatype.start_field is not None else 0
-    end_field = datatype.end_field if datatype.end_field is not None else 1
-    # When the start_field equals the end_field, it implies our YearMonthIntervalType is only
-    # using a single field. Either YEAR for 0 or MONTH for 1.
+    extracted_values = value.split(" ")[1]
     if datatype.start_field == datatype.end_field:
         extracted_values = extracted_values.split("-")
         extracted_value = extracted_values[0]
         if datatype.start_field == 1 and len(extracted_values) == 2:
-            # Extract the second value if we only have a MONTH interval.
             extracted_value = extracted_values[1]
-        return (
-            f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()}"
-        )
-    return f"INTERVAL '{extracted_values}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
+        return f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[datatype.start_field].upper()}"
+    else:
+        return f"INTERVAL '{extracted_values}' {datatype._FIELD_NAMES[datatype.start_field].upper()} TO {datatype._FIELD_NAMES[datatype.end_field].upper()}"
 
 
 def float_nan_inf_to_sql(value: float) -> str:
