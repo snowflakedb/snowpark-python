@@ -29,6 +29,7 @@ from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache, wraps
 from itertools import count
 from json import JSONEncoder
+from time import perf_counter
 from random import Random
 from typing import (
     IO,
@@ -2070,3 +2071,13 @@ def get_plan_from_line_numbers(
             )
 
     raise ValueError(f"Line number {line_number} does not fall within any interval")
+
+
+@contextlib.contextmanager
+def measure_time() -> Callable[[], float]:
+    """
+    A simple context manager that measures the time taken to execute a code block
+    """
+    start_time = end_time = perf_counter()
+    yield lambda: end_time - start_time
+    end_time = perf_counter()
