@@ -1972,14 +1972,12 @@ class DataFrame:
             -------------------------
             <BLANKLINE>
         """
-
-        # If SQL simplifier is enabled AND we have a select statement, use the SelectStatement approach
-        if self._select_statement:
+        # TODO: AST Support SNOW-2262530
+        if self._select_statement:  # sql simplifier is enabled
             df = self._with_plan(
                 self._select_statement.ilike(pattern), _ast_stmt=_ast_stmt
             )
         else:
-            # Otherwise, use the Project node with ilike_pattern
             from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
 
             df = self._with_plan(
