@@ -6361,7 +6361,9 @@ class DataFrame:
             return res_dfs
 
     @experimental(version="1.36.0")
-    def get_execution_profile(self, output_file: Optional[str] = None) -> None:
+    def get_execution_profile(
+        self, output_file: Optional[str] = None, verbose: bool = False
+    ) -> None:
         """
         Get the execution profile of the dataframe. Output is written to the file specified by output_file if provided,
         otherwise it is written to the console.
@@ -6379,8 +6381,12 @@ class DataFrame:
             return
         try:
             profiler = QueryProfiler(self._session, output_file)
+            if self._plan.uuid in query_history._describe_queries:
+                profiler.print_describe_queries(
+                    query_history._describe_queries[self._plan.uuid]
+                )
             for query_id in query_history.dataframe_queries[self._plan.uuid]:
-                profiler.profile_query(query_id)
+                profiler.profile_query(query_id, verbose)
         finally:
             profiler.close()
 
