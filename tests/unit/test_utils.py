@@ -584,15 +584,13 @@ def test_create_prompt_column_from_template():
         assert len(call_args[0]) == 3  # template + 2 columns
 
         # Test: Dict with unused columns - should raise error
-        template = "Analyze {review}"
+        template = "Analyze {review} and {rating}"
         columns_dict = {
             "review": col("review_col"),
             "rating": col("rating_col"),
             "unused": col("unused_col"),
         }
-        with pytest.raises(
-            ValueError, match="not used in the template.*rating.*unused"
-        ):
+        with pytest.raises(ValueError, match="not used in the template.*unused"):
             create_prompt_column_from_template(template, columns_dict)
 
         # Test: Dict with missing placeholder - should raise error

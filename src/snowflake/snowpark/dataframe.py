@@ -4361,7 +4361,7 @@ class DataFrame:
     ) -> "DataFrame":
         """Generate a response (completion) on each row using the specified language model.
 
-         Args:
+        Args:
             prompt: The prompt template string. Use placeholders like ``{name}`` when passing a dict of columns,
                 or ``{0}``, ``{1}`` when passing a list.
             input_columns: A list of Columns (positional placeholders ``{0}``, ``{1}``, ...)
@@ -4440,7 +4440,7 @@ class DataFrame:
         # Build the prompt Column
         if isinstance(input_columns, (dict, list)):
             prompt_obj = create_prompt_column_from_template(
-                prompt, input_columns, _emit_ast=_emit_ast
+                prompt, input_columns, _emit_ast=False
             )
         else:
             raise TypeError(
@@ -4452,7 +4452,7 @@ class DataFrame:
             model=model,
             prompt=prompt_obj,
             model_parameters=model_parameters,
-            _emit_ast=_emit_ast,
+            _emit_ast=False,
         )
 
         # Add the output column to the DataFrame
