@@ -1589,13 +1589,15 @@ class SelectStatement(Selectable):
         return new
 
     def ilike(self, pattern: str) -> "SelectStatement":
-        """ """
-        # .select().col_ilike(); cannot be flattened; exclude syntax is select * ilike ...
+        # .select().col_ilike(); cannot be flattened; ilike syntax is select * ilike ...
+        # .col_ilike().col_ilike() cannot be flattened
         # .order_by().col_ilike() can be flattened
         # .filter().col_ilike() can be flattened
         # .limit().col_ilike() can be flattened
         # .distinct().col_ilike() can be flattened
-        can_be_flattened = not self.flatten_disabled and not self.projection
+        can_be_flattened = (
+            not self.flatten_disabled and not self.projection and not self.ilike_cols
+        )
         if can_be_flattened:
             new = copy(self)
             new.from_ = self.from_.to_subqueryable()

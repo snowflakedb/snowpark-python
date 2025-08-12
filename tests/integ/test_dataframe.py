@@ -4957,6 +4957,9 @@ def test_col_ilike_chained_combinations(session):
         and res[1]["USER_ID"] == 3
     )
 
+    with pytest.raises(SnowparkSQLException, match="SELECT with no columns"):
+        df_chain.col_ilike("%dept%").collect()
+
     # Case 2: apply col_ilike on the join child df, then join
     tiny = session.create_dataframe([[1], [2], [3], [4]], schema=["some_key"]).select(
         "some_key"
@@ -4986,6 +4989,34 @@ def test_col_ilike_chained_combinations(session):
         .collect()
     )
     assert len(res3) == 1 and len(res3[0]) == 1 and res3[0]["MAX_ID"] == 4
+
+    # Case 4: rename, add/replace/drop columns then col_ilike checks
+    # Start by renaming and augmenting columns, then drop a non-id column and select id-like columns
+    df_case4 = (
+        base.with_column_renamed("dept_id", "department_id")
+        .with_column_renamed("name", "employee_name")
+        .with_column("project_id", col("USER_ID") + 1000)
+        .drop("DEPARTMENT")
+    )
+    res4 = df_case4.col_ilike("%id%").collect()
+    assert len(res4) == 4 and set(df_case4.col_ilike("%id%").columns) == {
+        "USER_ID",
+        "DEPARTMENT_ID",
+        "PROJECT_ID",
+    }
+
+    # Then add a new id-like column, replace an existing id column, drop another id column, and check again
+    df_case4b = (
+        df_case4.with_column("emp_id", col("USER_ID") + 200)
+        .with_column("user_id", col("USER_ID") + 300)  # replace existing USER_ID
+        .drop("DEPARTMENT_ID")
+    )
+    res4b = df_case4b.col_ilike("%id%").collect()
+    assert len(res4b) == 4 and set(df_case4b.col_ilike("%id%").columns) == {
+        "USER_ID",
+        "PROJECT_ID",
+        "EMP_ID",
+    }
 
 
 def test_drop_columns_special_names(session):
