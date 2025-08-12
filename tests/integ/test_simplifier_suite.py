@@ -1361,6 +1361,44 @@ def test_flattening_for_exclude(session, large_simplifier_table):
         session.conf.set("use_simplified_query_generation", original)
 
 
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_col_ilike(session, use_simplified_query_generation):
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set(
+            "use_simplified_query_generation", use_simplified_query_generation
+        )
+        df = session.create_dataframe(
+            [
+                [1, "A", 101, "HR"],
+                [2, "B", 102, "Fin"],
+                [3, "C", 103, "Eng"],
+                [4, "D", 104, "Prod"],
+            ],
+            schema=["USER_ID", "name", "dept_id", "DEPARTMENT"],
+        )
+
+        df_id = df.col_ilike("%Id%").limit(1)
+        result = df_id.collect()
+        assert (
+            len(result) == 1
+            and len(result[0]) == 2
+            and result[0]["USER_ID"] == 1
+            and result[0]["DEPT_ID"] == 101
+        )
+
+        if use_simplified_query_generation:
+            with pytest.raises(SnowparkSQLException, match="SQL compilation error"):
+                # IKIKE can not be used at the same time with EXCLUDE
+                df.drop("name").col_ilike("%id%").collect()
+        else:
+            res = df.drop("name").col_ilike("%id%").collect()
+            assert len(res) == 4 and len(res[0]) == 2  # USER_ID and dept_id columns
+
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
+
+
 @pytest.mark.parametrize("select_cols", [["d"], ["a", "b", "c"]])
 def test_chained_operation(session, large_simplifier_table, select_cols):
     actions = [

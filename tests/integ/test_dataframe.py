@@ -4866,6 +4866,10 @@ def test_select_star_and_more_columns(session):
     Utils.check_answer(df3, [Row(1, 2, 3)])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ILIKE not supported in Local Testing",
+)
 def test_col_ilike(session):
     """Test col_ilike functionality for selecting columns by pattern."""
     df = session.create_dataframe(
@@ -4901,17 +4905,87 @@ def test_col_ilike(session):
     res = df.select("*").col_ilike("%id%").collect()
     assert len(res) == 4 and len(res[0]) == 2  # USER_ID and dept_id columns
 
-    # Test 5: Test drop/exclude a column and then using col_ilike
-    if (
-        session.conf.get("use_simplified_query_generation")
-        and session.sql_simplifier_enabled
-    ):
-        with pytest.raises(SnowparkSQLException, match="SQL compilation error"):
-            # IKIKE can not be used at the same time with EXCLUDE
-            df.drop("name").col_ilike("%id%").collect()
-    else:
-        res = df.drop("name").col_ilike("%id%").collect()
-        assert len(res) == 4 and len(res[0]) == 2  # USER_ID and dept_id columns
+    # Case 5: Save as a table and use session.table with col_ilike
+    table_name = Utils.random_table_name()
+    try:
+        df.write.save_as_table(table_name, table_type="temp")
+        res = session.table(table_name).col_ilike("%id%").collect()
+        # Should keep USER_ID and dept_id columns
+        assert len(res) == 4 and len(res[0]) == 2
+
+        # Case 6: Use session.sql to read and then apply col_ilike
+        res = session.sql(f"select * from {table_name}").col_ilike("user%").collect()
+        # Should keep only USER_ID column
+        assert len(res) == 4 and len(res[0]) == 1
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ILIKE not supported in Local Testing",
+)
+def test_col_ilike_chained_combinations(session):
+    """Comprehensive chained cases combining col_ilike with select/sort/filter/limit and join/agg."""
+    base = session.create_dataframe(
+        [
+            [1, "A", 101, "HR", 50000],
+            [2, "B", 102, "Fin", 60000],
+            [3, "C", 103, "Eng", 55000],
+            [4, "D", 104, "Prod", 65000],
+        ],
+        schema=["USER_ID", "name", "dept_id", "DEPARTMENT", "salary_amount"],
+    )
+
+    # Case 1: select -> col_ilike -> sort -> select -> col_ilike -> sort -> filter -> limit
+    df_chain = (
+        base.select("*", (col("salary_amount") + 1000).as_("salary_plus"))
+        .col_ilike("%id%")  # keep USER_ID, dept_id
+        .sort(col("USER_ID").desc())  # sort by USER_ID
+        .select("*")  # keep all columns
+        .col_ilike("user%")  # keep USER_ID only
+        .sort(col("USER_ID"))  # sort by USER_ID
+        .filter(col("USER_ID") >= 2)  # filter by USER_ID >= 2
+        .limit(2)  # limit to 2 rows
+    )
+    res = df_chain.collect()
+    # Expect two rows, column set narrowed to USER_ID only
+    assert (
+        len(res) == 2
+        and len(res[0]) == 1
+        and res[0]["USER_ID"] == 2
+        and res[1]["USER_ID"] == 3
+    )
+
+    # Case 2: apply col_ilike on the join child df, then join
+    tiny = session.create_dataframe([[1], [2], [3], [4]], schema=["some_key"]).select(
+        "some_key"
+    )
+    left_filtered = base.col_ilike("%id%")  # keep only id-like columns before join
+    joined = left_filtered.join(tiny, col("USER_ID") == col("some_key"))
+    df_join_chain = joined.select("*").sort(col("DEPT_ID")).limit(3)
+    res2 = df_join_chain.collect()
+    # Ensure only id-like columns remain and values are correct and ordered by DEPT_ID
+    assert len(res2) == 3 and len(res2[0]) == 3
+    assert [(r["USER_ID"], r["DEPT_ID"], r["SOME_KEY"]) for r in res2] == [
+        (1, 101, 1),
+        (2, 102, 2),
+        (3, 103, 3),
+    ]
+
+    # Case 3: aggregation combined with select and col_ilike
+    from snowflake.snowpark import functions as F
+
+    agg_df = base.group_by(col("DEPARTMENT")).agg(
+        F.max(col("USER_ID")).as_("max_id"), F.count("*").as_("cnt")
+    )
+    res3 = (
+        agg_df.col_ilike("%id%")  # keep only columns containing 'id' -> MAX_ID
+        .sort(col("MAX_ID").desc())
+        .limit(1)
+        .collect()
+    )
+    assert len(res3) == 1 and len(res3[0]) == 1 and res3[0]["MAX_ID"] == 4
 
 
 def test_drop_columns_special_names(session):

@@ -1965,7 +1965,7 @@ class DataFrame:
             ...                                 schema=["USER_ID", "Name", "dept_id"])
             >>> df.col_ilike("%id%").show()
             -------------------------
-            |"USER_ID"  |"dept_id"  |
+            |"USER_ID"  |"DEPT_ID"  |
             -------------------------
             |1          |101        |
             |2          |102        |

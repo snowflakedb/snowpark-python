@@ -16,6 +16,7 @@
   - `xpath_long`
   - `xpath_short`
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_arrow()`.
+- Added support for `DataFrame.col_ilike`.
 
 #### Bug Fixes
 
