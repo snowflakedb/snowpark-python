@@ -1389,7 +1389,7 @@ def test_col_ilike(session, use_simplified_query_generation):
 
         if use_simplified_query_generation:
             with pytest.raises(SnowparkSQLException, match="SQL compilation error"):
-                # IKIKE can not be used at the same time with EXCLUDE
+                # ILIKE can not be used at the same time with EXCLUDE
                 df.drop("name").col_ilike("%id%").collect()
         else:
             res = df.drop("name").col_ilike("%id%").collect()
