@@ -105,6 +105,7 @@ Functions
     bitshiftright
     build_stage_file_url
     builtin
+    boolor_agg
     bround
     call_builtin
     call_function

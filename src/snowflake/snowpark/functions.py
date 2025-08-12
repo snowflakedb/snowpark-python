@@ -13318,3 +13318,28 @@ def as_boolean(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = _to_col_if_str(variant, "as_boolean")
     return builtin("as_boolean", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def boolor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the logical OR of all non-NULL records in a group. If all records are NULL,
+    returns NULL.
+
+    Example::
+
+        >>> df = session.create_dataframe([
+        ...     [True, False, True],
+        ...     [False, False, False],
+        ...     [True, True, False],
+        ...     [False, True, True]
+        ... ], schema=["a", "b", "c"])
+        >>> df.select(
+        ...     boolor_agg(df["a"]).alias("boolor_a"),
+        ...     boolor_agg(df["b"]).alias("boolor_b"),
+        ...     boolor_agg(df["c"]).alias("boolor_c")
+        ... ).collect()
+        [Row(BOOLOR_A=True, BOOLOR_B=True, BOOLOR_C=True)]
+    """
+    c = _to_col_if_str(e, "boolor_agg")
+    return builtin("boolor_agg", _emit_ast=_emit_ast)(c)
