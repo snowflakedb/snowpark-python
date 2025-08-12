@@ -35,6 +35,16 @@
 
 - Added a dependency on `protobuf<6.32`
 
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+
+#### Bug Fixes
+
+- Fixed an issue in hybrid execution mode (PrPr) where `pd.to_datetime` and `pd.to_timedelta` would unexpectedly raise `IndexError`.
+
 ## 1.36.0 (2025-08-05)
 
 ### Snowpark Python API Updates
