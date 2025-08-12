@@ -13291,8 +13291,10 @@ def array_remove_at(
         array: Column containing the source ARRAY.
         position: Column containing a (zero-based) position in the source ARRAY.
             The element at this position is removed from the resulting ARRAY.
-            A negative position is interpreted as an index from the back of the array
-            (e.g. -1 removes the last element in the array).
+            A negative position is interpreted as an index from the back of the array (e.g. -1 removes the last element in the array).
+
+    Returns:
+        A Column containing the resulting ARRAY with the specified element removed.
 
     Example::
 
