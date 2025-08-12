@@ -974,10 +974,14 @@ def explain_switch_simple() -> Union[native_pd.DataFrame, None]:
 
     stats = get_hybrid_switch_log()
     if len(stats) <= 0:
-        return None  # pragma: no cover
-    stats["decision"] = stats.groupby(["group", "mode"]).ffill()["decision"]
-    stats["api"] = stats.groupby(["source", "group", "mode"]).ffill()["api"]
-    stats["mode"] = stats.groupby(["source", "group"]).ffill()["mode"]
+        stats["source"] = []
+        stats["mode"] = []
+        stats["decision"] = []
+        stats["api"] = []
+    else:
+        stats["decision"] = stats.groupby(["group", "mode"]).ffill()["decision"]
+        stats["api"] = stats.groupby(["source", "group", "mode"]).ffill()["api"]
+        stats["mode"] = stats.groupby(["source", "group"]).ffill()["mode"]
     stats = (
         stats[
             [
