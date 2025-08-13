@@ -135,6 +135,7 @@ from snowflake.snowpark.functions import (
     lower,
     lpad,
     ltrim,
+    make_ym_interval,
     max,
     md5,
     mean,
@@ -5613,3 +5614,75 @@ def test_any_value(session):
         Row(1, 1),
         Row(2, 1),
     ] or non_deterministic_result_2 == [Row(1, 1), Row(2, 2)]
+
+
+def test_make_ym_interval(session):
+    session.sql("alter session set feature_interval_types=enabled;").collect()
+
+    df_literals = session.create_dataframe([[1]], ["dummy"])
+
+    result = df_literals.select(
+        make_ym_interval(1, 2).alias("interval_1_2"),
+        make_ym_interval(0, 5).alias("interval_0_5"),
+        make_ym_interval(2, 0).alias("interval_2_0"),
+    ).collect()
+
+    assert len(result) == 1
+
+    row = result[0]
+
+    assert row["INTERVAL_1_2"] == "+1-02"
+    assert row["INTERVAL_0_5"] == "+0-05"
+    assert row["INTERVAL_2_0"] == "+2-00"
+
+    result_normalized = df_literals.select(
+        make_ym_interval(1, 14).alias("interval_normalized"),
+        make_ym_interval(0, 25).alias("interval_months_only"),
+    ).collect()
+
+    assert len(result_normalized) == 1
+
+    row_norm = result_normalized[0]
+
+    assert row_norm["INTERVAL_NORMALIZED"] == "+2-02"
+    assert row_norm["INTERVAL_MONTHS_ONLY"] == "+2-01"
+
+    df_columns = session.create_dataframe(
+        [(1, 2), (0, 14), (3, 5), (-1, 2), (1, -2), (0, -2), (1, -14), (-14, -14)],
+        schema=["years", "months"],
+    )
+
+    result_columns = df_columns.select(
+        make_ym_interval(col("years"), col("months")).alias("interval_col"),
+        col("years"),
+        col("months"),
+    ).collect()
+
+    assert len(result_columns) == 8
+    assert result_columns[0]["INTERVAL_COL"] == "+1-02"
+    assert result_columns[1]["INTERVAL_COL"] == "+1-02"
+    assert result_columns[2]["INTERVAL_COL"] == "+3-05"
+    assert result_columns[3]["INTERVAL_COL"] == "-0-10"
+    assert result_columns[4]["INTERVAL_COL"] == "+0-10"
+    assert result_columns[5]["INTERVAL_COL"] == "-0-02"
+    assert result_columns[6]["INTERVAL_COL"] == "-0-02"
+    assert result_columns[7]["INTERVAL_COL"] == "-15-02"
+
+    result_negative = df_literals.select(
+        make_ym_interval(-1, 2).alias("interval_neg_year"),
+        make_ym_interval(1, -2).alias("interval_neg_month"),
+        make_ym_interval(0, -2).alias("interval_neg"),
+        make_ym_interval(1, -14).alias("interval_neg_2"),
+        make_ym_interval(-14, -14).alias("interval_neg_both"),
+    ).collect()
+
+    assert len(result_negative) == 1
+    row_neg = result_negative[0]
+
+    assert row_neg["INTERVAL_NEG_YEAR"] == "-0-10"
+    assert row_neg["INTERVAL_NEG_MONTH"] == "+0-10"
+    assert row_neg["INTERVAL_NEG"] == "-0-02"
+    assert row_neg["INTERVAL_NEG_2"] == "-0-02"
+    assert row_neg["INTERVAL_NEG_BOTH"] == "-15-02"
+
+    session.sql("alter session set feature_interval_types=disabled;").collect()
