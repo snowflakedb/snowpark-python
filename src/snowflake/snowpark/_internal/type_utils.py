@@ -221,7 +221,7 @@ def convert_sf_to_sp_type(
         return BooleanType()
     if column_type_name == "BINARY":
         return BinaryType()
-    if column_type_name == "YEARMONTHINTERVAL":
+    if column_type_name == "INTERVAL_YEAR_MONTH":
         if scale == 0:
             # Year to Month
             return YearMonthIntervalType(0, 1)
@@ -1028,6 +1028,10 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
 )
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_to_month"] = YearMonthIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval"] = YearMonthIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["intervalyeartomonth"] = YearMonthIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["str"] = StringType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["varchar"] = StringType
+
 
 DECIMAL_RE = re.compile(
     r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
