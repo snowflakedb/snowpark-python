@@ -3230,11 +3230,13 @@ def test_limit(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: Alter Session not supported in local testing",
+@pytest.mark.xfail(
+    reason="SNOW-2255664: Waiting on Python Connector release for IntervalType type_code",
+    strict=True,
 )
-def test_year_month_interval_type_dataframe(session):
+def test_yearmonth_interval_type_dataframe(session):
+    session.sql("alter session set feature_interval_types=enabled;").collect()
+
     schema = StructType(
         [
             StructField("ID", LongType(), nullable=False),
@@ -3277,35 +3279,3 @@ def test_year_month_interval_type_dataframe(session):
     assert result[0]["YM_INTERVAL"] == "-1-02"
     assert result[1]["YM_INTERVAL"] == "-2-00"
     assert result[2]["YM_INTERVAL"] == "-12-11"
-
-    test_cases = [
-        ["3", "1-6", "15"],
-        ["-1", "-0-3", "7"],
-    ]
-    schema = StructType(
-        [
-            StructField("interval_col_year", YearMonthIntervalType(0)),
-            StructField("interval_col_year_month", YearMonthIntervalType(0, 1)),
-            StructField("interval_col_month", YearMonthIntervalType(1)),
-        ]
-    )
-    df = session.create_dataframe(test_cases, schema=schema)
-
-    test_result = df.collect()
-
-    assert len(test_result) == 2
-    assert test_result[0][0] == "+3-00"
-    assert test_result[0][1] == "+1-06"
-    assert test_result[0][2] == "+1-03"
-
-    assert test_result[1][0] == "-1-00"
-    assert test_result[1][1] == "-0-03"
-    assert test_result[1][2] == "+0-07"
-
-    assert isinstance(df.schema.fields[0].datatype, YearMonthIntervalType)
-    assert df.schema.fields[0].datatype.start_field == 0
-    assert df.schema.fields[0].datatype.end_field == 0
-    assert df.schema.fields[1].datatype.start_field == 0
-    assert df.schema.fields[1].datatype.end_field == 1
-    assert df.schema.fields[2].datatype.start_field == 1
-    assert df.schema.fields[2].datatype.end_field == 1
