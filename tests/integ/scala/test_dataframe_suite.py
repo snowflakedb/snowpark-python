@@ -59,6 +59,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
 )
 from tests.utils import (
     IS_IN_STORED_PROC,
@@ -3227,3 +3228,54 @@ def test_limit(session):
 |     |     |
 -------------\n""".lstrip()
     )
+
+
+@pytest.mark.xfail(
+    reason="SNOW-2255664: Waiting on Python Connector release for IntervalType type_code",
+    strict=True,
+)
+def test_yearmonth_interval_type_dataframe(session):
+    session.sql("alter session set feature_interval_types=enabled;").collect()
+
+    schema = StructType(
+        [
+            StructField("ID", LongType(), nullable=False),
+            StructField("YM_INTERVAL", YearMonthIntervalType(), nullable=False),
+        ]
+    )
+
+    df = session.sql(
+        """
+        SELECT 1 as id, INTERVAL '1-2' YEAR TO MONTH as ym_interval
+        UNION ALL
+        SELECT 2 as id, INTERVAL '2-0' YEAR TO MONTH as ym_interval
+        UNION ALL
+        SELECT 3 as id, INTERVAL '0-6' YEAR TO MONTH as ym_interval
+    """
+    )
+
+    result = df.collect()
+    assert len(result) == 3
+    assert df.schema == schema
+
+    assert result[0]["YM_INTERVAL"] == "+1-02"
+    assert result[1]["YM_INTERVAL"] == "+2-00"
+    assert result[2]["YM_INTERVAL"] == "+0-06"
+
+    df = session.sql(
+        """
+            SELECT 1 as id, INTERVAL '-1-2' YEAR TO MONTH as ym_interval
+            UNION ALL
+            SELECT 2 as id, INTERVAL '-2-0' YEAR TO MONTH as ym_interval
+            UNION ALL
+            SELECT 3 as id, INTERVAL '-12-11' YEAR TO MONTH as ym_interval
+        """
+    )
+
+    result = df.collect()
+    assert len(result) == 3
+    assert df.schema == schema
+
+    assert result[0]["YM_INTERVAL"] == "-1-02"
+    assert result[1]["YM_INTERVAL"] == "-2-00"
+    assert result[2]["YM_INTERVAL"] == "-12-11"
