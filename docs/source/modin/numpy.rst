@@ -25,6 +25,15 @@ NumPy ufuncs called with Snowpark pandas arguments will ignore kwargs.
 |                             | dispatcher at all, and the normal NumPy behavior   |
 |                             | will occur.)                                       |
 +-----------------------------+----------------------------------------------------+
+| ``np.unique``               | Mapped to pd.unique, will stack a DataFrame to     |
+|                             | convert to Series. Always returns an ndarray like  |
+|                             | pd.unique. Does not implement any arguments other  |
+|                             | than the input array. This function will result in |
+|                             | materialization of the unique set because usages of|
+|                             | this function depend on numpy-specific behavior.   |
+|                             | Only the initial call to unique will be            |
+|                             | distributed.                                       |
++-----------------------------+----------------------------------------------------+
 | ``np.full_like``            | Mapped to pd.DataFrame(value, index=range(height), |
 |                             |                        columns=range(width))       |
 +-----------------------------+----------------------------------------------------+

@@ -58,6 +58,7 @@
 - Hybrid execution row estimate improvements and a reduction of eager calls.
 - Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution.
 - Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
+- Added support for mapping np.unique to DataFrame and Series inputs using pd.unique.
 
 #### Bug Fixes
 
