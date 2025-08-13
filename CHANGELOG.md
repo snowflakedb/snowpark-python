@@ -35,6 +35,10 @@
 
 - Added a dependency on `protobuf<6.32`
 
+#### Improvements
+
+- Refactored the `functions.py` module to improve code organization and readability.
+
 ## 1.36.0 (2025-08-05)
 
 ### Snowpark Python API Updates

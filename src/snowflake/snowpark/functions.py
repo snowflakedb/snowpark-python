@@ -259,6 +259,7 @@ else:
     from collections.abc import Iterable
 
 
+# Used to expose or alias imported functions/objects at the module level
 col = col_function
 builtin = builtin
 function = function
