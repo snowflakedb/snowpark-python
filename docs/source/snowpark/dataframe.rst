@@ -13,6 +13,7 @@ DataFrame
     DataFrameNaFunctions
     DataFrameStatFunctions
     DataFrameAnalyticsFunctions
+    DataFrameAIFunctions
 
 .. rubric:: Methods
 
@@ -20,7 +21,6 @@ DataFrame
     :toctree: api/
 
     DataFrame.agg
-    DataFrame.ai_complete
     DataFrame.approxQuantile
     DataFrame.approx_quantile
     DataFrame.cache_result
@@ -120,6 +120,7 @@ DataFrame
     DataFrameAnalyticsFunctions.compute_lag
     DataFrameAnalyticsFunctions.compute_lead
     DataFrameAnalyticsFunctions.time_series_agg
+    DataFrameAIFunctions.complete
     dataframe.map
     dataframe.map_in_pandas
 
@@ -133,6 +134,7 @@ DataFrame
 .. autosummary::
     :toctree: api/
 
+    DataFrame.ai
     DataFrame.columns
     DataFrame.na
     DataFrame.queries
