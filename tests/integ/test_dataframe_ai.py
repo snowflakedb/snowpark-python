@@ -15,7 +15,7 @@ pytestmark = [
 
 
 def test_dataframe_ai_complete_with_named_placeholders(session):
-    """Test DataFrame.ai_complete with named placeholders."""
+    """Test DataFrame.ai.complete with named placeholders."""
     # Create a DataFrame with review data
     df = session.create_dataframe(
         [
@@ -26,8 +26,8 @@ def test_dataframe_ai_complete_with_named_placeholders(session):
         schema=["review", "rating", "category"],
     )
 
-    # Use DataFrame.ai_complete with named placeholders
-    result_df = df.ai_complete(
+    # Use DataFrame.ai.complete with named placeholders
+    result_df = df.ai.complete(
         prompt="Analyze this {category} product review: '{review}' with rating {rating}/5. What is the sentiment?",
         input_columns={
             "review": col("review"),
@@ -51,7 +51,7 @@ def test_dataframe_ai_complete_with_named_placeholders(session):
 
 
 def test_dataframe_ai_complete_with_positional_placeholders(session):
-    """Test DataFrame.ai_complete with positional placeholders."""
+    """Test DataFrame.ai.complete with positional placeholders."""
     # Create a DataFrame
     df = session.create_dataframe(
         [
@@ -62,8 +62,8 @@ def test_dataframe_ai_complete_with_positional_placeholders(session):
         schema=["topic", "category"],
     )
 
-    # Use DataFrame.ai_complete with positional placeholders
-    result_df = df.ai_complete(
+    # Use DataFrame.ai.complete with positional placeholders
+    result_df = df.ai.complete(
         prompt="Define {0} in the context of {1} in one sentence.",
         input_columns=[col("topic"), col("category")],
         output_column="definition",
@@ -83,13 +83,13 @@ def test_dataframe_ai_complete_with_positional_placeholders(session):
 
 
 def test_dataframe_ai_complete_default_output_column(session):
-    """Test DataFrame.ai_complete with default output column name."""
+    """Test DataFrame.ai.complete with default output column name."""
     df = session.create_dataframe(
         [["What is 2+2?"], ["What is the capital of France?"]], schema=["question"]
     )
 
     # Don't specify output_column, should use default
-    result_df = df.ai_complete(
+    result_df = df.ai.complete(
         prompt="Answer the question",
         input_columns=[col("question")],
         model="snowflake-arctic",
@@ -111,12 +111,12 @@ def test_dataframe_ai_complete_default_output_column(session):
 
 
 def test_dataframe_ai_complete_error_handling(session):
-    """Test error handling in DataFrame.ai_complete."""
+    """Test error handling in DataFrame.ai.complete."""
 
     # Test missing model parameter
     df = session.create_dataframe([["test"]], schema=["text"])
     with pytest.raises(ValueError, match="model must be specified"):
-        df.ai_complete(
+        df.ai.complete(
             prompt="Test {text}",
             input_columns={"text": col("text")}
             # model parameter missing
@@ -126,7 +126,7 @@ def test_dataframe_ai_complete_error_handling(session):
     with pytest.raises(
         TypeError, match="input_columns must be a list of Columns or a dict"
     ):
-        df.ai_complete(
+        df.ai.complete(
             prompt="Test",
             input_columns="invalid",  # Should be list or dict
             model="snowflake-arctic",
