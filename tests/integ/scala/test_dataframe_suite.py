@@ -3279,3 +3279,5 @@ def test_yearmonth_interval_type_dataframe(session):
     assert result[0]["YM_INTERVAL"] == "-1-02"
     assert result[1]["YM_INTERVAL"] == "-2-00"
     assert result[2]["YM_INTERVAL"] == "-12-11"
+
+    session.sql("alter session set feature_interval_types=disabled;").collect()
