@@ -47,7 +47,7 @@ def _check_column_parameters(name1: str, name2: Optional[str]) -> None:
 
     if name2 is not None and not isinstance(name2, str):
         raise ValueError(
-            f"Expects second argument to be of type str or None, got {type(name1)}."
+            f"Expects second argument to be of type str or None, got {type(name2)}."
         )
 
 
