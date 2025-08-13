@@ -1313,6 +1313,7 @@ class DataFrameReader:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
+        single_column_if_infer_schema_fail: Optional[bool] = False,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1345,10 +1346,9 @@ class DataFrameReader:
 
                 - imports (List[str], required): A list of stage file names to import into the UDTF.
                     Please include Jar file of jdbc driver to establish connection to external data source.
-                    Note that java udtf currently only support java 11, please include corresponding Jar file.
 
-                - packages (List[str], optional): A list of package names (with optional version numbers)
-                    required as dependencies for your `create_connection()` function.
+                - java_version (int, optional): A integer that indicate the java runtime version of udtf.
+                    By default we use java 11.
 
             table: The name of the table in the external data source.
                 This parameter cannot be used together with the `query` parameter.
@@ -1383,6 +1383,7 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
+            single_column_if_infer_schema_fail: A bool value that control whether the data is dump into a single json string when infer schema fails.
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
@@ -1392,7 +1393,8 @@ class DataFrameReader:
             "external_access_integration", None
         )
         imports = udtf_configs.get("imports", None)
-        packages = udtf_configs.get("packages", None)
+        packages = udtf_configs.get("packages", ["com.snowflake:snowpark:latest"])
+        java_version = udtf_configs.get("java_version", 11)
 
         if external_access_integration is None or imports is None:
             raise ValueError(
@@ -1404,6 +1406,7 @@ class DataFrameReader:
             external_access_integration=external_access_integration,
             imports=imports,
             packages=packages,
+            java_version=java_version,
             table_or_query=table or query,
             is_query=True if query is not None else False,
             column=column,
@@ -1415,6 +1418,8 @@ class DataFrameReader:
             custom_schema=custom_schema,
             predicates=predicates,
             session_init_statement=session_init_statement,
+            single_column_if_infer_schema_fail=single_column_if_infer_schema_fail,
+            _emit_ast=_emit_ast,
         )
 
         partitions = jdbc_client.partitions

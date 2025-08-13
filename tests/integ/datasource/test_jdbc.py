@@ -1,6 +1,12 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import pytest
+
+
+@pytest.fixture(scope="module", autouse=True)
+def setup(session):
+    yield
 
 
 def test_basic_jdbc(session):
@@ -23,4 +29,8 @@ def test_unsupported_dbms_type(session):
 
 
 def test_timestamp_type(session):
+    pass
+
+
+def test_infer_schema(session):
     pass

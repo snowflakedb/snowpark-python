@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # reference for java type to snowflake type:
 # https://docs.snowflake.com/en/developer-guide/udf-stored-procedure-data-type-mapping
 
-JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
+JAVA_TYPE_TO_SNOWFLAKE_TYPE = {
     "java.math.BigDecimal": DecimalType,
     "java.math.BigInteger": DecimalType,
     "java.lang.Float": FloatType,
@@ -44,18 +44,34 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
     "java.lang.Integer": DecimalType,
     "java.lang.Short": DecimalType,
 }
+JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
+    "NUMERIC": DecimalType,
+    "VARCHAR": StringType,
+    "CHAR": StringType,
+    "CLOB": StringType,
+    "NCHAR": StringType,
+    "NVARCHAR": StringType,
+    "NCLOB": StringType,
+    "TIMESTAMP": StringType,
+    "VARBINARY": StringType,
+}
+
 PARTITION_TABLE_COLUMN_NAME = "partition"
 
 
 def to_snow_type(raw_schema: List[Any]) -> StructType:
     fields = []
-    for (field_name, field_type, precision, scale, nullable) in raw_schema:
-        snow_type = JDBC_TYPE_TO_SNOWFLAKE_TYPE.get(field_type, StringType)
+    for (field_name, jdbc_type, java_type, precision, scale, nullable) in raw_schema:
+        jdbc_to_snow_type = JDBC_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, None)
+        java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, StringType)
+        snow_type = (
+            java_to_snow_type if jdbc_to_snow_type is None else jdbc_to_snow_type
+        )
         if snow_type == DecimalType:
             if not BaseDriver.validate_numeric_precision_scale(precision, scale):
                 logger.debug(
                     f"Snowpark does not support column"
-                    f" {field_name} of type {field_type} with precision {precision} and scale {scale}. "
+                    f" {field_name} of type {java_type} with precision {precision} and scale {scale}. "
                     "The default Numeric precision and scale will be used."
                 )
                 precision, scale = None, None
@@ -74,7 +90,7 @@ def generate_select_sql(table_or_query: str, raw_schema: List[str], is_query: bo
     if is_query:
         return table_or_query
     else:
-        cols = [col[0] for col in raw_schema]
+        cols = [col[0] for col in raw_schema] if raw_schema is not None else ["*"]
         return f"SELECT {', '.join(cols)} FROM {table_or_query}"
 
 
@@ -88,6 +104,7 @@ class JDBC:
         imports: List[str],
         is_query: bool,
         packages: Optional[List[str]] = None,
+        java_version: Optional[int] = 11,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
@@ -107,6 +124,7 @@ class JDBC:
         self.external_access_integration = external_access_integration
         self.imports = imports
         self.packages = packages
+        self.java_version = java_version
 
         self.is_query = is_query
         self.column = column
@@ -127,10 +145,11 @@ class JDBC:
             else ""
         )
         self.packages = (
-            f"""PACKAGES=('com.snowflake:snowpark:latest', {','.join([f"'{pack}'" for pack in self.packages])})"""
+            f"""PACKAGES=({','.join([f"'{pack}'" for pack in self.packages])})"""
             if self.packages is not None
             else "PACKAGES=('com.snowflake:snowpark:latest')"
         )
+        self._infer_schema_successful = True
 
     @cached_property
     def schema(self) -> StructType:
@@ -139,9 +158,9 @@ class JDBC:
         )
         infer_schema_udtf_registration = f"""
             CREATE OR REPLACE FUNCTION {infer_schema_udtf_name}(query VARCHAR)
-            RETURNS TABLE (field_name VARCHAR, field_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN)
+            RETURNS TABLE (field_name VARCHAR, jdbc_type VARCHAR, java_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN)
             LANGUAGE JAVA
-            RUNTIME_VERSION = '11'
+            RUNTIME_VERSION = '{self.java_version}'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
             {self.imports}
             {self.packages}
@@ -159,7 +178,8 @@ class JDBC:
             class OutputRow {{
 
                 public String field_name;
-                public String field_type;
+                public String jdbc_type;
+                public String java_type;
                 public int precision;
                 public int scale;
                 public boolean nullable;
@@ -197,7 +217,13 @@ class JDBC:
                                 OutputRow row = new OutputRow();
 
                                 row.field_name = meta.getColumnName(i);
-                                row.field_type = meta.getColumnClassName(i);
+                                row.java_type = meta.getColumnClassName(i);
+                                String jdbc_type;
+                                try{{
+                                    row.jdbc_type = JDBCType.valueOf(meta.getColumnType(i)).toString();
+                                }} catch(Exception e){{
+                                    row.jdbc_type = null;
+                                }}
                                 row.precision = meta.getPrecision(i);
                                 row.scale = meta.getScale(i);
                                 row.nullable = meta.isNullable(i) == ResultSetMetaData.columnNullable;
@@ -224,40 +250,46 @@ class JDBC:
             else f"SELECT * FROM {self.table_or_query} WHERE 1 = 0"
         )
 
-        self.session.sql(
-            infer_schema_udtf_registration, _emit_ast=self._emit_ast
-        ).collect()
-        self.raw_schema = self.session.sql(
-            f"SELECT * FROM TABLE({infer_schema_udtf_name}('{infer_schema_sql}'))",
-            _emit_ast=self._emit_ast,
-        ).collect()
+        try:
+            self.session.sql(
+                infer_schema_udtf_registration, _emit_ast=self._emit_ast
+            ).collect()
+            self.raw_schema = self.session.sql(
+                f"SELECT * FROM TABLE({infer_schema_udtf_name}('{infer_schema_sql}'))",
+                _emit_ast=self._emit_ast,
+            ).collect()
 
-        auto_infer_schema = to_snow_type(self.raw_schema)
+            auto_infer_schema = to_snow_type(self.raw_schema)
 
-        if self.custom_schema is None:
-            return auto_infer_schema
-        else:
-            custom_schema = DataSourcePartitioner.formatting_custom_schema(
-                self.custom_schema
-            )
-
-            # generate final schema with auto infer schema and custom schema
-            custom_schema_name_to_field = defaultdict()
-            for field in custom_schema.fields:
-                if field.name.lower() in custom_schema_name_to_field:
-                    raise ValueError(
-                        f"Invalid schema: {self.custom_schema}. "
-                        f"Schema contains duplicate column: {field.name.lower()}. "
-                        "Please choose another name or rename the existing column "
-                    )
-                custom_schema_name_to_field[field.name.lower()] = field
-            final_fields = []
-            for field in auto_infer_schema.fields:
-                final_fields.append(
-                    custom_schema_name_to_field.get(field.name.lower(), field)
+            if self.custom_schema is None:
+                return auto_infer_schema
+            else:
+                custom_schema = DataSourcePartitioner.formatting_custom_schema(
+                    self.custom_schema
                 )
 
-            return StructType(final_fields)
+                # generate final schema with auto infer schema and custom schema
+                custom_schema_name_to_field = defaultdict()
+                for field in custom_schema.fields:
+                    if field.name.lower() in custom_schema_name_to_field:
+                        raise ValueError(
+                            f"Invalid schema: {self.custom_schema}. "
+                            f"Schema contains duplicate column: {field.name.lower()}. "
+                            "Please choose another name or rename the existing column "
+                        )
+                    custom_schema_name_to_field[field.name.lower()] = field
+                final_fields = []
+                for field in auto_infer_schema.fields:
+                    final_fields.append(
+                        custom_schema_name_to_field.get(field.name.lower(), field)
+                    )
+
+                return StructType(final_fields)
+        except Exception:
+            if self.single_column_if_infer_schema_fail:
+                self._infer_schema_successful = False
+                return StructType([StructField("JSON_ROW", StringType(), False)])
+            raise
 
     @cached_property
     def partitions(self) -> List[str]:
@@ -288,17 +320,23 @@ class JDBC:
         output_rows = "".join(
             [f"public String {field.name};\n" for field in self.schema.fields]
         )
-        create_output_row = "".join(
-            [
-                f"row.{field.name} = rs.getString({i+1});\n"
-                for i, field in enumerate(self.schema.fields)
-            ]
+        create_output_row = (
+            f"""row.{self.schema.fields[0].name} = extractRowAsJson(rs, meta, columnCount)"""
+            if not self._infer_schema_successful
+            and self.single_column_if_infer_schema_fail
+            else "".join(
+                [
+                    f"row.{field.name} = rs.getString({i+1});\n"
+                    for i, field in enumerate(self.schema.fields)
+                ]
+            )
         )
+
         jdbc_udtf_registration = f"""
             CREATE OR REPLACE FUNCTION {jdbc_ingestion_name}(query VARCHAR)
             RETURNS TABLE ({udtf_table_return_type})
             LANGUAGE JAVA
-            RUNTIME_VERSION = '11'
+            RUNTIME_VERSION = '{self.java_version}'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
             {self.imports}
             {self.packages}
@@ -328,6 +366,53 @@ class JDBC:
                     throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
                 }}
             }}
+
+            public static String extractRowAsJson(ResultSet rs, ResultSetMetaData meta, int columnCount) throws SQLException {{
+                Map<String, String> rowMap = new LinkedHashMap<>();
+                for (int i = 1; i <= columnCount; i++) {{
+                    String raw = rs.getString(i);
+                    rowMap.put(meta.getColumnLabel(i), raw);
+                }}
+                return mapToJson(rowMap);
+            }}
+
+            public static String mapToJson(Map<String, Object> map) {{
+                StringBuilder sb = new StringBuilder();
+                sb.append("{{");
+
+                boolean first = true;
+                for (Map.Entry<String, Object> entry : map.entrySet()) {{
+                    if (!first) {{
+                        sb.append(",");
+                    }}
+                    first = false;
+
+                    sb.append("\"").append(escapeJson(entry.getKey())).append("\":");
+
+                    Object value = entry.getValue();
+                    if (value == null) {{
+                        sb.append("null");
+                    }} else if (value instanceof Number || value instanceof Boolean) {{
+                        sb.append(value.toString());
+                    }} else {{
+                        sb.append("\"").append(escapeJson(value.toString())).append("\"");
+                    }}
+                }}
+
+                sb.append("}}");
+                return sb.toString();
+            }}
+
+            public static String escapeJson(String s) {{
+                return s.replace("\\", "\\\\")
+                        .replace("\"", "\\\"")
+                        .replace("\b", "\\b")
+                        .replace("\f", "\\f")
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r")
+                        .replace("\t", "\\t");
+            }}
+
             public static Class<?> getOutputClass() {{
                 return OutputRow.class;
             }}
@@ -343,6 +428,8 @@ class JDBC:
                     stmt.setQueryTimeout({str(self.query_timeout)});
                     stmt.setFetchSize({str(self.fetch_size)});
                     try (ResultSet rs = stmt.executeQuery()) {{
+                        ResultSetMetaData meta = rs.getMetaData();
+                        int columnCount = meta.getColumnCount();
                         while (rs.next()) {{
                             OutputRow row = new OutputRow();
                             {create_output_row}
