@@ -299,6 +299,7 @@ def test_verify_datatypes_reference(session):
         ]
     )
     Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
+    session.sql("alter session set feature_interval_types=disabled;").collect()
 
 
 def test_verify_datatypes_reference2(session):
@@ -428,6 +429,7 @@ def test_dtypes(session):
         ("ARRAY", "array<string>"),
         ("MAP", "map<string,string>"),
     ]
+    session.sql("alter session set feature_interval_types=disabled;").collect()
 
 
 @pytest.mark.skipif(
