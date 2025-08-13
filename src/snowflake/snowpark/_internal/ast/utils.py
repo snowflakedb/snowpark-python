@@ -17,6 +17,7 @@ from logging import getLogger
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing_extensions import Unpack
 
 import dateutil
 from dateutil.tz import tzlocal
@@ -43,6 +44,7 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
     ColumnOrName,
     ColumnOrSqlExpr,
+    CopyOptions,
 )
 from snowflake.snowpark._internal.utils import str_to_enum
 from snowflake.snowpark.types import DataType, StructType
@@ -1058,7 +1060,7 @@ def fill_write_file(
     header: bool = False,
     statement_params: Optional[Dict[str, str]] = None,
     block: bool = True,
-    **copy_options: dict,
+    **copy_options: Unpack[CopyOptions],
 ) -> None:  # pragma: no cover
     expr.location = location  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "location"
 
