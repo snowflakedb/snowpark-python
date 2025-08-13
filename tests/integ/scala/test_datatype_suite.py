@@ -267,7 +267,7 @@ def test_verify_datatypes_reference(session):
                 5.0,
                 6.0,
                 Decimal(123),
-                "1-3",  # Test with None first to verify schema inference
+                "1-3",
                 None,
                 None,
             ]
