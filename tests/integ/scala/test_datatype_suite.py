@@ -263,7 +263,7 @@ def test_verify_datatypes_reference(session):
                 5.0,
                 6.0,
                 Decimal(123),
-                None,  # Test with None first to verify schema inference
+                "1-3",  # Test with None first to verify schema inference
                 None,
                 None,
             ]
@@ -347,6 +347,7 @@ def test_verify_datatypes_reference_vector(session):
     reason="FEAT: function to_geography not supported",
 )
 def test_dtypes(session):
+    session.sql("alter session set feature_interval_types=enabled;").collect()
     schema = StructType(
         [
             StructField("var", VariantType()),
@@ -390,7 +391,7 @@ def test_dtypes(session):
                 5.0,
                 6.0,
                 Decimal(123),
-                "INTERVAL 1-2 YEAR TO MONTH",
+                "-6-3",
                 None,
                 None,
             ]
