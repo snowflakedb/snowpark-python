@@ -10913,6 +10913,79 @@ def make_interval(
 
 
 @publicapi
+def make_ym_interval(
+    years: Union[ColumnOrName, int] = 0,
+    months: Union[ColumnOrName, int] = 0,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates a year-month interval expression.
+
+    Args:
+        years: The number of years, positive or negative
+        months: The number of months, positive or negative
+
+    Returns:
+        A Column representing a year-month interval
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import make_ym_interval
+        >>> df = session.create_dataframe([[1, 2]], ["years", "months"])
+        >>> df.select(make_ym_interval(col("years"), col("months")).alias("interval")).show()
+        >>> # make_ym_interval(2014, 12) returns INTERVAL '2015-0' YEAR TO MONTH
+        >>> # make_ym_interval(1, 14) returns INTERVAL '2-2' YEAR TO MONTH
+    """
+    if isinstance(years, (int, float)) and isinstance(months, (int, float)):
+        years_int = int(years)
+        months_int = int(months)
+
+        total_months = years_int * 12 + months_int
+        if total_months >= 0:
+            normalized_years, normalized_months = divmod(total_months, 12)
+        else:
+            normalized_years = total_months * -1 // 12
+            normalized_months = (12 * normalized_years + total_months) * -1
+
+        return sql_expr(
+            f"""INTERVAL '{'-' if total_months < 0 else ''}{normalized_years}-{normalized_months}' YEAR TO MONTH""",
+            _emit_ast=_emit_ast,
+        )
+    else:
+        years_col = _to_col_if_str(years, "make_ym_interval")
+        months_col = _to_col_if_str(months, "make_ym_interval")
+
+        total_months = years_col * lit(12) + months_col
+
+        normalized_years = iff(
+            total_months >= lit(0),
+            cast(floor(total_months / lit(12)), "int"),
+            cast(floor((total_months * lit(-1)) / lit(12)), "int"),
+        )
+
+        normalized_months = iff(
+            total_months >= lit(0),
+            cast(total_months % lit(12), "int"),
+            cast((lit(12) * normalized_years + total_months) * lit(-1), "int"),
+        )
+
+        sign_prefix = iff(total_months < lit(0), lit("-"), lit(""))
+
+        interval_string = concat(
+            sign_prefix,
+            cast(normalized_years, "str"),
+            lit("-"),
+            iff(
+                normalized_months < lit(10),
+                concat(lit("0"), cast(normalized_months, "str")),
+                cast(normalized_months, "str"),
+            ),
+        )
+
+        return cast(interval_string, "INTERVAL YEAR TO MONTH")
+
+
+@publicapi
 @deprecated(
     version="1.28.0",
     extra_warning_text="Please consider installing snowflake-ml-python and using `snowflake.cortex.summarize` instead.",
