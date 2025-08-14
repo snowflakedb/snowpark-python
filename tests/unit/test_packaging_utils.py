@@ -7,13 +7,10 @@ import zipfile
 from subprocess import TimeoutExpired
 from unittest.mock import patch
 
-import pkg_resources
 import pytest
-from pkg_resources import Requirement
+from packaging.requirements import Requirement
 
 from snowflake.snowpark._internal.packaging_utils import (
-    SNOWPARK_PACKAGE_NAME,
-    add_snowpark_package,
     detect_native_dependencies,
     get_package_name_from_metadata,
     get_signature,
@@ -216,10 +213,10 @@ def test_identify_supported_packages_vanilla():
     Assert that the most straightforward usage of identify_supported_packages() works
     """
     packages = [
-        Requirement.parse("package1==1.0.0"),
-        Requirement.parse("package2==2.0.0"),
-        Requirement.parse("package3"),
-        Requirement.parse("package4==2.1.2"),
+        Requirement("package1==1.0.0"),
+        Requirement("package2==2.0.0"),
+        Requirement("package3"),
+        Requirement("package4==2.1.2"),
     ]
     valid_packages = {
         "package1": ["1.0.0", "1.1.0"],
@@ -238,7 +235,7 @@ def test_identify_supported_packages_vanilla():
     assert len(dropped_deps) == 1
     assert packages[3] in dropped_deps
     assert len(new_deps) == 1
-    assert Requirement.parse("package4") in new_deps
+    assert Requirement("package4") in new_deps
 
 
 def test_identify_supported_packages_all_cases():
@@ -250,7 +247,7 @@ def test_identify_supported_packages_all_cases():
 
     # Case 1: All packages supported
     native_packages = {"pandas"}
-    packages = [Requirement.parse("numpy==1.2"), Requirement.parse("pandas")]
+    packages = [Requirement("numpy==1.2"), Requirement("pandas")]
     supported, dropped, new = identify_supported_packages(
         packages, valid_packages, native_packages, {}
     )
@@ -261,29 +258,29 @@ def test_identify_supported_packages_all_cases():
 
     # Case 2: One non-native package, version not supported
     native_packages = {"pandas"}
-    packages = [Requirement.parse("numpy==10.0"), Requirement.parse("pandas")]
+    packages = [Requirement("numpy==10.0"), Requirement("pandas")]
     supported, dropped, new = identify_supported_packages(
         packages, valid_packages, native_packages, {}
     )
-    assert supported == [Requirement.parse("pandas")]
+    assert supported == [Requirement("pandas")]
     assert dropped == []
     assert new == []
     assert native_packages == set()
 
     # Case 3: Native package version not available, should switch to latest available version
     native_packages = {"numpy", "pandas"}
-    packages = [Requirement.parse("numpy==10.0"), Requirement.parse("pandas")]
+    packages = [Requirement("numpy==10.0"), Requirement("pandas")]
     supported, dropped, new = identify_supported_packages(
         packages, valid_packages, native_packages, {}
     )
-    assert supported == [Requirement.parse("pandas")]
-    assert dropped == [Requirement.parse("numpy==10.0")]
-    assert new == [Requirement.parse("numpy")]
+    assert supported == [Requirement("pandas")]
+    assert dropped == [Requirement("numpy==10.0")]
+    assert new == [Requirement("numpy")]
     assert native_packages == set()
 
     # Case 4: Package not in valid_packages and not a native package either
     native_packages = {"numpy", "pandas"}
-    packages = [Requirement.parse("somepackage")]
+    packages = [Requirement("somepackage")]
     supported, dropped, new = identify_supported_packages(
         packages, valid_packages, native_packages, {}
     )
@@ -332,8 +329,8 @@ def test_no_pip(monkeypatch, temp_directory):
 def test_detect_native_dependencies():
     target = "/path/to/target"
     downloaded_packages_dict = {
-        Requirement.parse("numpy"): ["numpy"],
-        Requirement.parse("pandas"): ["pandas"],
+        Requirement("numpy"): ["numpy"],
+        Requirement("pandas"): ["pandas"],
     }
 
     # Mock the glob.glob function to return specific paths
@@ -352,28 +349,6 @@ def test_detect_native_dependencies():
         mock_glob.return_value = ["/path/to/target/unknown/file.so"]
         result = detect_native_dependencies(target, downloaded_packages_dict)
         assert result == set()
-
-
-def test_add_snowpark_package():
-    version = "1.3.0"
-    valid_packages = {SNOWPARK_PACKAGE_NAME: [version]}
-    result_dict = {}
-    with patch("pkg_resources.get_distribution") as mock_get_distribution:
-        mock_get_distribution.return_value.version = version
-        add_snowpark_package(result_dict, valid_packages)
-        assert result_dict == {SNOWPARK_PACKAGE_NAME: f"{SNOWPARK_PACKAGE_NAME}==1.3.0"}
-
-
-def test_add_snowpark_package_if_missing():
-    version = "1.3.0"
-    valid_packages = {SNOWPARK_PACKAGE_NAME: [version]}
-    result_dict = {}
-    with patch("pkg_resources.get_distribution") as mock_get_distribution:
-        mock_get_distribution.side_effect = pkg_resources.DistributionNotFound(
-            "Package not found"
-        )
-        add_snowpark_package(result_dict, valid_packages)  # Should not raise any error
-        assert result_dict == {SNOWPARK_PACKAGE_NAME: SNOWPARK_PACKAGE_NAME}
 
 
 def test_get_signature():
