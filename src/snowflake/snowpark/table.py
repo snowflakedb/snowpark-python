@@ -6,6 +6,7 @@
 import sys
 from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Union, overload
+from datetime import datetime
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -320,39 +321,22 @@ class Table(DataFrame):
         # created from Session object
         set_api_call_source(self, "Table.__init__")
 
-    @publicapi
-    def before(
+    def _time_travel(
         self,
-        timestamp: Optional[str] = None,
-        offset: Optional[int] = None,
+        mode: str,
+        *,
         statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
+        timezone: Optional[str] = "NTZ",
         _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
-        """Selects historical data from a table as it existed immediately before a specified
-        statement completed, using Snowflake Time Travel.
-
-        Retrieves the state of the data just prior to the completion of a given statement
-        (identified by its query ID).
-
-        Examples::
-
-            >>> df_before = session.table("MY_TABLE").before("01a12345-0600-1234-0000-987605123abc")
-
-        Args:
-            statement: A query ID string identifying the statement whose completion time
-                determines the cutoff point for returned data.
-            _ast_stmt: When invoked internally, supplies the AST to use for the resulting dataframe.
-            _emit_ast: Whether to emit the AST for this operation.
-
-        See Also:
-            Snowflake Time Travel documentation on the BEFORE clause.
-            <https://docs.snowflake.com/en/sql-reference/constructs/at-before#using-the-before-clause>
-        """
+        """Internal method for time travel operations (BEFORE/AT)."""
         num_provided = sum(v is not None for v in (statement, offset, timestamp))
         if num_provided != 1:
             raise ValueError(
-                "Exactly one of 'timestamp', 'offset', or 'statement' must be provided."
+                "Exactly one of 'statement', 'offset', or 'timestamp' must be provided."
             )
 
         stmt = None
@@ -362,7 +346,7 @@ class Table(DataFrame):
             ast = with_src_position(stmt.expr.table_sample, stmt)
             self._set_ast_ref(ast.df)
 
-        sql_text = f"SELECT * FROM {self.table_name} BEFORE "
+        sql_text = f"SELECT * FROM {self.table_name} {mode} "
         if statement is not None:
             sql_text += f"(STATEMENT => '{statement}')"
         elif offset is not None:
@@ -370,10 +354,124 @@ class Table(DataFrame):
                 raise ValueError("'offset' must be a negative integer (seconds).")
             sql_text += f"(OFFSET => {offset})"
         else:
-            sql_text += f"(TIMESTAMP => '{timestamp}')"
+            if isinstance(timestamp, datetime):
+                timestamp_str = str(timestamp)
+            elif isinstance(timestamp, str):
+                try:
+                    parsed_timestamp = datetime.strptime(
+                        timestamp.strip(), "%Y-%m-%d %H:%M:%S"
+                    )
+                    timestamp_str = parsed_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    raise ValueError(
+                        f"Timestamp must be in format 'YYYY-MM-DD HH:MM:SS'. Got: {timestamp}"
+                    )
+
+            if timezone.upper() == "NTZ":
+                func_name = "TO_TIMESTAMP_NTZ"
+            elif timezone.upper() == "LTZ":
+                func_name = "TO_TIMESTAMP_LTZ"
+            elif timezone.upper() == "TZ":
+                func_name = "TO_TIMESTAMP_TZ"
+            else:
+                raise ValueError(
+                    f"'timezone' value {timezone} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
+                )
+
+            sql_text += f"(TIMESTAMP => {func_name}('{timestamp_str}'))"
 
         new_df = self._session.sql(sql_text, _ast_stmt=stmt)
         return new_df
+
+    @publicapi
+    def before(
+        self,
+        *,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
+        timezone: Optional[str] = "NTZ",
+        _ast_stmt: proto.Bind = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Selects historical data from a table as it existed immediately before a specified
+        statement completed, using Snowflake Time Travel.
+
+        Examples::
+
+            >>> df_before = session.table("MY_TABLE").before(statement="01a12345-0600-1234-0000-987605123abc")
+            >>> df_before = session.table("MY_TABLE").before(offset=-3600)  # 1 hour ago
+            >>> df_before = session.table("MY_TABLE").before(timestamp="2023-01-01 12:00:00")
+            >>> df_before = session.table("MY_TABLE").before(timestamp="2023-01-01 12:00:00", timezone="LTZ")
+
+        Args:
+            statement: A query ID string identifying the statement whose completion time
+                determines the cutoff point for returned data.
+            offset: Number of seconds before current time (must be negative).
+            timestamp: A datetime object or timestamp string.
+            timezone: Timestamp timezone type for timestamp parameter. Must be "NTZ", "LTZ", or "TZ".
+                Defaults to "NTZ". Ignored for statement and offset parameters.
+            _ast_stmt: When invoked internally, supplies the AST to use for the resulting dataframe.
+            _emit_ast: Whether to emit the AST for this operation.
+
+        See Also:
+            Snowflake Time Travel documentation on the BEFORE clause.
+            <https://docs.snowflake.com/en/sql-reference/constructs/at-before#using-the-before-clause>
+        """
+        return self._time_travel(
+            "BEFORE",
+            statement=statement,
+            offset=offset,
+            timestamp=timestamp,
+            timezone=timezone,
+            _ast_stmt=_ast_stmt,
+            _emit_ast=_emit_ast,
+        )
+
+    @publicapi
+    def at(
+        self,
+        *,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
+        timezone: Optional[str] = "NTZ",
+        _ast_stmt: proto.Bind = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Selects historical data from a table as it existed at a specified point in time,
+        using Snowflake Time Travel.
+
+        Examples::
+
+            >>> df_at = session.table("MY_TABLE").at(statement="01a12345-0600-1234-0000-987605123abc")
+            >>> df_at = session.table("MY_TABLE").at(offset=-3600)  # 1 hour ago
+            >>> df_at = session.table("MY_TABLE").at(timestamp="2023-01-01 12:00:00")
+            >>> df_at = session.table("MY_TABLE").at(timestamp="2023-01-01 12:00:00", timezone="LTZ")
+
+        Args:
+            statement: A query ID string identifying the statement whose completion time
+                determines the point in time for returned data.
+            offset: Number of seconds before current time (must be negative).
+            timestamp: A datetime object or timestamp string.
+            timezone: Timestamp timezone type for timestamp parameter. Must be "NTZ", "LTZ", or "TZ".
+                Defaults to "NTZ". Ignored for statement and offset parameters.
+            _ast_stmt: When invoked internally, supplies the AST to use for the resulting dataframe.
+            _emit_ast: Whether to emit the AST for this operation.
+
+        See Also:
+            Snowflake Time Travel documentation on the AT clause.
+            <https://docs.snowflake.com/en/sql-reference/constructs/at-before#using-the-at-clause>
+        """
+        return self._time_travel(
+            "AT",
+            statement=statement,
+            offset=offset,
+            timestamp=timestamp,
+            timezone=timezone,
+            _ast_stmt=_ast_stmt,
+            _emit_ast=_emit_ast,
+        )
 
     def _copy_without_ast(self):
         return Table(

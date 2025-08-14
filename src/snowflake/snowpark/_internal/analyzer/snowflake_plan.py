@@ -90,7 +90,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     table_function_statement,
     unpivot_statement,
     update_statement,
-    before_statement,
+    time_travel_statement,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
@@ -1052,19 +1052,23 @@ class SnowflakePlanBuilder:
             ]
         return new_plan
 
-    def before(
+    def time_travel(
         self,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        mode: str,
         timestamp: Optional[str] = None,
         offset: Optional[int] = None,
         statement: Optional[str] = None,
+        timezone: Optional[str] = "NTZ",
     ) -> SnowflakePlan:
-        sql = before_statement(
+        sql = time_travel_statement(
             child=child.queries[-1].sql,
+            mode=mode,
             timestamp=timestamp,
             offset=offset,
             statement=statement,
+            timezone=timezone,
         )
         return self.query(sql, source_plan)
 
