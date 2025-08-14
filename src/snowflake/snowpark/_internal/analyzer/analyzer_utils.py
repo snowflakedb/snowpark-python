@@ -207,7 +207,6 @@ UUID_COMMENT = "-- {}"
 MODEL = "MODEL"
 EXCLAMATION_MARK = "!"
 HAVING = " HAVING "
-BEFORE = " BEFORE "
 STATEMENT = " STATEMENT "
 TIMESTAMP = " TIMESTAMP "
 
@@ -547,13 +546,15 @@ def filter_statement(
         )
 
 
-def before_statement(
+def time_travel_statement(
     child: str,
+    mode: str,
     timestamp: Optional[str] = None,
     offset: Optional[int] = None,
     statement: Optional[str] = None,
+    timezone: Optional[str] = "NTZ",
 ):
-    sql_query = child + BEFORE + LEFT_PARENTHESIS
+    sql_query = child + f" {mode} " + LEFT_PARENTHESIS
     if statement is not None:
         sql_query += (
             STATEMENT
@@ -566,12 +567,25 @@ def before_statement(
     elif offset is not None:
         sql_query += OFFSET + RIGHT_ARROW + str(offset) + RIGHT_PARENTHESIS
     elif timestamp is not None:
+        if timezone.upper() == "NTZ":
+            func_name = "TO_TIMESTAMP_NTZ"
+        elif timezone.upper() == "LTZ":
+            func_name = "TO_TIMESTAMP_LTZ"
+        elif timezone.upper() == "TZ":
+            func_name = "TO_TIMESTAMP_TZ"
+        else:
+            raise ValueError(
+                f"'timezone' value {timezone} must be one of 'NTZ', 'LTZ', or 'TZ'."
+            )
         sql_query += (
             TIMESTAMP
             + RIGHT_ARROW
+            + func_name
+            + LEFT_PARENTHESIS
             + SINGLE_QUOTE
             + timestamp
             + SINGLE_QUOTE
+            + RIGHT_PARENTHESIS
             + RIGHT_PARENTHESIS
         )
     return sql_query

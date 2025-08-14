@@ -5643,7 +5643,7 @@ def test_before_functionality(session):
         Utils.check_answer(df_before.sort("id"), expected_before)
 
         ts_now = session.sql("select current_timestamp() as CT").collect()[0][0]
-        offset_seconds = int((ts_now - ts_before_update).total_seconds())
+        offset_seconds = max(1, int((ts_now - ts_before_update).total_seconds()) + 1)
         df_before_offset = df_selected.before(offset=-offset_seconds)
         Utils.check_answer(df_before_offset.sort("id"), expected_before)
 
@@ -5693,7 +5693,7 @@ def test_before_with_joins_and_complex_operations(session):
 
         # Test 1: before() with join operations
         df_table1 = session.table(table1_name)
-        df_table2_before = session.table(table2_name).before(update_query_id)
+        df_table2_before = session.table(table2_name).before(statement=update_query_id)
 
         df_joined = (
             df_table1.join(
@@ -5709,7 +5709,7 @@ def test_before_with_joins_and_complex_operations(session):
         # Test 2: before() with window functions
         df_window = (
             session.table(table2_name)
-            .before(update_query_id)
+            .before(statement=update_query_id)
             .with_column("rank", rank().over(Window.order_by(col("score").desc())))
             .sort("user_id")
         )

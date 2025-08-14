@@ -4,6 +4,7 @@
 #
 
 import copy
+from datetime import datetime
 import itertools
 import random
 import re
@@ -100,9 +101,9 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Rename,
     Sample,
     Sort,
+    TimeTravel,
     Unpivot,
     ViewType,
-    Before,
 )
 from snowflake.snowpark._internal.ast.utils import (
     add_intermediate_stmt,
@@ -2016,36 +2017,17 @@ class DataFrame:
                 _ast_stmt=stmt,
             )
 
-    @df_api_usage
-    @publicapi
-    def before(
+    def _time_travel(
         self,
-        timestamp: Optional[str] = None,
-        offset: Optional[int] = None,
+        mode: str,
+        *,
         statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
+        timezone: Optional[str] = "NTZ",
         _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> "DataFrame":
-        """Selects historical data from a table as it existed immediately before a specified
-        statement completed, using Snowflake Time Travel.
-
-        Retrieves the state of the data just prior to the completion of a given statement
-        (identified by its query ID).
-
-        Examples::
-
-            >>> df_before = session.table("MY_TABLE").before("01a12345-0600-1234-0000-987605123abc")
-
-        Args:
-            statement: A query ID string identifying the statement whose completion time
-                determines the cutoff point for returned data.
-            _ast_stmt: When invoked internally, supplies the AST to use for the resulting dataframe.
-            _emit_ast: Whether to emit the AST for this operation.
-
-        See Also:
-            Snowflake Time Travel documentation on the BEFORE clause.
-            <https://docs.snowflake.com/en/sql-reference/constructs/at-before#using-the-before-clause>
-        """
         # AST
         stmt = None
         if _emit_ast:
@@ -2060,23 +2042,149 @@ class DataFrame:
         num_provided = sum(v is not None for v in (statement, offset, timestamp))
         if num_provided != 1:
             raise ValueError(
-                "Exactly one of 'timestamp', 'offset', or 'statement' must be provided."
+                "Exactly one of 'statement', 'offset', or 'timestamp' must be provided."
             )
 
+        # Validate offset
+        if offset is not None and offset > 0:
+            raise ValueError("'offset' must be a negative integer (seconds).")
+
+        # Validate and process timestamp
+        if timestamp is not None:
+            if isinstance(timestamp, datetime):
+                timestamp_str = str(timestamp)
+            elif isinstance(timestamp, str):
+                try:
+                    parsed_timestamp = datetime.strptime(
+                        timestamp.strip(), "%Y-%m-%d %H:%M:%S"
+                    )
+                    timestamp_str = parsed_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    raise ValueError(
+                        f"Timestamp must be in format 'YYYY-MM-DD HH:MM:SS'. Got: {timestamp}"
+                    )
+                timestamp = timestamp_str
+
+            # Validate timezone
+            if timezone.upper() not in ["NTZ", "LTZ", "TZ"]:
+                raise ValueError(
+                    f"'timezone' value {timezone} must be one of 'NTZ', 'LTZ', or 'TZ'."
+                )
+
         # TODO: context._is_snowpark_connect_compatible_mode ???
-        before_plan = Before(self._plan, timestamp, offset, statement)
+        time_travel_plan = TimeTravel(
+            self._plan, mode, timestamp, offset, statement, timezone
+        )
         if self._select_statement:
             return self._with_plan(
                 self._session._analyzer.create_select_statement(
                     from_=self._session._analyzer.create_select_snowflake_plan(
-                        before_plan, analyzer=self._session._analyzer
+                        time_travel_plan, analyzer=self._session._analyzer
                     ),
                     analyzer=self._session._analyzer,
                 ),
                 _ast_stmt=stmt,
             )
         # TODO: add Before in UnaryNode or LogicalPlan??
-        return self._with_plan(before_plan, _ast_stmt=stmt)
+        return self._with_plan(time_travel_plan, _ast_stmt=stmt)
+
+    @df_api_usage
+    @publicapi
+    def before(
+        self,
+        *,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
+        timezone: Optional[str] = "NTZ",
+        _ast_stmt: proto.Bind = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Selects historical data from a table as it existed immediately before a specified
+        statement completed, using Snowflake Time Travel.
+
+        Retrieves the state of the data just prior to the completion of a given statement
+        (identified by its query ID).
+
+        Examples::
+
+            >>> df_before = session.table("MY_TABLE").before(statement="01a12345-0600-1234-0000-987605123abc")
+            >>> df_before = session.table("MY_TABLE").before(offset=-3600)  # 1 hour ago
+            >>> df_before = session.table("MY_TABLE").before(timestamp="2023-01-01 12:00:00")
+            >>> df_before = session.table("MY_TABLE").before(timestamp="2023-01-01 12:00:00", timezone="LTZ")
+
+        Args:
+            statement: A query ID string identifying the statement whose completion time
+                determines the cutoff point for returned data.
+            offset: Number of seconds before current time (must be negative).
+            timestamp: A datetime object or timestamp string.
+            timezone: Timestamp timezone type for timestamp parameter. Must be "NTZ", "LTZ", or "TZ".
+                Defaults to "NTZ". Ignored for statement and offset parameters.
+            _ast_stmt: When invoked internally, supplies the AST to use for the resulting dataframe.
+            _emit_ast: Whether to emit the AST for this operation.
+
+        See Also:
+            Snowflake Time Travel documentation on the BEFORE clause.
+            <https://docs.snowflake.com/en/sql-reference/constructs/at-before#using-the-before-clause>
+        """
+        return self._time_travel(
+            "BEFORE",
+            statement=statement,
+            offset=offset,
+            timestamp=timestamp,
+            timezone=timezone,
+            _ast_stmt=_ast_stmt,
+            _emit_ast=_emit_ast,
+        )
+
+    @df_api_usage
+    @publicapi
+    def at(
+        self,
+        *,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
+        timezone: Optional[str] = "NTZ",
+        _ast_stmt: proto.Bind = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Selects historical data from a table as it existed at a specified point in time,
+        using Snowflake Time Travel.
+
+        Retrieves the state of the data at the completion of a given statement
+        (identified by its query ID).
+
+        Examples::
+
+            >>> df_at = session.table("MY_TABLE").at(statement="01a12345-0600-1234-0000-987605123abc")
+            >>> df_at = session.table("MY_TABLE").at(offset=-3600)  # 1 hour ago
+            >>> df_at = session.table("MY_TABLE").at(timestamp="2023-01-01 12:00:00")
+            >>> df_at = session.table("MY_TABLE").at(timestamp="2023-01-01 12:00:00", timezone="LTZ")
+
+        Args:
+            statement: A query ID string identifying the statement whose completion time
+                determines the point in time for returned data.
+            offset: Number of seconds before current time (must be negative).
+            timestamp: A datetime object or timestamp string.
+            timezone: Timestamp timezone type for timestamp parameter. Must be "NTZ", "LTZ", or "TZ".
+                Defaults to "NTZ". Ignored for statement and offset parameters.
+            _ast_stmt: When invoked internally, supplies the AST to use for the resulting dataframe.
+            _emit_ast: Whether to emit the AST for this operation.
+
+        See Also:
+            Snowflake Time Travel documentation on the AT clause.
+            <https://docs.snowflake.com/en/sql-reference/constructs/at-before#using-the-at-clause>
+        """
+        return self._time_travel(
+            "AT",
+            statement=statement,
+            offset=offset,
+            timestamp=timestamp,
+            timezone=timezone,
+            _ast_stmt=_ast_stmt,
+            _emit_ast=_emit_ast,
+        )
 
     @df_api_usage
     @publicapi
