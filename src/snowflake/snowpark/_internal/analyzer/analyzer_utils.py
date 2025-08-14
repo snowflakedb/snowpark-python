@@ -8,6 +8,7 @@ import math
 import os
 import sys
 import tempfile
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
 
 from snowflake.connector import ProgrammingError
@@ -549,7 +550,7 @@ def filter_statement(
 def time_travel_statement(
     child: str,
     mode: str,
-    timestamp: Optional[str] = None,
+    timestamp: Optional[Union[str, datetime]] = None,
     offset: Optional[int] = None,
     statement: Optional[str] = None,
     timezone: Optional[str] = "NTZ",
@@ -567,6 +568,7 @@ def time_travel_statement(
     elif offset is not None:
         sql_query += OFFSET + RIGHT_ARROW + str(offset) + RIGHT_PARENTHESIS
     elif timestamp is not None:
+        assert timezone is not None
         if timezone.upper() == "NTZ":
             func_name = "TO_TIMESTAMP_NTZ"
         elif timezone.upper() == "LTZ":
@@ -577,13 +579,21 @@ def time_travel_statement(
             raise ValueError(
                 f"'timezone' value {timezone} must be one of 'NTZ', 'LTZ', or 'TZ'."
             )
+        # Convert datetime object to string if necessary
+        if isinstance(timestamp, datetime):
+            timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f")[
+                :-3
+            ]  # Remove last 3 digits for milliseconds
+        else:
+            timestamp_str = timestamp
+
         sql_query += (
             TIMESTAMP
             + RIGHT_ARROW
             + func_name
             + LEFT_PARENTHESIS
             + SINGLE_QUOTE
-            + timestamp
+            + timestamp_str
             + SINGLE_QUOTE
             + RIGHT_PARENTHESIS
             + RIGHT_PARENTHESIS

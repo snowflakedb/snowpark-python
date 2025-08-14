@@ -5606,60 +5606,85 @@ def test_order_by_col(session, sql_simplifier_enabled, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="Time travel is not supported in Local Testing",
 )
-def test_before_functionality(session):
-    """Test before() function with table operations, DataFrame transformations, and SQL generation."""
+def test_time_travel_core_functionality(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-
+    data = [(1, "product_a", 100), (2, "product_b", 200), (3, "product_c", 300)]
+    df = session.create_dataframe(data, schema=["id", "name", "price"])
+    df.write.save_as_table(table_name, table_type="temporary")
+    session.table(table_name).collect()
     try:
-        initial_data = [
-            (1, "electronics", 100, None),
-            (2, "clothes", 200, 50),
-            (3, "cars", 300, 75),
-        ]
-        df_initial = session.create_dataframe(
-            initial_data, schema=["id", "dept", "sales", "discount"]
-        )
-        df_initial.write.save_as_table(table_name, table_type="temporary")
+        # Sleep to ensure stable time travel window to prevent flaky offset calculation
+        import time
+
+        time.sleep(2)
 
         ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][
             0
         ]
-
         with session.query_history() as query_history:
             session.sql(
-                f"UPDATE {table_name} SET sales = sales * 2 WHERE id <= 2"
+                f"UPDATE {table_name} SET price = price + 50 WHERE id <= 2"
             ).collect()
+        update_qid = query_history.queries[-1].query_id
 
-        update_query_id = query_history.queries[-1].query_id
-
-        # Test 1: Basic before() with DataFrame operations (select 2 columns)
-        df_selected = session.table(table_name).select("id", "sales")
-        df_before = df_selected.before(statement=update_query_id)
-        expected_before = [
-            Row(1, 100),
-            Row(2, 200),
-            Row(3, 300),
+        expected_before_update = [
+            Row(1, "product_a", 100),
+            Row(2, "product_b", 200),
+            Row(3, "product_c", 300),
         ]
-        Utils.check_answer(df_before.sort("id"), expected_before)
+        expected_after_update = [
+            Row(1, "product_a", 150),
+            Row(2, "product_b", 250),
+            Row(3, "product_c", 300),
+        ]
 
-        ts_now = session.sql("select current_timestamp() as CT").collect()[0][0]
-        offset_seconds = max(1, int((ts_now - ts_before_update).total_seconds()) + 1)
-        df_before_offset = df_selected.before(offset=-offset_seconds)
-        Utils.check_answer(df_before_offset.sort("id"), expected_before)
+        # ==============Test 1: BEFORE/AT with statement ==============
+        df_before_stmt = session.table(table_name).before(statement=update_qid)
+        Utils.check_answer(df_before_stmt, expected_before_update)
 
-        # Test 2: before() with DataFrame transformations and aggregation
-        df_agg_before = (
-            session.table(table_name)
-            .before(statement=update_query_id)
-            .filter(col("sales") >= 200)
-            .agg({"sales": "sum"})
+        df_at_stmt = session.table(table_name).at(statement=update_qid)
+        Utils.check_answer(df_at_stmt, expected_after_update)
+
+        # ==============Test 2: BEFORE/AT with offset ==============
+        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
+            0
+        ]
+        offset_seconds = (
+            int((ts_after_update - ts_before_update).total_seconds()) + 1
+        )  # round up
+        df_at_offset = session.table(table_name).at(offset=-offset_seconds)
+        Utils.check_answer(df_at_offset, expected_before_update)
+
+        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
+            0
+        ]
+        offset_seconds = (
+            int((ts_after_update - ts_before_update).total_seconds()) + 1
+        )  # round up
+        df_before_offset = session.table(table_name).before(offset=-offset_seconds)
+        Utils.check_answer(df_before_offset, expected_before_update)
+
+        # ==============Test 3: BEFORE/AT with timestamp ==============
+        df_before_ts = session.table(table_name).before(
+            timestamp=ts_before_update, timezone="LTZ"
         )
-        result_agg = df_agg_before.collect()
-        assert result_agg[0][0] == 500  # 200 + 300 = 500
+        Utils.check_answer(df_before_ts, expected_before_update)
 
-        df_agg_current = session.table(table_name).agg({"sales": "sum"})
-        result_current = df_agg_current.collect()
-        assert result_current[0][0] == 900  # 200 + 400 + 300 = 900
+        df_at_ts = session.table(table_name).at(
+            timestamp=ts_before_update, timezone="LTZ"
+        )
+        Utils.check_answer(df_at_ts, expected_before_update)
+
+        # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
+        df_before_ts_after_update = session.table(table_name).before(
+            timestamp=ts_after_update, timezone="LTZ"
+        )
+        Utils.check_answer(df_before_ts_after_update, expected_after_update)
+
+        df_at_ts_after_update = session.table(table_name).at(
+            timestamp=ts_after_update, timezone="LTZ"
+        )
+        Utils.check_answer(df_at_ts_after_update, expected_after_update)
 
     finally:
         Utils.drop_table(session, table_name)
@@ -5669,61 +5694,164 @@ def test_before_functionality(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Time travel is not supported in Local Testing",
 )
-def test_before_with_joins_and_complex_operations(session):
-    """Test before() function with joins, window functions, and complex query chains."""
+def test_time_travel_comprehensive_coverage(session):
+    # ============== Test Setup ==============
     table1_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     table2_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    data_1 = [
+        (1, "product_a", 100.50, True),
+        (2, "product_b", 200.75, False),
+        (3, "product_c", 300.25, True),
+    ]
+    df_1 = session.create_dataframe(data_1, schema=["id", "name", "price", "active"])
+    df_1.write.save_as_table(table1_name, table_type="temporary")
+
+    data_2 = [(1, "electronics"), (2, "clothing"), (3, "automotive")]
+    df_2 = session.create_dataframe(data_2, schema=["id", "category"])
+    df_2.write.save_as_table(table2_name, table_type="temporary")
+
+    # Sleep to ensure stable time travel window
+    import time
+
+    time.sleep(2)
+
+    ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
+
+    with session.query_history() as query_history:
+        session.sql(
+            f"UPDATE {table1_name} SET price = price * 1.1 WHERE id <= 2"
+        ).collect()
+    update_query_id = query_history.queries[-1].query_id
+
+    with session.query_history() as query_history:
+        session.sql(
+            f"INSERT INTO {table1_name} VALUES (4, 'product_d', 400.0, false)"
+        ).collect()
+    insert_query_id = query_history.queries[-1].query_id
 
     try:
-        df1_initial = session.create_dataframe(
-            [(1, "user1"), (2, "user2")], schema=["user_id", "username"]
-        )
-        df1_initial.write.save_as_table(table1_name, table_type="temporary")
-
-        df2_initial = session.create_dataframe(
-            [(1, 100), (2, 200)], schema=["user_id", "score"]
-        )
-        df2_initial.write.save_as_table(table2_name, table_type="temporary")
-
-        with session.query_history() as query_history:
-            # Update scores in table2
-            session.sql(f"UPDATE {table2_name} SET score = score + 50").collect()
-
-        update_query_id = query_history.queries[-1].query_id
-
-        # Test 1: before() with join operations
-        df_table1 = session.table(table1_name)
-        df_table2_before = session.table(table2_name).before(statement=update_query_id)
-
-        df_joined = (
-            df_table1.join(
-                df_table2_before, df_table1.user_id == df_table2_before.user_id
-            )
-            .select(df_table1.username, df_table2_before.score)
-            .sort(df_table1.user_id)
-        )
-
-        expected_joined = [Row("user1", 100), Row("user2", 200)]
-        Utils.check_answer(df_joined, expected_joined)
-
-        # Test 2: before() with window functions
-        df_window = (
-            session.table(table2_name)
+        # ==============Test 1: dataframe.py::before() or dataframe.py::at() with basic data validation ==============
+        df_before = (
+            session.table(table1_name)
+            .select("id", "price", "active")
             .before(statement=update_query_id)
-            .with_column("rank", rank().over(Window.order_by(col("score").desc())))
-            .sort("user_id")
+            .sort("id")
         )
+        expected_initial = [
+            Row(1, 100.50, True),
+            Row(2, 200.75, False),
+            Row(3, 300.25, True),
+        ]
+        Utils.check_answer(df_before, expected_initial)
 
-        expected_window = [Row(1, 100, 2), Row(2, 200, 1)]
-        Utils.check_answer(df_window, expected_window)
+        df_at = (
+            session.table(table1_name)
+            .select("id", "name", "price", "active")
+            .at(statement=update_query_id)
+            .sort("id")
+        )
+        expected_after_update = [
+            Row(1, "product_a", 110.55, True),
+            Row(2, "product_b", 220.825, False),
+            Row(3, "product_c", 300.25, True),
+        ]
+        Utils.check_answer(df_at, expected_after_update)
 
-        # Test 3: before() with aggregation on joined data
-        df_agg_joined = df_table1.join(
-            df_table2_before, df_table1.user_id == df_table2_before.user_id
-        ).agg({"score": "avg"})
+        df_before_insert = (
+            session.table(table1_name)
+            .select("id", "name", "price", "active")
+            .before(statement=insert_query_id)
+            .sort("id")
+        )
+        Utils.check_answer(df_before_insert, expected_after_update)
 
-        result_avg = df_agg_joined.collect()
-        assert result_avg[0][0] == 150  # (100 + 200) / 2 = 150
+        df_at_insert = (
+            session.table(table1_name)
+            .select("id", "name", "price", "active")
+            .at(statement=insert_query_id)
+            .sort("id")
+        )
+        expected_after_insert = [
+            Row(1, "product_a", 110.55, True),
+            Row(2, "product_b", 220.825, False),
+            Row(3, "product_c", 300.25, True),
+            Row(4, "product_d", 400.0, False),
+        ]
+        Utils.check_answer(df_at_insert, expected_after_insert)
+
+        # ==============Test 2: table.py::before() or table.py::at() with joins and timestamp ==============
+        df_join_before = (
+            session.table(table1_name)
+            .before(timestamp=ts_before_update, timezone="LTZ")
+            .join(session.table(table2_name), "id")
+            .select("id", "name", "category", "price")
+            .sort("id")
+        )
+        expected_join_before = [
+            Row(1, "product_a", "electronics", 100.50),
+            Row(2, "product_b", "clothing", 200.75),
+            Row(3, "product_c", "automotive", 300.25),
+        ]
+        Utils.check_answer(df_join_before, expected_join_before)
+
+        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
+            0
+        ]
+        df_join_after = (
+            session.table(table1_name)
+            .at(timestamp=ts_after_update, timezone="LTZ")
+            .join(session.table(table2_name), "id")
+            .select("id", "name", "category", "price")
+            .sort("id")
+        )
+        expected_join_after = [
+            Row(1, "product_a", "electronics", 110.55),
+            Row(2, "product_b", "clothing", 220.825),
+            Row(3, "product_c", "automotive", 300.25),
+        ]
+        Utils.check_answer(df_join_after, expected_join_after)
+
+        # ==============Test 3: DataFrame chained operations with time travel ==============
+        df_chained_before = (
+            session.table(table1_name)
+            .select("id", "name", "price", "active")
+            .before(statement=update_query_id)
+            .filter(col("price") > 150)
+            .with_column("discounted_price", col("price") * 0.9)
+            .sort("id")
+        )
+        expected_chained_before = [
+            Row(2, "product_b", 200.75, False, 180.675),
+            Row(3, "product_c", 300.25, True, 270.225),
+        ]
+        Utils.check_answer(df_chained_before, expected_chained_before)
+
+        df_chained_after = (
+            session.table(table1_name)
+            .select("id", "name", "price", "active")
+            .at(statement=update_query_id)
+            .filter(col("price") > 150)
+            .with_column("discounted_price", col("price") * 0.9)
+            .sort("id")
+        )
+        expected_chained_after = [
+            Row(2, "product_b", 220.825, False, 198.7425),
+            Row(3, "product_c", 300.25, True, 270.225),
+        ]
+        Utils.check_answer(df_chained_after, expected_chained_after)
+
+        # ==============Test 4: DataFrame vs Table Pipeline Equivalence ==============
+        table_before = session.table(table1_name).before(statement=update_query_id)
+        df_before_pipeline = (
+            session.table(table1_name).select("*").before(statement=update_query_id)
+        )
+        Utils.check_answer(table_before.sort("id"), df_before_pipeline.sort("id"))
+
+        table_at = session.table(table1_name).at(statement=update_query_id)
+        df_at_pipeline = (
+            session.table(table1_name).select("*").at(statement=update_query_id)
+        )
+        Utils.check_answer(table_at.sort("id"), df_at_pipeline.sort("id"))
 
     finally:
         Utils.drop_table(session, table1_name)
