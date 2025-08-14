@@ -3230,10 +3230,6 @@ def test_limit(session):
     )
 
 
-@pytest.mark.xfail(
-    reason="SNOW-2255664: Waiting on Python Connector release for IntervalType type_code",
-    strict=True,
-)
 def test_yearmonth_interval_type_dataframe(session):
     session.sql("alter session set feature_interval_types=enabled;").collect()
 
