@@ -572,9 +572,7 @@ def test_nullable_is_false_dataframe(session):
         ).collect()
 
 
-def test_before_time_travel(session):
-    """Test BEFORE time travel functionality with various DataFrame operations and table creation methods."""
-
+def test_time_travel(session):
     with session.query_history() as query_history:
         session.sql(
             """create or replace temp table test_time_travel_table(id int, name string)
@@ -589,25 +587,47 @@ def test_before_time_travel(session):
         ).collect()
     query_id = query_history.queries[-1].query_id
 
-    df_1 = session.table("test_time_travel_table").before(query_id)
+    # ============== table.py::before() or dataframe.before() (df_1 to df_4) ==============
+    df_1 = session.table("test_time_travel_table").before(statement=query_id)
     check_generated_plan_queries(df_1._plan)
 
     df_2 = (
-        session.sql("select name from test_time_travel_table")
-        .select("id")
-        .before(query_id)
+        session.table("test_time_travel_table")
+        .select("id", "name")
+        .before(statement=query_id)
+        .filter(col("id") > 2)
     )
     check_generated_plan_queries(df_2._plan)
 
-    df_3 = (
-        session.table("test_time_travel_table")
-        .before(query_id)
-        .select("id", "name")
-        .filter(col("id") > 3)
-    )
+    df_3 = session.table("test_time_travel_table").before(offset=-20)
     check_generated_plan_queries(df_3._plan)
 
-    df_4 = session.create_dataframe([(10, "jack"), (11, "kate")], schema=["id", "name"])
-    df_4.create_or_replace_temp_view("test_time_travel_view")
-    df_4 = session.table("test_time_travel_view").before(query_id).select("name")
+    df_4 = (
+        session.table("test_time_travel_table")
+        .select("name")
+        .before(timestamp="2023-01-01 12:00:00", timezone="LTZ")
+    )
     check_generated_plan_queries(df_4._plan)
+
+    # ============== table.py::at() or dataframe.at() (df_5 to df_8) ==============
+
+    df_5 = session.table("test_time_travel_table").at(statement=query_id)
+    check_generated_plan_queries(df_5._plan)
+
+    df_6 = (
+        session.table("test_time_travel_table")
+        .select("name")
+        .at(statement=query_id)
+        .sort("name")
+    )
+    check_generated_plan_queries(df_6._plan)
+
+    df_7 = session.table("test_time_travel_table").at(offset=-10)
+    check_generated_plan_queries(df_7._plan)
+
+    df_8 = (
+        session.table("test_time_travel_table")
+        .select("id")
+        .at(timestamp="2023-01-01 12:00:00", timezone="TZ")
+    )
+    check_generated_plan_queries(df_8._plan)
