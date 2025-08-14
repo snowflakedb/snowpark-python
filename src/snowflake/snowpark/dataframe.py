@@ -1978,8 +1978,6 @@ class DataFrame:
                 self._select_statement.ilike(pattern), _ast_stmt=_ast_stmt
             )
         else:
-            from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
-
             df = self._with_plan(
                 Project([], self._plan, ilike_pattern=pattern), _ast_stmt=_ast_stmt
             )

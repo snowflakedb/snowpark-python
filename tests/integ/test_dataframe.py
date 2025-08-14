@@ -4884,13 +4884,8 @@ def test_col_ilike(session):
 
     # Test 1: Select columns containing 'id' (case-insensitive)
     df_id = df.col_ilike("%Id%").limit(1)
-    result = df_id.collect()
-    assert (
-        len(result) == 1
-        and len(result[0]) == 2
-        and result[0]["USER_ID"] == 1
-        and result[0]["DEPT_ID"] == 101
-    )
+    assert df_id.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(df_id, [Row(1, 101)])
 
     # Test 2: Test error case when no columns match the pattern (with SQL simplifier enabled)
     df_no_match = df.col_ilike("%xyz%")  # Pattern that doesn't match any column
@@ -4898,25 +4893,39 @@ def test_col_ilike(session):
         df_no_match.collect()
 
     # Test 3: Test select a subset of columns and then using col_ilike
-    res = df.select("USER_ID", "name").col_ilike("%id%").collect()
-    assert len(res) == 4 and len(res[0]) == 1  # USER_ID columns
+    res_subset = df.select("USER_ID", "name").col_ilike("%id%")
+    assert res_subset.columns == ["USER_ID"]
+    Utils.check_answer(res_subset, [Row(1), Row(2), Row(3), Row(4)])
 
-    # Test 4: Test select start explicitly and then using col_ilike
-    res = df.select("*").col_ilike("%id%").collect()
-    assert len(res) == 4 and len(res[0]) == 2  # USER_ID and dept_id columns
+    # Test 4: Test select star explicitly and then using col_ilike
+    expected_id_rows = [Row(1, 101), Row(2, 102), Row(3, 103), Row(4, 104)]
+
+    res = df.select("*").col_ilike("%id%")
+    assert res.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(res, expected_id_rows)
+
+    res_df_star_col = df.select(df["*"]).col_ilike("%id%")
+    assert res_df_star_col.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(res_df_star_col, expected_id_rows)
+
+    res_df_star_list = df.select(["*"]).col_ilike("%id%")
+    assert res_df_star_list.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(res_df_star_list, expected_id_rows)
 
     # Case 5: Save as a table and use session.table with col_ilike
     table_name = Utils.random_table_name()
     try:
         df.write.save_as_table(table_name, table_type="temp")
-        res = session.table(table_name).col_ilike("%id%").collect()
-        # Should keep USER_ID and dept_id columns
-        assert len(res) == 4 and len(res[0]) == 2
+        res_tbl = session.table(table_name).col_ilike("%id%")
+        # Should keep USER_ID and DEPT_ID columns
+        assert res_tbl.columns == ["USER_ID", "DEPT_ID"]
+        Utils.check_answer(res_tbl, expected_id_rows)
 
         # Case 6: Use session.sql to read and then apply col_ilike
-        res = session.sql(f"select * from {table_name}").col_ilike("user%").collect()
+        res_sql = session.sql(f"select * from {table_name}").col_ilike("user%")
         # Should keep only USER_ID column
-        assert len(res) == 4 and len(res[0]) == 1
+        assert res_sql.columns == ["USER_ID"]
+        Utils.check_answer(res_sql, [Row(1), Row(2), Row(3), Row(4)])
     finally:
         Utils.drop_table(session, table_name)
 
@@ -4948,14 +4957,9 @@ def test_col_ilike_chained_combinations(session):
         .filter(col("USER_ID") >= 2)  # filter by USER_ID >= 2
         .limit(2)  # limit to 2 rows
     )
-    res = df_chain.collect()
     # Expect two rows, column set narrowed to USER_ID only
-    assert (
-        len(res) == 2
-        and len(res[0]) == 1
-        and res[0]["USER_ID"] == 2
-        and res[1]["USER_ID"] == 3
-    )
+    assert df_chain.columns == ["USER_ID"]
+    Utils.check_answer(df_chain, [Row(2), Row(3)])
 
     with pytest.raises(SnowparkSQLException, match="SELECT with no columns"):
         df_chain.col_ilike("%dept%").collect()
@@ -4967,14 +4971,12 @@ def test_col_ilike_chained_combinations(session):
     left_filtered = base.col_ilike("%id%")  # keep only id-like columns before join
     joined = left_filtered.join(tiny, col("USER_ID") == col("some_key"))
     df_join_chain = joined.select("*").sort(col("DEPT_ID")).limit(3)
-    res2 = df_join_chain.collect()
     # Ensure only id-like columns remain and values are correct and ordered by DEPT_ID
-    assert len(res2) == 3 and len(res2[0]) == 3
-    assert [(r["USER_ID"], r["DEPT_ID"], r["SOME_KEY"]) for r in res2] == [
-        (1, 101, 1),
-        (2, 102, 2),
-        (3, 103, 3),
-    ]
+    assert df_join_chain.columns == ["USER_ID", "DEPT_ID", "SOME_KEY"]
+    Utils.check_answer(
+        df_join_chain,
+        [Row(1, 101, 1), Row(2, 102, 2), Row(3, 103, 3)],
+    )
 
     # Case 3: aggregation combined with select and col_ilike
     from snowflake.snowpark import functions as F
@@ -4982,13 +4984,13 @@ def test_col_ilike_chained_combinations(session):
     agg_df = base.group_by(col("DEPARTMENT")).agg(
         F.max(col("USER_ID")).as_("max_id"), F.count("*").as_("cnt")
     )
-    res3 = (
+    res3_df = (
         agg_df.col_ilike("%id%")  # keep only columns containing 'id' -> MAX_ID
         .sort(col("MAX_ID").desc())
         .limit(1)
-        .collect()
     )
-    assert len(res3) == 1 and len(res3[0]) == 1 and res3[0]["MAX_ID"] == 4
+    assert res3_df.columns == ["MAX_ID"]
+    Utils.check_answer(res3_df, [Row(4)])
 
     # Case 4: rename, add/replace/drop columns then col_ilike checks
     # Start by renaming and augmenting columns, then drop a non-id column and select id-like columns

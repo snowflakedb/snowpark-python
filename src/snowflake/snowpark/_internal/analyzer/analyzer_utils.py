@@ -512,11 +512,14 @@ def project_statement(
     ilike_pattern: Optional[str] = None,
 ) -> str:
     if not project:
-        columns = STAR
+        columns = (
+            STAR
+            if not ilike_pattern
+            else f"{STAR}{ILIKE}{SINGLE_QUOTE}{ilike_pattern}{SINGLE_QUOTE}"
+        )
     else:
+        assert not ilike_pattern, "ilike pattern only works with *"
         columns = NEW_LINE + TAB + (COMMA + NEW_LINE + TAB).join(project)
-    if ilike_pattern:
-        columns = f"{columns}{ILIKE}{SINGLE_QUOTE}{ilike_pattern}{SINGLE_QUOTE}"
     UUID = format_uuid(child_uuid)
     return (
         SELECT
