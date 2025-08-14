@@ -218,7 +218,6 @@ class JDBC:
 
                                 row.field_name = meta.getColumnName(i);
                                 row.java_type = meta.getColumnClassName(i);
-                                String jdbc_type;
                                 try{{
                                     row.jdbc_type = JDBCType.valueOf(meta.getColumnType(i)).toString();
                                 }} catch(Exception e){{
