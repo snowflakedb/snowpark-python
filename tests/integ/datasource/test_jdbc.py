@@ -5,7 +5,11 @@ import pytest
 
 
 @pytest.fixture(scope="module", autouse=True)
-def setup(session):
+def setup(session, resources_path):
+    stage_name = session.get_session_stage()
+    session.file.put(
+        resources_path + "/test_data_source_dir/mongodb-jdbc-2.3.0-all.jar", stage_name
+    )
     yield
 
 

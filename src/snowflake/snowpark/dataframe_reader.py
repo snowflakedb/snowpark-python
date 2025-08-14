@@ -1335,7 +1335,6 @@ class DataFrameReader:
 
         Args:
             url: A connection string used to establish connections to external data source with JDBC driver.
-                The string shall contain external data source endpoint, user name and password.
             udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
                 This parameter is required for jdbc.
 
@@ -1395,6 +1394,14 @@ class DataFrameReader:
         imports = udtf_configs.get("imports", None)
         packages = udtf_configs.get("packages", ["com.snowflake:snowpark:latest"])
         java_version = udtf_configs.get("java_version", 11)
+        eai_info = self._session.sql(
+            f"describe external access integration {external_access_integration}"
+        ).collect()
+        secret = None
+        for r in eai_info:
+            if "ALLOWED_NETWORK_RULES" == r[0]:
+                secret = r[2]
+                break
 
         if external_access_integration is None or imports is None:
             raise ValueError(
@@ -1409,6 +1416,7 @@ class DataFrameReader:
             java_version=java_version,
             table_or_query=table or query,
             is_query=True if query is not None else False,
+            secret=secret,
             column=column,
             lower_bound=lower_bound,
             upper_bound=upper_bound,

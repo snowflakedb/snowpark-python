@@ -103,6 +103,7 @@ class JDBC:
         external_access_integration: str,
         imports: List[str],
         is_query: bool,
+        secret: Optional[str] = None,
         packages: Optional[List[str]] = None,
         java_version: Optional[int] = 11,
         column: Optional[str] = None,
@@ -125,6 +126,7 @@ class JDBC:
         self.imports = imports
         self.packages = packages
         self.java_version = java_version
+        self.secret = secret
 
         self.is_query = is_query
         self.column = column
@@ -173,6 +175,8 @@ class JDBC:
             import java.util.ArrayList;
             import java.util.List;
             import com.snowflake.snowpark_java.types.*;
+            import com.snowflake.snowpark_java.types.SnowflakeSecrets;
+            import com.snowflake.snowpark_java.types.UsernamePassword;
 
 
             class OutputRow {{
@@ -191,8 +195,7 @@ class JDBC:
 
                 private static Connection createConnection() {{
                     try {{
-                        String url = "{self.url}";
-                        return DriverManager.getConnection(url);
+                        {self.generate_create_connection()}
                     }} catch (Exception e) {{
                         throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
                     }}
@@ -347,7 +350,11 @@ class JDBC:
             import java.util.stream.Stream;
             import java.util.ArrayList;
             import java.util.List;
+            import java.util.Map;
+            import java.util.LinkedHashMap;
             import com.snowflake.snowpark_java.types.*;
+            import com.snowflake.snowpark_java.types.SnowflakeSecrets;
+            import com.snowflake.snowpark_java.types.UsernamePassword;
 
 
             class OutputRow {{
@@ -359,8 +366,7 @@ class JDBC:
 
             private static Connection createConnection() {{
                 try {{
-                    String url = "{self.url}";
-                    return DriverManager.getConnection(url);
+                    {self.generate_create_connection()}
                 }} catch (Exception e) {{
                     throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
                 }}
@@ -460,3 +466,20 @@ class JDBC:
             self.schema,
             _emit_ast=self._emit_ast,
         )
+
+    def generate_create_connection(self):
+        if self.secret is not None:
+            return f"""
+                    String url = "{self.url}";
+                    SnowflakeSecrets secrets = SnowflakeSecrets.newInstance();
+                    UsernamePassword up = secrets.getUsernamePassword("{self.secret}");
+                    java.util.Properties properties = new java.util.Properties();
+                    properties.put("user", up.getUsername());
+                    properties.put("password", up.getPassword());
+                    return DriverManager.getConnection(url, properties);
+                """
+        else:
+            return f"""
+                    String url = "{self.url}";
+                    return DriverManager.getConnection(url);
+                """
