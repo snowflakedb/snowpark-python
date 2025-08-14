@@ -938,17 +938,17 @@ def test_convert_sf_to_sp_type_precision_scale():
 
 
 def test_convert_sf_to_sp_type_start_field_end_field():
-    snowpark_type = convert_sf_to_sp_type("YEARMONTHINTERVAL", 0, 0, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 0, 0, 0)
     assert isinstance(snowpark_type, YearMonthIntervalType)
     assert snowpark_type.start_field == YearMonthIntervalType.YEAR
     assert snowpark_type.end_field == YearMonthIntervalType.MONTH
 
-    snowpark_type = convert_sf_to_sp_type("YEARMONTHINTERVAL", 0, 1, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 1, 0, 0)
     assert isinstance(snowpark_type, YearMonthIntervalType)
     assert snowpark_type.start_field == YearMonthIntervalType.YEAR
     assert snowpark_type.end_field == YearMonthIntervalType.YEAR
 
-    snowpark_type = convert_sf_to_sp_type("YEARMONTHINTERVAL", 0, 2, 0, 0)
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 2, 0, 0)
     assert isinstance(snowpark_type, YearMonthIntervalType)
     assert snowpark_type.start_field == YearMonthIntervalType.MONTH
     assert snowpark_type.end_field == YearMonthIntervalType.MONTH
