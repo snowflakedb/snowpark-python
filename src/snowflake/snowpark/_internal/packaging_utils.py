@@ -15,7 +15,6 @@ from logging import getLogger
 from pathlib import Path
 from typing import AnyStr, Dict, List, Optional, Set, Tuple
 
-from importlib import metadata
 import yaml
 from packaging.requirements import Requirement
 
@@ -472,49 +471,6 @@ def zip_directory_contents(target: str, output_path: str) -> None:
                 and file != target
             ):
                 zipf.write(file, file.relative_to(parent_directory))
-
-
-def add_snowpark_package(
-    package_dict: Dict[str, str], valid_packages: Dict[str, List[str]]
-) -> None:
-    """
-    Adds the Snowpark Python package to package dictionary, if not present. We either choose the version available in
-    the local environment or latest available on Anaconda.
-
-    Args:
-        package_dict (Dict[str, str]): Package dictionary passed in from Session object.
-        valid_packages (Dict[str, List[str]]): Mapping from package name to a list of versions available on the Anaconda
-        channel.
-
-    Raises:
-        metadata.PackageNotFoundError: If the Snowpark Python Package is not installed in the local environment.
-    """
-    if SNOWPARK_PACKAGE_NAME not in package_dict:
-        package_dict[SNOWPARK_PACKAGE_NAME] = SNOWPARK_PACKAGE_NAME
-        try:
-            package_client_version = metadata.version(SNOWPARK_PACKAGE_NAME)
-            if package_client_version in valid_packages[SNOWPARK_PACKAGE_NAME]:
-                package_dict[
-                    SNOWPARK_PACKAGE_NAME
-                ] = f"{SNOWPARK_PACKAGE_NAME}=={package_client_version}"
-            else:
-                _logger.warning(
-                    f"The version of package '{SNOWPARK_PACKAGE_NAME}=={package_client_version}' in the local environment is "
-                    f"{package_client_version}, which is not available in Snowflake. Your UDF might not work when "
-                    f"the package version is different between the server and your local environment."
-                )
-        except metadata.PackageNotFoundError:
-            _logger.warning(
-                f"Package '{SNOWPARK_PACKAGE_NAME}' is not installed in the local environment. "
-                f"Your UDF might not work when the package is installed on the server "
-                f"but not on your local environment."
-            )
-        except Exception as ex:  # pragma: no cover
-            _logger.warning(
-                "Failed to get the local distribution of package %s: %s",
-                SNOWPARK_PACKAGE_NAME,
-                ex,
-            )
 
 
 def get_signature(packages: List[str]) -> str:
