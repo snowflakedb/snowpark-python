@@ -9,7 +9,7 @@ import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Optional, Union
-from packaging import version
+from packaging import version  # noqa: E402,F401
 
 import modin.pandas as pd
 import numpy as np
