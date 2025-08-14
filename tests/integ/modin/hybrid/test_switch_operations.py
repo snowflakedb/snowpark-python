@@ -13,7 +13,7 @@ import pandas as native_pd
 import numpy as np
 from numpy.testing import assert_array_equal
 from pytest import param
-from modin.config import context as config_context
+from modin.config import context as config_context, Backend
 import modin.pandas as pd
 import snowflake.snowpark.functions as snowpark_functions
 from tests.utils import running_on_jenkins
@@ -32,6 +32,7 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.extensions.datetime_index import DatetimeIndex
 from tests.integ.utils.sql_counter import sql_count_checker
 
 # snowflake-ml-python, which provides snowflake.cortex, may not be available in
@@ -395,6 +396,14 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
             assert snow_result == '{"__reduced__":{"0":1,"1":2,"2":3}}'
         else:
             assert snow_result == pandas_result
+
+
+@sql_count_checker(query_count=0)
+def test_to_datetime():
+    assert Backend.get() == "Snowflake"
+    # Should return a Snowpark pandas object without error
+    result = pd.to_datetime([3, 4, 5], unit="Y")
+    assert isinstance(result, DatetimeIndex)
 
 
 @sql_count_checker(
