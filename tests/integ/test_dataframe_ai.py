@@ -42,7 +42,7 @@ def test_dataframe_ai_complete_with_named_placeholders(session):
     assert result_df.columns == ["REVIEW", "RATING", "CATEGORY", "SENTIMENT_ANALYSIS"]
 
     # Collect and verify results
-    results = result_df.collect()
+    results = result_df.collect(_emit_ast=False)
     assert len(results) == 3
 
     for row in results:
@@ -74,7 +74,7 @@ def test_dataframe_ai_complete_with_positional_placeholders(session):
     assert result_df.columns == ["TOPIC", "CATEGORY", "DEFINITION"]
 
     # Collect and verify results
-    results = result_df.collect()
+    results = result_df.collect(_emit_ast=False)
     assert len(results) == 3
 
     for row in results:
@@ -104,7 +104,7 @@ def test_dataframe_ai_complete_default_output_column(session):
     # Check that default column name is used
     assert "AI_COMPLETE_OUTPUT" in result_df.schema.names
 
-    results = result_df.collect()
+    results = result_df.collect(_emit_ast=False)
     assert len(results) == 2
     for row in results:
         assert row["AI_COMPLETE_OUTPUT"] is not None
