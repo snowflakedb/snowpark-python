@@ -588,6 +588,8 @@ def test_time_travel(session):
     query_id = query_history.queries[-1].query_id
 
     # ============== table.py::before() or dataframe.before() (df_1 to df_4) ==============
+    from datetime import datetime
+
     df_1 = session.table("test_time_travel_table").before(statement=query_id)
     check_generated_plan_queries(df_1._plan)
 
@@ -605,29 +607,89 @@ def test_time_travel(session):
     df_4 = (
         session.table("test_time_travel_table")
         .select("name")
-        .before(timestamp="2023-01-01 12:00:00", timezone="LTZ")
+        .before(timestamp=datetime.now(), timezone="LTZ")
     )
     check_generated_plan_queries(df_4._plan)
 
-    # ============== table.py::at() or dataframe.at() (df_5 to df_8) ==============
-
-    df_5 = session.table("test_time_travel_table").at(statement=query_id)
-    check_generated_plan_queries(df_5._plan)
-
-    df_6 = (
+    df_5 = (
         session.table("test_time_travel_table")
         .select("name")
-        .at(statement=query_id)
-        .sort("name")
+        .before(timestamp="2023-01-01 01:00:00")
     )
+    check_generated_plan_queries(df_5._plan)
+
+    # ============== table.py::at() or dataframe.at() (df_5 to df_8) ==============
+
+    df_6 = session.table("test_time_travel_table").at(statement=query_id)
     check_generated_plan_queries(df_6._plan)
 
-    df_7 = session.table("test_time_travel_table").at(offset=-10)
+    df_7 = (
+        session.table("test_time_travel_table")
+        .select("name")
+        .at(statement=query_id, timezone="Tz")
+        .sort("name")
+    )
     check_generated_plan_queries(df_7._plan)
 
-    df_8 = (
+    df_8 = session.table("test_time_travel_table").at(offset=-10)
+    check_generated_plan_queries(df_8._plan)
+
+    df_9 = (
         session.table("test_time_travel_table")
         .select("id")
-        .at(timestamp="2023-01-01 12:00:00", timezone="TZ")
+        .at(timestamp="2023-01-01 12:00:00", timezone="ntz")
     )
-    check_generated_plan_queries(df_8._plan)
+    check_generated_plan_queries(df_9._plan)
+
+    # ============== error handling ==============
+    with pytest.raises(
+        ValueError,
+        match="Exactly one of 'statement', 'offset', or 'timestamp' must be provided.",
+    ):
+        session.table("test_time_travel_table").before(statement=query_id, offset=-10)
+
+    with pytest.raises(
+        ValueError,
+        match="Exactly one of 'statement', 'offset', or 'timestamp' must be provided.",
+    ):
+        session.table("test_time_travel_table").select("name").before()
+
+    with pytest.raises(
+        ValueError,
+        match="Exactly one of 'statement', 'offset', or 'timestamp' must be provided.",
+    ):
+        session.table("test_time_travel_table").select("id").at(
+            statement=query_id, offset=-10
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="Exactly one of 'statement', 'offset', or 'timestamp' must be provided.",
+    ):
+        session.table("test_time_travel_table").at()
+
+    with pytest.raises(
+        ValueError, match=r"'offset' must be a negative integer \(seconds\)\."
+    ):
+        session.table("test_time_travel_table").before(offset=1)
+
+    with pytest.raises(
+        ValueError, match=r"'offset' must be a negative integer \(seconds\)\."
+    ):
+        session.table("test_time_travel_table").at(offset=60)
+
+    with pytest.raises(
+        ValueError,
+        match="'timezone' value LZ must be None or one of 'NTZ', 'LTZ', or 'TZ'.",
+    ):
+        session.table("test_time_travel_table").before(
+            timestamp=datetime.now(), timezone="LZ"
+        )
+
+    with pytest.raises(
+        ValueError,
+        match=r"Timestamp must be in format 'YYYY-MM-DD HH:MM:SS'. Got: 2023-01-01 25:00:00",
+    ):
+        session.table("test_time_travel_table").at(
+            timestamp="2023-01-01 25:00:00", timezone="LtZ"
+        )
