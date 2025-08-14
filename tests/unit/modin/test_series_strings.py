@@ -32,7 +32,7 @@ def test_str_cat_no_others(mock_str_register, mock_series):
     [
         (lambda s: s.str.casefold(), "casefold"),
         (lambda s: s.str.cat(["a", "b", "d", "foo"], na_rep="-"), "cat"),
-        (lambda s: s.str.decode("utf-8"), "decode"),
+        (lambda s: s.str.decode("utf-8"), "decode"),  # TODO fixme for modin 0.35.0
         (lambda s: s.str.encode("utf-8"), "encode"),
         (lambda s: s.str.rsplit("_", n=1), "rsplit"),
         (lambda s: s.str.join("_"), "join"),
