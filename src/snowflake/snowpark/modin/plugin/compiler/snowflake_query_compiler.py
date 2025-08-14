@@ -1296,8 +1296,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         return self.to_pandas().to_numpy(dtype=dtype, na_value=na_value, **kwargs)
 
-    # TODO: MODIN_IS_AT_LEAST_0_34_0
-    # delete this comment and pragma: no cover once we no longer support 0.33.x
     def do_array_ufunc_implementation(
         self,
         frame: BasePandasDataset,
@@ -1305,7 +1303,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method: str,
         *inputs: Any,
         **kwargs: Any,
-    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
+    ) -> Union[DataFrame, Series, Any]:
         """
         Apply the provided NumPy ufunc to the underlying data.
 
@@ -1361,8 +1359,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # return the sentinel NotImplemented if we do not support this function
         return NotImplemented  # pragma: no cover
 
-    # TODO: MODIN_IS_AT_LEAST_0_34_0
-    # delete this comment and pragma: no cover once we no longer support 0.33.x
     def do_array_function_implementation(
         self,
         frame: BasePandasDataset,
@@ -1370,7 +1366,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         types: tuple,
         args: tuple,
         kwargs: dict,
-    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
+    ) -> Union[DataFrame, Series, Any]:
         """
         Apply the provided NumPy array function to the underlying data.
 

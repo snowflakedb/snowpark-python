@@ -89,10 +89,7 @@ def __init__(
     group_keys,
     idx_name,
     drop,
-    # TODO MODIN_IS_AT_LEAST_0_34_0
-    # backend_pinned did not exist in 0.33.x; after removing support for 0.33.x we should
-    # remove the default value of backend_pinned and make the argument mandatory
-    backend_pinned: bool = False,
+    backend_pinned: bool,
     **kwargs,
 ) -> None:
     # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
