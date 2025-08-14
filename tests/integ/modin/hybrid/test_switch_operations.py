@@ -12,8 +12,12 @@ import tqdm.auto
 import pandas as native_pd
 import numpy as np
 from numpy.testing import assert_array_equal
-from modin.config import context as config_context
+from pytest import param
+from modin.config import context as config_context, Backend
 import modin.pandas as pd
+import snowflake.snowpark.functions as snowpark_functions
+from tests.utils import running_on_jenkins
+import re
 from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
@@ -31,7 +35,13 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.extensions.datetime_index import DatetimeIndex
 from tests.integ.utils.sql_counter import sql_count_checker
+
+# snowflake-ml-python, which provides snowflake.cortex, may not be available in
+# the test environment. If it's not available, skip all tests in this module.
+cortex = pytest.importorskip("snowflake.cortex")
+Sentiment = cortex.Sentiment
 
 
 @sql_count_checker(query_count=0)
@@ -260,7 +270,7 @@ def small_snow_df():
 @pytest.mark.parametrize(
     "operation",
     [
-        pytest.param(
+        param(
             "tail",
             marks=pytest.mark.xfail(
                 reason="pd.DataFrame([[0, 1], [2, 3]]).groupby(0)[1].tail() fails with some indexing error.",
@@ -403,6 +413,14 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
             assert snow_result == pandas_result
 
 
+@sql_count_checker(query_count=0)
+def test_to_datetime():
+    assert Backend.get() == "Snowflake"
+    # Should return a Snowpark pandas object without error
+    result = pd.to_datetime([3, 4, 5], unit="Y")
+    assert isinstance(result, DatetimeIndex)
+
+
 @sql_count_checker(
     query_count=12,
     join_count=6,
@@ -438,3 +456,127 @@ def test_query_count_no_switch(init_transaction_tables):
 
     assert orig_len == hybrid_len
     assert len(query_history_orig.queries) == len(query_history_hybrid.queries)
+
+
+non_callable_func_not_implemented = pytest.mark.xfail(
+    strict=True,
+    raises=NotImplementedError,
+    match=re.escape("Snowpark pandas apply API only supports callables func"),
+)
+
+
+class TestApplySnowparkAndCortexFunctions:
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "func",
+        [
+            snowpark_functions.floor,
+            param(
+                [
+                    snowpark_functions.floor,
+                    np.floor,
+                ],
+                marks=non_callable_func_not_implemented,
+            ),
+            param(
+                {
+                    "col0": snowpark_functions.floor,
+                },
+                marks=non_callable_func_not_implemented,
+            ),
+            param(
+                {"col0": [np.floor, snowpark_functions.floor]},
+                marks=non_callable_func_not_implemented,
+            ),
+        ],
+    )
+    def test_applying_snowpark_function_to_dataframe_causes_backend_switch(self, func):
+        """Test that applying Snowpark functions triggers switch from pandas backend to Snowflake."""
+        pandas_backend_df = pd.DataFrame({"col0": [-1.7, 2.3, 3.9]}).set_backend(
+            "pandas"
+        )
+        result = pandas_backend_df.apply(func)
+        assert result.get_backend() == "Snowflake"
+        result.to_pandas()
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.parametrize(
+        "func",
+        [
+            abs,
+            [
+                abs,
+                round,
+            ],
+            {
+                "col0": abs,
+            },
+            {"col0": [abs, round]},
+        ],
+    )
+    def test_applying_non_snowpark_function_to_dataframe_keeps_pandas_backend(
+        self, func
+    ):
+        """Test that non-snowpark python functions don't trigger backend switch."""
+
+        pandas_backend_df = pd.DataFrame({"col0": [-1.7, 2.3, 3.9]}).set_backend(
+            "pandas"
+        )
+        result = pandas_backend_df.apply(func)
+        assert result.get_backend() == "Pandas"
+        result.to_pandas()
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "data_class,method",
+        [
+            (pd.Series, pd.Series.map),
+            (pd.Series, pd.Series.apply),
+            (pd.DataFrame, pd.DataFrame.applymap),
+            (pd.DataFrame, pd.DataFrame.map),
+        ],
+    )
+    def test_mapping_snowpark_function_causes_backend_switch(self, data_class, method):
+        pandas_backend_df = data_class([1.7, 2.3]).set_backend("pandas")
+        result = method(pandas_backend_df, snowpark_functions.floor)
+        assert result.get_backend() == "Snowflake"
+        result.to_pandas()
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "func",
+        [
+            snowpark_functions.floor,
+            param(
+                [snowpark_functions.floor, abs],
+                marks=non_callable_func_not_implemented,
+            ),
+        ],
+    )
+    def test_applying_snowpark_function_to_series_causes_backend_switch(self, func):
+        series = pd.Series([1.7, 2.3, 3.9]).set_backend("pandas")
+        result = series.apply(func)
+        assert result.get_backend() == "Snowflake"
+        result.to_pandas()
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "data_class,method",
+        [
+            (pd.Series, pd.Series.map),
+            (pd.Series, pd.Series.apply),
+            (pd.DataFrame, pd.DataFrame.apply),
+            (pd.DataFrame, pd.DataFrame.applymap),
+            (pd.DataFrame, pd.DataFrame.map),
+        ],
+    )
+    @pytest.mark.skipif(
+        running_on_jenkins(),
+        reason="TODO: SNOW-1859087 applying snowflake.cortex functions causes SSL error",
+    )
+    def test_applying_cortex_function_causes_backend_switch(self, data_class, method):
+        """Test that applying Snowflake Cortex functions triggers switch from pandas backend to Snowflake."""
+        pandas_backend_data = data_class(["happy"]).set_backend("pandas")
+        sentiment = method(pandas_backend_data, Sentiment)
+        assert sentiment.get_backend() == "Snowflake"
+        sentiment.to_pandas()

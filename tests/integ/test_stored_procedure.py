@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import sys
+import time
 from typing import Dict, List, Optional, Union
 from unittest.mock import patch
 from textwrap import dedent
@@ -24,7 +25,7 @@ try:
 except ImportError:
     is_pandas_available = False
 
-from snowflake.snowpark import Session
+from snowflake.snowpark import Session, AsyncJob
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
 from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
@@ -1280,6 +1281,276 @@ def test_table_sproc(session, is_permanent, anonymous, ret_type):
         session._run_query(f"drop procedure if exists {temp_sp_name_register}(string)")
         session._run_query(f"drop procedure if exists {temp_sp_name_decorator}(string)")
         Utils.drop_stage(session, stage_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Async Job is a SQL feature",
+)
+def test_async_stored_procedure_execution(session):
+    """Test asynchronous stored procedure execution with both table and scalar return types for the following scenarios:
+    - session.call(block=False) returns AsyncJob
+    - session.call_nowait() convenience method
+    - StoredProcedure.__call__() with block=False for both named and anonymous sprocs
+    - Both table-returning and scalar-returning stored procedures
+    - Proper AsyncJob result types (_AsyncResultType.ROW vs COUNT)
+    """
+
+    tmp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    Utils.create_table(session, tmp_table_name, "id INT, title STRING")
+    table_df = session.create_dataframe(
+        [
+            [1, "Movie One"],
+            [2, "Movie Two"],
+            [17, "Movie 17"],
+            [99, "Movie 99"],
+        ],
+        schema=["id", "title"],
+    )
+    table_df.write.save_as_table(tmp_table_name, mode="overwrite")
+    scalar_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    table_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+    none_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+
+    try:
+        # ================ Test 1: Scalar sproc ================
+        def scalar_movie(session_: Session, movie_id: int) -> str:
+            df = (
+                session_.table(tmp_table_name).select("title").where(f"id = {movie_id}")
+            )
+            return df.collect()[0][0]
+
+        scalar_sproc = session.sproc.register(
+            func=scalar_movie,
+            name=scalar_sp_name,
+            input_types=[IntegerType()],
+            return_type=StringType(),
+            replace=True,
+        )
+
+        # 1a: session.call(block=False)
+        async_job_scalar = session.call(scalar_sp_name, 17, block=False)
+        assert isinstance(async_job_scalar, AsyncJob)
+        result_scalar = async_job_scalar.result()
+        assert result_scalar == "Movie 17", f"Expected 'Movie 17', got {result_scalar}"
+
+        # 1b: session.call_nowait()
+        async_job_nowait_scalar = session.call_nowait(scalar_sp_name, 2)
+        result_nowait_scalar = async_job_nowait_scalar.result()
+        assert (
+            result_nowait_scalar == "Movie Two"
+        ), f"Expected 'Movie Two', got {result_nowait_scalar}"
+
+        # 1c: StoredProcedure.__call__(block=False)
+        async_job_sproc_scalar = scalar_sproc(99, block=False)
+        result_sproc_scalar = async_job_sproc_scalar.result()
+        assert (
+            result_sproc_scalar == "Movie 99"
+        ), f"Expected 'Movie 99', got {result_sproc_scalar}"
+
+        # ================ Test 2: Table sproc ================
+        def table_movie(session_: Session) -> DataFrame:
+            return session_.table(tmp_table_name).select("id", "title")
+
+        table_sproc = session.sproc.register(
+            func=table_movie,
+            name=table_sp_name,
+            input_types=[],
+            return_type=StructType(
+                [StructField("id", IntegerType()), StructField("title", StringType())]
+            ),
+            replace=True,
+        )
+
+        # 2a: session.call(block=False)
+        async_job_table = session.call(table_sp_name, block=False)
+        assert isinstance(async_job_table, AsyncJob)
+        result_table = async_job_table.result()
+        assert isinstance(result_table, list), "Table sproc should return List[Row]"
+        assert (
+            len(result_table) == table_df.count()
+        ), f"Expected {table_df.count()} rows, got {len(result_table)}"
+        assert result_table[0]["TITLE"] == "Movie One", "Should contain test data"
+
+        # 2b: session.call_nowait()
+        async_job_nowait_table = session.call_nowait(table_sp_name)
+        result_nowait_table = async_job_nowait_table.result()
+        assert (
+            len(result_nowait_table) == table_df.count()
+        ), f"Expected {table_df.count()} rows, got {len(result_nowait_table)}"
+        assert (
+            result_nowait_table[0]["TITLE"] == "Movie One"
+        ), "Should contain test data"
+
+        # 2c: StoredProcedure.__call__(block=False)
+        async_job_sproc_table = table_sproc(block=False)
+        result_sproc_table = async_job_sproc_table.result()
+        assert (
+            len(result_sproc_table) == 4
+        ), "StoredProcedure async call should return same data"
+        assert result_sproc_table[1]["TITLE"] == "Movie Two", "Should contain test data"
+
+        # ================ Test 3: None return sproc ================
+        def none_return_proc(session_: Session) -> None:
+            session_.sql("select system$wait(3)").collect()
+
+        none_sproc = session.sproc.register(
+            func=none_return_proc,
+            name=none_sp_name,
+            input_types=[],
+            return_type=None,
+            replace=True,
+        )
+
+        # 3a: session.call(block=False)
+        async_job_none = session.call(none_sp_name, block=False)
+        assert isinstance(async_job_none, AsyncJob)
+        result_none = async_job_none.result()
+        assert result_none is None, f"Expected None, got {result_none}"
+
+        # 3b: session.call_nowait()
+        async_job_none_nowait = session.call_nowait(none_sp_name)
+        result_none_nowait = async_job_none_nowait.result()
+        assert result_none_nowait is None, f"Expected None, got {result_none_nowait}"
+
+        # 3c: StoredProcedure.__call__(block=False)
+        async_job_none_sproc = none_sproc(block=False)
+        result_none_sproc = async_job_none_sproc.result()
+        assert result_none_sproc is None, f"Expected None, got {result_none_sproc}"
+
+        # ================ Test 4: Verify sync behavior ================
+        sync_result = session.call(scalar_sp_name, 1, block=True)
+        assert sync_result == "Movie One", "Sync execution should still work"
+
+        sync_sproc_result = scalar_sproc(1, block=True)
+        assert (
+            sync_sproc_result == "Movie One"
+        ), "Sync StoredProcedure call should still work"
+
+        sync_none_result = session.call(none_sp_name, block=True)
+        assert sync_none_result is None, "Sync None return should work"
+    finally:
+        session._run_query(f"drop procedure if exists {scalar_sp_name}(int)")
+        session._run_query(f"drop procedure if exists {table_sp_name}()")
+        session._run_query(f"drop procedure if exists {none_sp_name}()")
+        Utils.drop_table(session, tmp_table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1370056: Anonymous stored procedure is not supported yet",
+)
+def test_async_anonymous_stored_procedure(session):
+    anonymous_sproc = session.sproc.register(
+        lambda session_, x, y: session_.create_dataframe([[x + y]]).collect()[0][0],
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+        anonymous=True,
+    )
+    assert anonymous_sproc._anonymous_sp_sql is not None
+    async_job_anon = anonymous_sproc(1, 2, block=False)
+    assert isinstance(async_job_anon, AsyncJob)
+    result_anon = async_job_anon.result()
+    assert result_anon == 3, f"Expected 3, got {result_anon}"
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Async Job is a SQL feature",
+)
+def test_async_stored_procedure_failure(session):
+    """Test asynchronous stored procedure execution with error propagation:
+    - Stored procedures that raise exceptions
+    - Proper error propagation through AsyncJob
+    """
+    error_sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+
+    try:
+
+        def error_proc(session_: Session, error_msg: str) -> str:
+            if error_msg == "division_by_zero":
+                df = session_.sql("select 1 / 0")
+                return df.collect()[0][0]
+            elif error_msg == "table_not_found":
+                df = session_.table("NON_EXISTENT_TABLE_12345")
+                return df.collect()[0][0]
+            else:
+                raise ValueError(f"Force raise test error: {error_msg}")
+
+        error_sproc = session.sproc.register(
+            func=error_proc,
+            name=error_sp_name,
+            input_types=[StringType()],
+            return_type=StringType(),
+            replace=True,
+        )
+
+        # 1: session.call(block=False) with error
+        async_job_error = session.call(error_sp_name, "python_error", block=False)
+        assert isinstance(async_job_error, AsyncJob)
+        while not async_job_error.is_done():
+            time.sleep(1)
+        assert async_job_error.is_failed(), "AsyncJob should be in failed state"
+
+        try:
+            async_job_error.result()
+            raise AssertionError("Expected exception but got result")
+        except Exception as e:
+            error_str = str(e)
+            assert (
+                "Test error: python_error" in error_str or "ValueError" in error_str
+            ), f"Expected error message, got: {error_str}"
+
+        # 2: session.call_nowait() with error
+        async_job_sql_error = session.call_nowait(error_sp_name, "table_not_found")
+        while not async_job_sql_error.is_done():
+            time.sleep(1)
+        assert (
+            async_job_sql_error.is_failed()
+        ), "AsyncJob should be in failed state for SQL error"
+
+        try:
+            async_job_sql_error.result()
+            raise AssertionError("Expected SQL exception but got result")
+        except Exception as e:
+            error_str = str(e)
+            assert (
+                "NON_EXISTENT_TABLE" in error_str
+                or "does not exist" in error_str
+                or "Python Interpreter Error" in error_str
+            ), f"Expected SQL or Python interpreter error message, got: {error_str}"
+
+        # 3: StoredProcedure.__call__(block=False) with error
+        async_job_sproc_error = error_sproc("division_by_zero", block=False)
+        while not async_job_sproc_error.is_done():
+            time.sleep(1)
+        assert async_job_sproc_error.is_failed(), "AsyncJob should be in failed state"
+
+        try:
+            async_job_sproc_error.result()
+            raise AssertionError("Expected division by zero exception but got result")
+        except Exception as e:
+            error_str = str(e)
+            assert (
+                "division by zero" in error_str
+                or "ZeroDivisionError" in error_str
+                or "Python Interpreter Error" in error_str
+            ), f"Expected division error or Python interpreter error message, got: {error_str}"
+
+        # ================ Verify sync behavior for comparison ================
+        try:
+            session.call(error_sp_name, "sync_error", block=True)
+            raise AssertionError("Expected sync error but got result")
+        except Exception as e:
+            error_str = str(e)
+            assert (
+                "Test error: sync_error" in error_str
+                or "ValueError" in error_str
+                or "Python Interpreter Error" in error_str
+            ), f"Expected sync error or Python interpreter error message, got: {error_str}"
+
+    finally:
+        session._run_query(f"drop procedure if exists {error_sp_name}(string)")
 
 
 @pytest.mark.skipif(

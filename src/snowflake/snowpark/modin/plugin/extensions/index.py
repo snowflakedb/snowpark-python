@@ -28,6 +28,7 @@ from functools import cached_property
 from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
 import modin
+from modin.config import context as config_context
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
@@ -172,32 +173,38 @@ class Index(metaclass=TelemetryMeta):
         query_compiler: SnowflakeQueryCompiler = None,
         **kwargs: Any,
     ) -> SnowflakeQueryCompiler:
-        if query_compiler:
-            # Raise warning if `data` is query compiler with non-default arguments.
-            for arg_name, arg_value in kwargs.items():
-                assert (
-                    arg_value == ctor_defaults[arg_name]
-                ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
-        elif isinstance(data, BasePandasDataset):
-            if data.ndim != 1:
-                raise ValueError("Index data must be 1 - dimensional")
-            series_has_no_name = data.name is None
-            idx = (
-                data.to_frame().set_index(0 if series_has_no_name else data.name).index
-            )
-            if series_has_no_name:
-                idx.name = None
-            query_compiler = idx._query_compiler
-        elif isinstance(data, Index):
-            query_compiler = data._query_compiler
-        else:
-            query_compiler = DataFrame(
-                index=cls._NATIVE_INDEX_TYPE(data=data, **kwargs)
-            )._query_compiler
+        # Keep the backend as Snowflake within this method to ensure we always return an SFQC object.
+        # In hybrid mode, the DataFrame constructor may inappropriately create a native QC object
+        # that causes difficult-to-find errors further down the line.
+        with config_context(Backend="Snowflake", AutoSwitchBackend=False):
+            if query_compiler:
+                # Raise warning if `data` is query compiler with non-default arguments.
+                for arg_name, arg_value in kwargs.items():
+                    assert (
+                        arg_value == ctor_defaults[arg_name]
+                    ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
+            elif isinstance(data, BasePandasDataset):
+                if data.ndim != 1:
+                    raise ValueError("Index data must be 1 - dimensional")
+                series_has_no_name = data.name is None
+                idx = (
+                    data.to_frame()
+                    .set_index(0 if series_has_no_name else data.name)
+                    .index
+                )
+                if series_has_no_name:
+                    idx.name = None
+                query_compiler = idx._query_compiler
+            elif isinstance(data, Index):
+                query_compiler = data._query_compiler
+            else:
+                query_compiler = DataFrame(
+                    index=cls._NATIVE_INDEX_TYPE(data=data, **kwargs)
+                )._query_compiler
 
-        if len(query_compiler.columns):
-            query_compiler = query_compiler.drop(columns=query_compiler.columns)
-        return query_compiler
+            if len(query_compiler.columns):
+                query_compiler = query_compiler.drop(columns=query_compiler.columns)
+            return query_compiler
 
     def __getattr__(self, key: str) -> Any:
         try:

@@ -9,7 +9,6 @@ import inspect
 import os
 import sys
 import threading
-import time
 from logging import getLogger
 from typing import (
     IO,
@@ -63,6 +62,7 @@ from snowflake.snowpark._internal.utils import (
     get_version,
     is_in_stored_procedure,
     is_sql_select_statement,
+    measure_time,
     normalize_local_file,
     normalize_remote_file_or_dir,
     result_set_to_iter,
@@ -143,17 +143,15 @@ class ServerConnection:
                 @functools.wraps(func)
                 def wrap(*args, **kwargs):
                     logger.debug(msg)
-                    start_time = time.perf_counter()
-                    result = func(*args, **kwargs)
-                    end_time = time.perf_counter()
-                    duration = end_time - start_time
+                    with measure_time() as query_duration:
+                        result = func(*args, **kwargs)
                     sfqid = result["sfqid"] if result and "sfqid" in result else None
                     # If we don't have a query id, then its pretty useless to send perf telemetry
                     if sfqid:
                         args[0]._telemetry_client.send_upload_file_perf_telemetry(
-                            func.__name__, duration, sfqid
+                            func.__name__, query_duration(), sfqid
                         )
-                    logger.debug(f"Finished in {duration:.4f} secs")
+                    logger.debug(f"Finished in {query_duration():.4f} secs")
                     return result
 
                 return wrap
