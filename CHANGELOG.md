@@ -1,5 +1,13 @@
 # Release History
 
+## 1.36.1 (2025-08-15)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed an internal bug where `df.limit()` failed after aggregation without grouping columns.
+
 ## 1.36.0 (2025-08-05)
 
 ### Snowpark Python API Updates
