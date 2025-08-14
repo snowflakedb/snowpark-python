@@ -16,6 +16,7 @@ from itertools import product
 from textwrap import dedent
 from typing import Tuple
 from unittest import mock
+from zoneinfo import ZoneInfo
 
 import snowflake.snowpark.context as context
 from snowflake.snowpark.dataframe import map
@@ -2221,6 +2222,66 @@ def test_show_dataframe_spark(session):
             |1.000005E17 |
             |1.000005E-17|
             +------------+
+            """
+            ),
+        )
+
+        df3_col_names = ["col1", "col2"]
+        df3 = session.create_dataframe(
+            [
+                (
+                    datetime.datetime(
+                        2023,
+                        1,
+                        1,
+                        0,
+                        0,
+                        0,
+                        microsecond=123456,
+                        tzinfo=ZoneInfo("Asia/Tokyo"),
+                    ),
+                    datetime.datetime(2023, 1, 1, 0, 0, 1, microsecond=123456),
+                ),
+                (
+                    datetime.datetime(2023, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
+                    datetime.datetime(2023, 1, 1, 0, 0, 1),
+                ),
+            ],
+            schema=StructType(
+                [
+                    StructField("col1", TimestampType(TimestampTimeZone.LTZ)),
+                    StructField("col2", TimestampType(TimestampTimeZone.NTZ)),
+                ]
+            ),
+        )
+
+        assert_show_string_equals(
+            df3._show_string_spark(truncate=False, _spark_column_names=df3_col_names),
+            dedent(
+                """
+            +--------------------------------+--------------------------+
+            |col1                            |col2                      |
+            +--------------------------------+--------------------------+
+            |2022-12-31 07:00:00.123456-08:00|2023-01-01 00:00:01.123456|
+            |2022-12-31 16:00:00-08:00       |2023-01-01 00:00:01       |
+            +--------------------------------+--------------------------+
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df3._show_string_spark(
+                truncate=False,
+                _spark_column_names=df3_col_names,
+                _spark_session_tz="Turkey",
+            ),
+            dedent(
+                """
+            +--------------------------+--------------------------+
+            |col1                      |col2                      |
+            +--------------------------+--------------------------+
+            |2022-12-31 18:00:00.123456|2023-01-01 00:00:01.123456|
+            |2023-01-01 03:00:00       |2023-01-01 00:00:01       |
+            +--------------------------+--------------------------+
             """
             ),
         )
