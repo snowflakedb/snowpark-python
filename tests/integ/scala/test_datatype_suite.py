@@ -219,10 +219,6 @@ def server_side_max_string(structured_type_session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function to_geography not supported",
 )
-@pytest.mark.xfail(
-    reason="SNOW-2255664: Waiting on Python Connector release for IntervalType type_code",
-    strict=True,
-)
 def test_verify_datatypes_reference(session):
     schema = StructType(
         [
@@ -353,10 +349,6 @@ def test_verify_datatypes_reference_vector(session):
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function to_geography not supported",
-)
-@pytest.mark.xfail(
-    reason="SNOW-2255664: Waiting on Python Connector release for IntervalType type_code",
-    strict=True,
 )
 def test_dtypes(session):
     schema = StructType(
