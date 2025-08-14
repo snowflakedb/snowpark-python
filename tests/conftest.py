@@ -84,7 +84,7 @@ def pytest_collection_modifyitems(items) -> None:
     top_test_dir = Path(__file__).parent
     top_doctest_dir = top_test_dir.parent.joinpath("src/snowflake/snowpark")
     top_doctest_internal_dir = top_test_dir.parent.joinpath(
-        "src/snowflake/snowpark/_internal/functions"
+        "src/snowflake/snowpark/_functions"
     )
     for item in items:
         item_path = Path(str(item.fspath)).parent
