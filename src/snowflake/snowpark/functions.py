@@ -168,7 +168,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
-from snowflake.snowpark._internal.functions.general_functions import (
+from snowflake.snowpark._functions.general_functions import (
     _call_function,
     _check_column_parameters,
     lit,

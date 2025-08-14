@@ -168,6 +168,7 @@ setup(
     # When a new package (directory) is added, we should also add it here
     packages=[
         "snowflake.snowpark",
+        "snowflake.snowpark._functions",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark._internal.ast",
