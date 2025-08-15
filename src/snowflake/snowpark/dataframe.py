@@ -1972,14 +1972,22 @@ class DataFrame:
             -------------------------
             <BLANKLINE>
         """
-        # TODO: AST Support SNOW-2262530
+        # AST.
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.dataframe_col_ilike, stmt)
+                ast.pattern = pattern
+                self._set_ast_ref(ast.df)
+            else:
+                stmt = _ast_stmt
+
         if self._select_statement:  # sql simplifier is enabled
-            df = self._with_plan(
-                self._select_statement.ilike(pattern), _ast_stmt=_ast_stmt
-            )
+            df = self._with_plan(self._select_statement.ilike(pattern), _ast_stmt=stmt)
         else:
             df = self._with_plan(
-                Project([], self._plan, ilike_pattern=pattern), _ast_stmt=_ast_stmt
+                Project([], self._plan, ilike_pattern=pattern), _ast_stmt=stmt
             )
 
         add_api_call(df, "DataFrame.col_ilike")
