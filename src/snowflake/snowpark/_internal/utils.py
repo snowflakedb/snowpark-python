@@ -2008,6 +2008,97 @@ def get_line_numbers(
     return new_intervals
 
 
+def create_prompt_column_from_template(
+    template: str,
+    placeholder_to_column: Union[
+        Dict[str, "snowflake.snowpark.Column"], List["snowflake.snowpark.Column"]
+    ],
+    _emit_ast: bool = True,
+) -> "snowflake.snowpark.Column":
+    """
+    Creates a prompt Column object from a template string with placeholders.
+
+    Args:
+        template: A string containing placeholders (either named like {name} or positional like {0})
+        placeholder_to_column: Either:
+            - A dict mapping placeholder names to Column objects
+            - A list of Column objects for positional placeholders
+        _emit_ast: Whether to emit AST
+
+    Returns:
+        A prompt Column object
+    """
+    from snowflake.snowpark.functions import prompt
+
+    if isinstance(placeholder_to_column, dict):
+        # Handle named placeholders
+        # First validate that all provided columns are used in the template
+        named_placeholders = set(re.findall(r"\{([^{}]+)\}", template))
+        provided_keys = set(placeholder_to_column.keys())
+        unused_columns = provided_keys - named_placeholders
+        if unused_columns:
+            raise ValueError(
+                f"The following column placeholders were provided but not used in the template: {unused_columns}"
+            )
+
+        # Track which placeholders we've seen and their order
+        seen_placeholders = []
+        placeholder_positions = {}
+
+        def replace_placeholder(match: "re.Match[str]") -> str:
+            placeholder_name = match.group(1)
+            if placeholder_name not in placeholder_to_column:
+                raise ValueError(
+                    f"Placeholder '{{{placeholder_name}}}' in template not found in provided columns. "
+                    f"Available placeholders: {list(placeholder_to_column.keys())}"
+                )
+
+            # Assign position if not seen before
+            if placeholder_name not in placeholder_positions:
+                placeholder_positions[placeholder_name] = len(seen_placeholders)
+                seen_placeholders.append(placeholder_name)
+
+            return "{" + str(placeholder_positions[placeholder_name]) + "}"
+
+        # Replace all named placeholders with positional ones
+        rewritten_template = re.sub(r"\{([^{}]+)\}", replace_placeholder, template)
+
+        # Build ordered list of columns based on the order they appeared in the template
+        ordered_columns = [placeholder_to_column[name] for name in seen_placeholders]
+
+        # Create and return the prompt Column
+        return prompt(rewritten_template, *ordered_columns, _emit_ast=_emit_ast)
+
+    elif isinstance(placeholder_to_column, list):
+        # Handle positional placeholders
+        # Find all positional placeholders
+        positional_placeholders = re.findall(r"\{(\d+)\}", template)
+        num_placeholders = len(
+            set(positional_placeholders)
+        )  # Count unique placeholders
+        num_columns = len(placeholder_to_column)
+
+        if num_placeholders == 0:
+            # No placeholders found - auto-append them at the end
+            placeholders_to_add = " ".join([f"{{{i}}}" for i in range(num_columns)])
+            template = f"{template} {placeholders_to_add}"
+        elif num_placeholders != num_columns:
+            # Validate that number of placeholders matches number of columns
+            raise ValueError(
+                f"Number of positional placeholders ({num_placeholders}) does not match "
+                f"number of columns provided ({num_columns}). "
+                f"Found placeholders: {{{', '.join(sorted(set(positional_placeholders)))}}}"
+            )
+
+        # Create and return the prompt Column with the list of columns
+        return prompt(template, *placeholder_to_column, _emit_ast=_emit_ast)
+
+    else:
+        raise TypeError(
+            "placeholder_to_column must be a list of Columns or a dict mapping placeholder names to Columns"
+        )
+
+
 def get_plan_from_line_numbers(
     plan_node: Union["SnowflakePlan", "Selectable"],
     line_number: int,
