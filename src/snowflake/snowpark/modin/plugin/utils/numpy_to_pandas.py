@@ -121,6 +121,70 @@ def where_mapper(
     return NotImplemented
 
 
+def unique_mapper(
+    ar: Union[pd.DataFrame, pd.Series],
+    return_index: bool = False,
+    return_inverse: bool = False,
+    return_counts: bool = False,
+    axis: Optional[int] = None,
+    equal_nan: bool = True,
+    sorted: bool = True,
+) -> np.ndarray:
+    """
+    Maps and executes the numpy unique signature to the pandas where signature
+    if it can be handled, otherwise returns NotImplemented. No parameters
+    are supported beyond the input ar array. A DataFrame will first be stacked
+    so that the pd.unique function can be used.
+
+    Numpy np.unique signature:
+    Return unique elements in an ndarray, Series, or DataFrame (ar) as a
+    sorted ndarray
+
+    Pandas pd.unique signature:
+    Return unique elements of a Series as an unsorted ndarray
+
+    Parameters
+    ----------
+    ar : A modin pandas DataFrame or Series
+    return_index : NotImplemented ( returns an ndarray )
+    return_inverse : NotImplemented
+    return_counts : NotImplemented
+    axis : NotImplemented
+    equal_nan : NotImplemented
+    sorted : NotImplemented
+
+    Returns
+    -------
+    Returns an ndarray, sorted
+
+    """
+    if return_index:
+        return NotImplemented
+    if return_inverse:
+        return NotImplemented
+    if return_counts:
+        return NotImplemented
+    if axis is not None:
+        return NotImplemented
+    if not equal_nan:
+        return NotImplemented
+    if not sorted:
+        return NotImplemented
+    input_values = ar
+
+    # pd.unique does not take DataFrames, so we stack it into a Series.
+    if isinstance(input_values, pd.DataFrame):
+        input_values = input_values.stack().reset_index(drop=True)
+
+    # pandas.unique and modin.pandas.unique differ from np.unique in
+    # the sense that by default, numpy sorts the result. Unlike the
+    # where mapper we always return a numpy array the same as we do
+    # in pd.unique.
+    result_unsorted = pd.unique(input_values)
+    result_unsorted.sort()
+    return result_unsorted
+
+
 def may_share_memory_mapper(a: Any, b: Any, max_work: Optional[int] = None) -> bool:
     """
     Maps and executes the numpy may_share_memory signature and always
@@ -171,6 +235,7 @@ def map_to_bools(inputs: Any) -> Any:
 # functions are called by numpy
 numpy_to_pandas_func_map = {
     "where": where_mapper,
+    "unique": unique_mapper,
     "may_share_memory": may_share_memory_mapper,
     "full_like": full_like_mapper,
 }
