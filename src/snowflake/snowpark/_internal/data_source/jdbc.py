@@ -317,20 +317,6 @@ class JDBC:
         udtf_table_return_type = ", ".join(
             [f"{field.name} VARCHAR" for field in self.schema.fields]
         )
-        output_rows = "".join(
-            [f"public String {field.name};\n" for field in self.schema.fields]
-        )
-        create_output_row = (
-            f"""row.{self.schema.fields[0].name} = extractRowAsJson(rs, meta, columnCount)"""
-            if not self._infer_schema_successful
-            and self.single_column_if_infer_schema_fail
-            else "".join(
-                [
-                    f"row.{field.name} = rs.getString({i+1});\n"
-                    for i, field in enumerate(self.schema.fields)
-                ]
-            )
-        )
 
         jdbc_udtf_registration = f"""
             CREATE OR REPLACE FUNCTION {jdbc_ingestion_name}(query VARCHAR)
@@ -356,7 +342,7 @@ class JDBC:
 
 
             class OutputRow {{
-                {output_rows}
+                {self.create_output_row_class()}
             }}
 
             public class DataLoader{{
@@ -435,7 +421,7 @@ class JDBC:
                         int columnCount = meta.getColumnCount();
                         while (rs.next()) {{
                             OutputRow row = new OutputRow();
-                            {create_output_row}
+                            {self.create_output_row_java_code()}
                             list.add(row);
                         }}
                     }}
@@ -498,4 +484,22 @@ class JDBC:
             f"SELECT {infer_schema_alias}.* FROM ({self.table_or_query}) {infer_schema_alias} WHERE 1 = 0"
             if self.is_query
             else f"SELECT * FROM {self.table_or_query} WHERE 1 = 0"
+        )
+
+    def create_output_row_java_code(self):
+        return (
+            f"""row.{self.schema.fields[0].name} = extractRowAsJson(rs, meta, columnCount)"""
+            if not self._infer_schema_successful
+            and self.single_column_if_infer_schema_fail
+            else "".join(
+                [
+                    f"row.{field.name} = rs.getString({i+1});\n"
+                    for i, field in enumerate(self.schema.fields)
+                ]
+            )
+        )
+
+    def create_output_row_class(self):
+        return "".join(
+            [f"public String {field.name};\n" for field in self.schema.fields]
         )
