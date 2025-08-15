@@ -6245,6 +6245,8 @@ class DataFrame:
                 weight is specified, the returned DataFrame list only includes
                 the current DataFrame.
             seed: The seed for sampling.
+
+                .. caution:: Reusing a seed value doesn't guarantee reproducible results.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Example::
