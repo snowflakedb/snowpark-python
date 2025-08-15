@@ -50,7 +50,8 @@ actual_pandas_version = version.parse(pandas.__version__)
 supported_pandas_major_version = 2
 # TODO MODIN_IS_AT_LEAST_0_35_0 after dropping modin 0.34.x,
 # remove this conditional check to always allow both 2.2 and 2.3
-if actual_modin_version >= version.parse("0.35.0"):
+MODIN_IS_AT_LEAST_0_35_0 = actual_modin_version >= version.parse("0.35.0")
+if MODIN_IS_AT_LEAST_0_35_0:
     recommended_pandas_minor_version = 3
     pandas_version_supported = (
         actual_pandas_version.major == supported_pandas_major_version
@@ -283,7 +284,10 @@ for class_name, method in (
         backend="Pandas",
     )
 
-Backend.set_active_backends(["Snowflake", "Pandas"])
+if MODIN_IS_AT_LEAST_0_35_0:
+    Backend.set_active_backends(["Snowflake", "Pandas", "Ray"])
+else:
+    Backend.set_active_backends(["Snowflake", "Pandas"])
 
 
 # === SET UP TELEMETRY ===

@@ -48,9 +48,6 @@ def test_unsupported_movement(session, pandas_df):
 
 
 @sql_count_checker(query_count=9)
-@pytest.mark.skipif(
-    not MODIN_IS_AT_LEAST_0_35_0, reason="Modin 0.35.0+ defines movement interface"
-)
 def test_move_to_ray(session, pandas_df):
     with config_context(Backend="Snowflake", AutoSwitchBackend=False):
         snow_df = pd.DataFrame(pandas_df)
@@ -62,10 +59,11 @@ def test_move_to_ray(session, pandas_df):
         df_equals(result_df, snow_df)
 
 
-@sql_count_checker(query_count=4)
-@pytest.mark.skipif(
-    not MODIN_IS_AT_LEAST_0_35_0, reason="Modin 0.35.0+ defines movement interface"
+@pytest.mark.xfail(
+    "Connection credentials for session creation are not accessible in test environments",
+    strict=True,
 )
+@sql_count_checker(query_count=4)
 def test_move_from_ray(session, pandas_df):
     with config_context(Backend="Ray", AutoSwitchBackend=False):
         ray_df = pd.DataFrame(pandas_df)

@@ -1263,7 +1263,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if target_backend == "Ray":
                 return move_to_ray_helper(self)
             return NotImplemented
-        except Exception:
+        except Exception as e:
+            logging.warning(f"Exception while attempting to move data to ray: {e}")
             return NotImplemented
 
     @classmethod
@@ -1274,7 +1275,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if source_qc.get_backend() == "Ray":
                 return move_from_ray_helper(source_qc, max_sessions=8)
             return NotImplemented
-        except Exception:
+        except Exception as e:
+            logging.warning(f"Exception while attempting to move data from ray: {e}")
             return NotImplemented
 
     def to_numpy(
