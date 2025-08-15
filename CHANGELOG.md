@@ -17,6 +17,7 @@
   - `xpath_short`
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_arrow()`.
 - Dataframe profiler adds the following information about each query: describe query time, execution time, and sql query text. To view this information, call session.dataframe_profiler.enable() and call get_execution_profile on a dataframe.
+- Added support for `DataFrame.col_ilike`.
 - Added support for non-blocking stored procedure calls that return `AsyncJob` objects.
   - Added `block: bool = True` parameter to `Session.call()`. When `block=False`, returns an `AsyncJob` instead of blocking until completion.
   - Added `block: bool = True` parameter to `StoredProcedure.__call__()` for async support across both named and anonymous stored procedures.
