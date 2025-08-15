@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import sys
+
 import numpy as np
 import pandas as native_pd
 import modin.pandas as pd
@@ -47,6 +49,10 @@ def test_unsupported_movement(session, pandas_df):
         assert move_from_result is NotImplemented
 
 
+@pytest.mark.skipif(
+    sys.version_info.minor >= 12,
+    reason="snowflake-ml-python for efficient movement is not installed above python 3.12",
+)
 @sql_count_checker(query_count=9)
 def test_move_to_ray(session, pandas_df):
     with config_context(Backend="Snowflake", AutoSwitchBackend=False):
@@ -59,9 +65,8 @@ def test_move_to_ray(session, pandas_df):
         df_equals(result_df, snow_df)
 
 
-@pytest.mark.xfail(
-    "Connection credentials for session creation are not accessible in test environments",
-    strict=True,
+@pytest.mark.skip(
+    reason="Connection credentials for session creation are not accessible in test environments",
 )
 @sql_count_checker(query_count=4)
 def test_move_from_ray(session, pandas_df):
