@@ -4,8 +4,10 @@
 import pytest
 
 from snowflake.snowpark._internal.data_source import JDBC
-from tests.integ.conftest import resources_path
-from tests.resources.test_data_source_dir.test_jdbc import URL, EXTERNAL_ACCESS_INTEGRATION
+from tests.resources.test_data_source_dir.test_jdbc import (
+    URL,
+    EXTERNAL_ACCESS_INTEGRATION,
+)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -40,16 +42,16 @@ def test_timestamp_type(session):
     pass
 
 
-def test_infer_schema(session, resources_path):
-    # stage_name = session.get_session_stage()
-    # jar_path = stage_name + "/mongodb-jdbc-2.3.0-all.jar"
-    # client = JDBC(
-    #     session,
-    #     URL,
-    #     'SELECT _id, "double", "string", "object", "array", "binary","objectId", "bool", "date", "int32", "long", "decimal128", "timestamp", "code" FROM test_collection',
-    #     EXTERNAL_ACCESS_INTEGRATION,
-    #     [jar_path],
-    #     True
-    # )
-    # print(client.schema)
-    pass
+def test_infer_schema(session):
+    stage_name = session.get_session_stage()
+    jar_path = stage_name + "/mongodb-jdbc-2.3.0-all.jar"
+    client = JDBC(
+        session,
+        URL,
+        properties={"database": "VirtualDatabase0"},
+        table_or_query='SELECT _id, "double", "string", "object", "array", "binary","objectId", "bool", "date", "int32", "long", "decimal128", "timestamp", "code" FROM test_collection',
+        external_access_integration=EXTERNAL_ACCESS_INTEGRATION,
+        imports=[jar_path],
+        is_query=True,
+    )
+    print(client)

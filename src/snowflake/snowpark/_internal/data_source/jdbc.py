@@ -249,18 +249,13 @@ class JDBC:
             $$
             ;
             """
-        infer_schema_sql = (
-            f"SELECT * FROM ({self.table_or_query}) WHERE 1 = 0"
-            if self.is_query
-            else f"SELECT * FROM {self.table_or_query} WHERE 1 = 0"
-        )
 
         try:
             self.session.sql(
                 infer_schema_udtf_registration, _emit_ast=self._emit_ast
             ).collect()
             self.raw_schema = self.session.sql(
-                f"SELECT * FROM TABLE({infer_schema_udtf_name}('{infer_schema_sql}'))",
+                f"SELECT * FROM TABLE({infer_schema_udtf_name}('{self.infer_schema_sql()}'))",
                 _emit_ast=self._emit_ast,
             ).collect()
 
@@ -471,7 +466,16 @@ class JDBC:
         )
 
     def generate_create_connection(self):
-        user_properties_overwrite = "\n".join([f'properties.put("{key}": "{value}");' for key, value in self.properties]) if self.properties is not None else ""
+        user_properties_overwrite = (
+            "\n".join(
+                [
+                    f'properties.put("{key}", "{value}");'
+                    for key, value in self.properties.items()
+                ]
+            )
+            if self.properties is not None
+            else ""
+        )
         get_secret = f"""
                     SnowflakeSecrets secrets = SnowflakeSecrets.newInstance();
                     UsernamePassword up = secrets.getUsernamePassword("{self.secret}");
@@ -485,3 +489,13 @@ class JDBC:
                 {user_properties_overwrite}
                 return DriverManager.getConnection(url, properties);
             """
+
+    def infer_schema_sql(self):
+        infer_schema_alias = (
+            f"SNOWPARK_JDBC_INFER_SCHEMA_ALIAS_{generate_random_alphanumeric(5)}"
+        )
+        return (
+            f"SELECT {infer_schema_alias}.* FROM ({self.table_or_query}) {infer_schema_alias} WHERE 1 = 0"
+            if self.is_query
+            else f"SELECT * FROM {self.table_or_query} WHERE 1 = 0"
+        )
