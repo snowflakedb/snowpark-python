@@ -1068,6 +1068,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         is_distinct: bool = False,
+        ilike_pattern: Optional[str] = None,
     ) -> SnowflakePlan:
 
         return self.build(
@@ -1080,6 +1081,7 @@ class SnowflakePlanBuilder:
                     if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
+                ilike_pattern=ilike_pattern,
             ),
             child,
             source_plan,

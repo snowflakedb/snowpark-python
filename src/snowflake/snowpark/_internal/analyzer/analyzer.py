@@ -1015,6 +1015,7 @@ class Analyzer:
                 ),
                 resolved_children[logical_plan.child],
                 logical_plan,
+                ilike_pattern=logical_plan.ilike_pattern,
             )
 
         if isinstance(logical_plan, Distinct):
