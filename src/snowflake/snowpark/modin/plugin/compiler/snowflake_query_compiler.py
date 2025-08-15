@@ -16641,7 +16641,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> None:
         ErrorMessage.method_not_implemented_error("cat", "Series.str")
 
-    def str_decode(self, encoding: str, errors: str) -> None:
+    def str_decode(
+        self, encoding: str, errors: str, dtype: Optional[npt.DTypeLike] = None
+    ) -> None:
         ErrorMessage.method_not_implemented_error("decode", "Series.str")
 
     def str_encode(self, encoding: str, errors: str) -> None:

@@ -48,9 +48,9 @@ if not (
 # TODO SNOW-1758773: perform pandas version check in modin instead
 actual_pandas_version = version.parse(pandas.__version__)
 supported_pandas_major_version = 2
-# TODO MODIN_IS_AT_LEAST_0_35_0 remove this conditional check to always allow both 2.2 and 2.3
-# TODO before PR merge update this condition when modin 0.35.0 is actually released
-if "+" in modin.__version__:
+# TODO MODIN_IS_AT_LEAST_0_35_0 after dropping modin 0.34.x,
+# remove this conditional check to always allow both 2.2 and 2.3
+if actual_modin_version >= version.parse("0.35.0"):
     recommended_pandas_minor_version = 3
     pandas_version_supported = (
         actual_pandas_version.major == supported_pandas_major_version

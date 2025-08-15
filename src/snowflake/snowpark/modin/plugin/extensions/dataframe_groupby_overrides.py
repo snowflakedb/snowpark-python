@@ -119,34 +119,6 @@ def __init__(
         self._kwargs.update({"apply_op": "apply"})
 
 
-@register_df_groupby_override("_override")
-def _override(self, **kwargs):
-    """
-    Override groupby parameters.
-
-    Parameters
-    ----------
-    **kwargs : dict
-        Parameters to override.
-
-    Returns
-    -------
-    DataFrameGroupBy
-        A groupby object with new parameters.
-    """
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    new_kw = dict(
-        df=self._df,
-        by=self._by,
-        axis=self._axis,
-        idx_name=self._idx_name,
-        drop=self._drop,
-        **self._kwargs,
-    )
-    new_kw.update(kwargs)
-    return type(self)(**new_kw)
-
-
 @register_df_groupby_override("ngroups")
 @property
 def ngroups(self):
