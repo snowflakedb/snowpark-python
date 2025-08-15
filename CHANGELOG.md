@@ -18,6 +18,10 @@
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_arrow()`.
 - Dataframe profiler adds the following information about each query: describe query time, execution time, and sql query text. To view this information, call session.dataframe_profiler.enable() and call get_execution_profile on a dataframe.
 - Added support for `DataFrame.col_ilike`.
+- Added support for non-blocking stored procedure calls that return `AsyncJob` objects.
+  - Added `block: bool = True` parameter to `Session.call()`. When `block=False`, returns an `AsyncJob` instead of blocking until completion.
+  - Added `block: bool = True` parameter to `StoredProcedure.__call__()` for async support across both named and anonymous stored procedures.
+  - Added `Session.call_nowait()` that is equivalent to `Session.call(block=False)`.
 
 #### Bug Fixes
 
@@ -25,16 +29,23 @@
 - Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
 - Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
 
-#### New Features
-
-- **Asynchronous Stored Procedure**: Added support for non-blocking stored procedure calls that return `AsyncJob` objects.
-  - Added `block: bool = True` parameter to `Session.call()`. When `block=False`, returns an `AsyncJob` instead of blocking until completion.
-  - Added `block: bool = True` parameter to `StoredProcedure.__call__()` for async support across both named and anonymous stored procedures.
-  - Added `Session.call_nowait()` that is equivalent to `Session.call(block=False)`.
+#### Deprecations
+- Deprecated `pkg_resources`.
 
 #### Dependency Updates
 
 - Added a dependency on `protobuf<6.32`
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+
+#### Bug Fixes
+
+- Fixed an issue in hybrid execution mode (PrPr) where `pd.to_datetime` and `pd.to_timedelta` would unexpectedly raise `IndexError`.
+- Fixed a bug where `pd.explain_switch` would raise `IndexError` or return `None` if called before any potential switch operations were performed.
 
 ## 1.36.0 (2025-08-05)
 

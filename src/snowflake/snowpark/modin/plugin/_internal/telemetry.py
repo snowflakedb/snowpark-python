@@ -420,6 +420,7 @@ def _telemetry_helper(
     elif (
         result is None
         and func.__name__ not in ["to_snowflake", "to_iceberg"]
+        and len(args) > 0
         and is_snowpark_pandas_dataframe_or_series_type(args[0])
     ):
         args[0]._query_compiler.snowpark_pandas_api_calls = (
