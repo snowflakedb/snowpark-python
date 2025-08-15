@@ -478,6 +478,9 @@ def test_write_pandas_chunk_size(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported by local testing.",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="ALTER SESSION is not supported in stored procedure"
+)
 def test_to_pandas_json_format(session, caplog):
     session.sql(
         "ALTER SESSION SET PYTHON_CONNECTOR_QUERY_RESULT_FORMAT='json';"
