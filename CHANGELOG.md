@@ -41,6 +41,8 @@
 
 #### Improvements
 
+- Refactored the `functions.py` module to improve code organization and readability.
+
 #### Bug Fixes
 
 - Fixed an issue in hybrid execution mode (PrPr) where `pd.to_datetime` and `pd.to_timedelta` would unexpectedly raise `IndexError`.
