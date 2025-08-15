@@ -81,6 +81,8 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
     VectorType,
+    YearMonthInterval,
+    YearMonthIntervalType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -235,6 +237,7 @@ def test_sf_datatype_names():
     assert str(FloatType()) == "FloatType()"
     assert str(DoubleType()) == "DoubleType()"
     assert str(DecimalType(1, 2)) == "DecimalType(1, 2)"
+    assert str(YearMonthIntervalType()) == "YearMonthIntervalType(0, 1)"
 
 
 def test_sf_datatype_hashes():
@@ -260,6 +263,7 @@ def test_sf_datatype_hashes():
     assert hash(FloatType()) == hash("FloatType()")
     assert hash(DoubleType()) == hash("DoubleType()")
     assert hash(DecimalType(1, 2)) == hash("DecimalType(1, 2)")
+    assert hash(YearMonthIntervalType()) == hash("YearMonthIntervalType(0, 1)")
 
 
 def test_merge_type():
@@ -492,6 +496,7 @@ def test_python_type_to_snow_type():
     check_type(PandasSeries, PandasSeriesType(None), False)
     check_type(PandasDataFrame, PandasDataFrameType(()), False)
     check_type(DataFrame, StructType(), False, is_return_type_of_sproc=True)
+    check_type(YearMonthInterval, YearMonthIntervalType(), False)
 
     # complicated (nested) types
     check_type(
@@ -703,6 +708,11 @@ def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
         ("POINT(-122.35 37.55)", GeographyType(), "POINT(-122.35 37.55)"),
         ("POINT(-122.35 37.55)", GeometryType(), "POINT(-122.35 37.55)"),
         ('{"key": "val"}', VariantType(), '{"key": "val"}'),
+        (
+            "INTERVAL 1-1 YEAR TO MONTH",
+            YearMonthIntervalType(),
+            "INTERVAL 1-1 YEAR TO MONTH",
+        ),
         ("b'one'", BinaryType(), b"one"),
         ("bytearray('one', 'utf-8')", BinaryType(), bytearray("one", "utf-8")),
         ("datetime.date(2024, 4, 1)", DateType(), date(2024, 4, 1)),
@@ -753,6 +763,7 @@ def test_python_value_str_to_object(value_str, datatype, expected_value):
         VariantType(),
         GeographyType(),
         GeometryType(),
+        YearMonthIntervalType(),
     ],
 )
 def test_python_value_str_to_object_for_none(datatype):
@@ -919,6 +930,23 @@ def test_convert_sf_to_sp_type_precision_scale():
     assert snowpark_type.scale == 18
 
 
+def test_convert_sf_to_sp_type_start_field_end_field():
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 0, 0, 0)
+    assert isinstance(snowpark_type, YearMonthIntervalType)
+    assert snowpark_type.start_field == YearMonthIntervalType.YEAR
+    assert snowpark_type.end_field == YearMonthIntervalType.MONTH
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 1, 0, 0)
+    assert isinstance(snowpark_type, YearMonthIntervalType)
+    assert snowpark_type.start_field == YearMonthIntervalType.YEAR
+    assert snowpark_type.end_field == YearMonthIntervalType.YEAR
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 2, 0, 0)
+    assert isinstance(snowpark_type, YearMonthIntervalType)
+    assert snowpark_type.start_field == YearMonthIntervalType.MONTH
+    assert snowpark_type.end_field == YearMonthIntervalType.MONTH
+
+
 def test_convert_sf_to_sp_type_internal_size():
     snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 0, 16777216)
     assert isinstance(snowpark_type, StringType)
@@ -971,6 +999,7 @@ def test_convert_sp_to_sf_type():
         == "TIMESTAMP_TZ"
     )
     assert convert_sp_to_sf_type(BinaryType()) == "BINARY"
+    assert convert_sp_to_sf_type(YearMonthIntervalType()) == "INTERVAL YEAR TO MONTH"
     assert convert_sp_to_sf_type(ArrayType()) == "ARRAY"
     assert (
         convert_sp_to_sf_type(ArrayType(IntegerType(), structured=True)) == "ARRAY(INT)"
@@ -1045,6 +1074,7 @@ def test_snow_type_to_dtype_str():
     assert snow_type_to_dtype_str(IntegerType()) == "int"
     assert snow_type_to_dtype_str(LongType()) == "bigint"
     assert snow_type_to_dtype_str(DecimalType(20, 5)) == "decimal(20,5)"
+    assert snow_type_to_dtype_str(YearMonthIntervalType(0, 1)) == "yearmonthinterval"
 
     assert snow_type_to_dtype_str(ArrayType(StringType())) == "array<string>"
     assert snow_type_to_dtype_str(ArrayType(StringType(11))) == "array<string(11)>"
@@ -1151,6 +1181,31 @@ def test_snow_type_to_dtype_str():
             "timestamp_ntz",
         ),
         (TimeType(), "time", '"time"', "time", "time"),
+        (
+            YearMonthIntervalType(),
+            "interval year to month",
+            '"interval year to month"',
+            "yearmonthinterval",
+            "interval year to month",
+        ),
+        (
+            YearMonthIntervalType(
+                YearMonthIntervalType.YEAR, YearMonthIntervalType.YEAR
+            ),
+            "interval year",
+            '"interval year"',
+            "yearmonthinterval",
+            "interval year",
+        ),
+        (
+            YearMonthIntervalType(
+                YearMonthIntervalType.MONTH, YearMonthIntervalType.MONTH
+            ),
+            "interval month",
+            '"interval month"',
+            "yearmonthinterval",
+            "interval month",
+        ),
         (
             ArrayType(IntegerType()),
             "array<int>",
@@ -1324,6 +1379,41 @@ def test_snow_type_to_dtype_str():
         )
         if is_pandas_available
         else (None, None, None, None, None),
+        (
+            YearMonthIntervalType(),
+            "interval year to month",
+            '"interval year to month"',
+            "yearmonthinterval",
+            "interval year to month",
+        ),
+        (
+            YearMonthIntervalType(0, 1),
+            "interval year to month",
+            '"interval year to month"',
+            "yearmonthinterval",
+            "interval year to month",
+        ),
+        (
+            YearMonthIntervalType(1, 1),
+            "interval month",
+            '"interval month"',
+            "yearmonthinterval",
+            "interval month",
+        ),
+        (
+            YearMonthIntervalType(0, 0),
+            "interval year",
+            '"interval year"',
+            "yearmonthinterval",
+            "interval year",
+        ),
+        (
+            YearMonthIntervalType(1, 0),
+            "interval month to year",
+            '"interval month to year"',
+            "yearmonthinterval",
+            "interval month to year",
+        ),
     ],
 )
 def test_datatype(tpe, simple_string, json, type_name, json_value):
@@ -1415,6 +1505,10 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
         (
             StructField,
             StructField("AA", VectorType(float, 8)),
+        ),
+        (
+            StructField,
+            StructField("BB", YearMonthIntervalType(0, 1)),
         ),
         (
             PandasDataFrameType,
@@ -1574,6 +1668,11 @@ def test_type_string_to_type_object_timestamp():
     dt = type_string_to_type_object("timestamp_ltz")
     assert isinstance(dt, TimestampType)
     assert dt.tz == TimestampTimeZone.LTZ
+
+
+def test_type_string_to_type_object_yearmonthinterval():
+    dt = type_string_to_type_object("yearmonthinterval")
+    assert isinstance(dt, YearMonthIntervalType)
 
 
 def test_type_string_to_type_object_array_of_int():
@@ -2074,6 +2173,7 @@ def test_most_permissive_type():
         VariantType(),
         GeographyType(),
         GeometryType(),
+        YearMonthIntervalType(),
     ]
     for basic_type in basic:
         assert most_permissive_type(basic_type) == basic_type

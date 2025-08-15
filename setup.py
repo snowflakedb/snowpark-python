@@ -15,7 +15,7 @@ THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 MODIN_DEPENDENCY_VERSION = ">=0.33.0, <0.35.0"  # Snowpark pandas requires modin 0.33.x or 0.34.x, which are compatible with pandas 2.2.x
-CONNECTOR_DEPENDENCY_VERSION = ">=3.14.0, <4.0.0"
+CONNECTOR_DEPENDENCY_VERSION = ">=3.17.0, <4.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
