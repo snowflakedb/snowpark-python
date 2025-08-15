@@ -408,6 +408,7 @@ class CopyIntoLocationNode(LogicalPlan):
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         copy_options: Dict[str, Any],
+        validation_mode: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.child = child
@@ -419,3 +420,4 @@ class CopyIntoLocationNode(LogicalPlan):
         self.file_format_name = file_format_name
         self.file_format_type = file_format_type
         self.copy_options = copy_options
+        self.validation_mode = validation_mode

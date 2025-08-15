@@ -1058,6 +1058,7 @@ def fill_write_file(
     header: bool = False,
     statement_params: Optional[Dict[str, str]] = None,
     block: bool = True,
+    validation_mode: Optional[str] = None,
     **copy_options: dict,
 ) -> None:  # pragma: no cover
     expr.location = location  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "location"
@@ -1080,6 +1081,9 @@ def fill_write_file(
             t._2 = v
 
     expr.block = block  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "block"
+
+    if validation_mode is not None:
+        expr.validation_mode.value = validation_mode
 
     if copy_options:
         for k, v in copy_options.items():  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "dict[Any, Any]", variable has type "str")

@@ -3889,7 +3889,8 @@ def test_write_copy_into_location_basic(session):
             [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
             schema=["FIRST_NAME", "LAST_NAME"],
         )
-        df.write.copy_into_location(temp_stage)
+        ret = df.write.copy_into_location(temp_stage)
+        assert len(ret) == 1 and ret[0].rows_unloaded == 3
         copied_files = session.sql(f"list @{temp_stage}").collect()
         assert len(copied_files) == 1
         assert ".csv" in copied_files[0][0]
@@ -3930,6 +3931,33 @@ def test_write_copy_into_location_csv(session, partition_by):
         assert len(copied_files) == 2
         assert ".csv.gz" in copied_files[0][0]
         assert ".csv.gz" in copied_files[1][0]
+    finally:
+        Utils.drop_stage(session, temp_stage)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+def test_write_copy_into_location_options(session):
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        ret = df.write.copy_into_location(temp_stage, validation_mode="RETURN_ROWS")
+        Utils.check_answer(
+            ret,
+            [
+                Row(FIRST_NAME="John", LAST_NAME="Berry"),
+                Row(FIRST_NAME="Rick", LAST_NAME="Berry"),
+                Row(FIRST_NAME="Anthony", LAST_NAME="Davis"),
+            ],
+        )
+        copied_files = session.sql(f"list @{temp_stage}").collect()
+        assert len(copied_files) == 0
     finally:
         Utils.drop_stage(session, temp_stage)
 
