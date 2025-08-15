@@ -103,6 +103,8 @@ class JDBC:
         external_access_integration: str,
         imports: List[str],
         is_query: bool,
+        *,
+        properties: Optional[dict] = None,
         secret: Optional[str] = None,
         packages: Optional[List[str]] = None,
         java_version: Optional[int] = 11,
@@ -127,6 +129,7 @@ class JDBC:
         self.packages = packages
         self.java_version = java_version
         self.secret = secret
+        self.properties = properties
 
         self.is_query = is_query
         self.column = column
@@ -468,18 +471,17 @@ class JDBC:
         )
 
     def generate_create_connection(self):
-        if self.secret is not None:
-            return f"""
-                    String url = "{self.url}";
+        user_properties_overwrite = "\n".join([f'properties.put("{key}": "{value}");' for key, value in self.properties]) if self.properties is not None else ""
+        get_secret = f"""
                     SnowflakeSecrets secrets = SnowflakeSecrets.newInstance();
                     UsernamePassword up = secrets.getUsernamePassword("{self.secret}");
-                    java.util.Properties properties = new java.util.Properties();
                     properties.put("user", up.getUsername());
                     properties.put("password", up.getPassword());
-                    return DriverManager.getConnection(url, properties);
-                """
-        else:
-            return f"""
-                    String url = "{self.url}";
-                    return DriverManager.getConnection(url);
-                """
+        """
+        return f"""
+                String url = "{self.url}";
+                java.util.Properties properties = new java.util.Properties();
+                {get_secret if self.secret is not None else ""}
+                {user_properties_overwrite}
+                return DriverManager.getConnection(url, properties);
+            """
