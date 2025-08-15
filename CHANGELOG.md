@@ -41,6 +41,11 @@
 
 #### Improvements
 
+#### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.34.0 and <0.36.0 (was previously >= 0.33.0 and <0.35.0).
+- Added support for pandas 2.3 when the installed `modin` version is at least 0.35.0.
+
 #### Bug Fixes
 
 - Fixed an issue in hybrid execution mode (PrPr) where `pd.to_datetime` and `pd.to_timedelta` would unexpectedly raise `IndexError`.
