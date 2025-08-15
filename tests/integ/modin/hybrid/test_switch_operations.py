@@ -13,7 +13,7 @@ import pandas as native_pd
 import numpy as np
 from numpy.testing import assert_array_equal
 from pytest import param
-from modin.config import context as config_context
+from modin.config import context as config_context, Backend
 import modin.pandas as pd
 import snowflake.snowpark.functions as snowpark_functions
 from tests.utils import running_on_jenkins
@@ -26,12 +26,16 @@ from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
 from snowflake.snowpark.modin.plugin._internal.utils import (
     MODIN_IS_AT_LEAST_0_34_0,
 )
+from snowflake.snowpark.modin.plugin._internal.telemetry import (
+    clear_hybrid_switch_log,
+)
 from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.extensions.datetime_index import DatetimeIndex
 from tests.integ.utils.sql_counter import sql_count_checker
 
 # snowflake-ml-python, which provides snowflake.cortex, may not be available in
@@ -295,12 +299,24 @@ def test_groupby_agg_post_op_switch(operation, small_snow_df):
     assert small_snow_df.get_backend() == "Snowflake"
 
 
+@sql_count_checker(query_count=0)
+def test_explain_switch_empty():
+    clear_hybrid_switch_log()
+    empty_switch = pd.explain_switch()
+    assert len(empty_switch) == 0
+    empty_switch_cols = empty_switch.columns.tolist()
+    empty_switch_index_names = empty_switch.index.names
+    pd.DataFrame().move_to("Snowflake")
+    new_switch = pd.explain_switch()
+    assert len(new_switch) > 0
+    new_switch_cols = new_switch.columns.tolist()
+    new_switch_index_names = new_switch.index.names
+    assert new_switch_cols == empty_switch_cols
+    assert new_switch_index_names == empty_switch_index_names
+
+
 @sql_count_checker(query_count=1)
 def test_explain_switch(init_transaction_tables, us_holidays_data):
-    from snowflake.snowpark.modin.plugin._internal.telemetry import (
-        clear_hybrid_switch_log,
-    )
-
     clear_hybrid_switch_log()
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
@@ -395,6 +411,14 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
             assert snow_result == '{"__reduced__":{"0":1,"1":2,"2":3}}'
         else:
             assert snow_result == pandas_result
+
+
+@sql_count_checker(query_count=0)
+def test_to_datetime():
+    assert Backend.get() == "Snowflake"
+    # Should return a Snowpark pandas object without error
+    result = pd.to_datetime([3, 4, 5], unit="Y")
+    assert isinstance(result, DatetimeIndex)
 
 
 @sql_count_checker(

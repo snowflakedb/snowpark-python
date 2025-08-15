@@ -15,9 +15,8 @@ from logging import getLogger
 from pathlib import Path
 from typing import AnyStr, Dict, List, Optional, Set, Tuple
 
-import pkg_resources
 import yaml
-from pkg_resources import Requirement
+from packaging.requirements import Requirement
 
 _logger = getLogger(__name__)
 PIP_ENVIRONMENT_VARIABLE: str = "PIP_NAME"
@@ -223,7 +222,7 @@ def map_python_packages_to_files_and_folders(
 
                     # Create Requirement objects and store in map
                     package_name_to_record_entries_map[
-                        Requirement.parse(package)
+                        Requirement(package)
                     ] = included_record_entries
 
     return package_name_to_record_entries_map
@@ -264,9 +263,13 @@ def identify_supported_packages(
 
     for package in packages:
         package_name: str = package.name
-        package_version_required: Optional[str] = (
-            package.specs[0][1] if package.specs else None
-        )
+        # Extract version from specifier if present
+        package_version_required: Optional[str] = None
+        if package.specifier and len(package.specifier) == 1:
+            # Get the first (and only) specifier
+            spec = list(package.specifier)[0]
+            # Extract version from the specifier (e.g., "==1.0.0" -> "1.0.0")
+            package_version_required = str(spec.version)
         version_text = (
             f"(version {package_version_required})"
             if package_version_required is not None
@@ -291,7 +294,7 @@ def identify_supported_packages(
                         f"Package {package_name}{version_text} contains native code, switching to latest available version "
                         f"in Snowflake instead."
                     )
-                    new_dependencies.append(Requirement.parse(package_name))
+                    new_dependencies.append(Requirement(package_name))
                 dropped_dependencies.append(package)
 
             else:
@@ -468,51 +471,6 @@ def zip_directory_contents(target: str, output_path: str) -> None:
                 and file != target
             ):
                 zipf.write(file, file.relative_to(parent_directory))
-
-
-def add_snowpark_package(
-    package_dict: Dict[str, str], valid_packages: Dict[str, List[str]]
-) -> None:
-    """
-    Adds the Snowpark Python package to package dictionary, if not present. We either choose the version available in
-    the local environment or latest available on Anaconda.
-
-    Args:
-        package_dict (Dict[str, str]): Package dictionary passed in from Session object.
-        valid_packages (Dict[str, List[str]]): Mapping from package name to a list of versions available on the Anaconda
-        channel.
-
-    Raises:
-        pkg_resources.DistributionNotFound: If the Snowpark Python Package is not installed in the local environment.
-    """
-    if SNOWPARK_PACKAGE_NAME not in package_dict:
-        package_dict[SNOWPARK_PACKAGE_NAME] = SNOWPARK_PACKAGE_NAME
-        try:
-            package_client_version = pkg_resources.get_distribution(
-                SNOWPARK_PACKAGE_NAME
-            ).version
-            if package_client_version in valid_packages[SNOWPARK_PACKAGE_NAME]:
-                package_dict[
-                    SNOWPARK_PACKAGE_NAME
-                ] = f"{SNOWPARK_PACKAGE_NAME}=={package_client_version}"
-            else:
-                _logger.warning(
-                    f"The version of package '{SNOWPARK_PACKAGE_NAME}=={package_client_version}' in the local environment is "
-                    f"{package_client_version}, which is not available in Snowflake. Your UDF might not work when "
-                    f"the package version is different between the server and your local environment."
-                )
-        except pkg_resources.DistributionNotFound:
-            _logger.warning(
-                f"Package '{SNOWPARK_PACKAGE_NAME}' is not installed in the local environment. "
-                f"Your UDF might not work when the package is installed on the server "
-                f"but not on your local environment."
-            )
-        except Exception as ex:  # pragma: no cover
-            _logger.warning(
-                "Failed to get the local distribution of package %s: %s",
-                SNOWPARK_PACKAGE_NAME,
-                ex,
-            )
 
 
 def get_signature(packages: List[str]) -> str:
