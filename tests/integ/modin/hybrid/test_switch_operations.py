@@ -3,7 +3,6 @@
 #
 
 import logging
-import contextlib
 from unittest import mock
 import pytest
 from unittest.mock import patch
@@ -22,9 +21,6 @@ from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
     MAX_ROW_COUNT_FOR_ESTIMATION,
-)
-from snowflake.snowpark.modin.plugin._internal.utils import (
-    MODIN_IS_AT_LEAST_0_34_0,
 )
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     clear_hybrid_switch_log,
@@ -334,18 +330,8 @@ def test_np_where_manual_switch():
         # Snowpark pandas currently does not support np.where with native objects
         np.where(df, [1, 2], [3, 4])
     df.set_backend("Pandas", inplace=True)
-    # SNOW-2173644: Prior to modin 0.34, manually switching the backend to pandas would cause lookup
-    # of the __array_function__ method to fail.
-    with (
-        pytest.raises(
-            AttributeError,
-            match=r"DataFrame object has no attribute __array_function__",
-        )
-        if not MODIN_IS_AT_LEAST_0_34_0
-        else contextlib.nullcontext()
-    ):
-        result = np.where(df, [1, 2], [3, 4])
-        assert_array_equal(result, np.array([[1, 4]]))
+    result = np.where(df, [1, 2], [3, 4])
+    assert_array_equal(result, np.array([[1, 4]]))
 
 
 @sql_count_checker(query_count=0)

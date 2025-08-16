@@ -40,7 +40,14 @@
 
 #### New Features
 
+- Added support for efficient transfer of data between Snowflake and Ray with the `DataFrame.set_backend` method. The installed version of `modin` must be at least 0.35.0, and `ray` must be installed.
+
 #### Improvements
+
+#### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.34.0 and <0.36.0 (was previously >= 0.33.0 and <0.35.0).
+- Added support for pandas 2.3 when the installed `modin` version is at least 0.35.0.
 
 #### Bug Fixes
 
