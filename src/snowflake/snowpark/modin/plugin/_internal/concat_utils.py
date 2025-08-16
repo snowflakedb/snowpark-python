@@ -167,7 +167,6 @@ def _select_possibly_duplicate_identifiers_in_order(
     for identifier in identifiers:
         selected_identifier = (
             Column(identifier).as_(
-                # Generate a single unique identifier for the column.
                 frame.generate_snowflake_quoted_identifiers(pandas_labels=[identifier])[
                     0
                 ]

@@ -46,6 +46,7 @@
 
 - Fixed an issue in hybrid execution mode (PrPr) where `pd.to_datetime` and `pd.to_timedelta` would unexpectedly raise `IndexError`.
 - Fixed a bug where `pd.explain_switch` would raise `IndexError` or return `None` if called before any potential switch operations were performed.
+- Fixed a bug where calling `pd.concat(axis=0)` on a dataframe with the default, positional index and a dataframe with a different index would produce invalid SQL.
 
 ## 1.36.0 (2025-08-05)
 
