@@ -162,10 +162,10 @@ def _select_possibly_duplicate_identifiers_in_order(
     Returns:
         A new OrderedDataFrame with the selected identifiers in the given order.
     """
-    final_expressions = []
-    selected_identifiers = set()
+    expressions_to_select: list[Union[str, Column]] = []
+    selected_identifiers = set[str]()
     for identifier in identifiers:
-        selected_identifier = (
+        expressions_to_select.append(
             Column(identifier).as_(
                 frame.generate_snowflake_quoted_identifiers(pandas_labels=[identifier])[
                     0
@@ -174,10 +174,9 @@ def _select_possibly_duplicate_identifiers_in_order(
             if identifier in selected_identifiers
             else identifier
         )
-        final_expressions.append(selected_identifier)
-        selected_identifiers.add(selected_identifier)
+        selected_identifiers.add(identifier)
 
-    return frame.select(final_expressions)
+    return frame.select(expressions_to_select)
 
 
 def union_all(
