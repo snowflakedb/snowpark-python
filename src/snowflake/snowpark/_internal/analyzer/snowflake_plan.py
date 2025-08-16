@@ -719,12 +719,15 @@ class SnowflakePlan(LogicalPlan):
             if isinstance(child, (Selectable, SnowflakePlan)):
                 child_uuids.append(child.uuid)
 
+        last_query_sql = "\n".join(
+            line for line in last_query.sql.split("\n") if line.strip() != ""
+        )
         query_line_intervals = get_line_numbers(
-            last_query.sql,
+            last_query_sql,
             child_uuids,
             self.uuid,
         )
-        final_sql = remove_comments(last_query.sql, child_uuids)
+        final_sql = remove_comments(last_query_sql, child_uuids)
         if self.schema_query:
             self.schema_query = remove_comments(self.schema_query, child_uuids)
         last_query.sql = final_sql
@@ -943,7 +946,8 @@ class SnowflakePlanBuilder:
         queries = merged_queries + [
             Query(
                 sql_generator(
-                    select_left.queries[-1].sql, select_right.queries[-1].sql
+                    select_left.queries[-1].sql,
+                    select_right.queries[-1].sql,
                 ),
                 params=[
                     *select_left.queries[-1].params,

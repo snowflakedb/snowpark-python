@@ -116,14 +116,14 @@ def test_select_sql_sql_query(mock_session, mock_analyzer):
 
 def test_set_statement_sql_query_no_multiline(mock_session, mock_analyzer):
     mock_selectable1 = mock.create_autospec(SelectableEntity)
-    mock_selectable1.sql_query = "SELECT 1 AS A"
     mock_selectable1.uuid = "uuid-1"
+    mock_selectable1.sql_query = "SELECT 1 AS A"
     mock_selectable1.pre_actions = None
     mock_selectable1.post_actions = None
 
     mock_selectable2 = mock.create_autospec(SelectableEntity)
-    mock_selectable2.sql_query = "SELECT 2 AS A"
     mock_selectable2.uuid = "uuid-2"
+    mock_selectable2.sql_query = "SELECT 2 AS A"
     mock_selectable2.pre_actions = None
     mock_selectable2.post_actions = None
 
