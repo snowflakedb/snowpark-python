@@ -8,6 +8,7 @@ import math
 import os
 import sys
 import tempfile
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
 
 from snowflake.connector import ProgrammingError
@@ -208,6 +209,8 @@ UUID_COMMENT = "-- {}"
 MODEL = "MODEL"
 EXCLAMATION_MARK = "!"
 HAVING = " HAVING "
+STATEMENT = " STATEMENT "
+TIMESTAMP = " TIMESTAMP "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -549,6 +552,60 @@ def filter_statement(
             + WHERE
             + condition
         )
+
+
+def time_travel_statement(
+    child: str,
+    mode: str,
+    timestamp: Optional[Union[str, datetime]] = None,
+    offset: Optional[int] = None,
+    statement: Optional[str] = None,
+    timezone: Optional[str] = "NTZ",
+):
+    sql_query = child + f" {mode} " + LEFT_PARENTHESIS
+    if statement is not None:
+        sql_query += (
+            STATEMENT
+            + RIGHT_ARROW
+            + SINGLE_QUOTE
+            + statement
+            + SINGLE_QUOTE
+            + RIGHT_PARENTHESIS
+        )
+    elif offset is not None:
+        sql_query += OFFSET + RIGHT_ARROW + str(offset) + RIGHT_PARENTHESIS
+    elif timestamp is not None:
+        assert timezone is not None
+        if timezone.upper() == "NTZ":
+            func_name = "TO_TIMESTAMP_NTZ"
+        elif timezone.upper() == "LTZ":
+            func_name = "TO_TIMESTAMP_LTZ"
+        elif timezone.upper() == "TZ":
+            func_name = "TO_TIMESTAMP_TZ"
+        else:
+            raise ValueError(
+                f"'timezone' value {timezone} must be one of 'NTZ', 'LTZ', or 'TZ'."
+            )
+        # Convert datetime object to string if necessary
+        if isinstance(timestamp, datetime):
+            timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f")[
+                :-3
+            ]  # Remove last 3 digits for milliseconds
+        else:
+            timestamp_str = timestamp
+
+        sql_query += (
+            TIMESTAMP
+            + RIGHT_ARROW
+            + func_name
+            + LEFT_PARENTHESIS
+            + SINGLE_QUOTE
+            + timestamp_str
+            + SINGLE_QUOTE
+            + RIGHT_PARENTHESIS
+            + RIGHT_PARENTHESIS
+        )
+    return sql_query
 
 
 def sample_statement(

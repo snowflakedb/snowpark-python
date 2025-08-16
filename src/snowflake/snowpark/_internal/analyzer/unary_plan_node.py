@@ -361,3 +361,27 @@ class CreateDynamicTableCommand(UnaryNode):
         self.data_retention_time = data_retention_time
         self.max_data_extension_time = max_data_extension_time
         self.iceberg_config = iceberg_config
+
+
+class TimeTravel(UnaryNode):
+    def __init__(
+        self,
+        child: LogicalPlan,
+        mode: str,
+        timestamp: Optional[str] = None,
+        offset: Optional[int] = None,
+        statement: Optional[str] = None,
+        timezone: Optional[str] = "NTZ",
+    ) -> None:
+        super().__init__(child)
+        self.mode = mode
+        self.timestamp = timestamp
+        self.offset = offset
+        self.statement = statement
+        self.timezone = timezone
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        return {
+            PlanNodeCategory.BEFORE: 1,
+        }

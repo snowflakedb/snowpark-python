@@ -39,6 +39,7 @@ class PlanNodeCategory(Enum):
     IN = "in"
     WITH_QUERY = "with_query"
     LOW_IMPACT = "low_impact"
+    BEFORE = "before"
     OTHERS = "others"
 
     def __repr__(self) -> str:

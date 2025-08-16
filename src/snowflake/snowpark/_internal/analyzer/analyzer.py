@@ -154,6 +154,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Sample,
     SampleBy,
     Sort,
+    TimeTravel,
     Unpivot,
 )
 from snowflake.snowpark._internal.analyzer.window_expression import (
@@ -1034,6 +1035,17 @@ class Analyzer:
                 logical_plan.is_having,
                 resolved_children[logical_plan.child],
                 logical_plan,
+            )
+
+        if isinstance(logical_plan, TimeTravel):
+            return self.plan_builder.time_travel(
+                child=resolved_children[logical_plan.child],
+                source_plan=logical_plan,
+                timestamp=logical_plan.timestamp,
+                offset=logical_plan.offset,
+                statement=logical_plan.statement,
+                timezone=logical_plan.timezone,
+                mode=logical_plan.mode,
             )
 
         # Add a sample stop to the plan being built
