@@ -547,6 +547,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[True] = True,
+        validation_mode: Optional[str] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> List[Row]:
@@ -565,6 +566,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[False] = False,
+        validation_mode: Optional[str] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> AsyncJob:
@@ -582,6 +584,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        validation_mode: Optional[Literal["RETURN_ROWS"]] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> Union[List[Row], AsyncJob]:
@@ -599,6 +602,9 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            validation_mode: String (constant) that instructs the COPY command to return the results of the query in the SQL
+                statement instead of unloading cohe results to the specified cloud storage location.
+                The only supported validation option is RETURN_ROWS. This option returns all rows produced by the query.
 
         Returns:
             A list of :class:`Row` objects containing unloading results.
@@ -636,6 +642,7 @@ class DataFrameWriter:
             header=header,
             statement_params=statement_params,
             block=block,
+            validation_mode=validation_mode,
             _emit_ast=_emit_ast,
             **copy_options,
         )
@@ -652,6 +659,7 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        validation_mode: Optional[str] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> Union[List[Row], AsyncJob]:
@@ -678,6 +686,7 @@ class DataFrameWriter:
                 header=header,
                 statement_params=statement_params,
                 block=block,
+                validation_mode=validation_mode,
                 **copy_options,
             )
 
@@ -733,6 +742,7 @@ class DataFrameWriter:
                 format_type_options=cur_format_type_options,
                 copy_options=cur_copy_options,
                 header=header,
+                validation_mode=validation_mode,
             )
         )
         add_api_call(df, "DataFrameWriter.copy_into_location")

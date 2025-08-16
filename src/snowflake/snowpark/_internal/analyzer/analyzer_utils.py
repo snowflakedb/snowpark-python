@@ -1643,6 +1643,7 @@ def copy_into_location(
     file_format_type: Optional[str] = None,
     format_type_options: Optional[Dict[str, Any]] = None,
     header: bool = False,
+    validation_mode: Optional[str] = None,
     **copy_options: Any,
 ) -> str:
     """
@@ -1652,6 +1653,7 @@ def copy_into_location(
     [ FILE_FORMAT = ( { FORMAT_NAME = '[<namespace>.]<file_format_name>' |
                         TYPE = { CSV | JSON | PARQUET } [ formatTypeOptions ] } ) ]
     [ copyOptions ]
+    [ VALIDATION_MODE = RETURN_ROWS ]
     [ HEADER ]
     """
     partition_by_clause = (
@@ -1689,6 +1691,11 @@ def copy_into_location(
         get_options_statement(copy_options) if copy_options else EMPTY_STRING
     )
     header_clause = f"{HEADER}{EQUALS}{header}" if header is not None else EMPTY_STRING
+    validation_mode_clause = (
+        f"{VALIDATION_MODE}{EQUALS}{validation_mode}"
+        if validation_mode
+        else EMPTY_STRING
+    )
     return (
         COPY
         + INTO
@@ -1702,6 +1709,7 @@ def copy_into_location(
         + SPACE
         + copy_options_clause
         + SPACE
+        + validation_mode_clause
         + header_clause
     )
 
