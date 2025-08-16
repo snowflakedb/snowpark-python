@@ -9,20 +9,29 @@ import pandas as native_pd
 
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import sproc
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_35_0
 from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import multithreaded_run
 
 
 # Must pin modin version to match version available in Snowflake Anaconda
-SPROC_MODIN_VERSION = "0.30.1"
+SPROC_MODIN_VERSION = "0.34.1"
+
+if MODIN_IS_AT_LEAST_0_35_0:
+    # modin 0.35.0 is not yet in anaconda, so if that's the version installed on the client then
+    # pandas 2.3 is probably installed. Since the lower modin version available in anaconda only
+    # works with pandas 2.2.x, we need to explicitly pin a pandas version here.
+    pandas_version = "2.2.3"
+else:
+    # modin 0.34.1 supports any pandas 2.2.x, so just pick whichever one is installed in the client.
+    pandas_version = native_pd.__version__
 
 PACKAGE_LIST = [
-    # modin 0.30.1 supports any pandas 2.2.x, so just pick whichever one is installed in the client.
     # Note that because we specify `snowflake-snowpark-python` as a package here, it will pick whatever
     # version of the package is available in anaconda, not the latest `main` branch.
     # The behavior of stored procedures with `main` is verified in server-side tests and the stored
     # procedure Jenkins job.
-    f"pandas=={native_pd.__version__}",
+    f"pandas=={pandas_version}",
     f"modin=={SPROC_MODIN_VERSION}",
     "snowflake-snowpark-python",
     "numpy",

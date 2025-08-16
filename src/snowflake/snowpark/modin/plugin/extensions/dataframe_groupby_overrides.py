@@ -89,10 +89,7 @@ def __init__(
     group_keys,
     idx_name,
     drop,
-    # TODO MODIN_IS_AT_LEAST_0_34_0
-    # backend_pinned did not exist in 0.33.x; after removing support for 0.33.x we should
-    # remove the default value of backend_pinned and make the argument mandatory
-    backend_pinned: bool = False,
+    backend_pinned: bool,
     **kwargs,
 ) -> None:
     # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
@@ -120,34 +117,6 @@ def __init__(
     if "apply_op" not in self._kwargs:
         # Can be "apply", "transform", "filter" or "aggregate"
         self._kwargs.update({"apply_op": "apply"})
-
-
-@register_df_groupby_override("_override")
-def _override(self, **kwargs):
-    """
-    Override groupby parameters.
-
-    Parameters
-    ----------
-    **kwargs : dict
-        Parameters to override.
-
-    Returns
-    -------
-    DataFrameGroupBy
-        A groupby object with new parameters.
-    """
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    new_kw = dict(
-        df=self._df,
-        by=self._by,
-        axis=self._axis,
-        idx_name=self._idx_name,
-        drop=self._drop,
-        **self._kwargs,
-    )
-    new_kw.update(kwargs)
-    return type(self)(**new_kw)
 
 
 @register_df_groupby_override("ngroups")
