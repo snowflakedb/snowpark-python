@@ -19,6 +19,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
 from snowflake.snowpark.modin.plugin._internal.utils import (
     INDEX_LABEL,
     append_columns,
+    generate_snowflake_quoted_identifiers_helper,
     pandas_lit,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
@@ -164,17 +165,18 @@ def _select_possibly_duplicate_identifiers_in_order(
     """
     expressions_to_select: list[Union[str, Column]] = []
     selected_identifiers = set[str]()
+    selected_aliases = list[str]()
     for identifier in identifiers:
-        expressions_to_select.append(
-            Column(identifier).as_(
-                frame.generate_snowflake_quoted_identifiers(pandas_labels=[identifier])[
-                    0
-                ]
-            )
-            if identifier in selected_identifiers
-            else identifier
-        )
+        if identifier in selected_identifiers:
+            alias = generate_snowflake_quoted_identifiers_helper(
+                pandas_labels=[identifier], excluded=[*identifiers, *selected_aliases]
+            )[0]
+            expression_to_select = Column(identifier).as_(alias)
+        else:
+            alias = expression_to_select = identifier
+        expressions_to_select.append(expression_to_select)
         selected_identifiers.add(identifier)
+        selected_aliases.append(alias)
 
     return frame.select(expressions_to_select)
 
