@@ -25,6 +25,7 @@ from typing import (
     Union,
     overload,
 )
+from zoneinfo import ZoneInfo
 
 import snowflake.snowpark
 import snowflake.snowpark.context as context
@@ -210,6 +211,8 @@ from snowflake.snowpark.types import (
     StructType,
     _NumericType,
     _FractionalType,
+    TimestampType,
+    TimestampTimeZone,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -5018,6 +5021,7 @@ class DataFrame:
         truncate: Union[bool, int] = True,
         vertical: bool = False,
         _spark_column_names: List[str] = None,
+        _spark_session_tz: str = None,
         **kwargs,
     ) -> str:
         """Spark's show() logic - translated from scala to python."""
@@ -5033,6 +5037,8 @@ class DataFrame:
             _spark_column_names = []
 
         def cell_to_str(cell: Any, datatype: DataType) -> str:
+            import datetime
+
             # Special handling for cell printing in Spark
             # TODO: this operation can be pushed down to Snowflake for execution.
             if cell is None:
@@ -5041,6 +5047,24 @@ class DataFrame:
                 res = "true" if cell else "false"
             elif isinstance(cell, bytes) or isinstance(cell, bytearray):
                 res = f"[{' '.join([format(b, '02X') for b in cell])}]"
+            elif (
+                isinstance(cell, datetime.datetime)
+                and isinstance(datatype, TimestampType)
+                and datatype.tz == TimestampTimeZone.NTZ
+            ):
+                res = str(cell)
+            elif isinstance(cell, datetime.datetime) and isinstance(
+                datatype, TimestampType
+            ):
+                res = (
+                    str(
+                        cell.astimezone(ZoneInfo(_spark_session_tz)).replace(
+                            tzinfo=None
+                        )
+                    )
+                    if _spark_session_tz
+                    else str(cell)
+                )
             elif isinstance(cell, list) and isinstance(datatype, ArrayType):
                 res = (
                     "["
