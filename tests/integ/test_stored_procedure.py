@@ -1316,7 +1316,7 @@ def test_async_stored_procedure_execution(session):
         # ================ Test 1: Scalar sproc ================
         def scalar_movie(session_: Session, movie_id: int) -> str:
             df = (
-                session_.table(tmp_table_name).select("title").where(f"id = {movie_id}")
+                session_.table(tmp_table_name).where(f"id = {movie_id}").select("title")
             )
             return df.collect()[0][0]
 
