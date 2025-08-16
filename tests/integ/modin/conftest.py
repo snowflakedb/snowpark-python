@@ -13,6 +13,7 @@ import pytest
 from pandas._typing import Frequency
 from pandas.core.indexing import IndexingError
 from pytest import fail
+from typing import Generator
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
@@ -762,3 +763,18 @@ def timedelta_native_df() -> pandas.DataFrame:
             "D": pandas.to_timedelta([pd.NaT] * 4),
         }
     )
+
+
+@pytest.fixture
+def testing_dfs_from_read_snowflake(
+    request, session, test_table_name
+) -> Generator[tuple[pd.DataFrame, pandas.DataFrame], None, None]:
+    pandas_df = request.param
+    session.write_pandas(
+        df=pandas_df,
+        table_name=test_table_name,
+        overwrite=True,
+        table_type="temp",
+        auto_create_table=True,
+    )
+    return pd.read_snowflake(test_table_name), pandas_df
