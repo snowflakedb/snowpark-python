@@ -12,6 +12,7 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     sum_node_complexities,
 )
+from snowflake.snowpark._internal.type_utils import CopyOptions
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
 
@@ -407,7 +408,7 @@ class CopyIntoLocationNode(LogicalPlan):
         file_format_type: Optional[str] = None,
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
-        copy_options: Dict[str, Any],
+        copy_options: CopyOptions,
     ) -> None:
         super().__init__()
         self.child = child

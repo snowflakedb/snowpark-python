@@ -27,6 +27,7 @@ from typing import (  # noqa: F401
     Optional,
     Tuple,
     Type,
+    TypedDict,
     Union,
     get_args,
     get_origin,
@@ -1309,3 +1310,10 @@ ColumnOrLiteralStr = Union["snowflake.snowpark.column.Column", str]
 ColumnOrSqlExpr = Union["snowflake.snowpark.column.Column", str]
 LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
 ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]
+
+class CopyOptions(TypedDict, total=False):
+    overwrite: Union[bool,str]
+    single: Union[bool,str]
+    max_file_size: Union[float,str]
+    include_query_id: Union[bool,str]
+    detailed_output: Union[bool,str]
