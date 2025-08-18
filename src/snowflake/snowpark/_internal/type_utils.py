@@ -1026,7 +1026,6 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
     TimestampType, timezone=TimestampTimeZone.LTZ
 )
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_to_month"] = YearMonthIntervalType
-DATA_TYPE_STRING_OBJECT_MAPPINGS["interval"] = YearMonthIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["intervalyeartomonth"] = YearMonthIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["str"] = StringType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["varchar"] = StringType
