@@ -615,6 +615,9 @@ class DataFrameWriter:
             validation_mode: String (constant) that instructs the COPY command to return the results of the query in the SQL
                 statement instead of unloading cohe results to the specified cloud storage location.
                 The only supported validation option is RETURN_ROWS. This option returns all rows produced by the query.
+            storage_integration: Specifies the name of the storage integration used to delegate authentication responsibility for external cloud storage to a Snowflake identity and access management (IAM) entity.
+            credentials: Specifies the security credentials for connecting to the cloud provider and accessing the private/protected cloud storage.
+            encryption: Specifies the encryption settings used to decrypt encrypted files in the storage location.
 
         Returns:
             A list of :class:`Row` objects containing unloading results.

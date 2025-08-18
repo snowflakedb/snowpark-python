@@ -1655,6 +1655,9 @@ def copy_into_location(
     """
     COPY INTO { internalStage | externalStage | externalLocation }
          FROM { [<namespace>.]<table_name> | ( <query> ) }
+    [ STORAGE_INTEGRATION = '<storage_integration_name>' ]
+    [ CREDENTIALS = ( <cloud_specific_credentials> ) ]
+    [ ENCRYPTION =  ( <cloud_specific_encryption> ) ]
     [ PARTITION BY <expr> ]
     [ FILE_FORMAT = ( { FORMAT_NAME = '[<namespace>.]<file_format_name>' |
                         TYPE = { CSV | JSON | PARQUET } [ formatTypeOptions ] } ) ]

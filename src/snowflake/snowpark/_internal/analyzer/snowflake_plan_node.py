@@ -378,9 +378,6 @@ class CopyIntoTableNode(LeafNode):
         cur_options: Optional[Dict[str, Any]] = None,  # the options of DataFrameReader
         create_table_from_infer_schema: bool = False,
         iceberg_config: Optional[dict] = None,
-        storage_integration: Optional[str] = None,
-        credentials: Optional[dict] = None,
-        encryption: Optional[dict] = None,
     ) -> None:
         super().__init__()
         self.table_name = table_name
@@ -397,9 +394,6 @@ class CopyIntoTableNode(LeafNode):
         self.cur_options = cur_options
         self.create_table_from_infer_schema = create_table_from_infer_schema
         self.iceberg_config = iceberg_config
-        self.storage_integration = storage_integration
-        self.credentials = credentials
-        self.encryption = encryption
 
 
 class CopyIntoLocationNode(LogicalPlan):
