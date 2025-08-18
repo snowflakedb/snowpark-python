@@ -223,14 +223,13 @@ def convert_sf_to_sp_type(
         return BinaryType()
     if column_type_name == "INTERVAL_YEAR_MONTH":
         if scale == 0:
-            # Year to Month
-            return YearMonthIntervalType(0, 1)
+            return YearMonthIntervalType(
+                YearMonthIntervalType.YEAR, YearMonthIntervalType.MONTH
+            )
         elif scale == 1:
-            # Year
-            return YearMonthIntervalType(0)
+            return YearMonthIntervalType(YearMonthIntervalType.YEAR)
         elif scale == 2:
-            # Month
-            return YearMonthIntervalType(1)
+            return YearMonthIntervalType(YearMonthIntervalType.MONTH)
         else:
             raise ValueError(
                 f"Invalid scale value {scale} for YearMonthIntervalType. Expected 0, 1, or 2."
