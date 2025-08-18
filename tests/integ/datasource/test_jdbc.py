@@ -24,6 +24,20 @@ def test_basic_jdbc(session):
 
 
 def test_partitions(session):
+    # no partitions
+    stage_name = session.get_session_stage()
+    jar_path = stage_name + "/mongodb-jdbc-2.3.0-all.jar"
+    client = JDBC(
+        session,
+        URL,
+        properties={"database": "VirtualDatabase0"},
+        table_or_query='SELECT _id, "double", "string", "object", "array", "binary","objectId", "bool", "date", "int32", "long", "decimal128", "timestamp", "code" FROM test_collection',
+        external_access_integration=EXTERNAL_ACCESS_INTEGRATION,
+        imports=[jar_path],
+        is_query=True,
+    )
+    client.partitions
+
     # partition column
 
     # predicates
@@ -54,4 +68,4 @@ def test_infer_schema(session):
         imports=[jar_path],
         is_query=True,
     )
-    print(client)
+    client.secret_detector()

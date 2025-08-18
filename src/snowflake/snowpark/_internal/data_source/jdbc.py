@@ -2,9 +2,10 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+import re
 from collections import defaultdict
 from functools import cached_property
-from typing import Optional, Union, List, Any, TYPE_CHECKING
+from typing import Optional, Union, List, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source import DataSourcePartitioner
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
@@ -59,41 +60,6 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
 PARTITION_TABLE_COLUMN_NAME = "partition"
 
 
-def to_snow_type(raw_schema: List[Any]) -> StructType:
-    fields = []
-    for (field_name, jdbc_type, java_type, precision, scale, nullable) in raw_schema:
-        jdbc_to_snow_type = JDBC_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, None)
-        java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, StringType)
-        snow_type = (
-            java_to_snow_type if jdbc_to_snow_type is None else jdbc_to_snow_type
-        )
-        if snow_type == DecimalType:
-            if not BaseDriver.validate_numeric_precision_scale(precision, scale):
-                logger.debug(
-                    f"Snowpark does not support column"
-                    f" {field_name} of type {java_type} with precision {precision} and scale {scale}. "
-                    "The default Numeric precision and scale will be used."
-                )
-                precision, scale = None, None
-            data_type = snow_type(
-                precision if precision is not None else 38,
-                scale if scale is not None else 0,
-            )
-        else:
-            data_type = snow_type()
-
-        fields.append(StructField(field_name, data_type, nullable))
-    return StructType(fields)
-
-
-def generate_select_sql(table_or_query: str, raw_schema: List[str], is_query: bool):
-    if is_query:
-        return table_or_query
-    else:
-        cols = [col[0] for col in raw_schema] if raw_schema is not None else ["*"]
-        return f"SELECT {', '.join(cols)} FROM {table_or_query}"
-
-
 class JDBC:
     def __init__(
         self,
@@ -117,7 +83,6 @@ class JDBC:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
-        single_column_if_infer_schema_fail: Optional[bool] = False,
         _emit_ast: bool = True,
     ) -> None:
         self.session = session
@@ -142,7 +107,6 @@ class JDBC:
         self.predicates = predicates
         self.session_init_statement = session_init_statement
         self.raw_schema = None
-        self.single_column_if_infer_schema_fail = single_column_if_infer_schema_fail
         self._emit_ast = _emit_ast
         self.imports = (
             f"""IMPORTS =({",".join([f"'{imp}'" for imp in self.imports])})"""
@@ -250,56 +214,46 @@ class JDBC:
             ;
             """
 
-        try:
-            self.session.sql(
-                infer_schema_udtf_registration, _emit_ast=self._emit_ast
-            ).collect()
-            self.raw_schema = self.session.sql(
-                f"SELECT * FROM TABLE({infer_schema_udtf_name}('{self.infer_schema_sql()}'))",
-                _emit_ast=self._emit_ast,
-            ).collect()
+        self.session.sql(
+            infer_schema_udtf_registration, _emit_ast=self._emit_ast
+        ).collect()
+        self.raw_schema = self.session.sql(
+            f"SELECT * FROM TABLE({infer_schema_udtf_name}('{self.infer_schema_sql()}'))",
+            _emit_ast=self._emit_ast,
+        ).collect()
 
-            auto_infer_schema = to_snow_type(self.raw_schema)
+        auto_infer_schema = self.to_snow_type()
 
-            if self.custom_schema is None:
-                return auto_infer_schema
-            else:
-                custom_schema = DataSourcePartitioner.formatting_custom_schema(
-                    self.custom_schema
+        if self.custom_schema is None:
+            return auto_infer_schema
+        else:
+            custom_schema = DataSourcePartitioner.formatting_custom_schema(
+                self.custom_schema
+            )
+
+            # generate final schema with auto infer schema and custom schema
+            custom_schema_name_to_field = defaultdict()
+            for field in custom_schema.fields:
+                if field.name.lower() in custom_schema_name_to_field:
+                    raise ValueError(
+                        f"Invalid schema: {self.custom_schema}. "
+                        f"Schema contains duplicate column: {field.name.lower()}. "
+                        "Please choose another name or rename the existing column "
+                    )
+                custom_schema_name_to_field[field.name.lower()] = field
+            final_fields = []
+            for field in auto_infer_schema.fields:
+                final_fields.append(
+                    custom_schema_name_to_field.get(field.name.lower(), field)
                 )
 
-                # generate final schema with auto infer schema and custom schema
-                custom_schema_name_to_field = defaultdict()
-                for field in custom_schema.fields:
-                    if field.name.lower() in custom_schema_name_to_field:
-                        raise ValueError(
-                            f"Invalid schema: {self.custom_schema}. "
-                            f"Schema contains duplicate column: {field.name.lower()}. "
-                            "Please choose another name or rename the existing column "
-                        )
-                    custom_schema_name_to_field[field.name.lower()] = field
-                final_fields = []
-                for field in auto_infer_schema.fields:
-                    final_fields.append(
-                        custom_schema_name_to_field.get(field.name.lower(), field)
-                    )
-
-                return StructType(final_fields)
-        except Exception:
-            if self.single_column_if_infer_schema_fail:
-                self._infer_schema_successful = False
-                return StructType([StructField("JSON_ROW", StringType(), False)])
-            raise
+            return StructType(final_fields)
 
     @cached_property
     def partitions(self) -> List[str]:
         if self.raw_schema is None:
             self.schema
-        select_query = generate_select_sql(
-            self.table_or_query,
-            self.raw_schema,
-            self.is_query,
-        )
+        select_query = self.generate_select_sql()
         logger.debug(f"Generated select query: {select_query}")
 
         return DataSourcePartitioner.generate_partitions(
@@ -354,52 +308,6 @@ class JDBC:
                 }} catch (Exception e) {{
                     throw new RuntimeException("Failed to create JDBC connection: " + e.getMessage());
                 }}
-            }}
-
-            public static String extractRowAsJson(ResultSet rs, ResultSetMetaData meta, int columnCount) throws SQLException {{
-                Map<String, String> rowMap = new LinkedHashMap<>();
-                for (int i = 1; i <= columnCount; i++) {{
-                    String raw = rs.getString(i);
-                    rowMap.put(meta.getColumnLabel(i), raw);
-                }}
-                return mapToJson(rowMap);
-            }}
-
-            public static String mapToJson(Map<String, Object> map) {{
-                StringBuilder sb = new StringBuilder();
-                sb.append("{{");
-
-                boolean first = true;
-                for (Map.Entry<String, Object> entry : map.entrySet()) {{
-                    if (!first) {{
-                        sb.append(",");
-                    }}
-                    first = false;
-
-                    sb.append("\"").append(escapeJson(entry.getKey())).append("\":");
-
-                    Object value = entry.getValue();
-                    if (value == null) {{
-                        sb.append("null");
-                    }} else if (value instanceof Number || value instanceof Boolean) {{
-                        sb.append(value.toString());
-                    }} else {{
-                        sb.append("\"").append(escapeJson(value.toString())).append("\"");
-                    }}
-                }}
-
-                sb.append("}}");
-                return sb.toString();
-            }}
-
-            public static String escapeJson(String s) {{
-                return s.replace("\\", "\\\\")
-                        .replace("\"", "\\\"")
-                        .replace("\b", "\\b")
-                        .replace("\f", "\\f")
-                        .replace("\n", "\\n")
-                        .replace("\r", "\\r")
-                        .replace("\t", "\\t");
             }}
 
             public static Class<?> getOutputClass() {{
@@ -487,19 +395,81 @@ class JDBC:
         )
 
     def create_output_row_java_code(self):
-        return (
-            f"""row.{self.schema.fields[0].name} = extractRowAsJson(rs, meta, columnCount)"""
-            if not self._infer_schema_successful
-            and self.single_column_if_infer_schema_fail
-            else "".join(
-                [
-                    f"row.{field.name} = rs.getString({i+1});\n"
-                    for i, field in enumerate(self.schema.fields)
-                ]
-            )
+        return "".join(
+            [
+                f"row.{field.name} = rs.getString({i+1});\n"
+                for i, field in enumerate(self.schema.fields)
+            ]
         )
 
     def create_output_row_class(self):
         return "".join(
             [f"public String {field.name};\n" for field in self.schema.fields]
+        )
+
+    def to_snow_type(self) -> StructType:
+        fields = []
+        for (
+            field_name,
+            jdbc_type,
+            java_type,
+            precision,
+            scale,
+            nullable,
+        ) in self.raw_schema:
+            jdbc_to_snow_type = JDBC_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, None)
+            java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, StringType)
+            snow_type = (
+                java_to_snow_type if jdbc_to_snow_type is None else jdbc_to_snow_type
+            )
+            if snow_type == DecimalType:
+                if not BaseDriver.validate_numeric_precision_scale(precision, scale):
+                    logger.debug(
+                        f"Snowpark does not support column"
+                        f" {field_name} of type {java_type} with precision {precision} and scale {scale}. "
+                        "The default Numeric precision and scale will be used."
+                    )
+                    precision, scale = None, None
+                data_type = snow_type(
+                    precision if precision is not None else 38,
+                    scale if scale is not None else 0,
+                )
+            else:
+                data_type = snow_type()
+
+            fields.append(StructField(field_name, data_type, nullable))
+        return StructType(fields)
+
+    def generate_select_sql(self):
+        select_sql_alias = (
+            f"SNOWPARK_JDBC_SELECT_SQL_ALIAS_{generate_random_alphanumeric(5)}"
+        )
+        cols = (
+            [col[0] for col in self.raw_schema]
+            if self.raw_schema is not None
+            else ["*"]
+        )
+        if self.is_query:
+            return f"SELECT {select_sql_alias}.* FROM ({self.table_or_query}) {select_sql_alias}"
+        else:
+            return f"SELECT {', '.join(cols)} FROM {self.table_or_query}"
+
+    def secret_detector(self):
+        secret_keys = {
+            "password",
+            "pwd",
+            "token",
+            "accesskey",
+            "secret",
+            "apikey",
+            "user",
+            "username",
+        }
+
+        for key in list(self.properties.keys()):
+            if key.lower() in secret_keys:
+                del self.properties[key]
+
+        self.url = re.sub(
+            r"(?<=://)([^:/]+)(:[^@]+)?@", "", self.url  # Matches user[:password]@
         )

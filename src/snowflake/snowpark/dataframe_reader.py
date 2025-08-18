@@ -1314,7 +1314,6 @@ class DataFrameReader:
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
-        single_column_if_infer_schema_fail: Optional[bool] = False,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1336,6 +1335,7 @@ class DataFrameReader:
 
         Args:
             url: A connection string used to establish connections to external data source with JDBC driver.
+                Please do not include any secrets in this parameter.
             udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
                 This parameter is required for jdbc.
 
@@ -1349,6 +1349,9 @@ class DataFrameReader:
 
                 - java_version (int, optional): A integer that indicate the java runtime version of udtf.
                     By default we use java 11.
+
+            properties: A dictionary containing key-value pair that is needed during establishing connection with external data source.
+                Please do not include any secrest in this parameter.
 
             table: The name of the table in the external data source.
                 This parameter cannot be used together with the `query` parameter.
@@ -1383,7 +1386,6 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
-            single_column_if_infer_schema_fail: A bool value that control whether the data is dump into a single json string when infer schema fails.
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
@@ -1428,7 +1430,6 @@ class DataFrameReader:
             custom_schema=custom_schema,
             predicates=predicates,
             session_init_statement=session_init_statement,
-            single_column_if_infer_schema_fail=single_column_if_infer_schema_fail,
             _emit_ast=_emit_ast,
         )
 
