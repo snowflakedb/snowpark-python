@@ -2153,6 +2153,9 @@ class SnowflakePlanBuilder:
         format_type_options: Optional[Dict[str, Any]] = None,
         header: bool = False,
         validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         **copy_options: Optional[Any],
     ) -> SnowflakePlan:
         return self.build(
@@ -2165,6 +2168,9 @@ class SnowflakePlanBuilder:
                 format_type_options=format_type_options,
                 header=header,
                 validation_mode=validation_mode,
+                storage_integration=storage_integration,
+                credentials=credentials,
+                encryption=encryption,
                 **copy_options,
             ),
             query,

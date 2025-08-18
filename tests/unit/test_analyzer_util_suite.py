@@ -35,6 +35,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     pivot_statement,
     unpivot_statement,
     sample_by_statement,
+    convert_dict_to_sql_option,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Inner,
@@ -378,6 +379,40 @@ def test_convert_value_to_sql_option():
     assert convert_value_to_sql_option(None) == "None"
     assert convert_value_to_sql_option((1,)) == "(1)"
     assert convert_value_to_sql_option((1, 2)) == "(1, 2)"
+
+
+def test_convert_dict_to_sql_option():
+    # empty dict -> empty string
+    assert convert_dict_to_sql_option({}) == ""
+
+    # defaults: uppercase keys, quoted values, space delimiter
+    assert (
+        convert_dict_to_sql_option({"user": "bob", "timeout": 30, "secure": True})
+        == "(USER='bob' TIMEOUT='30' SECURE='True')"
+    )
+
+    # custom delimiter
+    assert (
+        convert_dict_to_sql_option({"a": 1, "b": 2}, delimiter=", ") == "(A='1', B='2')"
+    )
+
+    # None value becomes 'NONE'
+    assert convert_dict_to_sql_option({"token": None}) == "(TOKEN='NONE')"
+
+    # preserve key case when upper_key=False
+    assert (
+        convert_dict_to_sql_option({"mixedCaseKey": "v"}, upper_key=False)
+        == "(mixedCaseKey='v')"
+    )
+
+    # do not quote values when value_as_string_identifier=False
+    assert (
+        convert_dict_to_sql_option(
+            {"user": "bob", "timeout": 30, "secure": True},
+            value_as_string_identifier=False,
+        )
+        == "(USER=bob TIMEOUT=30 SECURE=True)"
+    )
 
 
 def test_file_operation_negative():

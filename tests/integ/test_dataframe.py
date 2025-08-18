@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import os
 import copy
 import datetime
 import decimal
@@ -96,6 +97,7 @@ from snowflake.snowpark.types import (
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
+    IS_NOT_ON_GITHUB,
     TestData,
     TestFiles,
     Utils,
@@ -3933,6 +3935,33 @@ def test_write_copy_into_location_csv(session, partition_by):
         assert ".csv.gz" in copied_files[1][0]
     finally:
         Utils.drop_stage(session, temp_stage)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    IS_NOT_ON_GITHUB,
+    reason="The test resource is only available on GitHub",
+)
+def test_write_copy_into_location_storage_integration(session):
+    # set up in github repo Actions secrets and variables
+    storage_integration = os.getenv("SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION")
+    s3_test_bucket_path = os.getenv("SNOWPARK_PYTHON_API_TEST_BUCKET_PATH")
+    if not storage_integration or not s3_test_bucket_path:
+        pytest.skip("The test resource is not available")
+    df = session.create_dataframe(
+        [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+        schema=["FIRST_NAME", "LAST_NAME"],
+    )
+    ret = df.write.copy_into_location(
+        f"{s3_test_bucket_path}/test.csv",
+        storage_integration=storage_integration,
+        encryption={"type": None},
+        overwrite=True,
+    )
+    assert len(ret) == 1 and ret[0].rows_unloaded == 3
 
 
 @pytest.mark.skipif(

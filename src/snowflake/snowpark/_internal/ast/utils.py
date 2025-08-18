@@ -1059,6 +1059,9 @@ def fill_write_file(
     statement_params: Optional[Dict[str, str]] = None,
     block: bool = True,
     validation_mode: Optional[str] = None,
+    storage_integration: Optional[str] = None,
+    credentials: Optional[dict] = None,
+    encryption: Optional[dict] = None,
     **copy_options: dict,
 ) -> None:  # pragma: no cover
     expr.location = location  # type: ignore[attr-defined] # TODO(SNOW-1491199) # "Expr" has no attribute "location"
@@ -1084,6 +1087,21 @@ def fill_write_file(
 
     if validation_mode is not None:
         expr.validation_mode.value = validation_mode
+
+    if storage_integration is not None:
+        expr.storage_integration.value = storage_integration
+
+    if credentials is not None:
+        for k, v in credentials.items():
+            t = expr.credentials.add()
+            t._1 = k
+            t._2 = v
+
+    if encryption is not None:
+        for k, v in encryption.items():
+            t = expr.encryption.add()
+            t._1 = k
+            t._2 = v
 
     if copy_options:
         for k, v in copy_options.items():  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "dict[Any, Any]", variable has type "str")

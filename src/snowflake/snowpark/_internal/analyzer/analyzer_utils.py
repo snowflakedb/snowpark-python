@@ -208,6 +208,9 @@ UUID_COMMENT = "-- {}"
 MODEL = "MODEL"
 EXCLAMATION_MARK = "!"
 HAVING = " HAVING "
+STORAGE_INTEGRATION = " STORAGE_INTEGRATION "
+CREDENTIALS = " CREDENTIALS "
+ENCRYPTION = " ENCRYPTION "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -1644,6 +1647,9 @@ def copy_into_location(
     format_type_options: Optional[Dict[str, Any]] = None,
     header: bool = False,
     validation_mode: Optional[str] = None,
+    storage_integration: Optional[str] = None,
+    credentials: Optional[dict] = None,
+    encryption: Optional[dict] = None,
     **copy_options: Any,
 ) -> str:
     """
@@ -1696,6 +1702,23 @@ def copy_into_location(
         if validation_mode
         else EMPTY_STRING
     )
+
+    storage_integration_str = (
+        NEW_LINE + STORAGE_INTEGRATION + EQUALS + storage_integration
+        if storage_integration
+        else EMPTY_STRING
+    )
+    credentials_str = (
+        NEW_LINE + CREDENTIALS + EQUALS + convert_dict_to_sql_option(credentials)
+        if credentials
+        else EMPTY_STRING
+    )
+    encryption_str = (
+        NEW_LINE + ENCRYPTION + EQUALS + convert_dict_to_sql_option(encryption)
+        if encryption
+        else EMPTY_STRING
+    )
+
     return (
         COPY
         + INTO
@@ -1704,6 +1727,9 @@ def copy_into_location(
         + LEFT_PARENTHESIS
         + query
         + RIGHT_PARENTHESIS
+        + storage_integration_str
+        + credentials_str
+        + encryption_str
         + partition_by_clause
         + file_format_clause
         + SPACE
@@ -1920,6 +1946,28 @@ def get_file_format_spec(
         file_format_str += FORMAT_NAME + EQUALS + file_format_name
     file_format_str += RIGHT_PARENTHESIS
     return file_format_str
+
+
+def convert_dict_to_sql_option(
+    dict: Dict[str, Any],
+    value_as_string_identifier: bool = True,
+    upper_key: bool = True,
+    delimiter: str = " ",
+) -> str:
+    # convert dict to sql option string
+    # by default: {"key1": "value1", "key2": "value2"} -> "(key1='value1' key2='value2')"
+    if not dict:
+        return EMPTY_STRING
+    ret_str = LEFT_PARENTHESIS
+    for k, v in dict.items():
+        v = "NONE" if v is None else v
+        k = k.upper() if upper_key else k
+        ret_str += f"{k}='{v}'" if value_as_string_identifier else f"{k}={v}"
+        ret_str += delimiter
+    if ret_str.endswith(delimiter):
+        ret_str = ret_str[: -len(delimiter)]
+    ret_str += RIGHT_PARENTHESIS
+    return ret_str
 
 
 def cte_statement(queries: List[str], table_names: List[str]) -> str:
