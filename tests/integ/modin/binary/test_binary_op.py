@@ -15,7 +15,6 @@ import pytest
 from pandas.core.dtypes.common import is_object_dtype
 from pandas.testing import assert_frame_equal, assert_series_equal
 
-
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.modin.plugin.extensions.utils import try_convert_index_to_native
