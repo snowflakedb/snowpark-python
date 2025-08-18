@@ -3,7 +3,7 @@
 #
 
 from collections.abc import Hashable, Sequence
-from typing import Literal, Optional, Union
+from typing import Iterable, Literal, Optional, Union
 
 import pandas as native_pd
 
@@ -11,7 +11,6 @@ from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.functions import array_construct, Column
 from snowflake.snowpark.modin.plugin._internal import join_utils
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
-from typing import Iterable
 from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderingColumn,
     OrderedDataFrame,
