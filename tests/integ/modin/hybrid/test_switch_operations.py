@@ -175,22 +175,22 @@ def test_filtered_data(init_transaction_tables):
     df_transactions["DATE"] = pd.to_datetime(df_transactions["DATE"])
     assert df_transactions.get_backend() == "Snowflake"
     base_date = pd.Timestamp("2025-06-09").date()
-    
+
     # Filter 1 will stay in snowflake, because no operations are
     # performed which will trigger a switch
     df_transactions_filter1 = df_transactions[
         (df_transactions["DATE"] >= base_date - pd.Timedelta("7 days"))
         & (df_transactions["DATE"] < base_date)
-    ][['DATE', 'REVENUE']]
+    ][["DATE", "REVENUE"]]
     assert df_transactions_filter1.get_backend() == "Snowflake"
-    
-    # We still do not know the size of the underlying data, so 
+
+    # We still do not know the size of the underlying data, so
     # GroupBy.sum will keep the data in Snowflake
     # The smaller dataframe does operations in pandas
     df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()
     # We still operate in Snowflake because we cannot properly estimate the rows
     assert df_transactions_filter1.get_backend() == "Snowflake"
-    
+
     # Filter 2 will immediately move to pandas because we know the size of the
     # resultset. The SQL here is functionatly the same as above.
     df_transactions_filter2 = pd.read_snowflake(
@@ -202,8 +202,14 @@ def test_filtered_data(init_transaction_tables):
     assert_array_equal(
         # Snowpark handles index objects differently from native pandas, so just check values
         # A .head on filter1 will trigger migration to pandas
-        df_transactions_filter1["REVENUE"].to_pandas().sort_values(ascending=True).values,
-        df_transactions_filter2["REVENUE"].to_pandas().sort_values(ascending=True).values,
+        df_transactions_filter1["REVENUE"]
+        .to_pandas()
+        .sort_values(ascending=True)
+        .values,
+        df_transactions_filter2["REVENUE"]
+        .to_pandas()
+        .sort_values(ascending=True)
+        .values,
     )
 
 

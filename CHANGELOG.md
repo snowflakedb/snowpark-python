@@ -43,6 +43,7 @@
 - Added support for efficient transfer of data between Snowflake and Ray with the `DataFrame.set_backend` method. The installed version of `modin` must be at least 0.35.0, and `ray` must be installed.
 
 #### Improvements
+- Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overriden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
 
 #### Dependency Updates
 
