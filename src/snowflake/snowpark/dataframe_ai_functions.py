@@ -9,7 +9,7 @@ from snowflake.snowpark._internal.utils import (
     experimental,
 )
 from snowflake.snowpark.column import Column
-from snowflake.snowpark.functions import ai_complete as ai_complete_function
+from snowflake.snowpark.functions import ai_complete, ai_filter
 from snowflake.snowpark._internal.telemetry import add_api_call
 
 if TYPE_CHECKING:
@@ -122,7 +122,7 @@ class DataFrameAIFunctions:
             )
 
         # Call the ai_complete function with all explicit parameters
-        result_col = ai_complete_function(
+        result_col = ai_complete(
             model=model,
             prompt=prompt_obj,
             model_parameters=model_parameters,
@@ -140,3 +140,84 @@ class DataFrameAIFunctions:
             "DataFrame.ai.complete",
         )
         return df
+
+    @experimental(version="1.37.0")
+    def filter(
+        self,
+        predicate: str,
+        input_columns: Union[List[Column], Dict[str, Column]],
+        *,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Filter rows using AI-powered boolean classification.
+
+        This method applies AI-based filtering to each row, classifying them as True or False
+        based on the provided predicate. Supports both text-based filtering and image filtering.
+
+        Args:
+            predicate: The classification instruction string. Use placeholders like ``{name}`` when passing
+                a dict of columns, or ``{0}``, ``{1}`` when passing a list. For file-based filtering,
+                this should contain instructions to classify the file as TRUE or FALSE.
+            input_columns: Optional list of Columns (positional placeholders ``{0}``, ``{1}``, ...)
+                or a dict mapping placeholder names to Columns. Used when predicate contains placeholders.
+
+        Examples::
+
+            >>> # Simple text filtering without placeholders
+            >>> df = session.create_dataframe(
+            ...     [["This is great!"], ["This is terrible!"], ["This is okay."]],
+            ...     schema=["review"]
+            ... )
+            >>> positive_df = df.ai.filter("Is this review positive?", input_columns=[df["review"]])
+            >>> positive_df.count()  # Should be 1 (only "This is great!")
+            1
+
+            >>> # Text filtering with named placeholders
+            >>> df = session.create_dataframe(
+            ...     [["Switzerland", "Europe"], ["Korea", "Asia"], ["Brazil", "South America"]],
+            ...     schema=["country", "continent"]
+            ... )
+            >>> european_df = df.ai.filter(
+            ...     "Is {country} located in {continent} and specifically in Europe?",
+            ...     input_columns={"country": df["country"], "continent": df["continent"]}
+            ... )
+            >>> european_df.collect()[0]["COUNTRY"]
+            'Switzerland'
+
+            >>> # Image filtering with positional placeholders
+            >>> from snowflake.snowpark.functions import to_file
+            >>> # Upload images to a stage first
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+            >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/cat.jpeg", "@mystage", auto_compress=False)
+            >>> df = session.read.file("@mystage")
+            >>> dog_images_df = df.ai.filter(
+            ...     "Does this image contain a dog?",
+            ...     input_columns=[df["FILE"]]
+            ... )
+            >>> dog_images_df.count()  # Should be 1 (only dog image)
+            1
+        """
+
+        # Build the predicate Column
+        if isinstance(input_columns, (dict, list)):
+            predicate_col = create_prompt_column_from_template(
+                predicate, input_columns, _emit_ast=False
+            )
+        else:
+            raise TypeError(
+                "input_columns must be a list of Columns or a dict mapping placeholder names to Columns"
+            )
+
+        # Filter the DataFrame to only include rows where the result is True
+        filter_result = ai_filter(
+            predicate=predicate_col,
+            _emit_ast=False,
+        )
+        filtered_df = self._dataframe.filter(filter_result, _emit_ast=False)
+
+        add_api_call(
+            filtered_df,
+            "DataFrame.ai.filter",
+        )
+        return filtered_df
