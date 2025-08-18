@@ -1855,6 +1855,7 @@ def get_sorted_key_for_version(version_str):
 def ttl_cache(ttl_seconds: float):
     """
     A decorator that caches function results with a time-to-live (TTL) expiration.
+    The decorator expects the first argument to be the ttl_key which should be hashable.
 
     Args:
         ttl_seconds (float): Time-to-live in seconds for cached items
@@ -1882,8 +1883,8 @@ def ttl_cache(ttl_seconds: float):
                 expiry_heap.clear()
 
         @wraps(func)
-        def wrapper(ttl_key, *args, **kwargs):
-            cache_key = hash(ttl_key)
+        def wrapper(hashable_ttl_key, *args, **kwargs):
+            cache_key = hash(hashable_ttl_key)
             current_time = time.time()
 
             with cache_lock:
@@ -1892,7 +1893,7 @@ def ttl_cache(ttl_seconds: float):
                 if cache_key in cache:
                     return cache[cache_key]
 
-                result = func(ttl_key, *args, **kwargs)
+                result = func(hashable_ttl_key, *args, **kwargs)
 
                 cache[cache_key] = result
                 expiry_time = current_time + ttl_seconds
