@@ -1865,16 +1865,6 @@ def ttl_cache(ttl_seconds: float):
         expiry_heap = []  # heap of (expiry_time, cache_key)
         cache_lock = threading.RLock()
 
-        def _make_cache_key(*args, **kwargs) -> int:
-            """Create a hashable cache key from function arguments."""
-            key = (args, tuple(sorted(kwargs.items())))
-            try:
-                # Try to create a simple tuple key
-                return hash(key)
-            except TypeError:
-                # If args contain unhashable types, convert to string representation
-                return hash(str(key))
-
         def _cleanup_expired(current_time: float):
             """Remove expired entries from cache and heap."""
             # Clean up expired entries from the heap and cache
@@ -1892,8 +1882,8 @@ def ttl_cache(ttl_seconds: float):
                 expiry_heap.clear()
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
-            cache_key = _make_cache_key(*args, **kwargs)
+        def wrapper(ttl_key, *args, **kwargs):
+            cache_key = hash(ttl_key)
             current_time = time.time()
 
             with cache_lock:
@@ -1902,7 +1892,7 @@ def ttl_cache(ttl_seconds: float):
                 if cache_key in cache:
                     return cache[cache_key]
 
-                result = func(*args, **kwargs)
+                result = func(ttl_key, *args, **kwargs)
 
                 cache[cache_key] = result
                 expiry_time = current_time + ttl_seconds
