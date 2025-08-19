@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
+
 #### Bug Fixes
 
 - Fixed the repr of TimestampType to match the actual subtype it represents.
@@ -23,10 +25,12 @@
 #### New Features
 
 #### Improvements
+
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
 - Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
 
 #### Dependency Updates
+
 #### Bug Fixes
 
 ## 1.37.0 (2025-08-18)
@@ -172,7 +176,6 @@
 - Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
 - Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
 - Added a new function `snowflake.snowpark.functions.model` that allows users to call methods of a model.
-- Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 
 #### Improvements
 
