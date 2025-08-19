@@ -3956,7 +3956,7 @@ def test_write_copy_into_location_storage_integration(session):
         schema=["FIRST_NAME", "LAST_NAME"],
     )
     ret = df.write.copy_into_location(
-        f"{s3_test_bucket_path}/test.csv",
+        f"{s3_test_bucket_path}/ci_test/test.csv",
         storage_integration=storage_integration,
         encryption={"type": None},
         overwrite=True,
