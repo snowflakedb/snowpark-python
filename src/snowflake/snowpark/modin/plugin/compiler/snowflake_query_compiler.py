@@ -1263,7 +1263,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if target_backend == "Ray":
                 return move_to_ray_helper(self)
             return NotImplemented
-        except Exception:
+        except Exception as e:
+            logging.warning(f"Exception while attempting to move data to ray: {e}")
             return NotImplemented
 
     @classmethod
@@ -1274,7 +1275,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if source_qc.get_backend() == "Ray":
                 return move_from_ray_helper(source_qc, max_sessions=8)
             return NotImplemented
-        except Exception:
+        except Exception as e:
+            logging.warning(f"Exception while attempting to move data from ray: {e}")
             return NotImplemented
 
     def to_numpy(
@@ -1296,8 +1298,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         return self.to_pandas().to_numpy(dtype=dtype, na_value=na_value, **kwargs)
 
-    # TODO: MODIN_IS_AT_LEAST_0_34_0
-    # delete this comment and pragma: no cover once we no longer support 0.33.x
     def do_array_ufunc_implementation(
         self,
         frame: BasePandasDataset,
@@ -1305,7 +1305,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method: str,
         *inputs: Any,
         **kwargs: Any,
-    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
+    ) -> Union[DataFrame, Series, Any]:
         """
         Apply the provided NumPy ufunc to the underlying data.
 
@@ -1361,8 +1361,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # return the sentinel NotImplemented if we do not support this function
         return NotImplemented  # pragma: no cover
 
-    # TODO: MODIN_IS_AT_LEAST_0_34_0
-    # delete this comment and pragma: no cover once we no longer support 0.33.x
     def do_array_function_implementation(
         self,
         frame: BasePandasDataset,
@@ -1370,7 +1368,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         types: tuple,
         args: tuple,
         kwargs: dict,
-    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
+    ) -> Union[DataFrame, Series, Any]:
         """
         Apply the provided NumPy array function to the underlying data.
 
@@ -16645,7 +16643,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> None:
         ErrorMessage.method_not_implemented_error("cat", "Series.str")
 
-    def str_decode(self, encoding: str, errors: str) -> None:
+    def str_decode(
+        self, encoding: str, errors: str, dtype: Optional[npt.DTypeLike] = None
+    ) -> None:
         ErrorMessage.method_not_implemented_error("decode", "Series.str")
 
     def str_encode(self, encoding: str, errors: str) -> None:
