@@ -1680,7 +1680,7 @@ def test_type_string_to_type_object_timestamp():
     assert dt.tz == TimestampTimeZone.LTZ
 
 
-def test_type_string_to_type_object_yearmonthinterval():
+def test_type_string_to_type_object_year_month_interval():
     dt = type_string_to_type_object("yearmonthinterval")
     assert isinstance(dt, YearMonthIntervalType)
 
