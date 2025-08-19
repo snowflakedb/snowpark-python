@@ -206,6 +206,7 @@ from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
     DateType,
+    DayTimeIntervalType,
     DecimalType,
     FloatType,
     GeographyType,
@@ -3678,6 +3679,7 @@ class Session:
                     (
                         ArrayType,
                         DateType,
+                        DayTimeIntervalType,
                         GeographyType,
                         GeometryType,
                         MapType,
@@ -3741,6 +3743,8 @@ class Session:
                 ):
                     converted_row.append(str(value))
                 elif isinstance(data_type, YearMonthIntervalType):
+                    converted_row.append(value)
+                elif isinstance(data_type, DayTimeIntervalType):
                     converted_row.append(value)
                 elif isinstance(data_type, _AtomicType):  # consider inheritance
                     converted_row.append(value)
@@ -3819,6 +3823,8 @@ class Session:
             elif isinstance(field.datatype, FileType):
                 project_columns.append(to_file(column(name)).as_(name))
             elif isinstance(field.datatype, YearMonthIntervalType):
+                project_columns.append(column(name).cast(field.datatype).as_(name))
+            elif isinstance(field.datatype, DayTimeIntervalType):
                 project_columns.append(column(name).cast(field.datatype).as_(name))
             else:
                 project_columns.append(column(name))
