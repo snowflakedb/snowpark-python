@@ -66,7 +66,6 @@ from pandas.util._validators import (
     validate_percentile,
 )
 
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_34_0
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
@@ -2306,51 +2305,6 @@ def rename_axis(
             result._set_axis_name(newnames, axis=axis, inplace=True)
         if not inplace:
             return result
-
-
-# Snowpark pandas has custom dispatch logic for ufuncs, while modin defaults to pandas.
-# TODO delete this method once 0.33.x is no longer supported
-if not MODIN_IS_AT_LEAST_0_34_0:
-
-    @register_base_override("__array_ufunc__")
-    def __array_ufunc__(self, ufunc: np.ufunc, method: str, *inputs, **kwargs):
-        """
-        Apply the `ufunc` to the `BasePandasDataset`.
-
-        Parameters
-        ----------
-        ufunc : np.ufunc
-            The NumPy ufunc to apply.
-        method : str
-            The method to apply.
-        *inputs : tuple
-            The inputs to the ufunc.
-        **kwargs : dict
-            Additional keyword arguments.
-
-        Returns
-        -------
-        BasePandasDataset
-            The result of the ufunc applied to the `BasePandasDataset`.
-        """
-        # Use pandas version of ufunc if it exists
-        if method != "__call__":
-            # Return sentinel value NotImplemented
-            return NotImplemented  # pragma: no cover
-        from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
-            numpy_to_pandas_universal_func_map,
-        )
-
-        if ufunc.__name__ in numpy_to_pandas_universal_func_map:
-            ufunc = numpy_to_pandas_universal_func_map[ufunc.__name__]
-            if ufunc == NotImplemented:
-                return NotImplemented
-            # We cannot support the out argument
-            if kwargs.get("out") is not None:
-                return NotImplemented
-            return ufunc(self, inputs[1:])
-        # return the sentinel NotImplemented if we do not support this function
-        return NotImplemented  # pragma: no cover
 
 
 # Snowpark pandas does extra argument validation.

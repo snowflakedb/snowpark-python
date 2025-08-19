@@ -511,6 +511,16 @@ def test_project_statement_formatting():
         " SELECT  DISTINCT \n" "    col1, \n" "    col2\n" " FROM (\n" "table1\n" ")"
     )
 
+    # Test ilike_pattern with star projection
+    assert project_statement([], "table1", ilike_pattern="%id%") == (
+        " SELECT  *  ILIKE '%id%'\n" " FROM (\n" "table1\n" ")"
+    )
+
+    # Test ilike_pattern with specific pattern
+    assert project_statement([], "table1", ilike_pattern="user%", is_distinct=True) == (
+        " SELECT  DISTINCT  *  ILIKE 'user%'\n" " FROM (\n" "table1\n" ")"
+    )
+
 
 def test_nested_query_formatting():
     nested_query = project_statement(
