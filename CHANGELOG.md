@@ -22,6 +22,7 @@
 ### Snowpark Python API Updates
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
+- Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
 
 #### New Features
 
