@@ -168,17 +168,11 @@ from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark._functions import general_functions
 from snowflake.snowpark._functions.general_functions import (
     _call_function,
     _check_column_parameters,
-    lit,
-    call_function,
-    function,
-    builtin,
-    col as col_function,
 )
-
-
 import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
@@ -259,10 +253,55 @@ else:
     from collections.abc import Iterable
 
 
-# Used to expose or alias imported functions/objects at the module level
-col = col_function
-builtin = builtin
-function = function
+@overload
+@publicapi
+def col(
+    col_name: str, _emit_ast: bool = True, *, _is_qualified_name: bool = False
+) -> Column:
+    """Returns the :class:`~snowflake.snowpark.Column` with the specified name.
+
+        Args:
+            col_name: The name of the column.
+
+        Example::
+            >>> df = session.sql("select 1 as a")
+    #        >>> raise ValueError("123")
+            >>> df.select(col("a")).collect()
+            [Row(A=1)]
+    """
+    ...  # pragma: no cover
+
+
+@overload
+@publicapi
+def col(
+    df_alias: str,
+    col_name: str,
+    _emit_ast: bool = True,
+    *,
+    _is_qualified_name: bool = False,
+) -> Column:
+    """Returns the :class:`~snowflake.snowpark.Column` with the specified dataframe alias and column name.
+
+    Example::
+        >>> df = session.sql("select 1 as a")
+        >>> df.alias("df").select(col("df", "a")).collect()
+        [Row(A=1)]
+    """
+    ...  # pragma: no cover
+
+
+@publicapi
+def col(
+    name1: str,
+    name2: Optional[str] = None,
+    _emit_ast: bool = True,
+    *,
+    _is_qualified_name: bool = False,
+) -> Column:
+    return general_functions.col(
+        name1, name2, _emit_ast, _is_qualified_name=_is_qualified_name
+    )
 
 
 @overload
@@ -327,6 +366,37 @@ def column(
             _emit_ast=_emit_ast,
             _caller_name="column",
         )
+
+
+def lit(
+    literal: ColumnOrLiteral,
+    datatype: Optional[DataType] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
+    It supports basic Python data types, including ``int``, ``float``, ``str``,
+    ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
+    ``datetime.datetime`` and ``decimal.Decimal``. Also, it supports Python structured data types,
+    including ``list``, ``tuple`` and ``dict``, but this container must
+    be JSON serializable. If a ``Column`` object is passed, it is returned as is.
+
+    Example::
+
+        >>> import datetime
+        >>> columns = [lit(1), lit("1"), lit(1.0), lit(True), lit(b'snow'), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}), lit(lit(1))]
+        >>> session.create_dataframe([[]]).select([c.as_(str(i)) for i, c in enumerate(columns)]).show()
+        ---------------------------------------------------------------------------------------------
+        |"0"  |"1"  |"2"  |"3"   |"4"                 |"5"         |"6"   |"7"                |"8"  |
+        ---------------------------------------------------------------------------------------------
+        |1    |1    |1.0  |True  |bytearray(b'snow')  |2023-02-02  |[     |{                  |1    |
+        |     |     |     |      |                    |            |  1,  |  "snow": "flake"  |     |
+        |     |     |     |      |                    |            |  2   |}                  |     |
+        |     |     |     |      |                    |            |]     |                   |     |
+        ---------------------------------------------------------------------------------------------
+        <BLANKLINE>
+    """
+    return general_functions.lit(literal, datatype, _emit_ast)
 
 
 @publicapi
@@ -10283,6 +10353,68 @@ def table_function(function_name: str, _emit_ast: bool = True) -> Callable:
     return fn
 
 
+@publicapi
+def call_function(
+    function_name: str,
+    *args: ColumnOrLiteral,
+    _emit_ast: bool = True,
+) -> Column:
+    """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
+    and arguments.
+
+    Args:
+        function_name: The name of built-in function in Snowflake
+        args: Arguments can be in two types:
+
+            - :class:`~snowflake.snowpark.Column`, or
+            - Basic Python types, which are converted to Snowpark literals.
+
+    Example::
+        >>> df = session.create_dataframe([1, 2, 3, 4], schema=["a"])  # a single column with 4 rows
+        >>> df.select(call_function("avg", col("a"))).show()
+        ----------------
+        |"AVG(""A"")"  |
+        ----------------
+        |2.500000      |
+        ----------------
+        <BLANKLINE>
+
+    """
+    return general_functions.call_function(function_name, *args, _emit_ast=_emit_ast)
+
+
+def function(function_name: str, _emit_ast: bool = True) -> Callable:
+    """
+    Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
+    any built-in functions not explicitly listed in this object.
+
+    Args:
+        function_name: The name of built-in function in Snowflake.
+
+    Returns:
+        A :class:`Callable` object for calling a Snowflake system-defined function.
+
+    Example::
+        >>> df = session.create_dataframe([1, 2, 3, 4], schema=["a"])  # a single column with 4 rows
+        >>> df.select(call_function("avg", col("a"))).show()
+        ----------------
+        |"AVG(""A"")"  |
+        ----------------
+        |2.500000      |
+        ----------------
+        <BLANKLINE>
+        >>> my_avg = function('avg')
+        >>> df.select(my_avg(col("a"))).show()
+        ----------------
+        |"AVG(""A"")"  |
+        ----------------
+        |2.500000      |
+        ----------------
+        <BLANKLINE>
+    """
+    return general_functions.function(function_name, _emit_ast=_emit_ast)
+
+
 def _call_named_arguments_function(
     name: str,
     kwargs: Dict[str, ColumnOrLiteral],
@@ -10597,6 +10729,7 @@ def model(
 call_builtin = call_function
 collect_set = array_unique_agg
 collect_list = array_agg
+builtin = function
 countDistinct = count_distinct
 substr = substring
 to_varchar = to_char

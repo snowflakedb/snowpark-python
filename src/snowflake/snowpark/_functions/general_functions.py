@@ -4,7 +4,7 @@
 #
 
 import sys
-from typing import Callable, Optional, overload
+from typing import Callable, Optional
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -20,7 +20,6 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
-    publicapi,
 )
 from snowflake.snowpark.column import (
     Column,
@@ -51,7 +50,6 @@ def _check_column_parameters(name1: str, name2: Optional[str]) -> None:
         )
 
 
-@publicapi
 def lit(
     literal: ColumnOrLiteral,
     datatype: Optional[DataType] = None,
@@ -131,7 +129,6 @@ def _call_function(
     )
 
 
-@publicapi
 def call_function(
     function_name: str,
     *args: ColumnOrLiteral,
@@ -166,7 +163,6 @@ def call_function(
     return _call_function(function_name, *args, _ast=ast, _emit_ast=_emit_ast)
 
 
-@publicapi
 def function(function_name: str, _emit_ast: bool = True) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
@@ -199,44 +195,6 @@ def function(function_name: str, _emit_ast: bool = True) -> Callable:
     return lambda *args: call_function(function_name, *args, _emit_ast=_emit_ast)
 
 
-@overload
-@publicapi
-def col(
-    col_name: str, _emit_ast: bool = True, *, _is_qualified_name: bool = False
-) -> Column:
-    """Returns the :class:`~snowflake.snowpark.Column` with the specified name.
-
-    Args:
-        col_name: The name of the column.
-
-    Example::
-        >>> df = session.sql("select 1 as a")
-        >>> df.select(col("a")).collect()
-        [Row(A=1)]
-    """
-    ...  # pragma: no cover
-
-
-@overload
-@publicapi
-def col(
-    df_alias: str,
-    col_name: str,
-    _emit_ast: bool = True,
-    *,
-    _is_qualified_name: bool = False,
-) -> Column:
-    """Returns the :class:`~snowflake.snowpark.Column` with the specified dataframe alias and column name.
-
-    Example::
-        >>> df = session.sql("select 1 as a")
-        >>> df.alias("df").select(col("df", "a")).collect()
-        [Row(A=1)]
-    """
-    ...  # pragma: no cover
-
-
-@publicapi
 def col(
     name1: str,
     name2: Optional[str] = None,
@@ -262,7 +220,3 @@ def col(
             _emit_ast=_emit_ast,
             _caller_name="col",
         )
-
-
-# Add these alias for user code migration
-builtin = function
