@@ -1,5 +1,27 @@
 # Release History
 
+## 1.38.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Deprecations
+
+#### Dependency Updates
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+- Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
+
+#### Dependency Updates
+#### Bug Fixes
+
 ## 1.37.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -40,12 +62,20 @@
 
 #### New Features
 
+- Added support for efficient transfer of data between Snowflake and Ray with the `DataFrame.set_backend` method. The installed version of `modin` must be at least 0.35.0, and `ray` must be installed.
+
 #### Improvements
+
+#### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.34.0 and <0.36.0 (was previously >= 0.33.0 and <0.35.0).
+- Added support for pandas 2.3 when the installed `modin` version is at least 0.35.0.
 
 #### Bug Fixes
 
 - Fixed an issue in hybrid execution mode (PrPr) where `pd.to_datetime` and `pd.to_timedelta` would unexpectedly raise `IndexError`.
 - Fixed a bug where `pd.explain_switch` would raise `IndexError` or return `None` if called before any potential switch operations were performed.
+- Fixed a bug where calling `pd.concat(axis=0)` on a dataframe with the default, positional index and a dataframe with a different index would produce invalid SQL.
 
 ## 1.36.0 (2025-08-05)
 

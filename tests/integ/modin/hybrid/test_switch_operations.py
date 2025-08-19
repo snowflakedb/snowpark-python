@@ -3,7 +3,6 @@
 #
 
 import logging
-import contextlib
 from unittest import mock
 import pytest
 from unittest.mock import patch
@@ -22,9 +21,6 @@ from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
     MAX_ROW_COUNT_FOR_ESTIMATION,
-)
-from snowflake.snowpark.modin.plugin._internal.utils import (
-    MODIN_IS_AT_LEAST_0_34_0,
 )
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
     clear_hybrid_switch_log,
@@ -80,11 +76,11 @@ def test_snowflake_pandas_transfer_threshold():
     is correctly used in the cost model.
     """
     # Verify the default value of the configuration variable.
-    assert SnowflakePandasTransferThreshold.get() == 10_000_000
+    assert SnowflakePandasTransferThreshold.get() == 100_000
 
     # Create a SnowflakeQueryCompiler and verify that it has the default value.
     compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
-    assert compiler._transfer_threshold() == 10_000_000
+    assert compiler._transfer_threshold() == 100_000
 
     df = pd.DataFrame()
     assert df.get_backend() == "Pandas"
@@ -179,23 +175,41 @@ def test_filtered_data(init_transaction_tables):
     df_transactions["DATE"] = pd.to_datetime(df_transactions["DATE"])
     assert df_transactions.get_backend() == "Snowflake"
     base_date = pd.Timestamp("2025-06-09").date()
+
+    # Filter 1 will stay in snowflake, because no operations are
+    # performed which will trigger a switch
     df_transactions_filter1 = df_transactions[
         (df_transactions["DATE"] >= base_date - pd.Timedelta("7 days"))
         & (df_transactions["DATE"] < base_date)
-    ]
+    ][["DATE", "REVENUE"]]
     assert df_transactions_filter1.get_backend() == "Snowflake"
+
+    # We still do not know the size of the underlying data, so
+    # GroupBy.sum will keep the data in Snowflake
     # The smaller dataframe does operations in pandas
-    df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()["REVENUE"]
+    df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()
     # We still operate in Snowflake because we cannot properly estimate the rows
     assert df_transactions_filter1.get_backend() == "Snowflake"
+
+    # Filter 2 will immediately move to pandas because we know the size of the
+    # resultset. The SQL here is functionatly the same as above.
     df_transactions_filter2 = pd.read_snowflake(
-        "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09'"
+        "SELECT Date, SUM(Revenue) AS REVENUE FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09' GROUP BY DATE"
     )
     assert df_transactions_filter2.get_backend() == "Pandas"
+
+    # Sort and compare the results.
     assert_array_equal(
         # Snowpark handles index objects differently from native pandas, so just check values
-        df_transactions_filter1.to_pandas().values,
-        df_transactions_filter2.groupby("DATE").sum()["REVENUE"].to_pandas().values,
+        # A .head on filter1 will trigger migration to pandas
+        df_transactions_filter1["REVENUE"]
+        .to_pandas()
+        .sort_values(ascending=True)
+        .values,
+        df_transactions_filter2["REVENUE"]
+        .to_pandas()
+        .sort_values(ascending=True)
+        .values,
     )
 
 
@@ -334,18 +348,8 @@ def test_np_where_manual_switch():
         # Snowpark pandas currently does not support np.where with native objects
         np.where(df, [1, 2], [3, 4])
     df.set_backend("Pandas", inplace=True)
-    # SNOW-2173644: Prior to modin 0.34, manually switching the backend to pandas would cause lookup
-    # of the __array_function__ method to fail.
-    with (
-        pytest.raises(
-            AttributeError,
-            match=r"DataFrame object has no attribute __array_function__",
-        )
-        if not MODIN_IS_AT_LEAST_0_34_0
-        else contextlib.nullcontext()
-    ):
-        result = np.where(df, [1, 2], [3, 4])
-        assert_array_equal(result, np.array([[1, 4]]))
+    result = np.where(df, [1, 2], [3, 4])
+    assert_array_equal(result, np.array([[1, 4]]))
 
 
 @sql_count_checker(query_count=0)
