@@ -14,7 +14,7 @@ from tests.resources.test_data_source_dir.test_jdbc import (
 def setup(session, resources_path):
     stage_name = session.get_session_stage()
     session.file.put(
-        resources_path + "/test_data_source_dir/mongodb-jdbc-2.3.0-all.jar", stage_name
+        resources_path + "/test_data_source_dir/ojdbc11-23.8.0.25.04.jar", stage_name
     )
     yield
 
@@ -26,7 +26,7 @@ def test_basic_jdbc(session):
 def test_partitions(session):
     # no partitions
     stage_name = session.get_session_stage()
-    jar_path = stage_name + "/mongodb-jdbc-2.3.0-all.jar"
+    jar_path = stage_name + "/ojdbc11-23.8.0.25.04.jar"
     client = JDBC(
         session,
         URL,
@@ -58,7 +58,7 @@ def test_timestamp_type(session):
 
 def test_infer_schema(session):
     stage_name = session.get_session_stage()
-    jar_path = stage_name + "/mongodb-jdbc-2.3.0-all.jar"
+    jar_path = stage_name + "/ojdbc11-23.8.0.25.04.jar"
     client = JDBC(
         session,
         URL,
