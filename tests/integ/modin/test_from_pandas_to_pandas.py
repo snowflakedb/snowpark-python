@@ -477,7 +477,7 @@ def test_from_pandas_duplicate_labels():
         ("transient", 100),
     ],
 )
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=9)
 def test_determinism_with_repeated_to_pandas(session, table_type, n_rows) -> None:
     ref_df = native_pd.DataFrame(
         {
@@ -550,7 +550,7 @@ def test_single_row_frame_to_series_to_pandas():
     assert_series_equal(snow_series, expected_series, check_dtype=False)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=4)
 def test_empty_variant_type_frame_to_pandas(session):
     # Tests type conversion of empty dataframes that have columns with the ARRAY and MAP types.
     # These dataframes must be constructed from pd.read_snowflake to have the correct type, since
