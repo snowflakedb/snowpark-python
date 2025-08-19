@@ -242,10 +242,13 @@ class YearMonthIntervalType(AnsiIntervalType):
     Args:
         start_field: The start field of the interval (0=YEAR, 1=MONTH)
         end_field: The end field of the interval (0=YEAR, 1=MONTH)
+
+    Notes:
+        YearMonthIntervalType is currently not supported in UDFs and Stored Procedures.
     """
 
-    YEAR = 0
-    MONTH = 1
+    YEAR = 0  #: Constant representing the YEAR field for interval start/end positions
+    MONTH = 1  #: Constant representing the MONTH field for interval start/end positions
 
     _FIELD_NAMES = {YEAR: "year", MONTH: "month"}
 
@@ -262,7 +265,7 @@ class YearMonthIntervalType(AnsiIntervalType):
 
         fields = self._FIELD_NAMES.keys()
         if start_field not in fields or end_field not in fields:
-            raise RuntimeError(f"interval {start_field} to {end_field} is invalid")
+            raise ValueError(f"interval {start_field} to {end_field} is invalid")
 
         self.start_field = start_field
         self.end_field = end_field
