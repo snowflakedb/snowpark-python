@@ -215,8 +215,8 @@ def server_side_max_string(structured_type_session):
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: function to_geography not supported",
+    "config.getoption('local_testing_mode', default=False)" or IS_IN_STORED_PROC,
+    reason="FEAT: function to_geography not supported or alter session is not supported in stored proc",
 )
 def test_verify_datatypes_reference(session):
     session.sql("alter session set feature_interval_types=enabled;").collect()
@@ -344,8 +344,8 @@ def test_verify_datatypes_reference_vector(session):
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: function to_geography not supported",
+    "config.getoption('local_testing_mode', default=False)" or IS_IN_STORED_PROC,
+    reason="FEAT: function to_geography not supported or alter session is not supported in stored proc",
 )
 def test_dtypes(session):
     session.sql("alter session set feature_interval_types=enabled;").collect()
