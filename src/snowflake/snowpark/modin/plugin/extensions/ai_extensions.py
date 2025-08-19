@@ -3,6 +3,6 @@ from modin.pandas.dataframe import DataFrame
 class ArtificialIntelligence(DataFrame):
     
     def complete(self) -> None:
-        print("Hello Complete")
+        return "Hello Complete"
         
     

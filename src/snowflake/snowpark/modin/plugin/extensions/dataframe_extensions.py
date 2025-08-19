@@ -641,9 +641,8 @@ def to_iceberg(
 
 @register_dataframe_accessor("ai")
 @property
-def ai(self) -> tuple[int, int]:
+def ai(self) -> ArtificialIntelligence:
     """
     Return an ArtificialIntelligence extension object
     """
-    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
     return ArtificialIntelligence(self)
