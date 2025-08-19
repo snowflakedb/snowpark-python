@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Any, Dict, Iterable, List, Optional, Union
 
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -51,10 +51,52 @@ class Sample(UnaryNode):
         }
 
 
+class SampleBy(UnaryNode):
+    def __init__(
+        self, child: LogicalPlan, col: Expression, fractions: Dict[Any, float]
+    ) -> None:
+        super().__init__(child)
+        self.col = col
+        self.fractions = fractions
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        """
+        select SNOWPARK_LEFT.* exclude __SNOWPARK_SEQ_RND from (    -- col 2
+            select *,                                               -- col 1
+                percent_rank() over                                 -- function 1, window 1
+                    (partition by <col> order by random())          -- col 1, partition_by 1, order_by 1, function 1
+                    as __SNOWPARK_SEQ_RND                           -- col 1
+            from <child>
+        ) SNOWPARK_LEFT
+        join (                                                      -- join 1
+            select KEY, VALUE                                       -- col 2
+            from TABLE(FLATTEN(input => parse_json('<fractions>'))) -- function 1
+        ) SNOWPARK_RIGHT
+        on SNOWPARK_LEFT.<col> = SNOWPARK_RIGHT.KEY                 -- col 2
+        where SNOWPARK_LEFT.__SNOWPARK_SEQ_RND <= SNOWPARK_RIGHT.VALUE;     -- col 2
+        """
+        return {
+            PlanNodeCategory.COLUMN: 11,
+            PlanNodeCategory.FUNCTION: 3,
+            PlanNodeCategory.WINDOW: 1,
+            PlanNodeCategory.ORDER_BY: 1,
+            PlanNodeCategory.PARTITION_BY: 1,
+            PlanNodeCategory.JOIN: 1,
+            PlanNodeCategory.FILTER: 1,
+        }
+
+
 class Sort(UnaryNode):
-    def __init__(self, order: List[SortOrder], child: LogicalPlan) -> None:
+    def __init__(
+        self,
+        order: List[SortOrder],
+        child: LogicalPlan,
+        is_order_by_append: bool = False,
+    ) -> None:
         super().__init__(child)
         self.order = order
+        self.is_order_by_append = is_order_by_append
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -206,13 +248,16 @@ class Rename(UnaryNode):
 
 
 class Filter(UnaryNode):
-    def __init__(self, condition: Expression, child: LogicalPlan) -> None:
+    def __init__(
+        self, condition: Expression, child: LogicalPlan, is_having: bool = False
+    ) -> None:
         super().__init__(child)
         self.condition = condition
+        self.is_having = is_having
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
-        # child WHERE condition
+        # child WHERE condition or HAVING condition
         return sum_node_complexities(
             {PlanNodeCategory.FILTER: 1},
             self.condition.cumulative_node_complexity,
@@ -220,9 +265,15 @@ class Filter(UnaryNode):
 
 
 class Project(UnaryNode):
-    def __init__(self, project_list: List[NamedExpression], child: LogicalPlan) -> None:
+    def __init__(
+        self,
+        project_list: List[NamedExpression],
+        child: LogicalPlan,
+        ilike_pattern: Optional[str] = None,
+    ) -> None:
         super().__init__(child)
         self.project_list = project_list
+        self.ilike_pattern = ilike_pattern
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -239,6 +290,16 @@ class Project(UnaryNode):
                 for col in self.project_list
             ),
         )
+
+
+class Distinct(UnaryNode):
+    def __init__(self, child: LogicalPlan) -> None:
+        super().__init__(child)
+
+    @property
+    def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
+        # SELECT DISTINCT * FROM child
+        return {PlanNodeCategory.DISTINCT: 1, PlanNodeCategory.COLUMN: 1}
 
 
 class ViewType:
@@ -260,12 +321,14 @@ class CreateViewCommand(UnaryNode):
         name: str,
         view_type: ViewType,
         comment: Optional[str],
+        replace: bool,
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
         self.name = name
         self.view_type = view_type
         self.comment = comment
+        self.replace = replace
 
 
 class CreateDynamicTableCommand(UnaryNode):

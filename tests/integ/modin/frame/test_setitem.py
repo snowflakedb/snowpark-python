@@ -394,9 +394,9 @@ def test_df_setitem_replace_column_with_single_column(column, key):
                 inplace=True,
             )
     else:
-        # 3 extra queries, 2 for iter and 1 for tolist
+        # 2 extra queries, 1 for iter and 1 for tolist
         with SqlCounter(
-            query_count=4
+            query_count=3
             if isinstance(column, native_pd.Index)
             and not isinstance(column, native_pd.DatetimeIndex)
             else 1,
@@ -1606,3 +1606,30 @@ def test_df_setitem_2D_key_series_value(key_type):
         ValueError, match="setitem with a 2D key does not support Series values."
     ):
         snow_df[make_key([[True, True, True]] * 2, key_type, pd.DataFrame)] = snow_df[0]
+
+
+@sql_count_checker(query_count=2, join_count=1)
+def test_setitem_type_mismatch_SNOW_2157603():
+
+    # First possible failure, set item with a date range on top of an int
+    native_df = native_pd.DataFrame([[1, 2], [3, 4]], columns=["A", "B"])
+    expected_df = native_df
+    expected_df["A"] = native_pd.to_datetime(expected_df["A"])
+
+    snow_df = pd.DataFrame(native_df)
+    snow_df["A"] = pd.to_datetime(snow_df["A"])
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, expected_df)
+
+    # Second possible failure, set item with a date range using an index
+    native_index = native_pd.date_range(
+        native_pd.to_datetime(0), native_pd.to_datetime(9999999999999), freq="5min"
+    )
+    native_df = native_pd.DataFrame(native_index)
+    native_df[0] = native_pd.DataFrame(native_df[0])
+
+    snow_index = pd.date_range(
+        pd.to_datetime(0), pd.to_datetime(9999999999999), freq="5min"
+    )
+    snow_df = pd.DataFrame(snow_index)
+    snow_df[0] = pd.DataFrame(native_df[0])
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_df, native_df)

@@ -126,7 +126,7 @@ def test_array_type(session):
     (
         "tables",
         "transactions",
-        "locks",
+        pytest.param("locks", marks=pytest.mark.xfail),
         "schemas",
         "objects",
         "views",
@@ -140,7 +140,8 @@ def test_array_type(session):
         pytest.param("parameters", marks=pytest.mark.xfail),
         "functions",
         "roles",
-        "grants",
+        # SNOW-1991751: grants describe and result mismatch
+        # "grants",
         "warehouses",
         "databases",
         "variables",

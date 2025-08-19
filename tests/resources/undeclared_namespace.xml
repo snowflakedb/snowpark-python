@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<px:root>
+  <px:item id="1">
+    <px:name>Item One</px:name>
+    <px:value>100</px:value>
+  </px:item>
+  <px:item id="2">
+    <px:name>Item Two</px:name>
+    <px:value>200</px:value>
+  </px:item>
+</px:root>

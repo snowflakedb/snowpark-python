@@ -16,6 +16,8 @@ from decimal import Decimal
 from typing import Dict, List, NamedTuple, Optional, Union
 from threading import Thread
 from unittest import mock
+import re
+import sys
 
 import pytest
 import pytz
@@ -31,6 +33,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     is_in_stored_procedure,
     quote_name,
+    generate_random_alphanumeric,
 )
 from snowflake.snowpark.functions import (
     array_construct,
@@ -95,6 +98,7 @@ if RUNNING_ON_JENKINS:
 STRUCTURED_TYPE_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2", "SNOWPARK_PYTHON_TEST"}
 ICEBERG_ENVIRONMENTS = {"SFCTEST0_AWS_US_WEST_2"}
 STRUCTURED_TYPE_PARAMETERS = {
+    "ENABLE_STRUCTURED_TYPES_IN_FDN_TABLES",
     "ENABLE_STRUCTURED_TYPES_IN_CLIENT_RESPONSE",
     "ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
     "FORCE_ENABLE_STRUCTURED_TYPES_NATIVE_ARROW_FORMAT",
@@ -416,7 +420,12 @@ class Utils:
             Utils.assert_rows(actual_rows, expected_rows, float_equality_threshold)
 
     @staticmethod
-    def verify_schema(sql: str, expected_schema: StructType, session: Session) -> None:
+    def verify_schema(
+        sql: str,
+        expected_schema: StructType,
+        session: Session,
+        max_string_size: int = None,
+    ) -> None:
         session._run_query(sql)
         result_meta = session._conn._cursor.description
 
@@ -427,16 +436,17 @@ class Utils:
                 == field.column_identifier.quoted_name
             )
             assert meta.is_nullable == field.nullable
-            assert (
-                convert_sf_to_sp_type(
-                    FIELD_ID_TO_NAME[meta.type_code],
-                    meta.precision,
-                    meta.scale,
-                    meta.internal_size,
-                    session._conn.max_string_size,
-                )
-                == field.datatype
+
+            sp_type = convert_sf_to_sp_type(
+                FIELD_ID_TO_NAME[meta.type_code],
+                meta.precision,
+                meta.scale,
+                meta.internal_size,
+                max_string_size or session._conn.max_string_size,
             )
+            assert (
+                sp_type == field.datatype
+            ), f"{sp_type=} is not equal to {field.datatype=}"
 
     @staticmethod
     def is_active_transaction(session: Session) -> bool:
@@ -476,6 +486,125 @@ class Utils:
         assert (
             len(query_details.collect()) > 0
         ), f"query tag '{query_tag}' not present in query history for given session"
+
+    @staticmethod
+    def normalize_sql(sql_query: str) -> str:
+        # replace all whitespace with a single space
+        stripped_sql = re.sub(r"\s+", " ", sql_query).strip()
+        # remove space followed by parenthesis
+        stripped_sql = re.sub(r"\(\s+", "(", stripped_sql)
+        stripped_sql = re.sub(r"\s+\)", ")", stripped_sql)
+
+        return stripped_sql
+
+    @staticmethod
+    def write_test_msg(
+        write_mode: str, file_location: str, test_msg: str = None
+    ) -> tuple[Union[str, bytes], str]:
+        """
+        Generates a test message or uses the provided message and writes it to the specified file location.
+
+        Used to create a test message for reading in SnowflakeFile tests.
+        Returns a test message and the file location that the message was written to.
+        """
+        file_location = os.path.join(
+            file_location, f"{generate_random_alphanumeric()}.txt"
+        )
+        if test_msg is None:
+            test_msg = generate_random_alphanumeric()
+        if write_mode == "wb":
+            test_msg = test_msg.encode()
+        encoding = "utf-8" if write_mode == "w" else None
+        with open(file_location, write_mode, encoding=encoding) as f:
+            f.write(test_msg)
+        return test_msg, file_location
+
+    @staticmethod
+    def write_test_msg_to_stage(
+        write_mode: str,
+        file_location: str,
+        tmp_stage: str,
+        session: Session,
+        test_msg: str = None,
+    ) -> tuple[Union[str, bytes], str]:
+        """
+        Generates a test message or uses the provided message and writes it to the specified file location on a stage.
+
+        Used to create a test message for reading in SnowflakeFile tests involving stages.
+        Returns a test message and the file location that the message was written to.
+        """
+        test_msg, file_location = Utils.write_test_msg(
+            write_mode, file_location, test_msg
+        )
+        Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
+        file_location = Utils.get_file_name(file_location)
+        return test_msg, f"@{tmp_stage}/{file_location}"
+
+    @staticmethod
+    def get_file_name(file_location: str) -> str:
+        """
+        Gets the file name from the file location.
+        Handles both Windows and Unix-style paths.
+        """
+        if "\\" in file_location:
+            file_location = file_location.split("\\")[-1]
+        else:
+            file_location = file_location.split("/")[-1]
+        return file_location
+
+    @staticmethod
+    def generate_and_write_lines(
+        num_lines: int,
+        write_mode: str,
+        file_location: str,
+        msg: Union[str, bytes] = None,
+    ) -> tuple[list[Union[str, bytes]], str]:
+        """
+        Generates a list of test messages and writes them to the specified file location.
+
+        Returns the list of messages and the file location that the messages were written to.
+        """
+        file_location = os.path.join(
+            file_location, f"{generate_random_alphanumeric()}.txt"
+        )
+        lines = [
+            f"{generate_random_alphanumeric()}\n" if msg is None else f"{msg}\n"
+            for _ in range(num_lines)
+        ]
+        if write_mode == "wb":
+            lines = [line.encode() for line in lines]
+        encoding = "utf-8" if write_mode == "w" else None
+        with open(file_location, write_mode, encoding=encoding) as f:
+            for line in lines:
+                f.write(line)
+
+        return lines, file_location
+
+    @staticmethod
+    def generate_and_write_lines_to_stage(
+        num_lines: int,
+        write_mode: str,
+        file_location: str,
+        tmp_stage: str,
+        session: Session,
+        msg: Union[str, bytes] = None,
+    ) -> tuple[list[Union[str, bytes]], str]:
+        """
+        Generates a list of test messages and writes them to the specified file location on a stage.
+
+        Returns the list of messages and the file location that the messages were written to.
+        """
+        lines, file_location = Utils.generate_and_write_lines(
+            num_lines, write_mode, file_location, msg
+        )
+        Utils.upload_to_stage(session, f"@{tmp_stage}", file_location, compress=False)
+        file_location = Utils.get_file_name(file_location)
+        return lines, f"@{tmp_stage}/{file_location}"
+
+    @staticmethod
+    def get_current_line_number_sys():
+        """Returns the current line number of the caller using sys._getframe()."""
+        return sys._getframe(1).f_lineno
 
 
 class TestData:
@@ -628,6 +757,15 @@ class TestData:
                 schema=["flo", "int", "boo", "str"],
             )
         )
+
+    @classmethod
+    def null_data4(cls, session: "Session") -> DataFrame:
+        return session.create_dataframe(
+            [
+                [Decimal(1), None],
+                [None, Decimal(2)],
+            ]
+        ).to_df(["a", "b"])
 
     @classmethod
     def integer1(cls, session: "Session") -> DataFrame:
@@ -1380,6 +1518,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "testCSVspecialFormat.csv")
 
     @property
+    def test_file_csv_timestamps(self):
+        return os.path.join(self.resources_path, "testCSVformattedTime.csv")
+
+    @property
     def test_file_excel(self):
         return os.path.join(self.resources_path, "test_excel.xlsx")
 
@@ -1508,6 +1650,62 @@ class TestFiles:
     @property
     def test_concat_file2_csv(self):
         return os.path.join(self.resources_path, "test_concat_file2.csv")
+
+    @property
+    def test_books_xml(self):
+        return os.path.join(self.resources_path, "books.xml")
+
+    @property
+    def test_books2_xml(self):
+        return os.path.join(self.resources_path, "books2.xml")
+
+    @property
+    def test_house_xml(self):
+        return os.path.join(self.resources_path, "fias_house.xml")
+
+    @property
+    def test_house_large_xml(self):
+        return os.path.join(self.resources_path, "fias_house.large.xml")
+
+    @property
+    def test_xxe_xml(self):
+        return os.path.join(self.resources_path, "xxe.xml")
+
+    @property
+    def test_nested_xml(self):
+        return os.path.join(self.resources_path, "nested.xml")
+
+    @property
+    def test_malformed_no_closing_tag_xml(self):
+        return os.path.join(self.resources_path, "malformed_no_closing_tag.xml")
+
+    @property
+    def test_malformed_not_self_closing_xml(self):
+        return os.path.join(self.resources_path, "malformed_not_self_closing.xml")
+
+    @property
+    def test_malformed_record_xml(self):
+        return os.path.join(self.resources_path, "malformed_record.xml")
+
+    @property
+    def test_xml_declared_namespace(self):
+        return os.path.join(self.resources_path, "declared_namespace.xml")
+
+    @property
+    def test_xml_undeclared_namespace(self):
+        return os.path.join(self.resources_path, "undeclared_namespace.xml")
+
+    @property
+    def test_null_value_xml(self):
+        return os.path.join(self.resources_path, "null_value.xml")
+
+    @property
+    def test_dog_image(self):
+        return os.path.join(self.resources_path, "dog.jpg")
+
+    @property
+    def test_books_xsd(self):
+        return os.path.join(self.resources_path, "books.xsd")
 
 
 class TypeMap(NamedTuple):

@@ -125,7 +125,7 @@ def check_result_from_and_to_pandas(
     FROM_TO_PANDAS_VALUE_TYPE_MATCH_INDICES,
 )
 def test_value_type_match_index_type(name, indices_dict):
-    expected_query_count = 1 if name in ("uint-small", "tuples", "multi") else 6
+    expected_query_count = 1 if name in ("uint-small", "tuples", "multi") else 4
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
         size = len(index)
@@ -140,7 +140,7 @@ def test_value_type_match_index_type(name, indices_dict):
 @pytest.mark.parametrize("name", FROM_TO_PANDAS_TYPE_MISMATCH_INDICES)
 def test_type_mismatch_index_type(name, indices_dict):
     expected_query_count = (
-        1 if name == "uint-small" or "multi-with-dt64tz" in name else 6
+        1 if name == "uint-small" or "multi-with-dt64tz" in name else 4
     )
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
@@ -160,7 +160,7 @@ def test_type_mismatch_index_type(name, indices_dict):
 def test_value_type_mismatch_index_type(name, indices_dict):
     # We can create a pandas dataframe out of the datetime and timedelta
     # values, so we execute some queries for those cases.
-    expected_query_count = 6 if ("datetime" in name or "timedelta" in name) else 0
+    expected_query_count = 4 if ("datetime" in name or "timedelta" in name) else 0
     with SqlCounter(query_count=expected_query_count):
         index = indices_dict[name]
         size = len(index)
@@ -495,6 +495,8 @@ def test_determinism_with_repeated_to_pandas(session, table_type, n_rows) -> Non
 
     # create snowpark pandas dataframe
     df = pd.read_snowflake(test_table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
 
     pandas_df = df.to_pandas()
     # verify to_pandas gives the same result for the same snowpark pandas
@@ -536,7 +538,7 @@ def test_series_to_pandas():
     assert_series_equal(snow_series.to_pandas(), pandas_series)
 
 
-@sql_count_checker(query_count=2, union_count=1)
+@sql_count_checker(query_count=1, union_count=1)
 def test_single_row_frame_to_series_to_pandas():
     # create a Snowpark pandas with single row
     native_df = native_pd.DataFrame(
@@ -559,9 +561,13 @@ def test_empty_variant_type_frame_to_pandas(session):
         schema=StructType().add("EMPTY_ARRAY", ArrayType()).add("EMPTY_MAP", MapType()),
     ).write.save_as_table(table_name, table_type="temp")
     df = pd.read_snowflake(table_name)
+    native_df = native_pd.DataFrame(columns=["EMPTY_ARRAY", "EMPTY_MAP"], dtype=object)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
+    native_df = native_df.sort_values(native_df.columns.to_list())
     assert_frame_equal(
         df.to_pandas(),
-        native_pd.DataFrame(columns=["EMPTY_ARRAY", "EMPTY_MAP"], dtype=object),
+        native_df,
         # Because the table has a __row_position__ column which is used as the index,
         # Snowpark pandas returns an empty Index(dtype="int64") instead of the expected RangeIndex
         check_index_type=False,

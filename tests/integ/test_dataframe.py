@@ -4,6 +4,7 @@
 #
 import copy
 import datetime
+import decimal
 import json
 import logging
 import math
@@ -16,6 +17,7 @@ from textwrap import dedent
 from typing import Tuple
 from unittest import mock
 
+import snowflake.snowpark.context as context
 from snowflake.snowpark.dataframe import map
 from snowflake.snowpark.session import Session
 from tests.conftest import local_testing_mode
@@ -35,7 +37,10 @@ from snowflake.connector import IntegrityError, ProgrammingError
 from snowflake.snowpark import Column, Row, Window
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
-from snowflake.snowpark._internal.utils import TempObjectType
+from snowflake.snowpark._internal.utils import (
+    TempObjectType,
+    random_name_for_temp_object,
+)
 from snowflake.snowpark.dataframe_na_functions import _SUBSET_CHECK_ERROR_MESSAGE
 from snowflake.snowpark.exceptions import (
     SnowparkColumnException,
@@ -45,6 +50,7 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import (
+    array_construct,
     col,
     column,
     concat,
@@ -62,8 +68,10 @@ from snowflake.snowpark.functions import (
     udtf,
     uniform,
     when,
+    cast,
 )
 from snowflake.snowpark.types import (
+    FileType,
     ArrayType,
     BinaryType,
     BooleanType,
@@ -234,9 +242,11 @@ def test_show_using_with_select_statement(session):
     )
 
 
-def test_distinct(session):
+@pytest.mark.parametrize("use_simplification", [True, False])
+def test_distinct(session, use_simplification, local_testing_mode):
     """Tests df.distinct()."""
 
+    session.conf.set("use_simplified_query_generation", use_simplification)
     df = session.create_dataframe(
         [
             [1, 1],
@@ -268,6 +278,13 @@ def test_distinct(session):
 
     res = df.select(col("v")).distinct().sort(["v"]).collect()
     assert res == [Row(None), Row(1), Row(2), Row(3), Row(4), Row(5)]
+
+    if not local_testing_mode:
+        queries = df.distinct().queries["queries"]
+        if use_simplification:
+            assert "SELECT DISTINCT" in Utils.normalize_sql(queries[0])
+        else:
+            assert "GROUP BY" in queries[0]
 
 
 def test_first(session):
@@ -637,6 +654,34 @@ def test_select_table_function_negative(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="hash is not supported in Local Testing",
+)
+def test_random_split(session):
+    original_enabled = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set("use_simplified_query_generation", True)
+        # test the cache_result is not invoked
+        df = session.range(1, 50)
+        with session.query_history() as history:
+            df1, df2 = df.random_split([0.5, 0.5])
+        assert len(history.queries) == 0
+
+        # test the that seed is respected
+        df1, df2, df3 = df.random_split([0.5, 0.4, 0.1], seed=1729)
+        dfa, dfb, dfc = df.random_split([0.5, 0.4, 0.1], seed=1729)
+        Utils.check_answer(df1, dfa)
+        Utils.check_answer(df2, dfb)
+        Utils.check_answer(df3, dfc)
+
+        # assert that there in no overlap between the splits
+        df1, df2 = df.random_split([0.5, 0.5])
+        assert df1.intersect(df2).count() == 0
+    finally:
+        session.conf.set("use_simplified_query_generation", original_enabled)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="Table function is not supported in Local Testing",
 )
 @pytest.mark.udf
@@ -673,6 +718,22 @@ def test_select_with_table_function_column_overlap(session):
         df.join_table_function(two_x_udtf(df.a).alias("a2")),
         [Row(A=1, B=2, C=3, A2=2), Row(A=4, B=5, C=6, A2=8)],
     )
+
+    # ensure overlapping columns work if non-overlapping columns are selected as strings
+    Utils.check_answer(
+        df.select("b", two_x_udtf(df.a), "c"),
+        [Row(B=2, A=2, C=3), Row(B=5, A=8, C=6)],
+    )
+
+    Utils.check_answer(
+        df.select(col("b"), two_x_udtf(df.a), df.c),
+        [Row(B=2, A=2, C=3), Row(B=5, A=8, C=6)],
+    )
+
+    # ensure overlapping columns raised ambiguous column error if non-overlapping columns
+    # are selected as complex columns
+    with pytest.raises(SnowparkSQLException, match="ambiguous column name"):
+        df.select(col("b").alias("b1"), two_x_udtf(df.a), col("c")).collect()
 
     # ensure explode works
     df = session.create_dataframe([(1, [1, 2]), (2, [3, 4])], schema=["id", "value"])
@@ -750,6 +811,24 @@ def test_explode(session):
         df.select(df.strs, explode(df.maps).as_("primo", "secundo")), expected_result
     )
 
+    if not session.sql_simplifier_enabled:
+        return
+
+    # with input as array construct
+    Utils.check_answer(
+        session.range(1).select(explode(array_construct(lit(1), lit(2), lit(3)))),
+        [Row(VALUE="1"), Row(VALUE="2"), Row(VALUE="3")],
+    )
+
+    with mock.patch.object(context, "_use_structured_type_semantics", True):
+        # with input as array construct and cast
+        Utils.check_answer(
+            session.range(1).select(
+                explode(array_construct(lit(1), lit(2)).cast(ArrayType(LongType())))
+            ),
+            [Row(VALUE=1), Row(VALUE=2)],
+        )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
@@ -785,8 +864,12 @@ def test_explode_negative(session):
     with pytest.raises(ValueError, match="Invalid column type for explode"):
         df.select(explode(df.idx))
 
-    with pytest.raises(ValueError, match="Invalid column type for explode"):
-        df.select(explode(col("DOES_NOT_EXIST")))
+    if session.sql_simplifier_enabled:
+        with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+            df.select(explode(col("DOES_NOT_EXIST")))
+    else:
+        with pytest.raises(ValueError, match="Invalid column type for explode"):
+            df.select(explode(col("DOES_NOT_EXIST")))
 
 
 @pytest.mark.skipif(
@@ -1010,7 +1093,7 @@ def test_df_subscriptable(session):
     assert res == expected
 
 
-def test_filter(session):
+def test_filter(session, local_testing_mode):
     """Tests for df.filter()."""
     df = session.range(1, 10, 2)
     res = df.filter(col("id") > 4).collect()
@@ -1032,6 +1115,22 @@ def test_filter(session):
     res = df.filter(col("id") <= 0).collect()
     expected = []
     assert res == expected
+
+    if (
+        not local_testing_mode
+    ):  # TODO: SNOW-2197035: local testing bug with NULL floats and Decimals
+        data = [
+            (Decimal("123.45"), 1),
+            (Decimal("678.90"), 2),
+            (Decimal("0.0"), 3),
+            (None, 4),
+        ]
+        decimal_df = session.create_dataframe(data, ["amount", "id"])
+
+        res = decimal_df.filter(col("amount") == Decimal("123.45")).collect()
+
+        expected = [Row(AMOUNT=Decimal("123.450000000000000000"), ID=1)]
+        assert res == expected
 
 
 @pytest.mark.xfail(
@@ -1281,6 +1380,25 @@ def test_join_left_outer(session):
         Row(7, 7, 7),
     ]
     assert sorted(res, key=lambda r: r[0]) == expected
+
+
+def test_join_on_order(session, local_testing_mode):
+    """
+    Test that an 'on' clause in a different order from the data frame re-orders the columns correctly.
+    """
+    df1 = session.create_dataframe([(1, "A", 3)], schema=["A", "B", "C"])
+    df2 = session.create_dataframe([(1, "A", 4)], schema=["A", "B", "D"])
+
+    df3 = df1.join(df2, on=["B", "A"])
+    assert df3.schema == StructType(
+        [
+            StructField("B", StringType(), nullable=False),
+            StructField("A", LongType(), nullable=False),
+            StructField("C", LongType(), nullable=False),
+            StructField("D", LongType(), nullable=False),
+        ]
+    )
+    Utils.check_answer(df3, [Row(B="A", A=1, C=3, D=4)])
 
 
 @pytest.mark.xfail(
@@ -1897,14 +2015,18 @@ def test_show_dataframe_spark(session):
         False,
         None,
         bytearray("a", "utf-8"),
-        bytearray("abc", "utf-8"),
+        bytearray("abc", "utf-16"),
         Decimal(0.5),
         [1, 2, 3],
         [
             bytearray("abc", "utf-8"),
-            bytearray("a", "utf-8"),
+            bytearray("a", "utf-16"),
         ],
         {"a": "foo"},
+        {"Street": "123 Elm St", "ZipCode": 12345},
+        [1, 2, 3],
+        {"a": "foo"},
+        {"foo": {1: "bar"}},
     ]
 
     with structured_types_enabled_session(session) as session:
@@ -1925,6 +2047,20 @@ def test_show_dataframe_spark(session):
                 StructField("col_13", ArrayType(IntegerType())),
                 StructField("col_14", ArrayType(BinaryType())),
                 StructField("col_15", MapType(StringType(), StringType())),
+                StructField(
+                    "col_16",
+                    StructType(
+                        [
+                            StructField("Street", StringType(), True),
+                            StructField("ZipCode", IntegerType(), True),
+                        ]
+                    ),
+                ),
+                StructField("col_17", ArrayType()),
+                StructField("col_18", StructType()),
+                StructField(
+                    "col_19", MapType(StringType(), MapType(LongType(), StringType()))
+                ),
             ]
         )
         df = session.create_dataframe([data], schema=schema)
@@ -1933,41 +2069,43 @@ def test_show_dataframe_spark(session):
         def assert_show_string_equals(actual: str, expected: str):
             actual_lines = actual.strip().split("\n")
             expected_lines = expected.strip().split("\n")
+            if len(actual_lines) != len(expected_lines):
+                print(
+                    f"\nactual_lines:\n{actual_lines}\nexpected_lines:\n{expected_lines}"
+                )
+                pytest.fail()
             for a, e in zip(actual_lines, expected_lines):
                 if a.strip() != e.strip():
                     print(f"\nactual:\n{actual}\nexpected:{expected}")
                     pytest.fail()
 
         assert_show_string_equals(
-            df._show_string_spark(_emit_ast=session.ast_enabled).strip(),
+            df._show_string_spark().strip(),
             dedent(
                 """
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
-            |"COL_1"|"COL_2"|"COL_3"|             "COL_4"| "COL_5"|   "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|  "COL_11"|"COL_12"| "COL_13"|          "COL_14"|  "COL_15"|
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
-            |      1|    one|    1.1|2017-02-24 12:00:...|20:57:06|2017-02-25|   true|  false|   NULL|    [97]|[97 98 99]|       1|[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+----------+--------+---------+------------------+----------+
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
+            |"COL_1"|"COL_2"|"COL_3"|             "COL_4"| "COL_5"|   "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|            "COL_11"|"COL_12"| "COL_13"|            "COL_14"|  "COL_15"|           "COL_16"|            "COL_17"|          "COL_18"|           "COL_19"|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
+            |      1|    one|    1.1|2017-02-24 12:00:...|20:57:06|2017-02-25|   true|  false|   NULL|    [61]|[FF FE 61 00 62 0...|       1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|{foo -> {1 -> bar}}|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
             """
             ),
         )
         assert_show_string_equals(
-            df._show_string_spark(
-                _emit_ast=session.ast_enabled, _spark_column_names=spark_col_names
-            ),
+            df._show_string_spark(_spark_column_names=spark_col_names),
             dedent(
                 """
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
-            |col_1|col_2|col_3|               col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|            col_14|    col_15|
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
-            |    1|  one|  1.1|2017-02-24 12:00:...|20:57:06|2017-02-25| true|false| NULL|  [97]|[97 98 99]|     1|[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
+            |col_1|col_2|col_3|               col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|              col_11|col_12|   col_13|              col_14|    col_15|             col_16|              col_17|            col_18|             col_19|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
+            |    1|  one|  1.1|2017-02-24 12:00:...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE 61 00 62 0...|     1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|{foo -> {1 -> bar}}|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
             """
             ),
         )
         assert_show_string_equals(
             df._show_string_spark(
                 vertical=True,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
@@ -1982,12 +2120,16 @@ def test_show_dataframe_spark(session):
              col_7  | true
              col_8  | false
              col_9  | NULL
-             col_10 | [97]
-             col_11 | [97 98 99]
+             col_10 | [61]
+             col_11 | [FF FE 61 00 62 0...
              col_12 | 1
              col_13 | [1, 2, 3]
-             col_14 | [[97 98 99], [97]]
+             col_14 | [[61 62 63], [FF ...
              col_15 | {a -> foo}
+             col_16 | {123 Elm St, 12345}
+             col_17 | [\\n  1,\\n  2,\\n  ...
+             col_18 | {\\n  "a": "foo"\\n}
+             col_19 | {foo -> {1 -> bar}}
             """
             ),
         )
@@ -1995,59 +2137,90 @@ def test_show_dataframe_spark(session):
             df._show_string_spark(
                 vertical=True,
                 truncate=False,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
                 """
-            -RECORD 0----------------------------
-             col_1  | 1
-             col_2  | one
-             col_3  | 1.1
-             col_4  | 2017-02-24 12:00:05.456000
-             col_5  | 20:57:06
-             col_6  | 2017-02-25
-             col_7  | true
-             col_8  | false
-             col_9  | NULL
-             col_10 | [97]
-             col_11 | [97 98 99]
-             col_12 | 1
-             col_13 | [1, 2, 3]
-             col_14 | [[97 98 99], [97]]
-             col_15 | {a -> foo}
+            -RECORD 0-----------------------------
+            col_1  | 1
+            col_2  | one
+            col_3  | 1.1
+            col_4  | 2017-02-24 12:00:05.456000
+            col_5  | 20:57:06
+            col_6  | 2017-02-25
+            col_7  | true
+            col_8  | false
+            col_9  | NULL
+            col_10 | [61]
+            col_11 | [FF FE 61 00 62 00 63 00]
+            col_12 | 1
+            col_13 | [1, 2, 3]
+            col_14 | [[61 62 63], [FF FE 61 00]]
+            col_15 | {a -> foo}
+            col_16 | {123 Elm St, 12345}
+            col_17 | [\\n  1,\\n  2,\\n  3\\n]
+            col_18 | {\\n  "a": "foo"\\n}
+            col_19 | {foo -> {1 -> bar}}
             """
             ),
         )
         assert_show_string_equals(
             df._show_string_spark(
                 truncate=False,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
                 """
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
-            |col_1|col_2|col_3|col_4                     |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11    |col_12|col_13   |col_14            |col_15    |
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
-            |1    |one  |1.1  |2017-02-24 12:00:05.456000|20:57:06|2017-02-25|true |false|NULL |[97]  |[97 98 99]|1     |[1, 2, 3]|[[97 98 99], [97]]|{a -> foo}|
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+----------+------+---------+------------------+----------+
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
+            |col_1|col_2|col_3|col_4                     |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11                   |col_12|col_13   |col_14                     |col_15    |col_16             |col_17               |col_18            |col_19             |
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
+            |1    |one  |1.1  |2017-02-24 12:00:05.456000|20:57:06|2017-02-25|true |false|NULL |[61]  |[FF FE 61 00 62 00 63 00]|1     |[1, 2, 3]|[[61 62 63], [FF FE 61 00]]|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  3\\n]|{\\n  "a": "foo"\\n}|{foo -> {1 -> bar}}|
+            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
             """
             ),
         )
         assert_show_string_equals(
             df._show_string_spark(
                 truncate=10,
-                _emit_ast=session.ast_enabled,
                 _spark_column_names=spark_col_names,
             ),
             dedent(
                 """
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
-            |col_1|col_2|col_3|     col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|    col_14|    col_15|
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
-            |    1|  one|  1.1|2017-02...|20:57:06|2017-02-25| true|false| NULL|  [97]|[97 98 99]|     1|[1, 2, 3]|[[97 98...|{a -> foo}|
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+----------+
+            |col_1|col_2|col_3|     col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|    col_14|    col_15|    col_16|    col_17|    col_18|    col_19|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+----------+
+            |    1|  one|  1.1|2017-02...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE ...|     1|[1, 2, 3]|[[61 62...|{a -> foo}|{123 El...|[\\n  1,...|{\\n  "a...|{foo ->...|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+----------+
+            """
+            ),
+        )
+
+        df2_col_names = ["col1"]
+        df2 = session.create_dataframe(
+            [
+                (float("inf"),),
+                (float("-inf"),),
+                (1.000005e17,),
+                (1.000005e-17,),
+            ],
+            df2_col_names,
+        )
+
+        assert_show_string_equals(
+            df2._show_string_spark(
+                truncate=False,
+                _spark_column_names=df2_col_names,
+            ),
+            dedent(
+                """
+            +------------+
+            |col1        |
+            +------------+
+            |Infinity    |
+            |-Infinity   |
+            |1.000005E17 |
+            |1.000005E-17|
+            +------------+
             """
             ),
         )
@@ -2153,8 +2326,8 @@ def test_create_dataframe_large_without_batch_insert(session):
         analyzer.ARRAY_BIND_THRESHOLD = 400_000
         with pytest.raises(SnowparkSQLException) as ex_info:
             session.create_dataframe([1] * 200_001).collect()
-        assert "SQL compilation error" in str(ex_info)
-        assert "maximum number of expressions in a list exceeded" in str(ex_info)
+        assert "SQL compilation error" in str(ex_info.value)
+        assert "maximum number of expressions in a list exceeded" in str(ex_info.value)
     finally:
         analyzer.ARRAY_BIND_THRESHOLD = original_value
 
@@ -2165,8 +2338,9 @@ def test_create_dataframe_large_respects_paramstyle(db_parameters, paramstyle):
     from snowflake.snowpark._internal.analyzer import analyzer
 
     original_value = analyzer.ARRAY_BIND_THRESHOLD
-    db_parameters["paramstyle"] = paramstyle
-    session_builder = Session.builder.configs(db_parameters)
+    new_db_parameters = copy.deepcopy(db_parameters)
+    new_db_parameters["paramstyle"] = paramstyle
+    session_builder = Session.builder.configs(new_db_parameters)
     new_session = session_builder.create()
     try:
         analyzer.ARRAY_BIND_THRESHOLD = 2
@@ -2288,7 +2462,7 @@ def test_dataframe_duplicated_column_names(session, local_testing_mode):
             df.create_or_replace_view(
                 Utils.random_name_for_temp_object(TempObjectType.VIEW)
             )
-        assert "duplicate column name 'A'" in str(ex_info)
+        assert "duplicate column name 'A'" in str(ex_info.value)
 
 
 @pytest.mark.skipif(
@@ -2534,8 +2708,44 @@ def test_fillna(session, local_testing_mode):
         df.fillna(1, subset={1: "a"})
     assert _SUBSET_CHECK_ERROR_MESSAGE in str(ex_info)
 
+    # Fill Decimal columns with int
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123, include_decimal=True),
+        [
+            Row(decimal.Decimal(1), decimal.Decimal(123)),
+            Row(decimal.Decimal(123), 2),
+        ],
+        sort=False,
+    )
+    # Fill Decimal columns with float
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123.0, include_decimal=True),
+        [
+            Row(decimal.Decimal(1), decimal.Decimal(123)),
+            Row(decimal.Decimal(123), 2),
+        ],
+        sort=False,
+    )
+    # Making sure default still reflects old behavior
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.null_data4(session).fillna(123.0),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
 
-def test_replace_with_coercion(session):
+
+def test_replace_with_coercion(session, local_testing_mode):
     df = session.create_dataframe(
         [[1, 1.0, "1.0"], [2, 2.0, "2.0"]], schema=["a", "b", "c"]
     )
@@ -2606,6 +2816,48 @@ def test_replace_with_coercion(session):
     with pytest.raises(ValueError) as ex_info:
         df.replace([1], [2, 3])
     assert "to_replace and value lists should be of the same length" in str(ex_info)
+    if local_testing_mode:
+        # SNOW-1989698: local test gap
+        return
+    # Replace Decimal value with int
+    Utils.check_answer(
+        TestData.null_data4(session).replace(
+            decimal.Decimal(1), 123, include_decimal=True
+        ),
+        [
+            Row(decimal.Decimal(123), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    # Replace Decimal value with float
+    Utils.check_answer(
+        TestData.null_data4(session).replace(
+            decimal.Decimal(1), 123.0, include_decimal=True
+        ),
+        [
+            Row(decimal.Decimal(123.0), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    # Make sure old behavior is untouched
+    Utils.check_answer(
+        TestData.null_data4(session).replace(decimal.Decimal(1), 123),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
+    Utils.check_answer(
+        TestData.null_data4(session).replace(decimal.Decimal(1), 123.0),
+        [
+            Row(decimal.Decimal(1), None),
+            Row(None, 2),
+        ],
+        sort=False,
+    )
 
 
 @pytest.mark.skipif(
@@ -2774,9 +3026,21 @@ def test_describe(session):
         ],
     )
 
-    with pytest.raises(SnowparkSQLException) as ex_info:
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
         TestData.test_data2(session).describe("c")
-    assert "invalid identifier" in str(ex_info)
+
+    Utils.check_answer(
+        session.create_dataframe([str(e) for e in range(10)]).describe(
+            strings_include_math_stats=True,
+        ),
+        [
+            Row("count", "10"),
+            Row("min", "0"),
+            Row("stddev", "3.027650354"),
+            Row("mean", "4.5"),
+            Row("max", "9"),
+        ],
+    )
 
 
 def test_truncate_preserves_schema(session, local_testing_mode):
@@ -3185,6 +3449,265 @@ def test_append_existing_table(session, local_testing_mode):
         Utils.drop_table(session, table_name)
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="This test failed because of parameters setting, skip for now",
+)
+@pytest.mark.udf
+def test_dynamic_table_join_table_function(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("The fix only works with SQL Simplifier enabled currently")
+
+    class TestVolumeModels:
+        def process(self, s1: str, s2: float):
+            yield (1,)
+
+    function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    try:
+        test_udtf = session.udtf.register(
+            TestVolumeModels,
+            name=function_name,
+            is_permanent=True,
+            is_replace=True,
+            stage_location=stage_name,
+            packages=["numpy", "pandas", "snowflake-snowpark-python"],
+            output_schema=StructType([StructField("DUMMY", IntegerType())]),
+        )
+
+        (
+            session.create_dataframe(
+                [
+                    [
+                        100002,
+                        100316,
+                        9,
+                        "2025-02-03",
+                        3.932,
+                        "2025-02-03 23:41:29.093 -0800",
+                    ]
+                ],
+                schema=[
+                    "SITEID",
+                    "COMPETITOR_ID",
+                    "GRADEID",
+                    "OBSERVATION_DATE",
+                    "OBSERVED_PRICE",
+                    "LAST_UPDATED",
+                ],
+            ).write.save_as_table("dy_tb", mode="overwrite")
+        )
+        df_input = session.table("dy_tb")
+        df_t = df_input.join_table_function(
+            test_udtf(
+                cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+            ).over(partition_by=iter(["SITEID"]))
+        )
+
+        df_t.create_or_replace_dynamic_table(
+            table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1 minute",
+            is_transient=True,
+        )
+        Utils.check_answer(
+            df_t,
+            [
+                Row(
+                    SITEID=100002,
+                    COMPETITOR_ID=100316,
+                    GRADEID=9,
+                    OBSERVATION_DATE="2025-02-03",
+                    OBSERVED_PRICE=3.932,
+                    LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                    DUMMY=1,
+                )
+            ],
+        )
+    finally:
+        session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="This test failed because of parameters setting, skip for now",
+)
+@pytest.mark.udf
+def test_dynamic_table_join_table_function_with_more_layers(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("The fix only works with SQL Simplifier enabled currently")
+
+    class TestVolumeModels:
+        def process(self, s1: str, s2: float):
+            yield (1,)
+
+    function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    try:
+        test_udtf = session.udtf.register(
+            TestVolumeModels,
+            name=function_name,
+            is_permanent=True,
+            is_replace=True,
+            stage_location=stage_name,
+            packages=["numpy", "pandas", "snowflake-snowpark-python"],
+            output_schema=StructType([StructField("DUMMY", IntegerType())]),
+        )
+
+        (
+            session.create_dataframe(
+                [
+                    [
+                        100002,
+                        100316,
+                        9,
+                        "2025-02-03",
+                        3.932,
+                        "2025-02-03 23:41:29.093 -0800",
+                    ]
+                ],
+                schema=[
+                    "SITEID",
+                    "COMPETITOR_ID",
+                    "GRADEID",
+                    "OBSERVATION_DATE",
+                    "OBSERVED_PRICE",
+                    "LAST_UPDATED",
+                ],
+            ).write.save_as_table("dy_tb", mode="overwrite")
+        )
+        df_input = session.table("dy_tb")
+        df_t = df_input.join_table_function(
+            test_udtf(
+                cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+            ).over(partition_by=iter(["SITEID"]))
+        )
+
+        df_t = df_t.with_column("COL1", lit(1)).distinct()
+        df_t.create_or_replace_dynamic_table(
+            table_name,
+            warehouse=session.get_current_warehouse(),
+            lag="1 minute",
+            is_transient=True,
+        )
+        Utils.check_answer(
+            df_t,
+            [
+                Row(
+                    SITEID=100002,
+                    COMPETITOR_ID=100316,
+                    GRADEID=9,
+                    OBSERVATION_DATE="2025-02-03",
+                    OBSERVED_PRICE=3.932,
+                    LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                    DUMMY=1,
+                    COL1=1,
+                )
+            ],
+        )
+    finally:
+        session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Dynamic table is a SQL feature",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="This test failed because of parameters setting, skip for now",
+)
+@pytest.mark.udf
+def test_dynamic_table_join_table_function_nested(session):
+    if not session.sql_simplifier_enabled:
+        pytest.skip("The fix only works with SQL Simplifier enabled currently")
+
+    class TestVolumeModels:
+        def process(self, s1: str, s2: float):
+            yield (1,)
+
+    function_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+    table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    stage_name = Utils.random_stage_name()
+    Utils.create_stage(session, stage_name, is_temporary=True)
+
+    try:
+        test_udtf = session.udtf.register(
+            TestVolumeModels,
+            name=function_name,
+            is_permanent=True,
+            is_replace=True,
+            stage_location=stage_name,
+            packages=["numpy", "pandas", "snowflake-snowpark-python"],
+            output_schema=StructType([StructField("DUMMY", IntegerType())]),
+        )
+
+        (
+            session.create_dataframe(
+                [
+                    [
+                        100002,
+                        100316,
+                        9,
+                        "2025-02-03",
+                        3.932,
+                        "2025-02-03 23:41:29.093 -0800",
+                    ]
+                ],
+                schema=[
+                    "SITEID",
+                    "COMPETITOR_ID",
+                    "GRADEID",
+                    "OBSERVATION_DATE",
+                    "OBSERVED_PRICE",
+                    "LAST_UPDATED",
+                ],
+            ).write.save_as_table("dy_tb", mode="overwrite")
+        )
+        df_input = session.table("dy_tb")
+        df_t = df_input.join_table_function(
+            test_udtf(
+                cast("SITEID", StringType()), cast("OBSERVED_PRICE", FloatType())
+            ).over(partition_by=iter(["SITEID"]))
+        ).select(
+            col("SITEID"), col("OBSERVATION_DATE"), col("LAST_UPDATED"), col("DUMMY")
+        )
+    finally:
+        session.sql(f"DROP FUNCTION IF EXISTS {function_name}(VARCHAR, FLOAT)")
+
+    df_t.create_or_replace_dynamic_table(
+        table_name,
+        warehouse=session.get_current_warehouse(),
+        lag="1 minute",
+        is_transient=True,
+    )
+    Utils.check_answer(
+        df_t,
+        [
+            Row(
+                SITEID=100002,
+                OBSERVATION_DATE="2025-02-03",
+                LAST_UPDATED="2025-02-03 23:41:29.093 -0800",
+                DUMMY=1,
+            )
+        ],
+    )
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="Dynamic table is a SQL feature",
@@ -3526,7 +4049,7 @@ def test_create_dataframe_string_length(session, local_testing_mode):
             session.sql(f"show columns in {table_name}").collect()[0]["data_type"]
         )
         assert datatype["type"] == "TEXT"
-        assert datatype["length"] == 2**20 * 16  # max length (16 MB)
+        assert datatype["length"] == session._conn.max_string_size
     else:
         datatype = df.schema[0].datatype
         assert isinstance(datatype, StringType)
@@ -3629,7 +4152,7 @@ def test_call_with_statement_params(session):
     # collect
     with pytest.raises(SnowparkSQLException) as exc:
         df.collect(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert (
         df.collect(statement_params=statement_params_correct_date_format)
         == expected_rows
@@ -3642,7 +4165,7 @@ def test_call_with_statement_params(session):
                 statement_params=statement_params_wrong_date_format.copy()
             )
         )
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert (
         list(
             df.to_local_iterator(
@@ -3655,7 +4178,7 @@ def test_call_with_statement_params(session):
     # to_pandas
     with pytest.raises(SnowparkSQLException) as exc:
         df.to_pandas(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert_frame_equal(
         df.to_pandas(statement_params=statement_params_correct_date_format.copy()),
         pandas_df,
@@ -3672,7 +4195,7 @@ def test_call_with_statement_params(session):
             ),
             ignore_index=True,
         )
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert_frame_equal(
         pd.concat(
             list(
@@ -3694,7 +4217,7 @@ def test_call_with_statement_params(session):
     # show
     with pytest.raises(SnowparkSQLException) as exc:
         df.show(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     df.show(statement_params=statement_params_correct_date_format.copy())
 
     # create_or_replace_view
@@ -3720,7 +4243,7 @@ def test_call_with_statement_params(session):
     # first
     with pytest.raises(SnowparkSQLException) as exc:
         df.first(statement_params=statement_params_wrong_date_format.copy())
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
 
     assert (
         df.first(statement_params=statement_params_correct_date_format.copy())
@@ -3732,7 +4255,7 @@ def test_call_with_statement_params(session):
         df.cache_result(
             statement_params=statement_params_wrong_date_format.copy()
         ).collect()
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
 
     assert (
         df.cache_result(
@@ -3747,7 +4270,7 @@ def test_call_with_statement_params(session):
             weights=[0.5, 0.5],
             statement_params=statement_params_wrong_date_format.copy(),
         )
-    assert "is not recognized" in str(exc)
+    assert "is not recognized" in str(exc.value)
     assert (
         len(
             df.random_split(
@@ -4343,6 +4866,161 @@ def test_select_star_and_more_columns(session):
     Utils.check_answer(df3, [Row(1, 2, 3)])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ILIKE not supported in Local Testing",
+)
+def test_col_ilike(session):
+    """Test col_ilike functionality for selecting columns by pattern."""
+    df = session.create_dataframe(
+        [
+            [1, "A", 101, "HR"],
+            [2, "B", 102, "Fin"],
+            [3, "C", 103, "Eng"],
+            [4, "D", 104, "Prod"],
+        ],
+        schema=["USER_ID", "name", "dept_id", "DEPARTMENT"],
+    )
+
+    # Test 1: Select columns containing 'id' (case-insensitive)
+    df_id = df.col_ilike("%Id%").limit(1)
+    assert df_id.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(df_id, [Row(1, 101)])
+
+    # Test 2: Test error case when no columns match the pattern (with SQL simplifier enabled)
+    df_no_match = df.col_ilike("%xyz%")  # Pattern that doesn't match any column
+    with pytest.raises(SnowparkSQLException, match="SELECT with no columns"):
+        df_no_match.collect()
+
+    # Test 3: Test select a subset of columns and then using col_ilike
+    res_subset = df.select("USER_ID", "name").col_ilike("%id%")
+    assert res_subset.columns == ["USER_ID"]
+    Utils.check_answer(res_subset, [Row(1), Row(2), Row(3), Row(4)])
+
+    # Test 4: Test select star explicitly and then using col_ilike
+    expected_id_rows = [Row(1, 101), Row(2, 102), Row(3, 103), Row(4, 104)]
+
+    res = df.select("*").col_ilike("%id%")
+    assert res.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(res, expected_id_rows)
+
+    res_df_star_col = df.select(df["*"]).col_ilike("%id%")
+    assert res_df_star_col.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(res_df_star_col, expected_id_rows)
+
+    res_df_star_list = df.select(["*"]).col_ilike("%id%")
+    assert res_df_star_list.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(res_df_star_list, expected_id_rows)
+
+    # Case 5: Save as a table and use session.table with col_ilike
+    table_name = Utils.random_table_name()
+    try:
+        df.write.save_as_table(table_name, table_type="temp")
+        res_tbl = session.table(table_name).col_ilike("%id%")
+        # Should keep USER_ID and DEPT_ID columns
+        assert res_tbl.columns == ["USER_ID", "DEPT_ID"]
+        Utils.check_answer(res_tbl, expected_id_rows)
+
+        # Case 6: Use session.sql to read and then apply col_ilike
+        res_sql = session.sql(f"select * from {table_name}").col_ilike("user%")
+        # Should keep only USER_ID column
+        assert res_sql.columns == ["USER_ID"]
+        Utils.check_answer(res_sql, [Row(1), Row(2), Row(3), Row(4)])
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ILIKE not supported in Local Testing",
+)
+def test_col_ilike_chained_combinations(session):
+    """Comprehensive chained cases combining col_ilike with select/sort/filter/limit and join/agg."""
+    base = session.create_dataframe(
+        [
+            [1, "A", 101, "HR", 50000],
+            [2, "B", 102, "Fin", 60000],
+            [3, "C", 103, "Eng", 55000],
+            [4, "D", 104, "Prod", 65000],
+        ],
+        schema=["USER_ID", "name", "dept_id", "DEPARTMENT", "salary_amount"],
+    )
+
+    # Case 1: select -> col_ilike -> sort -> select -> col_ilike -> sort -> filter -> limit
+    df_chain = (
+        base.select("*", (col("salary_amount") + 1000).as_("salary_plus"))
+        .col_ilike("%id%")  # keep USER_ID, dept_id
+        .sort(col("USER_ID").desc())  # sort by USER_ID
+        .select("*")  # keep all columns
+        .col_ilike("user%")  # keep USER_ID only
+        .sort(col("USER_ID"))  # sort by USER_ID
+        .filter(col("USER_ID") >= 2)  # filter by USER_ID >= 2
+        .limit(2)  # limit to 2 rows
+    )
+    # Expect two rows, column set narrowed to USER_ID only
+    assert df_chain.columns == ["USER_ID"]
+    Utils.check_answer(df_chain, [Row(2), Row(3)])
+
+    with pytest.raises(SnowparkSQLException, match="SELECT with no columns"):
+        df_chain.col_ilike("%dept%").collect()
+
+    # Case 2: apply col_ilike on the join child df, then join
+    tiny = session.create_dataframe([[1], [2], [3], [4]], schema=["some_key"]).select(
+        "some_key"
+    )
+    left_filtered = base.col_ilike("%id%")  # keep only id-like columns before join
+    joined = left_filtered.join(tiny, col("USER_ID") == col("some_key"))
+    df_join_chain = joined.select("*").sort(col("DEPT_ID")).limit(3)
+    # Ensure only id-like columns remain and values are correct and ordered by DEPT_ID
+    assert df_join_chain.columns == ["USER_ID", "DEPT_ID", "SOME_KEY"]
+    Utils.check_answer(
+        df_join_chain,
+        [Row(1, 101, 1), Row(2, 102, 2), Row(3, 103, 3)],
+    )
+
+    # Case 3: aggregation combined with select and col_ilike
+    from snowflake.snowpark import functions as F
+
+    agg_df = base.group_by(col("DEPARTMENT")).agg(
+        F.max(col("USER_ID")).as_("max_id"), F.count("*").as_("cnt")
+    )
+    res3_df = (
+        agg_df.col_ilike("%id%")  # keep only columns containing 'id' -> MAX_ID
+        .sort(col("MAX_ID").desc())
+        .limit(1)
+    )
+    assert res3_df.columns == ["MAX_ID"]
+    Utils.check_answer(res3_df, [Row(4)])
+
+    # Case 4: rename, add/replace/drop columns then col_ilike checks
+    # Start by renaming and augmenting columns, then drop a non-id column and select id-like columns
+    df_case4 = (
+        base.with_column_renamed("dept_id", "department_id")
+        .with_column_renamed("name", "employee_name")
+        .with_column("project_id", col("USER_ID") + 1000)
+        .drop("DEPARTMENT")
+    )
+    res4 = df_case4.col_ilike("%id%").collect()
+    assert len(res4) == 4 and set(df_case4.col_ilike("%id%").columns) == {
+        "USER_ID",
+        "DEPARTMENT_ID",
+        "PROJECT_ID",
+    }
+
+    # Then add a new id-like column, replace an existing id column, drop another id column, and check again
+    df_case4b = (
+        df_case4.with_column("emp_id", col("USER_ID") + 200)
+        .with_column("user_id", col("USER_ID") + 300)  # replace existing USER_ID
+        .drop("DEPARTMENT_ID")
+    )
+    res4b = df_case4b.col_ilike("%id%").collect()
+    assert len(res4b) == 4 and set(df_case4b.col_ilike("%id%").columns) == {
+        "USER_ID",
+        "PROJECT_ID",
+        "EMP_ID",
+    }
+
+
 def test_drop_columns_special_names(session):
     """Test whether columns with newlines can be dropped."""
     table_name = Utils.random_table_name()
@@ -4358,48 +5036,54 @@ def test_drop_columns_special_names(session):
         Utils.drop_table(session, table_name)
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="TODO: Interval Expression is not supported in Local Testing",
-)
 def test_dataframe_interval_operation(session):
     df = session.create_dataframe(
         [
-            [datetime.datetime(2010, 1, 1), datetime.datetime(2011, 1, 1)],
-            [datetime.datetime(2012, 1, 1), datetime.datetime(2013, 1, 1)],
+            [datetime.datetime(2010, 1, 1)],
+            [datetime.datetime(2012, 1, 1)],
         ],
-        schema=["a", "b"],
+        schema=["a"],
     )
-    df2 = df.with_column(
-        "TWO_DAYS_AHEAD",
-        df["a"]
-        + make_interval(
-            years=1,
-            quarters=1,
-            months=1,
-            weeks=2,
-            days=2,
-            hours=2,
-            minutes=3,
-            seconds=3,
-            milliseconds=3,
-            microseconds=4,
-            nanoseconds=4,
-        ),
+    interval = make_interval(
+        years=1,
+        quarters=1,
+        months=1,
+        weeks=2,
+        days=2,
+        hours=2,
+        minutes=3,
+        seconds=3,
+        milliseconds=3,
+        microseconds=4,
+        nanoseconds=4,
     )
     Utils.check_answer(
-        df2,
+        df.select(df.a + interval),
         [
             Row(
-                datetime.datetime(2010, 1, 1, 0, 0, 0),
-                datetime.datetime(2011, 1, 1, 0, 0, 0),
                 datetime.datetime(2011, 5, 17, 2, 3, 3, 3004),
             ),
             Row(
-                datetime.datetime(2012, 1, 1, 0, 0, 0),
-                datetime.datetime(2013, 1, 1, 0, 0, 0),
                 datetime.datetime(2013, 5, 17, 2, 3, 3, 3004),
             ),
+        ],
+    )
+    interval = make_interval(
+        years=1,
+        quarters=1,
+        months=1,
+        weeks=2,
+        days=2,
+        hours=2,
+        minutes=3,
+        seconds=3,
+        milliseconds=3,
+    )
+    Utils.check_answer(
+        df.select(df.a - interval),
+        [
+            Row(datetime.datetime(2008, 8, 15, 21, 56, 56, 997000)),
+            Row(datetime.datetime(2010, 8, 15, 21, 56, 56, 997000)),
         ],
     )
 
@@ -4860,7 +5544,7 @@ def test_create_dataframe_implicit_struct_not_null_multiple(session):
 
     expected_fields = [
         StructField("COL1", LongType(), nullable=False),
-        StructField("COL2", StringType(), nullable=True),
+        StructField("COL2", StringType(2**24), nullable=True),
     ]
     assert df.schema.fields == expected_fields
 
@@ -4920,7 +5604,7 @@ def test_create_dataframe_implicit_struct_not_null_mixed(session):
     expected_fields = [
         StructField("FLAG", BooleanType(), nullable=False),
         StructField("DT", df.schema.fields[1].datatype, nullable=True),
-        StructField("TXT", StringType(), nullable=False),
+        StructField("TXT", StringType(2**24), nullable=False),
     ]
 
     assert df.schema.fields == expected_fields
@@ -5019,3 +5703,55 @@ def test_create_dataframe_x_string_y_integer(session):
         Row(X="b", Y=2),
     ]
     assert result == expected_rows
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="File data type is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS, reason="FILE type does not work in localfs"
+)
+def test_create_dataframe_file_type(session, resources_path):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    session.sql(f"create or replace temp stage {stage_name}").collect()
+    test_files = TestFiles(resources_path)
+    session.file.put(
+        test_files.test_file_csv, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+    session.file.put(
+        test_files.test_dog_image, f"@{stage_name}", auto_compress=False, overwrite=True
+    )
+    csv_url = f"@{stage_name}/testCSV.csv"
+    image_url = f"@{stage_name}/dog.jpg"
+    df = session.create_dataframe(
+        [csv_url, image_url],
+        schema=StructType([StructField("col", FileType(), nullable=True)]),
+    )
+    result = df.collect()
+    csv_row = json.loads(result[0][0])
+    assert csv_row["CONTENT_TYPE"] == "text/csv"
+    image_row = json.loads(result[1][0])
+    assert image_row["CONTENT_TYPE"] == "image/jpeg"
+
+
+@pytest.mark.skipif(not is_pandas_available, reason="Pandas is not available")
+def test_create_dataframe_empty_pandas_df(session, local_testing_mode):
+    pdf = pd.DataFrame([])
+    with pytest.raises(
+        ValueError if local_testing_mode else ProgrammingError,
+        match="The provided schema or inferred schema cannot be None or empty",
+    ):
+        session.create_dataframe(pdf)
+
+    pdf = pd.DataFrame([], columns=["a"], dtype=int)
+    df = session.create_dataframe(pdf)
+    Utils.check_answer(df, [])
+
+
+def test_order_by_col(session, sql_simplifier_enabled, local_testing_mode):
+    if not sql_simplifier_enabled or local_testing_mode:
+        pytest.skip("SQL simplifier must be enabled for this query")
+
+    df = session.create_dataframe([(1, 2.0, "foo"), (2, None, "bar")], ["a", "b", "c"])
+    Utils.check_answer(df.select("c").orderBy("b"), df.select("c").orderBy(col("b")))

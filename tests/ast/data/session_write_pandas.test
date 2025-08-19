@@ -10,9 +10,9 @@ ans2 = session.write_pandas(df, "test", schema="a", database="b", chunk_size=7, 
 
 ## EXPECTED UNPARSER OUTPUT
 
-ans = session.write_pandas(pandas.DataFrame(<not shown>)), "table1")
+ans = session.write_pandas(pandas.DataFrame(<not shown>), "table1")
 
-ans2 = session.write_pandas(pandas.DataFrame(<not shown>)), "test", database="b", schema="a", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temporary", random=90)
+ans2 = session.write_pandas(pandas.DataFrame(<not shown>), "test", database="b", schema="a", chunk_size=7, compression="brotli", on_error="ignore", parallel=10, quote_identifiers=False, auto_create_table=True, create_temp_table=True, overwrite=True, table_type="temporary", random=90)
 
 ## EXPECTED ENCODED AST
 
@@ -26,16 +26,16 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_write_pandas {
+      write_pandas {
         compression: "gzip"
         df {
-          sp_dataframe_data__pandas {
+          dataframe_data__pandas {
             v {
               temp_table {
                 name {
-                  sp_name_flat {
+                  name_flat {
                     name: "\"table1\""
                   }
                 }
@@ -55,26 +55,24 @@ body {
         }
         table_name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "ans"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_write_pandas {
+      write_pandas {
         auto_create_table: true
         chunk_size {
           value: 7
@@ -82,11 +80,11 @@ body {
         compression: "brotli"
         create_temp_table: true
         df {
-          sp_dataframe_data__pandas {
+          dataframe_data__pandas {
             v {
               temp_table {
                 name {
-                  sp_name_flat {
+                  name_flat {
                     name: "b.a.test"
                   }
                 }
@@ -121,7 +119,7 @@ body {
         }
         table_name {
           name {
-            sp_name_structured {
+            name_structured {
               name: "b"
               name: "a"
               name: "test"
@@ -131,13 +129,11 @@ body {
         table_type: "temporary"
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "ans2"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 client_ast_version: 1
@@ -153,5 +149,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 36
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

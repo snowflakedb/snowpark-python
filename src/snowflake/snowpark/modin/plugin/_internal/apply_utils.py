@@ -2,14 +2,20 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from __future__ import annotations
+
 import inspect
 import json
+import logging
 import sys
 from collections import namedtuple
 from collections.abc import Hashable
 from enum import Enum, auto
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, Literal
+from types import ModuleType
 from datetime import datetime
+import dataclasses
+from dataclasses import dataclass
 
 import cloudpickle
 import numpy as np
@@ -20,7 +26,10 @@ from pandas.api.types import is_scalar
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.type_utils import PYTHON_TO_SNOW_TYPE_MAPPINGS
 from collections.abc import Mapping
-from snowflake.snowpark._internal.udf_utils import get_types_from_type_hints
+from snowflake.snowpark._internal.udf_utils import (
+    get_types_from_type_hints,
+    pickle_function,
+)
 import functools
 from snowflake.snowpark.column import Column as SnowparkColumn
 from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
@@ -38,8 +47,12 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderingColumn,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
+    INDEX_LABEL,
     TempObjectType,
+    append_columns,
     generate_snowflake_quoted_identifiers_helper,
+    generate_column_identifier_random,
+    get_default_snowpark_pandas_statement_params,
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
 )
@@ -69,8 +82,16 @@ from snowflake.snowpark.udf import UserDefinedFunction
 from snowflake.snowpark.udtf import UserDefinedTableFunction
 from snowflake.snowpark.window import Window
 
+_logger = logging.getLogger(__name__)
+
 APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER = '"LABEL"'
 APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER = '"VALUE"'
+APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG = (
+    "Snowpark pandas only allows native pandas and not Snowpark objects in `apply()`. "
+    + "Instead, try calling `to_pandas()` on any DataFrame or Series objects passed to `apply()`. See Limitations"
+    + "(https://docs.snowflake.com/developer-guide/snowpark/python/pandas-on-snowflake#limitations) section of"
+    + "the Snowpark pandas documentation for more details."
+)
 
 # Default partition size to use when applying a UDTF. A higher value results in less parallelism, less contention and higher batching.
 DEFAULT_UDTF_PARTITION_SIZE = 1000
@@ -97,9 +118,222 @@ SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY = {
     sp_func.floor,
     sp_func.trunc,
     sp_func.sqrt,
-    sp_func.snowflake_cortex_summarize,
-    sp_func.snowflake_cortex_sentiment,
 }
+
+try:
+    import snowflake.cortex
+
+    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = {
+        snowflake.cortex.Summarize,
+        snowflake.cortex.Sentiment,
+        snowflake.cortex.ClassifyText,
+        snowflake.cortex.Translate,
+        snowflake.cortex.ExtractAnswer,
+    }
+
+    ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple(
+        i[1] for i in inspect.getmembers(snowflake.cortex)
+    )
+except ImportError:
+    SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY = set()
+    ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple()
+
+
+PERSIST_KWARG_NAME = "snowflake_udf_params"
+
+
+@dataclass(eq=True, frozen=True)
+class UDxFPersistParams:
+    """
+    Parameters describing persistence properties of a UDxF.
+
+    If its name is unspecified, then a name will be automatically generated.
+
+    If `replace=False`, the original UDxF is not checked to ensure its typing matches the
+    requirements of this function call.
+    """
+
+    udf_name: str
+    stage_name: str
+    immutable: bool
+    # Ignore replace and if_not_exists for caching purposes since we cache on the contents
+    # of the pickled bytes of the function.
+    replace: bool | None = dataclasses.field(default=None, hash=None, compare=False)
+    if_not_exists: bool | None = dataclasses.field(
+        default=None, hash=None, compare=False
+    )
+
+
+# Maps lambda functions to an auto-generated name. If a lambda with a given pickle blob was already seen,
+# we should re-use its name.
+generated_lambda_names: dict[bytes, str] = {}
+
+
+def process_persist_params(
+    f: Callable, blob: bytes, persist_info: dict | None
+) -> UDxFPersistParams | None:
+    """
+    Process parameters from the "snowflake_udf_params" argument of an `apply` call.
+
+    `blob` is the pickled contents of `f`'s wrapper function/class. It is used to reuse auto-generated
+    names if the function is a lambda.
+
+    These parameters describe information about a UDF persistence. If absent, the UDxF is assumed
+    to be transient, and this function should return None.
+    """
+    if persist_info is None:
+        return None
+    STAGE_KEY = "stage_location"
+    NAME_KEY = "name"
+    REPLACE_KEY = "replace"
+    IF_NOT_EXISTS_KEY = "if_not_exists"
+    IMMUTABLE_KEY = "immutable"
+    # If is_permanent is unspecified, assume it is transient.
+    if STAGE_KEY not in persist_info:
+        raise ValueError(
+            f"`{STAGE_KEY}` must be set when calling apply/map/transform when creating a permanent UDF with `{PERSIST_KWARG_NAME}`."
+        )
+    supported_args = {
+        STAGE_KEY,
+        NAME_KEY,
+        REPLACE_KEY,
+        IF_NOT_EXISTS_KEY,
+        IMMUTABLE_KEY,
+    }
+    unsupported_args = [f"`{key}`" for key in persist_info if key not in supported_args]
+    if len(unsupported_args) > 0:
+        if len(unsupported_args) > 1:
+            unsupported_args[-1] = "and " + unsupported_args[-1]
+            be = "are"
+        else:
+            be = "is"
+        joiner = ", " if len(unsupported_args) > 2 else " "
+        raise ValueError(
+            f"{joiner.join(unsupported_args)} {be} unsupported in `{PERSIST_KWARG_NAME}` when creating a permanent UDF in Snowpark pandas."
+        )
+    if not hasattr(f, "__name__") or f.__name__.startswith("<lambda>"):
+        generated_lambda_names[blob] = generated_lambda_names.get(
+            blob, "lambda_" + generate_column_identifier_random()
+        )
+    name = persist_info.get(NAME_KEY, generated_lambda_names.get(blob, f.__name__))
+    return UDxFPersistParams(
+        name,
+        persist_info[STAGE_KEY],
+        persist_info.get(IMMUTABLE_KEY, False),
+        persist_info.get(REPLACE_KEY),
+        persist_info.get(IF_NOT_EXISTS_KEY),
+    )
+
+
+# Reuse UDFs that have already been constructed in each session.
+@dataclass(eq=True, frozen=True)
+class UDFCacheKey:
+    # The result of calling pickle_function(func), where func is the wrapper method that
+    # is used in the UDF. This pickled object itself is not necessarily the same as what's uploaded
+    # to the server, but we pickle the wrapper to ensure closure-captured variables are checked.
+    func_pickle_blob: bytes
+    return_type: DataType  # The inferred return type of the column
+    input_type: DataType
+    strict: bool
+    # No packages param in the key; we assume packages will be the same for the UDF every time
+    persist_params: UDxFPersistParams | None
+
+
+session_udf_cache: dict[Session, dict[UDFCacheKey, UserDefinedFunction]] = defaultdict(
+    dict
+)
+
+
+# Reuse UDTFs that have already been constructed in each session
+@dataclass(eq=True, frozen=True)
+class UDTFCacheKey:
+    # The result of calling pickle_function(func), where func is the end_partition method of the
+    # wrapper class is used in the UDTF. We cannot pickle the wrapper class directly because pickle
+    # will serialize each class differently even if they have the same body and closure variables
+    # because they are technically different classes.
+    func_pickle_blob: bytes
+    col_types: tuple[DataType, ...]
+    col_names: tuple[str, ...]
+    input_types: tuple[DataType, ...]
+    # Because UDTFs allow user-specified packages when a UDF is passed, we need to consider package names in the key as well.
+    package_names: tuple[str, ...]
+    persist_params: UDxFPersistParams | None
+
+
+# Each UDTF construction helper function manipulates the input function slightly differently, and thus needs a different cache.
+session_apply_axis_1_udtf_cache: dict[
+    Session, dict[UDTFCacheKey, UserDefinedTableFunction]
+] = defaultdict(dict)
+session_groupby_apply_no_pivot_udtf_cache: dict[
+    Session, dict[UDTFCacheKey, UserDefinedTableFunction]
+] = defaultdict(dict)
+session_groupby_apply_udtf_cache: dict[
+    Session, dict[UDTFCacheKey, UserDefinedTableFunction]
+] = defaultdict(dict)
+
+
+all_caches: list[
+    dict[Session, dict[UDFCacheKey, UserDefinedFunction]]
+    | dict[
+        Session,
+        dict[UDTFCacheKey, UserDefinedTableFunction],
+    ]
+] = [
+    session_udf_cache,
+    session_apply_axis_1_udtf_cache,
+    session_groupby_apply_no_pivot_udtf_cache,
+    session_groupby_apply_udtf_cache,
+]
+
+
+def get_cached_lambda_names(session: Session) -> list[str]:
+    """
+    Return the auto-generated names of every lambda in this session.
+    """
+    return list(generated_lambda_names.values())
+
+
+def drop_named_udf_and_udtfs() -> None:
+    """
+    Issue a DROP FUNCTION IF EXISTS directive for every cached function in this session with a persist_params field.
+    """
+    for session_cache in all_caches:
+        for session, function_cache in session_cache.items():
+            for cache_key in function_cache.keys():
+                if cache_key.persist_params:
+                    types = (
+                        [cache_key.input_type.simple_string()]
+                        if isinstance(cache_key, UDFCacheKey)
+                        else [tpe.simple_string() for tpe in cache_key.col_types]
+                    )
+                    session.sql(
+                        f"DROP FUNCTION IF EXISTS {cache_key.persist_params.udf_name}({', '.join(types)})"
+                    )
+
+
+def clear_session_udf_and_udtf_caches() -> None:
+    """
+    Clear all cached UDF and UDTFs. If any were persisted to the server, they are unaffected by
+    this function.
+    """
+    generated_lambda_names.clear()
+    for cache in all_caches:
+        cache.clear()
+
+
+def cache_key_to_init_params(
+    key: UDFCacheKey | UDTFCacheKey,
+) -> dict[str, str | bool | None]:
+    if key.persist_params is None:
+        return {}
+    return {
+        "is_permanent": True,
+        "name": key.persist_params.udf_name,
+        "stage_location": key.persist_params.stage_name,
+        "immutable": key.persist_params.immutable,
+        "replace": key.persist_params.replace,
+        "if_not_exists": key.persist_params.if_not_exists,
+    }
 
 
 class GroupbyApplySortMethod(Enum):
@@ -122,6 +356,48 @@ class GroupbyApplySortMethod(Enum):
     GROUP_KEY_APPEARANCE_ORDER = auto()
 
 
+class GroupbyApplyFuncType(Enum):
+    """
+    The type of function that is being applied to each group in a groupby apply.
+    """
+
+    AGGREGATE = auto()
+    TRANSFORM = auto()
+    OTHER = auto()  # If apply function is neither aggregate nor transform.
+
+
+class GroupbyApplyOutputSchema:
+    """
+    Class to hold the inferred output schema of a groupby apply function.
+    """
+
+    def __init__(self) -> None:
+        # List of pandas labels (includes index columns).
+        self.column_labels: list[Hashable] = []
+        # List of snowflake column types (includes index columns).
+        self.column_types: list[DataType] = []
+        # List of snowflake quoted identifiers (includes index columns).
+        self.column_ids: list[str] = []
+        # Number of index columns.
+        self.num_index_columns = 0
+        # Type of function passed to groupby apply.
+        self.func_type = GroupbyApplyFuncType.OTHER
+        # Column index names.
+        self.column_index_names: list[Hashable] = []
+
+    def add_column(self, label: Hashable, column_type: DataType) -> None:
+        """
+        Add a column to the schema.
+        Args:
+            label: The label of the column.
+            column_type: The Snowflake type of the column.
+        Returns:
+
+        """
+        self.column_labels.append(label)
+        self.column_types.append(column_type)
+
+
 def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, DataType]:
     """Check whether the function returns a variant in Snowflake, and get its return type."""
     return_type = deduce_return_type_from_function(func, None)
@@ -140,9 +416,9 @@ def check_return_variant_and_get_return_type(func: Callable) -> tuple[bool, Data
 
 def create_udtf_for_apply_axis_1(
     row_position_snowflake_quoted_identifier: str,
-    func: Union[Callable, UserDefinedFunction],
+    func: Callable | UserDefinedFunction,
     raw: bool,
-    result_type: Optional[Literal["expand", "reduce", "broadcast"]],
+    result_type: Literal["expand", "reduce", "broadcast"] | None,
     args: tuple,
     column_index: native_pd.Index,
     input_types: list[DataType],
@@ -172,7 +448,6 @@ def create_udtf_for_apply_axis_1(
     Returns:
         Snowpark vectorized UDTF producing 3 columns.
     """
-
     # If given as Snowpark function, extract packages.
     udf_packages = []
     if isinstance(func, UserDefinedFunction):
@@ -273,30 +548,54 @@ def create_udtf_for_apply_axis_1(
     ApplyFunc.end_partition._sf_vectorized_input = native_pd.DataFrame  # type: ignore[attr-defined]
 
     packages = list(session.get_packages().values()) + udf_packages
-    func_udtf = sp_func.udtf(
-        ApplyFunc,
-        output_schema=PandasDataFrameType(
-            [LongType(), StringType(), VariantType()],
-            [
-                row_position_snowflake_quoted_identifier,
-                APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
-                APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
-            ],
-        ),
-        input_types=[PandasDataFrameType([LongType()] + input_types)],
-        # We have to use the current pandas version to ensure the behavior consistency
-        packages=[native_pd] + packages,
-        session=session,
-    )
-
-    return func_udtf
+    col_types = [LongType(), StringType(), VariantType()]
+    col_identifiers = [
+        row_position_snowflake_quoted_identifier,
+        APPLY_LABEL_COLUMN_QUOTED_IDENTIFIER,
+        APPLY_VALUE_COLUMN_QUOTED_IDENTIFIER,
+    ]
+    try:
+        persist_info = kwargs.pop(
+            PERSIST_KWARG_NAME, None
+        )  # Pop persistence params from kwargs before pickling.
+        pickled = pickle_function(ApplyFunc.end_partition)
+        cache_key = UDTFCacheKey(
+            pickled,
+            tuple(col_types),
+            tuple(col_identifiers),
+            tuple([LongType()] + input_types),
+            tuple(
+                pkg.__name__ if isinstance(pkg, ModuleType) else pkg for pkg in packages
+            ),
+            process_persist_params(func, pickled, persist_info),
+        )
+        cache = session_apply_axis_1_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
+                ApplyFunc,
+                **cache_key_to_init_params(cache_key),
+                output_schema=PandasDataFrameType(
+                    col_types,
+                    col_identifiers,
+                ),
+                input_types=[PandasDataFrameType([LongType()] + input_types)],
+                # We have to use the current pandas version to ensure the behavior consistency
+                packages=[native_pd] + packages,
+                session=session,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def convert_groupby_apply_dataframe_result_to_standard_schema(
-    func_input_df: native_pd.DataFrame,
     func_output_df: native_pd.DataFrame,
     input_row_positions: native_pd.Series,
-    include_index_columns: bool,
+    func_type: GroupbyApplyFuncType,
 ) -> native_pd.DataFrame:  # pragma: no cover: this function runs inside a UDTF, so coverage tools can't detect that we are testing it.
     """
     Take the result of applying the user-provided function to a dataframe, and convert it to a dataframe with known schema that we can output from a vUDTF.
@@ -307,8 +606,7 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
         func_output_df: The output of `func`.
         input_row_positions: The original row positions of the rows that
                              func_input_df came from.
-        include_index_columns: Whether to include the result's index columns in
-                               the output.
+        func_type: Type of function passed to groupby apply.
 
     Returns:
         A 5-column dataframe that represents the function result per the
@@ -317,9 +615,14 @@ def convert_groupby_apply_dataframe_result_to_standard_schema(
     """
     result_rows = []
     result_index_names = func_output_df.index.names
-    is_transform = func_output_df.index.equals(func_input_df.index)
+    # We don't need to include index columns if func_type is aggregate.
+    include_index_columns = func_type != GroupbyApplyFuncType.AGGREGATE
     for row_number, (index_label, row) in enumerate(func_output_df.iterrows()):
-        output_row_number = input_row_positions.iloc[row_number] if is_transform else -1
+        output_row_number = (
+            input_row_positions.iloc[row_number]
+            if func_type == GroupbyApplyFuncType.TRANSFORM
+            else -1
+        )
         if include_index_columns:
             if isinstance(index_label, tuple):
                 for k, v in enumerate(index_label):
@@ -421,6 +724,367 @@ def create_groupby_transform_func(
     )
 
 
+def apply_groupby_func_to_df(
+    df: native_pd.DataFrame,
+    num_by: int,
+    index_column_names: list[Hashable],
+    series_groupby: bool,
+    data_column_index: native_pd.Index,
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    force_list_like_to_series: bool = False,
+) -> tuple[native_pd.DataFrame, native_pd.Series, GroupbyApplyFuncType, tuple]:
+    """
+    Restore input dataframe received in udtf to original schema.
+    Args:
+        df: Native pandas dataframe.
+        num_by: Number of by columns.
+        index_column_names: Index column names.
+        series_groupby:  Whether we are performing a SeriesGroupBy.apply().
+        data_column_index: Data column index.
+        func: The function we need to apply to each group.
+        args: Function's positional arguments.
+        kwargs: Function's keyword arguments.
+        force_list_like_to_series: Force the function result to series if it is list-like.
+
+    Returns:
+        A Tuple of
+         1. Result of applying the function to input dataframe.
+         2. rows positions
+         3. Function type (aggregate, transform, or other).
+         4. The group label.
+    """
+    # The first column is row position. Save it for later.
+    col_offset = 0
+    row_positions = df.iloc[:, col_offset]
+    col_offset = col_offset + 1
+
+    # The next columns are the by columns. Since we are only looking at
+    # one group, every row in the by columns is the same, so get the
+    # group label from the first row.
+    group_label = tuple(df.iloc[0, col_offset : col_offset + num_by])
+    col_offset = col_offset + num_by
+
+    df = df.iloc[:, col_offset:]
+    # The columns after the by columns are the index columns. Set index and also rename
+    # them to the original index names.
+    df = df.set_index(df.columns.to_list()[: len(index_column_names)])
+    df.index.names = index_column_names
+    if series_groupby:
+        # For SeriesGroupBy, there should be only one data column.
+        num_columns = len(df.columns)
+        assert (
+            num_columns == 1
+        ), f"Internal error: SeriesGroupBy func should apply to series, but input data had {num_columns} columns."
+        series_name = group_label[0] if len(group_label) == 1 else group_label
+        input_object = df.iloc[:, 0].rename(series_name)
+    else:
+        input_object = df.set_axis(data_column_index, axis="columns")
+    # Use infer_objects() because integer columns come as floats
+    # TODO: file snowpark bug about that. Asked about this here:
+    # https://github.com/snowflakedb/snowpandas/pull/823/files#r1507286892
+    input_object = input_object.infer_objects()
+    func_result = func(input_object, *args, **kwargs)
+    if (
+        force_list_like_to_series
+        and not isinstance(func_result, native_pd.Series)
+        and native_pd.api.types.is_list_like(func_result)
+    ):
+        if len(func_result) == 1:
+            func_result = func_result[0]
+        else:
+            func_result = native_pd.Series(func_result)
+            if len(func_result) == len(df.index):
+                func_result.index = df.index
+    func_type = GroupbyApplyFuncType.OTHER
+    if isinstance(func_result, native_pd.Series):
+        if series_groupby:
+            func_result_as_frame = func_result.to_frame()
+            func_result_as_frame.columns = [MODIN_UNNAMED_SERIES_LABEL]
+            if input_object.index.equals(func_result_as_frame.index):
+                func_type = GroupbyApplyFuncType.TRANSFORM
+        else:
+            # If function returns series, we have to transpose the series
+            # and change its metadata a little bit, but after that we can
+            # continue largely as if the function has returned a dataframe.
+            #
+            # If the series has a 1-dimensional index, the series name
+            # becomes the name of the column index. For example, if
+            # `func` returned the series native_pd.Series([1], name='a'):
+            #
+            # 0    1
+            # Name: a, dtype: int64
+            #
+            # The result needs to use the dataframe
+            # pd.DataFrame([1], columns=pd.Index([0], name='a'):
+            #
+            # a  0
+            # 0  1
+            #
+            name = func_result.name
+            func_result.name = None
+            func_result_as_frame = func_result.to_frame().T
+            if func_result_as_frame.columns.nlevels == 1:
+                func_result_as_frame.columns.name = name
+            # For DataFrameGroupBy, if func returns a series, we should treat it as an
+            # aggregate.
+            func_type = GroupbyApplyFuncType.AGGREGATE
+
+    elif isinstance(func_result, native_pd.DataFrame):
+        func_result_as_frame = func_result
+        if input_object.index.equals(func_result_as_frame.index):
+            func_type = GroupbyApplyFuncType.TRANSFORM
+    else:
+        # At this point, we know the function result was not a DataFrame
+        # or Series
+        func_result_as_frame = native_pd.DataFrame(
+            {MODIN_UNNAMED_SERIES_LABEL: [func_result]}
+        )
+        func_type = GroupbyApplyFuncType.AGGREGATE
+    return func_result_as_frame, row_positions, func_type, group_label
+
+
+def create_udtf_for_groupby_no_pivot(
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    data_column_index: native_pd.Index,
+    index_column_names: list,
+    input_column_types: list[DataType],
+    session: Session,
+    series_groupby: bool,
+    by_labels: list[Hashable],
+    output_schema: GroupbyApplyOutputSchema,
+    force_list_like_to_series: bool = False,
+) -> UserDefinedTableFunction:
+    """
+    Creates snowpark python UDTF for groupby.transform.
+
+    The UDTF takes as input the following columns in the listed order:
+    1. The original row position within the dataframe (not just within the group)
+    2. All the by columns (these are constant across the group, but in the case
+    #  of SeriesGroupBy, we need these so we can name each input series by the
+    #  group label)
+    3. All the index columns
+    4. All the data columns
+
+    The UDF returns as output the following columns in the listed order.
+    1. row position column.
+    2. All the index columns.
+    3. All the data columns with transformed values (except by columns).
+
+    Args
+    ----
+    func: The function we need to apply to each group
+    args: Function's positional arguments
+    kwargs: Function's keyword arguments
+    data_column_index: Column labels for the input dataframe
+    index_column_names: Names of the input dataframe's index
+    input_column_types: List of types for input frame passed to UDTF.
+    session: the current session
+    series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
+    by_labels: The pandas labels of the by columns.
+    output_schema: Output schema for the UDTF.
+    force_list_like_to_series: Force the function result to series if it is list-like
+
+    Returns
+    -------
+    A UDTF that will apply the provided function to a group and return a
+    dataframe representing all the data and metadata of the result.
+    """
+
+    class ApplyFunc:
+        def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
+            """
+            Apply the user-provided function to the group represented by this partition.
+
+            Args
+            ----
+            df: The dataframe representing one group
+
+            Returns
+            -------
+            A dataframe representing the result of applying the user-provided
+            function to this group.
+            """
+            (
+                func_result,
+                row_positions,
+                func_type,
+                group_label,
+            ) = apply_groupby_func_to_df(
+                df,
+                len(by_labels),
+                index_column_names,
+                series_groupby,
+                data_column_index,
+                func,
+                args,
+                kwargs,
+                force_list_like_to_series,
+            )
+            # 'min_row_position' is used to sort partitions and 'row_positions' is used
+            # to sort rows within a partition.
+            min_row_position = row_positions.iloc[0]
+            if func_type == GroupbyApplyFuncType.AGGREGATE:
+                row_positions = -1
+            elif func_type == GroupbyApplyFuncType.OTHER:
+                func_result.reset_index(inplace=True, drop=False)
+                row_positions = list(range(0, len(func_result)))
+            func_result = func_result.applymap(
+                lambda x: handle_missing_value_in_variant(
+                    convert_numpy_int_result_to_int(x)
+                )
+            ).astype("object")
+            if func_type == GroupbyApplyFuncType.TRANSFORM:
+                func_result.reset_index(inplace=True, drop=False)
+
+            # Add by columns.
+            for i, value in enumerate(group_label):
+                func_result.insert(i, f"group_label_{i}", value, allow_duplicates=True)
+            # Add row position columns.
+            func_result.insert(0, "__row_position__", row_positions)
+            func_result.insert(0, "__min_row_position__", min_row_position)
+            return func_result
+
+    try:
+        persist_info = kwargs.pop(
+            PERSIST_KWARG_NAME, None
+        )  # Pop persistence params from kwargs before pickling.
+        pickled = pickle_function(ApplyFunc.end_partition)
+        cache_key = UDTFCacheKey(
+            pickled,
+            tuple(output_schema.column_types),
+            tuple(output_schema.column_ids),
+            tuple(input_column_types),
+            tuple(session.get_packages().values()),
+            process_persist_params(func, pickled, persist_info),
+        )
+        cache = session_groupby_apply_no_pivot_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
+                ApplyFunc,
+                **cache_key_to_init_params(cache_key),
+                output_schema=PandasDataFrameType(
+                    output_schema.column_types, output_schema.column_ids
+                ),
+                input_types=[PandasDataFrameType(col_types=input_column_types)],
+                # We have to specify the local pandas package so that the UDF's pandas
+                # behavior is consistent with client-side pandas behavior.
+                packages=[native_pd] + list(session.get_packages().values()),
+                session=session,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
+
+
+def infer_output_schema_for_apply(
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    by_labels: list[Hashable],
+    data_column_index: native_pd.Index,
+    index_column_names: list,
+    input_types: list[DataType],
+    series_groupby: bool,
+    force_list_like_to_series: bool = False,
+) -> GroupbyApplyOutputSchema | None:
+    """
+    Infers the output schema of a groupby apply function. Returns None if the schema
+    cannot be inferred.
+
+    Args:
+        func: The function we need to apply to each group
+        args: Function's positional arguments
+        kwargs: Function's keyword arguments
+        by_labels: List of labels for 'by' columns.
+        data_column_index: Column labels for the input dataframe
+        index_column_names: Names of the input dataframe's index
+        input_types: Types of the input dataframe's columns
+        series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
+        force_list_like_to_series: Force the function result to series if it is list-like.
+
+    Returns:
+        GroupbyApplyOutputSchema or None.
+    """
+    size = 10
+
+    def get_dummy_data(typ: DataType) -> Any:
+        if isinstance(typ, _IntegralType):
+            return np.arange(size)
+        if isinstance(typ, _FractionalType):
+            return np.arange(size) + 0.5
+        if isinstance(typ, StringType):
+            return [f"{chr(97 + i)}" for i in range(size)]
+        if isinstance(typ, BooleanType):
+            return [True, False] * int(size / 2)
+        if isinstance(typ, TimestampType):
+            return native_pd.date_range(start="2025-01-01 03:04:05", periods=size)
+        if isinstance(typ, BinaryType):
+            return [bytes("snow", "utf-8")] * size
+
+    input_data = {}
+    for i, typ in enumerate(input_types):
+        dummy_data = get_dummy_data(typ)
+        if dummy_data is None:
+            # unknown type, fail the schema inference
+            return None
+        input_data[f"ARG{i+1}"] = dummy_data
+
+    input_df = native_pd.DataFrame(input_data)
+    num_by = len(by_labels)
+    try:
+        func_result, _, func_type, _ = apply_groupby_func_to_df(
+            input_df,
+            num_by,
+            index_column_names,
+            series_groupby,
+            data_column_index,
+            func,
+            args,
+            kwargs,
+            force_list_like_to_series,
+        )
+    except Exception as e:
+        _logger.info(f"Failed to infer schema with error={e}")
+        return None
+    schema = GroupbyApplyOutputSchema()
+    schema.num_index_columns = num_by
+    if func_type != GroupbyApplyFuncType.AGGREGATE:
+        schema.num_index_columns += func_result.index.nlevels
+    schema.func_type = func_type
+    schema.column_index_names = func_result.columns.names
+
+    # First two columns are always row position columns.
+    schema.add_column("__min_row_position__", LongType())
+    schema.add_column("__row_position__", LongType())
+
+    # Always include the by columns in the output.
+    for i, by_label in enumerate(by_labels):
+        schema.add_column(by_label, input_types[1 + i])
+
+    # Add index columns to the schema.
+    if func_type != GroupbyApplyFuncType.AGGREGATE:
+        for i, label in enumerate(func_result.index.names):
+            schema.add_column(
+                label,
+                input_types[1 + num_by + i]
+                if func_type == GroupbyApplyFuncType.TRANSFORM
+                else VariantType(),
+            )
+
+    # Add data columns to the schema.
+    for label in func_result.columns:
+        schema.add_column(label, VariantType())
+    return schema
+
+
 def create_udtf_for_groupby_apply(
     func: Callable,
     args: tuple,
@@ -431,10 +1095,13 @@ def create_udtf_for_groupby_apply(
     input_index_column_types: list[DataType],
     session: Session,
     series_groupby: bool,
+    by_labels: list[Hashable],
     by_types: list[DataType],
     existing_identifiers: list[str],
-    force_list_like_to_series: bool = False,
-) -> UserDefinedTableFunction:
+    force_list_like_to_series: bool,
+    is_transform: bool,
+    force_single_group: bool,
+) -> tuple[GroupbyApplyOutputSchema | None, UserDefinedTableFunction]:
     """
     Create a UDTF from the Python function for groupby.apply.
 
@@ -522,25 +1189,106 @@ def create_udtf_for_groupby_apply(
     input_index_column_types: Types of the input dataframe's index columns
     session: the current session
     series_groupby: Whether we are performing a SeriesGroupBy.apply() instead of DataFrameGroupBy.apply()
+    by_labels: The pandas lables of the by columns.
     by_types: The snowflake types of the by columns.
     existing_identifiers: List of existing column identifiers; these are omitted when creating new column identifiers.
     force_list_like_to_series: Force the function result to series if it is list-like
+    is_transform: Whether the function is a transform or not.
+    force_single_group: Force single group (empty set of group by labels) useful for DataFrame.apply() with axis=0
 
     Returns
     -------
-    A UDTF that will apply the provided function to a group and return a
-    dataframe representing all the data and metadata of the result.
+    A Tuple of:
+        1. Groupby apply output schema. This will be None if the schema cannot be
+           inferred.
+        2. A UDTF that will apply the provided function to a group and return a
+           dataframe representing all the data and metadata of the result.
     """
+
+    assert len(index_column_names) == len(
+        input_index_column_types
+    ), "list of index column names and list of index column types must have the same length"
+    assert len(data_column_index) == len(
+        input_data_column_types
+    ), "list of data column names and list of data column types must have the same length"
 
     # Get the length of this list outside the vUDTF function because the vUDTF
     # doesn't have access to the Snowpark module, which defines these types.
     num_by = len(by_types)
+
     from snowflake.snowpark.modin.plugin.extensions.utils import (
         try_convert_index_to_native,
     )
 
     data_column_index = try_convert_index_to_native(data_column_index)
 
+    input_types = [
+        # first input column is the integer row number. the row number integer
+        # becomes a float inside the UDTF due to SNOW-1184587
+        LongType(),
+        # the next columns are the by columns...
+        *by_types,
+        # then the index columns for the input dataframe or series...
+        *input_index_column_types,
+        # ...then the data columns for the input dataframe or series.
+        *input_data_column_types,
+    ]
+    output_schema = None
+    if is_transform:
+        # For transform, the UDTF will return same number of columns as input.
+        output_schema = GroupbyApplyOutputSchema()
+        output_schema.column_labels = [
+            "__min_row_position__",
+            "__row_position__",
+            *by_labels,
+            *index_column_names,
+        ] + [col for col in data_column_index if col not in by_labels]
+        column_types = [LongType(), LongType()] + by_types + input_index_column_types
+        num_data_cols = len(output_schema.column_labels) - len(column_types)
+        output_schema.column_types = column_types + ([VariantType()] * num_data_cols)
+        output_schema.num_index_columns = len(index_column_names) + num_by
+        output_schema.func_type = GroupbyApplyFuncType.TRANSFORM
+        output_schema.column_index_names = data_column_index.names
+    elif force_single_group:
+        # TODO: SNOW-1801328: Enable schema inference for DataFrame.apply and  avoid
+        #  pivot step.
+        output_schema = None
+    else:
+        # Attempt to infer output schema for UDTF
+        output_schema = infer_output_schema_for_apply(
+            func,
+            args,
+            kwargs,
+            by_labels,
+            data_column_index,
+            index_column_names,
+            input_types,
+            series_groupby,
+        )
+
+    if output_schema is not None:
+        # Generate new column identifiers for all required UDTF columns with the helper
+        # below to prevent collisions in column identifiers.
+        output_schema.column_ids = generate_snowflake_quoted_identifiers_helper(
+            pandas_labels=output_schema.column_labels,
+            excluded=existing_identifiers,
+            wrap_double_underscore=False,
+        )
+        return output_schema, create_udtf_for_groupby_no_pivot(
+            func,
+            args,
+            kwargs,
+            data_column_index,
+            index_column_names,
+            input_types,
+            session,
+            series_groupby,
+            by_labels,
+            output_schema,
+            force_list_like_to_series,
+        )
+
+    # Failed to infer schema, fallback to old implementation
     class ApplyFunc:
         def end_partition(self, df: native_pd.DataFrame):  # type: ignore[no-untyped-def] # pragma: no cover: adding type hint causes an error when creating udtf. also, skip coverage for this function because coverage tools can't tell that we're executing this function because we execute it in a UDTF.
             """
@@ -555,131 +1303,20 @@ def create_udtf_for_groupby_apply(
             A dataframe representing the result of applying the user-provided
             function to this group.
             """
-            current_column_position = 0
-
-            # The first column is row position. Save it for later.
-            row_position_column_number = 0
-            row_positions = df.iloc[:, row_position_column_number]
-            current_column_position = row_position_column_number + 1
-
-            # The next columns are the by columns. Since we are only looking at
-            # one group, every row in the by columns is the same, so get the
-            # group label from the first row.
-            group_label = tuple(
-                df.iloc[0, current_column_position : current_column_position + num_by]
+            func_result, row_positions, func_type, _ = apply_groupby_func_to_df(
+                df,
+                num_by,
+                index_column_names,
+                series_groupby,
+                data_column_index,
+                func,
+                args,
+                kwargs,
+                force_list_like_to_series,
             )
-            current_column_position = current_column_position + num_by
-            if len(group_label) == 1:
-                group_label = group_label[0]
-
-            df = df.iloc[:, current_column_position:]
-            # Snowflake names the original columns "ARG1", "ARG2", ... "ARGN".
-            # the columns after the by columns are the index columns.
-            df.set_index(
-                [
-                    f"ARG{i}"
-                    for i in range(
-                        1 + current_column_position,
-                        1 + current_column_position + len(index_column_names),
-                    )
-                ],
-                inplace=True,
+            return convert_groupby_apply_dataframe_result_to_standard_schema(
+                func_result, row_positions, func_type
             )
-            df.index.names = index_column_names
-            if series_groupby:
-                # For SeriesGroupBy, there should be only one data column.
-                num_columns = len(df.columns)
-                assert (
-                    num_columns == 1
-                ), f"Internal error: SeriesGroupBy func should apply to series, but input data had {num_columns} columns."
-                input_object = df.iloc[:, 0].rename(group_label)
-            else:
-                input_object = df.set_axis(data_column_index, axis="columns")
-            # Use infer_objects() because integer columns come as floats
-            # TODO: file snowpark bug about that. Asked about this here:
-            # https://github.com/snowflakedb/snowpandas/pull/823/files#r1507286892
-            input_object = input_object.infer_objects()
-            func_result = func(input_object, *args, **kwargs)
-            if (
-                force_list_like_to_series
-                and not isinstance(func_result, native_pd.Series)
-                and native_pd.api.types.is_list_like(func_result)
-            ):
-                if len(func_result) == 1:
-                    func_result = func_result[0]
-                else:
-                    func_result = native_pd.Series(func_result)
-                    if len(func_result) == len(df.index):
-                        func_result.index = df.index
-            if isinstance(func_result, native_pd.Series):
-                if series_groupby:
-                    func_result_as_frame = func_result.to_frame()
-                    func_result_as_frame.columns = [MODIN_UNNAMED_SERIES_LABEL]
-                else:
-                    # If function returns series, we have to transpose the series
-                    # and change its metadata a little bit, but after that we can
-                    # continue largely as if the function has returned a dataframe.
-                    #
-                    # If the series has a 1-dimensional index, the series name
-                    # becomes the name of the column index. For example, if
-                    # `func` returned the series native_pd.Series([1], name='a'):
-                    #
-                    # 0    1
-                    # Name: a, dtype: int64
-                    #
-                    # The result needs to use the dataframe
-                    # pd.DataFrame([1], columns=pd.Index([0], name='a'):
-                    #
-                    # a  0
-                    # 0  1
-                    #
-                    name = func_result.name
-                    func_result.name = None
-                    func_result_as_frame = func_result.to_frame().T
-                    if func_result_as_frame.columns.nlevels == 1:
-                        func_result_as_frame.columns.name = name
-                return convert_groupby_apply_dataframe_result_to_standard_schema(
-                    input_object,
-                    func_result_as_frame,
-                    row_positions,
-                    # For DataFrameGroupBy, we don't need to include any
-                    # information about the index of `func_result_as_frame`.
-                    # The series only has one index, and that index becomes the
-                    # columns of `func_result_as_frame`. For SeriesGroupBy, we
-                    # do include the result's index in the result.
-                    include_index_columns=series_groupby,
-                )
-            if isinstance(func_result, native_pd.DataFrame):
-                return convert_groupby_apply_dataframe_result_to_standard_schema(
-                    input_object, func_result, row_positions, include_index_columns=True
-                )
-            # At this point, we know the function result was not a DataFrame
-            # or Series
-            return native_pd.DataFrame(
-                {
-                    "label": [
-                        json.dumps({"0": MODIN_UNNAMED_SERIES_LABEL, "data_pos": 0})
-                    ],
-                    "row_position_within_group": [0],
-                    "value": [convert_numpy_int_result_to_int(func_result)],
-                    "original_row_number": [-1],
-                    "first_position_for_group": [row_positions.iloc[0]],
-                },
-                # use object dtype so result is JSON-serializable
-                dtype=object,
-            )
-
-    input_types = [
-        # first input column is the integer row number. the row number integer
-        # becomes a float inside the UDTF due to SNOW-1184587
-        LongType(),
-        # the next columns are the by columns...
-        *by_types,
-        # then the index columns for the input dataframe or series...
-        *input_index_column_types,
-        # ...then the data columns for the input dataframe or series.
-        *input_data_column_types,
-    ]
 
     col_labels = [
         "LABEL",
@@ -695,25 +1332,55 @@ def create_udtf_for_groupby_apply(
         excluded=existing_identifiers,
         wrap_double_underscore=False,
     )
-    return sp_func.udtf(
-        ApplyFunc,
-        output_schema=PandasDataFrameType(
-            [StringType(), IntegerType(), VariantType(), IntegerType(), IntegerType()],
-            col_names,
-        ),
-        input_types=[PandasDataFrameType(col_types=input_types)],
-        # We have to specify the local pandas package so that the UDF's pandas
-        # behavior is consistent with client-side pandas behavior.
-        packages=[native_pd] + list(session.get_packages().values()),
-        session=session,
-    )
+    col_types = [
+        StringType(),
+        IntegerType(),
+        VariantType(),
+        IntegerType(),
+        IntegerType(),
+    ]
+    try:
+        persist_info = kwargs.pop(
+            PERSIST_KWARG_NAME, None
+        )  # Pop persistence params from kwargs before pickling.
+        pickled = pickle_function(ApplyFunc.end_partition)
+        cache_key = UDTFCacheKey(
+            pickled,
+            tuple(col_types),
+            tuple(col_names),
+            tuple(input_types),
+            tuple(session.get_packages().values()),
+            process_persist_params(func, pickled, persist_info),
+        )
+        cache = session_groupby_apply_udtf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udtf(
+                ApplyFunc,
+                **cache_key_to_init_params(cache_key),
+                output_schema=PandasDataFrameType(
+                    col_types,
+                    col_names,
+                ),
+                input_types=[PandasDataFrameType(col_types=input_types)],
+                # We have to specify the local pandas package so that the UDF's pandas
+                # behavior is consistent with client-side pandas behavior.
+                packages=[native_pd] + list(session.get_packages().values()),
+                session=session,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return None, cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def create_udf_for_series_apply(
-    func: Union[Callable, UserDefinedFunction],
+    func: Callable | UserDefinedFunction,
     return_type: DataType,
     input_type: DataType,
-    na_action: Optional[Literal["ignore"]],
+    na_action: Literal["ignore"] | None,
     session: Session,
     args: tuple[Any, ...],
     **kwargs: Any,
@@ -771,15 +1438,37 @@ def create_udf_for_series_apply(
             #  actual type.
             return x.apply(func, args=args, **kwargs)
 
-    func_udf = sp_func.udf(
-        apply_func,
-        return_type=PandasSeriesType(return_type),
-        input_types=[PandasSeriesType(input_type)],
-        strict=bool(na_action == "ignore"),
-        session=session,
-        packages=packages,
-    )
-    return func_udf
+    strict = na_action == "ignore"
+    try:
+        persist_info = kwargs.pop(
+            PERSIST_KWARG_NAME, None
+        )  # Pop persistence params from kwargs before pickling.
+        pickled = pickle_function(apply_func)
+        cache_key = UDFCacheKey(
+            pickled,
+            return_type,
+            input_type,
+            strict,
+            process_persist_params(func, pickled, persist_info),
+        )
+        cache = session_udf_cache[session]
+        if cache_key not in cache:
+            cache[cache_key] = sp_func.udf(
+                apply_func,
+                **cache_key_to_init_params(cache_key),
+                return_type=PandasSeriesType(return_type),
+                input_types=[PandasSeriesType(input_type)],
+                strict=strict,
+                session=session,
+                packages=packages,
+                statement_params=get_default_snowpark_pandas_statement_params(),
+            )
+        return cache[cache_key]
+    except NotImplementedError:  # pragma: no cover
+        # When a Snowpark object is passed to a UDF, a NotImplementedError with message
+        # 'Snowpark pandas does not yet support the method DataFrame.__reduce__' is raised. Instead,
+        # catch this exception and return a more user-friendly error message.
+        raise ValueError(APPLY_WITH_SNOWPARK_OBJECT_ERROR_MSG)
 
 
 def handle_missing_value_in_variant(value: Any) -> Any:
@@ -871,7 +1560,7 @@ DUMMY_TIMESTAMP_INPUT = native_pd.to_datetime(
 
 def infer_return_type_using_dummy_data(
     func: Callable, input_type: DataType, **kwargs: Any
-) -> Optional[DataType]:
+) -> DataType | None:
     """
     Infer the return type of given function by applying it to a dummy input.
     This method only supports the following input types: _IntegralType, _FractionalType,
@@ -951,10 +1640,10 @@ def infer_return_type_using_dummy_data(
 
 
 def deduce_return_type_from_function(
-    func: Union[AggFuncType, UserDefinedFunction],
-    input_type: Optional[DataType],
+    func: AggFuncType | UserDefinedFunction,
+    input_type: DataType | None,
     **kwargs: Any,
-) -> Optional[DataType]:
+) -> DataType | None:
     """
     Deduce return type if possible from a function, list, dict or type object. List will be mapped to ArrayType(),
     dict to MapType(), and if a type object (e.g., str) is given a mapping will be consulted.
@@ -1534,7 +2223,7 @@ def is_supported_snowpark_python_function(func: AggFuncType) -> bool:
 
 
 def make_series_map_snowpark_function(
-    mapping: Union[Mapping, native_pd.Series], self_type: DataType
+    mapping: Mapping | native_pd.Series, self_type: DataType
 ) -> Callable[[SnowparkColumn], SnowparkColumn]:
     """
     Make a snowpark function that implements Series.map() with a dict mapping.
@@ -1625,3 +2314,112 @@ def make_series_map_snowpark_function(
         return case_expression
 
     return do_map
+
+
+def create_internal_frame_for_groupby_apply_no_pivot_result(
+    input_frame: InternalFrame,
+    ordered_dataframe: OrderedDataFrame,
+    output_schema: GroupbyApplyOutputSchema,
+    num_by: int,
+    is_transform: bool,
+    group_keys: bool,
+    as_index: bool,
+    sort: bool,
+) -> InternalFrame:
+    """
+    Create InternalFrame for groupy apply no pivot output.
+    Args:
+        input_frame: Input internal frame.
+        ordered_dataframe: Output ordered dataframe from groupby apply udtf.
+        output_schema: Inferred output schema for groupby apply.
+        num_by: Number of by columns.
+        is_transform: Whether this is groupy.transform or not.
+        group_keys: The `group_keys` argument to groupby()
+        as_index: The `as_index` argument to groupby()
+        sort: The `sort` argument to groupby()
+
+    Returns:
+        Final InternalFrame for groupby apply no pivot output.
+    """
+    output_cols = list(zip(output_schema.column_labels, output_schema.column_ids))
+    num_index_cols = output_schema.num_index_columns
+    # Output ordered dataframe has the following columns in order.
+    # 1. min row position. This is used to find order of group when sort=False.
+    min_row_position_id = output_cols[0][1]
+    # 2. Original row position or row position within group.
+    row_position_id = output_cols[1][1]
+    # 3. index columns (will always include by columns)
+    index_cols = output_cols[2 : 2 + num_index_cols]
+    by_ids = [output_col[1] for output_col in output_cols[2 : 2 + num_by]]
+    # 4. data columns
+    data_cols = output_cols[2 + num_index_cols :]
+
+    # df.groupby(group_keys=False).apply(transform_func) is equivalent to
+    # df.groupby().transform(transform_func)
+    if output_schema.func_type == GroupbyApplyFuncType.TRANSFORM and not group_keys:
+        is_transform = True
+
+    # Note: group_keys is ignored for aggregate. Set to default value.
+    if output_schema.func_type == GroupbyApplyFuncType.AGGREGATE:
+        group_keys = True
+
+    # Note: 'sort' and 'as_index' arguments are ignored for transform.
+    # https://pandas.pydata.org/docs/user_guide/groupby.html#transformation
+    if is_transform:
+        as_index = True
+        sort = True
+
+    new_index_order_ids = by_ids if sort else [min_row_position_id]
+    if not as_index:
+        new_index_id = ordered_dataframe.generate_snowflake_quoted_identifiers(
+            pandas_labels=[INDEX_LABEL]
+        )[0]
+        new_index_col = (
+            sp_func.dense_rank().over(
+                Window.order_by(
+                    *(
+                        SnowparkColumn(col_id).asc_nulls_last()
+                        for col_id in new_index_order_ids
+                    )
+                )
+            )
+            - 1
+        )
+        ordered_dataframe = append_columns(
+            ordered_dataframe, new_index_id, new_index_col
+        )
+        # For aggregation if as_index is False 'by' columns should appear
+        # in data columns (excluding 'by' index columns).
+        # https://pandas.pydata.org/pandas-docs/stable/user_guide/groupby.html#aggregation
+        if output_schema.func_type == GroupbyApplyFuncType.AGGREGATE:
+            cols_to_move = []
+            for index_col in index_cols[:num_by]:
+                if index_col[0] in input_frame.data_column_pandas_labels:
+                    cols_to_move.append(index_col)
+            data_cols = cols_to_move + data_cols
+            index_cols = [(None, new_index_id)]
+            data_cols = [
+                (None if label == MODIN_UNNAMED_SERIES_LABEL else label, sfid)
+                for label, sfid in data_cols
+            ]
+        else:
+            index_cols = [(None, new_index_id)] + index_cols[num_by:]
+
+    if not group_keys and len(index_cols) > num_by:
+        index_cols = index_cols[num_by:]
+
+    sort_ids = (
+        [row_position_id] if is_transform else new_index_order_ids + [row_position_id]
+    )
+    ordered_dataframe = ordered_dataframe.sort(*(OrderingColumn(id) for id in sort_ids))
+
+    return InternalFrame.create(
+        ordered_dataframe=ordered_dataframe,
+        data_column_pandas_labels=[c[0] for c in data_cols],
+        data_column_pandas_index_names=output_schema.column_index_names,
+        data_column_snowflake_quoted_identifiers=[c[1] for c in data_cols],
+        index_column_pandas_labels=[c[0] for c in index_cols],
+        index_column_snowflake_quoted_identifiers=[c[1] for c in index_cols],
+        data_column_types=None,
+        index_column_types=None,
+    )

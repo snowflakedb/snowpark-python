@@ -89,7 +89,7 @@ engine_kwargs : dict, default None
 
 Returns
 -------
-{klass}
+:class:`~modin.pandas.{klass}`
 
 {examples}"""
 
@@ -207,7 +207,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Object with missing values filled.
 
         See also
@@ -565,9 +565,8 @@ class DataFrameGroupBy:
 
             Snowpark pandas does not support axis=1, since it is deprecated in pandas.
 
-            .. deprecated:: 2.1.0
-                For axis=1, operate on the underlying object instead. Otherwise,
-                the axis keyword is not necessary.
+            Deprecated: For axis=1, operate on the underlying object instead. Otherwise,
+            the axis keyword is not necessary.
 
         skipna : bool, default True
             Exclude NA/null values. If an entire row/column is NA, the result
@@ -658,9 +657,8 @@ class DataFrameGroupBy:
 
             Snowpark pandas does not support axis=1, since it is deprecated in pandas.
 
-            .. deprecated:: 2.1.0
-                For axis=1, operate on the underlying object instead. Otherwise,
-                the axis keyword is not necessary.
+            Deprecated: For axis=1, operate on the underlying object instead. Otherwise,
+            the axis keyword is not necessary.
 
         skipna : bool, default True
             Exclude NA/null values. If an entire row/column is NA, the result
@@ -936,14 +934,13 @@ class DataFrameGroupBy:
         fill_method : {"bfill", "ffill", "pad"}, default "ffill"
             How to handle NAs before computing percent changes.
 
-            .. deprecated:: 2.1.0
-                All options of fill_method are deprecated except fill_method=None.
+            Deprecated: All options of fill_method are deprecated except fill_method=None.
 
         limit : int, optional
             The number of consecutive NAs to fill before stopping.
             Snowpark pandas does not yet support this parameter.
 
-            .. deprecated:: 2.1.0
+            Deprecated parameter.
 
         freq : DateOffset, timedelta, or str, optional
             Increment to use from time series API (e.g. ‘ME’ or BDay()).
@@ -951,7 +948,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Percentage changes within each group.
 
         Notes
@@ -1122,20 +1119,20 @@ class DataFrameGroupBy:
         each group together into a new DataFrame:
 
         >>> g1[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum())
-                    B    C
-        0.0  0.333333  0.4
-        1.0  0.666667  0.6
-        2.0  1.000000  1.0
+                  B    C
+        0  0.333333  0.4
+        1  0.666667  0.6
+        2  1.000000  1.0
 
         In the above, the groups are not part of the index. We can have them included
         by using ``g2`` where ``group_keys=True``:
 
         >>> g2[['B', 'C']].apply(lambda x: x.select_dtypes('number') / x.select_dtypes('number').sum()) # doctest: +NORMALIZE_WHITESPACE
-                      B    C
+                    B    C
         A
-        a 0.0  0.333333  0.4
-          1.0  0.666667  0.6
-        b 2.0  1.000000  1.0
+        a 0  0.333333  0.4
+          1  0.666667  0.6
+        b 2  1.000000  1.0
         """
 
     @property
@@ -1247,7 +1244,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             Object with missing values filled.
 
         See also
@@ -1462,9 +1459,8 @@ class DataFrameGroupBy:
 
             Snowpark pandas does not currently support axis=1, since it is deprecated in pandas.
 
-            .. deprecated:: 2.1.0
-                For axis=1, operate on the underlying object instead. Otherwise,
-                the axis keyword is not necessary.
+            Deprecated:  For axis=1, operate on the underlying object instead. Otherwise,
+            the axis keyword is not necessary.
 
 
         Returns
@@ -1661,7 +1657,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             DataFrame or Series of boolean values, where a value is True if all elements
             are True within its respective group, False otherwise.
 
@@ -1710,7 +1706,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        Series or DataFrame
+        :class:`~modin.pandas.Series` or :class:`~modin.pandas.DataFrame`
             DataFrame or Series of boolean values, where a value is True if any element
             is True within its respective group, False otherwise.
 
@@ -1753,7 +1749,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        DataFrame or Series
+        :class:`~modin.pandas.DataFrame` or :class:`~modin.pandas.Series`
             Number of rows in each group as a Series if as_index is True
             or a DataFrame if as_index is False.
 
@@ -1857,7 +1853,7 @@ class DataFrameGroupBy:
 
         Returns
         -------
-        DataFrame
+        :class:`~modin.pandas.DataFrame`
         """
 
     def resample():
@@ -2466,7 +2462,7 @@ class DataFrameGroupBy:
         pass
 
 
-class SeriesGroupBy:
+class SeriesGroupBy(DataFrameGroupBy):
     def get_group(self):
         pass
 
@@ -2525,7 +2521,7 @@ class SeriesGroupBy:
 
         Returns
         -------
-        DataFrame or Series
+        :class:`~modin.pandas.DataFrame` or :class:`~modin.pandas.Series`
             Number of rows in each group as a Series if as_index is True
             or a DataFrame if as_index is False.
 

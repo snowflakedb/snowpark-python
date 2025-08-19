@@ -1,0 +1,176 @@
+## TEST CASE
+
+from snowflake.snowpark import Row
+
+from snowflake.snowpark.types import IntegerType, StringType, StructField
+
+import pandas as pd
+
+df = session.create_dataframe(pd.DataFrame([(1, 2, 3, 4)], columns=["a", "b", "c", "d"]))
+
+# Snowpark ignores provided schema for pandas Dataframe.
+df2 = session.create_dataframe(pd.DataFrame([(99, 98)], columns=["a", "b"]), schema=["b", "c"])
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.create_dataframe(pandas.DataFrame(<not shown>), schema=StructType(fields=[StructField("\"a\"", LongType(), nullable=True), StructField("\"b\"", LongType(), nullable=True), StructField("\"c\"", LongType(), nullable=True), StructField("\"d\"", LongType(), nullable=True)], structured=False))
+
+df2 = session.create_dataframe(pandas.DataFrame(<not shown>), schema=StructType(fields=[StructField("\"a\"", LongType(), nullable=True), StructField("\"b\"", LongType(), nullable=True)], structured=False))
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__pandas {
+            v {
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"a\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"b\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"c\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"d\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 97
+          end_line: 31
+          file: 2
+          start_column: 13
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__pandas {
+            v {
+            }
+          }
+        }
+        schema {
+          dataframe_schema__struct {
+            v {
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"a\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
+              }
+              fields {
+                column_identifier {
+                  column_name {
+                    name: "\"b\""
+                  }
+                }
+                data_type {
+                  long_type: true
+                }
+                nullable: true
+              }
+            }
+          }
+        }
+        src {
+          end_column: 103
+          end_line: 34
+          file: 2
+          start_column: 14
+          start_line: 34
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 36
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

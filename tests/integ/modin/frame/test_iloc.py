@@ -425,7 +425,7 @@ def test_df_iloc_get_empty_key(
         )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_df_iloc_get_empty(empty_snowpark_pandas_df):
     _ = empty_snowpark_pandas_df.iloc[0]
 
@@ -802,19 +802,11 @@ def test_df_iloc_get_key_bool_series_with_1k_shape(key, native_df_1k_1k):
             else df.iloc[: len(key)].iloc[key[: len(df)]]
         )
 
-    query_count = 6
-    high_count_reason = None
-    if len(key) >= 300:
-        query_count = 11
-        high_count_reason = """
-            6 queries includes 5 queries to prepare the temp table for df, including create, insert, drop the temp table (3)
-            and alter session to set and unset query_tag (2) and one select query.
-            11 queries add extra 5 queries to prepare the temp table for key
-        """
-
-    _test_df_iloc_with_1k_shape(
-        native_df_1k_1k, iloc_helper, query_count, 1, high_count_reason
-    )
+    # 4 queries includes 3 queries to prepare the temp table for df, including create,
+    # insert, drop the temp table (3) and one select query.
+    # 7 queries add extra 3 queries to prepare the temp table for key.
+    query_count = 7 if len(key) >= 300 else 4
+    _test_df_iloc_with_1k_shape(native_df_1k_1k, iloc_helper, query_count, 1)
 
 
 def _test_df_iloc_with_1k_shape(
@@ -1053,17 +1045,11 @@ def test_df_iloc_get_key_int_series_with_1k_shape(key, native_df_1k_1k):
             else df.iloc[[k for k in key if -1001 < k < 1000]]
         )
 
-    high_count_reason = """
-        6 queries includes queries to create, insert, and drop the temp table (3), alter session
-        to set and unset query_tag (2) and one select query.
-        Another 5 query to prepare the temp table for df again due to the fact it is used in another
-        join even though it is in the same query.
-        11 queries add extra 5 queries to prepare the temp table for key
-    """
-    query_count = 6 if len(key) < 300 else 11
-    _test_df_iloc_with_1k_shape(
-        native_df_1k_1k, iloc_helper, query_count, 2, high_count_reason
-    )
+    # 4 queries includes 3 queries to prepare the temp table for df, including create,
+    # insert, drop the temp table (3) and one select query.
+    # 7 queries add extra 3 queries to prepare the temp table for key.
+    query_count = 4 if len(key) < 300 else 7
+    _test_df_iloc_with_1k_shape(native_df_1k_1k, iloc_helper, query_count, 2)
 
 
 ILOC_GET_INT_SCALAR_KEYS = [0, -3, 4, -7, 6, -6, -8, 7, 52879115, -9028751]
@@ -1825,8 +1811,8 @@ def test_df_iloc_set_with_row_key_list(
     else:
         snow_row_pos = row_pos
 
-    # 2 extra queries for iter
-    expected_query_count = 3 if isinstance(snow_row_pos, pd.Index) else 1
+    # 1 extra query for iter
+    expected_query_count = 2 if isinstance(snow_row_pos, pd.Index) else 1
     expected_join_count = 2 if isinstance(item_values, int) else 3
 
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
@@ -3274,7 +3260,7 @@ def test_df_iloc_full_set_row_from_series(columns, index):
         lambda df: df.iloc[1000:100:-1],
     ],
 )
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_df_iloc_efficient_sql(session, ops):
     df = DataFrame({"a": [1] * 10000})
     with session.query_history() as query_listener:
@@ -3295,7 +3281,7 @@ def test_df_iloc_efficient_sql(session, ops):
         lambda df: df.iloc[100],
     ],
 )
-@sql_count_checker(query_count=8, union_count=1)
+@sql_count_checker(query_count=6, union_count=1)
 def test_df_iloc_scalar_efficient_sql(session, ops):
     df = DataFrame({"a": [1] * 10000})
     with session.query_history() as query_listener:

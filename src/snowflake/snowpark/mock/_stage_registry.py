@@ -29,8 +29,16 @@ from snowflake.snowpark.mock._snowflake_data_type import (
     TableEmulator,
 )
 from snowflake.snowpark.mock._snowflake_to_pandas_converter import CONVERT_MAP
+from snowflake.snowpark.mock._util import convert_snowflake_datetime_format
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
-from snowflake.snowpark.types import DecimalType, StringType, VariantType
+from snowflake.snowpark.types import (
+    DecimalType,
+    StringType,
+    VariantType,
+    TimestampType,
+    DateType,
+    TimeType,
+)
 
 if TYPE_CHECKING:
     from snowflake.snowpark.mock._analyzer import MockAnalyzer
@@ -38,6 +46,9 @@ if TYPE_CHECKING:
 
 _logger = getLogger(__name__)
 
+DEFAULT_TIMESTAMP_FORMAT = "YYYY-MM-DD HH24:MI:SS"
+DEFAULT_DATE_FORMAT = "YYYY-MM-DD"
+DEFAULT_TIME_FORMAT = "HH24:MI:SS"
 
 PUT_RESULT_KEYS = [
     "source",
@@ -57,7 +68,6 @@ GET_RESULT_KEYS = [
     "status",
     "message",
 ]
-
 
 # option support map
 # top level:
@@ -80,6 +90,10 @@ SUPPORT_READ_OPTIONS = {
         "COMPRESSION": ("AUTO", "NONE"),
         "PATTERN": None,
         "ENCODING": ("UTF8", "UTF-8"),
+        "NULL_IF": None,
+        "DATE_FORMAT": None,
+        "TIMESTAMP_FORMAT": None,
+        "TIME_FORMAT": None,
     },
     "json": {
         "INFER_SCHEMA": ("TRUE", "FALSE"),
@@ -98,6 +112,9 @@ SUPPORT_READ_OPTIONS = {
 
 
 RAISE_ERROR_ON_UNSUPPORTED_READ_OPTIONS = True
+_INVALID_STAGE_LOCATION_ERR_MSG = (
+    lambda stage_location: f"Invalid stage {stage_location}, stage name should start with character '@' or snow://"
+)
 
 
 def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
@@ -112,7 +129,10 @@ def extract_stage_name_and_prefix(stage_location: str) -> Tuple[str, str]:
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
 
-    normalized = normalized[1:]  # remove the beginning '@'
+    if normalized.startswith("@"):
+        normalized = normalized[1:]  # remove the beginning '@'
+    elif normalized.startswith("snow://"):
+        normalized = "snow:/" + normalized[7:]  # remove one of the two slashes
 
     if normalized.startswith("~/"):
         return "~", normalized[3:]  # skip '/'
@@ -448,6 +468,16 @@ class StageEntity:
             field_optionally_enclosed_by = options.get(
                 "FIELD_OPTIONALLY_ENCLOSED_BY", None
             )
+            null_if = options.get("NULL_IF", None)
+            date_format, _ = convert_snowflake_datetime_format(
+                options.get("DATE_FORMAT", None), DEFAULT_DATE_FORMAT
+            )
+            time_format, _ = convert_snowflake_datetime_format(
+                options.get("TIME_FORMAT", None), DEFAULT_TIME_FORMAT
+            )
+            timestamp_format, _ = convert_snowflake_datetime_format(
+                options.get("TIMESTAMP_FORMAT", None), DEFAULT_TIMESTAMP_FORMAT
+            )
 
             if field_optionally_enclosed_by and len(field_optionally_enclosed_by) >= 2:
                 raise SnowparkLocalTestingException(
@@ -493,16 +523,21 @@ class StageEntity:
                     )
                     continue
                 converter = CONVERT_MAP[type(column_series.sf_type.datatype)]
-                converters_dict[i] = (
-                    partial(
-                        converter,
-                        datatype=column_series.sf_type.datatype,
-                        field_optionally_enclosed_by=field_optionally_enclosed_by,
-                    )
-                    if field_optionally_enclosed_by
-                    else partial(converter, datatype=column_series.sf_type.datatype)
-                )
-
+                kwargs = {
+                    "datatype": column_series.sf_type.datatype,
+                    "null_if": null_if,
+                }
+                if field_optionally_enclosed_by:
+                    kwargs[
+                        "field_optionally_enclosed_by"
+                    ] = field_optionally_enclosed_by
+                if isinstance(column_series.sf_type.datatype, DateType):
+                    kwargs["format"] = date_format
+                if isinstance(column_series.sf_type.datatype, TimeType):
+                    kwargs["format"] = time_format
+                if isinstance(column_series.sf_type.datatype, TimestampType):
+                    kwargs["format"] = timestamp_format
+                converters_dict[i] = partial(converter, **kwargs)
             for local_file in local_files:
                 # pre-read to check columns number
                 df = pd.read_csv(
@@ -707,9 +742,9 @@ class StageEntityRegistry:
         target_directory: str,
         options: Dict[str, str] = None,
     ):
-        if not stage_location.startswith("@"):
+        if not stage_location.startswith(("@", "snow://")):
             raise SnowparkLocalTestingException(
-                f"Invalid stage {stage_location}, stage name should start with character '@'"
+                _INVALID_STAGE_LOCATION_ERR_MSG(stage_location)
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         with self._lock:
@@ -730,9 +765,9 @@ class StageEntityRegistry:
         analyzer: "MockAnalyzer",
         options: Dict[str, str],
     ):
-        if not stage_location.startswith("@"):
+        if not stage_location.startswith(("@", "snow://")):
             raise SnowparkLocalTestingException(
-                f"Invalid stage {stage_location}, stage name should start with character '@'"
+                _INVALID_STAGE_LOCATION_ERR_MSG(stage_location)
             )
         stage_name, stage_prefix = extract_stage_name_and_prefix(stage_location)
         with self._lock:

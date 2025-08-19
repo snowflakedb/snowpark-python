@@ -23,7 +23,8 @@ from snowflake.snowpark.types import (
     StructField,
     StructType,
 )
-from tests.utils import TestFiles, Utils, iceberg_supported
+from unittest.mock import patch
+from tests.utils import TestFiles, Utils, iceberg_supported, is_in_stored_procedure
 
 
 @pytest.fixture(scope="function")
@@ -97,6 +98,36 @@ def test_write_with_target_column_name_order(session, local_testing_mode):
             Utils.check_answer(session.table(special_table_name), [Row(2, 1)])
         finally:
             Utils.drop_table(session, special_table_name)
+
+
+def test_write_reserved_names(session):
+    table_name = Utils.random_table_name()
+    table2_name = Utils.random_table_name()
+
+    schema = StructType([StructField("AS", LongType(), nullable=False)])
+    df = session.create_dataframe(
+        [
+            (1,),
+        ],
+        schema=schema,
+    )
+
+    try:
+        df.write.mode("overwrite").save_as_table(table_name, column_order="name")
+        table = session.table(table_name)
+
+        assert table.schema == schema
+
+        df.write.mode("append").save_as_table(table_name, column_order="name")
+
+        assert table.count() == 2
+
+        table.write.mode("append").save_as_table(table2_name, column_order="name")
+        table2 = session.table(table2_name)
+        assert table2.schema == schema
+    finally:
+        Utils.drop_table(session, table_name)
+        Utils.drop_table(session, table2_name)
 
 
 def test_snow_1668862_repro_save_null_data(session):
@@ -175,8 +206,15 @@ def test_write_with_target_table_autoincrement(
 
 
 def test_iceberg(session, local_testing_mode):
-    if not iceberg_supported(session, local_testing_mode):
+    if not iceberg_supported(session, local_testing_mode) or is_in_stored_procedure():
         pytest.skip("Test requires iceberg support.")
+
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
+    ).collect()
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
+    ).collect()
 
     table_name = Utils.random_table_name()
     df = session.create_dataframe(
@@ -194,6 +232,7 @@ def test_iceberg(session, local_testing_mode):
             "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
             "catalog": "SNOWFLAKE",
             "base_location": "snowpark_python_tests",
+            "iceberg_version": 3,
         },
     )
     try:
@@ -654,6 +693,40 @@ def test_write_table_names(session, db_parameters):
         # drop schema
         Utils.drop_schema(session, schema)
         Utils.drop_schema(session, double_quoted_schema)
+
+
+def test_skip_table_exists_check(session, local_testing_mode):
+    table_name = Utils.random_table_name()
+    df = session.create_dataframe([1, 2, 3], schema=["A"])
+
+    try:
+        with patch.object(
+            session, "_table_exists", wraps=session._table_exists
+        ) as table_exists:
+            # Truncate before table exists
+            df.write.save_as_table(table_name, mode="truncate", table_exists=False)
+            assert not table_exists.called
+            # Append to existing table
+            df.write.save_as_table(table_name, mode="append", table_exists=True)
+            assert not table_exists.called
+            Utils.drop_table(session, table_name)
+
+            if not local_testing_mode:
+                # Try appending to non-existent table
+                with pytest.raises(
+                    SnowparkSQLException, match="does not exist or not authorized"
+                ):
+                    df.write.save_as_table(table_name, mode="append", table_exists=True)
+
+                # Try truncating to non-existent table
+                with pytest.raises(
+                    SnowparkSQLException, match="does not exist or not authorized"
+                ):
+                    df.write.save_as_table(
+                        table_name, mode="truncate", table_exists=True
+                    )
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 @pytest.mark.skipif(

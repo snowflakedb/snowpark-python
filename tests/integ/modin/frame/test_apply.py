@@ -3,6 +3,7 @@
 #
 
 import datetime
+import re
 
 import modin.pandas as pd
 import numpy as np
@@ -31,7 +32,7 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import RUNNING_ON_GH
+from tests.utils import RUNNING_ON_GH, running_on_public_ci
 
 # TODO SNOW-891796: replace native_pd with pd after allowing using snowpandas module/function in UDF
 
@@ -154,7 +155,7 @@ def test_frame_with_timedelta_index():
         *create_test_dfs(
             native_pd.DataFrame([0], index=[native_pd.Timedelta(1)]),
         ),
-        lambda df: df.apply(lambda row: row, axis=1)
+        lambda df: df.apply(lambda row: row, axis=1),
     )
 
 
@@ -608,6 +609,8 @@ def test_apply_bug_1650918(data, apply_func):
 
 
 TRANSFORM_TEST_MAP = [
+    # The methods with a query count of 16 cannot take advantage UDTF caching because applies on axis 0
+    # will construct a new UDTF for each column in the frame.
     [[[0, 1, 2], [1, 2, 3]], lambda x: x + 1, 16],
     [[[0, 1, 2], [1, 2, 3]], np.exp, 1],
     [[[0, 1, 2], [1, 2, 3]], "exp", None],
@@ -637,7 +640,7 @@ def test_basic_dataframe_transform(data, apply_func, expected_query_count):
         snow_df = pd.DataFrame(data)
         with SqlCounter(
             query_count=expected_query_count,
-            high_count_expected=True,
+            high_count_expected=expected_query_count > 8,
             high_count_reason=msg,
         ):
             eval_snowpark_pandas_result(
@@ -737,6 +740,8 @@ def test_bug_SNOW_1172448():
 
     df.to_snowflake(temp_table_name, index_label="index")
     df = pd.read_snowflake(temp_table_name)
+    # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
+    df = df.sort_values(df.columns.to_list())
 
     median_income = 187524.29
     std_income = 110086.85
@@ -746,7 +751,7 @@ def test_bug_SNOW_1172448():
         income = row["AMT_INCOME_TOTAL"]
         return (income - median_income) / std_income
 
-    with SqlCounter(query_count=6, join_count=3, udtf_count=1):
+    with SqlCounter(query_count=6, join_count=5, udtf_count=1):
         df["pct_income"] = df.apply(foo, axis=1)
         # trigger computation here.
         ans = len(df[df["pct_income"] > 0.5]) / len(df)
@@ -764,7 +769,7 @@ def test_bug_SNOW_1172448():
     ],
 )
 @sql_count_checker(
-    query_count=13,
+    query_count=11,
     udtf_count=1,
     join_count=3,
     high_count_expected=True,
@@ -871,7 +876,7 @@ def test_numpy_integers_in_return_values_snow_1227264(return_value):
 def test_apply_axis_1_frame_with_column_of_all_nulls_snow_1233832(null_value):
     eval_snowpark_pandas_result(
         *create_test_dfs({"null_col": [null_value], "int_col": [1]}),
-        lambda df: df.apply(lambda row: "a", axis=1)
+        lambda df: df.apply(lambda row: "a", axis=1),
     )
 
 
@@ -883,7 +888,7 @@ import scipy.stats  # noqa: E402
     "packages,expected_query_count",
     [
         (["scipy", "numpy"], 7),
-        (["scipy>1.1", "numpy<2.0"], 7),
+        # TODO: SNOW-2217451 Re-enable scipy>1.1, numpy<2.0 test case after NumPy 2.x compatibility issue is resolved
         # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
         # [scipy, np], 9),
     ],
@@ -922,7 +927,7 @@ def test_apply_axis1_with_3rd_party_libraries_and_decorator(
     "packages,expected_query_count",
     [
         (["scipy", "numpy"], 7),
-        (["scipy>1.1", "numpy<2.0"], 7),
+        # TODO: SNOW-2217451 Re-enable scipy>1.1, numpy<2.0 test case after NumPy 2.x compatibility issue is resolved
         ([scipy, np], 9),
     ],
 )
@@ -982,3 +987,271 @@ def test_apply_numpy_universal_functions(func):
     )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func))
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDF/UDTF test")
+def test_udfs_and_udtfs_with_snowpark_object_error_msg():
+    expected_error_msg = re.escape(
+        "Snowpark pandas only allows native pandas and not Snowpark objects in `apply()`. "
+        + "Instead, try calling `to_pandas()` on any DataFrame or Series objects passed to `apply()`. See Limitations"
+        + "(https://docs.snowflake.com/developer-guide/snowpark/python/pandas-on-snowflake#limitations) section of"
+        + "the Snowpark pandas documentation for more details."
+    )
+    snow_df = pd.DataFrame([7, 8, 9])
+    with SqlCounter(
+        query_count=14,
+        high_count_expected=True,
+        high_count_reason="Series.apply has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # Series.apply
+            snow_df[0].apply(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(query_count=0):
+        with pytest.raises(
+            ValueError, match=expected_error_msg
+        ):  # DataFrame.apply axis=0
+            snow_df.apply(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(query_count=0):
+        with pytest.raises(
+            ValueError, match=expected_error_msg
+        ):  # DataFrame.apply axis=1
+            snow_df.apply(lambda row: snow_df.iloc[0, 0], axis=1)
+    with SqlCounter(query_count=0):
+        with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.transform
+            snow_df.transform(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(
+        query_count=14,
+        high_count_expected=True,
+        high_count_reason="DataFrame.map has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # DataFrame.map
+            snow_df.map(lambda row: snow_df.iloc[0, 0])
+    with SqlCounter(
+        query_count=14,
+        high_count_expected=True,
+        high_count_reason="Series.map has high query count",
+    ):
+        with pytest.raises(ValueError, match=expected_error_msg):  # Series.map
+            snow_df[0].map(lambda row: snow_df.iloc[0, 0])
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDTF caching test")
+def test_apply_udtf_caching():
+    # Reusing the same function reference in multiple frames should hit the local UDF cache
+    # instead of creating a new UDF on each call.
+    # The cache should not be hit when the function is called on columns with different datatypes,
+    # or if the function is called with different parameters.
+    test_data = {
+        "int_col": [1, 2, 3],
+        "int_col_2": [4, 5, 6],
+        "str_col": ["a", "b", "c"],
+    }
+    snow_df, native_df = create_test_dfs(test_data)
+
+    def f(s, default_arg=2):
+        return s * default_arg
+
+    axis_0_no_cache_kwargs = {
+        "query_count": 16,
+        "udtf_count": 3,
+        "high_count_expected": True,
+        "high_count_reason": "UDTF creation on multiple columns",
+    }
+    # axis=0 application
+    with SqlCounter(**axis_0_no_cache_kwargs):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f),
+        )
+    # second application should trigger cache hit, even with explicit axis argument or via transform call
+    # unclear why SQL counter still parses UDTF creations here despite having lower query counts
+    with SqlCounter(query_count=7, udtf_count=3):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.transform(f),
+        )
+    with SqlCounter(query_count=7, udtf_count=3):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=0),
+        )
+    # application with a different argument value should trigger a new UDTF creation
+    with SqlCounter(**axis_0_no_cache_kwargs):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, default_arg=3),
+        )
+    # application on a new dataframe with the same schema should hit the cache
+    with SqlCounter(query_count=7, udtf_count=3):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data),
+            lambda df: df.transform(f),
+        )
+    # calling on axis=1 creates a new UDTF
+    with SqlCounter(query_count=5, udtf_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=1),
+        )
+    # a second call with axis=1 does hit the cache (not sure why SQL counter registers a udtf creation)
+    with SqlCounter(query_count=2, udtf_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=1),
+        )
+    # calling on axis=1 with different argument value does not hit the cache
+    with SqlCounter(query_count=5, udtf_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=1, default_arg=3),
+        )
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDTF caching test")
+def test_apply_udtf_multiindex_columns_caching():
+    native_df = native_pd.DataFrame(
+        [[1, 2], [None, 3]],
+        columns=pd.MultiIndex.from_tuples([(1, 2), (1, 1)]),
+        index=["A", "b"],
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    def f(s, default_arg=2):
+        return s * default_arg
+
+    with SqlCounter(
+        query_count=11,
+        udtf_count=2,
+        high_count_expected=True,
+        high_count_reason="UDTF creation on multiple columns",
+    ):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=0),
+        )
+    # A second call hits the cache.
+    with SqlCounter(query_count=5, udtf_count=2):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=0),
+        )
+    # The same rules apply with a different axis argument.
+    with SqlCounter(query_count=5, udtf_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=1),
+        )
+    # A second call still does not hit the cache.
+    with SqlCounter(query_count=2, udtf_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=1),
+        )
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDTF caching test")
+def test_apply_udtf_multiindex_index_caching():
+    native_df = native_pd.DataFrame(
+        [[1, 2], [None, 3]],
+        columns=["A", "b"],
+        index=pd.MultiIndex.from_tuples([(1, 2), (1, 1)]),
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    def f(s, default_arg=2):
+        return s * default_arg
+
+    with SqlCounter(
+        query_count=11,
+        udtf_count=2,
+        high_count_expected=True,
+        high_count_reason="UDTF creation on multiple columns",
+    ):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=0),
+        )
+    # A second call hits the cache.
+    with SqlCounter(query_count=5, udtf_count=2):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=0),
+        )
+    # The same rules apply with a different axis argument.
+    with SqlCounter(query_count=5, udtf_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=1),
+        )
+    # A second call hits the cache.
+    with SqlCounter(query_count=2, udtf_count=1):
+        eval_snowpark_pandas_result(
+            snow_df,
+            native_df,
+            lambda df: df.apply(f, axis=1),
+        )
+
+
+@pytest.mark.skipif(running_on_public_ci(), reason="exhaustive UDTF caching test")
+def test_apply_udtf_caching_mutated_arg():
+    # Passing an internally-mutable object to an apply call should not hit the cache if the object was mutated.
+    class A:
+        def __init__(self) -> None:
+            self.x = [1]
+
+    test_data = {"a": [1, 2, 3]}  # 1 column to avoid issuing too many queries
+
+    arg = A()
+
+    def operation(col, arg):
+        return col + sum(arg.x)
+
+    with SqlCounter(query_count=6, udtf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.apply(operation, arg=arg)
+        )
+
+    # Mutate arg.x, preventing a cache entry from being created
+    arg.x.append(10)
+    with SqlCounter(query_count=6, udtf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.apply(operation, arg=arg)
+        )
+
+    # Mutate arg.x again, but this time mutate it between the map operation and materialization
+    with SqlCounter(
+        query_count=11,
+        udtf_count=2,
+        high_count_expected=True,
+        high_count_reason="multiple apply calls in sequence",
+    ):
+        arg.x.append(100)
+        snow_df, native_df = create_test_dfs(test_data)
+        mapped_snow = snow_df.apply(operation, arg=arg)
+        mapped_native = native_df.apply(operation, arg=arg)
+        arg.x.append(1000)
+        eval_snowpark_pandas_result(
+            mapped_snow, mapped_native, lambda df: df.apply(operation, arg=arg)
+        )
+
+    # A different instance of A with the same underlying data does not hit the cache, since our method of UDTF
+    # pickling creates different binary blobs.
+    arg2 = A()
+    arg2.x.append(10)
+    with SqlCounter(query_count=3, udtf_count=1):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(test_data), lambda df: df.apply(operation, arg=arg2)
+        )

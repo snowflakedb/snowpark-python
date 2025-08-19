@@ -5,7 +5,7 @@
 
 import sys
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Expression
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
@@ -25,6 +25,7 @@ else:
 
 if TYPE_CHECKING:
     from snowflake.snowpark import Session
+    from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 
 class LogicalPlan:
@@ -287,13 +288,18 @@ class SnowflakeCreateTable(LogicalPlan):
 
 class Limit(LogicalPlan):
     def __init__(
-        self, limit_expr: Expression, offset_expr: Expression, child: LogicalPlan
+        self,
+        limit_expr: Expression,
+        offset_expr: Expression,
+        child: LogicalPlan,
+        is_limit_append: bool = False,
     ) -> None:
         super().__init__()
         self.limit_expr = limit_expr
         self.offset_expr = offset_expr
         self.child = child
         self.children.append(child)
+        self.is_limit_append = is_limit_append
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -303,6 +309,55 @@ class Limit(LogicalPlan):
             self.limit_expr.cumulative_node_complexity,
             self.offset_expr.cumulative_node_complexity,
         )
+
+
+class ReadFileNode(LeafNode):
+    def __init__(
+        self,
+        path: str,
+        format: str,
+        options: Dict[str, str],
+        schema: List[Attribute],
+        schema_to_cast: Optional[List[Tuple[str, str]]] = None,
+        transformations: Optional[List[str]] = None,
+        metadata_project: Optional[List[str]] = None,
+        metadata_schema: Optional[List[Attribute]] = None,
+        use_user_schema: bool = False,
+        xml_reader_udtf: Optional["UserDefinedTableFunction"] = None,
+    ) -> None:
+        super().__init__()
+        self.path = path
+        self.format = format
+        self.options = options
+        self.schema = schema
+        self.schema_to_cast = schema_to_cast
+        self.transformations = transformations
+        self.metadata_project = metadata_project
+        self.metadata_schema = metadata_schema
+        self.use_user_schema = use_user_schema
+        self.xml_reader_udtf = xml_reader_udtf
+
+    @classmethod
+    def from_read_file_node(cls, read_file_node: "ReadFileNode"):
+        return cls(
+            read_file_node.path,
+            read_file_node.format,
+            read_file_node.options,
+            read_file_node.schema,
+            read_file_node.schema_to_cast,
+            read_file_node.transformations,
+            read_file_node.metadata_project,
+            read_file_node.metadata_schema,
+            read_file_node.use_user_schema,
+        )
+
+
+class SelectFromFileNode(ReadFileNode):
+    pass
+
+
+class SelectWithCopyIntoTableNode(ReadFileNode):
+    pass
 
 
 class CopyIntoTableNode(LeafNode):

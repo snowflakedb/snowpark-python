@@ -43,13 +43,13 @@ def test_qcut_non_series(x, q):
     [
         (5, 1, 2),
         (100, 1, 2),
-        (1000, 1, 12),
-        (5, 10, 3),
-        (100, 10, 3),
-        (1000, 10, 18),
-        (5, 47, 3),
-        (100, 47, 3),
-        (1000, 47, 18),
+        (1000, 1, 8),
+        (5, 10, 2),
+        (100, 10, 2),
+        (1000, 10, 8),
+        (5, 47, 2),
+        (100, 47, 2),
+        (1000, 47, 8),
         # TODO: SNOW-1229442
         # qcut was significantly optimized with SNOW-1368640 and SNOW-1370365, but still
         # cannot compute 10k q values in a reasonable amount of time.
@@ -80,7 +80,7 @@ def test_qcut_series_non_range_data(data, q):
     native_ans = native_pd.qcut(native_pd.Series(data), q, labels=False)
 
     # Large n can not inline everything into a single query and will instead create a temp table.
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=2):
         ans = pd.qcut(pd.Series(data), q, labels=False)
 
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
@@ -137,7 +137,7 @@ def test_qcut_series_single_element_negative(q, s):
         re_match = "Bin edges must be unique: .*"
         with pytest.raises(ValueError, match=re_match):
             native_pd.qcut(s, q, labels=False)
-        with SqlCounter(query_count=2):
+        with SqlCounter(query_count=1):
             with pytest.raises(ValueError, match=re_match):
                 pd.qcut(pd.Series(s), q, labels=False)
     else:
@@ -160,12 +160,11 @@ def test_qcut_series_single_element_negative(q, s):
     ],
 )
 @pytest.mark.parametrize("s", [native_pd.Series([0]), native_pd.Series([1])])
+@sql_count_checker(query_count=2)
 def test_qcut_series_single_element(q, s):
     native_ans = native_pd.qcut(s, q, duplicates="drop", labels=False)
-
-    with SqlCounter(query_count=2 if q == 1 else 3):
-        ans = pd.qcut(pd.Series(s), q, duplicates="drop", labels=False)
-        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
+    ans = pd.qcut(pd.Series(s), q, duplicates="drop", labels=False)
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(ans, native_ans)
 
 
 @pytest.mark.xfail(reason="TODO: SNOW-1225562 support retbins")

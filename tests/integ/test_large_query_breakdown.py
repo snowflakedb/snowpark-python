@@ -5,7 +5,6 @@
 
 import logging
 import os
-import re
 import tempfile
 from unittest.mock import patch
 
@@ -219,8 +218,7 @@ def test_breakdown_at_with_query_node(session):
     queries = final_df.queries
     assert len(queries["queries"]) == 2
     assert queries["queries"][0].startswith("CREATE  SCOPED TEMPORARY  TABLE")
-    # SNOW-1734385: Remove it when the issue is fixed
-    assert "WITH SNOWPARK_TEMP_CTE_" in queries["queries"][0]
+    assert "WITH SNOWPARK_TEMP_CTE_" not in queries["queries"][0]
     assert len(queries["post_actions"]) == 1
 
 
@@ -329,7 +327,8 @@ def test_update_delete_merge(session, large_query_df):
     # There is one SELECT CURRENT_TRANSACTION() query and one save_as_table query since large
     # query breakdown is not triggered.
     # There are two describe queries triggered, one from save_as_table, one from session.table
-    with SqlCounter(query_count=2, describe_count=2):
+    expected_describe_count = 1 if session.reduce_describe_query_enabled else 2
+    with SqlCounter(query_count=2, describe_count=expected_describe_count):
         df = session.create_dataframe([[1, 2], [3, 4]], schema=["A", "B"])
         df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
         t = session.table(table_name)
@@ -337,7 +336,7 @@ def test_update_delete_merge(session, large_query_df):
     # update
     with session.query_history() as history:
         # 3 describe call triggered due to column state extraction
-        with SqlCounter(query_count=4, describe_count=3):
+        with SqlCounter(query_count=4, describe_count=2):
             t.update({"B": 0}, t.a == large_query_df.a, large_query_df)
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
@@ -522,7 +521,7 @@ def test_multiple_query_plan(session):
         final_df = union_df.with_column("A", col("A") + lit(1))
 
         with SqlCounter(
-            query_count=15,
+            query_count=11,
             describe_count=0,
             high_count_expected=True,
             high_count_reason="low array bind threshold",
@@ -773,12 +772,13 @@ def test_large_query_breakdown_with_nested_cte(session):
         queries = final_df.queries
         assert len(queries["queries"]) == 2
         assert len(queries["post_actions"]) == 1
-        match = re.search(r"SNOWPARK_TEMP_CTE_[\w]+", queries["queries"][0])
-        assert match is not None
-        cte_name_for_first_partition = match.group()
+
+        # assert that the first query contains the base temp table name
+        assert temp_table in queries["queries"][0]
+
         # assert that query for upper cte node is re-written and does not
-        # contain the cte name for the first partition
-        assert cte_name_for_first_partition not in queries["queries"][1]
+        # contain query for the base temp table
+        assert temp_table not in queries["queries"][1]
 
     check_result_with_and_without_breakdown(session, final_df)
 

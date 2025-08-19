@@ -3,13 +3,18 @@
 #
 
 from typing import List
-
+import copy
 import pytest
+
+import snowflake.snowpark._internal.analyzer.snowflake_plan as snowflake_plan
+
+from unittest.mock import patch
 
 from snowflake.snowpark import DataFrame
 from snowflake.snowpark._internal.analyzer.expression import Attribute, Star
 from snowflake.snowpark._internal.analyzer.unary_expression import UnresolvedAlias
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Project
+from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
@@ -29,6 +34,7 @@ from snowflake.snowpark.session import (
     _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED,
     Session,
 )
+from snowflake.snowpark.types import LongType, StructField, StructType
 from tests.integ.utils.sql_counter import SqlCounter
 from tests.utils import IS_IN_STORED_PROC, TestData
 
@@ -55,7 +61,11 @@ def setup(request, session):
     session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
         temp_table_name, table_type="temp", mode="overwrite"
     )
-    yield
+    # Bypass cache
+    with patch.object(
+        snowflake_plan, "cached_analyze_attributes", wraps=analyze_attributes
+    ):
+        yield
     session.reduce_describe_query_enabled = is_reduce_describe_query_enabled
     session.eliminate_numeric_sql_value_cast_enabled = (
         is_eliminate_numeric_sql_value_cast_enabled
@@ -211,6 +221,7 @@ join_df_ops_expected_quoted_identifiers = [
 
 
 def check_attributes_equality(attrs1: List[Attribute], attrs2: List[Attribute]) -> None:
+    assert len(attrs1) == len(attrs2)
     for attr1, attr2 in zip(attrs1, attrs2):
         assert attr1.name == attr2.name
         assert attr1.datatype == attr2.datatype
@@ -240,7 +251,7 @@ def has_star_in_projection(df: DataFrame) -> bool:
 )
 def test_metadata_no_change(session, action, create_df_func):
     df = create_df_func(session)
-    with SqlCounter(query_count=0, describe_count=1):
+    with SqlCounter(query_count=0, describe_count=1, strict=False):
         attributes = df._plan.attributes
         quoted_identifiers = df._plan.quoted_identifiers
 
@@ -285,16 +296,19 @@ def test_select_quoted_identifiers(
     ):
         df = action(df)
 
+    identifiers = df._plan._metadata.quoted_identifiers or [
+        attr.name for attr in df._plan._metadata.attributes or []
+    ]
+
     # if we select a "*", it can't be inferred when sql simplifier is disabled
     # because no describe query is issued before to get quoted identifiers
     if session.reduce_describe_query_enabled and not has_star_in_projection(df):
-        assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
+        assert identifiers == expected_quoted_identifiers
         expected_describe_query_count = 0
     else:
         assert df._plan._metadata.quoted_identifiers is None
         expected_describe_query_count = 1
 
-    assert df._plan._metadata.attributes is None
     with SqlCounter(query_count=0, describe_count=expected_describe_query_count):
         quoted_identifiers = df._plan.quoted_identifiers
         assert quoted_identifiers == expected_quoted_identifiers
@@ -302,15 +316,18 @@ def test_select_quoted_identifiers(
 
 def test_snowflake_values(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
-    expected_quoted_identifiers = ['"A"', '"B"']
+    expected_identifiers = ['"A"', '"B"']
     if session.reduce_describe_query_enabled:
         with SqlCounter(query_count=0, describe_count=0):
-            assert df._plan._metadata.quoted_identifiers == expected_quoted_identifiers
-            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+            identifiers = df._plan._metadata.quoted_identifiers or [
+                attr.name for attr in df._plan._metadata.attributes or []
+            ]
+            assert identifiers == expected_identifiers
+            assert df._plan.quoted_identifiers == identifiers
     else:
         with SqlCounter(query_count=0, describe_count=1):
             assert df._plan._metadata.quoted_identifiers is None
-            assert df._plan.quoted_identifiers == expected_quoted_identifiers
+            assert df._plan.quoted_identifiers == expected_identifiers
 
 
 @pytest.mark.parametrize(
@@ -391,6 +408,19 @@ def test_cache_metadata_on_select_statement_from(
         df.select("*")
 
 
+def test_cache_metadata_on_selectable_entity(session):
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).cache_result()
+    with SqlCounter(query_count=0, describe_count=1):
+        _ = df.schema
+    with SqlCounter(
+        query_count=0,
+        describe_count=0
+        if session.reduce_describe_query_enabled or not session.sql_simplifier_enabled
+        else 1,
+    ):
+        _ = df.col("a")
+
+
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Can't create a session in SP")
 def test_reduce_describe_query_enabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
@@ -400,9 +430,66 @@ def test_reduce_describe_query_enabled_on_session(db_parameters):
         new_session.reduce_describe_query_enabled = default_value
         assert new_session.reduce_describe_query_enabled is default_value
 
-        parameters = db_parameters.copy()
+        parameters = copy.deepcopy(db_parameters)
         parameters["session_parameters"] = {
             _PYTHON_SNOWPARK_REDUCE_DESCRIBE_QUERY_ENABLED: not default_value
         }
         with Session.builder.configs(parameters).create() as new_session2:
             assert new_session2.reduce_describe_query_enabled is not default_value
+
+
+def test_update_schema_query_when_attributes_available(session):
+    schema = StructType(
+        [StructField("A", LongType(), False), StructField("B", LongType(), True)]
+    )
+    df = session.create_dataframe(data=[(1, 2), (3, 4)], schema=schema)
+    df = df.withColumn("c", df.a + df.b)
+    df = df.withColumn("d", df.a + df.b + df.c)
+    should_simplify = (
+        session.reduce_describe_query_enabled or not session.sql_simplifier_enabled
+    )
+
+    original_schema_query = df._plan.schema_query
+    simplified_schema_query1 = ' SELECT 0 :: BIGINT AS "A", NULL :: BIGINT AS "B", NULL :: BIGINT AS "C", NULL :: BIGINT AS "D"'
+    simplified_schema_query2 = ' SELECT 0 :: BIGINT AS "A", NULL :: BIGINT AS "B", NULL :: BIGINT AS "C", NULL :: BIGINT AS "D", NULL :: BIGINT AS "E"'
+
+    assert df._plan._metadata.attributes is None
+    df.columns  # trigger describe query
+
+    check_attributes_equality(
+        df._plan._metadata.attributes,
+        [
+            Attribute('"A"', LongType(), False),
+            Attribute('"B"', LongType(), True),
+            Attribute('"C"', LongType(), True),
+            Attribute('"D"', LongType(), True),
+        ],
+    )
+    if should_simplify:
+        assert df._plan.schema_query == simplified_schema_query1
+    else:
+        assert df._plan.schema_query == original_schema_query
+
+    # Check that dataframe built on top of the previous one with
+    # attributes updated will build a simplified schema query
+    df = df.withColumn("e", df.a + df.b + df.c + df.d)
+
+    assert df._plan._metadata.attributes is None
+    if should_simplify:
+        assert simplified_schema_query1 in df._plan.schema_query
+    else:
+        assert original_schema_query in df._plan.schema_query
+
+    df.columns  # trigger describe query
+    check_attributes_equality(
+        df._plan._metadata.attributes,
+        [
+            Attribute('"A"', LongType(), False),
+            Attribute('"B"', LongType(), True),
+            Attribute('"C"', LongType(), True),
+            Attribute('"D"', LongType(), True),
+            Attribute('"E"', LongType(), True),
+        ],
+    )
+    if should_simplify:
+        assert df._plan.schema_query == simplified_schema_query2

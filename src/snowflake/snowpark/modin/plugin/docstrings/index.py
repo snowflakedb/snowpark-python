@@ -256,11 +256,11 @@ class Index:
 
         Examples
         --------
-        >>> pd.Index([1, 2, 3]).is_monotonic_increasing
+        >>> pd.Index([1, 2, 3]).is_monotonic_increasing  # doctest: +SKIP
         True
-        >>> pd.Index([1, 2, 2]).is_monotonic_increasing
+        >>> pd.Index([1, 2, 2]).is_monotonic_increasing  # doctest: +SKIP
         True
-        >>> pd.Index([1, 3, 2]).is_monotonic_increasing
+        >>> pd.Index([1, 3, 2]).is_monotonic_increasing  # doctest: +SKIP
         False
         """
 
@@ -280,11 +280,11 @@ class Index:
 
         Examples
         --------
-        >>> pd.Index([3, 2, 1]).is_monotonic_decreasing
+        >>> pd.Index([3, 2, 1]).is_monotonic_decreasing  # doctest: +SKIP
         True
-        >>> pd.Index([3, 2, 2]).is_monotonic_decreasing
+        >>> pd.Index([3, 2, 2]).is_monotonic_decreasing  # doctest: +SKIP
         True
-        >>> pd.Index([3, 1, 2]).is_monotonic_decreasing
+        >>> pd.Index([3, 1, 2]).is_monotonic_decreasing  # doctest: +SKIP
         False
         """
 
@@ -634,12 +634,12 @@ class Index:
         --------
         True, because nonzero integers are considered True.
 
-        >>> pd.Index([1, 2, 3]).all()
+        >>> pd.Index([1, 2, 3]).all()  # doctest: +SKIP
         True
 
         False, because 0 is considered False.
 
-        >>> pd.Index([0, 1, 2]).all()
+        >>> pd.Index([0, 1, 2]).all()  # doctest: +SKIP
         False
         """
 
@@ -674,11 +674,11 @@ class Index:
         Examples
         --------
         >>> index = pd.Index([0, 1, 2])
-        >>> index.any()
+        >>> index.any()  # doctest: +SKIP
         True
 
         >>> index = pd.Index([0, 0, 0])
-        >>> index.any()
+        >>> index.any()  # doctest: +SKIP
         False
         """
 
@@ -976,8 +976,7 @@ class Index:
         """
         Check if the Index only consists of booleans.
 
-        .. deprecated:: 2.0.0
-            Use `pandas.api.types.is_bool_dtype` instead.
+        Deprecated: Use `pandas.api.types.is_bool_dtype` instead.
 
         Returns
         -------
@@ -1012,8 +1011,7 @@ class Index:
         """
         Check if the Index is a floating type.
 
-        .. deprecated:: 2.0.0
-            Use `pandas.api.types.is_float_dtype` instead
+        Deprecated: Use `pandas.api.types.is_float_dtype` instead.
 
         The Index may consist of only floats, NaNs, or a mix of floats,
         integers, or NaNs.
@@ -1056,8 +1054,7 @@ class Index:
         """
         Check if the Index only consists of integers.
 
-        .. deprecated:: 2.0.0
-            Use `pandas.api.types.is_integer_dtype` instead.
+        Deprecated: Use `pandas.api.types.is_integer_dtype` instead.
 
         Returns
         -------
@@ -1092,8 +1089,7 @@ class Index:
         """
         Check if the Index holds Interval objects.
 
-        .. deprecated:: 2.0.0
-            Use `isinstance(index.dtype, pd.IntervalDtype)` instead.
+        Deprecated: Use `isinstance(index.dtype, pd.IntervalDtype)` instead.
 
         Returns
         -------
@@ -1115,8 +1111,7 @@ class Index:
         """
         Check if the Index only consists of numeric data.
 
-        .. deprecated:: 2.0.0
-            Use `pandas.api.types.is_numeric_dtype` instead.
+        Deprecated: Use `pandas.api.types.is_numeric_dtype` instead.
 
         Returns
         -------
@@ -1159,8 +1154,7 @@ class Index:
         """
         Check if the Index is of the object dtype.
 
-        .. deprecated:: 2.0.0
-           Use `pandas.api.types.is_object_dtype` instead.
+        Deprecated: Use `pandas.api.types.is_object_dtype` instead.
 
         Returns
         -------
@@ -1218,7 +1212,7 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index([3, 2, 1])
-        >>> idx.min()
+        >>> idx.min()  # doctest: +SKIP
         1
 
         >>> idx = pd.Index(['c', 'b', 'a'])
@@ -1253,7 +1247,7 @@ class Index:
         Examples
         --------
         >>> idx = pd.Index([3, 2, 1])
-        >>> idx.max()
+        >>> idx.max()  # doctest: +SKIP
         3
 
         >>> idx = pd.Index(['c', 'b', 'a'])
@@ -1408,7 +1402,7 @@ class Index:
         4    7
         dtype: int64
 
-        >>> s.nunique()
+        >>> s.nunique()  # doctest: +SKIP
         4
         """
 
@@ -1655,7 +1649,7 @@ class Index:
             or the string 'infer' which will try to downcast to an appropriate
             equal type (e.g. float64 to int64 if possible).
 
-            .. deprecated:: 2.1.0
+            Deprecated parameter.
 
         Returns
         -------

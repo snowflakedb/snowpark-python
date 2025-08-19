@@ -3,6 +3,7 @@
 #
 
 import gc
+import copy
 import hashlib
 import logging
 import os
@@ -20,7 +21,11 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanState,
 )
 from snowflake.snowpark._internal.compiler.cte_utils import find_duplicate_subtrees
-from snowflake.snowpark.session import Session
+from snowflake.snowpark.session import (
+    _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION,
+    _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES,
+    Session,
+)
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -63,7 +68,7 @@ def threadsafe_session(
     if IS_IN_STORED_PROC:
         yield session
     else:
-        new_db_parameters = db_parameters.copy()
+        new_db_parameters = copy.deepcopy(db_parameters)
         new_db_parameters["local_testing"] = local_testing_mode
         with Session.builder.configs(new_db_parameters).create() as session:
             session._sql_simplifier_enabled = sql_simplifier_enabled
@@ -660,11 +665,12 @@ def test_concurrent_update_on_sensitive_configs(
         session_.conf.set(config, value)
 
     caplog.clear()
-    change_config_value(threadsafe_session)
-    assert (
-        f"You might have more than one threads sharing the Session object trying to update {config}"
-        not in caplog.text
-    )
+    if threading.active_count() == 1:
+        change_config_value(threadsafe_session)
+        assert (
+            f"You might have more than one threads sharing the Session object trying to update {config}"
+            not in caplog.text
+        )
 
     with caplog.at_level(logging.WARNING):
         with ThreadPoolExecutor(max_workers=5) as executor:
@@ -784,44 +790,67 @@ def test_large_query_breakdown_with_cte(threadsafe_session):
     reason="local testing does not execute sql queries",
     run=False,
 )
-def test_temp_name_placeholder_for_sync(threadsafe_session):
-    from snowflake.snowpark._internal.analyzer import analyzer
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="cannot create new session in SP")
+@pytest.mark.parametrize("thread_safe_enabled", [True, False])
+def test_temp_name_placeholder_for_sync(db_parameters, thread_safe_enabled):
+    new_db_params = copy.deepcopy(db_parameters)
+    new_db_params["session_parameters"] = {
+        _PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION: thread_safe_enabled,
+        _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES: True,
+    }
+    with Session.builder.configs(new_db_params).create() as session:
+        from snowflake.snowpark._internal.analyzer import analyzer
 
-    original_value = analyzer.ARRAY_BIND_THRESHOLD
+        original_value = analyzer.ARRAY_BIND_THRESHOLD
 
-    def process_data(df_, thread_id):
-        df_cleaned = df_.filter(df.A == thread_id)
-        return df_cleaned.collect()
+        def process_data(df_, thread_id):
+            df_cleaned = df_.filter(df.A == thread_id)
+            try:
+                df_cleaned.collect()
+            except Exception as e:
+                if thread_safe_enabled:
+                    raise e
+                # when thread_safe is disable, this will throw an error
+                # because the temp table is already dropped by another thread
+                pass
 
-    try:
-        analyzer.ARRAY_BIND_THRESHOLD = 4
-        df = threadsafe_session.create_dataframe([[1, 2], [3, 4]], ["A", "B"])
+        try:
+            analyzer.ARRAY_BIND_THRESHOLD = 4
+            df = session.create_dataframe([[1, 2], [3, 4]], ["A", "B"])
 
-        with threadsafe_session.query_history() as history:
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                for i in range(10):
-                    executor.submit(process_data, df, i)
+            with session.query_history() as history:
+                with ThreadPoolExecutor(
+                    max_workers=(5 if thread_safe_enabled else 1)
+                ) as executor:
+                    futures = []
+                    for i in range(10):
+                        futures.append(executor.submit(process_data, df, i))
+                    for future in as_completed(futures):
+                        future.result()
 
-        queries_sent = [query.sql_text for query in history.queries]
-        unique_create_table_queries = set()
-        unique_drop_table_queries = set()
-        for query in queries_sent:
-            assert "temp_name_placeholder" not in query
-            if query.startswith("CREATE  OR  REPLACE"):
-                match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
-                assert match is not None, query
-                table_name = match.group()
-                unique_create_table_queries.add(table_name)
-            elif query.startswith("DROP  TABLE"):
-                match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
-                assert match is not None, query
-                table_name = match.group()
-                unique_drop_table_queries.add(table_name)
-        assert len(unique_create_table_queries) == 10, queries_sent
-        assert len(unique_drop_table_queries) == 10, queries_sent
+            queries_sent = [query.sql_text for query in history.queries]
+            unique_create_table_queries = set()
+            unique_drop_table_queries = set()
+            for query in queries_sent:
+                assert "temp_name_placeholder" not in query
+                if query.startswith("CREATE  OR  REPLACE"):
+                    match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
+                    assert match is not None, query
+                    table_name = match.group()
+                    unique_create_table_queries.add(table_name)
+                elif query.startswith("DROP  TABLE"):
+                    match = re.search(r"SNOWPARK_TEMP_TABLE_[\w]+", query)
+                    assert match is not None, query
+                    table_name = match.group()
+                    unique_drop_table_queries.add(table_name)
+            expected_num_queries = 10 if thread_safe_enabled else 1
+            assert (
+                len(unique_create_table_queries) == expected_num_queries
+            ), queries_sent
+            assert len(unique_drop_table_queries) == expected_num_queries, queries_sent
 
-    finally:
-        analyzer.ARRAY_BIND_THRESHOLD = original_value
+        finally:
+            analyzer.ARRAY_BIND_THRESHOLD = original_value
 
 
 @pytest.mark.xfail(
@@ -857,9 +886,13 @@ def test_temp_name_placeholder_for_async(
     ).csv(f"{stage_with_prefix}/{filename}")
 
     with threadsafe_session.query_history() as history:
+        futures = []
         with ThreadPoolExecutor(max_workers=5) as executor:
             for i in range(10):
-                executor.submit(process_data, df, i)
+                futures.append(executor.submit(process_data, df, i))
+
+            for future in as_completed(futures):
+                future.result()
 
     queries_sent = [query.sql_text for query in history.queries]
 
@@ -953,3 +986,58 @@ def test_critical_lazy_evaluation_for_plan(
     # called only once and the cached result should be used for the rest of
     # the calls.
     mock_find_duplicate_subtrees.assert_called_once()
+
+
+def create_and_join(_session):
+    df1 = _session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df2 = _session.create_dataframe([[1, 7], [3, 8]], schema=["a", "b"])
+    df3 = df1.join(df2)
+    expected = [Row(1, 2, 1, 7), Row(1, 2, 3, 8), Row(3, 4, 1, 7), Row(3, 4, 3, 8)]
+    Utils.check_answer(df3, expected)
+    return [df1, df2, df3]
+
+
+def join_again(df1, df2, df3):
+    df3 = df1.join(df2).select(df1.a)
+    expected = [Row(1, 2, 1, 7), Row(1, 2, 3, 8), Row(3, 4, 1, 7), Row(3, 4, 3, 8)]
+    Utils.check_answer(df3, expected)
+
+
+def create_aliased_df(_session):
+    df1 = _session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    df2 = df1.join(df1.filter(col("a") == 1)).select(df1.a.alias("a1"))
+    Utils.check_answer(df2, [Row(A1=1), Row(A1=3)])
+    return [df2]
+
+
+def select_aliased_col(df2):
+    df2 = df2.select(df2.a1)
+    Utils.check_answer(df2, [Row(A1=1), Row(A1=3)])
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1373887: Support basic diamond shaped joins in Local Testing",
+    run=False,
+)
+@pytest.mark.parametrize(
+    "f1,f2", [(create_and_join, join_again), (create_aliased_df, select_aliased_col)]
+)
+def test_SNOW_1878372(threadsafe_session, f1, f2):
+    class ReturnableThread(threading.Thread):
+        def __init__(self, target, *args, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            self._target = target
+            self.result = None
+
+        def run(self):
+            if self._target is not None:
+                self.result = self._target(*self._args, **self._kwargs)
+
+    t1 = ReturnableThread(target=f1, args=(threadsafe_session,))
+    t1.start()
+    t1.join()
+
+    t2 = ReturnableThread(target=f2, args=tuple(t1.result))
+    t2.start()
+    t2.join()

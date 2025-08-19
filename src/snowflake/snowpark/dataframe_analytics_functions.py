@@ -10,21 +10,15 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_snowpark_column_or_col_name,
     with_src_position,
 )
-from snowflake.snowpark._internal.utils import experimental, publicapi
+from snowflake.snowpark._internal.utils import experimental, publicapi, warning
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
-    add_months,
-    builtin,
+    _call_function,
     col,
-    dateadd,
-    from_unixtime,
+    function,
     lag,
     lead,
-    lit,
-    months_between,
-    to_timestamp,
-    unix_timestamp,
-    year,
+    make_interval,
 )
 from snowflake.snowpark.types import IntegerType, StructField, StructType
 from snowflake.snowpark.window import Window
@@ -187,46 +181,6 @@ class DataFrameAnalyticsFunctions:
 
         return duration, unit
 
-    def _get_sliding_interval_start(
-        self, time_col: Column, unit: str, duration: int
-    ) -> Column:
-        unit_seconds = {
-            "s": 1,  # seconds
-            "m": 60,  # minutes
-            "h": 3600,  # hours
-            "d": 86400,  # days
-            "w": 604800,  # weeks
-        }
-
-        if unit == "mm":
-            base_date = lit("1970-01-01").cast("date")
-            months_since_base = months_between(time_col, base_date)
-            current_window_start_month = (months_since_base / duration).cast(
-                "long"
-            ) * duration
-            return to_timestamp(add_months(base_date, current_window_start_month))
-
-        elif unit == "y":
-            base_date = lit("1970-01-01").cast("date")
-            years_since_base = year(time_col) - year(base_date)
-            current_window_start_year = (years_since_base / duration).cast(
-                "long"
-            ) * duration
-            return to_timestamp(add_months(base_date, current_window_start_year * 12))
-
-        elif unit in unit_seconds:
-            # Handle seconds, minutes, hours, days, weeks
-            interval_seconds = unit_seconds[unit] * duration
-            return from_unixtime(
-                (unix_timestamp(time_col) / interval_seconds).cast("long")
-                * interval_seconds
-            )
-
-        else:
-            raise ValueError(
-                "Invalid unit. Supported units are 'S', 'M', 'H', 'D', 'W', 'MM', 'Y'."
-            )
-
     def _perform_window_aggregations(
         self,
         base_df: "snowflake.snowpark.dataframe.DataFrame",
@@ -262,9 +216,9 @@ class DataFrameAnalyticsFunctions:
                     if col_formatter
                     else f"{column}_{func}{rename_suffix}"
                 )
-                agg_expression = builtin(func)(col(column + rename_suffix)).alias(
-                    agg_column_name
-                )
+                agg_expression = _call_function(
+                    func, col(column + rename_suffix, _emit_ast=False), _emit_ast=False
+                ).alias(agg_column_name, _emit_ast=False)
                 agg_df = input_df.group_by(group_by_cols, _emit_ast=False).agg(
                     agg_expression, _emit_ast=False
                 )
@@ -345,8 +299,8 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_analytics_moving_agg, stmt)
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_analytics_moving_agg, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
                 agg_func_tuple_ast = proto.Tuple_String_List_String()
@@ -369,7 +323,9 @@ class DataFrameAnalyticsFunctions:
                     )
 
                     # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
-                    agg_col = builtin(agg_func)(col(column)).over(window_spec)
+                    agg_col = _call_function(
+                        agg_func, col(column, _emit_ast=False), _emit_ast=False
+                    ).over(window_spec, _emit_ast=False)
 
                     formatted_col_name = col_formatter(column, agg_func, window_size)
                     if (
@@ -384,7 +340,7 @@ class DataFrameAnalyticsFunctions:
                     )
 
         if _emit_ast:
-            agg_df._ast_id = stmt.var_id.bitfield1
+            agg_df._ast_id = stmt.uid
 
         return agg_df
 
@@ -456,10 +412,8 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(
-                stmt.expr.sp_dataframe_analytics_cumulative_agg, stmt
-            )
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_analytics_cumulative_agg, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for col_name, agg_funcs in aggs.items():
                 agg_func_tuple_ast = proto.Tuple_String_List_String()
@@ -481,7 +435,9 @@ class DataFrameAnalyticsFunctions:
         for column, agg_funcs in aggs.items():
             for agg_func in agg_funcs:
                 # Apply the user-specified aggregation function directly. Snowflake will handle any errors for invalid functions.
-                agg_col = builtin(agg_func)(col(column)).over(window_spec)
+                agg_col = _call_function(
+                    agg_func, col(column, _emit_ast=False), _emit_ast=False
+                ).over(window_spec, _emit_ast=False)
 
                 formatted_col_name = col_formatter(column, agg_func)
 
@@ -496,7 +452,7 @@ class DataFrameAnalyticsFunctions:
                 )
 
         if _emit_ast:
-            agg_df._ast_id = stmt.var_id.bitfield1
+            agg_df._ast_id = stmt.uid
 
         return agg_df
 
@@ -556,8 +512,8 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lag, stmt)
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_analytics_compute_lag, stmt)
             for c in cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
             ast.lags.extend(lags)
@@ -583,7 +539,7 @@ class DataFrameAnalyticsFunctions:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
         return df
 
     @publicapi
@@ -642,8 +598,8 @@ class DataFrameAnalyticsFunctions:
         stmt = None
         ast = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_dataframe_analytics_compute_lead, stmt)
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_analytics_compute_lead, stmt)
             self._dataframe._set_ast_ref(ast.df)
             for c in cols:
                 build_expr_from_snowpark_column_or_col_name(ast.cols.add(), c)
@@ -669,7 +625,7 @@ class DataFrameAnalyticsFunctions:
         )
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -681,7 +637,7 @@ class DataFrameAnalyticsFunctions:
         aggs: Dict[str, List[str]],
         windows: List[str],
         group_by: List[str],
-        sliding_interval: str,
+        sliding_interval: str = "",
         col_formatter: Callable[[str, str, int], str] = _default_col_formatter,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.dataframe.DataFrame":
@@ -694,7 +650,7 @@ class DataFrameAnalyticsFunctions:
             windows: Time windows for aggregations using strings such as '7D' for 7 days, where the units are
                 S: Seconds, M: Minutes, H: Hours, D: Days, W: Weeks, MM: Months, Y: Years. For future-oriented analysis, use positive numbers,
                 and for past-oriented analysis, use negative numbers.
-            sliding_interval: Interval at which the window slides, specified in the same format as the windows.
+            sliding_interval: (Deprecated) Interval at which the window slides, specified in the same format as the windows.
             group_by: A list of column names on which the DataFrame is partitioned for separate window calculations.
             col_formatter: An optional function for formatting output column names, defaulting to the format '<input_col>_<agg>_<window>'.
                         This function takes three arguments: 'input_col' (str) for the column name, 'operation' (str) for the applied operation,
@@ -730,14 +686,14 @@ class DataFrameAnalyticsFunctions:
             ...     col_formatter=custom_formatter,
             ... )
             >>> res.show()
-            --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-            |"PRODUCTKEY"  |"ORDERDATE"          |"SALESAMOUNT"  |"SLIDING_POINT"      |"SUM_SALESAMOUNT_1D"  |"MAX_SALESAMOUNT_1D"  |"SUM_SALESAMOUNT_-1D"  |"MAX_SALESAMOUNT_-1D"  |
-            --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-            |101           |2023-01-01 00:00:00  |200            |2023-01-01 00:00:00  |300                   |200                   |200                    |200                    |
-            |101           |2023-01-02 00:00:00  |100            |2023-01-02 00:00:00  |400                   |300                   |300                    |200                    |
-            |101           |2023-01-03 00:00:00  |300            |2023-01-03 00:00:00  |300                   |300                   |400                    |300                    |
-            |102           |2023-01-04 00:00:00  |250            |2023-01-04 00:00:00  |250                   |250                   |250                    |250                    |
-            --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+            ----------------------------------------------------------------------------------------------------------------------------------------------------
+            |"PRODUCTKEY"  |"SALESAMOUNT"  |"ORDERDATE"          |"SUM_SALESAMOUNT_1D"  |"MAX_SALESAMOUNT_1D"  |"SUM_SALESAMOUNT_-1D"  |"MAX_SALESAMOUNT_-1D"  |
+            ----------------------------------------------------------------------------------------------------------------------------------------------------
+            |102           |250            |2023-01-04 00:00:00  |250                   |250                   |250                    |250                    |
+            |101           |200            |2023-01-01 00:00:00  |300                   |200                   |200                    |200                    |
+            |101           |100            |2023-01-02 00:00:00  |400                   |300                   |300                    |200                    |
+            |101           |300            |2023-01-03 00:00:00  |300                   |300                   |400                    |300                    |
+            ----------------------------------------------------------------------------------------------------------------------------------------------------
             <BLANKLINE>
         """
         self._validate_aggs_argument(aggs)
@@ -747,19 +703,20 @@ class DataFrameAnalyticsFunctions:
         if not windows:
             raise ValueError("windows must not be empty")
 
-        if not sliding_interval:
-            raise ValueError("sliding_interval must not be empty")
-
         if not time_col or not isinstance(time_col, str):
             raise ValueError("time_col must be a string")
+
+        if sliding_interval:
+            warning(
+                "time_series_agg.sliding_interval",
+                "sliding_interval is deprecated since 1.31.0. Do not use in production.",
+            )
 
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(
-                stmt.expr.sp_dataframe_analytics_time_series_agg, stmt
-            )
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_analytics_time_series_agg, stmt)
             ast.time_col = time_col
             for col_name, agg_funcs in aggs.items():
                 agg_func_tuple_ast = proto.Tuple_String_List_String()
@@ -796,80 +753,50 @@ class DataFrameAnalyticsFunctions:
                 _emit_ast=False,
             )
             if _emit_ast:
-                ans._ast_id = stmt.var_id.bitfield1
+                ans._ast_id = stmt.uid
             return ans
 
-        slide_duration, slide_unit = self._validate_and_extract_time_unit(
-            sliding_interval, "sliding_interval", allow_negative=False
-        )
-        sliding_point_col = "sliding_point"
-
-        agg_df = self._dataframe
-        agg_df = agg_df.with_column(
-            sliding_point_col,
-            self._get_sliding_interval_start(time_col, slide_unit, slide_duration),
-            _emit_ast=False,
-        )
-
-        # Perform aggregations at sliding interval granularity.
-        group_by_cols = group_by + [sliding_point_col]
-        sliding_windows_df = self._perform_window_aggregations(
-            agg_df, agg_df, aggs, group_by_cols
-        )
-
-        # Perform aggregations at window intervals.
-        result_df = agg_df
+        agg_columns = []
+        agg_column_names = []
         for window in windows:
             window_duration, window_unit = self._validate_and_extract_time_unit(
                 window, "window"
             )
-            # Perform self-join on DataFrame for aggregation within each group and time window.
-            left_df = sliding_windows_df.alias("A", _emit_ast=False)
-            right_df = sliding_windows_df.alias("B", _emit_ast=False)
+            window_sign = 1 if window_duration > 0 else -1
+            window_duration_abs = abs(window_duration)
 
-            for column in right_df.columns:
-                if column not in group_by:
-                    right_df = right_df.with_column_renamed(
-                        column, f"{column}B", _emit_ast=False
+            interval_args = {window_unit: window_duration_abs}
+            interval = make_interval(
+                seconds=interval_args.get("s"),
+                minutes=interval_args.get("m"),
+                hours=interval_args.get("h"),
+                days=interval_args.get("d"),
+                weeks=interval_args.get("w"),
+                months=interval_args.get("mm"),
+                years=interval_args.get("y"),
+            )
+
+            if window_sign > 0:
+                range_start, range_end = Window.CURRENT_ROW, interval
+            else:
+                range_start, range_end = -interval, Window.CURRENT_ROW
+
+            window_spec = (
+                Window.partition_by(group_by)
+                .order_by(time_col)
+                .range_between(start=range_start, end=range_end)
+            )
+
+            for column, aggregations in aggs.items():
+                for agg_func in aggregations:
+                    agg_columns.append(
+                        function(agg_func)(col(column)).over(window_spec)
                     )
+                    agg_column_names.append(col_formatter(column, agg_func, window))
 
-            self_joined_df = left_df.join(
-                right_df, on=group_by, how="leftouter", _emit_ast=False
-            )
-
-            window_frame = dateadd(
-                window_unit, lit(window_duration), f"{sliding_point_col}"
-            )
-
-            if window_duration > 0:  # Future window
-                window_start = col(f"{sliding_point_col}")
-                window_end = window_frame
-            else:  # Past window
-                window_start = window_frame
-                window_end = col(f"{sliding_point_col}")
-
-            # Filter rows to include only those within the specified time window for aggregation.
-            self_joined_df = self_joined_df.filter(
-                col(f"{sliding_point_col}B", _emit_ast=False) >= window_start,
-                _emit_ast=False,
-            ).filter(
-                col(f"{sliding_point_col}B", _emit_ast=False) <= window_end,
-                _emit_ast=False,
-            )
-
-            # Peform final aggregations.
-            group_by_cols = group_by + [time_col]
-            result_df = self._perform_window_aggregations(
-                result_df,
-                self_joined_df,
-                aggs,
-                group_by_cols,
-                col_formatter,
-                window,
-                rename_suffix="B",
-            )
+        result_df = self._dataframe.with_columns(agg_column_names, agg_columns)
 
         if _emit_ast:
-            result_df._ast_id = stmt.var_id.bitfield1
+            result_df._ast_id = stmt.uid
 
         return result_df

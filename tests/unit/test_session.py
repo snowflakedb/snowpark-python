@@ -71,6 +71,7 @@ def test_get_active_session_when_no_active_sessions():
 def test_used_scoped_temp_object():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
+    fake_connection._thread_safe_session_enabled = True
 
     fake_connection._get_client_side_session_parameter = (
         lambda x, y: ServerConnection._get_client_side_session_parameter(
@@ -115,6 +116,7 @@ def test_used_scoped_temp_object():
 def test_close_exception():
     fake_connection = mock.create_autospec(ServerConnection)
     fake_connection._conn = mock.Mock()
+    fake_connection._thread_safe_session_enabled = True
     fake_connection._telemetry_client = mock.Mock()
     fake_connection.is_closed = MagicMock(return_value=False)
     exception_msg = "Mock exception for session.cancel_all"
@@ -188,7 +190,7 @@ def test_resolve_package_current_database(has_current_database):
     def mock_get_current_parameter(param: str, quoted: bool = True) -> Optional[str]:
         return "db" if has_current_database else None
 
-    def mock_get_information_schema_packages(table_name: str):
+    def mock_get_information_schema_packages(table_name: str, _emit_ast: bool = True):
         if has_current_database:
             assert table_name == "information_schema.packages"
         else:
@@ -201,6 +203,7 @@ def test_resolve_package_current_database(has_current_database):
         return result
 
     fake_connection = mock.create_autospec(ServerConnection)
+    fake_connection._thread_safe_session_enabled = True
     fake_connection._conn = mock.Mock()
     fake_connection._get_current_parameter = mock_get_current_parameter
     session = Session(fake_connection)
@@ -215,7 +218,7 @@ def test_resolve_package_current_database(has_current_database):
 def test_resolve_package_terms_not_accepted(mock_server_connection):
     session = Session(mock_server_connection)
 
-    def get_information_schema_packages(table_name: str):
+    def get_information_schema_packages(table_name: str, _emit_ast: bool = True):
         if table_name == "information_schema.packages":
             result = MagicMock()
             result.filter().group_by().agg()._internal_collect_with_tag.return_value = (
@@ -246,7 +249,7 @@ def test_resolve_package_terms_not_accepted(mock_server_connection):
 def test_resolve_packages_side_effect(mock_server_connection):
     """Python stored procedure depends on this behavior to add packages to the session."""
 
-    def mock_get_information_schema_packages(table_name: str):
+    def mock_get_information_schema_packages(table_name: str, _emit_ast: bool = True):
         result = MagicMock()
         result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
             ("random_package_name", json.dumps(["1.0.0"]))
@@ -434,6 +437,7 @@ def test_parse_table_name():
 
 def test_session_id():
     fake_server_connection = mock.create_autospec(ServerConnection)
+    fake_server_connection._thread_safe_session_enabled = True
     fake_server_connection.get_session_id = mock.Mock(return_value=123456)
     session = Session(fake_server_connection)
 

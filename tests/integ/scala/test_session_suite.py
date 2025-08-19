@@ -294,10 +294,16 @@ def test_create_temp_table_no_commit(
         session.sql(f"insert into {test_table} values (1), (2)").collect()
         session.sql("begin").collect()
         assert Utils.is_active_transaction(session)
-        session.table(test_table).cache_result()
+        # the following create temp table and insert data
+        # we skip txn internally by parameter SNOWPARK_SKIP_TXN_COMMIT_IN_DDL
+        df = session.table(test_table).cache_result()
+        assert df.collect() == [Row(1), Row(2)]
         assert Utils.is_active_transaction(session)
         session.sql("commit").collect()
         assert not Utils.is_active_transaction(session)
     finally:
+        # in SNOW-1798793, it is mentioned that drop table arrived before the explicit commit will cause the transaction to be committed
+        # let's make sure the transaction is committed before dropping the table
+        assert not Utils.is_active_transaction(session)
         Utils.drop_table(session, test_table)
         session.close()

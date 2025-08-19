@@ -3,9 +3,13 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+import inspect
 
+from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+import snowflake.snowpark.context as context
 from snowflake.connector.options import pandas
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark import functions
 from snowflake.snowpark._internal.analyzer.expression import (
     Expression,
@@ -29,11 +33,10 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_expr_from_snowpark_column_or_col_name,
     build_proto_from_callable,
-    build_proto_from_pivot_values,
     build_proto_from_struct_type,
+    debug_check_missing_ast,
     with_src_position,
 )
-from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import (
@@ -43,6 +46,7 @@ from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list_variadic,
     prepare_pivot_arguments,
     publicapi,
+    generate_random_alphanumeric,
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame
@@ -71,7 +75,9 @@ def _expr_to_func(expr: str, input_expr: Expression, _emit_ast: bool) -> Express
     elif lowered in ["count", "size"]:
         return functions.count(create_column(input_expr))._expression
     else:
-        return functions.function(expr, _emit_ast=_emit_ast)(input_expr)._expression
+        return functions._call_function(
+            expr, input_expr, _emit_ast=_emit_ast
+        )._expression
 
 
 def _str_to_expr(expr: str, _emit_ast: bool) -> Callable:
@@ -130,12 +136,14 @@ class GroupingSets:
     ) -> None:
         self._ast = None
         if _emit_ast:
-            self._ast = with_src_position(proto.SpGroupingSets())
-            set_list, self._ast.sets.variadic = parse_positional_args_to_list_variadic(
-                *sets
-            )
+            self._ast = proto.Expr()
+            grouping_sets_ast = with_src_position(self._ast.grouping_sets)
+            (
+                set_list,
+                grouping_sets_ast.sets.variadic,
+            ) = parse_positional_args_to_list_variadic(*sets)
             for s in set_list:
-                build_expr_from_python_val(self._ast.sets.args.add(), s)
+                build_expr_from_python_val(grouping_sets_ast.sets.args.add(), s)
 
         prepared_sets = parse_positional_args_to_list(*sets)
         prepared_sets = (
@@ -159,34 +167,38 @@ class RelationalGroupedDataFrame:
         df: DataFrame,
         grouping_exprs: List[Expression],
         group_type: _GroupType,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
     ) -> None:
         self._dataframe = df
         self._grouping_exprs = grouping_exprs
         self._group_type = group_type
         self._df_api_call = None
-        self._ast_id = _ast_stmt.var_id.bitfield1 if _ast_stmt is not None else None
+        self._ast_id = _ast_stmt.uid if _ast_stmt is not None else None
 
     def _to_df(
         self,
         agg_exprs: List[Expression],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = False,
+        **kwargs,
     ) -> DataFrame:
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
         aliased_agg = []
-        for grouping_expr in self._grouping_exprs:
-            if isinstance(grouping_expr, GroupingSetsExpression):
-                # avoid doing list(set(grouping_expr.args)) because it will change the order
-                gr_used = set()
-                gr_uniq = [
-                    a
-                    for arg in grouping_expr.args
-                    for a in arg
-                    if a not in gr_used and (gr_used.add(a) or True)
-                ]
-                aliased_agg.extend(gr_uniq)
-            else:
-                aliased_agg.append(grouping_expr)
+
+        if not exclude_grouping_columns:
+            for grouping_expr in self._grouping_exprs:
+                if isinstance(grouping_expr, GroupingSetsExpression):
+                    # avoid doing list(set(grouping_expr.args)) because it will change the order
+                    gr_used = set()
+                    gr_uniq = [
+                        a
+                        for arg in grouping_expr.args
+                        for a in arg
+                        if a not in gr_used and (gr_used.add(a) or True)
+                    ]
+                    aliased_agg.extend(gr_uniq)
+                else:
+                    aliased_agg.append(grouping_expr)
 
         aliased_agg.extend(agg_exprs)
 
@@ -220,7 +232,7 @@ class RelationalGroupedDataFrame:
                 self._dataframe._select_statement or self._dataframe._plan,
             )
         elif isinstance(self._group_type, _PivotType):
-            if len(agg_exprs) != 1:
+            if len(agg_exprs) != 1 and len(unaliased_grouping) == 0:
                 raise SnowparkClientExceptionMessages.DF_PIVOT_ONLY_SUPPORT_ONE_AGG_EXPR()
             group_plan = Pivot(
                 unaliased_grouping,
@@ -253,8 +265,9 @@ class RelationalGroupedDataFrame:
     def agg(
         self,
         *exprs: Union[Column, Tuple[ColumnOrName, str], Dict[str, str]],
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> DataFrame:
         """Returns a :class:`DataFrame` with computed aggregates. See examples in :meth:`DataFrame.group_by`.
 
@@ -275,6 +288,7 @@ class RelationalGroupedDataFrame:
             - :meth:`DataFrame.agg`
             - :meth:`DataFrame.group_by`
         """
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
 
         exprs, is_variadic = parse_positional_args_to_list_variadic(*exprs)
 
@@ -288,9 +302,9 @@ class RelationalGroupedDataFrame:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._dataframe._session._ast_batch.assign()
+                stmt = self._dataframe._session._ast_batch.bind()
                 ast = with_src_position(
-                    stmt.expr.sp_relational_grouped_dataframe_agg, stmt
+                    stmt.expr.relational_grouped_dataframe_agg, stmt
                 )
                 self._set_ast_ref(ast.grouped_df)
                 ast.exprs.variadic = is_variadic
@@ -315,12 +329,20 @@ class RelationalGroupedDataFrame:
                     )
                     agg_exprs.append(_str_to_expr(e[1], _emit_ast)(col_expr))
 
-        df = self._to_df(agg_exprs, _emit_ast=False)
+        df = self._to_df(
+            agg_exprs,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=False,
+        )
+        # if no grouping exprs, there is already a LIMIT 1 in the query
+        # see aggregate_statement in analyzer_utils.py
+        df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
         return df
 
+    @relational_group_df_api_usage
     @publicapi
     def apply_in_pandas(
         self,
@@ -403,8 +425,80 @@ class RelationalGroupedDataFrame:
             - :func:`~snowflake.snowpark.functions.pandas_udtf`
         """
 
+        partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
+
+        # this is the case where this is being called from spark
+        # this is not handling nested column access, it is assuming that the access in the function is not nested
+        original_columns: List[str] | None = None
+        key_columns: List[str] = []
+
+        working_dataframe = self._dataframe
+        working_columns: List[Union[str, Column]] = self._dataframe.columns
+        working_columns_count = len(working_columns)
+        parameters_count = None
+
+        if context._is_snowpark_connect_compatible_mode:
+            if self._dataframe._column_map is not None:
+                original_columns = [
+                    column.spark_name for column in self._dataframe._column_map.columns
+                ]
+
+            parameters_count = len(inspect.signature(func).parameters)
+
+            # the strategy here is to create a new dataframe with all the columns including
+            # the non-NamedExpression columns which have no name, and perform the apply_in_pandas on the new dataframe
+            for col in partition_by:
+                column_name = col.get_name()
+                unquoted_name = unquote_if_quoted(column_name) if column_name else None
+                if not column_name:
+                    # expression is not a NamedExpression, so it has no name
+                    # example: df.group_by("id", ceil(df.v / 2))
+                    aliased_name = (
+                        f"sas_col_alias_{generate_random_alphanumeric(5)}".upper()
+                    )
+                    working_columns.append(col.alias(aliased_name))
+                    key_columns.append(aliased_name)
+                elif isinstance(col._expression, (Alias, UnresolvedAlias)):
+                    # expression is an Alias or UnresolvedAlias, which inherits from NamedExpression
+                    # however, underlying it could be aliasing non-NamedExpression
+                    # example: df.group_by("id", ceil(df.v / 2).alias('newcol'))
+                    # thus we always add the working column to the new dataframe
+                    working_columns.append(col)
+                    key_columns.append(unquoted_name)
+                else:
+                    key_columns.append(unquoted_name)
+
+            partition_by = (
+                key_columns  # override the partition_by with the new key columns
+            )
+            working_dataframe = self._dataframe.select(
+                *working_columns
+            )  # select to evaluate the expressions
+            working_columns_count = len(working_columns)
+
+        # This class is defined as a local class, which is pickled and executed remotely.
+        # As a result, pytest-cov is unable to track its code coverage.
         class _ApplyInPandas:
-            def end_partition(self, pdf: pandas.DataFrame) -> pandas.DataFrame:
+            def end_partition(
+                self, pdf: pandas.DataFrame
+            ) -> pandas.DataFrame:  # pragma: no cover
+                # -- start of spark mode code
+                if parameters_count == 2:
+                    import numpy as np
+
+                    key_list = [pdf[key].iloc[0] for key in key_columns]
+                    numpy_array = np.array(key_list)
+                    keys = tuple(numpy_array)
+                if original_columns is not None:
+                    # drop the extra aliased columns that were appended to the working dataframe
+                    # this won't affect non-spark logic as original_columns is only set in spark mode
+                    to_drop_columns = working_columns_count - len(original_columns)
+                    if to_drop_columns > 0:
+                        pdf = pdf.drop(pdf.columns[-to_drop_columns:], axis=1)
+                    pdf.columns = original_columns
+                if parameters_count == 2:
+                    return func(keys, pdf)
+                # -- end of spark mode code
                 return func(pdf)
 
         # for vectorized UDTF
@@ -413,45 +507,45 @@ class RelationalGroupedDataFrame:
         # The assumption here is that we send all columns of the dataframe in the apply_in_pandas
         # function so the inferred input types are the types of each column in the dataframe.
         kwargs["input_types"] = kwargs.get(
-            "input_types", [field.datatype for field in self._dataframe.schema.fields]
+            "input_types", [field.datatype for field in working_dataframe.schema.fields]
         )
 
         kwargs["input_names"] = kwargs.get(
-            "input_names", [field.name for field in self._dataframe.schema.fields]
+            "input_names", [field.name for field in working_dataframe.schema.fields]
         )
 
-        _apply_in_pandas_udtf = self._dataframe._session.udtf.register(
+        _apply_in_pandas_udtf = working_dataframe._session.udtf.register(
             _ApplyInPandas,
             output_schema=output_schema,
             _emit_ast=_emit_ast,
             **kwargs,
         )
-        partition_by = [Column(expr, _emit_ast=False) for expr in self._grouping_exprs]
 
-        df = self._dataframe.select(
-            _apply_in_pandas_udtf(*self._dataframe.columns).over(
+        df = working_dataframe.select(
+            _apply_in_pandas_udtf(*working_dataframe.columns).over(
                 partition_by=partition_by, _emit_ast=False
             ),
             _emit_ast=False,
         )
+        # if no grouping exprs, there is already a LIMIT 1 in the query
+        # see aggregate_statement in analyzer_utils.py
+        df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
 
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = working_dataframe._session._ast_batch.bind()
             ast = with_src_position(
-                stmt.expr.sp_relational_grouped_dataframe_apply_in_pandas, stmt
+                stmt.expr.relational_grouped_dataframe_apply_in_pandas, stmt
             )
-            ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
+            self._set_ast_ref(ast.grouped_df)
             build_proto_from_callable(
-                ast.func, func, self._dataframe._session._ast_batch
+                ast.func, func, working_dataframe._session._ast_batch
             )
             build_proto_from_struct_type(output_schema, ast.output_schema)
             for k, v in kwargs.items():
                 entry = ast.kwargs.add()
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -554,137 +648,208 @@ class RelationalGroupedDataFrame:
 
         # special case: This is an internal state modifying operation.
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
-            ast = with_src_position(
-                stmt.expr.sp_relational_grouped_dataframe_pivot, stmt
-            )
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.relational_grouped_dataframe_pivot, stmt)
             if default_on_null is not None:
                 build_expr_from_python_val(ast.default_on_null, default_on_null)
             build_expr_from_snowpark_column_or_col_name(ast.pivot_col, pivot_col)
-            build_proto_from_pivot_values(ast.values, values)
-            ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
+            build_expr_from_python_val(ast.values, values)
+            self._set_ast_ref(ast.grouped_df)
 
             # Update self's id.
-            self._ast_id = stmt.var_id.bitfield1
+            self._ast_id = stmt.uid
 
         return self
 
     @relational_group_df_api_usage
     @publicapi
-    def avg(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
-        """Return the average for the specified numeric columns."""
-        return self._non_empty_argument_function("avg", *cols, _emit_ast=_emit_ast)
+    def avg(self, *cols: ColumnOrName, _emit_ast: bool = True, **kwargs) -> DataFrame:
+        """Return the average for the specified numeric columns.
+
+        Args:
+            cols: The columns to calculate average for.
+        """
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
+        return self._non_empty_argument_function(
+            "avg",
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     mean = avg
 
     @relational_group_df_api_usage
     @publicapi
-    def sum(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
-        """Return the sum for the specified numeric columns."""
-        return self._non_empty_argument_function("sum", *cols, _emit_ast=_emit_ast)
+    def sum(self, *cols: ColumnOrName, _emit_ast: bool = True, **kwargs) -> DataFrame:
+        """Return the sum for the specified numeric columns.
+
+        Args:
+            cols: The columns to calculate sum for.
+        """
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
+        return self._non_empty_argument_function(
+            "sum",
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     @relational_group_df_api_usage
     @publicapi
-    def median(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
-        """Return the median for the specified numeric columns."""
-        return self._non_empty_argument_function("median", *cols, _emit_ast=_emit_ast)
+    def median(
+        self, *cols: ColumnOrName, _emit_ast: bool = True, **kwargs
+    ) -> DataFrame:
+        """Return the median for the specified numeric columns.
+
+        Args:
+            cols: The columns to calculate median for.
+        """
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
+        return self._non_empty_argument_function(
+            "median",
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     @relational_group_df_api_usage
     @publicapi
-    def min(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
-        """Return the min for the specified numeric columns."""
-        return self._non_empty_argument_function("min", *cols, _emit_ast=_emit_ast)
+    def min(self, *cols: ColumnOrName, _emit_ast: bool = True, **kwargs) -> DataFrame:
+        """Return the min for the specified numeric columns.
+
+        Args:
+            cols: The columns to calculate min for.
+        """
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
+        return self._non_empty_argument_function(
+            "min",
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     @relational_group_df_api_usage
     @publicapi
-    def max(self, *cols: ColumnOrName, _emit_ast: bool = True) -> DataFrame:
-        """Return the max for the specified numeric columns."""
-        return self._non_empty_argument_function("max", *cols, _emit_ast=_emit_ast)
+    def max(self, *cols: ColumnOrName, _emit_ast: bool = True, **kwargs) -> DataFrame:
+        """Return the max for the specified numeric columns.
+
+        Args:
+            cols: The columns to calculate max for.
+        """
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
+        return self._non_empty_argument_function(
+            "max",
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     @relational_group_df_api_usage
     @publicapi
-    def count(self, _emit_ast: bool = True) -> DataFrame:
+    def count(self, _emit_ast: bool = True, **kwargs) -> DataFrame:
         """Return the number of rows for each group."""
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
         df = self._to_df(
             [
                 Alias(
-                    functions.builtin("count")(Literal(1))._expression,
+                    functions._call_function(
+                        "count", Literal(1), _emit_ast=False
+                    )._expression,
                     "count",
                 )
             ],
+            exclude_grouping_columns=exclude_grouping_columns,
             _emit_ast=False,
         )
+        # if no grouping exprs, there is already a LIMIT 1 in the query
+        # see aggregate_statement in analyzer_utils.py
+        df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
 
         # TODO: count seems similar to mean, min, .... Can we unify implementation here?
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(
-                stmt.expr.sp_relational_grouped_dataframe_builtin, stmt
+                stmt.expr.relational_grouped_dataframe_builtin, stmt
             )
-            ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
+            self._set_ast_ref(ast.grouped_df)
             ast.agg_name = "count"
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
     @publicapi
-    def function(self, agg_name: str, _emit_ast: bool = True) -> Callable:
+    def function(self, agg_name: str, _emit_ast: bool = True, **kwargs) -> Callable:
         """Computes the builtin aggregate ``agg_name`` over the specified columns. Use
         this function to invoke any aggregates not explicitly listed in this class.
         See examples in :meth:`DataFrame.group_by`.
+
+        Args:
+            agg_name: The name of the aggregate function.
         """
-        return lambda *cols: self._function(agg_name, *cols, _emit_ast=_emit_ast)
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
+        return lambda *cols: self._function(
+            agg_name,
+            *cols,
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=_emit_ast,
+        )
 
     builtin = function
 
+    @publicapi
     def _function(
-        self, agg_name: str, *cols: ColumnOrName, _emit_ast: bool = True
+        self, agg_name: str, *cols: ColumnOrName, _emit_ast: bool = True, **kwargs
     ) -> DataFrame:
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
         agg_exprs = []
         for c in cols:
             c_expr = Column(c)._expression if isinstance(c, str) else c._expression
-            expr = functions.builtin(agg_name)(c_expr)._expression
+            expr = functions._call_function(
+                agg_name, c_expr, _emit_ast=False
+            )._expression
             agg_exprs.append(expr)
-        df = self._to_df(agg_exprs)
+
+        df = self._to_df(agg_exprs, exclude_grouping_columns=exclude_grouping_columns)
+        # if no grouping exprs, there is already a LIMIT 1 in the query
+        # see aggregate_statement in analyzer_utils.py
+        df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
 
         if _emit_ast:
-            stmt = self._dataframe._session._ast_batch.assign()
+            stmt = self._dataframe._session._ast_batch.bind()
             ast = with_src_position(
-                stmt.expr.sp_relational_grouped_dataframe_builtin, stmt
+                stmt.expr.relational_grouped_dataframe_builtin, stmt
             )
-            ast.grouped_df.sp_relational_grouped_dataframe_ref.id.bitfield1 = (
-                self._ast_id
-            )
+            self._set_ast_ref(ast.grouped_df)
             ast.agg_name = agg_name
             exprs, is_variadic = parse_positional_args_to_list_variadic(*cols)
             ast.cols.variadic = is_variadic
             for e in exprs:
                 build_expr_from_python_val(ast.cols.args.add(), e)
 
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
+    @publicapi
     def _non_empty_argument_function(
-        self, func_name: str, *cols: ColumnOrName, _emit_ast: bool = True
+        self, func_name: str, *cols: ColumnOrName, _emit_ast: bool = True, **kwargs
     ) -> DataFrame:
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
         if not cols:
             raise ValueError(
                 f"You must pass a list of one or more Columns to function: {func_name}"
             )
         else:
-            return self.builtin(func_name, _emit_ast=_emit_ast)(*cols)
+            return self.builtin(
+                func_name,
+                exclude_grouping_columns=exclude_grouping_columns,
+                _emit_ast=_emit_ast,
+            )(*cols)
 
-    def _set_ast_ref(
-        self, expr_builder: proto.SpRelationalGroupedDataframeExpr
-    ) -> None:
+    def _set_ast_ref(self, expr_builder: proto.Expr) -> None:
         """
-        Given a field builder expression of the AST type SpRelationalGroupedDataframeExpr, points the builder to reference this RelationalGroupedDataFrame.
+        Given a field builder expression of the AST type Expr, points the builder to reference this RelationalGroupedDataFrame.
         """
-        # TODO: remove the None guard below once we generate the correct AST.
-        if self._ast_id is not None:
-            expr_builder.sp_relational_grouped_dataframe_ref.id.bitfield1 = self._ast_id
+        debug_check_missing_ast(self._ast_id, self._dataframe._session, self._dataframe)
+        expr_builder.relational_grouped_dataframe_ref.id = self._ast_id

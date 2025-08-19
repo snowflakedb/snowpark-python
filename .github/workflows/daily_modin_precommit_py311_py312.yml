@@ -1,0 +1,230 @@
+# This is copied from original daily_precommit.yml with one change: only run Snowpark pandas tests
+
+name: Daily Snowpark pandas API test with Py3.11 and Py3.12
+on:
+  schedule:
+    # 15 AM UTC
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+      inputs:
+        logLevel:
+          default: warning
+          description: "Log level"
+          required: true
+        tags:
+          description: "Test scenario tags"
+
+jobs:
+  lint:
+    name: Check linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+      - name: Display Python version
+        run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
+      - name: Upgrade setuptools and pip
+        run: uv pip install -U setuptools pip --system
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Install tox
+        run: uv pip install tox --system
+      - name: Run fix_lint
+        run: python -m tox -e fix_lint
+
+  build:
+    needs: lint
+    name: Build Wheel File
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.9
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Upgrade setuptools and pip
+        run: uv pip install -U setuptools pip wheel --system
+      - name: Generate wheel
+        run: python -m pip wheel -v -w dist --no-deps .
+      - name: Show wheels generated
+        run: ls -lh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: wheel
+          path: dist/
+
+  test:
+    name: Test modin-${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+    needs: build
+    runs-on: ${{ matrix.os.image_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - image_name: ubuntu-latest-64-cores
+            download_name: linux
+          - image_name: macos-latest
+            download_name: macos
+          - image_name: windows-latest-64-cores
+            download_name: windows
+        python-version: ["3.11", "3.12"]
+        cloud-provider: [aws, azure, gcp]
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Add protoc to Windows path
+        if: runner.os == 'Windows'
+        run: |
+          echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Download wheel(s)
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+      - name: Show wheels downloaded
+        run: ls -lh dist
+        shell: bash
+      - name: Upgrade setuptools, pip and wheel
+        run: uv pip install -U setuptools pip wheel --system
+      - name: Install tox
+        run: uv pip install tox --system
+      - if: ${{ contains('macos', matrix.os.download_name) }}
+        name: Run Snowpark pandas API doctests
+        run: python -m tox -e "py${PYTHON_VERSION}-doctest-snowparkpandasdoctest-modin-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.11 with no server-side support
+          # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
+        shell: bash
+      - if: ${{ contains('macos', matrix.os.download_name) }}
+        name: Run Snowpark pandas API tests (excluding doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasdailynotdoctest-modin-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ !contains('macos', matrix.os.download_name) }}
+        name: Run Snowpark pandas API tests (excluding doctests)
+        # Use regular github setup for large windows and linux instance
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - name: Combine coverages
+        run: python -m tox -e coverage --skip-missing-interpreters false
+        shell: bash
+        env:
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: coverage_${{ matrix.os.download_name }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+          path: |
+            .tox/.coverage
+            .tox/coverage.xml
+
+
+  combine-coverage:
+    if: ${{ success() || failure() }}
+    name: Combine coverage
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Upgrade setuptools and pip
+        run: uv pip install -U setuptools pip --system
+      - name: Install tox
+        run: uv pip install tox --system
+      - name: Collect all coverages to one dir
+        run: |
+          python -c '
+          from pathlib import Path
+          import shutil
+
+          src_dir = Path("artifacts")
+          dst_dir = Path(".") / ".tox"
+          dst_dir.mkdir()
+          for src_file in src_dir.glob("*/.coverage"):
+              dst_file = dst_dir / ".coverage.{}".format(src_file.parent.name[9:])
+              print("{} copy to {}".format(src_file, dst_file))
+              shutil.copy(str(src_file), str(dst_file))'
+      - name: Combine coverages
+        run: python -m tox -e coverage
+      - name: Publish html coverage
+        uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: overall_cov_html
+          path: .tox/htmlcov
+      - name: Publish xml coverage
+        uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: overall_cov_xml
+          path: .tox/coverage.xml
+      - uses: codecov/codecov-action@v1
+        with:
+          file: .tox/coverage.xml

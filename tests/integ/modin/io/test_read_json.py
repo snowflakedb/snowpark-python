@@ -163,7 +163,7 @@ def json_data():
 
 def test_read_json_basic(json_data):
 
-    with SqlCounter(query_count=8):
+    with SqlCounter(query_count=9):
         df = pd.read_json(f"{TEMP_DIR_NAME}/{TEST_JSON_FILE_1}")
 
     expected = native_pd.DataFrame(json_data, index=[0])
@@ -193,7 +193,7 @@ def test_read_json_single_ndjson_file():
     ]
     write_ndjson_file(f"{TEMP_DIR_NAME}/test_read_json_single_ndjson_file.json", data)
 
-    with SqlCounter(query_count=8):
+    with SqlCounter(query_count=9):
         df = pd.read_json(f"{TEMP_DIR_NAME}/test_read_json_single_ndjson_file.json")
 
     expected = native_pd.DataFrame(data, index=[0, 1])
@@ -251,7 +251,7 @@ def test_read_json_ndjson_different_keys(ndjsondata):
         f"{TEMP_DIR_NAME}/test_read_json_single_ndjson_different_keys.json", data
     )
 
-    with SqlCounter(query_count=8):
+    with SqlCounter(query_count=9):
         snow_df = pd.read_json(
             f"{TEMP_DIR_NAME}/test_read_json_single_ndjson_different_keys.json"
         )
@@ -269,7 +269,7 @@ def test_read_json_ndjson_different_keys(ndjsondata):
 
 
 def test_read_json_staged_file(json_data):
-    with SqlCounter(query_count=7):
+    with SqlCounter(query_count=8):
         snow_df = pd.read_json(f"@{tmp_stage_name1}/{TEST_JSON_FILE_1}")
 
     expected = native_pd.DataFrame(json_data, index=[0])
@@ -279,7 +279,7 @@ def test_read_json_staged_file(json_data):
 
 def test_read_json_staged_folder():
 
-    with SqlCounter(query_count=7):
+    with SqlCounter(query_count=8):
         snow_df = pd.read_json(f"@{tmp_stage_name1}")
 
     expected = native_pd.DataFrame(
@@ -294,16 +294,17 @@ def test_read_json_staged_folder():
 
 
 @sql_count_checker(query_count=5)
-@pytest.mark.xfail(reason="SNOW-1336174: Remove xfail by handling empty JSON files")
+@pytest.mark.xfail(
+    reason="SNOW-1336174: Remove xfail by handling empty JSON files", strict=True
+)
 def test_read_json_empty_file():
-
-    open("test_read_json_empty_file.json", "w")
-
-    snow_df = pd.read_json("test_read_json_empty_file.json")
-
-    os.remove("test_read_json_empty_file.json")
-
-    assert len(snow_df) == 0
+    with open("test_read_json_empty_file.json", "w"):
+        pass
+    try:
+        snow_df = pd.read_json("test_read_json_empty_file.json")
+        assert len(snow_df) == 0
+    finally:
+        os.remove("test_read_json_empty_file.json")
 
 
 @sql_count_checker(query_count=3)
@@ -344,7 +345,11 @@ def test_read_json_unimplemented_parameter_negative(parameter, argument):
 @pytest.mark.parametrize(
     "parameter, argument", [("storage_options", "random_option"), ("engine", "ujson")]
 )
-@sql_count_checker(query_count=9)
+@sql_count_checker(
+    query_count=10,
+    high_count_expected=True,
+    high_count_reason="Expected high count read_json",
+)
 def test_read_json_warning(caplog, parameter, argument, json_data):
     warning_msg = f"The argument `{parameter}` of `pd.read_json` has been ignored by Snowpark pandas API"
 

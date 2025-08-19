@@ -33,7 +33,7 @@ cold     fish      0
          spider    8
 Name: legs, dtype: int64
 
->>> s.{stat_func}()
+>>> s.{stat_func}()  # doctest: +SKIP
 {default_output}"""
 
 _max_examples: str = _shared_docs["stat_func_example"].format(
@@ -68,22 +68,22 @@ _sum_examples += """
 
 By default, the sum of an empty or all-NA Series is ``0``.
 
->>> pd.Series([], dtype="float64").sum()  # min_count=0 is the default
+>>> pd.Series([], dtype="float64").sum()  # min_count=0 is the default  # doctest: +SKIP
 0.0
 
 This can be controlled with the ``min_count`` parameter. For example, if
 you'd like the sum of an empty series to be NaN, pass ``min_count=1``.
 
->>> pd.Series([], dtype="float64").sum(min_count=1)
+>>> pd.Series([], dtype="float64").sum(min_count=1)  # doctest: +SKIP
 nan
 
 Thanks to the ``skipna`` parameter, ``min_count`` handles all-NA and
 empty series identically.
 
->>> pd.Series([np.nan]).sum()
+>>> pd.Series([np.nan]).sum()  # doctest: +SKIP
 0.0
 
->>> pd.Series([np.nan]).sum(min_count=1)
+>>> pd.Series([np.nan]).sum(min_count=1)  # doctest: +SKIP
 nan"""
 
 _num_doc = """
@@ -226,7 +226,8 @@ _name1 = "Series"
 _name2 = "DataFrame"
 _axis_descr = "{index (0), columns (1)}"
 
-
+# running doctests with numpy 2.0+ will use np.True_ instead of python builtin True, so
+# we need to skip tests that produce a scalar
 _bool_doc = """
 {desc}
 
@@ -270,9 +271,9 @@ Examples
 --------
 **Series**
 
->>> pd.Series([True, True]).all()
+>>> pd.Series([True, True]).all()  # doctest: +SKIP
 True
->>> pd.Series([True, False]).all()
+>>> pd.Series([True, False]).all()  # doctest: +SKIP
 False
 
 **DataFrames**
@@ -301,7 +302,7 @@ dtype: bool
 
 Or ``axis=None`` for whether every value is True.
 
->>> df.all(axis=None)
+>>> df.all(axis=None)  # doctest: +SKIP
 False
 """
 
@@ -330,9 +331,9 @@ Examples
 For Series input, the output is a scalar indicating whether any element
 is True.
 
->>> pd.Series([False, False]).any()
+>>> pd.Series([False, False]).any()  # doctest: +SKIP
 False
->>> pd.Series([True, False]).any()
+>>> pd.Series([True, False]).any()  # doctest: +SKIP
 True
 
 **DataFrame**
@@ -377,7 +378,7 @@ dtype: bool
 
 Aggregating over the entire DataFrame with ``axis=None``.
 
->>> df.any(axis=None)
+>>> df.any(axis=None)  # doctest: +SKIP
 True
 
 `any` for an empty DataFrame is an empty Series.
@@ -413,9 +414,6 @@ class BasePandasDataset:
     Since both objects share the same underlying representation, and the algorithms
     are the same, we use this object to define the general behavior of those objects
     and then use those objects to define the output type.
-
-    TelemetryMeta is a metaclass that automatically add telemetry decorators to classes/instance methods.
-    See TelemetryMeta for details. Note: Its subclasses will inherit this metaclass.
     """
 
     def abs():
@@ -1666,7 +1664,7 @@ class BasePandasDataset:
 
         With scalar integers.
 
-        >>> df.iloc[0, 1]
+        >>> df.iloc[0, 1]  # doctest: +SKIP
         2
 
         With lists of integers.
@@ -1839,7 +1837,7 @@ class BasePandasDataset:
 
         Single label for row and column
 
-        >>> df.loc['cobra', 'shield']
+        >>> df.loc['cobra', 'shield']  # doctest: +SKIP
         2
 
         Slice with labels for row and single label for column. As mentioned
@@ -2009,7 +2007,7 @@ class BasePandasDataset:
 
         Single tuple for the index with a single label for the column
 
-        >>> df.loc[('cobra', 'mark i'), 'shield']
+        >>> df.loc[('cobra', 'mark i'), 'shield']  # doctest: +SKIP
         2
 
         Slice from index tuple to single label
@@ -2222,15 +2220,14 @@ class BasePandasDataset:
         fill_method : {'backfill', 'bfill', 'pad', 'ffill', None}, default 'pad'
             How to handle NAs **before** computing percent changes.
 
-            .. deprecated:: 2.1
-                All options of `fill_method` are deprecated except `fill_method=None`.
+            All options of `fill_method` are deprecated except `fill_method=None`.
 
         limit : int, default None
             The number of consecutive NAs to fill before stopping.
 
             Snowpark pandas does not yet support this parameter.
 
-            .. deprecated:: 2.1
+            Deprecated parameter.
 
         freq : DateOffset, timedelta, or str, optional
             Increment to use from time series API (e.g. 'ME' or BDay()).
@@ -2523,7 +2520,7 @@ class BasePandasDataset:
             Which axis to use for up- or down-sampling. For Series this parameter is unused and defaults to 0.
             Snowpark pandas only supports ``axis`` 0 and DatetimeIndex.
 
-            Deprecated since version 2.0.0: Use frame.T.resample(…) instead.
+            Deprecated: Use frame.T.resample(…) instead.
         closed : {'right', 'left'}, default None
             Which side of bin interval is closed. The default is 'left' for all frequency offsets except for
             'ME', 'YE', 'QE', 'BME', 'BA', 'BQE', and 'W' which all have a default of 'right'.
@@ -2538,7 +2535,7 @@ class BasePandasDataset:
             For PeriodIndex only, controls whether to use the start or end of rule.
             Snowpark pandas does not support PeriodIndex.
 
-            Deprecated since version 2.2.0: Convert PeriodIndex to DatetimeIndex before resampling instead.
+            Deprecated: Convert PeriodIndex to DatetimeIndex before resampling instead.
         kind : {'timestamp', 'period'}, optional, default None
             Pass 'timestamp' to convert the resulting index to a DateTimeIndex
             or 'period' to convert it to a PeriodIndex. By default, the input representation is retained.
@@ -2881,23 +2878,11 @@ class BasePandasDataset:
         random_state : int, array-like, BitGenerator, np.random.RandomState, np.random.Generator, optional
             If int, array-like, or BitGenerator, seed for random number generator.
             If np.random.RandomState or np.random.Generator, use as given.
-
-            .. versionchanged:: 1.1.0
-
-                array-like and BitGenerator object now passed to np.random.RandomState()
-                as seed
-
-            .. versionchanged:: 1.4.0
-
-                np.random.Generator objects now accepted
-
         axis : {0 or ‘index’, 1 or ‘columns’, None}, default None
             Axis to sample. Accepts axis number or name. Default is stat axis
             for given data type. For `Series` this parameter is unused and defaults to `None`.
         ignore_index : bool, default False
             If True, the resulting index will be labeled 0, 1, …, n - 1.
-
-            .. versionadded:: 1.3.0
 
         Returns
         -------

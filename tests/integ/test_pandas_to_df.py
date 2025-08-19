@@ -42,6 +42,14 @@ from snowflake.snowpark.types import (
 from tests.utils import IS_IN_STORED_PROC, Utils
 
 
+def assert_sorted_frame_equal(actual, expected, **kwargs):
+    assert_frame_equal(
+        actual.sort_values(by=list(actual.columns)).reset_index(drop=True),
+        expected.sort_values(by=list(expected.columns)).reset_index(drop=True),
+        **kwargs,
+    )
+
+
 @pytest.fixture(scope="module")
 def tmp_table_basic(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -116,7 +124,7 @@ def test_write_pandas_with_overwrite(
             pd1, table_name, quote_identifiers=quote_identifiers, auto_create_table=True
         )
         results = df1.to_pandas()
-        assert_frame_equal(results, pd1, check_dtype=False)
+        assert_sorted_frame_equal(results, pd1, check_dtype=False)
 
         # Insert 1 row
         df2 = session.write_pandas(
@@ -129,7 +137,7 @@ def test_write_pandas_with_overwrite(
         results = df2.to_pandas()
         if overwrite:
             # Results should match pd2
-            assert_frame_equal(results, pd2, check_dtype=False)
+            assert_sorted_frame_equal(results, pd2, check_dtype=False)
         else:
             # Results count should match pd1 + pd2
             assert results.shape[0] == 4
@@ -146,7 +154,7 @@ def test_write_pandas_with_overwrite(
                     auto_create_table=auto_create_table,
                 )
                 results = df3.to_pandas()
-                assert_frame_equal(results, pd3, check_dtype=False)
+                assert_sorted_frame_equal(results, pd3, check_dtype=False)
             else:
                 # In this case, the table is truncated but since there's a new schema, it should fail
                 with pytest.raises(ProgrammingError) as ex_info:
@@ -185,7 +193,7 @@ def test_write_pandas(session, tmp_table_basic):
 
     df = session.write_pandas(pd, tmp_table_basic, overwrite=True)
     results = df.to_pandas()
-    assert_frame_equal(results, pd, check_dtype=False)
+    assert_sorted_frame_equal(results, pd, check_dtype=False)
 
     # Auto create a new table
     session._run_query(f'drop table if exists "{tmp_table_basic}"')
@@ -193,14 +201,14 @@ def test_write_pandas(session, tmp_table_basic):
     table_info = session.sql(f"show tables like '{tmp_table_basic}'").collect()
     assert table_info[0]["kind"] == "TABLE"
     results = df.to_pandas()
-    assert_frame_equal(results, pd, check_dtype=False)
+    assert_sorted_frame_equal(results, pd, check_dtype=False)
 
     # Try to auto create a table that already exists (should NOT throw an error)
     # and upload data again. We use distinct to compare results since we are
     # uploading data twice
     df = session.write_pandas(pd, tmp_table_basic, auto_create_table=True)
     results = df.distinct().to_pandas()
-    assert_frame_equal(results, pd, check_dtype=False, check_like=True)
+    assert_sorted_frame_equal(results, pd, check_dtype=False, check_like=True)
 
     # # Do a more complex case where we create the table
     # pd = PandasDF(
@@ -220,7 +228,7 @@ def test_write_pandas(session, tmp_table_basic):
     # session._run_query('drop table if exists "tmp_table_complex"')
     # df = session.write_pandas(pd, "tmp_table_complex", auto_create_table=True)
     # results = df.distinct().to_pandas()
-    # assert_frame_equal(results, pd, check_dtype=False)
+    # assert_sorted_frame_equal(results, pd, check_dtype=False)
 
     nonexistent_table = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     with pytest.raises(SnowparkPandasException) as ex_info:
@@ -311,7 +319,7 @@ def test_write_pandas_with_table_type(session, table_type: str):
             auto_create_table=True,
         )
         results = df.to_pandas()
-        assert_frame_equal(results, pd, check_dtype=False)
+        assert_sorted_frame_equal(results, pd, check_dtype=False)
         Utils.assert_table_type(session, table_name, table_type)
     finally:
         Utils.drop_table(session, table_name)
@@ -346,7 +354,7 @@ def test_write_temp_table_no_breaking_change(session, table_type, caplog):
             # SNOW-1437979: caplog.text is empty in sp pre-commit env
             assert "create_temp_table is deprecated" in caplog.text
         results = df.to_pandas()
-        assert_frame_equal(results, pd, check_dtype=False)
+        assert_sorted_frame_equal(results, pd, check_dtype=False)
         Utils.assert_table_type(session, table_name, "temp")
     finally:
         Utils.drop_table(session, table_name)
@@ -369,7 +377,7 @@ def test_create_dataframe_from_pandas(session, local_testing_mode):
 
     df = session.create_dataframe(pd)
     results = df.to_pandas()
-    assert_frame_equal(results, pd, check_dtype=False)
+    assert_sorted_frame_equal(results, pd, check_dtype=False)
 
     # pd = PandasDF(
     #     [
@@ -388,7 +396,7 @@ def test_create_dataframe_from_pandas(session, local_testing_mode):
     #
     # df = session.create_dataframe(pd)
     # results = df.to_pandas()
-    # assert_frame_equal(results, pd, check_dtype=False)
+    # assert_sorted_frame_equal(results, pd, check_dtype=False)
 
 
 @pytest.mark.skipif(
@@ -621,11 +629,13 @@ def test_create_from_pandas_basic_pandas_types(session):
         and sp_df.schema[5].nullable
     )
     assert isinstance(sp_df, Table)
+    # If max string size is not 16mb then it shows up in the schema definition
+    max_size = "" if session._conn.max_string_size == 2**24 else "16777216"
     assert (
         str(sp_df.schema)
-        == """\
+        == f"""\
 StructType([\
-StructField('"sTr"', StringType(), nullable=True), \
+StructField('"sTr"', StringType({max_size}), nullable=True), \
 StructField('"dOublE"', DoubleType(), nullable=True), \
 StructField('"LoNg"', LongType(), nullable=True), \
 StructField('"booL"', BooleanType(), nullable=True), \

@@ -12,7 +12,6 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
-from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.ast.utils import (
     build_sproc,
     build_sproc_apply,
@@ -26,6 +25,7 @@ from snowflake.snowpark._internal.telemetry import TelemetryField
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.udf_utils import (
     UDFColumn,
+    RegistrationType,
     add_snowpark_package_to_sproc_packages,
     check_execute_as_arg,
     check_python_runtime_version,
@@ -75,12 +75,12 @@ class StoredProcedure:
         return_type: DataType,
         input_types: List[DataType],
         name: str,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         packages: Optional[List[Union[str, ModuleType]]] = None,
         _ast: Optional[proto.StoredProcedure] = None,
         _ast_id: Optional[int] = None,
-        _ast_stmt: Optional[proto.Assign] = None,
+        _ast_stmt: Optional[proto.Bind] = None,
     ) -> None:
         #: The Python function.
         self.func: Callable = func
@@ -97,7 +97,7 @@ class StoredProcedure:
         # If None, no ast will be emitted. Else, passed whenever sproc is invoked.
         self._ast = _ast
         self._ast_id = _ast_id
-        # field to hold the assign statement for the stored procedure
+        # field to hold the bind statement for the stored procedure
         self._ast_stmt = _ast_stmt
 
     def _validate_call(
@@ -130,6 +130,7 @@ class StoredProcedure:
         *args: Any,
         session: Optional["snowflake.snowpark.session.Session"] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        block: bool = True,
         _emit_ast: bool = True,
     ) -> Any:
         args, session = self._validate_call(args, session)
@@ -152,15 +153,17 @@ class StoredProcedure:
         if self._anonymous_sp_sql:
             call_sql = generate_call_python_sp_sql(session, self.name, *args)
             query = f"{self._anonymous_sp_sql}{call_sql}"
-            if self._is_return_table:
-                qid = session._conn.execute_and_get_sfqid(
-                    query, statement_params=statement_params
-                )
-                df = session.sql(result_scan_statement(qid))
-                df._ast = sproc_expr
-                return df
-            df = session.sql(query)
-            res = df._internal_collect_with_tag(statement_params=statement_params)[0][0]
+
+            res = session._execute_sproc_internal(
+                query=query,
+                is_return_table=self._is_return_table,
+                block=block,
+                statement_params=statement_params,
+                ast_stmt=self._ast_stmt,
+            )
+
+            if not block:
+                return res
         else:
             res = session._call(
                 self.name,
@@ -168,6 +171,7 @@ class StoredProcedure:
                 is_return_table=self._is_return_table,
                 statement_params=statement_params,
                 _emit_ast=self._is_return_table,
+                block=block,
             )
 
         if self._is_return_table:
@@ -506,12 +510,14 @@ class StoredProcedureRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         strict: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
@@ -590,6 +596,11 @@ class StoredProcedureRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE PROCEDURE.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         See Also:
             - :func:`~snowflake.snowpark.functions.sproc`
@@ -635,6 +646,8 @@ class StoredProcedureRegistration:
                 # in pandas API to create stored procedures not registered by users.
                 force_inline_code=kwargs.pop("force_inline_code", False),
                 native_app_params=kwargs.pop("native_app_params", None),
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
                 **kwargs,
             )
@@ -654,17 +667,20 @@ class StoredProcedureRegistration:
         replace: bool = False,
         if_not_exists: bool = False,
         parallel: int = 4,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         strict: bool = False,
         external_access_integrations: Optional[List[str]] = None,
         secrets: Optional[Dict[str, str]] = None,
         comment: Optional[str] = None,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         *,
         statement_params: Optional[Dict[str, str]] = None,
         source_code_display: bool = True,
         skip_upload_on_content_match: bool = False,
         _emit_ast: bool = True,
+        **kwargs,
     ) -> StoredProcedure:
         """
         Registers a Python function as a Snowflake Python stored procedure from a Python or zip file,
@@ -724,7 +740,7 @@ class StoredProcedureRegistration:
                 Increasing the number of threads can improve performance when uploading
                 large stored procedure files.
             execute_as: What permissions should the procedure have while executing. This
-                supports caller, or owner for now.
+                supports ``caller``, ``owner`` or ``restricted caller`` for now.
             strict: Whether the created stored procedure is strict. A strict stored procedure will not invoke
                 the stored procedure if any input is null. Instead, a null value will always be returned. Note
                 that the stored procedure might still return null for non-null inputs.
@@ -747,6 +763,11 @@ class StoredProcedureRegistration:
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_
             copy_grants: Specifies to retain the access privileges from the original function when a new function is
                 created using CREATE OR REPLACE PROCEDURE.
+            artifact_repository: The name of an artifact_repository that packages are found in. If unspecified, packages are
+                pulled from Anaconda.
+            resource_constraint: A dictionary containing a resource properties of a warehouse and then
+                constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
+                warehouse be used for execution.
 
         Note::
             The type hints can still be extracted from the source Python file if they
@@ -790,7 +811,10 @@ class StoredProcedureRegistration:
                 source_code_display=source_code_display,
                 skip_upload_on_content_match=skip_upload_on_content_match,
                 is_permanent=is_permanent,
+                artifact_repository=artifact_repository,
+                resource_constraint=resource_constraint,
                 _emit_ast=_emit_ast,
+                **kwargs,
             )
 
     def _do_register_sp(
@@ -809,7 +833,7 @@ class StoredProcedureRegistration:
         *,
         source_code_display: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         anonymous: bool = False,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
@@ -820,15 +844,17 @@ class StoredProcedureRegistration:
         comment: Optional[str] = None,
         native_app_params: Optional[Dict[str, Any]] = None,
         copy_grants: bool = False,
+        artifact_repository: Optional[str] = None,
+        resource_constraint: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
         **kwargs,
     ) -> StoredProcedure:
         stmt, ast, ast_id = None, None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.stored_procedure, stmt)
-                ast_id = stmt.var_id.bitfield1
+                ast_id = stmt.uid
 
             return StoredProcedure(
                 func,
@@ -863,16 +889,16 @@ class StoredProcedureRegistration:
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.assign()
+            stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.stored_procedure, stmt)
-            ast_id = stmt.var_id.bitfield1
+            ast_id = stmt.uid
 
             build_sproc(
                 ast,
                 func,
                 return_type=return_type,
                 input_types=input_types,
-                sp_name=sp_name,
+                name=sp_name,
                 stage_location=stage_location,
                 imports=imports,
                 packages=packages,
@@ -928,6 +954,7 @@ class StoredProcedureRegistration:
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
             force_inline_code=force_inline_code,
+            artifact_repository=artifact_repository,
         )
 
         runtime_version_from_requirement = None
@@ -972,6 +999,7 @@ class StoredProcedureRegistration:
                     all_imports=all_imports,
                     all_packages=all_packages,
                     raw_imports=imports,
+                    registration_type=RegistrationType.SPROC,
                     is_permanent=is_permanent,
                     replace=replace,
                     if_not_exists=if_not_exists,
@@ -986,6 +1014,8 @@ class StoredProcedureRegistration:
                     native_app_params=native_app_params,
                     copy_grants=copy_grants,
                     runtime_version=runtime_version_from_requirement,
+                    artifact_repository=artifact_repository,
+                    resource_constraint=resource_constraint,
                 )
             # an exception might happen during registering a stored procedure
             # (e.g., a dependency might not be found on the stage),

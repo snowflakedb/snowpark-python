@@ -3,8 +3,8 @@
 name: Daily precommit test
 on:
   schedule:
-    # 9 AM UTC
-    - cron: "0 9 * * *"
+    # 8 AM UTC
+    - cron: "0 8 * * *"
 
   workflow_dispatch:
       inputs:
@@ -25,12 +25,16 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
+        run: uv pip install -U setuptools pip --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
@@ -46,12 +50,16 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
+        run: uv pip install -U setuptools pip --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
@@ -69,11 +77,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Generate wheel
         run: python -m pip wheel -v -w dist --no-deps .
       - name: Show wheels generated
@@ -98,7 +110,7 @@ jobs:
             download_name: macos
           - image_name: windows-latest-64-cores
             download_name: windows
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
@@ -107,6 +119,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -131,10 +147,11 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
-      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.12'}}
+        run: uv pip install tox --system
+      # SNOW-2213578: Re-enable the test for 3.13
+      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.13' }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -145,7 +162,7 @@ jobs:
           # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.12 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
-      - if: ${{ matrix.python-version != '3.12' }}
+      - if: ${{ matrix.python-version != '3.13' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
@@ -154,15 +171,25 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - if: ${{ matrix.python-version == '3.12' }}
-        name: Run tests (excluding doctests and udf tests)
+      # SNOW-2213578 : Remove the test below and run udf tests for 3.13
+      - if: ${{ matrix.python-version == '3.13' }}
+        name: Run tests (excluding udf, doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+        shell: bash
+      - name: Run data source tests
+        # psycopg2 is not supported on macos 3.9
+        if: ${{ !(contains('macos', matrix.os.download_name) && matrix.python-version == '3.9') }}
+        run: python -m tox -e datasource
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -178,7 +205,7 @@ jobs:
             .tox/coverage.xml
 
   test-fips:
-    name: Test FIPS py-linux-3.8-${{ matrix.cloud-provider }}
+    name: Test FIPS py-linux-3.9-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ubuntu-latest-64-cores
     strategy:
@@ -205,7 +232,7 @@ jobs:
       - name: Run tests
         run: ./ci/test_fips_docker.sh
         env:
-          PYTHON_VERSION: 3.8
+          PYTHON_VERSION: 3.9
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
@@ -213,7 +240,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           include-hidden-files: true
-          name: coverage_linux-fips-3.8-${{ matrix.cloud-provider }}
+          name: coverage_linux-fips-3.9-${{ matrix.cloud-provider }}
           path: |
             .coverage
             coverage.xml
@@ -228,7 +255,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -237,6 +264,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -257,10 +288,10 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
-      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.12'}}
+        run: uv pip install tox --system
+      - if: ${{ contains('macos', matrix.os.download_name) }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -269,24 +300,13 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - if: ${{ matrix.python-version != '3.12' }}
-        name: Run tests (excluding doctests)
+      - name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
-        shell: bash
-      - if: ${{ matrix.python-version == '3.12' }}
-        name: Run tests (excluding doctests and udf tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -311,7 +331,7 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos
-        python-version: ["3.8"]
+        python-version: ["3.9"]
         cloud-provider: [aws]
     steps:
       - name: Checkout Code
@@ -320,6 +340,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -340,9 +364,9 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Run all tests
         run: python -m tox -e "nopandas"
         env:
@@ -374,8 +398,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        cloud-provider: [aws]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        cloud-provider: [azure]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -383,6 +407,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -407,9 +435,9 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Run tests
         run: python -m tox -e "py${PYTHON_VERSION/\./}-local"
         env:
@@ -440,8 +468,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
-        cloud-provider: [aws]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]  # SNOW-2230787 test failing on Python 3.13
+        cloud-provider: [gcp]
         protobuf-version: ["3.20.1", "4.25.3", "5.28.3"]
     steps:
       - name: Checkout Code
@@ -450,6 +478,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -470,11 +502,11 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install protobuf
-        run: python -m pip install protobuf==${{ matrix.protobuf-version }}
+        run: uv pip install protobuf==${{ matrix.protobuf-version }} --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Set up Windows environment
         if: runner.os == 'Windows'
         # windows timezone management is broken, that's why we need a special fix here
@@ -484,7 +516,7 @@ jobs:
             echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Run tests
         # TODO: SNOW-1763186 use pytest marker to test multiple TZs
-        run: TZ=EST python -m tox -e "py${PYTHON_VERSION/\./}-ast"
+        run: TZ=EST python -m tox -e "py${PYTHON_VERSION/\./}-ast-modin"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -504,8 +536,8 @@ jobs:
         os:
           - image_name: macos-latest
             download_name: macos  # it includes doctest
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
-        cloud-provider: [aws]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        cloud-provider: [azure]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -513,6 +545,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -533,10 +569,10 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
-      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.12'}}
+        run: uv pip install tox --system
+      - if: ${{ contains('macos', matrix.os.download_name) }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -545,7 +581,7 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - if: ${{ matrix.python-version != '3.12' }}
+      - if: ${{ matrix.python-version != '3.13' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
@@ -554,8 +590,9 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - if: ${{ matrix.python-version == '3.12' }}
-        name: Run tests (excluding doctests and udf tests)
+      # SNOW-2213578 : Remove the test below and run udf tests for 3.13
+      - if: ${{ matrix.python-version == '3.13' }}
+        name: Run tests (excluding udf, doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -576,6 +613,102 @@ jobs:
             .tox/.coverage
             .tox/coverage.xml
 
+  test-enable-fix-join-alias:
+    name: Test Fixing Join Alias py-${{ matrix.os }}-${{ matrix.python-version }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            python-version: "3.9"
+            cloud-provider: azure
+          - os: ubuntu-latest
+            python-version: "3.12"
+            cloud-provider: aws
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Decrypt parameters.py
+        shell: bash
+        run: .github/scripts/decrypt_parameters.sh
+        env:
+          PARAMETER_PASSWORD: ${{ secrets.PARAMETER_PASSWORD }}
+          CLOUD_PROVIDER: ${{ matrix.cloud-provider }}
+      - name: Install protoc
+        shell: bash
+        run: .github/scripts/install_protoc.sh
+      - name: Add protoc to Windows path
+        if: runner.os == 'Windows'
+        run: |
+          echo "$HOME/local/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Download wheel(s)
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+      - name: Show wheels downloaded
+        run: ls -lh dist
+        shell: bash
+      - name: Upgrade setuptools, pip and wheel
+        run: uv pip install -U setuptools pip wheel --system
+      - name: Install tox
+        run: uv pip install tox --system
+      # we only run doctest on macos
+      - if: ${{ matrix.os == 'macos-latest' && matrix.python-version != '3.12'}}
+        name: Run doctests
+        run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short --join_alias_fix
+          TOX_PARALLEL_NO_SPINNER: 1
+          # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.13 with no server-side support
+          # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
+        shell: bash
+      # do not run other tests for macos
+      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.12' }}
+        name: Run tests (excluding doctests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short --join_alias_fix
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
+      - if: ${{ matrix.python-version == '3.12' }}
+        name: Run tests (excluding doctests and udf tests)
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: --color=yes --tb=short --join_alias_fix
+          TOX_PARALLEL_NO_SPINNER: 1
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+        shell: bash
+      - name: Combine coverages
+        run: python -m tox -e coverage --skip-missing-interpreters false
+        shell: bash
+        env:
+          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          include-hidden-files: true
+          name: coverage_${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
+          path: |
+            .tox/.coverage
+            .tox/coverage.xml
   combine-coverage:
     if: ${{ success() || failure() }}
     name: Combine coverage
@@ -590,15 +723,19 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
+        run: uv pip install -U setuptools pip --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Collect all coverages to one dir
         run: |
           python -c '
@@ -641,10 +778,14 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
+        run: uv pip install -U setuptools pip --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh

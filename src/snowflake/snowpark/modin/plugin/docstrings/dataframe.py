@@ -234,10 +234,7 @@ class DataFrame(BasePandasDataset):
             * 0, or 'index' : Drop rows which contain missing values.
             * 1, or 'columns' : Drop columns which contain missing value.
 
-            .. versionchanged:: 1.0.0
-
-               Pass tuple or list to drop on multiple axes.
-               Only a single axis is allowed.
+            Only a single axis is allowed.
 
         how : {'any', 'all'}, default 'any'
             Determine if row or column is removed from DataFrame, when we have
@@ -812,6 +809,9 @@ class DataFrame(BasePandasDataset):
         ``func``. If you need to call a general pandas API like ``pd.Timestamp`` inside ``func``,
         please use the original ``pandas`` module (with ``import pandas``) as a workaround.
 
+        9. To create a permanent function, pass the "snowflake_udf_params" dictionary argument to
+        ``apply``. See examples below for details.
+
         Examples
         --------
         >>> df = pd.DataFrame([[2, 0], [3, 7], [4, 9]], columns=['A', 'B'])
@@ -847,6 +847,51 @@ class DataFrame(BasePandasDataset):
         1    14.50
         2    24.25
         dtype: float64
+
+        To generate a permanent UDTF, pass a dictionary as the `snowflake_udf_params` argument to `apply`.
+        The following example generates a permanent UDTF named "permanent_double":
+
+        >>> session.sql("CREATE STAGE sample_upload_stage").collect()  # doctest: +SKIP
+        >>> def double(x: int) -> int:  # doctest: +SKIP
+        ...     return x * 2
+        ...
+        >>> df.apply(double, snowflake_udf_params={"name": "permanent_double", "stage_location": "@sample_upload_stage"})  # doctest: +SKIP
+           A   B
+        0  4   0
+        1  6  14
+        2  8  18
+
+        You may also pass "replace" and "if_not_exists" in the dictionary to overwrite or re-use existing UDTFs.
+
+        With the "replace" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ... })
+
+        With the "if_not_exists" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "if_not_exists": True,
+        ... })
+
+        Note that Snowpark pandas may still attempt to upload a new UDTF even when "if_not_exists"
+        is passed; the generated SQL will just contain a `CREATE FUNCTION IF NOT EXISTS` query
+        instead. Subsequent calls to `apply` within the same session may skip this query.
+
+        Passing the `immutable` keyword creates an immutable UDTF, which assumes that the
+        UDTF will return the same result for the same inputs.
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ...     "immutable": True,
+        ... })
         """
 
     def assign():
@@ -1181,13 +1226,10 @@ class DataFrame(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
-
-        New in version 2.2.0.
-
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated since version 2.2.0.
+        Deprecated parameter.
 
         Returns
         -------
@@ -1237,7 +1279,143 @@ class DataFrame(BasePandasDataset):
 
     def boxplot():
         """
-        Make a box plot from ``DataFrame`` columns.
+        Make a box plot from DataFrame columns.
+
+        Make a box-and-whisker plot from DataFrame columns, optionally grouped by some other columns. A box plot is a method for graphically depicting groups of numerical data through their quartiles. The box extends from the Q1 to Q3 quartile values of the data, with a line at the median (Q2). The whiskers extend from the edges of box to show the range of the data. By default, they extend no more than 1.5 * IQR (IQR = Q3 - Q1) from the edges of the box, ending at the farthest data point within that interval. Outliers are plotted as separate dots.
+
+        For further details see Wikipedia’s entry for [boxplot](https://en.wikipedia.org/wiki/Box_plot).
+
+        Parameters
+        ----------
+        column : str or list of str, optional
+            Column name or list of names, or vector. Can be any valid input to pandas.DataFrame.groupby().
+
+        by : str or array-like, optional
+            Column in the DataFrame to pandas.DataFrame.groupby(). One box-plot will be done per value of columns in by.
+
+        ax : object of class matplotlib.axes.Axes, optional
+            The matplotlib axes to be used by boxplot.
+
+        fontsize : float or str
+            Tick label font size in points or as a string (e.g., large).
+
+        rot : float, default 0
+            The rotation angle of labels (in degrees) with respect to the screen coordinate system.
+
+        grid : bool, default True
+            Setting this to True will show the grid.
+
+        fig : sizeA tuple (width, height) in inches
+            The size of the figure to create in matplotlib.
+
+        layout : tuple (rows, columns), optional
+            For example, (3, 5) will display the subplots using 3 rows and 5 columns, starting from the top-left.
+
+        return_type : {‘axes’, ‘dict’, ‘both’} or None, default ‘axes’
+            The kind of object to return. The default is axes.
+
+            - ‘axes’ returns the matplotlib axes the boxplot is drawn on.
+
+            - ‘dict’ returns a dictionary whose values are the matplotlib Lines of the boxplot.
+
+            - ‘both’ returns a namedtuple with the axes and dict.
+
+            - when grouping with by, a Series mapping columns to return_type is returned.
+
+            If return_type is None, a NumPy array of axes with the same shape as layout is returned.
+
+        backend : str, default None
+            Backend to use instead of the backend specified in the option plotting.backend. For instance, ‘matplotlib’. Alternatively, to specify the plotting.backend for the whole session, set pd.options.plotting.backend.
+
+        **kwargs
+            All other plotting keyword arguments to be passed to matplotlib.pyplot.boxplot().
+
+        Returns
+        -------
+        result
+            See Notes.
+
+        See also
+        --------
+        Series.plot.hist
+            Make a histogram.
+
+        matplotlib.pyplot.boxplot
+            Matplotlib equivalent plot.
+
+        Notes
+        -----
+        The return type depends on the return_type parameter:
+
+        - ‘axes’ : object of class matplotlib.axes.Axes
+
+        - ‘dict’ : dict of matplotlib.lines.Line2D objects
+
+        - ‘both’ : a namedtuple with structure (ax, lines)
+
+        For data grouped with by, return a Series of the above or a numpy array:
+
+        - Series
+
+        - array (for return_type = None)
+
+        Use return_type='dict' when you want to tweak the appearance of the lines after plotting. In this case a dict containing the Lines making up the boxes, caps, fliers, medians, and whiskers is returned.
+
+        Examples
+        --------
+        Boxplots can be created for every column in the dataframe by df.boxplot() or indicating the columns to be used:
+
+        >>> np.random.seed(1234)
+        >>> df = pd.DataFrame(np.random.randn(10, 4),
+        ...                   columns=['Col1', 'Col2', 'Col3', 'Col4'])
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2', 'Col3'])
+
+        Boxplots of variables distributions grouped by the values of a third variable can be created using the option by. For instance:
+
+        >>> df = pd.DataFrame(np.random.randn(10, 2),
+        ...                   columns=['Col1', 'Col2'])
+        >>> df['X'] = pd.Series(['A', 'A', 'A', 'A', 'A',
+        ...                      'B', 'B', 'B', 'B', 'B'])
+        >>> boxplot = df.boxplot(by='X')
+
+        A list of strings (i.e. ['X', 'Y']) can be passed to boxplot in order to group the data by combination of the variables in the x-axis:
+
+        >>> df = pd.DataFrame(np.random.randn(10, 3),
+        ...                   columns=['Col1', 'Col2', 'Col3'])
+        >>> df['X'] = pd.Series(['A', 'A', 'A', 'A', 'A',
+        ...                      'B', 'B', 'B', 'B', 'B'])
+        >>> df['Y'] = pd.Series(['A', 'B', 'A', 'B', 'A',
+        ...                      'B', 'A', 'B', 'A', 'B'])
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by=['X', 'Y'])
+
+        The layout of boxplot can be adjusted giving a tuple to layout:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by='X',
+        ...                      layout=(2, 1))
+
+        Additional formatting can be done to the boxplot, like suppressing the grid (grid=False), rotating the labels in the x-axis (i.e. rot=45) or changing the fontsize (i.e. fontsize=15):
+
+        >>> boxplot = df.boxplot(grid=False, rot=45, fontsize=15)  # doctest: +SKIP
+
+        The parameter return_type can be used to select the type of element returned by boxplot. When return_type='axes' is selected, the matplotlib axes on which the boxplot is drawn are returned:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], return_type='axes')
+        >>> type(boxplot)
+        <class 'matplotlib.axes._axes.Axes'>
+
+        When grouping with by, a Series mapping columns to return_type is returned:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by='X',
+        ...                      return_type='axes')
+        >>> type(boxplot)
+        <class 'pandas.core.series.Series'>
+
+        If return_type is None, a NumPy array of axes with the same shape as layout is returned:
+
+        >>> boxplot = df.boxplot(column=['Col1', 'Col2'], by='X',
+        ...                      return_type=None)
+        >>> type(boxplot)
+        <class 'numpy.ndarray'>
         """
 
     def combine():
@@ -1469,7 +1647,7 @@ class DataFrame(BasePandasDataset):
         >>> exactly_equal
             1   2
         0  10  20
-        >>> df.equals(exactly_equal)
+        >>> df.equals(exactly_equal)  # doctest: +SKIP
         True
 
         DataFrames df and different_column_type have the same element
@@ -1480,7 +1658,7 @@ class DataFrame(BasePandasDataset):
         >>> different_column_type
            1.0  2.0
         0   10   20
-        >>> df.equals(different_column_type)
+        >>> df.equals(different_column_type)  # doctest: +SKIP
         True
 
         DataFrames df and different_data_type have different types for the
@@ -1491,7 +1669,7 @@ class DataFrame(BasePandasDataset):
         >>> different_data_type
               1     2
         0  10.0  20.0
-        >>> df.equals(different_data_type)
+        >>> df.equals(different_data_type)  # doctest: +SKIP
         False
         """
 
@@ -1517,13 +1695,10 @@ class DataFrame(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
-
-        New in version 2.2.0.
-
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated since version 2.2.0.
+        Deprecated parameter.
 
         Returns
         -------
@@ -1578,8 +1753,7 @@ class DataFrame(BasePandasDataset):
             * ffill: propagate last valid observation forward to next valid.
             * backfill / bfill: use next valid observation to fill gap.
 
-            .. deprecated:: 2.1.0
-                Use ffill or bfill instead.
+            Deprecated: Use ffill or bfill instead.
 
         axis : {axes_single_arg}
             Axis along which to fill missing values. For `Series`
@@ -1600,7 +1774,7 @@ class DataFrame(BasePandasDataset):
             or the string 'infer' which will try to downcast to an appropriate
             equal type (e.g. float64 to int64 if possible).
 
-            .. deprecated:: 2.2.0
+            Deprecated parameter.
 
         Returns
         -------
@@ -1694,9 +1868,6 @@ class DataFrame(BasePandasDataset):
             Of the form {field : array-like} or {field : dict}.
         orient : {‘columns’, ‘index’, ‘tight’}, default ‘columns’
             The “orientation” of the data. If the keys of the passed dict should be the columns of the resulting DataFrame, pass ‘columns’ (default). Otherwise if the keys should be rows, pass ‘index’. If ‘tight’, assume a dict with keys [‘index’, ‘columns’, ‘data’, ‘index_names’, ‘column_names’].
-
-            Added in version 1.4.0: ‘tight’ as an allowed value for the orient argument
-
         dtype : dtype, default None
             Data type to force after DataFrame construction, otherwise infer.
         columns : list, default None
@@ -1770,7 +1941,7 @@ class DataFrame(BasePandasDataset):
         data : structured ndarray, sequence of tuples or dicts, or DataFrame
             Structured input data.
 
-            Deprecated since version 2.1.0: Passing a DataFrame is deprecated.
+            Deprecated: Passing a DataFrame is deprecated.
 
         index : str, list of fields, array-like
             Field of array to use as the index, alternately a specific set of input labels to use.
@@ -1984,7 +2155,7 @@ class DataFrame(BasePandasDataset):
 
         Print the first row's index and the row as a Series.
         >>> index_and_row = next(df.iterrows())
-        >>> index_and_row
+        >>> index_and_row  # doctest: +SKIP
         (0, int      1.0
         float    1.5
         Name: 0, dtype: float64)
@@ -4121,7 +4292,7 @@ class DataFrame(BasePandasDataset):
 
         Squeezing all axes will project directly into a scalar:
 
-        >>> df_0a.squeeze()
+        >>> df_0a.squeeze()  # doctest: +SKIP
         1
         """
 
@@ -4206,6 +4377,124 @@ class DataFrame(BasePandasDataset):
     def to_html():
         """
         Render a ``DataFrame`` as an HTML table.
+
+        Parameters
+        ----------
+        buf : str, Path or StringIO-like, optional, default None
+            Buffer to write to. If None, the output is returned as a string.
+
+        columns : array-like, optional, default None
+            The subset of columns to write. Writes all columns by default.
+
+        col_space : str or int, list or dict of int or str, optional
+            The minimum width of each column in CSS length units. An int is assumed to be px units..
+
+        header : bool, optional
+            Whether to print column labels, default True.
+
+        index : bool, optional, default True
+            Whether to print index (row) labels.
+
+        na_rep : str, optional, default ‘NaN’
+            String representation of NaN to use.
+
+        formatters : list, tuple or dict of one-param. functions, optional
+            Formatter functions to apply to columns’ elements by position or name. The result of each function must be a unicode string. List/tuple must be of length equal to the number of columns.
+
+        float_format : one-parameter function, optional, default None
+            Formatter function to apply to columns’ elements if they are floats. This function must return a unicode string and will be applied only to the non-NaN elements, with NaN being handled by na_rep.
+
+        sparsify : bool, optional, default True
+            Set to False for a DataFrame with a hierarchical index to print every multiindex key at each row.
+
+        index_names : bool, optional, default True
+            Prints the names of the indexes.
+
+        justify : str, default None
+            How to justify the column labels. If None uses the option from the print configuration (controlled by set_option), ‘right’ out of the box. Valid values are
+            - left
+            - right
+            - center
+            - justify
+            - justify-all
+            - start
+            - end
+            - inherit
+            - match-parent
+            - initial
+            - unset.
+
+        max_rows : int, optional
+            Maximum number of rows to display in the console.
+
+        max_cols : int, optional
+            Maximum number of columns to display in the console.
+
+        show_dimensions : bool, default False
+            Display DataFrame dimensions (number of rows by number of columns).
+
+        decimal : str, default ‘.’
+            Character recognized as decimal separator, e.g. ‘,’ in Europe.
+
+        bold_rows : bool, default True
+            Make the row labels bold in the output.
+
+        classes : str or list or tuple, default None
+            CSS class(es) to apply to the resulting html table.
+
+        escape : bool, default True
+            Convert the characters <, >, and & to HTML-safe sequences.
+
+        notebook : {True, False}, default False
+            Whether the generated HTML is for IPython Notebook.
+
+        border : int
+            A border=border attribute is included in the opening <table> tag. Default pd.options.display.html.border.
+
+        table_id : str, optional
+            A css id is included in the opening <table> tag if specified.
+
+        render_links : bool, default False
+            Convert URLs to HTML links.
+
+        encoding : str, default “utf-8”
+            Set character encoding.
+
+        Returns
+        -------
+        str or None
+            If buf is None, returns the result as a string. Otherwise returns None.
+
+        See also
+        --------
+        to_string
+            Convert DataFrame to a string.
+
+        Examples
+        --------
+        >>> df = pd.DataFrame(data={'col1': [1, 2], 'col2': [4, 3]})
+        >>> html_string = '''<table border="1" class="dataframe">
+        ...   <thead>
+        ...     <tr style="text-align: right;">
+        ...       <th></th>
+        ...       <th>col1</th>
+        ...       <th>col2</th>
+        ...     </tr>
+        ...   </thead>
+        ...   <tbody>
+        ...     <tr>
+        ...       <th>0</th>
+        ...       <td>1</td>
+        ...       <td>4</td>
+        ...     </tr>
+        ...     <tr>
+        ...       <th>1</th>
+        ...       <td>2</td>
+        ...       <td>3</td>
+        ...     </tr>
+        ...   </tbody>
+        ... </table>'''
+        >>> assert html_string == df.to_html()
         """
 
     def to_parquet():
@@ -4219,6 +4508,101 @@ class DataFrame(BasePandasDataset):
     def to_records():
         """
         Convert ``DataFrame`` to a NumPy record array.
+        """
+
+    def to_string():
+        """
+        Render a DataFrame to a console-friendly tabular output.
+
+        Parameters
+        ----------
+        buf : str, Path or StringIO-like, optional, default None
+            Buffer to write to. If None, the output is returned as a string.
+
+        columns : array-like, optional, default None
+            The subset of columns to write. Writes all columns by default.
+
+        col_space : int, list or dict of int, optional
+            The minimum width of each column. If a list of ints is given every integers corresponds with one column. If a dict is given, the key references the column, while the value defines the space to use..
+
+        header : bool or list of str, optional
+            Write out the column names. If a list of columns is given, it is assumed to be aliases for the column names.
+
+        index : bool, optional, default True
+            Whether to print index (row) labels.
+
+        na_rep : str, optional, default ‘NaN’
+            String representation of NaN to use.
+
+        formatters : list, tuple or dict of one-param. functions, optional
+            Formatter functions to apply to columns’ elements by position or name. The result of each function must be a unicode string. List/tuple must be of length equal to the number of columns.
+
+        float_format : one-parameter function, optional, default None
+            Formatter function to apply to columns’ elements if they are floats. This function must return a unicode string and will be applied only to the non-NaN elements, with NaN being handled by na_rep.
+
+        sparsify : bool, optional, default True
+            Set to False for a DataFrame with a hierarchical index to print every multiindex key at each row.
+
+        index_names : bool, optional, default True
+            Prints the names of the indexes.
+
+        justify : str, default None
+            How to justify the column labels. If None uses the option from the print configuration (controlled by set_option), ‘right’ out of the box. Valid values are
+            - left
+            - right
+            - center
+            - justify
+            - justify-all
+            - start
+            - end
+            - inherit
+            - match-parent
+            - initial
+            - unset.
+
+        max_rows : int, optional
+            Maximum number of rows to display in the console.
+
+        max_cols : int, optional
+            Maximum number of columns to display in the console.
+
+        show_dimensions : bool, default False
+            Display DataFrame dimensions (number of rows by number of columns).
+
+        decimal : str, default ‘.’
+            Character recognized as decimal separator, e.g. ‘,’ in Europe.
+
+        line_width : int, optional
+            Width to wrap a line in characters.
+
+        min_rows : int, optional
+            The number of rows to display in the console in a truncated repr (when number of rows is above max_rows).
+
+        max_colwidth : int, optional
+            Max width to truncate each column in characters. By default, no limit.
+
+        encoding : str, default “utf-8”
+            Set character encoding.
+
+        Returns
+        -------
+        str or None
+            If buf is None, returns the result as a string. Otherwise returns None.
+
+        See also
+        --------
+        to_html
+            Convert DataFrame to HTML.
+
+        Examples
+        --------
+        >>> d = {'col1': [1, 2, 3], 'col2': [4, 5, 6]}
+        >>> df = pd.DataFrame(d)
+        >>> print(df.to_string())
+           col1  col2
+        0     1     4
+        1     2     5
+        2     3     6
         """
 
     def to_stata():
@@ -4303,7 +4687,7 @@ class DataFrame(BasePandasDataset):
         You can also specify the mapping type.
 
         >>> from collections import OrderedDict, defaultdict
-        >>> df.to_dict(into=OrderedDict)  # doctest: +NORMALIZE_WHITESPACE
+        >>> df.to_dict(into=OrderedDict)  # doctest: +SKIP
         OrderedDict([('col1', OrderedDict([('row1', 1), ('row2', 2)])),
                      ('col2', OrderedDict([('row1', 0.5), ('row2', 0.75)]))])
 
@@ -4818,8 +5202,6 @@ class DataFrame(BasePandasDataset):
         """
         Apply a function to a Dataframe elementwise.
 
-        Added in version 2.1.0: DataFrame.applymap was deprecated and renamed to DataFrame.map.
-
         This method applies a function that accepts and returns a scalar to every element of a DataFrame.
 
         Parameters
@@ -4887,6 +5269,50 @@ class DataFrame(BasePandasDataset):
                    0          1
         0   1.000000   4.494400
         1  11.262736  20.857489
+
+        To generate a permanent UDF, pass a dictionary as the `snowflake_udf_params` argument to `apply`.
+        The following example generates a permanent UDF named "permanent_double":
+
+        >>> session.sql("CREATE STAGE sample_upload_stage").collect()  # doctest: +SKIP
+        >>> def double(x: float) -> float:  # doctest: +SKIP
+        ...     return x * 2  # doctest: +SKIP
+        ...
+        >>> df.map(double, snowflake_udf_params={"name": "permanent_double", "stage_location": "@sample_upload_stage"})  # doctest: +SKIP
+                 0      1
+        0.0  2.000  4.240
+        1.0  6.712  9.134
+
+        You may also pass "replace" and "if_not_exists" in the dictionary to overwrite or re-use existing UDTFs.
+
+        With the "replace" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ... })
+
+        With the "if_not_exists" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "if_not_exists": True,
+        ... })
+
+        Note that Snowpark pandas may still attempt to upload a new UDTF even when "if_not_exists"
+        is passed; the generated SQL will just contain a `CREATE FUNCTION IF NOT EXISTS` query
+        instead. Subsequent calls to `apply` within the same session may skip this query.
+
+        Passing the `immutable` keyword creates an immutable UDTF, which assumes that the
+        UDTF will return the same result for the same inputs.
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ...     "immutable": True,
+        ... })
         """
 
     def mask():
@@ -5782,4 +6208,117 @@ class DataFrame(BasePandasDataset):
         >>> import os  # doctest: +SKIP
         >>> os.makedirs('folder/subfolder', exist_ok=True)  # doctest: +SKIP
         >>> df.to_csv('folder/subfolder/out.csv')  # doctest: +SKIP
+        """
+
+    def to_excel():
+        """
+        Write object to an Excel sheet.
+
+        To write a single object to an Excel .xlsx file it is only necessary to specify a target file name. To write to multiple sheets it is necessary to create an ExcelWriter object with a target file name, and specify a sheet in the file to write to.
+
+        Multiple sheets may be written to by specifying unique sheet_name. With all data written to the file it is necessary to save the changes. Note that creating an ExcelWriter object with a file name that already exists will result in the contents of the existing file being erased.
+
+        Parameters
+        ----------
+        excel_writer : path-like, file-like, or ExcelWriter object
+            File path or existing ExcelWriter.
+
+        sheet_name : str, default ‘Sheet1’
+            Name of sheet which will contain DataFrame.
+
+        na_rep : str, default ‘’
+            Missing data representation.
+
+        float_format : str, optional
+            Format string for floating point numbers. For example float_format="%.2f" will format 0.1234 to 0.12.
+
+        columns : sequence or list of str, optional
+            Columns to write.
+
+        header : bool or list of str, default True
+            Write out the column names. If a list of string is given it is assumed to be aliases for the column names.
+
+        index : bool, default True
+            Write row names (index).
+
+        index_label : str or sequence, optional
+            Column label for index column(s) if desired. If not specified, and header and index are True, then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
+
+        startrow : int, default 0
+            Upper left cell row to dump data frame.
+
+        startcol : int, default 0
+            Upper left cell column to dump data frame.
+
+        engine : str, optional
+            Write engine to use, ‘openpyxl’ or ‘xlsxwriter’. You can also set this via the options io.excel.xlsx.writer or io.excel.xlsm.writer.
+
+        merge_cells : bool, default True
+            Write MultiIndex and Hierarchical Rows as merged cells.
+
+        inf_rep : str, default ‘inf’
+            Representation for infinity (there is no native representation for infinity in Excel).
+
+        freeze_panes : tuple of int (length 2), optional
+            Specifies the one-based bottommost row and rightmost column that is to be frozen.
+
+        storage_options : dict, optional
+            Extra options that make sense for a particular storage connection, e.g. host, port, username, password, etc. For HTTP(S) URLs the key-value pairs are forwarded to urllib.request.Request as header options. For other URLs (e.g. starting with “s3://”, and “gcs://”) the key-value pairs are forwarded to fsspec.open. Please see fsspec and urllib for more details, and for more examples on storage options refer here.
+
+        engine_kwargs : dict, optional
+            Arbitrary keyword arguments passed to excel engine.
+
+        See also
+        --------
+        to_csv
+            Write DataFrame to a comma-separated values (csv) file.
+
+        ExcelWriter
+            Class for writing DataFrame objects into excel sheets.
+
+        read_excel
+            Read an Excel file into a pandas DataFrame.
+
+        read_csv
+            Read a comma-separated values (csv) file into DataFrame.
+
+        io.formats.style.Styler.to_excel
+            Add styles to Excel sheet.
+
+        Notes
+        -----
+        For compatibility with to_csv(), to_excel serializes lists and dicts to strings before writing.
+
+        Once a workbook has been saved it is not possible to write further data without rewriting the whole workbook.
+
+        Examples
+        --------
+        Create, write to and save a workbook:
+
+        >>> df1 = pd.DataFrame([['a', 'b'], ['c', 'd']],
+        ...                    index=['row 1', 'row 2'],
+        ...                    columns=['col 1', 'col 2'])
+        >>> df1.to_excel("output.xlsx")  # doctest: +SKIP
+
+        To specify the sheet name:
+
+        >>> df1.to_excel("output.xlsx",
+        ...              sheet_name='Sheet_name_1')  # doctest: +SKIP
+
+        If you wish to write to more than one sheet in the workbook, it is necessary to specify an ExcelWriter object:
+
+        >>> df2 = df1.copy()
+        >>> with pd.ExcelWriter('output.xlsx') as writer:
+        ...     df1.to_excel(writer, sheet_name='Sheet_name_1')  # doctest: +SKIP
+        ...     df2.to_excel(writer, sheet_name='Sheet_name_2')  # doctest: +SKIP
+
+        ExcelWriter can also be used to append to an existing Excel file:
+
+        >>> with pd.ExcelWriter('output.xlsx',
+        ...                     mode='a') as writer:
+        ...     df1.to_excel(writer, sheet_name='Sheet_name_3')  # doctest: +SKIP
+
+        To set the library that is used to write the Excel file, you can pass the engine keyword (the default engine is automatically chosen depending on the file extension):
+
+        >>> df1.to_excel('output1.xlsx', engine='xlsxwriter')  # doctest: +SKIP
         """

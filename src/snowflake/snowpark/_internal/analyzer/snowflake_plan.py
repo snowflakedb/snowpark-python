@@ -3,11 +3,14 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import copy
+import difflib
+from logging import getLogger
 import re
 import sys
 import uuid
-from collections import defaultdict
+from collections import defaultdict, deque
 from enum import Enum
+from dataclasses import dataclass
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
@@ -29,6 +32,13 @@ from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
 from snowflake.snowpark._internal.analyzer.table_function import (
     GeneratorTableFunction,
     TableFunctionRelation,
+    TableFunctionJoin,
+)
+from snowflake.snowpark._internal.debug_utils import (
+    get_df_transform_trace_message,
+    get_python_source_from_sql_error,
+    get_existing_object_context,
+    get_missing_object_context,
 )
 
 if TYPE_CHECKING:
@@ -37,10 +47,12 @@ if TYPE_CHECKING:
     )  # pragma: no cover
     import snowflake.snowpark.session
     import snowflake.snowpark.dataframe
+    from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 import snowflake.connector
 import snowflake.snowpark
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
     TEMPORARY_STRING_SET,
     aggregate_statement,
     attribute_to_schema_string,
@@ -67,6 +79,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     project_statement,
     rename_statement,
     result_scan_statement,
+    sample_by_statement,
     sample_statement,
     schema_cast_named,
     schema_cast_seq,
@@ -85,14 +98,21 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.metadata_utils import (
     PlanMetadata,
-    cache_metadata_if_select_statement,
+    cache_metadata_if_selectable,
     infer_metadata,
 )
-from snowflake.snowpark._internal.analyzer.schema_utils import analyze_attributes
+from snowflake.snowpark._internal.analyzer.schema_utils import (
+    analyze_attributes,
+    cached_analyze_attributes,
+)
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     DynamicTableCreateMode,
+    LeafNode,
     LogicalPlan,
+    ReadFileNode,
     SaveMode,
+    SelectFromFileNode,
+    SelectWithCopyIntoTableNode,
     TableCreationSource,
     WithQueryBlock,
 )
@@ -104,13 +124,22 @@ from snowflake.snowpark._internal.compiler.cte_utils import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.utils import (
     INFER_SCHEMA_FORMAT_TYPES,
+    XML_ROW_TAG_STRING,
+    XML_ROW_DATA_COLUMN_NAME,
     TempObjectType,
     generate_random_alphanumeric,
     get_copy_into_table_options,
     is_sql_select_statement,
+    merge_multiple_snowflake_plan_expr_to_alias,
+    random_name_for_temp_object,
+    ExprAliasUpdateDict,
+    UNQUOTED_CASE_INSENSITIVE,
+    remove_comments,
+    get_line_numbers,
 )
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import StructType
+import snowflake.snowpark.context as context
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -120,26 +149,107 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+_logger = getLogger(__name__)
+
 
 class SnowflakePlan(LogicalPlan):
     class Decorator:
         __wrap_exception_regex_match = re.compile(
             r"""(?s).*invalid identifier '"?([^'"]*)"?'.*"""
         )
+        __wrap_exception_regex_match_with_double_quotes = re.compile(
+            r"""(?s).*invalid identifier '([^']*)?'.*"""
+        )
         __wrap_exception_regex_sub = re.compile(r"""^"|"$""")
 
         @staticmethod
         def wrap_exception(func):
+            """This wrapper is used to wrap snowflake connector ProgrammingError into SnowparkSQLException.
+            It also adds additional debug information to the raised exception when possible.
+            """
+
             def wrap(*args, **kwargs):
+                from snowflake.snowpark.context import (
+                    _enable_dataframe_trace_on_error,
+                    _enable_trace_sql_errors_to_dataframe,
+                )
+
                 try:
                     return func(*args, **kwargs)
                 except snowflake.connector.errors.ProgrammingError as e:
+                    from snowflake.snowpark._internal.analyzer.select_statement import (
+                        Selectable,
+                    )
+
                     query = getattr(e, "query", None)
                     tb = sys.exc_info()[2]
                     assert e.msg is not None
+                    # extract top_plan, df_ast_id, stmt_cache from args
+                    top_plan, df_ast_id, stmt_cache = None, None, None
+                    for arg in args:
+                        if isinstance(arg, SnowflakePlan):
+                            top_plan = arg
+                            break
+                    if top_plan is not None and top_plan.df_ast_ids:
+                        df_ast_id = top_plan.df_ast_ids[-1]
+                        stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
+
+                    debug_context_arr = []
+                    try:
+                        if (
+                            "SQL compilation error:" in e.msg
+                            and "error line" in e.msg
+                            and top_plan is not None
+                            and _enable_trace_sql_errors_to_dataframe
+                        ):
+                            if error_source_context := get_python_source_from_sql_error(
+                                top_plan, e.msg
+                            ):
+                                debug_context_arr.append(error_source_context)
+                        if (
+                            _enable_dataframe_trace_on_error
+                            and df_ast_id is not None
+                            and stmt_cache is not None
+                        ):
+                            if df_transform_trace := get_df_transform_trace_message(
+                                df_ast_id, stmt_cache
+                            ):
+                                debug_context_arr.append(df_transform_trace)
+                        if (
+                            "does not exist or not authorized" in e.msg
+                            and top_plan is not None
+                            and _enable_trace_sql_errors_to_dataframe
+                        ):
+                            if missing_object_context := get_missing_object_context(
+                                top_plan, e.msg
+                            ):
+                                debug_context_arr.append(missing_object_context)
+                        if (
+                            ("already exists" in e.msg)
+                            and top_plan is not None
+                            and context._enable_trace_sql_errors_to_dataframe
+                        ):
+                            if existing_object_context := get_existing_object_context(
+                                top_plan, e.msg
+                            ):
+                                debug_context_arr.append(existing_object_context)
+                    except Exception as trace_error:
+                        # If we encounter an error when getting the df_transform_debug_trace,
+                        # we will ignore the error and not add the debug trace to the error message.
+                        _logger.info(
+                            f"Error when getting the df_transform_debug_trace: {trace_error}"
+                        )
+                        pass
+
+                    if debug_context_arr:
+                        debug_header = "\n\n--- Additional Debug Information ---\n"
+                        debug_context = debug_header + "\n".join(debug_context_arr)
+                    else:
+                        debug_context = ""
+
                     if "unexpected 'as'" in e.msg.lower():
                         ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_UNEXPECTED_ALIAS(
-                            query
+                            query, debug_context=debug_context
                         )
                         raise ne.with_traceback(tb) from None
                     elif e.sqlstate == "42000" and "invalid identifier" in e.msg:
@@ -150,7 +260,7 @@ class SnowflakePlan(LogicalPlan):
                         )
                         if not match:  # pragma: no cover
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e
+                                e, debug_context=debug_context
                             )
                             raise ne.with_traceback(tb) from None
                         col = match.group(1)
@@ -172,7 +282,9 @@ class SnowflakePlan(LogicalPlan):
                                 unaliased_cols[0] if unaliased_cols else "<colname>"
                             )
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_INVALID_ID(
-                                orig_col_name, query
+                                orig_col_name,
+                                query,
+                                debug_context=debug_context,
                             )
                             raise ne.with_traceback(tb) from None
                         elif (
@@ -189,19 +301,128 @@ class SnowflakePlan(LogicalPlan):
                             > 1
                         ):
                             ne = SnowparkClientExceptionMessages.SQL_PYTHON_REPORT_JOIN_AMBIGUOUS(
-                                col, col, query
+                                col, col, query, debug_context=debug_context
                             )
                             raise ne.with_traceback(tb) from None
                         else:
+                            # We need the potential double quotes for invalid identifier
+                            match = SnowflakePlan.Decorator.__wrap_exception_regex_match_with_double_quotes.match(
+                                e.msg
+                            )
+                            if not match:  # pragma: no cover
+                                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                                    e, debug_context=debug_context
+                                )
+                                raise ne.with_traceback(tb) from None
+                            col = match.group(1)
+
+                            quoted_identifiers = []
+                            for child in children:
+                                plan_nodes = child.children_plan_nodes
+                                for node in plan_nodes:
+                                    if isinstance(node, Selectable):
+                                        quoted_identifiers.extend(
+                                            node.snowflake_plan.quoted_identifiers
+                                        )
+                                    else:
+                                        quoted_identifiers.extend(
+                                            node.quoted_identifiers
+                                        )
+
+                            # No context available to enhance error message
+                            if not quoted_identifiers:
+                                ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                                    e
+                                )
+                                raise ne.with_traceback(tb) from None
+
+                            def add_single_quote(string: str) -> str:
+                                return f"'{string}'"
+
+                            # We can't display all column identifiers in the error message
+                            if len(quoted_identifiers) > 10:
+                                quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers[:10])}, ...]"
+                            else:
+                                quoted_identifiers_str = f"[{', '.join(add_single_quote(q) for q in quoted_identifiers)}]"
+
+                            msg = (
+                                f"There are existing quoted column identifiers: {quoted_identifiers_str}. "
+                                f"Please use one of them to reference the column. See more details on Snowflake identifier requirements "
+                                f"https://docs.snowflake.com/en/sql-reference/identifiers-syntax"
+                            )
+
+                            # Currently, when Snowpark user a Python string as identifier to access a column:
+                            # 1) if a column name is unquoted and
+                            #   a) contains no special characters, it is automatically uppercased and quoted in SQL, or
+                            #   b) if it includes special characters, it is simply quoted without uppercasing.
+                            # 2) If the name is explicitly quoted by the user, Snowpark preserves it as-is.
+                            # Therefore, if `col` is an invalid identifier, it is most likely due to 1a) above.
+                            # We attempt to provide a more helpful error message by suggesting the closest valid identifier.
+                            if UNQUOTED_CASE_INSENSITIVE.match(col):
+                                identifier = quote_name_without_upper_casing(
+                                    col.lower()
+                                )
+                                match = difflib.get_close_matches(
+                                    identifier, quoted_identifiers
+                                )
+                                if match:
+                                    # if there is an exact match, just remind users this one
+                                    if identifier in match:
+                                        match = [identifier]
+                                    msg = f"{msg}\nDo you mean {' or '.join(add_single_quote(q) for q in match)}?"
+
+                            e.msg = f"{e.msg}\n{msg}"
                             ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                                e
+                                e, debug_context=debug_context
                             )
                             raise ne.with_traceback(tb) from None
-                    else:
-                        ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
-                            e
-                        )
-                        raise ne.with_traceback(tb) from None
+                    elif e.sqlstate == "42601" and "SELECT with no columns" in e.msg:
+                        # This is a special case when the select statement has no columns,
+                        # and it's a reading XML query.
+
+                        def search_read_file_node(
+                            node: Union[SnowflakePlan, Selectable]
+                        ) -> Optional[ReadFileNode]:
+                            source_plan = (
+                                node.source_plan
+                                if isinstance(node, SnowflakePlan)
+                                else node.snowflake_plan.source_plan
+                            )
+                            if isinstance(source_plan, ReadFileNode):
+                                return source_plan
+                            for child in node.children_plan_nodes:
+                                result = search_read_file_node(child)
+                                if result:
+                                    return result
+                            return None
+
+                        for arg in args:
+                            if isinstance(arg, SnowflakePlan):
+                                read_file_node = search_read_file_node(arg)
+                                if (
+                                    read_file_node
+                                    and read_file_node.xml_reader_udtf is not None
+                                ):
+                                    row_tag = read_file_node.options.get(
+                                        XML_ROW_TAG_STRING
+                                    )
+                                    file_path = read_file_node.path
+                                    ne = SnowparkClientExceptionMessages.DF_XML_ROW_TAG_NOT_FOUND(
+                                        row_tag, file_path
+                                    )
+                                    raise ne.with_traceback(tb) from None
+                            # when the describe query fails, the arg is a query string
+                            elif isinstance(arg, str):
+                                if f'"{XML_ROW_DATA_COLUMN_NAME}"' in arg:
+                                    ne = (
+                                        SnowparkClientExceptionMessages.DF_XML_ROW_TAG_NOT_FOUND()
+                                    )
+                                    raise ne.with_traceback(tb) from None
+
+                    ne = SnowparkClientExceptionMessages.SQL_EXCEPTION_FROM_PROGRAMMING_ERROR(
+                        e, debug_context=debug_context
+                    )
+                    raise ne.with_traceback(tb) from None
 
             return wrap
 
@@ -217,7 +438,9 @@ class SnowflakePlan(LogicalPlan):
         is_ddl_on_temp_object: bool = False,
         api_calls: Optional[List[Dict]] = None,
         df_aliased_col_name_to_real_col_name: Optional[
-            DefaultDict[str, Dict[str, str]]
+            Union[
+                DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+            ]
         ] = None,
         # This field records all the WithQueryBlocks and their reference count that are
         # referred by the current SnowflakePlan tree. This is needed for the final query
@@ -225,12 +448,17 @@ class SnowflakePlan(LogicalPlan):
         referenced_ctes: Optional[Dict[WithQueryBlock, int]] = None,
         *,
         session: "snowflake.snowpark.session.Session",
+        from_selectable_uuid: Optional[str] = None,
     ) -> None:
         super().__init__()
         self.queries = queries
         self.schema_query = schema_query
         self.post_actions = post_actions if post_actions else []
-        self.expr_to_alias = expr_to_alias if expr_to_alias else {}
+        self.expr_to_alias = (
+            expr_to_alias
+            if expr_to_alias
+            else (ExprAliasUpdateDict() if session._join_alias_fix else {})
+        )
         self.session = session
         self.source_plan = source_plan
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
@@ -244,7 +472,14 @@ class SnowflakePlan(LogicalPlan):
                 df_aliased_col_name_to_real_col_name
             )
         else:
-            self.df_aliased_col_name_to_real_col_name = defaultdict(dict)
+            self.df_aliased_col_name_to_real_col_name = (
+                defaultdict(ExprAliasUpdateDict)
+                if self.session._join_alias_fix
+                else defaultdict(dict)
+            )
+        self._uuid = from_selectable_uuid if from_selectable_uuid else str(uuid.uuid4())
+        # We set the query line intervals for the last query in the queries list
+        self.set_last_query_line_intervals()
         # In the placeholder query, subquery (child) is held by the ID of query plan
         # It is used for optimization, by replacing a subquery with a CTE
         # encode an id for CTE optimization. This is generated based on the main
@@ -257,7 +492,6 @@ class SnowflakePlan(LogicalPlan):
         self._cumulative_node_complexity: Optional[Dict[PlanNodeCategory, int]] = None
         # UUID for the plan to uniquely identify the SnowflakePlan object. We also use this
         # to UUID track queries that are generated from the same plan.
-        self._uuid = str(uuid.uuid4())
         # Metadata for the plan
         self._metadata: PlanMetadata = infer_metadata(
             self.source_plan,
@@ -265,6 +499,9 @@ class SnowflakePlan(LogicalPlan):
             self.df_aliased_col_name_to_real_col_name,
         )
         self._plan_state: Optional[Dict[PlanState, Any]] = None
+        # If the plan has an associated DataFrame, and this Dataframe has an ast_id,
+        # we will store the ast_id here.
+        self.df_ast_ids: Optional[List[int]] = None
 
     @property
     def uuid(self) -> str:
@@ -345,6 +582,16 @@ class SnowflakePlan(LogicalPlan):
         else:
             return [attr.name for attr in self.attributes]
 
+    @Decorator.wrap_exception
+    def _analyze_attributes(self) -> List[Attribute]:
+        assert (
+            self.schema_query is not None
+        ), "No schema query is available for the SnowflakePlan"
+        if self.session.reduce_describe_query_enabled:
+            return cached_analyze_attributes(self.schema_query, self.session, self.uuid)
+        else:
+            return analyze_attributes(self.schema_query, self.session, self.uuid)
+
     @property
     def attributes(self) -> List[Attribute]:
         if self._metadata.attributes is not None:
@@ -352,13 +599,21 @@ class SnowflakePlan(LogicalPlan):
         assert (
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
-        attributes = analyze_attributes(self.schema_query, self.session)
+        attributes = self._analyze_attributes()
         self._metadata = PlanMetadata(attributes=attributes, quoted_identifiers=None)
         # We need to cache attributes on SelectStatement too because df._plan is not
         # carried over to next SelectStatement (e.g., check the implementation of df.filter()).
-        cache_metadata_if_select_statement(self.source_plan, self._metadata)
-        # No simplifier case relies on this schema_query change to update SHOW TABLES to a nested sql friendly query.
-        if not self.schema_query or not self.session.sql_simplifier_enabled:
+        cache_metadata_if_selectable(self.source_plan, self._metadata)
+        # When the reduce_describe_query_enabled is enabled, we cache the attributes in
+        # self._metadata using original schema query. Thus we can update the schema query
+        # to simplify plans built on top of this plan.
+        # When sql simplifier is disabled, we cannot build nested schema query for example
+        #  SELECT  *  FROM (show schemas) LIMIT 1, therefore we need to built the schema
+        # query based on the attributes.
+        if (
+            self.session.reduce_describe_query_enabled
+            or not self.session.sql_simplifier_enabled
+        ):
             self.schema_query = schema_value_statement(attributes)
         return attributes
 
@@ -443,26 +698,45 @@ class SnowflakePlan(LogicalPlan):
         if self.source_plan:
             self.source_plan.reset_cumulative_node_complexity()
 
+    def set_last_query_line_intervals(self) -> None:
+        """
+        Sets the query line intervals for the last query in the queries list. When tracing
+        sql errors is enabled, we expect the last query to have an SQL query that is commented with
+        the uuids of its children. We use these uuids to construct the query line intervals,
+        and then remove the comments to get the final SQL query. When tracing sql errors is not enabled,
+        this function will do nothing.
+        """
+        if not context._enable_trace_sql_errors_to_dataframe:
+            # No action is needed if feature is not enabled
+            return
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            Selectable,
+        )
+
+        last_query = self.queries[-1]
+        child_uuids = []
+        for child in self.children_plan_nodes:
+            if isinstance(child, (Selectable, SnowflakePlan)):
+                child_uuids.append(child.uuid)
+
+        query_line_intervals = get_line_numbers(
+            last_query.sql,
+            child_uuids,
+            self.uuid,
+        )
+        final_sql = remove_comments(last_query.sql, child_uuids)
+        if self.schema_query:
+            self.schema_query = remove_comments(self.schema_query, child_uuids)
+        last_query.sql = final_sql
+        last_query.query_line_intervals = query_line_intervals
+
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
-            return SnowflakePlan(
-                copy.deepcopy(self.queries) if self.queries else [],
+            plan = SnowflakePlan(
+                [copy.copy(q) for q in (self.queries or [])],
                 self.schema_query,
-                copy.deepcopy(self.post_actions) if self.post_actions else None,
-                dict(self.expr_to_alias) if self.expr_to_alias else None,
-                self.source_plan,
-                self.is_ddl_on_temp_object,
-                copy.deepcopy(self.api_calls) if self.api_calls else None,
-                self.df_aliased_col_name_to_real_col_name,
-                session=self.session,
-                referenced_ctes=self.referenced_ctes,
-            )
-        else:
-            return SnowflakePlan(
-                self.queries.copy() if self.queries else [],
-                self.schema_query,
-                self.post_actions.copy() if self.post_actions else None,
-                dict(self.expr_to_alias) if self.expr_to_alias else None,
+                copy.copy(self.post_actions) if self.post_actions else None,
+                copy.copy(self.expr_to_alias) if self.expr_to_alias else None,
                 self.source_plan,
                 self.is_ddl_on_temp_object,
                 self.api_calls.copy() if self.api_calls else None,
@@ -470,30 +744,50 @@ class SnowflakePlan(LogicalPlan):
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
             )
+        else:
+            plan = SnowflakePlan(
+                self.queries.copy() if self.queries else [],
+                self.schema_query,
+                self.post_actions.copy() if self.post_actions else None,
+                copy.copy(self.expr_to_alias) if self.expr_to_alias else None,
+                self.source_plan,
+                self.is_ddl_on_temp_object,
+                self.api_calls.copy() if self.api_calls else None,
+                self.df_aliased_col_name_to_real_col_name,
+                session=self.session,
+                referenced_ctes=self.referenced_ctes,
+            )
+        plan.df_ast_ids = self.df_ast_ids
+        return plan
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
         if self.source_plan:
-            copied_source_plan = copy.deepcopy(self.source_plan, memodict)
+            if isinstance(self.source_plan, LeafNode):
+                # Shallow copy LeafNode as they may have large data that should not be
+                # modified during the optimization stage.
+                copied_source_plan = copy.copy(self.source_plan)
+            else:
+                copied_source_plan = copy.deepcopy(self.source_plan, memodict)
         else:
             copied_source_plan = None
 
         copied_plan = SnowflakePlan(
-            queries=copy.deepcopy(self.queries) if self.queries else [],
+            queries=[copy.copy(q) for q in (self.queries or [])],
             schema_query=self.schema_query,
-            post_actions=copy.deepcopy(self.post_actions)
-            if self.post_actions
-            else None,
-            expr_to_alias=copy.deepcopy(self.expr_to_alias)
-            if self.expr_to_alias
-            else None,
+            post_actions=(
+                copy.deepcopy(self.post_actions) if self.post_actions else None
+            ),
+            expr_to_alias=(
+                copy.deepcopy(self.expr_to_alias) if self.expr_to_alias else None
+            ),
             source_plan=copied_source_plan,
             is_ddl_on_temp_object=self.is_ddl_on_temp_object,
             api_calls=copy.deepcopy(self.api_calls) if self.api_calls else None,
-            df_aliased_col_name_to_real_col_name=copy.deepcopy(
-                self.df_aliased_col_name_to_real_col_name
-            )
-            if self.df_aliased_col_name_to_real_col_name
-            else None,
+            df_aliased_col_name_to_real_col_name=(
+                copy.deepcopy(self.df_aliased_col_name_to_real_col_name)
+                if self.df_aliased_col_name_to_real_col_name
+                else None
+            ),
             # note that there is no copy of the session object, be careful when using the
             # session object after deepcopy
             session=self.session,
@@ -502,11 +796,34 @@ class SnowflakePlan(LogicalPlan):
         copied_plan._is_valid_for_replacement = True
         if copied_source_plan:
             copied_source_plan._is_valid_for_replacement = True
+        copied_plan.df_ast_ids = self.df_ast_ids
 
         return copied_plan
 
     def add_aliases(self, to_add: Dict) -> None:
-        self.expr_to_alias = {**self.expr_to_alias, **to_add}
+        if self.session._join_alias_fix:
+            self.expr_to_alias.update(to_add)
+        else:
+            self.expr_to_alias = {**self.expr_to_alias, **to_add}
+
+    def propagate_ast_id_to_select_sql(self, ast_id: int) -> None:
+        """Propagate df_ast_id to associated SelectSQL instances."""
+        from snowflake.snowpark._internal.analyzer.select_statement import SelectSQL
+
+        for child in self.children_plan_nodes:
+            if isinstance(child, SelectSQL):
+                child.add_df_ast_id(ast_id)
+
+    def add_df_ast_id(self, ast_id: int) -> None:
+        """Method to add a df ast id to SnowflakePlan.
+        This is used to track the df ast ids that are used in creating the
+        sql for this SnowflakePlan.
+        """
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [ast_id]
+        elif self.df_ast_ids[-1] != ast_id:
+            self.df_ast_ids.append(ast_id)
+        self.propagate_ast_id_to_select_sql(ast_id)
 
 
 class SnowflakePlanBuilder:
@@ -580,17 +897,23 @@ class SnowflakePlanBuilder:
             right_schema_query = schema_value_statement(select_right.attributes)
             schema_query = sql_generator(left_schema_query, right_schema_query)
 
-        common_columns = set(select_left.expr_to_alias.keys()).intersection(
-            select_right.expr_to_alias.keys()
-        )
-        new_expr_to_alias = {
-            k: v
-            for k, v in {
-                **select_left.expr_to_alias,
-                **select_right.expr_to_alias,
-            }.items()
-            if k not in common_columns
-        }
+        if self.session._join_alias_fix:
+            new_expr_to_alias = merge_multiple_snowflake_plan_expr_to_alias(
+                [select_left, select_right]
+            )
+        else:
+            common_columns = set(select_left.expr_to_alias.keys()).intersection(
+                select_right.expr_to_alias.keys()
+            )
+            new_expr_to_alias = {
+                k: v
+                for k, v in {
+                    **select_left.expr_to_alias,
+                    **select_right.expr_to_alias,
+                }.items()
+                if k not in common_columns
+            }
+
         api_calls = [*select_left.api_calls, *select_right.api_calls]
 
         # Need to do a deduplication to avoid repeated query.
@@ -663,7 +986,12 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         schema_query: Optional[str],
     ) -> SnowflakePlan:
-        temp_table_name = f"temp_name_placeholder_{generate_random_alphanumeric()}"
+        thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
+        temp_table_name = (
+            f"temp_name_placeholder_{generate_random_alphanumeric()}"
+            if thread_safe_session_enabled
+            else random_name_for_temp_object(TempObjectType.TABLE)
+        )
 
         attributes = [
             Attribute(attr.name, attr.datatype, attr.nullable) for attr in output
@@ -691,24 +1019,37 @@ class SnowflakePlanBuilder:
             Query(
                 create_table_stmt,
                 is_ddl_on_temp_object=True,
-                temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
+                temp_obj_name_placeholder=(
+                    (temp_table_name, TempObjectType.TABLE)
+                    if thread_safe_session_enabled
+                    else None
+                ),
             ),
             BatchInsertQuery(insert_stmt, data),
             Query(select_stmt),
         ]
-        return SnowflakePlan(
+        new_plan = SnowflakePlan(
             queries=queries,
             schema_query=schema_query,
             post_actions=[
                 Query(
                     drop_table_stmt,
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
+                    temp_obj_name_placeholder=(
+                        (temp_table_name, TempObjectType.TABLE)
+                        if thread_safe_session_enabled
+                        else None
+                    ),
                 )
             ],
             session=self.session,
             source_plan=source_plan,
         )
+        for i in range(len(queries)):
+            queries[i].query_line_intervals = [
+                QueryLineInterval(0, queries[i].sql.count("\n"), new_plan.uuid)
+            ]
+        return new_plan
 
     def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
         return self.query(project_statement([], table_name), source_plan)
@@ -727,9 +1068,21 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         is_distinct: bool = False,
+        ilike_pattern: Optional[str] = None,
     ) -> SnowflakePlan:
+
         return self.build(
-            lambda x: project_statement(project_list, x, is_distinct=is_distinct),
+            lambda x: project_statement(
+                project_list,
+                x,
+                is_distinct=is_distinct,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
+                ilike_pattern=ilike_pattern,
+            ),
             child,
             source_plan,
         )
@@ -742,7 +1095,16 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: aggregate_statement(grouping_exprs, aggregate_exprs, x),
+            lambda x: aggregate_statement(
+                grouping_exprs,
+                aggregate_exprs,
+                x,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
+            ),
             child,
             source_plan,
         )
@@ -750,10 +1112,24 @@ class SnowflakePlanBuilder:
     def filter(
         self,
         condition: str,
+        is_having: bool,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        return self.build(lambda x: filter_statement(condition, x), child, source_plan)
+        return self.build(
+            lambda x: filter_statement(
+                condition,
+                is_having,
+                x,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
+            ),
+            child,
+            source_plan,
+        )
 
     def sample(
         self,
@@ -765,19 +1141,54 @@ class SnowflakePlanBuilder:
         """Builds the sample part of the resultant sql statement"""
         return self.build(
             lambda x: sample_statement(
-                x, probability_fraction=probability_fraction, row_count=row_count
+                x,
+                probability_fraction=probability_fraction,
+                row_count=row_count,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
         )
 
+    def sample_by(
+        self,
+        child: SnowflakePlan,
+        source_plan: Optional[LogicalPlan],
+        col: str,
+        fractions: Dict[Any, float],
+    ) -> SnowflakePlan:
+        return self.build(
+            lambda x: sample_by_statement(x, col=col, fractions=fractions),
+            child,
+            source_plan,
+            schema_query=child.schema_query,
+        )
+
     def sort(
         self,
         order: List[str],
+        is_order_by_append: bool,
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
-        return self.build(lambda x: sort_statement(order, x), child, source_plan)
+        return self.build(
+            lambda x: sort_statement(
+                order,
+                is_order_by_append,
+                x,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
+            ),
+            child,
+            source_plan,
+        )
 
     def set_operator(
         self,
@@ -811,6 +1222,14 @@ class SnowflakePlanBuilder:
                 join_condition,
                 match_condition,
                 use_constant_subquery_alias,
+                left_uuid=(
+                    left.uuid if context._enable_trace_sql_errors_to_dataframe else None
+                ),
+                right_uuid=(
+                    right.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             left,
             right,
@@ -870,6 +1289,7 @@ class SnowflakePlanBuilder:
                 base_location: the base directory that snowflake can write iceberg metadata and files to
                 catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
                 storage_serialization_policy: specifies the storage serialization policy for the table
+                iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
             table_exists: whether the table already exists in the database.
                 Only used for APPEND and TRUNCATE mode.
         """
@@ -1035,7 +1455,17 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: limit_statement(limit_expr, offset_expr, x, on_top_of_oder_by),
+            lambda x: limit_statement(
+                limit_expr,
+                offset_expr,
+                x,
+                on_top_of_oder_by,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
+            ),
             child,
             source_plan,
         )
@@ -1048,10 +1478,21 @@ class SnowflakePlanBuilder:
         default_on_null: Optional[str],
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
+        should_alias_column_with_agg: bool,
     ) -> SnowflakePlan:
         return self.build(
             lambda x: pivot_statement(
-                pivot_column, pivot_values, aggregate, default_on_null, x
+                pivot_column,
+                pivot_values,
+                aggregate,
+                default_on_null,
+                x,
+                should_alias_column_with_agg,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -1068,7 +1509,16 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         return self.build(
             lambda x: unpivot_statement(
-                value_column, name_column, column_list, include_nulls, x
+                value_column,
+                name_column,
+                column_list,
+                include_nulls,
+                x,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -1092,6 +1542,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         is_temp: bool,
         comment: Optional[str],
+        replace: bool,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
@@ -1117,10 +1568,82 @@ class SnowflakePlanBuilder:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_VIEWS_FROM_SELECT_ONLY()
 
         return self.build(
-            lambda x: create_or_replace_view_statement(name, x, is_temp, comment),
+            lambda x: create_or_replace_view_statement(
+                name, x, is_temp, comment, replace
+            ),
             child,
             source_plan,
         )
+
+    def find_and_update_table_function_plan(self, plan: SnowflakePlan) -> SnowflakePlan:
+        """This function is meant to find any udtf function call from a create dynamic table plan and
+        replace '*' with explicit column identifier in the select of table function. Since we cannot
+        differentiate udtf call from other table functions, we apply this change to all table functions.
+        """
+        from snowflake.snowpark._internal.analyzer.select_statement import (
+            SelectTableFunction,
+            Selectable,
+        )
+        from snowflake.snowpark._internal.compiler.utils import (
+            create_query_generator,
+            update_resolvable_node,
+            replace_child_and_update_ancestors,
+        )
+
+        visited = set()
+        node_parents_map = defaultdict(set)
+        deepcopied_plan = copy.deepcopy(plan)
+        query_generator = create_query_generator(plan)
+        queue = deque()
+
+        queue.append(deepcopied_plan)
+        visited.add(deepcopied_plan)
+
+        while queue:
+            node = queue.popleft()
+            visited.add(node)
+            for child_node in reversed(node.children_plan_nodes):
+                node_parents_map[child_node].add(node)
+                if child_node not in visited:
+                    queue.append(child_node)
+
+            # the bug only happen when create dynamic table on top of a table function
+            # this is meant to decide whether the plan is select from a table function
+            if isinstance(node, SelectTableFunction) and isinstance(
+                node.snowflake_plan.source_plan, TableFunctionJoin
+            ):
+                table_function_join_node = node.snowflake_plan.source_plan
+                # if the plan has only 1 child and the source_plan.right_cols == '*', then we need to update the
+                # plan with the output column identifiers.
+                if len(
+                    node.snowflake_plan.children_plan_nodes
+                ) == 1 and table_function_join_node.right_cols == ["*"]:
+                    child_plan: Union[
+                        SnowflakePlan, Selectable
+                    ] = node.snowflake_plan.children_plan_nodes[0]
+                    if isinstance(child_plan, Selectable):
+                        child_plan = child_plan.snowflake_plan
+
+                    new_plan = copy.deepcopy(node)
+
+                    # type assertions
+                    assert isinstance(child_plan, SnowflakePlan)
+                    assert isinstance(
+                        new_plan.snowflake_plan.source_plan, TableFunctionJoin
+                    )
+
+                    new_plan.snowflake_plan.source_plan.right_cols = (
+                        node.snowflake_plan.quoted_identifiers[
+                            len(child_plan.quoted_identifiers) :
+                        ]
+                    )
+
+                    update_resolvable_node(new_plan, query_generator)
+                    replace_child_and_update_ancestors(
+                        node, new_plan, node_parents_map, query_generator
+                    )
+
+        return deepcopied_plan
 
     def create_or_replace_dynamic_table(
         self,
@@ -1139,6 +1662,9 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
         iceberg_config: Optional[dict] = None,
     ) -> SnowflakePlan:
+
+        child = self.find_and_update_table_function_plan(child)
+
         if len(child.queries) != 1:
             raise SnowparkClientExceptionMessages.PLAN_CREATE_DYNAMIC_TABLE_FROM_DDL_DML_OPERATIONS()
 
@@ -1219,6 +1745,89 @@ class SnowflakePlanBuilder:
             )(setting["property_value"])
         return new_options
 
+    def _create_xml_query(
+        self,
+        xml_reader_udtf: "UserDefinedTableFunction",
+        file_path: str,
+        options: Dict[str, str],
+    ) -> str:
+        """
+        Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
+        """
+        from snowflake.snowpark.functions import lit, col, seq8, flatten
+        from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
+
+        worker_column_name = "WORKER"
+        xml_row_number_column_name = "XML_ROW_NUMBER"
+        row_tag = options[XML_ROW_TAG_STRING]
+        mode = options.get("MODE", "PERMISSIVE").upper()
+        column_name_of_corrupt_record = options.get(
+            "COLUMNNAMEOFCORRUPTRECORD", "_corrupt_record"
+        )
+        ignore_namespace = options.get("IGNORENAMESPACE", True)
+        attribute_prefix = options.get("ATTRIBUTEPREFIX", "_")
+        exclude_attributes = options.get("EXCLUDEATTRIBUTES", False)
+        value_tag = options.get("VALUETAG", "_VALUE")
+        # NULLVALUE will be mapped to NULL_IF in pre-defined mapping in `dataframe_writer.py`
+        null_value = options.get("NULL_IF", "")
+        charset = options.get("CHARSET", "utf-8")
+        ignore_surrounding_whitespace = options.get(
+            "IGNORESURROUNDINGWHITESPACE", False
+        )
+        row_validation_xsd_path = options.get("ROWVALIDATIONXSDPATH", "")
+
+        if mode not in {"PERMISSIVE", "DROPMALFORMED", "FAILFAST"}:
+            raise ValueError(
+                f"Invalid mode: {mode}. Must be one of PERMISSIVE, DROPMALFORMED, FAILFAST."
+            )
+
+        # TODO SNOW-1983360: make it an configurable option once the UDTF scalability issue is resolved.
+        # Currently it's capped at 16.
+        try:
+            file_size = int(self.session.sql(f"ls {file_path}", _emit_ast=False).collect(_emit_ast=False)[0]["size"])  # type: ignore
+        except IndexError:
+            raise ValueError(f"{file_path} does not exist")
+        num_workers = min(16, file_size // DEFAULT_CHUNK_SIZE + 1)
+
+        # Create a range from 0 to N-1
+        df = self.session.range(num_workers).to_df(worker_column_name)
+
+        # Apply UDTF to the XML file and get each XML record as a Variant data,
+        # and append a unique row number to each record.
+        df = df.select(
+            worker_column_name,
+            seq8().as_(xml_row_number_column_name),
+            xml_reader_udtf(
+                lit(file_path),
+                lit(num_workers),
+                lit(row_tag),
+                col(worker_column_name),
+                lit(mode),
+                lit(column_name_of_corrupt_record),
+                lit(ignore_namespace),
+                lit(attribute_prefix),
+                lit(exclude_attributes),
+                lit(value_tag),
+                lit(null_value),
+                lit(charset),
+                lit(ignore_surrounding_whitespace),
+                lit(row_validation_xsd_path),
+            ),
+        )
+
+        # Flatten the Variant data to get the key-value pairs
+        df = df.select(
+            worker_column_name,
+            xml_row_number_column_name,
+            flatten(XML_ROW_DATA_COLUMN_NAME),
+        ).select(worker_column_name, xml_row_number_column_name, "key", "value")
+
+        # Apply dynamic pivot to get the flat table with dynamic schema
+        df = df.pivot("key").max("value")
+
+        # Exclude the worker and row number columns
+        return f"SELECT * EXCLUDE ({worker_column_name}, {xml_row_number_column_name}) FROM ({df.queries['queries'][-1]})"
+
     def read_file(
         self,
         path: str,
@@ -1230,11 +1839,43 @@ class SnowflakePlanBuilder:
         metadata_project: Optional[List[str]] = None,
         metadata_schema: Optional[List[Attribute]] = None,
         use_user_schema: bool = False,
-    ):
+        xml_reader_udtf: Optional["UserDefinedTableFunction"] = None,
+        source_plan: Optional[ReadFileNode] = None,
+    ) -> SnowflakePlan:
+        thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
+
+        if xml_reader_udtf is not None:
+            xml_query = self._create_xml_query(xml_reader_udtf, path, options)
+            return SnowflakePlan(
+                [Query(xml_query)],
+                # the schema query of dynamic pivot must be the same as the original query
+                xml_query,
+                None,
+                {},
+                source_plan=source_plan,
+                session=self.session,
+            )
+
+        # Setting ENFORCE_EXISTING_FILE_FORMAT to True forces Snowpark to use the existing file format object,
+        # disregarding any custom format options and preventing temporary file format creation.
+        use_temp_file_format = not options.get("ENFORCE_EXISTING_FILE_FORMAT", False)
+
+        if not use_temp_file_format and "FORMAT_NAME" not in options:
+            raise ValueError(
+                "Setting the ENFORCE_EXISTING_FILE_FORMAT option requires providing FORMAT_NAME."
+            )
+
         format_type_options, copy_options = get_copy_into_table_options(options)
-        format_type_options = self._merge_file_format_options(
-            format_type_options, options
-        )
+
+        if not use_temp_file_format and len(format_type_options) > 0:
+            raise ValueError(
+                "Option 'ENFORCE_EXISTING_FILE_FORMAT' can not be used with any format type options."
+            )
+
+        if use_temp_file_format:
+            format_type_options = self._merge_file_format_options(
+                format_type_options, options
+            )
         pattern = options.get("PATTERN")
         # Can only infer the schema for parquet, orc and avro
         # csv and json in preview
@@ -1260,31 +1901,56 @@ class SnowflakePlanBuilder:
         if not copy_options:  # use select
             queries: List[Query] = []
             post_queries: List[Query] = []
-            format_name = self.session.get_fully_qualified_name_if_possible(
-                f"temp_name_placeholder_{generate_random_alphanumeric()}"
-            )
-            queries.append(
-                Query(
-                    create_file_format_statement(
-                        format_name,
-                        format,
-                        format_type_options,
-                        temp=True,
-                        if_not_exist=True,
-                        use_scoped_temp_objects=self.session._use_scoped_temp_objects,
-                        is_generated=True,
-                    ),
-                    is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT),
+            format_name = (
+                (
+                    self.session.get_fully_qualified_name_if_possible(
+                        f"temp_name_placeholder_{generate_random_alphanumeric()}"
+                    )
+                    if thread_safe_session_enabled
+                    else random_name_for_temp_object(TempObjectType.FILE_FORMAT)
                 )
+                if use_temp_file_format
+                else options["FORMAT_NAME"]
             )
-            post_queries.append(
-                Query(
-                    drop_file_format_if_exists_statement(format_name),
-                    is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(format_name, TempObjectType.FILE_FORMAT),
+
+            if use_temp_file_format:
+                queries.append(
+                    Query(
+                        create_file_format_statement(
+                            format_name,
+                            format,
+                            format_type_options,
+                            temp=True,
+                            if_not_exist=True,
+                            use_scoped_temp_objects=self.session._use_scoped_temp_objects,
+                            is_generated=True,
+                        ),
+                        is_ddl_on_temp_object=True,
+                        temp_obj_name_placeholder=(
+                            (
+                                format_name,
+                                TempObjectType.FILE_FORMAT,
+                            )
+                            if thread_safe_session_enabled
+                            else None
+                        ),
+                    )
                 )
-            )
+
+                post_queries.append(
+                    Query(
+                        drop_file_format_if_exists_statement(format_name),
+                        is_ddl_on_temp_object=True,
+                        temp_obj_name_placeholder=(
+                            (
+                                format_name,
+                                TempObjectType.FILE_FORMAT,
+                            )
+                            if thread_safe_session_enabled
+                            else None
+                        ),
+                    )
+                )
 
             if schema_available:
                 assert schema_to_cast is not None
@@ -1303,12 +1969,17 @@ class SnowflakePlanBuilder:
                 )
             )
 
+            source_plan = (
+                SelectFromFileNode.from_read_file_node(source_plan)
+                if source_plan
+                else None
+            )
             return SnowflakePlan(
                 queries,
                 schema_value_statement((metadata_schema or []) + schema),
                 post_queries,
                 {},
-                None,
+                source_plan=source_plan,
                 session=self.session,
             )
         else:  # otherwise use COPY
@@ -1333,8 +2004,12 @@ class SnowflakePlanBuilder:
                 ]
             )
 
-            temp_table_name = self.session.get_fully_qualified_name_if_possible(
-                f"temp_name_placeholder_{generate_random_alphanumeric()}"
+            temp_table_name = (
+                self.session.get_fully_qualified_name_if_possible(
+                    f"temp_name_placeholder_{generate_random_alphanumeric()}"
+                )
+                if thread_safe_session_enabled
+                else random_name_for_temp_object(TempObjectType.TABLE)
             )
             queries = [
                 Query(
@@ -1347,7 +2022,11 @@ class SnowflakePlanBuilder:
                         is_generated=True,
                     ),
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
+                    temp_obj_name_placeholder=(
+                        (temp_table_name, TempObjectType.TABLE)
+                        if thread_safe_session_enabled
+                        else None
+                    ),
                 ),
                 Query(
                     copy_into_table(
@@ -1375,15 +2054,24 @@ class SnowflakePlanBuilder:
                 Query(
                     drop_table_if_exists_statement(temp_table_name),
                     is_ddl_on_temp_object=True,
-                    temp_obj_name_placeholder=(temp_table_name, TempObjectType.TABLE),
+                    temp_obj_name_placeholder=(
+                        (temp_table_name, TempObjectType.TABLE)
+                        if thread_safe_session_enabled
+                        else None
+                    ),
                 )
             ]
+            source_plan = (
+                SelectWithCopyIntoTableNode.from_read_file_node(source_plan)
+                if source_plan
+                else None
+            )
             return SnowflakePlan(
                 queries,
                 schema_value_statement(schema),
                 post_actions,
                 {},
-                None,
+                source_plan=source_plan,
                 session=self.session,
             )
 
@@ -1560,7 +2248,15 @@ class SnowflakePlanBuilder:
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         return self.build(
-            lambda x: lateral_statement(table_function, x),
+            lambda x: lateral_statement(
+                table_function,
+                x,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
+            ),
             child,
             source_plan,
         )
@@ -1586,7 +2282,16 @@ class SnowflakePlanBuilder:
     ) -> SnowflakePlan:
         return self.build(
             lambda x: join_table_function_statement(
-                func, x, left_cols, right_cols, use_constant_subquery_alias
+                func,
+                x,
+                left_cols,
+                right_cols,
+                use_constant_subquery_alias,
+                child_uuid=(
+                    child.uuid
+                    if context._enable_trace_sql_errors_to_dataframe
+                    else None
+                ),
             ),
             child,
             source_plan,
@@ -1627,7 +2332,6 @@ class SnowflakePlanBuilder:
             raise ValueError(
                 "schema query for WithQueryBlock is currently not supported"
             )
-
         name = with_query_block.name
         new_query = project_statement([], name)
 
@@ -1660,6 +2364,13 @@ class PlanQueryType(Enum):
     POST_ACTIONS = "post_actions"
 
 
+@dataclass
+class QueryLineInterval:
+    start: int
+    end: int
+    uuid: str
+
+
 class Query:
     def __init__(
         self,
@@ -1669,6 +2380,7 @@ class Query:
         is_ddl_on_temp_object: bool = False,
         temp_obj_name_placeholder: Optional[Tuple[str, TempObjectType]] = None,
         params: Optional[Sequence[Any]] = None,
+        query_line_intervals: Optional[List[QueryLineInterval]] = None,
     ) -> None:
         self.sql = sql
         self.query_id_place_holder = (
@@ -1688,6 +2400,7 @@ class Query:
         self.temp_obj_name_placeholder = temp_obj_name_placeholder
         self.is_ddl_on_temp_object = is_ddl_on_temp_object
         self.params = params or []
+        self.query_line_intervals = query_line_intervals or []
 
     def __repr__(self) -> str:
         return (
@@ -1697,6 +2410,16 @@ class Query:
             + f"is_ddl_on_temp_object={self.is_ddl_on_temp_object}, "
             + f"params={self.params}"
             + ")"
+        )
+
+    def __copy__(self) -> "Query":
+        return Query(
+            sql=self.sql,
+            query_id_place_holder=self.query_id_place_holder,
+            is_ddl_on_temp_object=self.is_ddl_on_temp_object,
+            temp_obj_name_placeholder=self.temp_obj_name_placeholder,
+            params=self.params,
+            query_line_intervals=self.query_line_intervals,
         )
 
     def __eq__(self, other: "Query") -> bool:
@@ -1717,3 +2440,11 @@ class BatchInsertQuery(Query):
     ) -> None:
         super().__init__(sql)
         self.rows = rows
+
+    def __copy__(self) -> "BatchInsertQuery":
+        copied_query = BatchInsertQuery(
+            sql=self.sql,
+            rows=self.rows,
+        )
+        copied_query.query_id_place_holder = self.query_id_place_holder
+        return copied_query

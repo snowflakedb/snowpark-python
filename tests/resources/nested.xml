@@ -1,0 +1,10 @@
+<tag>
+    <test>
+        <num>1</num>
+        <str>str1</str>
+        <obj>
+            <str>str2</str>
+            <bool>true</bool>
+        </obj>
+    </test>
+</tag>

@@ -22,6 +22,14 @@ Functions
     acos
     acosh
     add_months
+    ai_agg
+    ai_embed
+    ai_classify
+    ai_complete
+    ai_filter
+    ai_sentiment
+    ai_similarity
+    ai_summarize_agg
     any_value
     approx_count_distinct
     approx_percentile
@@ -81,6 +89,9 @@ Functions
     atanh
     atan2
     avg
+    base64
+    base64_decode_string
+    base64_encode
     bit_length
     bitmap_bit_position
     bitmap_bucket_number
@@ -88,6 +99,7 @@ Functions
     bitnot
     bitshiftleft
     bitshiftright
+    build_stage_file_url
     builtin
     bround
     call_builtin
@@ -157,6 +169,7 @@ Functions
     desc_nulls_last
     div0
     divnull
+    editdistance
     endswith
     equal_nan
     equal_null
@@ -168,6 +181,20 @@ Functions
     first_value
     flatten
     floor
+    fl_get_content_type
+    fl_get_etag
+    fl_get_file_type
+    fl_get_last_modified
+    fl_get_relative_path
+    fl_get_scoped_file_url
+    fl_get_size
+    fl_get_stage
+    fl_get_stage_file_url
+    fl_is_audio
+    fl_is_compressed
+    fl_is_document
+    fl_is_image
+    fl_is_video
     from_unixtime
     from_utc_timestamp
     function
@@ -178,12 +205,15 @@ Functions
     grouping
     grouping_id
     hash
+    hex
+    hex_encode
     hour
     iff
     ifnull
     in_
     initcap
     insert
+    instr
     is_array
     is_binary
     is_boolean
@@ -217,6 +247,9 @@ Functions
     locate
     localtimestamp
     log
+    log1p
+    log2
+    log10
     lower
     lpad
     ltrim
@@ -234,13 +267,16 @@ Functions
     min_by
     minute
     mode
+    model
     monotonically_increasing_id
     month
     monthname
     months_between
     negate
     next_day
+    normal
     not_
+    nth_value
     ntile
     nullifzero
     nvl
@@ -257,12 +293,15 @@ Functions
     parse_json
     parse_xml
     percent_rank
+    percentile_approx
     percentile_cont
     position
     pow
     previous_day
+    prompt
     quarter
     radians
+    randn
     random
     rank
     regexp_count
@@ -331,6 +370,7 @@ Functions
     to_date
     to_decimal
     to_double
+    to_file
     to_geography
     to_geometry
     to_json
@@ -345,11 +385,13 @@ Functions
     trim
     trunc
     try_cast
+    try_parse_json
     try_to_binary
     typeof
     udaf
     udf
     udtf
+    unbase64
     uniform
     unix_timestamp
     upper
@@ -364,4 +406,13 @@ Functions
     when_not_matched
     window
     xmlget
+    xpath
+    xpath_boolean
+    xpath_double
+    xpath_float
+    xpath_int
+    xpath_long
+    xpath_number
+    xpath_short
+    xpath_string
     year

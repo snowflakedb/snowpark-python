@@ -2,13 +2,12 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import logging
-from threading import RLock
 import weakref
 from collections import defaultdict
 from typing import TYPE_CHECKING, Dict
 
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import SnowflakeTable
-from snowflake.snowpark._internal.utils import is_in_stored_procedure
+from snowflake.snowpark._internal.utils import create_rlock, is_in_stored_procedure
 
 _logger = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ class TempTableAutoCleaner:
         # this dict will still be maintained even if the cleaner is stopped (`stop()` is called)
         self.ref_count_map: Dict[str, int] = defaultdict(int)
         # Lock to protect the ref_count_map
-        self.lock = RLock()
+        self.lock = create_rlock(session._conn._thread_safe_session_enabled)
 
     def add(self, table: SnowflakeTable) -> None:
         with self.lock:

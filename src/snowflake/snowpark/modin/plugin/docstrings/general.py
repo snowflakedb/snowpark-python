@@ -1307,28 +1307,28 @@ def get_dummies():
     >>> s = pd.Series(list('abca'))
 
     >>> pd.get_dummies(s)
-       a  b  c
-    0  1  0  0
-    1  0  1  0
-    2  0  0  1
-    3  1  0  0
+           a      b      c
+    0   True  False  False
+    1  False   True  False
+    2  False  False   True
+    3   True  False  False
 
     >>> df = pd.DataFrame({'A': ['a', 'b', 'a'], 'B': ['b', 'a', 'c'],
     ...                    'C': [1, 2, 3]})
 
     >>> pd.get_dummies(df, prefix=['col1', 'col2'])
        C  col1_a  col1_b  col2_a  col2_b  col2_c
-    0  1       1       0       0       1       0
-    1  2       0       1       1       0       0
-    2  3       1       0       0       0       1
+    0  1    True   False   False    True   False
+    1  2   False    True    True   False   False
+    2  3    True   False   False   False    True
 
     >>> pd.get_dummies(pd.Series(list('abcaa')))
-       a  b  c
-    0  1  0  0
-    1  0  1  0
-    2  0  0  1
-    3  1  0  0
-    4  1  0  0
+           a      b      c
+    0   True  False  False
+    1  False   True  False
+    2  False  False   True
+    3   True  False  False
+    4   True  False  False
     """
 
 
@@ -1904,8 +1904,6 @@ def date_range():
         Name of the resulting DatetimeIndex.
     inclusive : {"both", "neither", "left", "right"}, default "both"
         Include boundaries; Whether to set each bound as closed or open.
-
-        .. versionadded:: 1.4.0
     **kwargs
         For compatibility. Has no effect on the result.
 
@@ -2067,8 +2065,6 @@ def bdate_range():
         are passed.
     inclusive : {"both", "neither", "left", "right"}, default "both"
         Include boundaries; Whether to set each bound as closed or open.
-
-        .. versionadded:: 1.4.0
     **kwargs
         For compatibility. Has no effect on the result.
 

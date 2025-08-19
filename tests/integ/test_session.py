@@ -4,6 +4,7 @@
 #
 
 import os
+import copy
 from functools import partial
 from unittest.mock import patch
 
@@ -95,6 +96,60 @@ def test_update_query_tag(session):
             session.update_query_tag({"key2": "value2"})
     finally:
         session.query_tag = store_tag
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SQL query not supported",
+    run=False,
+)
+@pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot alter session in SP")
+def test_collect_stacktrace_in_query_tag(session):
+    from snowflake.snowpark._internal.analyzer import analyzer
+
+    original_threshold = analyzer.ARRAY_BIND_THRESHOLD
+    original_collect_stacktrace_in_query_tag = session.conf.get(
+        "collect_stacktrace_in_query_tag"
+    )
+    try:
+        session.conf.set("collect_stacktrace_in_query_tag", False)
+        analyzer.ARRAY_BIND_THRESHOLD = 2
+        df = session.createDataFrame([[1, 2], [3, 4]], ["a", "b"])
+        with session.query_history() as history:
+            df.collect()
+        assert len(history.queries) == 4
+        assert history.queries[0].sql_text.startswith(
+            "CREATE  OR  REPLACE  SCOPED TEMPORARY"
+        )
+        assert history.queries[1].sql_text.startswith(
+            "INSERT  INTO SNOWPARK_TEMP_TABLE"
+        )
+        assert Utils.normalize_sql(history.queries[2].sql_text).startswith(
+            'SELECT "A", "B" FROM'
+        )
+        assert history.queries[3].sql_text.startswith("DROP  TABLE  If  EXISTS")
+
+        session.conf.set("collect_stacktrace_in_query_tag", True)
+        with session.query_history() as history:
+            df.collect()
+        assert len(history.queries) == 6
+        assert history.queries[0].sql_text.startswith(
+            "CREATE  OR  REPLACE  SCOPED TEMPORARY"
+        )
+        assert history.queries[1].sql_text.startswith("alter session set query_tag")
+        assert history.queries[2].sql_text.startswith(
+            "INSERT  INTO SNOWPARK_TEMP_TABLE"
+        )
+        assert history.queries[3].sql_text.startswith("alter session unset query_tag")
+        assert Utils.normalize_sql(history.queries[4].sql_text).startswith(
+            'SELECT "A", "B" FROM'
+        )
+        assert history.queries[5].sql_text.startswith("DROP  TABLE  If  EXISTS")
+    finally:
+        analyzer.ARRAY_BIND_THRESHOLD = original_threshold
+        session.conf.set(
+            "collect_stacktrace_in_query_tag", original_collect_stacktrace_in_query_tag
+        )
 
 
 @pytest.mark.xfail(
@@ -234,9 +289,19 @@ def test_create_session_in_sp(session):
     original_platform = internal_utils.PLATFORM
     internal_utils.PLATFORM = "XP"
     try:
-        with pytest.raises(SnowparkSessionException) as exec_info:
-            Session(session._conn)
-        assert exec_info.value.error_code == "1410"
+        if not session._conn._get_client_side_session_parameter(
+            "ENABLE_CREATE_SESSION_IN_STORED_PROCS", False
+        ):
+            with pytest.raises(SnowparkSessionException) as exec_info:
+                Session(session._conn)
+            assert exec_info.value.error_code == "1410"
+        with patch.object(
+            session._conn, "_get_client_side_session_parameter", return_value=True
+        ):
+            try:
+                Session(session._conn)
+            except SnowparkSessionException as e:
+                pytest.fail(f"Unexpected exception {e} was raised")
     finally:
         internal_utils.PLATFORM = original_platform
 
@@ -532,7 +597,7 @@ def test_table_exists(session):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_database(db_parameters, sql_simplifier_enabled):
-    parameters = db_parameters.copy()
+    parameters = copy.deepcopy(db_parameters)
     del parameters["database"]
     del parameters["schema"]
     del parameters["warehouse"]
@@ -545,7 +610,7 @@ def test_use_database(db_parameters, sql_simplifier_enabled):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_schema(db_parameters, sql_simplifier_enabled, local_testing_mode):
-    parameters = db_parameters.copy()
+    parameters = copy.deepcopy(db_parameters)
     del parameters["schema"]
     del parameters["warehouse"]
     parameters["local_testing"] = local_testing_mode
@@ -567,7 +632,7 @@ def test_use_schema(db_parameters, sql_simplifier_enabled, local_testing_mode):
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")
 def test_use_warehouse(db_parameters, sql_simplifier_enabled):
-    parameters = db_parameters.copy()
+    parameters = copy.deepcopy(db_parameters)
     del parameters["database"]
     del parameters["schema"]
     del parameters["warehouse"]
@@ -679,14 +744,18 @@ def test_close_session_twice(db_parameters):
     reason="reading server side parameter is not supported in local testing",
 )
 def test_sql_simplifier_disabled_on_session(db_parameters):
-    with Session.builder.configs(db_parameters).create() as new_session:
+    # TODO: SNOW-2196637, db_parameters["session_parameters"] is unexpectedly mutated during test execution;
+    # it should remain immutable.
+    params = copy.deepcopy(db_parameters)
+    params.pop("session_parameters")
+    with Session.builder.configs(params).create() as new_session:
         assert new_session.sql_simplifier_enabled is True
         new_session.sql_simplifier_enabled = False
         assert new_session.sql_simplifier_enabled is False
         new_session.sql_simplifier_enabled = True
         assert new_session.sql_simplifier_enabled is True
 
-    parameters = db_parameters.copy()
+    parameters = copy.deepcopy(db_parameters)
     parameters["session_parameters"] = {
         _PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING: False
     }
@@ -707,7 +776,7 @@ def test_cte_optimization_enabled_on_session(session, db_parameters):
         new_session.cte_optimization_enabled = default_value
         assert new_session.cte_optimization_enabled is default_value
 
-    parameters = db_parameters.copy()
+    parameters = copy.deepcopy(db_parameters)
     parameters["session_parameters"] = {
         _PYTHON_SNOWPARK_USE_CTE_OPTIMIZATION_VERSION: get_version()
         if default_value
@@ -726,7 +795,7 @@ def test_cte_optimization_enabled_on_session(session, db_parameters):
 def test_eliminate_numeric_sql_value_cast_optimization_enabled_on_session(
     db_parameters, server_parameter_enabled
 ):
-    parameters = db_parameters.copy()
+    parameters = copy.deepcopy(db_parameters)
     parameters["session_parameters"] = {
         _PYTHON_SNOWPARK_ELIMINATE_NUMERIC_SQL_VALUE_CAST_ENABLED: server_parameter_enabled
     }

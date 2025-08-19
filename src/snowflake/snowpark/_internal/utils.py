@@ -9,6 +9,7 @@ import datetime
 import decimal
 import functools
 import hashlib
+import heapq
 import importlib
 import io
 import itertools
@@ -19,14 +20,17 @@ import random
 import re
 import string
 import sys
+import time
 import threading
 import traceback
+import uuid
 import zipfile
 from enum import Enum, IntEnum, auto, unique
-from functools import lru_cache
+from functools import lru_cache, wraps
 from itertools import count
 from json import JSONEncoder
-from random import choice
+from time import perf_counter
+from random import Random
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -42,6 +46,7 @@ from typing import (
     Tuple,
     Type,
     Union,
+    TypeVar,
 )
 
 import snowflake.snowpark
@@ -51,11 +56,16 @@ from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark.context import _should_use_structured_type_semantics
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
 
 if TYPE_CHECKING:
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import (
+        SnowflakePlan,
+        QueryLineInterval,
+    )
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
     try:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
@@ -65,9 +75,13 @@ _logger = logging.getLogger("snowflake.snowpark")
 
 STAGE_PREFIX = "@"
 SNOWURL_PREFIX = "snow://"
+RELATIVE_PATH_PREFIX = "/"
 SNOWFLAKE_PATH_PREFIXES = [
     STAGE_PREFIX,
     SNOWURL_PREFIX,
+]
+SNOWFLAKE_PATH_PREFIXES_FOR_GET = SNOWFLAKE_PATH_PREFIXES + [
+    RELATIVE_PATH_PREFIX,
 ]
 
 # Scala uses 3 but this can be larger. Consider allowing users to configure it.
@@ -187,7 +201,25 @@ NON_FORMAT_TYPE_OPTIONS = {
     "TARGET_COLUMNS",
     "TRANSFORMATIONS",
     "COPY_OPTIONS",
+    "ENFORCE_EXISTING_FILE_FORMAT",
+    "TRY_CAST",
 }
+
+XML_ROW_TAG_STRING = "ROWTAG"
+XML_ROW_DATA_COLUMN_NAME = "ROW_DATA"
+XML_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "xml_reader.py")
+XML_READER_API_SIGNATURE = "DataFrameReader.xml[rowTag]"
+XML_READER_SQL_COMMENT = f"/* Python:snowflake.snowpark.{XML_READER_API_SIGNATURE} */"
+
+# Map of XPath return types to handler function names
+XPATH_HANDLER_MAP = {
+    "array": "xpath_array_handler",
+    "string": "xpath_string_handler",
+    "boolean": "xpath_boolean_handler",
+    "int": "xpath_int_handler",
+    "float": "xpath_float_handler",
+}
+XPATH_HANDLERS_FILE_PATH = os.path.join(os.path.dirname(__file__), "xpath_handlers.py")
 
 QUERY_TAG_STRING = "QUERY_TAG"
 SKIP_LEVELS_TWO = (
@@ -300,6 +332,19 @@ def validate_object_name(name: str):
         raise SnowparkClientExceptionMessages.GENERAL_INVALID_OBJECT_NAME(name)
 
 
+def validate_stage_location(stage_location: str) -> str:
+    stage_location = stage_location.strip()
+    if not stage_location:
+        raise ValueError(
+            "stage_location cannot be empty. It must be a full stage path with prefix and file name like @mystage/stage/prefix/filename"
+        )
+    if stage_location[-1] == "/":
+        raise ValueError(
+            "stage_location should end with target filename like @mystage/prefix/stage/filename"
+        )
+    return stage_location
+
+
 @lru_cache
 def get_version() -> str:
     return ".".join([str(d) for d in snowpark_version if d is not None])
@@ -372,7 +417,7 @@ def normalize_path(path: str, is_local: bool) -> str:
     a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
     we do nothing.
     """
-    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES
+    prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES_FOR_GET
     if is_single_quoted(path):
         return path
     if is_local and OPERATING_SYSTEM == "Windows":
@@ -408,7 +453,7 @@ def split_path(path: str) -> Tuple[str, str]:
 
 def unwrap_stage_location_single_quote(name: str) -> str:
     new_name = unwrap_single_quote(name)
-    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES):
+    if any(new_name.startswith(prefix) for prefix in SNOWFLAKE_PATH_PREFIXES_FOR_GET):
         return new_name
     return f"{STAGE_PREFIX}{new_name}"
 
@@ -629,9 +674,12 @@ def create_or_update_statement_params_with_query_tag(
     statement_params: Optional[Dict[str, str]] = None,
     exists_session_query_tag: Optional[str] = None,
     skip_levels: int = 0,
+    collect_stacktrace: bool = False,
 ) -> Dict[str, str]:
-    if exists_session_query_tag or (
-        statement_params and QUERY_TAG_STRING in statement_params
+    if (
+        exists_session_query_tag
+        or (statement_params and QUERY_TAG_STRING in statement_params)
+        or not collect_stacktrace
     ):
         return statement_params
 
@@ -641,14 +689,14 @@ def create_or_update_statement_params_with_query_tag(
     return ret
 
 
-def get_stage_file_prefix_length(stage_location: str) -> int:
+def get_stage_parts(stage_location: str) -> tuple[str, str]:
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
 
     # Remove the first three characters from @~/...
     if normalized.startswith(f"{STAGE_PREFIX}~"):
-        return len(normalized) - 3
+        return "~", normalized[3:]
 
     is_quoted = False
     for i, c in enumerate(normalized):
@@ -667,11 +715,23 @@ def get_stage_file_prefix_length(stage_location: str) -> int:
             stage_name = res[-1][0]
             # For a table stage, stage name is not in the prefix,
             # so the prefix is path. Otherwise, the prefix is stageName + "/" + path
-            return (
-                len(path)
-                if stage_name.startswith("%")
-                else len(path) + len(stage_name.strip('"')) + 1
-            )
+            return stage_name, path
+
+    return None, None
+
+
+def get_stage_file_prefix_length(stage_location: str) -> int:
+    stage_name, path = get_stage_parts(stage_location)
+
+    if stage_name == "~":
+        return len(path)
+
+    if stage_name:
+        return (
+            len(path)
+            if stage_name.startswith("%")
+            else len(path) + len(stage_name.strip('"')) + 1
+        )
 
     raise ValueError(f"Invalid stage {stage_location}")
 
@@ -685,7 +745,7 @@ def random_name_for_temp_object(object_type: TempObjectType) -> str:
 
 
 def generate_random_alphanumeric(length: int = 10) -> str:
-    return "".join(choice(ALPHANUMERIC) for _ in range(length))
+    return "".join(Random().choice(ALPHANUMERIC) for _ in range(length))
 
 
 def column_to_bool(col_):
@@ -711,6 +771,8 @@ def _parse_result_meta(
     an expected format. For example StructType columns are returned as dict objects, but are better
     represented as Row objects.
     """
+    from snowflake.snowpark.context import _should_use_structured_type_semantics
+
     if not result_meta:
         return None, None
     col_names = []
@@ -807,6 +869,58 @@ def warning(name: str, text: str, warning_times: int = 1) -> None:
     warning_dict[name].warning(text)
 
 
+# TODO: SNOW-1720855: Remove DummyRLock and DummyThreadLocal after the rollout
+class DummyRLock:
+    """This is a dummy lock that is used in place of threading.Rlock when multithreading is
+    disabled."""
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def acquire(self, *args, **kwargs):
+        pass  # pragma: no cover
+
+    def release(self, *args, **kwargs):
+        pass  # pragma: no cover
+
+
+class DummyThreadLocal:
+    """This is a dummy thread local class that is used in place of threading.local when
+    multithreading is disabled."""
+
+    pass
+
+
+def create_thread_local(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.local, DummyThreadLocal]:
+    if thread_safe_session_enabled:
+        return threading.local()
+    return DummyThreadLocal()
+
+
+def create_rlock(
+    thread_safe_session_enabled: bool,
+) -> Union[threading.RLock, DummyRLock]:
+    if thread_safe_session_enabled:
+        return threading.RLock()
+    return DummyRLock()
+
+
+@unique
+class AstMode(IntEnum):
+    """
+    Describes the ast modes that instruct the client to send sql and/or dataframe AST to snowflake server.
+    """
+
+    SQL_ONLY = 0
+    SQL_AND_AST = 1
+    AST_ONLY = 2
+
+
 @unique
 class AstFlagSource(IntEnum):
     """
@@ -817,7 +931,9 @@ class AstFlagSource(IntEnum):
     LOCAL = auto()
     """Some local criteria determined the value. This has the lowest precedence. Any other source can override it."""
     SERVER = auto()
-    """The server set the value. This has the highest precedence. Nothing else can override it."""
+    """The server set the value."""
+    USER = auto()
+    """The flag has been set by the user explicitly at their own risk."""
     TEST = auto()
     """
     Do not use this in production Snowpark code. Test code sets the value. This has the highest precedence.
@@ -837,8 +953,12 @@ class _AstFlagState(IntEnum):
     """The flag is initialized with a hard-coded default. No source has set the value."""
     TENTATIVE = auto()
     """The flag has been set by a source with lower precedence than SERVER. It can be overridden by SERVER."""
+    SERVER_SET = auto()
+    """The flag has been set by SERVER."""
+    USER_SET = auto()
+    """The flag has been set by USER."""
     FINALIZED = auto()
-    """The flag has been set by SERVER. It cannot be overridden."""
+    """The flag state can only be changed by TEST sources."""
 
 
 class _AstState:
@@ -913,6 +1033,19 @@ class _AstState:
                     enable,
                 )
                 return
+
+            # User is allowed to make the disabled -> enabled transition which is considered unsafe.
+            # This is only intended for case when the user wants to enable AST immediately after session
+            # is initialized.
+            if source == AstFlagSource.USER:
+                # User is allowed to override the server setting if it is not
+                # finalized by test.
+                self._ast_enabled = enable
+                self._state = _AstFlagState.USER_SET
+                return
+
+            # If the current state is TENTATIVE, and the value is transitioning from disabled -> enabled,
+            # then the transition is unsafe.
             safe_transition: bool = not (
                 self._state == _AstFlagState.TENTATIVE
                 and not self._ast_enabled
@@ -925,7 +1058,7 @@ class _AstState:
                     _logger.warning(
                         "Server cannot enable AST after treating it as disabled locally. Ignoring request."
                     )
-                self._state = _AstFlagState.FINALIZED
+                self._state = _AstFlagState.SERVER_SET
             elif source == AstFlagSource.LOCAL:
                 if safe_transition:
                     self._ast_enabled = enable
@@ -959,14 +1092,28 @@ def set_ast_state(source: AstFlagSource, enabled: bool) -> None:
     return _ast_state.set_state(source, enabled)
 
 
-def publicapi(func) -> Callable:
+# When the minimum supported Python version is at least 3.10, the type
+# annotations for publicapi should use typing.ParamSpec:
+# P = ParamSpec("P")
+# ReturnT = TypeVar("ReturnT")
+# def publicapi(func: Callable[P, ReturnT]) -> Callable[P, ReturnT]:
+#   ...
+#   @functools.wraps(func)
+#   def call_wrapper(*args: P.args, **kwargs: P.kwargs) -> ReturnT:
+#     ...
+#   ...
+#   return call_wrapper
+CallableT = TypeVar("CallableT", bound=Callable)
+
+
+def publicapi(func: CallableT) -> CallableT:
     """decorator to safeguard public APIs with global feature flags."""
 
     # Note that co_varnames also includes local variables. This can trigger false positives.
     has_emit_ast: bool = "_emit_ast" in func.__code__.co_varnames
 
     @functools.wraps(func)
-    def call_wrapper(*args, **kwargs):  # pragma: no cover
+    def call_wrapper(*args, **kwargs):
         # warning(func.__qualname__, warning_text)
 
         if not has_emit_ast:
@@ -1079,17 +1226,6 @@ def get_temp_type_for_object(use_scoped_temp_objects: bool, is_generated: bool) 
         if use_scoped_temp_objects and is_generated
         else TEMPORARY_STRING
     )
-
-
-def check_is_pandas_dataframe_in_to_pandas(result: Any) -> None:
-    if not isinstance(result, pandas.DataFrame):
-        raise SnowparkClientExceptionMessages.SERVER_FAILED_FETCH_PANDAS(
-            "to_pandas() did not return a pandas DataFrame. "
-            "If you use session.sql(...).to_pandas(), the input query can only be a "
-            "SELECT statement. Or you can use session.sql(...).collect() to get a "
-            "list of Row objects for a non-SELECT statement, then convert it to a "
-            "pandas DataFrame."
-        )
 
 
 def check_imports_type(
@@ -1297,6 +1433,23 @@ def escape_quotes(unescaped: str) -> str:
     return unescaped.replace(DOUBLE_QUOTE, DOUBLE_QUOTE + DOUBLE_QUOTE)
 
 
+def split_snowflake_identifier_with_dot(s: str) -> list:
+    """
+    Splits the Snowflake identifier by dots that are not within double-quoted parts.
+    Tokens that appear quoted in the input remain unchanged (quotes are kept).
+    See details in https://docs.snowflake.com/en/sql-reference/identifiers-syntax.
+
+    Examples:
+      'foo.bar."hello.world".baz'
+          -> ['foo', 'bar', '"hello.world"', 'baz']
+      '"a.b".c."d.e.f".g'
+          -> ['"a.b"', 'c', '"d.e.f"', 'g']
+    """
+    # ensures that dots inside quotes are not used for splitting.
+    parts = re.compile(r'"(?:[^"]|"")*"|[^.]+').findall(s)
+    return parts
+
+
 # Define the full-width regex pattern, copied from Spark
 full_width_regex = re.compile(
     r"[\u1100-\u115F"
@@ -1380,7 +1533,7 @@ def check_flatten_mode(mode: str) -> None:
         raise ValueError("mode must be one of ('OBJECT', 'ARRAY', 'BOTH')")
 
 
-def check_create_map_parameter(*cols: Any) -> None:
+def check_create_map_parameter(*cols: Any) -> bool:
     """Helper function to check parameter cols for create_map function."""
 
     error_message = "The 'create_map' function requires an even number of parameters but the actual number is {}"
@@ -1393,6 +1546,8 @@ def check_create_map_parameter(*cols: Any) -> None:
 
     if not len(cols) % 2 == 0:
         raise ValueError(error_message.format(len(cols)))
+
+    return len(cols) == 1 and isinstance(cols, (tuple, list))
 
 
 def is_valid_tuple_for_agg(e: Union[list, tuple]) -> bool:
@@ -1469,3 +1624,460 @@ class GlobalCounter:
 
 
 global_counter: GlobalCounter = GlobalCounter()
+
+
+class ExprAliasUpdateDict(dict):
+    """
+    A specialized dictionary for mapping expressions (UUID keys) to alias names updates tracking.
+    This is used to resolve ambiguous column names in join operations.
+
+    This dictionary is designed to store aliases as string values while also tracking whether
+    each alias was inherited from child DataFrame plan.
+    The values are stored as tuples of the form `(alias: str, updated_from_inherited: bool)`, where:
+
+    - `alias` (str): The alias name for the expression.
+    - `updated_from_inheritance` (bool): A flag indicating whether the expr alias was updated
+     because it's inherited from child plan (True) or not (False).
+
+    Below is an example for resolving alias mapping:
+
+    data = [25, 30]
+    columns = ["age"]
+    df1 = session.createDataFrame(data, columns)
+    df2 = session.createDataFrame(data, columns)
+    df3 = df1.join(df2)
+    # in DF3:
+    #    df1.age expr_id -> (age_alias_left, False)  # comes from df1 due to being disambiguated in the join condition
+    #    df2.age expr_id -> (age_alias_right, False)  # comes from df2 due to being disambiguated in the join condition
+
+    df4 = df3.select(df1.age.alias("age"))
+
+    # in DF4:
+    #    df1.age.expr_id -> (age, False)  # comes from df3 explict alias
+    #    df2.age.expr_id -> (age_alias_right, False)  # unchanged, inherited from df3
+    df5 = df1.join(df4, df1["age"] == df4["age"])
+
+    # in the middle of df1.join(df2) operation, we have the following expr_to_alias mapping:
+    #  DF4 intermediate expr_to_alias:
+    #    df4.age.expr_id -> (age_alias_right2, False)  # comes from df4 due to being disambiguated in the join condition, note here df4.age is not the same as df1.age, it's a new attribute
+    #    df1.age.expr_id -> (age_alias_right2, True)  # comes from df4, updated due to inheritance
+    #  DF1 intermediate expr_to_alias:
+    #    df1.age.expr_id -> (age_alias_left2, False)  # comes from df1 due to being disambiguated in the join condition
+
+    # when executing merge_multiple_snowflake_plan_expr_to_alias, we drop df1.age.expr_id -> (age_alias_right2, True)
+
+    # in DF5:
+    #    df4.age.expr_id -> (age_alias_right2, False)
+    #    df1.age.expr_id -> (age_alias_left2, False)
+    """
+
+    def __setitem__(
+        self, key: Union[uuid.UUID, str], value: Union[Tuple[str, bool], str]
+    ):
+        """If a string value is provided, it is automatically stored as `(value, False)`.
+        If a tuple `(str, bool)` is provided, it must conform to the expected format.
+        """
+        if isinstance(value, str):
+            # if value is a string, we set inherit to False
+            value = (value, False)
+        if not (
+            isinstance(value, tuple)
+            and len(value) == 2
+            and isinstance(value[0], str)
+            and isinstance(value[1], bool)
+        ):
+            raise ValueError("Value must be a tuple of (str, bool)")
+        super().__setitem__(key, value)
+
+    def __getitem__(self, item) -> str:
+        """Returns only the alias string (`str`), omitting the inheritance flag."""
+        value = super().__getitem__(item)
+        return value[0]
+
+    def get(self, key, default=None) -> str:
+        value = super().get(key, None)
+        if value is not None:
+            return value[0]
+        return default
+
+    def was_updated_due_to_inheritance(self, key):
+        """Returns whether a key was inherited (`True` or `False`)."""
+        value = super().get(key, None)
+        if value is not None:
+            return value[1]
+        return False
+
+    def items(self):
+        """Return (key, str) pairs instead of (key, (str, bool)) pairs."""
+        return ((key, value[0]) for key, value in super().items())
+
+    def values(self) -> Iterable[str]:
+        """Return only the string parts of the tuple in the dictionary values."""
+        return (value[0] for value in super().values())
+
+    def update(self, other):
+        assert isinstance(other, ExprAliasUpdateDict)
+        for k in other:
+            self[k] = (other[k], other.was_updated_due_to_inheritance(k))
+
+    def copy(self) -> "ExprAliasUpdateDict":
+        """Return a shallow copy of the dictionary, preserving the (str, bool) tuple structure."""
+        return self.__copy__()
+
+    def __copy__(self) -> "ExprAliasUpdateDict":
+        """Shallow copy implementation for copy.copy()"""
+        new_copy = ExprAliasUpdateDict()
+        new_copy.update(self)
+        return new_copy
+
+    def __deepcopy__(self, memo) -> "ExprAliasUpdateDict":
+        """Deep copy implementation for copy.deepcopy()"""
+        return self.__copy__()
+
+
+def merge_multiple_snowflake_plan_expr_to_alias(
+    snowflake_plans: List["SnowflakePlan"],
+) -> ExprAliasUpdateDict:
+    """
+    Merges expression-to-alias mappings from multiple Snowflake plans, resolving conflicts where possible.
+    The conflict resolution strategy is as follows:
+
+    1) If they map to the same alias:
+        * Retain the expression in the final expr_to_alias map.
+    2) If they map to different aliases:
+        a) If one appears in the output attributes of the plan and the other does not:
+            * Retain the one present in the output attributes and discard the other. This is because
+            I. The one that shows up in the output attribute can be referenced by users to perform dataframe column operations.
+            II. The one that does not show up in the output is an intermediate alias mapping and can not be referenced directly by users.
+        b) If both appear in the output attributes:
+            * Discard both expressions as this constitutes a valid ambiguous case that cannot be resolved.
+    3) If neither appears in the output attributes:
+        * Discard both expressions since they will no longer be referenced.
+
+    taking our example from the class docstring, the conflicting df1.age in df5:
+    #    df1.age -> (age_alias_right2, True)  # comes from df4, updated due to inheritance
+    #    df1.age -> (age_alias_left2, False)  # comes from df1 due to being disambiguated in the join condition
+
+    we are going to:
+    DROP: df1.age -> (age_alias_right2, True) because it's not directly in the output and can not be referenced
+    KEEP: df1.age -> (age_alias_left2, False) is going to be kept because it's directly in the output and can be referenced
+
+    Args:
+        snowflake_plans (List[SnowflakePlan]): List of SnowflakePlan objects.
+
+    Returns:
+        Dict[Any, str]: Merged expression-to-alias mapping.
+    """
+
+    # Gather all expression-to-alias mappings
+    all_expr_to_alias_dicts = [plan.expr_to_alias for plan in snowflake_plans]
+
+    # Initialize the merged dictionary
+    merged_dict = ExprAliasUpdateDict()
+
+    # Collect all unique keys from all dictionaries
+    all_expr_ids = set().union(*all_expr_to_alias_dicts)
+
+    conflicted_expr_ids = {}
+
+    for expr_id in all_expr_ids:
+        values = list(
+            {
+                (d[expr_id], d.was_updated_due_to_inheritance(expr_id))
+                for d in all_expr_to_alias_dicts
+                if expr_id in d
+            }
+        )
+        # Check if all aliases are identical
+        if len(values) == 1:
+            merged_dict[expr_id] = values[0]
+        else:
+            conflicted_expr_ids[expr_id] = values
+
+    if not conflicted_expr_ids:
+        return merged_dict
+
+    for expr_id in conflicted_expr_ids:
+        expr_id_alias_candidates = set()
+        for plan in snowflake_plans:
+            output_columns = []
+            if plan.schema_query is not None:
+                output_columns = [attr.name for attr in plan.output]
+            tmp_alias_name, tmp_updated_due_to_inheritance = plan.expr_to_alias[
+                expr_id
+            ], plan.expr_to_alias.was_updated_due_to_inheritance(expr_id)
+            if tmp_alias_name not in output_columns or tmp_updated_due_to_inheritance:
+                # alias updated due to inheritance are not considered as they are not used in the output
+                # check Analyzer.unary_expression_extractor functions
+                continue
+            if len(expr_id_alias_candidates) == 1:
+                # Only one candidate so far
+                candidate_name, candidate_updated_due_to_inheritance = next(
+                    iter(expr_id_alias_candidates)
+                )
+                if candidate_name == tmp_alias_name:
+                    # The candidate is the same as the current alias
+                    # we keep the non-inherited bool information as our strategy is to keep alias
+                    # that shows directly in the output column rather than updates because of inheritance
+                    tmp_updated_due_to_inheritance = (
+                        candidate_updated_due_to_inheritance
+                        and tmp_updated_due_to_inheritance
+                    )
+                    expr_id_alias_candidates.pop()
+            expr_id_alias_candidates.add(
+                (tmp_alias_name, tmp_updated_due_to_inheritance)
+            )
+        # Add the candidate to the merged dictionary if resolved
+        if len(expr_id_alias_candidates) == 1:
+            merged_dict[expr_id] = expr_id_alias_candidates.pop()
+        else:
+            # No valid candidate found
+            _logger.debug(
+                f"Expression '{expr_id}' is associated with multiple aliases across different plans. "
+                f"Unable to determine which alias to use. Conflicting values: {conflicted_expr_ids[expr_id]}"
+            )
+
+    return merged_dict
+
+
+def str_contains_alphabet(ver):
+    """Return True if ver contains alphabet, e.g., 1a1; otherwise, return False, e.g., 112"""
+    return bool(re.search("[a-zA-Z]", ver))
+
+
+def get_sorted_key_for_version(version_str):
+    """Generate a key to sort versions. Note if a version component is not a number, e.g., "1a1", we will treat it as -1. E.g., 1.11.1a1 will be treated as 1.11.-1"""
+    return tuple(
+        -1 if str_contains_alphabet(num) else int(num) for num in version_str.split(".")
+    )
+
+
+def ttl_cache(ttl_seconds: float):
+    """
+    A decorator that caches function results with a time-to-live (TTL) expiration.
+
+    Args:
+        ttl_seconds (float): Time-to-live in seconds for cached items
+    """
+
+    def decorator(func):
+        cache = {}
+        expiry_heap = []  # heap of (expiry_time, cache_key)
+        cache_lock = threading.RLock()
+
+        def _make_cache_key(*args, **kwargs) -> int:
+            """Create a hashable cache key from function arguments."""
+            key = (args, tuple(sorted(kwargs.items())))
+            try:
+                # Try to create a simple tuple key
+                return hash(key)
+            except TypeError:
+                # If args contain unhashable types, convert to string representation
+                return hash(str(key))
+
+        def _cleanup_expired(current_time: float):
+            """Remove expired entries from cache and heap."""
+            # Clean up expired entries from the heap and cache
+            while expiry_heap:
+                expiry_time, cache_key = expiry_heap[0]
+                if expiry_time >= current_time:
+                    break
+                heapq.heappop(expiry_heap)
+                if cache_key in cache:
+                    del cache[cache_key]
+
+        def _clear_cache():
+            with cache_lock:
+                cache.clear()
+                expiry_heap.clear()
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            cache_key = _make_cache_key(*args, **kwargs)
+            current_time = time.time()
+
+            with cache_lock:
+                _cleanup_expired(current_time)
+
+                if cache_key in cache:
+                    return cache[cache_key]
+
+                result = func(*args, **kwargs)
+
+                cache[cache_key] = result
+                expiry_time = current_time + ttl_seconds
+                heapq.heappush(expiry_heap, (expiry_time, cache_key))
+
+                return result
+
+        # Exposes the cache for testing
+        wrapper._cache = cache
+        wrapper.clear_cache = _clear_cache
+
+        return wrapper
+
+    return decorator
+
+
+def remove_comments(sql_query: str, uuids: List[str]) -> str:
+    """Removes comments associated with child uuids in a query"""
+    from snowflake.snowpark._internal.analyzer import analyzer_utils
+
+    comment_placeholders = {
+        analyzer_utils.format_uuid(uuid, with_new_line=False) for uuid in uuids
+    }
+    return "\n".join(
+        line
+        for line in sql_query.split("\n")
+        if line not in comment_placeholders and line != ""
+    )
+
+
+def get_line_numbers(
+    commented_sql_query: str,
+    child_uuids: List[str],
+    parent_uuid: str,
+) -> List["QueryLineInterval"]:
+    """
+        Helper function to get line numbers associated with child uuids in a query
+        The commented_sql_query is a sql query with comments associated with child uuids. For example, it may look like:
+        ```
+        SELECT col1
+        FROM
+    -- child-uuid-1:
+    table1
+    -- child-uuid-1:
+    WHERE col1 > 0
+    -- child-uuid-2:
+    ORDER BY col1
+    -- child-uuid-2:
+        ```
+        For this query, we want to return a list of QueryLineInterval objects with the following intervals:
+        - (0, 1, "parent-uuid")
+        - (2, 2, "child-uuid-1")
+        - (3, 3, "parent-uuid")
+        - (4, 4, "child-uuid-2")
+
+        To do so, we split the commented_sql_query into lines and check for comments associated with child uuids. We find all
+        intervals associated with child uuids and associate the remaining lines with the parent uuid.
+    """
+    from snowflake.snowpark._internal.analyzer.snowflake_plan import QueryLineInterval
+    from snowflake.snowpark._internal.analyzer import analyzer_utils
+
+    sql_lines = commented_sql_query.split("\n")
+    comment_placeholders = {
+        analyzer_utils.format_uuid(uuid, with_new_line=False): uuid
+        for uuid in child_uuids
+    }
+
+    idx = 0
+    child_intervals = []
+    child_start = -1
+    found_start = False
+    current_child_uuid = None
+
+    for line in sql_lines:
+        if line in comment_placeholders:
+            if found_start and current_child_uuid:
+                child_intervals.append(
+                    QueryLineInterval(child_start, idx - 1, current_child_uuid)
+                )
+                found_start = False
+                current_child_uuid = None
+            elif not found_start:
+                found_start = True
+                child_start = idx
+                current_child_uuid = comment_placeholders[line]
+        elif line != "":
+            idx += 1
+
+    current_pos = 0
+    new_intervals = []
+
+    for interval in child_intervals:
+        if current_pos < interval.start:
+            new_intervals.append(
+                QueryLineInterval(current_pos, interval.start - 1, parent_uuid)
+            )
+        new_intervals.append(interval)
+        current_pos = interval.end + 1
+
+    if current_pos < idx:
+        new_intervals.append(QueryLineInterval(current_pos, idx - 1, parent_uuid))
+
+    return new_intervals
+
+
+def get_plan_from_line_numbers(
+    plan_node: Union["SnowflakePlan", "Selectable"],
+    line_number: int,
+) -> "SnowflakePlan":
+    """
+    Given a parent plan node and a line number, return the plan node that contains the line number.
+    Each parent node has a list of disjoint query line intervals, which are sorted by start line number,
+    and each interval is associated with a plan node uuid. Each node either knows it is responsible for
+    the lines in the interval if its uuid is the same as the interval's uuid, or that one of its descendants
+    is responsible otherwise. If we find that the descendant is responsible, then we subtract the offset created
+    by the parent before recursively searching the child. For example, if the parent is responsible for lines 0-10 and
+    its descendants are responsible for lines 11-20 and we are searching for line 15, we will search the child for line 4.
+    We raise ValueError if the line number does not fall within any interval.
+    """
+    from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+
+    # we binary search for our line number because our intervals are sorted
+    def find_interval_containing_line(intervals, line_number):
+        left, right = 0, len(intervals) - 1
+        while left <= right:
+            mid = (left + right) // 2
+            start, end = intervals[mid].start, intervals[mid].end
+
+            if start <= line_number <= end:
+                return mid
+            elif line_number < start:
+                right = mid - 1
+            else:
+                left = mid + 1
+        return -1
+
+    # traverse the plan tree to find the plan that contains the line number
+    stack = [(plan_node, line_number, None)]
+    while stack:
+        node, line_number, df_ast_ids = stack.pop()
+        if isinstance(node, Selectable):
+            node = node.get_snowflake_plan(skip_schema_query=False)
+        if node.df_ast_ids is not None:
+            df_ast_ids = node.df_ast_ids
+        query_line_intervals = node.queries[-1].query_line_intervals
+        idx = find_interval_containing_line(query_line_intervals, line_number)
+        if idx >= 0:
+            uuid = query_line_intervals[idx].uuid
+            if node.uuid == uuid:
+                node.df_ast_ids = df_ast_ids
+                return node
+            else:
+                for child in node.children_plan_nodes:
+                    if child.uuid == uuid:
+                        stack.append(
+                            (
+                                child,
+                                line_number - query_line_intervals[idx].start,
+                                df_ast_ids,
+                            )
+                        )
+                        break
+        else:
+            raise ValueError(
+                f"Line number {line_number} does not fall within any interval"
+            )
+
+    raise ValueError(f"Line number {line_number} does not fall within any interval")
+
+
+@contextlib.contextmanager
+def measure_time() -> Callable[[], float]:
+    """
+    A simple context manager that measures the time taken to execute a code block
+    """
+    start_time = end_time = perf_counter()
+    yield lambda: end_time - start_time
+    end_time = perf_counter()

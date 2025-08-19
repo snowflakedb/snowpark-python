@@ -14,7 +14,7 @@ from collections import defaultdict
 from collections.abc import Iterable
 from enum import Enum
 from functools import cached_property, partial, reduce
-from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional, Union, Tuple
 from unittest.mock import MagicMock
 
 from snowflake.snowpark._internal.analyzer.select_statement import SelectTableFunction
@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
     UpdateMergeExpression,
 )
 from snowflake.snowpark._internal.analyzer.window_expression import (
+    CurrentRow,
     FirstValue,
     Lag,
     LastValue,
@@ -106,6 +107,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     PlanQueryType,
     Query,
     SnowflakePlan,
+    QueryLineInterval,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     LogicalPlan,
@@ -136,6 +138,7 @@ from snowflake.snowpark._internal.analyzer.unary_plan_node import (
     Pivot,
     Sample,
     Project,
+    SampleBy,
 )
 from snowflake.snowpark._internal.type_utils import infer_type
 from snowflake.snowpark._internal.utils import (
@@ -167,6 +170,7 @@ from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
     BooleanType,
     ByteType,
+    DateType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -175,6 +179,7 @@ from snowflake.snowpark.types import (
     NullType,
     ShortType,
     StringType,
+    TimestampType,
     VariantType,
     _NumericType,
 )
@@ -194,8 +199,10 @@ class MockExecutionPlan(LogicalPlan):
         self.source_plan = source_plan
         self.session = session
         self.schema_query = None
+        self.uuid = "MOCK_UUID"
         mock_query = MagicMock()
         mock_query.sql = "SELECT MOCK_TEST_FAKE_QUERY()"
+        mock_query.query_line_intervals = [QueryLineInterval(0, 0, self.uuid)]
         self.queries = [mock_query]
         self.child = child
         self.expr_to_alias = expr_to_alias if expr_to_alias is not None else {}
@@ -204,6 +211,7 @@ class MockExecutionPlan(LogicalPlan):
         )
         self.api_calls = []
         self._attributes = None
+        self.df_ast_ids = None
 
     @property
     def attributes(self) -> List[Attribute]:
@@ -236,6 +244,12 @@ class MockExecutionPlan(LogicalPlan):
 
     def add_aliases(self, to_add: Dict) -> None:
         self.expr_to_alias.update(to_add)
+
+    def add_df_ast_id(self, ast_id: int) -> None:
+        if self.df_ast_ids is None:
+            self.df_ast_ids = [ast_id]
+        elif self.df_ast_ids[-1] != ast_id:
+            self.df_ast_ids.append(ast_id)
 
 
 class MockFileOperation(MockExecutionPlan):
@@ -312,6 +326,80 @@ def handle_order_by_clause(
     return result_df
 
 
+def validate_interval(interval: Optional[Union[Interval, int]]) -> bool:
+    """
+    Validates that the input value is valid for use as an interval.
+        None -> Unbounded interval either before or after the current row.
+        0 -> Use the current row and the bound.
+        Interval -> Use the Interval when calculating the bound.
+    """
+    if interval is None or interval == 0 or isinstance(interval, Interval):
+        return True
+    return False
+
+
+def negate_interval(interval: Interval) -> Interval:
+    """
+    Negates each value in an interval. Returns a new Interval object.
+    """
+    return Interval(
+        **{key.lower(): -value for key, value in interval.values_dict.items()}
+    )
+
+
+def compare_intervals(
+    lower: Optional[Union[Interval, int]], upper: Optional[Union[Interval, int]]
+) -> bool:
+    """
+    Returns true if lower >= upper.
+    """
+    if lower is None or upper is None:
+        return True
+
+    lower = lower or Interval()
+    upper = upper or Interval()
+
+    for part in [
+        "YEAR",
+        "QUARTER",
+        "MONTH",
+        "WEEK",
+        "DAY",
+        "HOUR",
+        "MINUTE",
+        "SECOND",
+        "MILLISECOND",
+        "MICROSECOND",
+        "NANOSECOND",
+    ]:
+        lower_part = lower.values_dict.get(part)
+        upper_part = upper.values_dict.get(part)
+
+        if lower_part or upper_part:
+            lower_part = lower_part or 0
+            upper_part = upper_part or 0
+            if (lower_part + upper_part) != 0:
+                return lower_part >= upper_part
+    return True
+
+
+def apply_interval(
+    column: ColumnEmulator,
+    interval: Interval,
+    registry: Optional[MockedFunctionRegistry] = None,
+) -> ColumnEmulator:
+    """
+    Applies an interval object to a datetime column by repeatedly calling dateadd on the interval parts.
+    """
+    # The expression `select to_date ('2019-02-28') + INTERVAL '1 day, 1 year';`
+    # is rewritten to `select dateadd(DAY, 1, dateadd(YEAR, 1, to_date ('2019-02-28')))`.
+    registry = registry or MockedFunctionRegistry.get_or_create()
+    new_column = column
+    for k, v in interval.values_dict.items():
+        new_column = registry.get_function("dateadd")(k, v, new_column)
+    return new_column
+
+
 def handle_range_frame_indexing(
     order_spec: List[SortOrder],
     res_index: "pd.Index",
@@ -320,38 +408,112 @@ def handle_range_frame_indexing(
     expr_to_alias: Dict[str, str],
     unbounded_preceding: bool,
     unbounded_following: bool,
+    range_bounds: Optional[Tuple[int]] = None,
 ) -> "pd.api.typing.RollingGroupby":
     """Return a list of range between window frames based on the dataframe paritions `res` and the ORDER BY clause `order_spec`."""
+
+    def search_boundary_idx(idx, delta, _win):
+        while 0 <= idx + delta < len(_win):
+            cur_expr = list(
+                calculate_expression(exp.child, _win.iloc[idx], analyzer, expr_to_alias)
+                for exp in order_spec
+            )
+            next_expr = list(
+                calculate_expression(
+                    exp.child, _win.iloc[idx + delta], analyzer, expr_to_alias
+                )
+                for exp in order_spec
+            )
+            if not cur_expr == next_expr:
+                break
+            idx += delta
+        return idx
+
     if order_spec:
+        ordered_windows = [
+            handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
+            for win in res.rolling(EntireWindowIndexer())
+        ]
+        types = ordered_windows[0].sf_types
         windows = []
-        for current_row, win in zip(res_index, res.rolling(EntireWindowIndexer())):
-            _win = handle_order_by_clause(order_spec, win, analyzer, expr_to_alias)
-            row_idx = list(_win.index).index(current_row)
-            start_idx = 0 if unbounded_preceding else row_idx
-            end_idx = len(_win) - 1 if unbounded_following else row_idx
+        if range_bounds:
+            group_col = analyzer.analyze(order_spec[0].child, expr_to_alias)
+            lower, upper = range_bounds
+            if isinstance(types[group_col].datatype, (DateType, TimestampType)):
+                # Intervals are handled by adding the interval to the window and then
+                # comparing to the current rows value. Normally the interval would be applied to
+                # the value rather than the window data, but it's more efficient to do it this way.
+                # Therefore intervals are expected to be passed negated.
 
-            def search_boundary_idx(idx, delta, _win):
-                while 0 <= idx + delta < len(_win):
-                    cur_expr = list(
-                        calculate_expression(
-                            exp.child, _win.iloc[idx], analyzer, expr_to_alias
-                        )
-                        for exp in order_spec
+                if (
+                    isinstance(types[group_col].datatype, DateType)
+                    and (lower is None or isinstance(lower, int))
+                    and (upper is None or isinstance(upper, int))
+                ):
+                    if lower:
+                        lower = Interval(day=-lower)
+                    if upper:
+                        upper = Interval(day=-upper)
+                if not (validate_interval(lower) and validate_interval(upper)):
+                    raise SnowparkLocalTestingException(
+                        "Mixing numeric and interval frames is not supported"
                     )
-                    next_expr = list(
-                        calculate_expression(
-                            exp.child, _win.iloc[idx + delta], analyzer, expr_to_alias
+                if not compare_intervals(lower, upper):
+                    raise SnowparkLocalTestingException("Invalid window frame")
+                for current_row, win in zip(res_index, ordered_windows):
+                    cond = pd.Series([True] * len(win), index=win.index)
+                    if lower is not None:
+                        bound = (
+                            win[group_col]
+                            if lower == 0
+                            else apply_interval(win[group_col], lower)
                         )
-                        for exp in order_spec
+                        cond &= pd.Series(bound) >= win.loc[current_row][group_col]
+                    if upper is not None:
+                        bound = (
+                            win[group_col]
+                            if upper == 0
+                            else apply_interval(win[group_col], upper)
+                        )
+                        cond &= pd.Series(bound) <= win.loc[current_row][group_col]
+                    windows.append(
+                        TableEmulator(pd.DataFrame(win).loc[cond], sf_types=types)
                     )
-                    if not cur_expr == next_expr:
-                        break
-                    idx += delta
-                return idx
+            elif isinstance(types[group_col].datatype, _NumericType):
+                if isinstance(lower, Interval) or isinstance(upper, Interval):
+                    raise SnowparkLocalTestingException(
+                        "numeric ORDER BY clause only allows numeric window frame boundaries"
+                    )
+                # TableEmulator breaks loc comparisons
+                cast_windows = [pd.DataFrame(win) for win in ordered_windows]
+                for current_row, win in zip(res_index, cast_windows):
+                    cond = pd.Series([True] * len(win), index=win.index)
+                    if lower is not None:
+                        cond &= (
+                            win[group_col] >= win.loc[current_row][group_col] + lower
+                        )
+                    if upper is not None:
+                        cond &= (
+                            win[group_col] <= win.loc[current_row][group_col] + upper
+                        )
 
-            start_idx = search_boundary_idx(start_idx, -1, _win)
-            end_idx = search_boundary_idx(end_idx, 1, _win)
-            windows.append(_win[start_idx : end_idx + 1])
+                    # Cast back to TableEmulator so downstream can infer types correctly
+                    windows.append(TableEmulator(win.loc[cond], sf_types=types))
+            else:
+                raise SnowparkLocalTestingException(
+                    "range_between only operates on numeric or datetime group_by columns."
+                )
+        else:
+            for current_row, win in zip(res_index, ordered_windows):
+                row_idx = list(win.index).index(current_row)
+
+                start_idx = 0 if unbounded_preceding else row_idx
+                end_idx = len(win) - 1 if unbounded_following else row_idx
+
+                start_idx = search_boundary_idx(start_idx, -1, win)
+                end_idx = search_boundary_idx(end_idx, 1, win)
+
+                windows.append(win[start_idx : end_idx + 1])
     else:  # If order by is not specified, just use the entire window
         windows = res.rolling(EntireWindowIndexer())
     return windows
@@ -415,9 +577,10 @@ def handle_function_expression(
     to_pass_args = []
     type_hints = typing.get_type_hints(to_mock_func)
     parameters_except_ast = list(signatures.parameters)
-    if "_emit_ast" in parameters_except_ast:
-        parameters_except_ast.remove("_emit_ast")
-        del type_hints["_emit_ast"]
+    for clean_up_parameter in ["_emit_ast", "_ast"]:
+        if clean_up_parameter in parameters_except_ast:
+            parameters_except_ast.remove(clean_up_parameter)
+            del type_hints[clean_up_parameter]
     for idx, key in enumerate(parameters_except_ast):
         type_hint = str(type_hints[key])
         keep_literal = "Column" not in type_hint
@@ -505,8 +668,7 @@ def handle_udf_expression(
         # Resolve handler callable
         if type(udf.func) is tuple:
             module_name, handler_name = udf.func
-            exec(f"from {module_name} import {handler_name}")
-            udf_handler = eval(handler_name)
+            udf_handler = importlib.import_module(module_name).__dict__[handler_name]
         else:
             udf_handler = udf.func
 
@@ -590,8 +752,7 @@ def handle_udaf_expression(
         # Resolve handler callable
         if type(udaf.handler) is tuple:
             module_name, handler_name = udaf.func
-            exec(f"from {module_name} import {handler_name}")
-            udaf_class = eval(handler_name)
+            udaf_class = importlib.import_module(module_name).__dict__[handler_name]
         else:
             udaf_class = udaf.handler
 
@@ -789,8 +950,7 @@ def handle_sproc_expression(
         # Resolve handler callable
         if type(sproc.func) is tuple:
             module_name, handler_name = sproc.func
-            exec(f"from {module_name} import {handler_name}")
-            sproc_handler = eval(handler_name)
+            sproc_handler = importlib.import_module(module_name).__dict__[handler_name]
         else:
             sproc_handler = sproc.func
 
@@ -898,6 +1058,8 @@ def execute_mock_plan(
         order_by: Optional[List[Expression]] = source_plan.order_by
         limit_: Optional[int] = source_plan.limit_
         offset: Optional[int] = source_plan.offset
+        distinct_: bool = source_plan.distinct_
+        exclude_cols: List[str] = source_plan.exclude_cols
 
         from_df = execute_mock_plan(from_, expr_to_alias)
 
@@ -980,13 +1142,19 @@ def execute_mock_plan(
                 result_df = result_df.iloc[offset:]
             result_df = result_df.head(n=limit_)
 
+        if distinct_:
+            result_df = result_df.drop_duplicates()
+
+        if exclude_cols:
+            result_df = result_df.drop(columns=exclude_cols)
+
         return result_df
     if isinstance(source_plan, MockSetStatement):
         first_operand = source_plan.set_operands[0]
         res_df = execute_mock_plan(
             MockExecutionPlan(
                 first_operand.selectable,
-                source_plan.analyzer.session,
+                source_plan._session,
             ),
             expr_to_alias,
         )
@@ -994,7 +1162,7 @@ def execute_mock_plan(
             operand = source_plan.set_operands[i]
             operator = operand.operator
             cur_df = execute_mock_plan(
-                MockExecutionPlan(operand.selectable, source_plan.analyzer.session),
+                MockExecutionPlan(operand.selectable, source_plan._session),
                 expr_to_alias,
             )
             if len(res_df.columns) != len(cur_df.columns):
@@ -1027,14 +1195,15 @@ def execute_mock_plan(
                         )  # Rows that are all None/NaN in both sets
                     ]
                 elif operator == EXCEPT:
-                    res_df = res_df[
-                        ~(
-                            res_df.isin(cur_df.values.ravel()).all(axis=1)
-                        ).values  # NOT IS IN
-                        | (
-                            ~any_null_rows_in_cur_df & null_rows_in_res_df.values
-                        )  # Rows that are all None/NaN only in LEFT
-                    ]
+                    # A side-effect of Snowflake difference is that duplicates are removed from the left side
+                    res_df = res_df.drop_duplicates()
+                    sf_types = res_df.sf_types
+
+                    # Two copies of the right side ensures that all rows present there are dropped when keep=False
+                    res_df = pd.concat([res_df, cur_df, cur_df]).drop_duplicates(
+                        keep=False
+                    )
+                    res_df.sf_types = sf_types
 
                 # Compute drop duplicates
                 res_df = res_df.drop_duplicates()
@@ -1234,14 +1403,16 @@ def execute_mock_plan(
                 )
                 # and then append the calculated value
                 if isinstance(cal_exp_res, ColumnEmulator):
-                    values.append(cal_exp_res.iat[0])
+                    if cur_group.size > 0 or not source_plan.grouping_expressions:
+                        values.append(cal_exp_res.iat[0])
                     result_df_sf_Types[
                         columns[idx + len(column_exps)]
                     ] = result_df_sf_Types_by_col_idx[
                         idx + len(column_exps)
                     ] = cal_exp_res.sf_type
                 else:
-                    values.append(cal_exp_res)
+                    if cur_group.size > 0 or not source_plan.grouping_expressions:
+                        values.append(cal_exp_res)
                     result_df_sf_Types[
                         columns[idx + len(column_exps)]
                     ] = result_df_sf_Types_by_col_idx[
@@ -1361,6 +1532,8 @@ def execute_mock_plan(
                     col for col in result_df.columns.tolist() if col not in on
                 ]
                 result_df = result_df[reordered_cols]
+                sf_types = {col: result_df.sf_types[col] for col in reordered_cols}
+                result_df.sf_types = sf_types
 
         common_columns = set(L_expr_to_alias.keys()).intersection(
             R_expr_to_alias.keys()
@@ -1498,10 +1671,27 @@ def execute_mock_plan(
             frac=source_plan.probability_fraction,
             random_state=source_plan.seed,
         )
+
+    if isinstance(source_plan, SampleBy):
+        res_df = execute_mock_plan(source_plan.child, expr_to_alias)
+        col = plan.session._analyzer.analyze(source_plan.col)
+        df = reduce(
+            lambda x, y: pd.concat([x, y], ignore_index=True),
+            [
+                res_df[res_df[col] == k].sample(frac=v)
+                for k, v in source_plan.fractions.items()
+            ],
+        )
+
+        df.sf_types = res_df.sf_types
+        return df
+
     if isinstance(source_plan, CreateViewCommand):
         from_df = execute_mock_plan(source_plan.child, expr_to_alias)
         view_name = source_plan.name
-        entity_registry.create_or_replace_view(source_plan.child, view_name)
+        entity_registry.create_or_replace_view(
+            source_plan.child, view_name, source_plan.replace
+        )
         return from_df
 
     if isinstance(source_plan, TableUpdate):
@@ -1653,6 +1843,8 @@ def execute_mock_plan(
             join_condition = calculate_expression(
                 source_plan.join_expr, cartesian_product, analyzer, expr_to_alias
             )
+            if join_condition.size == 0:
+                join_condition = TableEmulator([], columns=cartesian_product.columns)
             join_result = cartesian_product[join_condition].reset_index(drop=True)
             join_result.sf_types = cartesian_product.sf_types
 
@@ -2119,15 +2311,12 @@ def calculate_expression(
             new_column = left / right
         elif isinstance(exp, Add):
             if isinstance(right, Interval):
-                # The expression `select to_date ('2019-02-28') + INTERVAL '1 day, 1 year';`
-                # is rewritten to `select dateadd(DAY, 1, dateadd(YEAR, 1, to_date ('2019-02-28')))`.
-                new_column = left
-                for k, v in right.values_dict.items():
-                    new_column = registry.get_function("dateadd")(k, v, left)
-                    left = new_column
+                return apply_interval(left, right, registry)
             else:
                 new_column = left + right
         elif isinstance(exp, Subtract):
+            if isinstance(right, Interval):
+                return apply_interval(left, negate_interval(right), registry)
             new_column = left - right
         elif isinstance(exp, Remainder):
             new_column = left % right
@@ -2261,20 +2450,16 @@ def calculate_expression(
         return result
     if isinstance(exp, Like):
         lhs = calculate_expression(exp.expr, input_data, analyzer, expr_to_alias)
-
-        pattern = convert_wildcard_to_regex(
-            str(
-                calculate_expression(
-                    exp.pattern, input_data, analyzer, expr_to_alias
-                ).iloc[0]
-            )
+        rhs = calculate_expression(exp.pattern, input_data, analyzer, expr_to_alias)
+        pattern = rhs.apply(lambda x: convert_wildcard_to_regex(str(x)))
+        result = pd.concat([lhs, pattern], axis=1).apply(
+            lambda x: re.match(x.iloc[1], str(x.iloc[0])) is not None, axis=1
         )
-        result = lhs.str.match(pattern)
         result.sf_type = ColumnType(BooleanType(), True)
         return result
     if isinstance(exp, InExpression):
         lhs = calculate_expression(exp.columns, input_data, analyzer, expr_to_alias)
-        res = ColumnEmulator([False] * len(lhs), dtype=object)
+        res = ColumnEmulator([False] * len(lhs), dtype=object, index=input_data.index)
         res.sf_type = ColumnType(BooleanType(), True)
         for val in exp.values:
             rhs = calculate_expression(val, input_data, analyzer, expr_to_alias)
@@ -2349,8 +2534,14 @@ def calculate_expression(
 
         if len(remaining) > 0 and exp.else_value:
             value = calculate_expression(
-                exp.else_value, remaining, analyzer, expr_to_alias
+                exp.else_value,
+                remaining.reset_index(drop=True),
+                analyzer,
+                expr_to_alias,
             )
+            # Index was reset in order to calculate expression correctly, but needs to be in the original
+            # order to replace the output data rows correctly.
+            value.index = remaining.index
             if output_data.sf_type is None:
                 output_data.sf_type = value.sf_type
             elif output_data.sf_type.datatype != value.sf_type.datatype:
@@ -2411,6 +2602,7 @@ def calculate_expression(
 
         # Process window frame specification
         # Reference: https://docs.snowflake.com/en/sql-reference/functions-analytic#window-frame-usage-notes
+        pd_index = res_index
         if not window_spec.frame_spec or not isinstance(
             window_spec.frame_spec, SpecifiedWindowFrame
         ):
@@ -2424,13 +2616,18 @@ def calculate_expression(
                     True,
                     False,
                 )
+
+                # Pandas reindexes the data when generating rows in a RollingGroupby
+                # The resulting index is not exposed in the window groupings so calculate it here
+                if not isinstance(windows, list):
+                    pd_index = list(windows.count().index)
             else:
                 indexer = EntireWindowIndexer()
                 rolling = res.rolling(indexer)
                 windows = [ordered.loc[w.index] for w in rolling]
                 # rolling can unpredictably change the index of the data
                 # apply a trivial function to materialize the final index
-                res_index = list(rolling.count().index)
+                pd_index = list(rolling.count().index)
 
         elif isinstance(window_spec.frame_spec.frame_type, RowFrame):
             indexer = RowFrameIndexer(frame_spec=window_spec.frame_spec)
@@ -2439,22 +2636,30 @@ def calculate_expression(
             windows = [w for w in res]
 
         elif isinstance(window_spec.frame_spec.frame_type, RangeFrame):
-            upper = window_spec.frame_spec.upper
             lower = window_spec.frame_spec.lower
+            upper = window_spec.frame_spec.upper
+            range_bounds = None
 
-            if isinstance(upper, Literal) or isinstance(lower, Literal):
-                analyzer.session._conn.log_not_supported_error(
-                    external_feature_name="Range for sliding window frames",
-                    internal_feature_name=type(exp).__name__,
-                    parameters_info={
-                        "window_spec.frame_spec.frame_type": type(
-                            window_spec.frame_spec.frame_type
-                        ).__name__,
-                        "upper": type(upper).__name__,
-                        "lower": type(lower).__name__,
-                    },
-                    raise_error=SnowparkLocalTestingException,
-                )
+            if isinstance(lower, (Literal, UnaryMinus, Interval)) or isinstance(
+                upper, (Literal, UnaryMinus, Interval)
+            ):
+                if len(window_spec.order_spec) > 1:
+                    raise SnowparkLocalTestingException(
+                        "range_between requires exactly one order_by column."
+                    )
+
+                def get_bound(bound):
+                    if isinstance(bound, Literal):
+                        return bound.value
+                    if isinstance(bound, CurrentRow):
+                        return 0
+                    if isinstance(bound, UnaryMinus):
+                        return bound.child
+                    if isinstance(bound, Interval):
+                        return negate_interval(bound)
+                    return None
+
+                range_bounds = (get_bound(lower), get_bound(upper))
 
             windows = handle_range_frame_indexing(
                 window_spec.order_spec,
@@ -2464,19 +2669,22 @@ def calculate_expression(
                 expr_to_alias,
                 isinstance(lower, UnboundedPreceding),
                 isinstance(upper, UnboundedFollowing),
+                range_bounds,
             )
 
         # compute window function:
         if isinstance(window_function, (FunctionExpression,)):
             res_cols = []
-            for current_row, w in zip(res_index, windows):
-                res_cols.append(
-                    handle_function_expression(
-                        window_function, w, analyzer, expr_to_alias, current_row
-                    )
+
+            for current_row, w in zip(pd_index, windows):
+                result = handle_function_expression(
+                    window_function, w, analyzer, expr_to_alias, current_row
                 )
+                result.index = [current_row]
+                res_cols.append(result)
+
             res_col = pd.concat(res_cols) if res_cols else ColumnEmulator([])
-            res_col.index = res_index
+            res_col.reindex(res_index)
             if res_cols:
                 res_col.sf_type = res_cols[0].sf_type
             else:
@@ -2731,7 +2939,9 @@ def calculate_expression(
         return res
     elif isinstance(exp, SubfieldInt):
         col = calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-        res = col.apply(lambda x: None if x is None else x[exp.field])
+        res = col.apply(
+            lambda x: None if x is None or exp.field >= len(x) else x[exp.field]
+        )
         res.sf_type = ColumnType(VariantType(), col.sf_type.nullable)
         return res
     elif isinstance(exp, SnowflakeUDF):

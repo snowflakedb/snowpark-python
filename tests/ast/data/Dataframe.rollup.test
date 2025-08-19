@@ -50,12 +50,12 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -68,31 +68,27 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df1"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
@@ -104,19 +100,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df2"
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             string_val {
@@ -133,10 +127,8 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
@@ -148,19 +140,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df3"
     }
     uid: 3
-    var_id {
-      bitfield1: 3
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             string_val {
@@ -176,10 +166,8 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
@@ -191,19 +179,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df4"
     }
     uid: 4
-    var_id {
-      bitfield1: 4
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             string_val {
@@ -231,10 +217,8 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
@@ -246,19 +230,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df5"
     }
     uid: 5
-    var_id {
-      bitfield1: 5
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             apply_expr {
@@ -266,7 +248,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -297,10 +279,8 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
@@ -312,19 +292,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df6"
     }
     uid: 6
-    var_id {
-      bitfield1: 6
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             apply_expr {
@@ -332,7 +310,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -362,10 +340,8 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
@@ -377,19 +353,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df7"
     }
     uid: 7
-    var_id {
-      bitfield1: 7
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             apply_expr {
@@ -397,7 +371,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -440,10 +414,8 @@ body {
           variadic: true
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
@@ -455,19 +427,17 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df8"
     }
     uid: 8
-    var_id {
-      bitfield1: 8
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_rollup {
+      dataframe_rollup {
         cols {
           args {
             apply_expr {
@@ -475,7 +445,7 @@ body {
                 builtin_fn {
                   name {
                     name {
-                      sp_name_flat {
+                      name_flat {
                         name: "col"
                       }
                     }
@@ -517,10 +487,8 @@ body {
           }
         }
         df {
-          sp_dataframe_ref {
-            id {
-              bitfield1: 1
-            }
+          dataframe_ref {
+            id: 1
           }
         }
         src {
@@ -532,13 +500,11 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df9"
     }
     uid: 9
-    var_id {
-      bitfield1: 9
-    }
   }
 }
 client_ast_version: 1
@@ -554,5 +520,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 36
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

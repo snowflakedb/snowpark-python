@@ -60,7 +60,6 @@ def remove_created_on_field(df):
     return df
 
 
-@pytest.mark.skip("SNOW-1894152: Skipping to unblock precommits.")
 @pytest.mark.skipif(not is_pandas_available, reason="pandas is required")
 def test_lineage_trace(session):
     """
@@ -161,6 +160,7 @@ def test_lineage_trace(session):
     session.sql(f"GRANT select on VIEW {db}.{schema}.V5 TO ROLE {test_role}").collect()
     session.sql(f"GRANT CREATE VIEW ON schema {schema} TO ROLE {test_role}").collect()
     session.sql(f"USE ROLE {test_role}").collect()
+    session.sql("USE SECONDARY ROLES NONE").collect()
     session.sql(
         f"CREATE OR REPLACE VIEW {db}.{schema}.V6 AS SELECT * FROM {db}.{schema}.V5"
     ).collect()

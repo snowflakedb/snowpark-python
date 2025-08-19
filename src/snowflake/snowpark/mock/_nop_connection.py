@@ -102,6 +102,7 @@ class NopConnection(MockServerConnection):
             "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
             "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": False,
             "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": False,
+            "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES": True,
         }
         self._disable_local_testing_telemetry = True
         self._oob_telemetry = LocalTestOOBTelemetryService.get_instance()
@@ -154,7 +155,7 @@ class NopConnection(MockServerConnection):
             )
         elif isinstance(source_plan, CreateViewCommand):
             result = self.entity_registry.create_or_replace_view(
-                source_plan, source_plan.name
+                source_plan, source_plan.name, source_plan.replace
             )
         else:
             result_meta = []

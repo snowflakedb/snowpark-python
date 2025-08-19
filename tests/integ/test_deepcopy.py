@@ -150,6 +150,7 @@ def verify_logical_plan_node(
     if isinstance(copied_node, SetStatement) and isinstance(
         original_node, SetStatement
     ):
+        assert copied_node.commented_sql == original_node.commented_sql
         assert copied_node._sql_query == original_node._sql_query
     if isinstance(copied_node, SelectTableFunction) and isinstance(
         original_node, SelectTableFunction
@@ -268,6 +269,7 @@ def test_selectsql(session):
         assert copied_node.convert_to_select == original_node.convert_to_select
         assert copied_node.convert_to_select is True
         assert copied_node._sql_query == original_node._sql_query
+        assert copied_node.commented_sql == original_node.commented_sql
         assert copied_node._schema_query == original_node._schema_query
         assert copied_node._query_param == original_node._query_param
         assert copied_node.pre_actions == original_node.pre_actions
@@ -354,6 +356,7 @@ def test_create_or_replace_view(session):
         random_name_for_temp_object(TempObjectType.VIEW),
         LocalTempView(),
         None,
+        True,
         df._plan,
     )
 

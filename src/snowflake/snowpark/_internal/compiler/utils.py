@@ -4,7 +4,7 @@
 #
 import copy
 import tempfile
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Set, Union
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import BinaryNode
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
@@ -100,8 +100,8 @@ def resolve_and_update_snowflake_plan(
     node.expr_to_alias = new_snowflake_plan.expr_to_alias
     node.is_ddl_on_temp_object = new_snowflake_plan.is_ddl_on_temp_object
     node._output_dict = new_snowflake_plan._output_dict
-    node.df_aliased_col_name_to_real_col_name.update(
-        new_snowflake_plan.df_aliased_col_name_to_real_col_name
+    node.df_aliased_col_name_to_real_col_name.update(  # type: ignore
+        new_snowflake_plan.df_aliased_col_name_to_real_col_name  # type: ignore
     )
     node.referenced_ctes = new_snowflake_plan.referenced_ctes
     node._cumulative_node_complexity = new_snowflake_plan._cumulative_node_complexity
@@ -235,6 +235,7 @@ def update_resolvable_node(
         # clean up the cached sql query and snowflake plan to allow
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
+        node._commented_sql = None
         node._snowflake_plan = None
         # make sure we also clean up the cached _projection_in_str, so that
         # the projection expression can be re-analyzed during code generation
@@ -246,18 +247,26 @@ def update_resolvable_node(
         # update the pre_actions and post_actions for the select statement
         node.pre_actions = node.from_.pre_actions
         node.post_actions = node.from_.post_actions
-        node.expr_to_alias = node.from_.expr_to_alias
+        node.expr_to_alias = node.from_.expr_to_alias.copy()
+
         # df_aliased_col_name_to_real_col_name is updated at the frontend api
         # layer when alias is called, not produced during code generation. Should
         # always retain the original value of the map.
         node.df_aliased_col_name_to_real_col_name.update(
             node.from_.df_aliased_col_name_to_real_col_name
         )
+        # projection_in_str for SelectStatement runs a analyzer.analyze() which
+        # needs the correct expr_to_alias map setup. This map is setup during
+        # snowflake plan generation and cached for later use. Calling snowflake_plan
+        # here to get the map setup correctly.
+        node.get_snowflake_plan(skip_schema_query=True)
+        node.expr_to_alias.update(node.snowflake_plan.expr_to_alias)
 
     elif isinstance(node, SetStatement):
         # clean up the cached sql query and snowflake plan to allow
         # re-calculation of the sql query and snowflake plan
         node._sql_query = None
+        node._commented_sql = None
         node._snowflake_plan = None
         node.analyzer = query_generator
 
@@ -283,8 +292,8 @@ def update_resolvable_node(
 
         if isinstance(node, SelectSnowflakePlan):
             node.expr_to_alias.update(node._snowflake_plan.expr_to_alias)
-            node.df_aliased_col_name_to_real_col_name.update(
-                node._snowflake_plan.df_aliased_col_name_to_real_col_name
+            node.df_aliased_col_name_to_real_col_name.update(  # type: ignore
+                node._snowflake_plan.df_aliased_col_name_to_real_col_name  # type: ignore
             )
             node._query_params = []
             for query in node._snowflake_plan.queries:
@@ -327,8 +336,8 @@ def get_snowflake_plan_queries(
     ):
         # make a copy of the original query to avoid any update to the
         # original query object
-        plan_queries = copy.deepcopy(plan.queries)
-        post_action_queries = copy.deepcopy(plan.post_actions)
+        plan_queries = copy.copy(plan.queries)
+        post_action_queries = copy.copy(plan.post_actions)
         table_names = []
         definition_queries = []
         final_query_params = []
@@ -354,6 +363,59 @@ def get_snowflake_plan_queries(
 def is_active_transaction(session):
     """Check is the session has an active transaction."""
     return session._run_query("SELECT CURRENT_TRANSACTION()")[0][0] is not None
+
+
+def extract_child_from_with_query_block(child: LogicalPlan) -> TreeNode:
+    """Given a WithQueryBlock node, or a node that contains a WithQueryBlock node, this method
+    extracts the child node from the WithQueryBlock node and returns it."""
+    if isinstance(child, WithQueryBlock):
+        return child.children[0]
+    if isinstance(child, SnowflakePlan) and child.source_plan is not None:
+        return extract_child_from_with_query_block(child.source_plan)
+    if isinstance(child, SelectSnowflakePlan):
+        return extract_child_from_with_query_block(child.snowflake_plan)
+
+    raise ValueError(
+        f"Invalid node type {type(child)} for partitioning."
+    )  # pragma: no cover
+
+
+def is_with_query_block(node: LogicalPlan) -> bool:
+    """Given a node, this method checks if the node is a WithQueryBlock node or contains a
+    WithQueryBlock node."""
+    if isinstance(node, WithQueryBlock):
+        return True
+    if isinstance(node, SnowflakePlan) and node.source_plan is not None:
+        return is_with_query_block(node.source_plan)
+    if isinstance(node, SelectSnowflakePlan):
+        return is_with_query_block(node.snowflake_plan)
+
+    return False
+
+
+def replace_child_and_update_ancestors(
+    child: LogicalPlan,
+    new_child: LogicalPlan,
+    parent_map: Dict[LogicalPlan, Set[TreeNode]],
+    query_generator: QueryGenerator,
+):
+    """
+    For the given child, this helper function updates all its parents with the new
+    child provided and updates all the ancestor nodes.
+    """
+    parents = parent_map[child]
+
+    for parent in parents:
+        replace_child(parent, child, new_child, query_generator)
+
+    nodes_to_reset = list(parents)
+    while nodes_to_reset:
+        node = nodes_to_reset.pop()
+
+        update_resolvable_node(node, query_generator)
+
+        parents = parent_map[node]
+        nodes_to_reset.extend(parents)
 
 
 def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
@@ -411,7 +473,7 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
         if isinstance(node, SnowflakePlan):
             name = f"{name} :: ({get_name(node.source_plan)})"
         elif isinstance(node, SelectSnowflakePlan):
-            name = f"{name} :: ({get_name(node.snowflake_plan.source_plan)})"
+            name = f"{name} :: ({get_name(node.snowflake_plan)}) :: ({get_name(node.snowflake_plan.source_plan)})"
         elif isinstance(node, SetStatement):
             name = f"{name} :: ({node.set_operands[1].operator})"
         elif isinstance(node, SelectStatement):
@@ -456,16 +518,6 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
 
         return f"{name=}\n{score=}, {ref_ctes=}, {sql_size=}\n{sql_preview=}"
 
-    def is_with_query_block(node: Optional[LogicalPlan]) -> bool:  # pragma: no cover
-        if isinstance(node, WithQueryBlock):
-            return True
-        if isinstance(node, SnowflakePlan):
-            return is_with_query_block(node.source_plan)
-        if isinstance(node, SelectSnowflakePlan):
-            return is_with_query_block(node.snowflake_plan)
-
-        return False
-
     g = graphviz.Graph(format="png")
 
     curr_level = [root]
@@ -485,6 +537,10 @@ def plot_plan_if_enabled(root: LogicalPlan, filename: str) -> None:
             )
             if isinstance(node, (Selectable, SnowflakePlan)):
                 children = node.children_plan_nodes
+                if isinstance(node, SnowflakePlan) and isinstance(
+                    node.source_plan, Selectable
+                ):
+                    children.append(node.source_plan)
             else:
                 children = node.children  # pragma: no cover
             for child in children:

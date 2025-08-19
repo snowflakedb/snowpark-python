@@ -3,6 +3,7 @@
 #
 
 import json
+import importlib
 import typing
 from copy import copy
 from types import ModuleType
@@ -48,7 +49,7 @@ class MockStoredProcedure(StoredProcedure):
         input_types: List[DataType],
         name: str,
         imports: Set[str],
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         anonymous_sp_sql: Optional[str] = None,
         strict=False,
         _ast: Optional[proto.Expr] = None,
@@ -89,9 +90,9 @@ class MockStoredProcedure(StoredProcedure):
                 self._ast_id is not None
             ), "Need to assign an ID to the stored procedure."
 
-            # Performing an assign here since we want to be able to generate a `sproc(arg1, arg2)` type
+            # Performing an bind here since we want to be able to generate a `sproc(arg1, arg2)` type
             # expression for the stored procedure call.
-            sproc_expr = session._ast_batch.assign()
+            sproc_expr = session._ast_batch.bind()
             build_sproc_apply(sproc_expr.expr, self._ast_id, statement_params, *args)
 
         # Unpack columns if passed
@@ -146,8 +147,9 @@ class MockStoredProcedure(StoredProcedure):
             # Resolve handler callable
             if type(self.func) is tuple:
                 module_name, handler_name = self.func
-                exec(f"from {module_name} import {handler_name}")
-                sproc_handler = eval(handler_name)
+                sproc_handler = importlib.import_module(module_name).__dict__[
+                    handler_name
+                ]
             else:
                 sproc_handler = self.func
 
@@ -249,7 +251,7 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         *,
         source_code_display: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
-        execute_as: typing.Literal["caller", "owner"] = "owner",
+        execute_as: typing.Literal["caller", "owner", "restricted caller"] = "owner",
         anonymous: bool = False,
         api_call_source: str,
         skip_upload_on_content_match: bool = False,
@@ -266,9 +268,9 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.stored_procedure, stmt)
-                ast_id = stmt.var_id.bitfield1
+                ast_id = stmt.uid
 
             object_name = kwargs["_registered_object_name"]
             sproc = MockStoredProcedure(
@@ -326,9 +328,9 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
             )
 
             if _emit_ast:
-                stmt = self._session._ast_batch.assign()
+                stmt = self._session._ast_batch.bind()
                 ast = with_src_position(stmt.expr.stored_procedure, stmt)
-                ast_id = stmt.var_id.bitfield1
+                ast_id = stmt.uid
                 build_sproc(
                     ast,
                     func,
@@ -458,7 +460,12 @@ class MockStoredProcedureRegistration(StoredProcedureRegistration):
                     )
 
             sproc = self._registry[sproc_name]
-            res = sproc(*args, session=session, statement_params=statement_params)
+            res = sproc(
+                *args,
+                session=session,
+                statement_params=statement_params,
+                _emit_ast=_emit_ast,
+            )
             sproc_expr = None
             if _emit_ast and sproc._ast is not None:
                 assert (

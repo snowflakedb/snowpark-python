@@ -10,8 +10,15 @@ import pytest
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.types import (
+    DoubleType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
+)
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import Utils, multithreaded_run
+from tests.utils import TestFiles, Utils, multithreaded_run
 
 
 @pytest.fixture(scope="module")
@@ -39,14 +46,22 @@ def tmp_table_basic(session):
         ["FOOT_SIZE", "SHOE_MODEL", "SHOE_MODEL"],
     ],
 )
-def test_to_snowpark_pandas_basic(session, tmp_table_basic, index_col, columns) -> None:
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_to_snowpark_pandas_basic(
+    session, tmp_table_basic, index_col, columns, enforce_ordering
+) -> None:
+    expected_query_count = 4 if enforce_ordering else 2
     # One less query when we don't have a multi-index
     with SqlCounter(
-        query_count=3 if isinstance(index_col, list) and len(index_col) > 1 else 2
+        query_count=expected_query_count
+        if isinstance(index_col, list) and len(index_col) > 1
+        else expected_query_count - 1
     ):
         snowpark_df = session.table(tmp_table_basic)
 
-        snowpark_pandas_df = snowpark_df.to_snowpark_pandas(index_col, columns)
+        snowpark_pandas_df = snowpark_df.to_snowpark_pandas(
+            index_col, columns, enforce_ordering=enforce_ordering
+        )
 
         # verify index columns
         snowpandas_index = snowpark_pandas_df.index
@@ -74,45 +89,62 @@ def test_to_snowpark_pandas_basic(session, tmp_table_basic, index_col, columns) 
 
 
 @multithreaded_run()
-@sql_count_checker(query_count=3)
-def test_to_snowpark_pandas_from_views(session, tmp_table_basic) -> None:
-    snowpark_df = session.sql(
-        f"SELECT ID, SHOE_MODEL FROM {tmp_table_basic} WHERE ID > 1"
-    )
-    snowpark_pandas_df = snowpark_df.to_snowpark_pandas()
-
-    # verify all columns are data columns
-    assert snowpark_pandas_df.columns.tolist() == ["ID", "SHOE_MODEL"]
-    # verify a default row_position column is created
-    snowpandas_index = snowpark_pandas_df.index
-    assert snowpandas_index.dtype == np.dtype("int64")
-    assert sorted(snowpandas_index.values.tolist()) == [0, 1]
-
-
-@sql_count_checker(query_count=3)
-def test_to_snowpark_pandas_with_operations(session, tmp_table_basic) -> None:
-    snowpark_df = session.table(tmp_table_basic)
-    snowpark_df = (
-        snowpark_df.select(
-            Column("ID"),
-            Column("FOOT_SIZE").as_('"size"'),
-            Column("SHOE_MODEL").as_('"model"'),
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_to_snowpark_pandas_from_views(
+    session, tmp_table_basic, enforce_ordering
+) -> None:
+    with SqlCounter(query_count=4 if enforce_ordering else 2):
+        snowpark_df = session.sql(
+            f"SELECT ID, SHOE_MODEL FROM {tmp_table_basic} WHERE ID > 1"
         )
-        .where(Column("ID") > 2)
-        .select(Column('"size"'), Column('"model"'))
-    )
+        snowpark_pandas_df = snowpark_df.to_snowpark_pandas(
+            enforce_ordering=enforce_ordering
+        )
 
-    snowpark_pandas_df = snowpark_df.to_snowpark_pandas()
-    # verify all columns are data columns
-    assert snowpark_pandas_df.columns.tolist() == ["size", "model"]
-    # verify a default row_position column is created
-    snowpandas_index = snowpark_pandas_df.index
-    assert snowpandas_index.dtype == np.dtype("int64")
-    assert sorted(snowpandas_index.values.tolist()) == [0]
+        # verify all columns are data columns
+        assert snowpark_pandas_df.columns.tolist() == ["ID", "SHOE_MODEL"]
+        # verify a default row_position column is created
+        snowpandas_index = snowpark_pandas_df.index
+        assert snowpandas_index.dtype == np.dtype("int64")
+        assert sorted(snowpandas_index.values.tolist()) == [0, 1]
 
 
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_to_snowpark_pandas_with_operations(
+    session, tmp_table_basic, enforce_ordering
+) -> None:
+    with SqlCounter(query_count=4 if enforce_ordering else 2):
+        snowpark_df = session.table(tmp_table_basic)
+        snowpark_df = (
+            snowpark_df.select(
+                Column("ID"),
+                Column("FOOT_SIZE").as_('"size"'),
+                Column("SHOE_MODEL").as_('"model"'),
+            )
+            .where(Column("ID") > 2)
+            .select(Column('"size"'), Column('"model"'))
+        )
+
+        snowpark_pandas_df = snowpark_df.to_snowpark_pandas(
+            enforce_ordering=enforce_ordering
+        )
+        # verify all columns are data columns
+        assert snowpark_pandas_df.columns.tolist() == ["size", "model"]
+        # verify a default row_position column is created
+        snowpandas_index = snowpark_pandas_df.index
+        assert snowpandas_index.dtype == np.dtype("int64")
+        assert sorted(snowpandas_index.values.tolist()) == [0]
+
+
+@pytest.mark.parametrize("enforce_ordering", [True, False])
 @sql_count_checker(query_count=0)
-def test_to_snowpark_pandas_duplicated_columns_raises(session, tmp_table_basic) -> None:
+def test_to_snowpark_pandas_duplicated_columns_raises(
+    session, tmp_table_basic, enforce_ordering
+) -> None:
+    sql_simplifier_enabled_original = session.sql_simplifier_enabled
+    # Error is raised only when SQL simplifier is enabled.
+    session.sql_simplifier_enabled = True
+
     snowpark_df = session.table(tmp_table_basic)
     snowpark_df = snowpark_df.select(
         Column("ID"),
@@ -120,13 +152,52 @@ def test_to_snowpark_pandas_duplicated_columns_raises(session, tmp_table_basic) 
         Column("SHOE_MODEL").as_('"shoe"'),
     )
 
-    with pytest.raises(SnowparkSQLException, match="duplicate column name 'shoe'"):
-        snowpark_df.to_snowpark_pandas()
+    pattern = (
+        "duplicate column name 'shoe'"
+        if enforce_ordering
+        else "ambiguous column name 'shoe'"
+    )
+
+    with pytest.raises(SnowparkSQLException, match=pattern):
+        snowpark_df.to_snowpark_pandas(enforce_ordering=enforce_ordering).head()
+    session.sql_simplifier_enabled = sql_simplifier_enabled_original
 
 
-@sql_count_checker(query_count=1)
-def test_to_snowpark_pandas_columns_not_list_raises(session, tmp_table_basic) -> None:
-    snowpark_df = session.table(tmp_table_basic)
+@pytest.mark.parametrize("enforce_ordering", [True, False])
+def test_to_snowpark_pandas_columns_not_list_raises(
+    session, tmp_table_basic, enforce_ordering
+) -> None:
+    with SqlCounter(query_count=1 if enforce_ordering else 0):
+        snowpark_df = session.table(tmp_table_basic)
 
-    with pytest.raises(ValueError, match="columns must be provided as list"):
-        snowpark_df.to_snowpark_pandas(columns="FOOT_SIZE")
+        with pytest.raises(ValueError, match="columns must be provided as list"):
+            snowpark_df.to_snowpark_pandas(
+                columns="FOOT_SIZE", enforce_ordering=enforce_ordering
+            )
+
+
+@sql_count_checker(query_count=8)
+def test_to_snowpark_pandas_with_multiple_queries_forces_ordering(
+    session,
+    resources_path,
+):
+    tmp_stage_name = Utils.random_stage_name()
+    test_files = TestFiles(resources_path)
+    test_file_on_stage = f"@{tmp_stage_name}/testCSV.csv"
+
+    Utils.create_stage(session, tmp_stage_name, is_temporary=True)
+    Utils.upload_to_stage(
+        session, "@" + tmp_stage_name, test_files.test_file_csv, compress=False
+    )
+    user_schema = StructType(
+        [
+            StructField("a", IntegerType()),
+            StructField("b", StringType()),
+            StructField("c", DoubleType()),
+        ]
+    )
+    snowpark_df = (
+        session.read.option("purge", False).schema(user_schema).csv(test_file_on_stage)
+    )
+    df = snowpark_df.to_snowpark_pandas(enforce_ordering=False)
+    assert len(df.columns) == 3

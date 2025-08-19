@@ -12,9 +12,9 @@ import os
 import re
 import sys
 import tempfile
-import threading
 import warnings
 from array import array
+from collections import defaultdict
 from functools import reduce
 from logging import getLogger
 from threading import RLock
@@ -23,6 +23,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    DefaultDict,
     Dict,
     List,
     Literal,
@@ -34,16 +35,21 @@ from typing import (
 )
 
 import cloudpickle
-import pkg_resources
+import importlib.metadata
+from packaging.requirements import Requirement
+from packaging.version import parse as parse_version
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
-from snowflake.connector.options import installed_pandas, pandas
+from snowflake.connector.options import installed_pandas, pandas, pyarrow
 from snowflake.connector.pandas_tools import write_pandas
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
-from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    result_scan_statement,
+    write_arrow,
+)
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.select_statement import (
@@ -68,7 +74,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
     build_indirect_table_fn_apply,
     build_proto_from_struct_type,
-    build_sp_table_name,
+    build_table_name,
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
@@ -102,10 +108,14 @@ from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
+    XPATH_HANDLERS_FILE_PATH,
+    XPATH_HANDLER_MAP,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
     check_flatten_mode,
+    create_rlock,
+    create_thread_local,
     deprecated,
     escape_quotes,
     experimental,
@@ -122,7 +132,6 @@ from snowflake.snowpark._internal.utils import (
     normalize_remote_file_or_dir,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
-    private_preview,
     publicapi,
     quote_name,
     random_name_for_temp_object,
@@ -136,8 +145,9 @@ from snowflake.snowpark._internal.utils import (
     set_ast_state,
     is_ast_enabled,
     AstFlagSource,
+    AstMode,
 )
-from snowflake.snowpark.async_job import AsyncJob
+from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
@@ -151,6 +161,7 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
+    to_file,
     array_agg,
     col,
     column,
@@ -185,6 +196,7 @@ from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
+from snowflake.snowpark.dataframe_profiler import DataframeProfiler
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -192,8 +204,10 @@ from snowflake.snowpark.table_function import (
 )
 from snowflake.snowpark.types import (
     ArrayType,
+    BooleanType,
     DateType,
     DecimalType,
+    FloatType,
     GeographyType,
     GeometryType,
     IntegerType,
@@ -206,6 +220,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    FileType,
     _AtomicType,
 )
 from snowflake.snowpark.udaf import UDAFRegistration
@@ -214,6 +229,7 @@ from snowflake.snowpark.udtf import UDTFRegistration
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
+    from snowflake.snowpark.udf import UserDefinedFunction  # pragma: no cover
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -260,10 +276,30 @@ _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_UPPER_BOUND = (
 _PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND = (
     "PYTHON_SNOWPARK_LARGE_QUERY_BREAKDOWN_COMPLEXITY_LOWER_BOUND"
 )
+# Flag to controlling multithreading behavior
+_PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION = (
+    "PYTHON_SNOWPARK_ENABLE_THREAD_SAFE_SESSION"
+)
+# Flag to control sending snowflake plan telemetry data from get_result_set
+_PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION = (
+    "PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION"
+)
 # Flag for controlling the usage of scoped temp read only table.
 _PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE = (
     "PYTHON_SNOWPARK_ENABLE_SCOPED_TEMP_READ_ONLY_TABLE"
 )
+_PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION = (
+    "PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION"
+)
+_PYTHON_SNOWPARK_CLIENT_AST_MODE = "PYTHON_SNOWPARK_CLIENT_AST_MODE"
+_PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
+    "PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST"
+)
+_PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES = (
+    "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES"
+)
+_PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED = "ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY"
+
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
 # TODO SNOW-1677514: Add server-side flag and initialize value with it. Add telemetry support for flag.
@@ -273,6 +309,7 @@ _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE = False
 DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
+WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 
 def _get_active_session() -> "Session":
@@ -357,6 +394,8 @@ class Session:
             self._conf = {
                 "use_constant_subquery_alias": True,
                 "flatten_select_after_filter_and_orderby": True,
+                "collect_stacktrace_in_query_tag": False,
+                "use_simplified_query_generation": False,
             }  # For config that's temporary/to be removed soon
             self._lock = self._session._lock
             for key, val in conf.items():
@@ -537,12 +576,21 @@ class Session:
         conn: Union[ServerConnection, MockServerConnection, NopConnection],
         options: Optional[Dict[str, Any]] = None,
     ) -> None:
-        if len(_active_sessions) >= 1 and is_in_stored_procedure():
+        if (
+            len(_active_sessions) >= 1
+            and is_in_stored_procedure()
+            and not conn._get_client_side_session_parameter(
+                "ENABLE_CREATE_SESSION_IN_STORED_PROCS", False
+            )
+        ):
             raise SnowparkClientExceptionMessages.DONT_CREATE_SESSION_IN_SP()
         self._conn = conn
         self._query_tag = None
         self._import_paths: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
         self._packages: Dict[str, str] = {}
+        self._artifact_repository_packages: DefaultDict[
+            str, Dict[str, str]
+        ] = defaultdict(dict)
         self._session_id = self._conn.get_session_id()
         self._session_info = f"""
 "version" : {get_version()},
@@ -618,12 +666,65 @@ class Session:
                 _PYTHON_SNOWPARK_ENABLE_QUERY_COMPILATION_STAGE, False
             )
         )
+        self._generate_multiline_queries: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES, False
+            )
+        )
+        if self._generate_multiline_queries:
+            self._enable_multiline_queries()
+        else:
+            self._disable_multiline_queries()
+
+        self._internal_telemetry_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED, False
+            )
+        )
+
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
-        ast_enabled: bool = self._conn._get_client_side_session_parameter(
-            _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
+        ast_mode_value: int = self._conn._get_client_side_session_parameter(
+            _PYTHON_SNOWPARK_CLIENT_AST_MODE, None
         )
+        if ast_mode_value is not None and isinstance(ast_mode_value, int):
+            self._ast_mode = AstMode(ast_mode_value)
+        else:
+            self._ast_mode = None
+
+        # If PYTHON_SNOWPARK_AST_MODE is available, it has precedence over PYTHON_SNOWPARK_USE_AST.
+        if self._ast_mode is None:
+            ast_enabled: bool = self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_USE_AST, _PYTHON_SNOWPARK_USE_AST_DEFAULT_VALUE
+            )
+            self._ast_mode = AstMode.SQL_AND_AST if ast_enabled else AstMode.SQL_ONLY
+        else:
+            if self._ast_mode == AstMode.AST_ONLY:
+                _logger.warning(
+                    "Snowpark python client does not support dataframe requests, downgrading to SQL_AND_AST."
+                )
+                self._ast_mode = AstMode.SQL_AND_AST
+
+            ast_enabled = self._ast_mode == AstMode.SQL_AND_AST
+
+        if self._ast_mode != AstMode.SQL_ONLY:
+            if (
+                self._conn._get_client_side_session_parameter(
+                    _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST, None
+                )
+                is not None
+            ):
+                ast_supported_version: bool = self.is_feature_enabled_for_version(
+                    _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST
+                )
+                if not ast_supported_version:
+                    _logger.warning(
+                        "Server side dataframe support requires minimum snowpark-python client version."
+                    )
+                    self._ast_mode = AstMode.SQL_ONLY
+                    ast_enabled = False
+
         set_ast_state(AstFlagSource.SERVER, ast_enabled)
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
@@ -637,24 +738,46 @@ class Session:
                 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND,
             ),
         )
+        # TODO: SNOW-1951048 local testing diamond join fix
+        self._join_alias_fix: bool = self.is_feature_enabled_for_version(
+            _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION
+        )
 
-        self._thread_store = threading.local()
-        self._lock = RLock()
+        self._thread_store = create_thread_local(
+            self._conn._thread_safe_session_enabled
+        )
+        self._lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         # this lock is used to protect _packages. We use introduce a new lock because add_packages
         # launches a query to snowflake to get all version of packages available in snowflake. This
         # query can be slow and prevent other threads from moving on waiting for _lock.
-        self._package_lock = RLock()
+        self._package_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
         # this lock is used to protect race-conditions when evaluating critical lazy properties
         # of SnowflakePlan or Selectable objects
-        self._plan_lock = RLock()
+        self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
+
+        # this lock is used to protect XPath UDF cache to avoid race conditions during
+        # UDF registration and retrieval
+        self._xpath_udf_cache_lock = create_rlock(
+            self._conn._thread_safe_session_enabled
+        )
 
         self._custom_package_usage_config: Dict = {}
+
+        # Cache for XPath UDFs (thread-safe)
+        self._xpath_udf_cache: Dict[str, Any] = {}
+
+        self._collect_snowflake_plan_telemetry_at_critical_path: bool = (
+            self.is_feature_enabled_for_version(
+                _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION
+            )
+        )
         self._conf = self.RuntimeConfig(self, options or {})
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+        self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
 
         self._ast_batch = AstBatch(self)
@@ -690,6 +813,20 @@ class Session:
             f"schema={self.get_current_schema()}, warehouse={self.get_current_warehouse()}>"
         )
 
+    def _enable_multiline_queries(self):
+        import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
+
+        self._generate_multiline_queries = True
+        analyzer_utils.NEW_LINE = "\n"
+        analyzer_utils.TAB = "    "
+
+    def _disable_multiline_queries(self):
+        import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
+
+        self._generate_multiline_queries = False
+        analyzer_utils.NEW_LINE = ""
+        analyzer_utils.TAB = ""
+
     def is_feature_enabled_for_version(self, parameter_name: str) -> bool:
         """
         This method checks if a feature is enabled for the current session based on
@@ -699,8 +836,7 @@ class Session:
         return (
             isinstance(version, str)
             and version != ""
-            and pkg_resources.parse_version(self.version)
-            >= pkg_resources.parse_version(version)
+            and parse_version(self.version) >= parse_version(version)
         )
 
     def _generate_new_action_id(self) -> int:
@@ -769,6 +905,7 @@ class Session:
         finally:
             try:
                 self._temp_table_auto_cleaner.stop()
+                self._ast_batch.clear()
                 self._conn.close()
                 _logger.info("Closed session: %s", self._session_id)
             finally:
@@ -800,6 +937,7 @@ class Session:
         return is_ast_enabled()
 
     @ast_enabled.setter
+    @experimental_parameter(version="1.33.0")
     def ast_enabled(self, value: bool) -> None:
         # TODO: we could send here explicit telemetry if a user changes the behavior.
         # In addition, we could introduce a server-side parameter to enable AST capture or not.
@@ -815,13 +953,13 @@ class Session:
 
         # Auto temp cleaner has bad interactions with AST at the moment, disable when enabling AST.
         # This feature should get moved server-side anyways.
-        if value:
+        if value and self._auto_clean_up_temp_table_enabled:
             _logger.warning(
                 "TODO SNOW-1770278: Ensure auto temp table cleaner works with AST."
                 " Disabling auto temp cleaner for full test suite due to buggy behavior."
             )
-            self.auto_clean_up_temp_table_enabled = False
-        set_ast_state(AstFlagSource.LOCAL, value)
+            self._auto_clean_up_temp_table_enabled = False
+        set_ast_state(AstFlagSource.USER, value)
 
     @property
     def cte_optimization_enabled(self) -> bool:
@@ -1345,24 +1483,31 @@ class Session:
             else self._session_stage
         )
         file_list = (
-            self.sql(f"ls {normalized}")
-            .select('"name"')
+            self.sql(f"ls {normalized}", _emit_ast=False)
+            .select('"name"', _emit_ast=False)
             ._internal_collect_with_tag(statement_params=statement_params)
         )
         prefix_length = get_stage_file_prefix_length(stage_location)
         return {str(row[0])[prefix_length:] for row in file_list}
 
-    def get_packages(self) -> Dict[str, str]:
+    def get_packages(self, artifact_repository: Optional[str] = None) -> Dict[str, str]:
         """
         Returns a ``dict`` of packages added for user-defined functions (UDFs).
         The key of this ``dict`` is the package name and the value of this ``dict``
         is the corresponding requirement specifier.
+
+        Args:
+            artifact_repository: When set this will function will return the packages for a specific artifact repository.
         """
         with self._package_lock:
+            if artifact_repository:
+                return self._artifact_repository_packages[artifact_repository].copy()
             return self._packages.copy()
 
     def add_packages(
-        self, *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]]
+        self,
+        *packages: Union[str, ModuleType, Iterable[Union[str, ModuleType]]],
+        artifact_repository: Optional[str] = None,
     ) -> None:
         """
         Adds third-party packages as dependencies of a user-defined function (UDF).
@@ -1383,6 +1528,8 @@ class Session:
                 is supported as a `version specifier <https://packaging.python.org/en/latest/glossary/#term-Version-Specifier>`_
                 for this argument. If a ``module`` object is provided, the package will be
                 installed with the version in the local environment.
+            artifact_repository: When set this parameter specifies the artifact repository that packages will be added from. Only functions
+                using that repository will use the packages. (Default None)
 
         Example::
 
@@ -1392,10 +1539,10 @@ class Session:
             >>> import pandas
             >>> import dateutil
             >>> # add numpy with the latest version on Snowflake Anaconda
-            >>> # and pandas with the version "1.3.*"
+            >>> # and pandas with the version "2.1.*"
             >>> # and dateutil with the local version in your environment
             >>> session.custom_package_usage_config = {"enabled": True}  # This is added because latest dateutil is not in snowflake yet
-            >>> session.add_packages("numpy", "pandas==1.5.*", dateutil)
+            >>> session.add_packages("numpy", "pandas==2.1.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -1425,21 +1572,28 @@ class Session:
         self._resolve_packages(
             parse_positional_args_to_list(*packages),
             self._packages,
+            artifact_repository=artifact_repository,
         )
 
-    def remove_package(self, package: str) -> None:
+    def remove_package(
+        self,
+        package: str,
+        artifact_repository: Optional[str] = None,
+    ) -> None:
         """
         Removes a third-party package from the dependency list of a user-defined function (UDF).
 
         Args:
             package: The package name.
+            artifact_repository: When set this parameter specifies that the package should be removed
+                from the default packages for a specific artifact repository.
 
         Examples::
 
             >>> session.clear_packages()
             >>> len(session.get_packages())
             0
-            >>> session.add_packages("numpy", "pandas==1.3.5")
+            >>> session.add_packages("numpy", "pandas==2.1.4")
             >>> len(session.get_packages())
             2
             >>> session.remove_package("numpy")
@@ -1449,21 +1603,40 @@ class Session:
             >>> len(session.get_packages())
             0
         """
-        package_name = pkg_resources.Requirement.parse(package).key
+        package_name = Requirement(package).name
         with self._package_lock:
-            if package_name in self._packages:
+            if (
+                artifact_repository is not None
+                and package_name
+                in self._artifact_repository_packages.get(artifact_repository, {})
+            ):
+                self._artifact_repository_packages[artifact_repository].pop(
+                    package_name
+                )
+            elif package_name in self._packages:
                 self._packages.pop(package_name)
             else:
                 raise ValueError(f"{package_name} is not in the package list")
 
-    def clear_packages(self) -> None:
+    def clear_packages(
+        self,
+        artifact_repository: Optional[str] = None,
+    ) -> None:
         """
-        Clears all third-party packages of a user-defined function (UDF).
+        Clears all third-party packages of a user-defined function (UDF). When artifact_repository
+        is set packages are only clear from the specified repository.
         """
         with self._package_lock:
-            self._packages.clear()
+            if artifact_repository is not None:
+                self._artifact_repository_packages.get(artifact_repository, {}).clear()
+            else:
+                self._packages.clear()
 
-    def add_requirements(self, file_path: str) -> None:
+    def add_requirements(
+        self,
+        file_path: str,
+        artifact_repository: Optional[str] = None,
+    ) -> None:
         """
         Adds a `requirement file <https://pip.pypa.io/en/stable/user_guide/#requirements-files>`_
         that contains a list of packages as dependencies of a user-defined function (UDF). This function also supports
@@ -1473,6 +1646,8 @@ class Session:
 
         Args:
             file_path: The path of a local requirement file.
+            artifact_repository: When set this parameter specifies the artifact repository that packages will be added from. Only functions
+                using that repository will use the packages. (Default None)
 
         Example::
 
@@ -1513,7 +1688,7 @@ class Session:
             packages, new_imports = parse_requirements_text_file(file_path)
             for import_path in new_imports:
                 self.add_import(import_path)
-        self.add_packages(packages)
+        self.add_packages(packages, artifact_repository=artifact_repository)
 
     @experimental(version="1.7.0")
     def replicate_local_environment(
@@ -1541,7 +1716,8 @@ class Session:
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
-            >>> session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()
+            >>> if sys.version_info <= (3, 11):
+            ...     session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()  # doctest: +SKIP
             --------------
             |"COL1"      |
             --------------
@@ -1571,49 +1747,53 @@ class Session:
         ignore_packages = {} if ignore_packages is None else ignore_packages
 
         packages = []
-        for package in pkg_resources.working_set:
-            if package.key in ignore_packages:
-                _logger.info(f"{package.key} found in environment, ignoring...")
+        for package in importlib.metadata.distributions():
+            if package.metadata["Name"].lower() in ignore_packages:
+                _logger.info(
+                    f"{package.metadata['Name'].lower()} found in environment, ignoring..."
+                )
                 continue
-            if package.key in DEFAULT_PACKAGES:
-                _logger.info(f"{package.key} is available by default, ignoring...")
+            if package.metadata["Name"].lower() in DEFAULT_PACKAGES:
+                _logger.info(
+                    f"{package.metadata['Name'].lower()} is available by default, ignoring..."
+                )
                 continue
             version_text = (
-                "==" + package.version if package.has_version() and not relax else ""
+                "==" + package.version if package.version and not relax else ""
             )
-            packages.append(f"{package.key}{version_text}")
+            packages.append(f"{package.metadata['Name'].lower()}{version_text}")
 
         self.add_packages(packages)
 
     @staticmethod
     def _parse_packages(
         packages: List[Union[str, ModuleType]]
-    ) -> Dict[str, Tuple[str, bool, pkg_resources.Requirement]]:
+    ) -> Dict[str, Tuple[str, bool, Requirement]]:
         package_dict = dict()
         for package in packages:
             if isinstance(package, ModuleType):
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
                 )
-                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
+                package = f"{package_name}=={importlib.metadata.version(package_name)}"
                 use_local_version = True
             else:
                 package = package.strip().lower()
                 if package.startswith("#"):
                     continue
                 use_local_version = False
-            package_req = pkg_resources.Requirement.parse(package)
+            package_req = Requirement(package)
             # get the standard package name if there is no underscore
             # underscores are discouraged in package names, but are still used in Anaconda channel
-            # pkg_resources.Requirement.parse will convert all underscores to dashes
+            # packaging.requirements.Requirement will convert all underscores to dashes
             # the regexp is to deal with case that "_" is in the package requirement as well as version restrictions
             # we only extract the valid package name from the string by following:
             # https://packaging.python.org/en/latest/specifications/name-normalization/
             # A valid name consists only of ASCII letters and numbers, period, underscore and hyphen.
             # It must start and end with a letter or number.
-            # however, we don't validate the pkg name as this is done by pkg_resources.Requirement.parse
+            # however, we don't validate the pkg name as this is done by packaging.requirements.Requirement
             # find the index of the first char which is not an valid package name character
-            package_name = package_req.key
+            package_name = package_req.name.lower()
             if not use_local_version and "_" in package:
                 reg_match = re.search(r"[^0-9a-zA-Z\-_.]", package)
                 package_name = package[: reg_match.start()] if reg_match else package
@@ -1623,12 +1803,12 @@ class Session:
 
     def _get_dependency_packages(
         self,
-        package_dict: Dict[str, Tuple[str, bool, pkg_resources.Requirement]],
+        package_dict: Dict[str, Tuple[str, bool, Requirement]],
         validate_package: bool,
         package_table: str,
         current_packages: Dict[str, str],
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         # Keep track of any package errors
         errors = []
 
@@ -1645,16 +1825,21 @@ class Session:
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
-            package_version_req = package_req.specs[0][1] if package_req.specs else None
+            # The `packaging.requirements.Requirement` object exposes a `packaging.requirements.SpecifierSet` object
+            # that handles a set of version specifiers.
+            package_specifier = package_req.specifier if package_req.specifier else None
 
             if validate_package:
                 if package_name not in valid_packages or (
-                    package_version_req
-                    and not any(v in package_req for v in valid_packages[package_name])
+                    package_specifier
+                    and not any(
+                        package_specifier.contains(v)
+                        for v in valid_packages[package_name]
+                    )
                 ):
                     version_text = (
-                        f"(version {package_version_req})"
-                        if package_version_req is not None
+                        f"(version {package_specifier})"
+                        if package_specifier is not None
                         else ""
                     )
                     if is_in_stored_procedure():  # pragma: no cover
@@ -1694,17 +1879,37 @@ class Session:
                     continue
                 elif not use_local_version:
                     try:
-                        package_client_version = pkg_resources.get_distribution(
+                        package_client_version = importlib.metadata.version(
                             package_name
-                        ).version
-                        if package_client_version not in valid_packages[package_name]:
+                        )
+
+                        def is_valid_version(
+                            package_name, package_client_version, valid_packages
+                        ):
+                            if package_name == "snowflake-snowpark-python":
+                                # bugfix versions are ignored as they do not introduce new features
+                                client_major, client_minor, _ = map(
+                                    int, package_client_version.split(".")
+                                )
+                                valid_versions = {
+                                    tuple(map(int, v.split(".")[:2]))
+                                    for v in valid_packages.get(package_name, [])
+                                }
+                                return (client_major, client_minor) in valid_versions
+                            return package_client_version in valid_packages.get(
+                                package_name, []
+                            )
+
+                        if not is_valid_version(
+                            package_name, package_client_version, valid_packages
+                        ):
                             _logger.warning(
                                 f"The version of package '{package_name}' in the local environment is "
                                 f"{package_client_version}, which does not fit the criteria for the "
                                 f"requirement '{package}'. Your UDF might not work when the package version "
                                 f"is different between the server and your local environment."
                             )
-                    except pkg_resources.DistributionNotFound:
+                    except importlib.metadata.PackageNotFoundError:
                         _logger.warning(
                             f"Package '{package_name}' is not installed in the local environment. "
                             f"Your UDF might not work when the package is installed on the server "
@@ -1734,7 +1939,7 @@ class Session:
         elif len(errors) > 0:
             raise RuntimeError(errors)
 
-        dependency_packages: List[pkg_resources.Requirement] = []
+        dependency_packages: List[Requirement] = []
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}."
@@ -1789,6 +1994,7 @@ class Session:
         validate_package: bool = True,
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
+        artifact_repository: Optional[str] = None,
     ) -> List[str]:
         """
         Given a list of packages to add, this method will
@@ -1805,13 +2011,27 @@ class Session:
         Returns:
             List[str]: List of package specifiers
         """
+        # Always include cloudpickle
+        extra_modules = [cloudpickle]
+        if include_pandas:
+            extra_modules.append("pandas")
+
         # Extract package names, whether they are local, and their associated Requirement objects
         package_dict = self._parse_packages(packages)
-        if isinstance(self._conn, MockServerConnection):
+        if (
+            isinstance(self._conn, MockServerConnection)
+            or artifact_repository is not None
+        ):
             # in local testing we don't resolve the packages, we just return what is added
             errors = []
             with self._package_lock:
-                result_dict = self._packages
+                if artifact_repository is None:
+                    result_dict = self._packages
+                else:
+                    result_dict = self._artifact_repository_packages[
+                        artifact_repository
+                    ]
+
                 for pkg_name, _, pkg_req in package_dict.values():
                     if (
                         pkg_name in result_dict
@@ -1830,7 +2050,9 @@ class Session:
                 elif len(errors) > 0:
                     raise RuntimeError(errors)
 
-            return list(result_dict.values())
+            return list(result_dict.values()) + self._get_req_identifiers_list(
+                extra_modules, result_dict
+            )
 
         package_table = "information_schema.packages"
         if not self.get_current_database():
@@ -1861,7 +2083,10 @@ class Session:
             # Add dependency packages
             for package in dependency_packages:
                 name = package.name
-                version = package.specs[0][1] if package.specs else None
+                package_specs = [
+                    (spec.operator, spec.version) for spec in package.specifier
+                ]
+                version = package_specs[0][1] if package_specs else None
 
                 if name in result_dict:
                     if version is not None:
@@ -1877,11 +2102,6 @@ class Session:
                 else:
                     result_dict[name] = str(package)
 
-            # Always include cloudpickle
-            extra_modules = [cloudpickle]
-            if include_pandas:
-                extra_modules.append("pandas")
-
             return list(result_dict.values()) + self._get_req_identifiers_list(
                 extra_modules, result_dict
             )
@@ -1892,7 +2112,7 @@ class Session:
         package_table: str,
         package_dict: Dict[str, str],
         custom_package_usage_config: Dict[str, Any],
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
 
@@ -1903,7 +2123,7 @@ class Session:
                 been added explicitly so far using add_packages() or other such methods.
 
         Returns:
-            List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
+            List[packaging.requirements.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
             to the package dictionary.
 
         Raises:
@@ -1991,7 +2211,8 @@ class Session:
                     row[0]: row[1] if row[1] else []
                     for row in (
                         self.sql(
-                            f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t"
+                            f"SELECT t.$1 as signature, t.$2 as packages from {normalized_metadata_path} t",
+                            _emit_ast=False,
                         )._internal_collect_with_tag()
                     )
                 }
@@ -2050,7 +2271,7 @@ class Session:
 
     def _load_unsupported_packages_from_stage(
         self, environment_signature: str, cache_path: str
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         """
         Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
         saves time spent on pip install, native package detection and zip upload to stage.
@@ -2071,7 +2292,7 @@ class Session:
             environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
             a sorted tuple of unsupported package requirements (package versioning included).
         Returns:
-            Optional[List[pkg_resources.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
+            Optional[List[packaging.requirements.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
         """
         # Ensure that metadata file exists
         metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
@@ -2096,16 +2317,16 @@ class Session:
             row[0]: row[1].split("|") if row[1] else []
             for row in (
                 self.sql(
-                    f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t"
+                    f"SELECT t.$1 as signature, t.$2 as packages from {normalize_remote_file_or_dir(metadata_file_path)} t",
+                    _emit_ast=False,
                 )
-                .filter(col("signature") == environment_signature)
+                .filter(col("signature") == environment_signature, _emit_ast=False)
                 ._internal_collect_with_tag()
             )
         }
 
         dependency_packages = [
-            pkg_resources.Requirement.parse(package)
-            for package in metadata[environment_signature]
+            Requirement(package) for package in metadata[environment_signature]
         ]
         _logger.info(
             f"Loading dependency packages list - {metadata[environment_signature]}."
@@ -2131,7 +2352,7 @@ class Session:
         package_to_version_mapping = (
             {
                 p[0]: json.loads(p[1])
-                for p in self.table(package_table_name)
+                for p in self.table(package_table_name, _emit_ast=False)
                 .filter(
                     (col("language", _emit_ast=False) == "python")
                     & (
@@ -2164,6 +2385,13 @@ class Session:
             query to the Snowflake Database is called. For example, :meth:`DataFrame.collect`,
             :meth:`DataFrame.show`, :meth:`DataFrame.create_or_replace_view` and
             :meth:`DataFrame.create_or_replace_temp_view` will push down the SQL query.
+
+        Note:
+            The setter calls ``ALTER SESSION SET QUERY_TAG = <tag>`` which may be restricted
+            in some environments such as Owner's rights stored procedures. Refer to
+            `Owner's rights stored procedures <https://docs.snowflake.com/en/developer-guide/stored-procedure/stored-procedures-rights#owner-s-rights-stored-procedures>`_.
+            for more details.
+
         """
         return self._query_tag
 
@@ -2176,12 +2404,16 @@ class Session:
                 self._conn.run_query("alter session unset query_tag")
             self._query_tag = tag
 
-    def _get_remote_query_tag(self) -> None:
+    def _get_remote_query_tag(self) -> str:
         """
         Fetches the current sessions query tag.
         """
-        remote_tag_rows = self.sql("SHOW PARAMETERS LIKE 'QUERY_TAG'").collect()
+        remote_tag_rows = self.sql(
+            "SHOW PARAMETERS LIKE 'QUERY_TAG'", _emit_ast=False
+        )._internal_collect_with_tag_no_telemetry()
 
+        # Check if the result has the expected schema
+        # https://docs.snowflake.com/en/sql-reference/sql/show-parameters#examples
         if len(remote_tag_rows) != 1 or not hasattr(remote_tag_rows[0], "value"):
             raise ValueError(
                 "Snowflake server side query tag parameter has unexpected schema."
@@ -2304,10 +2536,10 @@ class Session:
             [Row(A=1, B=2), Row(A=3, B=4)]
         """
         if _emit_ast:
-            stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_table, stmt)
-            build_sp_table_name(ast.name, name)
-            ast.variant.sp_session_table = True
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.table, stmt)
+            build_table_name(ast.name, name)
+            ast.variant.session_table = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
         else:
             stmt = None
@@ -2383,8 +2615,8 @@ class Session:
         stmt = None
         if _emit_ast:
             add_intermediate_stmt(self._ast_batch, func_name)
-            stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_session_table_function, stmt)
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.session_table_function, stmt)
             build_indirect_table_fn_apply(
                 ast.fn,
                 func_name,
@@ -2405,7 +2637,7 @@ class Session:
                     _emit_ast=False,
                 )
                 if _emit_ast:
-                    ans._ast_id = stmt.var_id.bitfield1
+                    ans._ast_id = stmt.uid
                 return ans
             else:
                 # TODO: Implement table_function properly in local testing mode.
@@ -2426,17 +2658,17 @@ class Session:
                     from_=SelectTableFunction(func_expr, analyzer=self._analyzer),
                     analyzer=self._analyzer,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
                 self,
                 TableFunctionRelation(func_expr),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.table_function")
-
-        if _emit_ast:
-            d._ast_id = stmt.var_id.bitfield1
-
         return d
 
     @publicapi
@@ -2495,14 +2727,15 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_generator, stmt)
-            col_names, is_variadic = parse_positional_args_to_list_variadic(*columns)
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.generator, stmt)
+            col_names, ast.columns.variadic = parse_positional_args_to_list_variadic(
+                *columns
+            )
             for col_name in col_names:
-                ast.columns.append(col_name._ast)
+                ast.columns.args.append(col_name._ast)
             ast.row_count = rowcount
             ast.time_limit_seconds = timelimit
-            ast.variadic = is_variadic
 
         # TODO: Support generator in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
@@ -2518,7 +2751,7 @@ class Session:
                 _emit_ast=False,
             )
             if _emit_ast:
-                ans._ast_id = stmt.var_id.bitfield1
+                ans._ast_id = stmt.uid
             return ans
 
         if isinstance(self._conn, MockServerConnection):
@@ -2564,7 +2797,7 @@ class Session:
         self,
         query: str,
         params: Optional[Sequence[Any]] = None,
-        _ast_stmt: proto.Assign = None,
+        _ast_stmt: proto.Bind = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -2598,8 +2831,8 @@ class Session:
         stmt = None
         if _emit_ast:
             if _ast_stmt is None:
-                stmt = self._ast_batch.assign()
-                expr = with_src_position(stmt.expr.sp_sql, stmt)
+                stmt = self._ast_batch.bind()
+                expr = with_src_position(stmt.expr.sql, stmt)
                 expr.query = query
                 if params is not None:
                     for p in params:
@@ -2629,6 +2862,7 @@ class Session:
                     analyzer=self._analyzer,
                 ),
                 _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
             d = DataFrame(
@@ -2637,6 +2871,7 @@ class Session:
                     query, source_plan=None, params=params
                 ),
                 _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         set_api_call_source(d, "Session.sql")
         return d
@@ -2704,6 +2939,111 @@ class Session:
                 # set the value after running the query to ensure atomicity
                 self._session_stage = full_qualified_stage_name
         return f"{STAGE_PREFIX}{self._session_stage}"
+
+    @experimental(version="1.28.0")
+    @publicapi
+    def write_arrow(
+        self,
+        table: "pyarrow.Table",
+        table_name: str,
+        *,
+        database: Optional[str] = None,
+        schema: Optional[str] = None,
+        chunk_size: Optional[int] = WRITE_ARROW_CHUNK_SIZE,
+        compression: str = "gzip",
+        on_error: str = "abort_statement",
+        use_vectorized_scanner: bool = False,
+        parallel: int = 4,
+        quote_identifiers: bool = True,
+        auto_create_table: bool = False,
+        overwrite: bool = False,
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
+        use_logical_type: Optional[bool] = None,
+        _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
+    ) -> Table:
+        """Writes a pyarrow.Table to a Snowflake table.
+
+        The pyarrow Table is written out to temporary files, uploaded to a temporary stage, and then copied into the final location.
+
+        This function requires the optional dependenct snowflake-snowpark-python[pandas] be installed.
+
+        Returns a Snowpark Table that references the table referenced by table_name.
+
+        Args:
+            table: The pyarrow Table that is written.
+            table_name: Table name where we want to insert into.
+            database: Database schema and table is in, if not provided the default one will be used (Default value = None).
+            schema: Schema table is in, if not provided the default one will be used (Default value = None).
+            chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
+                Default to None normally, 100,000 if inside a stored procedure.
+                Note: If auto_create_table or overwrite is set to True, the chunk size may affect schema
+                inference because different chunks might contain varying data types,
+                especially when None values are present. This can lead to inconsistencies in inferred types.
+            compression: The compression used on the Parquet files, can only be gzip, or snappy. Gzip gives a
+                better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
+            on_error: Action to take when COPY INTO statements fail, default follows documentation at:
+                https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
+                (Default value = 'abort_statement').
+            use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
+                `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
+            parallel: Number of threads to be used when uploading chunks, default follows documentation at:
+                https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
+            quote_identifiers: By default, identifiers, specifically database, schema, table and column names
+                (from df.columns) will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
+                I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
+            auto_create_table: When true, will automatically create a table with corresponding columns for each column in
+                the passed in DataFrame. The table will not be created if it already exists
+            table_type: The table type of to-be-created table. The supported table types include ``temp``/``temporary``
+                and ``transient``. Empty means permanent table as per SQL convention.
+            use_logical_type: Boolean that specifies whether to use Parquet logical types. With this file format option,
+                Snowflake can interpret Parquet logical types during data loading. To enable Parquet logical types,
+                set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
+                https://docs.snowflake.com/en/sql-reference/sql/create-file-format
+        """
+        cursor = self._conn._conn.cursor()
+
+        if quote_identifiers:
+            location = (
+                (('"' + database + '".') if database else "")
+                + (('"' + schema + '".') if schema else "")
+                + ('"' + table_name + '"')
+            )
+        else:
+            location = (
+                (database + "." if database else "")
+                + (schema + "." if schema else "")
+                + (table_name)
+            )
+
+        success, _, _, ci_output = write_arrow(
+            cursor=cursor,
+            table=table,
+            table_name=table_name,
+            database=database,
+            schema=schema,
+            chunk_size=chunk_size,
+            compression=compression,
+            on_error=on_error,
+            use_vectorized_scanner=use_vectorized_scanner,
+            parallel=parallel,
+            quote_identifiers=quote_identifiers,
+            auto_create_table=auto_create_table,
+            overwrite=overwrite,
+            table_type=table_type,
+            use_logical_type=use_logical_type,
+            use_scoped_temp_object=self._use_scoped_temp_objects
+            and is_in_stored_procedure(),
+        )
+
+        if success:
+            table = self.table(location, _emit_ast=False)
+            set_api_call_source(table, "Session.write_arrow")
+            return table
+        else:
+            raise SnowparkSessionException(
+                f"Failed to write arrow table to Snowflake. COPY INTO output {ci_output}"
+            )
 
     def _write_modin_pandas_helper(
         self,
@@ -2817,6 +3157,9 @@ class Session:
             schema: Schema that the table is in. If not provided, the default one will be used.
             chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
                 Default to None normally, 100,000 if inside a stored procedure.
+                Note: If auto_create_table or overwrite is set to True, the chunk size may affect schema
+                inference because different chunks might contain varying data types,
+                especially when None values are present. This can lead to inconsistencies in inferred types.
             compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
                 better compression, while snappy is faster. Use whichever is more appropriate.
             on_error: Action to take when COPY INTO statements fail. See details at
@@ -2912,6 +3255,11 @@ class Session:
                 f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
             )
 
+        if hasattr(df, "columns") and len(df.columns) == 0:
+            raise ProgrammingError(
+                "The provided schema or inferred schema cannot be None or empty"
+            )
+
         success = None  # forward declaration
         try:
             if quote_identifiers:
@@ -2945,6 +3293,8 @@ class Session:
             if modin_is_imported and isinstance(
                 df, (modin_pandas.DataFrame, modin_pandas.Series)
             ):
+                # use_logical_type should be ignored for Snowpark pandas
+                kwargs.pop("use_logical_type", None)
                 self._write_modin_pandas_helper(
                     df,
                     table_name,
@@ -2994,8 +3344,8 @@ class Session:
             # AST.
             if _emit_ast:
                 # Create AST statement.
-                stmt = self._ast_batch.assign()
-                ast = with_src_position(stmt.expr.sp_write_pandas, stmt)  # noqa: F841
+                stmt = self._ast_batch.bind()
+                ast = with_src_position(stmt.expr.write_pandas, stmt)  # noqa: F841
 
                 ast.auto_create_table = auto_create_table
                 if chunk_size is not None and chunk_size != WRITE_PANDAS_CHUNK_SIZE:
@@ -3003,8 +3353,8 @@ class Session:
                 ast.compression = compression
                 ast.create_temp_table = create_temp_table
                 if isinstance(df, pandas.DataFrame):
-                    build_sp_table_name(
-                        ast.df.sp_dataframe_data__pandas.v.temp_table, table.table_name
+                    build_table_name(
+                        ast.df.dataframe_data__pandas.v.temp_table, table.table_name
                     )
                 else:
                     raise NotImplementedError(
@@ -3030,10 +3380,10 @@ class Session:
                         raise ValueError("Need to set schema when using database.")
                     table_location = [database] + table_location
 
-                build_sp_table_name(ast.table_name, table_location)
+                build_table_name(ast.table_name, table_location)
                 ast.table_type = table_type
 
-                table._ast_id = stmt.var_id.bitfield1
+                table._ast_id = stmt.uid
 
             return table
         else:
@@ -3044,17 +3394,21 @@ class Session:
     @publicapi
     def create_dataframe(
         self,
-        data: Union[List, Tuple, "pandas.DataFrame"],
+        data: Union[List, Tuple, "pandas.DataFrame", "pyarrow.Table"],
         schema: Optional[Union[StructType, Iterable[str], str]] = None,
         _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
-        If creating a new DataFrame from a pandas Dataframe, we will store the pandas
-        DataFrame in a temporary table and return a DataFrame pointing to that temporary
+        If creating a new DataFrame from a pandas Dataframe or a PyArrow Table, we will store
+        the data in a temporary table and return a DataFrame pointing to that temporary
         table for you to then do further transformations on. This temporary table will be
-        dropped at the end of your session. If you would like to save the pandas DataFrame,
-        use the :meth:`write_pandas` method instead.
+        dropped at the end of your session. If you would like to save the pandas DataFrame or PyArrow Table,
+        use the :meth:`write_pandas` or :meth:`write_arrow` method instead.
+        Note: When ``data`` is a pandas DataFrame or pyarrow Table, schema inference may be affected by chunk size.
+        You can control it by passing the ``chunk_size`` keyword argument. For details, see :meth:`write_pandas`
+        or :meth:`write_arrow`, which are used internally by this function.
 
         Args:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
@@ -3072,6 +3426,9 @@ class Session:
 
                 To improve performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
+            **kwargs: Additional keyword arguments passed to :meth:`write_pandas` or :meth:`write_arrow`
+                when ``data`` is a pandas DataFrame or pyarrow Table, respectively. These can include
+                options such as chunk_size or compression.
 
         Examples::
 
@@ -3118,7 +3475,10 @@ class Session:
 
         if not isinstance(data, (list, tuple)) and (
             not installed_pandas
-            or (installed_pandas and not isinstance(data, pandas.DataFrame))
+            or (
+                installed_pandas
+                and not isinstance(data, (pandas.DataFrame, pyarrow.Table))
+            )
         ):
             raise TypeError(
                 "create_dataframe() function only accepts data as a list, tuple or a pandas DataFrame."
@@ -3128,7 +3488,7 @@ class Session:
         # Warn user to acknowledge this.
         if (
             installed_pandas
-            and isinstance(data, pandas.DataFrame)
+            and isinstance(data, (pandas.DataFrame, pyarrow.Table))
             and schema is not None
         ):
             warnings.warn(
@@ -3140,7 +3500,7 @@ class Session:
         # check to see if it is a pandas DataFrame and if so, write that to a temp
         # table and return as a DataFrame
         origin_data = data
-        if installed_pandas and isinstance(data, pandas.DataFrame):
+        if installed_pandas and isinstance(data, (pandas.DataFrame, pyarrow.Table)):
             temp_table_name = escape_quotes(
                 random_name_for_temp_object(TempObjectType.TABLE)
             )
@@ -3153,29 +3513,46 @@ class Session:
                 )
                 sf_schema = self._conn._get_current_parameter("schema", quoted=False)
 
-                table = self.write_pandas(
-                    data,
-                    temp_table_name,
-                    database=sf_database,
-                    schema=sf_schema,
-                    quote_identifiers=True,
-                    auto_create_table=True,
-                    table_type="temporary",
-                    use_logical_type=self._use_logical_type_for_create_df,
-                )
-                set_api_call_source(table, "Session.create_dataframe[pandas]")
+                if isinstance(data, pyarrow.Table):
+                    table = self.write_arrow(
+                        data,
+                        temp_table_name,
+                        database=sf_database,
+                        schema=sf_schema,
+                        quote_identifiers=True,
+                        auto_create_table=True,
+                        table_type="temporary",
+                        use_logical_type=self._use_logical_type_for_create_df,
+                        _emit_ast=False,
+                        **kwargs,
+                    )
+                    set_api_call_source(table, "Session.create_dataframe[arrow]")
+                else:
+                    table = self.write_pandas(
+                        data,
+                        temp_table_name,
+                        database=sf_database,
+                        schema=sf_schema,
+                        quote_identifiers=True,
+                        auto_create_table=True,
+                        table_type="temporary",
+                        use_logical_type=self._use_logical_type_for_create_df,
+                        _emit_ast=False,
+                        **kwargs,
+                    )
+                    set_api_call_source(table, "Session.create_dataframe[pandas]")
 
                 if _emit_ast:
-                    stmt = self._ast_batch.assign()
-                    ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+                    stmt = self._ast_batch.bind()
+                    ast = with_src_position(stmt.expr.create_dataframe, stmt)
                     # Save temp table and schema of it in AST (dataframe).
-                    build_sp_table_name(
-                        ast.data.sp_dataframe_data__pandas.v.temp_table, temp_table_name
+                    build_table_name(
+                        ast.data.dataframe_data__pandas.v.temp_table, temp_table_name
                     )
                     build_proto_from_struct_type(
-                        table.schema, ast.schema.sp_dataframe_schema__struct.v
+                        table.schema, ast.schema.dataframe_schema__struct.v
                     )
-                    table._ast_id = stmt.var_id.bitfield1
+                    table._ast_id = stmt.uid
 
                 return table
 
@@ -3189,30 +3566,10 @@ class Session:
                     f"Invalid schema string: {schema}. "
                     f"You should provide a valid schema string representing a struct type."
                 )
+        create_temp_table = False
         if isinstance(schema, StructType):
             new_schema = schema
-            # SELECT query has an undefined behavior for nullability, so if the schema requires non-nullable column and
-            # all columns are primitive type columns, we use a temp table to lock in the nullabilities.
-            # TODO(SNOW-1015527): Support non-primitive type
-            if (
-                not isinstance(self._conn, MockServerConnection)
-                and any([field.nullable is False for field in schema.fields])
-                and all([field.datatype.is_primitive() for field in schema.fields])
-            ):
-                temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-                schema_string = analyzer_utils.attribute_to_schema_string(
-                    schema._to_attributes()
-                )
-                try:
-                    self._run_query(
-                        f"CREATE SCOPED TEMP TABLE {temp_table_name} ({schema_string})"
-                    )
-                    schema_query = f"SELECT * FROM {self.get_fully_qualified_name_if_possible(temp_table_name)}"
-                except ProgrammingError as e:
-                    _logger.debug(
-                        f"Cannot create temp table for specified non-nullable schema, fall back to using schema "
-                        f"string from select query. Exception: {str(e)}"
-                    )
+            create_temp_table = True
         else:
             if not data:
                 raise ValueError("Cannot infer schema from empty data")
@@ -3282,12 +3639,35 @@ class Session:
                         TimestampType,
                         VariantType,
                         VectorType,
+                        FileType,
                     ),
                 )
                 else field.datatype
             )
             attrs.append(Attribute(quoted_name, sf_type, field.nullable))
             data_types.append(field.datatype)
+
+        if create_temp_table:
+            # SELECT query has an undefined behavior for nullability, so if the schema requires non-nullable column and
+            # all columns are primitive type columns, we use a temp table to lock in the nullabilities.
+            # TODO(SNOW-1015527): Support non-primitive type
+            if (
+                not isinstance(self._conn, MockServerConnection)
+                and any([field.nullable is False for field in schema.fields])
+                and all([field.datatype.is_primitive() for field in schema.fields])
+            ):
+                temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+                schema_string = analyzer_utils.attribute_to_schema_string(attrs)
+                try:
+                    self._run_query(
+                        f"CREATE SCOPED TEMP TABLE {temp_table_name} ({schema_string})"
+                    )
+                    schema_query = f"SELECT * FROM {self.get_fully_qualified_name_if_possible(temp_table_name)}"
+                except ProgrammingError as e:
+                    _logger.debug(
+                        f"Cannot create temp table for specified non-nullable schema, fall back to using schema "
+                        f"string from select query. Exception: {str(e)}"
+                    )
 
         # convert all variant/time/geospatial/array/map data to string
         converted = []
@@ -3335,6 +3715,8 @@ class Session:
                 elif isinstance(data_type, GeographyType):
                     converted_row.append(value)
                 elif isinstance(data_type, GeometryType):
+                    converted_row.append(value)
+                elif isinstance(data_type, FileType):
                     converted_row.append(value)
                 elif isinstance(data_type, VectorType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
@@ -3384,11 +3766,13 @@ class Session:
                 project_columns.append(
                     parse_json(column(name)).cast(field.datatype).as_(name)
                 )
+            elif isinstance(field.datatype, FileType):
+                project_columns.append(to_file(column(name)).as_(name))
             else:
                 project_columns.append(column(name))
 
         # Create AST statement.
-        stmt = self._ast_batch.assign() if _emit_ast else None
+        stmt = self._ast_batch.bind() if _emit_ast else None
 
         df = (
             DataFrame(
@@ -3412,7 +3796,7 @@ class Session:
         set_api_call_source(df, "Session.create_dataframe[values]")
 
         if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         if (
             installed_pandas
@@ -3420,39 +3804,37 @@ class Session:
             and isinstance(self._conn, MockServerConnection)
         ):
             # MockServerConnection internally creates a table, and returns Table object (which inherits from Dataframe).
-            table = _convert_dataframe_to_table(
-                df, temp_table_name, self, _emit_ast=False
-            )
+            table = _convert_dataframe_to_table(df, temp_table_name, self)
 
             # AST.
             if _emit_ast:
-                ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+                ast = with_src_position(stmt.expr.create_dataframe, stmt)
 
                 # Save temp table and schema of it in AST (dataframe).
-                build_sp_table_name(
-                    ast.data.sp_dataframe_data__pandas.v.temp_table, temp_table_name
+                build_table_name(
+                    ast.data.dataframe_data__pandas.v.temp_table, temp_table_name
                 )
                 build_proto_from_struct_type(
-                    table.schema, ast.schema.sp_dataframe_schema__struct.v
+                    table.schema, ast.schema.dataframe_schema__struct.v
                 )
 
-                table._ast_id = stmt.var_id.bitfield1
+                table._ast_id = stmt.uid
 
             return table
 
         # AST.
         if _emit_ast:
-            ast = with_src_position(stmt.expr.sp_create_dataframe, stmt)
+            ast = with_src_position(stmt.expr.create_dataframe, stmt)
 
             if isinstance(origin_data, tuple):
                 for row in origin_data:
                     build_expr_from_python_val(
-                        ast.data.sp_dataframe_data__tuple.vs.add(), row
+                        ast.data.dataframe_data__tuple.vs.add(), row
                     )
             elif isinstance(origin_data, list):
                 for row in origin_data:
                     build_expr_from_python_val(
-                        ast.data.sp_dataframe_data__list.vs.add(), row
+                        ast.data.dataframe_data__list.vs.add(), row
                     )
             # Note: pandas.DataFrame handled above.
             else:
@@ -3463,13 +3845,13 @@ class Session:
             if schema is not None:
                 if isinstance(schema, list):
                     for name in schema:
-                        ast.schema.sp_dataframe_schema__list.vs.append(name)
+                        ast.schema.dataframe_schema__list.vs.append(name)
                 elif isinstance(schema, StructType):
                     build_proto_from_struct_type(
-                        schema, ast.schema.sp_dataframe_schema__struct.v
+                        schema, ast.schema.dataframe_schema__struct.v
                     )
 
-            df._ast_id = stmt.var_id.bitfield1
+            df._ast_id = stmt.uid
 
         return df
 
@@ -3506,8 +3888,8 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
-            ast = with_src_position(stmt.expr.sp_range, stmt)
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.range, stmt)
             ast.start = start
             if end:
                 ast.end.value = end
@@ -3522,14 +3904,12 @@ class Session:
                     ),
                     analyzer=self._analyzer,
                 ),
+                _ast_stmt=stmt,
+                _emit_ast=_emit_ast,
             )
         else:
-            df = DataFrame(self, range_plan)
+            df = DataFrame(self, range_plan, _ast_stmt=stmt, _emit_ast=_emit_ast)
         set_api_call_source(df, "Session.range")
-
-        if _emit_ast:
-            df._ast_id = stmt.var_id.bitfield1
-
         return df
 
     def create_async_job(self, query_id: str) -> AsyncJob:
@@ -3710,17 +4090,21 @@ class Session:
             >>> session.telemetry_enabled
             True
         """
-        return self._conn._conn.telemetry_enabled
+        return self._conn._telemetry_client._enabled
 
     @telemetry_enabled.setter
     def telemetry_enabled(self, value):
         # Set both in-band and out-of-band telemetry to True/False
         if value:
-            self._conn._conn.telemetry_enabled = True
-            self._conn._telemetry_client.telemetry._enabled = True
+            self._conn._telemetry_client._enabled = True
+            if is_in_stored_procedure() and not self._stored_proc_telemetry_enabled:
+                _logger.debug(
+                    "Client side parameter ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY is set to False, telemetry could not be enabled"
+                )
+                self._conn._telemetry_client._enabled = False
+
         else:
-            self._conn._conn.telemetry_enabled = False
-            self._conn._telemetry_client.telemetry._enabled = False
+            self._conn._telemetry_client._enabled = False
 
     @property
     def file(self) -> FileOperation:
@@ -3772,7 +4156,6 @@ class Session:
         return self._sp_registration
 
     @property
-    @private_preview(version="1.23.0")
     def stored_procedure_profiler(self) -> StoredProcedureProfiler:
         """
         Returns a :class:`stored_procedure_profiler.StoredProcedureProfiler` object that you can use to profile stored procedures.
@@ -3780,9 +4163,21 @@ class Session:
         """
         return self._sp_profiler
 
+    @property
+    def dataframe_profiler(self) -> DataframeProfiler:
+        """
+        Returns a :class:`dataframe_profiler.DataframeProfiler` object that you can use to profile dataframe operations.
+        See details of how to use this object in :class:`dataframe_profiler.DataframeProfiler`.
+        """
+        return self._dataframe_profiler
+
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
+        if sproc_name.strip().upper().startswith("SYSTEM$"):
+            # Built-in stored procedures do not have schema and cannot be described
+            # Currently all SYSTEM$ stored procedures are scalar so return false.
+            return False
         func_signature = ""
         try:
             arg_types = []
@@ -3818,17 +4213,27 @@ class Session:
         sproc_name: str,
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
+        block: bool = True,
         log_on_exception: bool = False,
+        return_dataframe: Optional[bool] = None,
         _emit_ast: bool = True,
-    ) -> Any:
+    ) -> Union[Any, AsyncJob]:
         """Calls a stored procedure by name.
 
         Args:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Whether to block until the result is available. When it is ``False``, this function
+                executes the stored procedure asynchronously and returns an :class:`AsyncJob`.
             log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
                 as a table return type.
+            return_dataframe: When set to True, the return value of this function is a DataFrame object.
+                This is useful when the given stored procedure's return type is a table.
+
+        Returns:
+            When block=True: The stored procedure result (scalar value or DataFrame)
+            When block=False: An AsyncJob object for retrieving results later
 
         Example::
 
@@ -3867,7 +4272,68 @@ class Session:
             sproc_name,
             *args,
             statement_params=statement_params,
+            block=block,
             log_on_exception=log_on_exception,
+            is_return_table=return_dataframe,
+            _emit_ast=_emit_ast,
+        )
+
+    @publicapi
+    def call_nowait(
+        self,
+        sproc_name: str,
+        *args: Any,
+        statement_params: Optional[Dict[str, Any]] = None,
+        log_on_exception: bool = False,
+        return_dataframe: Optional[bool] = None,
+        _emit_ast: bool = True,
+    ) -> AsyncJob:
+        """Calls a stored procedure by name asynchronously and returns an AsyncJob.
+        It is equivalent to ``call(block=False)``.
+
+        Args:
+            sproc_name: The name of stored procedure in Snowflake.
+            args: Arguments should be basic Python types.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
+                as a table return type.
+            return_dataframe: When set to True, the return value of this function is a DataFrame object.
+                This is useful when the given stored procedure's return type is a table.
+
+        Returns:
+            An AsyncJob object that can be used to retrieve results or check status.
+
+        Example::
+
+            >>> import snowflake.snowpark
+            >>> from snowflake.snowpark.functions import sproc
+            >>> import time
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>>
+            >>> @sproc(name="simple_add_sp", replace=True)
+            ... def simple_add(session: snowflake.snowpark.Session, a: int, b: int) -> int:
+            ...     return a + b
+            >>> async_job = session.call_nowait("simple_add_sp", 1, 2)
+            >>> while not async_job.is_done():
+            ...     time.sleep(1.0)
+            >>> async_job.is_done()
+            True
+            >>> async_job.is_failed()
+            False
+            >>> async_job.status()
+            'SUCCESS'
+            >>> result = async_job.result()
+            >>> print(result)
+            3
+        """
+        return self.call(
+            sproc_name,
+            *args,
+            statement_params=statement_params,
+            block=False,
+            log_on_exception=log_on_exception,
+            return_dataframe=return_dataframe,
             _emit_ast=_emit_ast,
         )
 
@@ -3879,7 +4345,8 @@ class Session:
         is_return_table: Optional[bool] = None,
         log_on_exception: bool = False,
         _emit_ast: bool = True,
-    ) -> Any:
+        block: bool = True,
+    ) -> Union[Any, AsyncJob]:
         """Private implementation of session.call
 
         Args:
@@ -3893,9 +4360,9 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
+            stmt = self._ast_batch.bind()
             expr = with_src_position(stmt.expr.apply_expr, stmt)
-            expr.fn.stored_procedure.name.name.sp_name_flat.name = sproc_name
+            expr.fn.stored_procedure.name.name.name_flat.name = sproc_name
             for arg in args:
                 build_expr_from_python_val(expr.pos_args.add(), arg)
             if statement_params is not None:
@@ -3904,10 +4371,15 @@ class Session:
                     entry._1 = k
                     build_expr_from_python_val(entry._2, statement_params[k])
             expr.fn.stored_procedure.log_on_exception.value = log_on_exception
+            self._ast_batch.eval(stmt)
 
         if isinstance(self._sp_registration, MockStoredProcedureRegistration):
             return self._sp_registration.call(
-                sproc_name, *args, session=self, statement_params=statement_params
+                sproc_name,
+                *args,
+                session=self,
+                statement_params=statement_params,
+                _emit_ast=False,
             )
 
         validate_object_name(sproc_name)
@@ -3917,20 +4389,15 @@ class Session:
             is_return_table = self._infer_is_return_table(
                 sproc_name, *args, log_on_exception=log_on_exception
             )
-        if is_return_table:
-            qid = self._conn.execute_and_get_sfqid(
-                query, statement_params=statement_params
-            )
-            df = self.sql(result_scan_statement(qid), _ast_stmt=stmt)
-            set_api_call_source(df, "Session.call")
-            return df
 
-        # TODO SNOW-1672561: This here needs to emit an eval as well.
-        df = self.sql(query, _ast_stmt=stmt)
-        set_api_call_source(df, "Session.call")
-
-        # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
-        return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
+        return self._execute_sproc_internal(
+            query=query,
+            is_return_table=is_return_table,
+            block=block,
+            statement_params=statement_params,
+            ast_stmt=stmt,
+            log_on_exception=log_on_exception,
+        )
 
     @deprecated(
         version="0.7.0",
@@ -4008,19 +4475,19 @@ class Session:
         # AST.
         stmt = None
         if _emit_ast:
-            stmt = self._ast_batch.assign()
-            expr = with_src_position(stmt.expr.sp_flatten, stmt)
+            stmt = self._ast_batch.bind()
+            expr = with_src_position(stmt.expr.flatten, stmt)
             build_expr_from_python_val(expr.input, input)
             if path is not None:
                 expr.path.value = path
             expr.outer = outer
             expr.recursive = recursive
             if mode.upper() == "OBJECT":
-                expr.mode.sp_flatten_mode_object = True
+                expr.mode.flatten_mode_object = True
             elif mode.upper() == "ARRAY":
-                expr.mode.sp_flatten_mode_array = True
+                expr.mode.flatten_mode_array = True
             else:
-                expr.mode.sp_flatten_mode_both = True
+                expr.mode.flatten_mode_both = True
 
         if isinstance(self._conn, MockServerConnection):
             if self._conn._suppress_not_implemented_error:
@@ -4038,6 +4505,7 @@ class Session:
                 FlattenFunction(input._expression, path, outer, recursive, mode)
             ),
             _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
         )
         set_api_call_source(df, "Session.flatten")
         return df
@@ -4047,6 +4515,7 @@ class Session:
         include_describe: bool = False,
         include_thread_id: bool = False,
         include_error: bool = False,
+        include_dataframe_profiling: bool = False,
     ) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
@@ -4064,7 +4533,11 @@ class Session:
         >>> assert not query_history.queries[1].is_describe
         """
         query_listener = QueryHistory(
-            self, include_describe, include_thread_id, include_error
+            self,
+            include_describe,
+            include_thread_id,
+            include_error,
+            include_dataframe_profiling,
         )
         self._conn.add_query_listener(query_listener)
         return query_listener
@@ -4132,4 +4605,105 @@ class Session:
             _logger.warning("query `%s` cannot be explained", query)
             return None
 
+    def _get_or_register_xpath_udf(
+        self, return_type: Literal["array", "string", "boolean", "int", "float"]
+    ) -> "UserDefinedFunction":
+        """
+        Get or register an XPath UDF for the specified return type.
+
+        This function manages UDF registration for XPath evaluation. It uses session-level
+        caching to avoid re-registering the same UDF multiple times. The cache is stored
+        in the session object for thread safety.
+        """
+        # Use session's xpath UDF cache with thread safety
+        with self._xpath_udf_cache_lock:
+            cache_key = return_type
+
+            if cache_key not in self._xpath_udf_cache:
+                # Determine Snowpark return type
+                return_type_map = {
+                    "array": ArrayType(StringType()),
+                    "string": StringType(),
+                    "boolean": BooleanType(),
+                    "int": IntegerType(),
+                    "float": FloatType(),
+                }
+
+                # Get the handler function name for this return type
+                handler_name = XPATH_HANDLER_MAP[return_type]
+
+                # Handle stored procedure case
+                if is_in_stored_procedure():  # pragma: no cover
+                    # create a temp stage for UDF import files
+                    # we have to use "temp" object instead of "scoped temp" object in stored procedure
+                    # so we need to upload the file to the temp stage first to use register_from_file
+                    temp_stage = random_name_for_temp_object(TempObjectType.STAGE)
+                    sql_create_temp_stage = (
+                        f"create temp stage if not exists {temp_stage}"
+                    )
+                    self.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                        _emit_ast=False
+                    )
+                    self._conn.upload_file(
+                        XPATH_HANDLERS_FILE_PATH,
+                        temp_stage,
+                        compress_data=False,
+                        overwrite=True,
+                        skip_upload_on_content_match=True,
+                    )
+                    python_file_path = f"{STAGE_PREFIX}{temp_stage}/{os.path.basename(XPATH_HANDLERS_FILE_PATH)}"
+                else:
+                    python_file_path = XPATH_HANDLERS_FILE_PATH
+
+                # Register UDF from file
+                xpath_udf = self.udf.register_from_file(
+                    python_file_path,
+                    handler_name,
+                    return_type=return_type_map[return_type],
+                    input_types=[StringType(), StringType()],
+                    packages=["snowflake-snowpark-python", "lxml<6"],
+                    replace=True,
+                    _emit_ast=False,
+                )
+
+                self._xpath_udf_cache[cache_key] = xpath_udf
+
+            return self._xpath_udf_cache[cache_key]
+
     createDataFrame = create_dataframe
+
+    def _execute_sproc_internal(
+        self,
+        query: str,
+        is_return_table: bool,
+        block: bool,
+        statement_params: Optional[Dict[str, Any]] = None,
+        ast_stmt=None,
+        log_on_exception: bool = False,
+    ) -> Union[Any, AsyncJob]:
+        """Unified internal executor for sync/async, table/scalar SPROCs."""
+        if not block:
+            results_cursor = self._conn.execute_async_and_notify_query_listener(
+                query, _statement_params=statement_params
+            )
+            return AsyncJob(
+                results_cursor["queryId"],
+                query,
+                self,
+                _AsyncResultType.ROW if is_return_table else _AsyncResultType.COUNT,
+                log_on_exception=log_on_exception,
+            )
+
+        if is_return_table:
+            qid = self._conn.execute_and_get_sfqid(
+                query, statement_params=statement_params
+            )
+            df = self.sql(result_scan_statement(qid), _ast_stmt=ast_stmt)
+            set_api_call_source(df, "Session.call")
+            return df
+        else:
+            # TODO SNOW-1672561: This here needs to emit an eval as well.
+            df = self.sql(query, _ast_stmt=ast_stmt)
+            set_api_call_source(df, "Session.call")
+            # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
+            return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]

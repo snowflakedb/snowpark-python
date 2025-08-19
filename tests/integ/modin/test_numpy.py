@@ -57,6 +57,39 @@ def test_np_may_share_memory():
         assert not np.may_share_memory(snow_df_A, native_df_A)
 
 
+@sql_count_checker(query_count=2)
+def test_np_unique():
+    # tests np.unique usage as seen in
+    # scikit-learn/sklearn/metrics/_ranking.py::average_precision_score
+    # and other places in the scikit-learn library
+    y_true_np = np.array([0, 0, 1, 1])
+    y_true_snow = pd.Series([0, 0, 1, 1])
+    res_np = np.unique(y_true_np)
+    res_snow = np.unique(y_true_snow)
+    assert (res_np == res_snow).all()
+
+    y_true_np_2d = np.array([[1, 2, 5, 6], [1, 2, 3, 4]])
+    y_true_snow_2d = pd.DataFrame({"a": [1, 2, 5, 6], "b": [1, 2, 3, 4]})
+    res_np = np.unique(y_true_np_2d)
+    res_snow = np.unique(y_true_snow_2d)
+    assert (res_np == res_snow).all()
+
+    # Verify that numpy throws type errors when we return NotImplemented
+    # when using optional parameters
+    with pytest.raises(TypeError):
+        np.unique(y_true_snow_2d, return_index=True)
+    with pytest.raises(TypeError):
+        np.unique(y_true_snow_2d, return_inverse=True)
+    with pytest.raises(TypeError):
+        np.unique(y_true_snow_2d, return_counts=True)
+    with pytest.raises(TypeError):
+        np.unique(y_true_snow_2d, axis=1)
+    with pytest.raises(TypeError):
+        np.unique(y_true_snow_2d, equal_nan=False)
+    with pytest.raises(TypeError):
+        np.unique(y_true_snow_2d, sorted=False)
+
+
 def test_full_like():
     data = {
         "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],
@@ -66,7 +99,7 @@ def test_full_like():
     snow_df = pd.DataFrame(data)
     pandas_df = native_pd.DataFrame(data)
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         snow_result = np.full_like(snow_df, 1234)
         pandas_result = np.full_like(pandas_df, 1234)
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
@@ -76,7 +109,7 @@ def test_full_like():
         pandas_result = np.full_like(pandas_df, 1234, shape=(5, 3))
         assert_array_equal(np.array(snow_result), np.array(pandas_result))
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         snow_result = np.full_like(snow_df["A"], 1234)
         pandas_result = np.full_like(pandas_df["A"], 1234)
         assert_array_equal(np.array(snow_result), np.array(pandas_result))

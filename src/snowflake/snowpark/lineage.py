@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import snowflake.snowpark
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.utils import private_preview
 from snowflake.snowpark.types import (
     IntegerType,
     StringType,
@@ -146,7 +145,7 @@ class _DGQLQueryBuilder:
     Provides methods for building DGQL query.
     """
 
-    EDGE_TEMPLETE = "{direction}: {edge_key}(edgeType:[{edge_types}],direction:{dir}){{{source_key} {{{properties}}}, {target_key} {{{properties}}}}}"
+    EDGE_TEMPLETE = "{direction}: {edge_key}(edgeType:[{edge_types}],direction:{dir}){{{source_key} {{{properties}}}, {target_key} {{{properties}}}, properties}}"
     QUERY_TEMPLETE = '{{{nodeKey}({domainKey}: {domain}, {object_key}:"{query_object}"{parent_param}) {{{edges}}}}}'
     USER_TO_SYSTEM_DOMAIN_MAP = {
         _UserDomain.FEATURE_VIEW: _SnowflakeDomain.TABLE,
@@ -569,7 +568,6 @@ class Lineage:
             if not re.match(r'^"[^"]*"$|\w+', part):
                 raise ValueError(f"Invalid object name: {object_name}")
 
-    @private_preview(version="1.16.0")
     def trace(
         self,
         object_name: str,

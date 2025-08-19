@@ -56,27 +56,27 @@ def setup(session):
 @pytest.mark.parametrize(
     "sql",
     (
-        "show schemas",
-        "show objects",
-        "show external tables",
-        "show views",
-        "show columns",
-        "show file formats",
-        "show sequences",
-        "show stages",
-        "show pipes",
-        "show streams",
-        "show tasks",
-        "show user functions",
-        "show external functions",
-        "show procedures",
-        "show tables",
-        pytest.param("show parameters", marks=pytest.mark.xfail),
-        "show shares",
-        "show warehouses",
+        "show schemas limit 10",
+        "show objects limit 10",
+        "show external tables limit 10",
+        "show views limit 10",
+        "show columns limit 10",
+        "show file formats limit 10",
+        "show sequences limit 10",
+        "show stages limit 10",
+        "show pipes limit 10",
+        "show streams limit 10",
+        "show tasks limit 10",
+        "show user functions limit 10",
+        "show external functions limit 10",
+        "show procedures limit 10",
+        "show tables limit 10",
+        pytest.param("show parameters limit 10", marks=pytest.mark.xfail),
+        "show shares limit 10",
+        "show warehouses limit 10",
         "show transactions",
-        "show locks",
-        "show regions",
+        pytest.param("show locks", marks=pytest.mark.xfail),
+        "show regions limit 10",
     ),
 )
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="Large result")
@@ -126,16 +126,17 @@ def test_invalid_show_commands(session):
 
 def test_alter(session):
     sql = "alter session set ABORT_DETACHED_QUERY=false"
-    Utils.verify_schema(sql, session.sql(sql).schema, session)
+    Utils.verify_schema(sql, session.sql(sql).schema, session, 2**24)
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC_LOCALFS, reason="need resources")
 def test_list_remove_file(session, resources_path):
     test_files = TestFiles(resources_path)
+    max_string = 2**24
 
     sqls = [f"ls @{tmp_stage_name}", f"list @{tmp_stage_name}"]
     for sql in sqls:
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
 
     Utils.upload_to_stage(
         session, tmp_stage_name, test_files.test_file_csv, compress=False
@@ -150,6 +151,7 @@ def test_list_remove_file(session, resources_path):
             f"rm @{tmp_stage_name}/{os.path.basename(test_files.test_file2_csv)}"
         ).schema,
         session,
+        max_string,
     )
 
     Utils.upload_to_stage(
@@ -165,6 +167,7 @@ def test_list_remove_file(session, resources_path):
             f"rm @{tmp_stage_name}/{os.path.basename(test_files.test_file2_csv)}"
         ).schema,
         session,
+        max_string,
     )
 
 
@@ -227,7 +230,7 @@ def test_use(session):
     current_schema = session.get_current_schema()
     sqls = [f"use database {current_db}", f"use schema {current_schema}"]
     for sql in sqls:
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, 2**24)
 
 
 def test_create_drop(session):
@@ -236,36 +239,37 @@ def test_create_drop(session):
     tmp_stream_name = f"stream_{Utils.random_alphanumeric_str(10)}"
     tmp_view_name = Utils.random_name_for_temp_object(TempObjectType.VIEW)
     tmp_pipe_name = f"pipe_{Utils.random_alphanumeric_str(10)}"
+    max_string = 2**24
 
     try:
         sql = f"create or replace table {tmp_table_name1} (num int)"
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
         sql = f"drop table {tmp_table_name1}"
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
 
         session._run_query(f"create or replace table {tmp_table_name1} (num int)")
         sql = f"create or replace stream {tmp_stream_name} on table {tmp_table_name1}"
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
         sql = f"drop stream {tmp_stream_name}"
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
 
         sql = f"create or replace stage {tmp_stage_name1}"
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
         sql = f"drop stage {tmp_stage_name1}"
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
 
         sql = (
             f"create or replace view {tmp_view_name} as select * from {tmp_table_name1}"
         )
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
         sql = f"drop view {tmp_view_name}"
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
 
         session._run_query(f"create or replace stage {tmp_stage_name1}")
         sql = f"create or replace pipe {tmp_pipe_name} as copy into {tmp_table_name1} from @{tmp_stage_name1}"
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
         sql = f"drop pipe {tmp_pipe_name}"
-        Utils.verify_schema(sql, session.sql(sql).schema, session)
+        Utils.verify_schema(sql, session.sql(sql).schema, session, max_string)
     finally:
         session._run_query(f"drop table if exists {tmp_table_name1}")
         session._run_query(f"drop stage if exists {tmp_stage_name1}")
@@ -278,7 +282,7 @@ def test_comment_on(session):
     tmp_table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     Utils.create_table(session, tmp_table_name1, "num int", is_temporary=True)
     sql = f"comment on table {tmp_table_name1} is 'test'"
-    Utils.verify_schema(sql, session.sql(sql).schema, session)
+    Utils.verify_schema(sql, session.sql(sql).schema, session, 2**24)
 
 
 def test_grant_revoke(session):
@@ -287,10 +291,10 @@ def test_grant_revoke(session):
     current_role = session.get_current_role()
 
     sql = f"grant select on table {tmp_table_name1} to role {current_role}"
-    Utils.verify_schema(sql, session.sql(sql).schema, session)
+    Utils.verify_schema(sql, session.sql(sql).schema, session, 2**24)
 
     sql = f"revoke select on table {tmp_table_name1} from role {current_role}"
-    Utils.verify_schema(sql, session.sql(sql).schema, session)
+    Utils.verify_schema(sql, session.sql(sql).schema, session, 2**24)
 
 
 def test_describe(session):

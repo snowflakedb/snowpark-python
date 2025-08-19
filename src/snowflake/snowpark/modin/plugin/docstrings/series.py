@@ -406,7 +406,7 @@ class Series(BasePandasDataset):
         pass
 
     __iadd__ = __add__
-    __imul__ = __add__
+    __imul__ = __mul__
     __ipow__ = __pow__
     __isub__ = __sub__
     __itruediv__ = __truediv__
@@ -630,7 +630,7 @@ class Series(BasePandasDataset):
     3    4
     dtype: int64
 
-    >>> s.agg('min')
+    >>> s.agg('min')  # doctest: +SKIP
     1
 
     >>> s.agg(['min', 'max'])
@@ -704,6 +704,8 @@ class Series(BasePandasDataset):
         JSON NULL, and all other pandas missing values (np.nan, pd.NA, pd.NaT) are translated to SQL NULL.
 
         4. For working with 3rd-party-packages see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
+
+        5. For creating permanent or immutable UDTFs, see :func:`DataFrame.apply <modin.pandas.DataFrame.apply>`.
         """
 
     def argmax():
@@ -813,13 +815,10 @@ class Series(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
-
-        New in version 2.2.0.
-
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated since version 2.2.0.
+        Deprecated parameter.
 
         Returns
         -------
@@ -959,7 +958,7 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([0.0, 1.0, np.nan])
-        >>> s.count()
+        >>> s.count()  # doctest: +SKIP
         2
         """
 
@@ -1361,7 +1360,7 @@ class Series(BasePandasDataset):
         1    2
         2    3
         Name: 99, dtype: int64
-        >>> series.equals(exactly_equal)
+        >>> series.equals(exactly_equal)  # doctest: +SKIP
         True
 
         Series 'series' and 'different_column_type' have the same element
@@ -1374,7 +1373,7 @@ class Series(BasePandasDataset):
         1    2
         2    3
         Name: 99.0, dtype: int64
-        >>> series.equals(different_column_type)
+        >>> series.equals(different_column_type)  # doctest: +SKIP
         True
 
         Series 'series' and 'different_data_type' have different types for the
@@ -1387,7 +1386,7 @@ class Series(BasePandasDataset):
         1    2.0
         2    3.0
         Name: 99, dtype: float64
-        >>> series.equals(different_data_type)
+        >>> series.equals(different_data_type)  # doctest: +SKIP
         False
         """
 
@@ -1421,8 +1420,6 @@ class Series(BasePandasDataset):
             and should return a scalar or Series. The callable
             must not change the input Series
             (though pandas doesn`t check it).
-
-            .. versionadded:: 2.2.0
 
         Returns
         -------
@@ -1464,13 +1461,10 @@ class Series(BasePandasDataset):
             - None: No fill restriction.
             - ‘inside’: Only fill NaNs surrounded by valid values (interpolate).
             - ‘outside’: Only fill NaNs outside valid values (extrapolate).
-
-        New in version 2.2.0.
-
         downcast : dict, default is None
             A dict of item->dtype of what to downcast if possible, or the string ‘infer’ which will try to downcast to an appropriate equal type (e.g. float64 to int64 if possible).
 
-        Deprecated since version 2.2.0.
+        Deprecated parameter.
 
         Returns
         -------
@@ -1525,8 +1519,7 @@ class Series(BasePandasDataset):
             * ffill: propagate last valid observation forward to next valid.
             * backfill / bfill: use next valid observation to fill gap.
 
-            .. deprecated:: 2.1.0
-                Use ffill or bfill instead.
+            Deprecated: Use ffill or bfill instead.
 
         axis : {axes_single_arg}
             Axis along which to fill missing values. For `Series`
@@ -1547,7 +1540,7 @@ class Series(BasePandasDataset):
             or the string 'infer' which will try to downcast to an appropriate
             equal type (e.g. float64 to int64 if possible).
 
-            .. deprecated:: 2.2.0
+            Deprecated parameter.
 
         Returns
         -------
@@ -1728,6 +1721,51 @@ class Series(BasePandasDataset):
     def hist():
         """
         Draw histogram of the input series using matplotlib.
+
+        Parameters
+        ----------
+        by : object, optional
+            If passed, then used to form histograms for separate groups.
+        ax : matplotlib axis object
+            If not passed, uses gca().
+        grid : bool, default True
+            Whether to show axis grid lines.
+        xlabelsize : int, default None
+            If specified changes the x-axis label size.
+        xrot : float, default None
+            Rotation of x axis labels.
+        ylabelsize : int, default None
+            If specified changes the y-axis label size.
+        yrot : float, default None
+            Rotation of y axis labels.
+        figsize : tuple, default None
+            Figure size in inches by default.
+        bins : int or sequence, default 10
+            Number of histogram bins to be used. If an integer is given, bins + 1 bin edges are calculated and returned. If bins is a sequence, gives bin edges, including left edge of first bin and right edge of last bin. In this case, bins is returned unmodified.
+        backend : str, default None
+            Backend to use instead of the backend specified in the option plotting.backend. For instance, ‘matplotlib’. Alternatively, to specify the plotting.backend for the whole session, set pd.options.plotting.backend.
+        legend : bool, default False
+            Whether to show the legend.
+        **kwargs
+            To be passed to the actual plotting function.
+
+        Returns
+        -------
+        matplotlib.AxesSubplot
+            A histogram plot.
+
+        See also
+        --------
+        matplotlib.axes.Axes.hist
+            Plot a histogram using matplotlib.
+
+        Examples
+        --------
+
+        For Series:
+        >>> lst = ['a', 'a', 'a', 'b', 'b', 'b']
+        >>> ser = pd.Series([1, 2, 2, 4, 6, 6], index=lst)
+        >>> hist = ser.hist()
         """
 
     def idxmax():
@@ -1934,6 +1972,52 @@ class Series(BasePandasDataset):
 
         Snowpark pandas does not yet support `dict` subclasses other than
         `collections.defaultdict` that define a `__missing__` method.
+
+        To generate a permanent UDF, pass a dictionary as the `snowflake_udf_params` argument to `apply`.
+        The following example generates a permanent UDF named "permanent_double":
+
+        >>> session.sql("CREATE STAGE sample_upload_stage").collect()  # doctest: +SKIP
+        >>> def double(x: str) -> str:  # doctest: +SKIP
+        ...     return x * 2  # doctest: +SKIP
+        ...
+        >>> s.map(double, snowflake_udf_params={"name": "permanent_double", "stage_location": "@sample_upload_stage"})  # doctest: +SKIP
+        0          catcat
+        1          dogdog
+        2            None
+        3    rabbitrabbit
+        dtype: object
+
+        You may also pass "replace" and "if_not_exists" in the dictionary to overwrite or re-use existing UDTFs.
+
+        With the "replace" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ... })
+
+        With the "if_not_exists" flag:
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "if_not_exists": True,
+        ... })
+
+        Note that Snowpark pandas may still attempt to upload a new UDTF even when "if_not_exists"
+        is passed; the generated SQL will just contain a `CREATE FUNCTION IF NOT EXISTS` query
+        instead. Subsequent calls to `apply` within the same session may skip this query.
+
+        Passing the `immutable` keyword creates an immutable UDTF, which assumes that the
+        UDTF will return the same result for the same inputs.
+
+        >>> df.apply(double, snowflake_udf_params={  # doctest: +SKIP
+        ...     "name": "permanent_double",
+        ...     "stage_location": "@sample_upload_stage",
+        ...     "replace": True,
+        ...     "immutable": True,
+        ... })
         """
 
     def mask():
@@ -2333,10 +2417,10 @@ class Series(BasePandasDataset):
         --------
         >>> ser = pd.Series([1, 2, 3])
 
-        >>> ser.pop(0)
+        >>> ser.pop(0)  # doctest: +SKIP
         1
 
-        >>> ser
+        >>> ser  # doctest: +SKIP
         1    2
         2    3
         dtype: int64
@@ -2594,6 +2678,23 @@ class Series(BasePandasDataset):
         -------
         Series or None
             Series, or None if ``inplace=True``.
+
+        Examples
+        --------
+        Series
+
+        >>> s = pd.Series(["dog", "cat", "monkey"])
+        >>> s
+        0       dog
+        1       cat
+        2    monkey
+        dtype: object
+        >>> s.rename_axis("animal")
+        animal
+        0       dog
+        1       cat
+        2    monkey
+        dtype: object
         """
 
     def rename():
@@ -2871,7 +2972,7 @@ class Series(BasePandasDataset):
 
         With a scalar q:
 
-        >>> s.quantile(.5)
+        >>> s.quantile(.5)  # doctest: +SKIP
         2.5
 
         With a list q:
@@ -3341,7 +3442,7 @@ class Series(BasePandasDataset):
 
         Squeezing all axes will project directly into a scalar:
 
-        >>> df_0a.squeeze()
+        >>> df_0a.squeeze()  # doctest: +SKIP
         1
         """
 
@@ -3439,7 +3540,7 @@ class Series(BasePandasDataset):
         >>> s.to_dict()
         {0: 1, 1: 2, 2: 3, 3: 4}
         >>> from collections import OrderedDict, defaultdict
-        >>> s.to_dict(OrderedDict)
+        >>> s.to_dict(OrderedDict)  # doctest: +SKIP
         OrderedDict([(0, 1), (1, 2), (2, 3), (3, 4)])
         >>> dd = defaultdict(list)
         >>> s.to_dict(dd)
@@ -3541,6 +3642,49 @@ class Series(BasePandasDataset):
     def to_string():
         """
         Render a string representation of the Series.
+
+        Parameters
+        ----------
+        buf : StringIO-like, optional
+            Buffer to write to.
+
+        na_rep : str, optional
+            String representation of NaN to use, default ‘NaN’.
+
+        float_format : one-parameter function, optional
+            Formatter function to apply to columns’ elements if they are floats, default None.
+
+        header : bool, default True
+            Add the Series header (index name).
+
+        index : bool, optional
+            Add index (row) labels, default True.
+
+        length : bool, default False
+            Add the Series length.
+
+        dtype : bool, default False
+            Add the Series dtype.
+
+        name : bool, default False
+            Add the Series name if not None.
+
+        max_rows : int, optional
+            Maximum number of rows to show before truncating. If None, show all.
+
+        min_rows : int, optional
+            The number of rows to display in a truncated repr (when number of rows is above max_rows).
+
+        Returns
+        -------
+        str or None
+            String representation of Series if buf=None, otherwise None.
+
+        Examples
+        --------
+        >>> ser = pd.Series([1, 2, 3]).to_string()
+        >>> ser
+        '0    1\\n1    2\\n2    3'
         """
 
     def to_timestamp():
@@ -4002,11 +4146,11 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([3, 2, 2, 1])
-        >>> s.is_monotonic_decreasing
+        >>> s.is_monotonic_decreasing  # doctest: +SKIP
         True
 
         >>> s = pd.Series([1, 2, 3])
-        >>> s.is_monotonic_decreasing
+        >>> s.is_monotonic_decreasing  # doctest: +SKIP
         False
         """
 
@@ -4023,11 +4167,11 @@ class Series(BasePandasDataset):
         Examples
         --------
         >>> s = pd.Series([1, 2, 2])
-        >>> s.is_monotonic_increasing
+        >>> s.is_monotonic_increasing  # doctest: +SKIP
         True
 
         >>> s = pd.Series([3, 2, 1])
-        >>> s.is_monotonic_increasing
+        >>> s.is_monotonic_increasing  # doctest: +SKIP
         False
         """
 
@@ -4138,14 +4282,14 @@ class Series(BasePandasDataset):
         4    7
         dtype: int64
 
-        >>> s.nunique()
+        >>> s.nunique()  # doctest: +SKIP
         4
 
         >>> s = pd.Series([pd.NaT, np.nan, pd.NA, None, 1])
-        >>> s.nunique()
+        >>> s.nunique()  # doctest: +SKIP
         1
 
-        >>> s.nunique(dropna=False)
+        >>> s.nunique(dropna=False)  # doctest: +SKIP
         2
         """
 
@@ -4376,4 +4520,117 @@ class Series(BasePandasDataset):
         >>> import os  # doctest: +SKIP
         >>> os.makedirs('folder/subfolder', exist_ok=True)  # doctest: +SKIP
         >>> df.to_csv('folder/subfolder/out.csv')  # doctest: +SKIP
+        """
+
+    def to_excel():
+        """
+        Write object to an Excel sheet.
+
+        To write a single object to an Excel .xlsx file it is only necessary to specify a target file name. To write to multiple sheets it is necessary to create an ExcelWriter object with a target file name, and specify a sheet in the file to write to.
+
+        Multiple sheets may be written to by specifying unique sheet_name. With all data written to the file it is necessary to save the changes. Note that creating an ExcelWriter object with a file name that already exists will result in the contents of the existing file being erased.
+
+        Parameters
+        ----------
+        excel_writer : path-like, file-like, or ExcelWriter object
+            File path or existing ExcelWriter.
+
+        sheet_name : str, default ‘Sheet1’
+            Name of sheet which will contain Series.
+
+        na_rep : str, default ‘’
+            Missing data representation.
+
+        float_format : str, optional
+            Format string for floating point numbers. For example float_format="%.2f" will format 0.1234 to 0.12.
+
+        columns : sequence or list of str, optional
+            Columns to write.
+
+        header : bool or list of str, default True
+            Write out the column names. If a list of string is given it is assumed to be aliases for the column names.
+
+        index : bool, default True
+            Write row names (index).
+
+        index_label : str or sequence, optional
+            Column label for index column(s) if desired. If not specified, and header and index are True, then the index names are used. A sequence should be given if the Series uses MultiIndex.
+
+        startrow : int, default 0
+            Upper left cell row to dump data frame.
+
+        startcol : int, default 0
+            Upper left cell column to dump data frame.
+
+        engine : str, optional
+            Write engine to use, ‘openpyxl’ or ‘xlsxwriter’. You can also set this via the options io.excel.xlsx.writer or io.excel.xlsm.writer.
+
+        merge_cells : bool, default True
+            Write MultiIndex and Hierarchical Rows as merged cells.
+
+        inf_rep : str, default ‘inf’
+            Representation for infinity (there is no native representation for infinity in Excel).
+
+        freeze_panes : tuple of int (length 2), optional
+            Specifies the one-based bottommost row and rightmost column that is to be frozen.
+
+        storage_options : dict, optional
+            Extra options that make sense for a particular storage connection, e.g. host, port, username, password, etc. For HTTP(S) URLs the key-value pairs are forwarded to urllib.request.Request as header options. For other URLs (e.g. starting with “s3://”, and “gcs://”) the key-value pairs are forwarded to fsspec.open. Please see fsspec and urllib for more details, and for more examples on storage options refer here.
+
+        engine_kwargs : dict, optional
+            Arbitrary keyword arguments passed to excel engine.
+
+        See also
+        --------
+        to_csv
+            Write DataFrame to a comma-separated values (csv) file.
+
+        ExcelWriter
+            Class for writing DataFrame objects into excel sheets.
+
+        read_excel
+            Read an Excel file into a pandas DataFrame.
+
+        read_csv
+            Read a comma-separated values (csv) file into DataFrame.
+
+        io.formats.style.Styler.to_excel
+            Add styles to Excel sheet.
+
+        Notes
+        -----
+        For compatibility with to_csv(), to_excel serializes lists and dicts to strings before writing.
+
+        Once a workbook has been saved it is not possible to write further data without rewriting the whole workbook.
+
+        Examples
+        --------
+        Create, write to and save a workbook:
+
+        >>> df1 = pd.DataFrame([['a', 'b'], ['c', 'd']],
+        ...                    index=['row 1', 'row 2'],
+        ...                    columns=['col 1', 'col 2'])
+        >>> df1.to_excel("output.xlsx")  # doctest: +SKIP
+
+        To specify the sheet name:
+
+        >>> df1.to_excel("output.xlsx",
+        ...              sheet_name='Sheet_name_1')  # doctest: +SKIP
+
+        If you wish to write to more than one sheet in the workbook, it is necessary to specify an ExcelWriter object:
+
+        >>> df2 = df1.copy()
+        >>> with pd.ExcelWriter('output.xlsx') as writer:
+        ...     df1.to_excel(writer, sheet_name='Sheet_name_1')  # doctest: +SKIP
+        ...     df2.to_excel(writer, sheet_name='Sheet_name_2')  # doctest: +SKIP
+
+        ExcelWriter can also be used to append to an existing Excel file:
+
+        >>> with pd.ExcelWriter('output.xlsx',
+        ...                     mode='a') as writer:
+        ...     df1.to_excel(writer, sheet_name='Sheet_name_3')  # doctest: +SKIP
+
+        To set the library that is used to write the Excel file, you can pass the engine keyword (the default engine is automatically chosen depending on the file extension):
+
+        >>> df1.to_excel('output1.xlsx', engine='xlsxwriter')  # doctest: +SKIP
         """

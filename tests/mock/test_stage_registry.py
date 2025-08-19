@@ -4,7 +4,7 @@
 import io
 import os
 import tempfile
-
+import re
 import pytest
 
 from snowflake.snowpark._internal.utils import normalize_local_file
@@ -12,7 +12,11 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.mock._stage_registry import (
     StageEntityRegistry,
     extract_stage_name_and_prefix,
+    _INVALID_STAGE_LOCATION_ERR_MSG,
 )
+from snowflake.snowpark.functions import sproc
+from snowflake.snowpark.session import Session
+from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 
 
 def test_util():
@@ -214,3 +218,64 @@ def test_stage_get_file():
         assert os.path.isfile(os.path.join(temp_dir, "test_file_1")) and os.path.isfile(
             os.path.join(temp_dir, "test_file_2")
         )
+
+
+def test_stage_get_and_put_sproc(session):
+    test_file = f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
+    with open(test_file, "rb") as f:
+        test_content = f.read()
+
+    @sproc
+    def read_and_write_file(session_: Session) -> str:
+        put_result = session_.file.put(
+            normalize_local_file(test_file),
+            "@test_output_stage/test_parent_dir/test_child_dir",
+            auto_compress=False,
+        )
+        assert len(put_result) == 1
+        put_result = put_result[0]
+        assert put_result.source == put_result.target == "test_file_1"
+        assert put_result.source_size is not None
+        assert put_result.target_size is not None
+        assert put_result.source_compression == "NONE"
+        assert put_result.target_compression == "NONE"
+        assert put_result.status == "UPLOADED"
+        assert put_result.message == ""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            get_results = session_.file.get(
+                "@test_output_stage/test_parent_dir/test_child_dir/test_file_1",
+                f"'file://{temp_dir}'",
+            )
+            assert len(get_results) == 1
+            get_result = get_results[0]
+            assert get_result.file == "test_file_1"
+            assert get_result.size is not None
+            assert get_result.status == "DOWNLOADED"
+            assert get_result.message == ""
+            with open(os.path.join(temp_dir, "test_file_1"), "rb") as f:
+                content = f.read()
+
+        return content
+
+    content = read_and_write_file()
+    assert content == test_content
+
+
+def test_stage_invalid_stage_location(session):
+    stage_registry = StageEntityRegistry(MockServerConnection())
+    test_file = f"{os.path.dirname(os.path.abspath(__file__))}/files/test_file_1"
+    invalid_snowurl = f"sNoW://test{test_file}"
+
+    with pytest.raises(
+        SnowparkLocalTestingException,
+        match=re.escape(_INVALID_STAGE_LOCATION_ERR_MSG(invalid_snowurl)),
+    ):
+        stage_registry.read_file(invalid_snowurl, "", [], "", {})
+
+    with pytest.raises(
+        SnowparkLocalTestingException,
+        match=re.escape(_INVALID_STAGE_LOCATION_ERR_MSG(invalid_snowurl)),
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stage_registry.get(invalid_snowurl, temp_dir)

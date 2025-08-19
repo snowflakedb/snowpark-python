@@ -12,6 +12,7 @@ import snowflake.snowpark.modin.plugin._internal.aggregation_utils as aggregatio
 from snowflake.snowpark.functions import greatest, sum as sum_
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     SnowflakeAggFunc,
+    _are_all_agg_funcs_supported_by_snowflake,
     _is_supported_snowflake_agg_func,
     _SnowparkPandasAggregation,
     check_is_aggregation_supported_in_snowflake,
@@ -40,8 +41,11 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
         ("count", {}, 1, True),
         ("size", {}, 0, True),
         ("size", {}, 1, True),
+        (sum, {}, 0, True),
         (len, {}, 0, True),
         (len, {}, 1, True),
+        (min, {}, 0, True),
+        (max, {}, 0, True),
         ("min", {}, 0, True),
         ("min", {}, 1, True),
         ("test", {}, 0, False),
@@ -66,7 +70,35 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     ],
 )
 def test__is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, is_valid) -> None:
-    assert _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis) is is_valid
+    (
+        is_supported,
+        unsupported_func,
+        unsupported_kwargs,
+    ) = _is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis)
+    assert is_supported == is_valid
+
+
+@pytest.mark.parametrize(
+    "agg_func, agg_kwargs, axis, is_valid",
+    [
+        ([np.sum, np.mean], {}, 0, True),
+        ([np.max, np.median], {}, 1, False),
+        ([np.max, np.min], {}, 0, True),
+        (["median", "max", "count"], {}, 0, True),
+        (["size", "max", "sum"], {}, 0, True),
+        (["test", "max", "sum"], {}, 0, False),
+        (["std", "max", "sum"], {"ddof": 0}, 0, True),
+    ],
+)
+def test__are_all_agg_funcs_supported_by_snowflake(
+    agg_func, agg_kwargs, axis, is_valid
+):
+    (
+        is_supported,
+        unsupported_func,
+        unsupported_kwargs,
+    ) = _are_all_agg_funcs_supported_by_snowflake(agg_func, agg_kwargs, axis)
+    assert is_supported == is_valid
 
 
 @pytest.mark.parametrize(
@@ -111,7 +143,11 @@ def test__is_supported_snowflake_agg_func(agg_func, agg_kwargs, axis, is_valid) 
 def test_check_aggregation_snowflake_execution_capability_by_args(
     agg_func, agg_kwargs, expected_result
 ):
-    can_be_distributed = check_is_aggregation_supported_in_snowflake(
+    (
+        can_be_distributed,
+        unsupported_arguments,
+        is_supported_kwargs,
+    ) = check_is_aggregation_supported_in_snowflake(
         agg_func=agg_func, agg_kwargs=agg_kwargs, axis=0
     )
     assert can_be_distributed == expected_result
@@ -120,8 +156,13 @@ def test_check_aggregation_snowflake_execution_capability_by_args(
 @pytest.mark.parametrize(
     "agg_func, agg_kwargs, axis, expected",
     [
-        (np.sum, {}, 0, SnowflakeAggFunc(sum_, True)),
-        ("max", {"skipna": False}, 1, SnowflakeAggFunc(greatest, True)),
+        (np.sum, {}, 0, SnowflakeAggFunc(sum_, True, supported_in_pivot=True)),
+        (
+            "max",
+            {"skipna": False},
+            1,
+            SnowflakeAggFunc(greatest, True, supported_in_pivot=True),
+        ),
         ("test", {}, 0, None),
     ],
 )
@@ -147,6 +188,7 @@ def test_get_snowflake_agg_func_with_no_implementation_on_axis_0():
                     preserves_snowpark_pandas_types=True,
                     axis_1_aggregation_keepna=greatest,
                     axis_1_aggregation_skipna=greatest,
+                    supported_in_pivot=True,
                 )
             }
         ),

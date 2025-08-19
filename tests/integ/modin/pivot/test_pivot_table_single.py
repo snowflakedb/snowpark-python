@@ -7,6 +7,7 @@ import pandas as native_pd
 
 # This test file contains tests that execute a single underlying snowpark/snowflake pivot query.
 import pytest
+import numpy as np
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.pivot.pivot_utils import (
@@ -34,13 +35,26 @@ def test_pivot_table_no_index_single_column_single_value(df_data):
 
 @pytest.mark.parametrize(
     "aggfunc",
-    [
+    (
         "mean",
+        np.mean,
         "sum",
+        np.sum,
         "min",
+        np.min,
+        min,
         "max",
+        np.max,
+        max,
         "count",
-    ],
+        "median",
+        np.median,
+        "skew",
+        "std",
+        np.std,
+        "var",
+        np.var,
+    ),
 )
 @sql_count_checker(query_count=1)
 def test_pivot_table_single_index_single_column_single_value(df_data, aggfunc):

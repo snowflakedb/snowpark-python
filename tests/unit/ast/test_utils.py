@@ -8,9 +8,10 @@ import pytest
 
 from snowflake.snowpark._internal.ast.utils import (
     build_expr_from_python_val,
-    build_sp_table_name,
-    build_sp_view_name,
-    build_sp_name,
+    build_table_name,
+    build_view_name,
+    build_name,
+    extract_src_from_expr,
 )
 from snowflake.snowpark._internal.proto.generated import ast_pb2 as proto
 
@@ -52,36 +53,80 @@ def test_build_expr_from_python_val_tuple():
     assert expr.tuple_val.vs[2].int64_val.v == 3
 
 
-def test_build_sp_name():
-    expr = proto.SpName()
-    build_sp_name("foo", expr)
-    assert expr.HasField("sp_name_flat")
-    assert expr.sp_name_flat.name == "foo"
-    expr = proto.SpName()
-    build_sp_name(["foo", "bar", "baz"], expr)
-    assert expr.HasField("sp_name_structured")
-    assert expr.sp_name_structured.name == ["foo", "bar", "baz"]
+def test_build_name():
+    expr = proto.Name()
+    build_name("foo", expr)
+    assert expr.HasField("name_flat")
+    assert expr.name_flat.name == "foo"
+    expr = proto.Name()
+    build_name(["foo", "bar", "baz"], expr)
+    assert expr.HasField("name_structured")
+    assert expr.name_structured.name == ["foo", "bar", "baz"]
     try:
-        expr = proto.SpName()
-        build_sp_name(123, expr)
+        expr = proto.Name()
+        build_name(123, expr)
         raise AssertionError("Expected the previous call to raise an exception")
     except ValueError:
         pass
 
 
-def test_build_sp_table_name_error():
+def test_build_table_name_error():
     try:
-        expr = proto.SpNameRef()
-        build_sp_table_name(expr, 42)
+        expr = proto.NameRef()
+        build_table_name(expr, 42)
         raise AssertionError("Expected the previous call to raise an exception")
     except ValueError as e:
         assert "Invalid table name" in str(e)
 
 
-def test_build_sp_view_name_error():
+def test_build_view_name_error():
     try:
-        expr = proto.SpNameRef()
-        build_sp_view_name(expr, 42)
+        expr = proto.NameRef()
+        build_view_name(expr, 42)
         raise AssertionError("Expected the previous call to raise an exception")
     except ValueError as e:
         assert "Invalid view name" in str(e)
+
+
+def test_extract_src_from_expr():
+    def verify_src(
+        expr: proto.Expr,
+        file: int,
+        start_line: int,
+        end_line: int,
+        start_column: int,
+        end_column: int,
+    ):
+        return (
+            expr.file == file
+            and expr.start_line == start_line
+            and expr.end_line == end_line
+            and expr.start_column == start_column
+            and expr.end_column == end_column
+        )
+
+    expr = proto.Expr()
+    expr.string_val.v = "test"
+    expr.dataframe_select.src.file = 2
+    expr.dataframe_select.src.start_line = 20
+    expr.dataframe_select.src.end_line = 20
+    expr.dataframe_select.src.start_column = 5
+    expr.dataframe_select.src.end_column = 15
+
+    result = extract_src_from_expr(expr)
+    assert verify_src(result, 2, 20, 20, 5, 15)
+
+    expr2 = proto.Expr()
+    expr2.string_val.v = "test2"
+    expr2.dataframe_sort.src.file = 1
+    expr2.dataframe_sort.src.start_line = 3
+    expr2.dataframe_sort.src.end_line = 6
+    expr2.dataframe_sort.src.start_column = 7
+    expr2.dataframe_sort.src.end_column = 8
+
+    result = extract_src_from_expr(expr2)
+    assert verify_src(result, 1, 3, 6, 7, 8)
+
+    expr = proto.Expr()
+    result = extract_src_from_expr(expr)
+    assert result is None

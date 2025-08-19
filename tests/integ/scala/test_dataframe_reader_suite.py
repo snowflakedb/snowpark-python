@@ -2,9 +2,13 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import csv
 import datetime
+import json
 import logging
+import os
 import random
+import tempfile
 from decimal import Decimal
 from unittest import mock
 
@@ -43,7 +47,14 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
 )
-from tests.utils import IS_IN_STORED_PROC, TestFiles, Utils, multithreaded_run
+from tests.utils import (
+    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC_LOCALFS,
+    TestFiles,
+    Utils,
+    multithreaded_run,
+    current_account,
+)
 
 test_file_csv = "testCSV.csv"
 test_file_cvs_various_data = "testCSVvariousData.csv"
@@ -52,6 +63,7 @@ test_file_csv_colon = "testCSVcolon.csv"
 test_file_csv_header = "testCSVheader.csv"
 test_file_csv_quotes = "testCSVquotes.csv"
 test_file_csv_quotes_special = "testCSVquotesSpecial.csv"
+test_file_csv_timestamps = "testCSVformattedTime.csv"
 test_file_json = "testJson.json"
 test_file_json_same_schema = "testJsonSameSchema.json"
 test_file_json_new_schema = "testJsonNewSchema.json"
@@ -168,6 +180,12 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_csv_header,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_csv_timestamps,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -347,7 +365,7 @@ def test_read_csv(session, mode):
     )
     with pytest.raises(SnowparkSQLException) as ex_info:
         df3.collect()
-    assert "is out of range" in str(ex_info)
+    assert "is out of range" in str(ex_info.value)
 
 
 @pytest.mark.xfail(
@@ -510,6 +528,65 @@ def test_read_csv_with_infer_schema_negative(session, mode, caplog):
             assert "Could not infer csv schema due to exception:" in caplog.text
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1435112: csv infer schema option is not supported",
+)
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_csv_with_infer_schema_fallback(session, mode, caplog):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    expected_schema = StructType(
+        [
+            StructField("col1", LongType(), True),
+            StructField("col2", StringType(), True),
+            StructField("col3", DecimalType(2, 1), True),
+        ]
+    )
+    example_data = [expected_schema.names] + [(1, "A", 2.3), (2, "B", 3.4)]
+    expected_rows = [
+        Row(1, "A", 2.3),
+        Row(2, "B", 3.4),
+    ]
+
+    reader = get_reader(session, mode)
+
+    run_query = session._conn.run_query
+
+    def mock_run_query(*args, **kwargs):
+        if args[0].startswith("list"):
+            # Return junk file to simulate unknown path format
+            return {
+                "data": [(f"@@?/{tmp_stage_name1}/unknown_file", 32, "", "")],
+                "sfqid": "",
+            }
+        else:
+            return run_query(*args, **kwargs)
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = os.path.join(temp_dir, "file.csv")
+            with open(file_path, "w+", newline="") as ofile:
+                csv_writer = csv.writer(ofile)
+                csv_writer.writerows(example_data)
+            session.file.put(file_path, f"@{stage_name}")
+
+        with mock.patch(
+            "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+            wraps=mock_run_query,
+        ):
+            df = (
+                reader.option("INFER_SCHEMA", True)
+                .option("PATTERN", ".*file.csv.gz")
+                .option("SKIP_HEADER", 1)
+                .csv(f"@{stage_name}")
+            )
+            # Data still loads because it falls back to old infer logic
+            Utils.check_answer(df, expected_rows)
+    finally:
+        Utils.drop_stage(session, stage_name)
+
+
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_reader_option_aliases(session, mode, caplog):
     reader = get_reader(session, mode)
@@ -538,7 +615,7 @@ def test_read_csv_incorrect_schema(session, mode):
     df = reader.option("purge", False).schema(incorrect_schema).csv(test_file_on_stage)
     with pytest.raises(SnowparkSQLException) as ex_info:
         df.collect()
-    assert "Number of columns in file (3) does not match" in str(ex_info)
+    assert "Number of columns in file (3) does not match" in str(ex_info.value)
 
 
 @pytest.mark.skipif(
@@ -968,6 +1045,10 @@ def test_read_csv_with_quotes_containing_delimiter(session, mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1435385 DataFrameReader.with_metadata is not supported",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC_LOCALFS,
+    reason="metadata info is not available in localfs",
+)
 @pytest.mark.parametrize(
     "file_format", ["csv", "json", "avro", "parquet", "xml", "orc"]
 )
@@ -1176,6 +1257,49 @@ def test_read_json_with_infer_schema(session, mode):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="Local Testing does not support loading json with user specified schema.",
+)
+def test_read_json_quoted_names(session):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    quoted_column_data = {'"A"': 1, '"B"': 2.2}
+    schema = StructType(
+        [
+            StructField('"A"', LongType(), True),
+            StructField('"B"', DoubleType(), False),
+        ]
+    )
+    parsed_schema = StructType(
+        [
+            StructField('"""A"""', LongType(), True),
+            StructField('"""B"""', DoubleType(), False),
+        ]
+    )
+
+    with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json") as file:
+        file.write(json.dumps(quoted_column_data))
+        file_path = file.name
+        file.flush()
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        put_result = session.file.put(
+            file_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+        reader = session.read.schema(schema)
+        df_1 = reader.json(f"@{stage_name}/{put_result[0].target}")
+        assert df_1.schema == parsed_schema
+        df_2 = reader.json(f"@{stage_name}/{put_result[0].target}")
+        assert df_2.schema == parsed_schema
+        result = df_1.union_all(df_2).collect()
+        Utils.check_answer(result, [Row(1, 2.2), Row(1, 2.2)])
+    finally:
+        Utils.drop_stage(session, stage_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: parquet not supported",
 )
 @pytest.mark.skipif(
@@ -1379,33 +1503,47 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
     reason="SNOW-645154 Need to enable ENABLE_SCHEMA_DETECTION_COLUMN_ORDER",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_parquet_with_special_characters_in_column_names(session, mode):
+@pytest.mark.parametrize("ignore_case", [True, False])
+def test_read_parquet_with_special_characters_in_column_names(
+    session, mode, ignore_case
+):
     path = f"@{tmp_stage_name1}/{test_file_with_special_characters_parquet}"
-    df1 = get_reader(session, mode).parquet(path)
+    reader = get_reader(session, mode)
+    df1 = reader.option("INFER_SCHEMA_OPTIONS", {"IGNORE_CASE": ignore_case}).parquet(
+        path
+    )
     res = df1.collect()
     assert len(res) == 500
 
+    # Define expected schema data for both ignore_case scenarios
+    schema_data = [
+        # (original_name, ignore_case_name, data_type)
+        ('"Ema!l"', '"EMA!L"', StringType()),
+        ('"Address"', "ADDRESS", StringType()),
+        ('"Av@t@r"', '"AV@T@R"', StringType()),
+        ('"Avg. $ession Length"', '"AVG. $ESSION LENGTH"', DoubleType()),
+        ('"T!me on App"', '"T!ME ON APP"', DoubleType()),
+        ('"T!me on Website"', '"T!ME ON WEBSITE"', DoubleType()),
+        ('"Length of Membership"', '"LENGTH OF MEMBERSHIP"', DoubleType()),
+        ('"Ye@rly Amount $pent"', '"YE@RLY AMOUNT $PENT"', DoubleType()),
+    ]
+
+    # Generate expected names and fields based on ignore_case parameter
+    expected_names = [
+        ignore_case_name if ignore_case else original_name
+        for original_name, ignore_case_name, _ in schema_data
+    ]
+    expected_fields = [
+        StructField(
+            ignore_case_name if ignore_case else original_name, data_type, nullable=True
+        )
+        for original_name, ignore_case_name, data_type in schema_data
+    ]
+
+    # Validate schema
     schema = df1.schema
-    assert schema.names == [
-        '"Ema!l"',
-        '"Address"',
-        '"Av@t@r"',
-        '"Avg. $ession Length"',
-        '"T!me on App"',
-        '"T!me on Website"',
-        '"Length of Membership"',
-        '"Ye@rly Amount $pent"',
-    ]
-    assert schema.fields == [
-        StructField('"Ema!l"', StringType(), nullable=True),
-        StructField('"Address"', StringType(), nullable=True),
-        StructField('"Av@t@r"', StringType(), nullable=True),
-        StructField('"Avg. $ession Length"', DoubleType(), nullable=True),
-        StructField('"T!me on App"', DoubleType(), nullable=True),
-        StructField('"T!me on Website"', DoubleType(), nullable=True),
-        StructField('"Length of Membership"', DoubleType(), nullable=True),
-        StructField('"Ye@rly Amount $pent"', DoubleType(), nullable=True),
-    ]
+    assert schema.names == expected_names
+    assert schema.fields == expected_fields
 
 
 @pytest.mark.skipif(
@@ -1653,6 +1791,103 @@ def test_pattern(session, mode):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local testing does not support file.put",
+)
+@pytest.mark.parametrize("mode", ["select", "copy"])
+@pytest.mark.parametrize("extern", [True, False])
+def test_pattern_with_infer(session, mode, extern):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+
+    if current_account(session) != "SFCTEST0_AWS_US_WEST_2":
+        pytest.skip("Test requires resources in sfctest0 test account")
+
+    if extern:
+        stage_name = f"TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage/{stage_name}"
+
+    expected_schema = StructType(
+        [
+            StructField("col1", LongType(), True),
+            StructField("col2", StringType(), True),
+            StructField("col3", DecimalType(2, 1), True),
+        ]
+    )
+    example_data = [expected_schema.names] + [(1, "A", 2.3), (2, "B", 3.4)]
+    incompatible_data = ["A", "B", "C", "D"]
+    expected_rows = [
+        Row(1, "A", 2.3),
+        Row(2, "B", 3.4),
+    ]
+
+    try:
+        if not extern:
+            Utils.create_stage(session, stage_name, is_temporary=True)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i in range(3):
+                good_file_path = os.path.join(temp_dir, f"good{i}.csv")
+                bad_file_path = os.path.join(temp_dir, f"bad{i}.csv")
+
+                with open(good_file_path, "w+", newline="") as ofile:
+                    csv_writer = csv.writer(ofile)
+                    csv_writer.writerows(example_data)
+
+                with open(bad_file_path, "w+", newline="") as ofile:
+                    csv_writer = csv.writer(ofile)
+                    csv_writer.writerows(incompatible_data)
+
+                session.file.put(good_file_path, f"@{stage_name}/path")
+                session.file.put(bad_file_path, f"@{stage_name}/path")
+
+        def base_reader(include_pattern=True):
+            reader = (
+                get_reader(session, mode)
+                .option("INFER_SCHEMA", True)
+                .option("INFER_SCHEMA_OPTIONS", {"MAX_RECORDS_PER_FILE": 10000})
+                .option("PARSE_HEADER", True)
+            )
+            if include_pattern:
+                reader = reader.option("PATTERN", ".*good.*")
+            return reader
+
+        # Test loading a single file
+        single_file_df = base_reader(False).csv(f"@{stage_name}/path/good1.csv")
+        Utils.check_answer(single_file_df, expected_rows)
+
+        # Test loading a single file while pattern is defined
+        reader = base_reader()
+        single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv")
+        Utils.check_answer(single_file_with_pattern_df, expected_rows)
+
+        # Test loading a directory while including patter and FILES
+        reader = base_reader().option(
+            "INFER_SCHEMA_OPTIONS", {"FILES": ["good1.csv.gz"]}
+        )
+        file_override_df = reader.csv(f"@{stage_name}/path")
+        Utils.check_answer(file_override_df, expected_rows * 3)
+
+        # Test just pattern
+        reader = base_reader()
+        df = reader.csv(f"@{stage_name}/path")
+        assert df.schema == expected_schema
+        Utils.check_answer(df, expected_rows * 3)
+
+        if not extern:
+            # Test using fully qualified stage name
+            reader = base_reader()
+            df = reader.csv(
+                f"@{session.get_current_database()}.{session.get_current_schema()}.{stage_name}"
+            )
+            assert df.schema == expected_schema
+            Utils.check_answer(df, expected_rows * 3)
+
+    finally:
+        if extern:
+            session.sql(f"rm @{stage_name}").collect()
+        else:
+            Utils.drop_stage(session, stage_name)
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="SQL query not supported",
@@ -1822,3 +2057,474 @@ def test_read_json_user_input_schema(session):
     )
     with pytest.raises(SnowparkSQLException, match="Failed to cast variant value"):
         session.read.schema(schema).json(test_file).collect()
+
+
+def test_read_csv_nulls(session):
+    # Test that a csv read with NULLVALUE set loads the configured representation as None
+    reader = get_reader(session, "select")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+    df = (
+        reader.option("NULLVALUE", ["one", "two"])
+        .schema(user_schema)
+        .csv(test_file_on_stage)
+    )
+    Utils.check_answer(df, [Row(A=1, B=None, C=1.2), Row(A=2, B=None, C=2.2)])
+
+
+def test_read_csv_alternate_time_formats(session):
+    # Test that a csv read with NULLVALUE set loads the configured representation as None
+    reader = get_reader(session, "copy")
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv_timestamps}"
+
+    time_format = "HH12.MI.SS.FF3"
+    date_format = "YYYYMONDD"
+    timestamp_format = f"{date_format}-{time_format}"
+
+    schema = StructType(
+        [
+            StructField("date", DateType()),
+            StructField("timestamp", TimestampType(TimestampTimeZone.NTZ)),
+            StructField("time", TimeType()),
+        ]
+    )
+
+    df = (
+        reader.option("DATE_FORMAT", date_format)
+        .option("TIME_FORMAT", time_format)
+        .option("TIMESTAMP_FORMAT", timestamp_format)
+        .option("PARSE_HEADER", False)
+        .schema(schema)
+        .csv(test_file_on_stage)
+    )
+    Utils.check_answer(
+        df,
+        [
+            Row(
+                datetime.date(2024, 1, 1),
+                datetime.datetime(2025, 1, 1, 0, 0, 1),
+                datetime.time(0, 0, 1),
+            ),
+            Row(
+                datetime.date(2022, 2, 3),
+                datetime.datetime(2022, 2, 3, 1, 2, 3, 456),
+                datetime.time(1, 2, 3, 456),
+            ),
+            Row(
+                datetime.date(2025, 2, 13),
+                datetime.datetime(2025, 2, 13, 6, 33, 36, 348925),
+                datetime.time(6, 33, 36, 348925),
+            ),
+        ],
+    )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
+def test_read_multiple_csvs(session):
+    reader = get_reader(session, "copy")
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    user_schema = StructType(
+        [
+            StructField("A", LongType()),
+            StructField("B", StringType()),
+            StructField("C", DoubleType()),
+        ]
+    )
+    test_file_on_stage = f"@{tmp_stage_name1}/"
+    try:
+        Utils.create_table(session, table_name, "A float, B string, C double")
+        df = reader.schema(user_schema).csv(test_file_on_stage)
+        df.copy_into_table(table_name, files=[test_file_csv, test_file2_csv])
+        Utils.check_answer(
+            session.table(table_name),
+            [
+                Row(3.0, "three", 3.3),
+                Row(4.0, "four", 4.4),
+                Row(1.0, "one", 1.2),
+                Row(2.0, "two", 2.2),
+            ],
+        )
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.parametrize(
+    "file_format_name,infer_schema",
+    [
+        ("ab_c1", True),
+        ("ABC", True),
+        ('"a$B12""cD"', True),
+        ('"a$B12""cD"', False),
+    ],
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Temp file format with custom name is not supported in stored proc",
+)
+def test_read_file_with_enforced_existing_file_format(
+    session, file_format_name, infer_schema
+):
+    try:
+        session.sql(
+            f"CREATE OR REPLACE TEMP FILE FORMAT {file_format_name} TYPE = 'CSV' FIELD_DELIMITER = ','"
+        ).collect()
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+        df_reader = session.read.option("FORMAT_NAME", file_format_name).option(
+            "ENFORCE_EXISTING_FILE_FORMAT", True
+        )
+
+        if not infer_schema:
+            df_reader = df_reader.schema(user_schema)
+
+        df = df_reader.csv(test_file_on_stage)
+
+        # Verify there are no queries related to temp file format creation or removal
+        assert len(df.queries["queries"]) == 1
+        assert len(df.queries["post_actions"]) == 0
+
+        result = df.collect()
+
+        assert len(result) == 2
+        assert len(result[0]) == 3
+    finally:
+        session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Temp file format with custom name is not supported in stored proc",
+)
+def test_enforce_existing_file_format_with_additional_format_type_options(session):
+    file_format_name = "ABC"
+
+    try:
+        session.sql(
+            f"CREATE OR REPLACE TEMP FILE FORMAT {file_format_name} TYPE = 'CSV' FIELD_DELIMITER = ','"
+        ).collect()
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+        with pytest.raises(
+            ValueError,
+            match="Option 'ENFORCE_EXISTING_FILE_FORMAT' can not be used with any format type options.",
+        ):
+            (
+                session.read.option("FORMAT_NAME", file_format_name)
+                .option("ENFORCE_EXISTING_FILE_FORMAT", True)
+                .option(
+                    "DELIMITER", "!"
+                )  # Forbidden option if ENFORCE_EXISTING_FILE_FORMAT is set
+                .csv(test_file_on_stage)
+            )
+    finally:
+        session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="sql not supported in local testing mode",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Temp file format with custom name is not supported in stored proc",
+)
+def test_enforce_existing_file_format_without_providing_format_name(session):
+    file_format_name = "ABC"
+
+    try:
+        session.sql(
+            f"CREATE OR REPLACE TEMP FILE FORMAT {file_format_name} TYPE = 'CSV' FIELD_DELIMITER = ','"
+        ).collect()
+        test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+        with pytest.raises(
+            ValueError,
+            match="Setting the ENFORCE_EXISTING_FILE_FORMAT option requires providing FORMAT_NAME.",
+        ):
+            (
+                session.read.option("ENFORCE_EXISTING_FILE_FORMAT", True).csv(
+                    test_file_on_stage
+                )
+            )
+    finally:
+        session.sql(f"DROP FILE FORMAT IF EXISTS {file_format_name}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Read option 'FORMAT_NAME' not supported in local testing mode",
+)
+def test_enforce_existing_file_format_object_doesnt_exist(session):
+    test_file_on_stage = f"@{tmp_stage_name1}/{test_file_csv}"
+
+    df = (
+        session.read.schema(StructType([StructField("xyz", StringType())]))
+        .option("FORMAT_NAME", "NON_EXISTENT_FILE_FORMAT")
+        .option("ENFORCE_EXISTING_FILE_FORMAT", True)
+        .csv(test_file_on_stage)
+    )
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="File format 'NON_EXISTENT_FILE_FORMAT' does not exist or not authorized.",
+    ):
+        df.collect()
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="TODO: SNOW-2201113, STRING types have different precision in stored procs due to LOB",
+)
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
+def test_use_relaxed_types(session):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    header = ("A", "B", "C")
+    short_data = [
+        ("A", 1.1, True),
+        ("B", 1.2, True),
+    ]
+    long_data = [
+        ("CCCCCCCCCC", 3.9999999993, False),
+        ("DDDDDDDDDD", 4.9999999994, False),
+    ]
+
+    schema = StructType(
+        [
+            StructField("A", StringType(), True),
+            StructField("B", DecimalType(2, 1), True),
+            StructField("C", BooleanType(), True),
+        ]
+    )
+
+    relaxed_schema = StructType(
+        [
+            StructField("A", StringType(), True),
+            StructField("B", DoubleType(), True),
+            StructField("C", BooleanType(), True),
+        ]
+    )
+
+    def write_csv(data):
+        with tempfile.NamedTemporaryFile(
+            mode="w+",
+            delete=False,
+            suffix=".csv",
+            newline="",
+        ) as file:
+            writer = csv.writer(file)
+            writer.writerow(header)
+            for row in data:
+                writer.writerow(row)
+            return file.name
+
+    short_path = write_csv(short_data)
+    long_path = write_csv(long_data)
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        short_result = session.file.put(
+            short_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        session.file.put(
+            long_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        # Infer schema from only the short file
+        constrained_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {"FILES": [short_result[0].target]},
+                "PARSE_HEADER": True,
+                # Only load the short file
+                "PATTERN": f".*{short_result[0].target}",
+            }
+        )
+
+        # df1 uses constrained types
+        df1 = constrained_reader.csv(f"@{stage_name}/")
+        assert df1.schema == schema
+        # Load both files
+        constrained_reader.option("PATTERN", None)
+
+        # Data is truncated if loading the higher prescion file
+        df1_both = constrained_reader.csv(f"@{stage_name}/")
+        Utils.check_answer(
+            df1_both,
+            [
+                Row("CCCCCCCCCC", Decimal("4.0"), False),
+                Row("DDDDDDDDDD", Decimal("5.0"), False),
+                Row("A", Decimal("1.1"), True),
+                Row("B", Decimal("1.2"), True),
+            ],
+        )
+
+        # Relaxed reader uses more permissive types
+        relaxed_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {
+                    "FILES": [short_result[0].target],
+                    "USE_RELAXED_TYPES": True,
+                },
+                "PARSE_HEADER": True,
+                "PATTERN": f".*{short_result[0].target}",
+            }
+        )
+
+        # df2 users relaxed types
+        df2 = relaxed_reader.csv(f"@{stage_name}/")
+        assert df2.schema == relaxed_schema
+        relaxed_reader.option("PATTERN", None)
+
+        # Data is no longer truncated
+        df2_both = relaxed_reader.csv(f"@{stage_name}/")
+        Utils.check_answer(
+            df2_both,
+            [
+                Row("CCCCCCCCCC", 3.9999999993, False),
+                Row("DDDDDDDDDD", 4.9999999994, False),
+                Row("A", 1.1, True),
+                Row("B", 1.2, True),
+            ],
+        )
+    finally:
+        Utils.drop_stage(session, stage_name)
+        if os.path.exists(short_path):
+            os.remove(short_path)
+        if os.path.exists(long_path):
+            os.remove(long_path)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
+def test_try_cast(session):
+    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    header = ("A", "B", "C")
+    valid_data = [
+        ("A", 1.1, True),
+        ("B", 1.2, True),
+    ]
+    invalid_data = [
+        ("C", "invalid", False),
+        ("D", 4.9999999994, "invalid"),
+        (0, 5, "invalid"),
+        (1, "invalid", "invalid"),
+    ]
+
+    schema = StructType(
+        [
+            StructField("A", StringType(), True),
+            StructField("B", DecimalType(2, 1), True),
+            StructField("C", BooleanType(), True),
+        ]
+    )
+
+    lob_schema = StructType(
+        [
+            StructField("A", StringType(134217728), True),
+            StructField("B", DecimalType(2, 1), True),
+            StructField("C", BooleanType(), True),
+        ]
+    )
+
+    def write_csv(data):
+        with tempfile.NamedTemporaryFile(
+            mode="w+",
+            delete=False,
+            suffix=".csv",
+            newline="",
+        ) as file:
+            writer = csv.writer(file)
+            writer.writerow(header)
+            for row in data:
+                writer.writerow(row)
+            return file.name
+
+    valid_path = write_csv(valid_data)
+    invalid_data_path = write_csv(invalid_data)
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        valid_result = session.file.put(
+            valid_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        session.file.put(
+            invalid_data_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        # Infer schema from only the valid file
+        default_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {"FILES": [valid_result[0].target]},
+                "PARSE_HEADER": True,
+                # Only load the valid file
+                "PATTERN": f".*{valid_result[0].target}",
+                # Files that fail to parse are skipped
+                "COPY_OPTIONS": {"ON_ERROR": "SKIP_FILE"},
+            }
+        )
+
+        # df1 uses constrained types
+        df1 = default_reader.csv(f"@{stage_name}/")
+        # TODO: SNOW-2201113, revert the condition once the LOB issue is fixed
+        assert df1.schema == schema or df1.schema == lob_schema
+        # Try to load both files
+        default_reader.option("PATTERN", None)
+
+        # Only the data for the valid file is available
+        df1_both = default_reader.csv(f"@{stage_name}/")
+        Utils.check_answer(
+            df1_both, [Row("A", Decimal("1.1"), True), Row("B", Decimal("1.2"), True)]
+        )
+
+        # try_cast reader attempts to recover as much data as possible
+        try_cast_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {
+                    "FILES": [valid_result[0].target],
+                },
+                "TRY_CAST": True,
+                "PARSE_HEADER": True,
+                # Files that fail to parse are skipped
+                "COPY_OPTIONS": {"ON_ERROR": "SKIP_FILE"},
+            }
+        )
+
+        # Valid data is available, invalid data is null
+        df2 = try_cast_reader.csv(f"@{stage_name}/")
+        Utils.check_answer(
+            df2,
+            [
+                Row("A", Decimal("1.1"), True),
+                Row("B", Decimal("1.2"), True),
+                Row("C", None, False),
+                Row("D", Decimal("5.0"), None),
+                Row("0", Decimal("5.0"), None),
+                Row("1", None, None),
+            ],
+        )
+    finally:
+        Utils.drop_stage(session, stage_name)
+        if os.path.exists(valid_path):
+            os.remove(valid_path)
+        if os.path.exists(invalid_data_path):
+            os.remove(invalid_data_path)

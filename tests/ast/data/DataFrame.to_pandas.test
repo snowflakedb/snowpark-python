@@ -16,9 +16,15 @@ df = session.table("table1")
 
 df.to_pandas()
 
+df = session.table("table1")
+
 df.to_pandas(block=False)
 
+df = session.table("table1")
+
 df.to_pandas(statement_params={"SF_PARTNER": "FAKE_PARTNER"})
+
+df = session.table("table1")
 
 df.to_pandas(statement_params={"SF_PARTNER": "FAKE_PARTNER"}, block=False)
 
@@ -34,12 +40,12 @@ interned_value_table {
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_table {
+      table {
         name {
           name {
-            sp_name_flat {
+            name_flat {
               name: "table1"
             }
           }
@@ -52,26 +58,26 @@ body {
           start_line: 25
         }
         variant {
-          sp_session_table: true
+          session_table: true
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
     }
     uid: 1
-    var_id {
-      bitfield1: 1
-    }
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_to_pandas {
+      dataframe_to_pandas {
         block: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id: 1
+          }
         }
         src {
           end_column: 22
@@ -82,28 +88,55 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
     uid: 2
-    var_id {
-      bitfield1: 2
-    }
   }
 }
 body {
   eval {
-    uid: 3
-    var_id {
-      bitfield1: 2
-    }
+    bind_id: 2
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_to_pandas {
-        id {
-          bitfield1: 1
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_to_pandas {
+        df {
+          dataframe_ref {
+            id: 1
+          }
         }
         src {
           end_column: 33
@@ -114,29 +147,56 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 4
-    var_id {
-      bitfield1: 4
-    }
+    uid: 3
   }
 }
 body {
   eval {
-    uid: 5
-    var_id {
-      bitfield1: 4
-    }
+    bind_id: 3
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_to_pandas {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_to_pandas {
         block: true
-        id {
-          bitfield1: 1
+        df {
+          dataframe_ref {
+            id: 1
+          }
         }
         src {
           end_column: 69
@@ -151,28 +211,55 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 6
-    var_id {
-      bitfield1: 6
-    }
+    uid: 4
   }
 }
 body {
   eval {
-    uid: 7
-    var_id {
-      bitfield1: 6
-    }
+    bind_id: 4
   }
 }
 body {
-  assign {
+  bind {
     expr {
-      sp_dataframe_to_pandas {
-        id {
-          bitfield1: 1
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 25
+          file: 2
+          start_column: 13
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_to_pandas {
+        df {
+          dataframe_ref {
+            id: 1
+          }
         }
         src {
           end_column: 82
@@ -187,20 +274,15 @@ body {
         }
       }
     }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
     }
-    uid: 8
-    var_id {
-      bitfield1: 8
-    }
+    uid: 5
   }
 }
 body {
   eval {
-    uid: 9
-    var_id {
-      bitfield1: 8
-    }
+    bind_id: 5
   }
 }
 client_ast_version: 1
@@ -216,5 +298,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 26
+  minor: 36
 }
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

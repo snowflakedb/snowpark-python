@@ -323,7 +323,7 @@ def test_axis_0_series_basic(apply_func, expected_join_count, expected_union_cou
         )
 
 
-@sql_count_checker(query_count=5, join_count=1, udtf_count=1)
+@sql_count_checker(query_count=4, join_count=1, udtf_count=1)
 def test_groupby_apply_constant_output():
     native_df = native_pd.DataFrame([1, 2])
     native_df["fg"] = 0
@@ -664,7 +664,7 @@ import scipy.stats  # noqa: E402
     "packages,expected_query_count",
     [
         (["scipy", "numpy"], 26),
-        (["scipy>1.1", "numpy<2.0"], 26),
+        # TODO: SNOW-2217451 Re-enable scipy>1.1, numpy<2.0 test case after NumPy 2.x compatibility issue is resolved
         # TODO: SNOW-1478188 Re-enable quarantined tests for 8.23
         # [scipy, np], 9),
     ],

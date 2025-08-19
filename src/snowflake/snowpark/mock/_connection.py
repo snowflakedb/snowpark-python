@@ -257,12 +257,17 @@ class MockServerConnection:
                 self.conn.notify_mock_query_record_listener(**kwargs)
 
         def create_or_replace_view(
-            self, execution_plan: MockExecutionPlan, name: Union[str, Iterable[str]]
+            self,
+            execution_plan: MockExecutionPlan,
+            name: Union[str, Iterable[str]],
+            replace: bool,
         ):
             with self._lock:
                 current_schema = self.conn._get_current_parameter("schema")
                 current_database = self.conn._get_current_parameter("database")
                 name = get_fully_qualified_name(name, current_schema, current_database)
+                if not replace and name in self.view_registry:
+                    raise SnowparkLocalTestingException(f"View {name} already exists")
                 self.view_registry[name] = execution_plan
 
         def get_review(self, name: Union[str, Iterable[str]]) -> MockExecutionPlan:
@@ -297,6 +302,7 @@ class MockServerConnection:
         self._cursor = Mock()
         self._options = options or {}
         session_params = self._options.get("session_parameters", {})
+        self._thread_safe_session_enabled = True
         self._lock = threading.RLock()
         self._lower_case_parameters = {}
         self._query_listeners = set()
@@ -308,6 +314,7 @@ class MockServerConnection:
                 "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS": False,
                 "_PYTHON_SNOWPARK_USE_SCOPED_TEMP_OBJECTS_STRING": True,
                 "_PYTHON_SNOWPARK_USE_SQL_SIMPLIFIER_STRING": True,
+                "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES": True,
             }
         )
         self._active_account = self._options.get(
@@ -718,6 +725,8 @@ class MockServerConnection:
         notify_kwargs = {"requestId": str(uuid.uuid4())}
         if DATAFRAME_AST_PARAMETER in kwargs:
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        if "dataframe_uuid" in kwargs:
+            notify_kwargs["dataframe_uuid"] = kwargs["dataframe_uuid"]
         from snowflake.snowpark.query_history import QueryRecord
 
         self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)
@@ -785,6 +794,8 @@ class MockServerConnection:
         notify_kwargs = {"requestId": str(uuid.uuid4())}
         if DATAFRAME_AST_PARAMETER in kwargs:
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
+        if "dataframe_uuid" in kwargs:
+            notify_kwargs["dataframe_uuid"] = kwargs["dataframe_uuid"]
         from snowflake.snowpark.query_history import QueryRecord
 
         self.notify_query_listeners(QueryRecord("MOCK", "MOCK-PLAN"), **notify_kwargs)

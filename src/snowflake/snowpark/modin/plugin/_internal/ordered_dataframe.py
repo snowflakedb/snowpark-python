@@ -31,6 +31,10 @@ from snowflake.snowpark.functions import (
     sum as sum_,
 )
 from snowflake.snowpark.modin.plugin._typing import AlignTypeLit, JoinTypeLit
+from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
+    DataFrameOperation,
+    RowCountEstimator,
+)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.table_function import TableFunctionCall
@@ -232,6 +236,9 @@ class OrderedDataFrame:
     # row count snowflake quoted identifier
     row_count_snowflake_quoted_identifier: Optional[str]
 
+    # possible cached estimate for the upper limit of the number of rows in this frame
+    row_count_upper_bound: Optional[int]
+
     def __init__(
         self,
         dataframe_ref: DataFrameReference,
@@ -296,10 +303,22 @@ class OrderedDataFrame:
         self.row_count_snowflake_quoted_identifier = (
             row_count_snowflake_quoted_identifier
         )
+        self._row_count: Optional[int] = None
+        self.row_count_upper_bound: Optional[int] = None
 
     @property
     def ordering_columns(self) -> list[OrderingColumn]:
         return list(self._ordering_columns_tuple)
+
+    # possible cached value of exact row count for this dataframe
+    @property
+    def row_count(self) -> Optional[int]:
+        return self._row_count
+
+    @row_count.setter
+    def row_count(self, value: int) -> None:
+        self._row_count = value
+        self.row_count_upper_bound = value
 
     def _ordering_snowpark_columns(self) -> list[Column]:
         """
@@ -626,7 +645,12 @@ class OrderedDataFrame:
                 snowpark_dataframe = self._dataframe_ref.snowpark_dataframe.select(
                     *cols
                 )
-                return OrderedDataFrame(DataFrameReference(snowpark_dataframe))
+                new_df = OrderedDataFrame(DataFrameReference(snowpark_dataframe))
+                # Update the row count upper bound
+                new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+                    self, DataFrameOperation.SELECT, args={}
+                )
+                return new_df
             elif isinstance(e, (Column, str)):
                 column_names = self._extract_quoted_identifiers_from_column_or_name(
                     e, active_columns
@@ -660,7 +684,7 @@ class OrderedDataFrame:
                 f"The Snowpark DataFrame in DataFrameReference with id={dataframe_ref._id} is updated"
             )
 
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             dataframe_ref,
             projected_column_snowflake_quoted_identifiers=new_projected_columns,
             # keep the original ordering columns and row position column
@@ -668,6 +692,13 @@ class OrderedDataFrame:
             row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
             row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
         )
+
+        new_df.row_count = self.row_count
+        # Update the row count upper bound
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self, DataFrameOperation.SELECT, args={}
+        )
+        return new_df
 
     def dropna(
         self,
@@ -693,11 +724,16 @@ class OrderedDataFrame:
         result_column_quoted_identifiers = (
             projected_dataframe_ref.snowflake_quoted_identifiers
         )
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             DataFrameReference(snowpark_dataframe, result_column_quoted_identifiers),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
             ordering_columns=self.ordering_columns,
         )
+        # Update the row count upper bound
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self, DataFrameOperation.DROPNA, args={}
+        )
+        return new_df
 
     def union_all(self, other: "OrderedDataFrame") -> "OrderedDataFrame":
         """
@@ -720,10 +756,17 @@ class OrderedDataFrame:
         snowpark_dataframe = self_snowpark_dataframe_ref.snowpark_dataframe.union_all(
             other_snowpark_dataframe_ref.snowpark_dataframe
         )
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             DataFrameReference(snowpark_dataframe, result_column_quoted_identifiers),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
         )
+        if self.row_count is not None and other.row_count is not None:
+            new_df.row_count = self.row_count + other.row_count
+        # Update the row count upper bound
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self, DataFrameOperation.UNION_ALL, args={"other": other}
+        )
+        return new_df
 
     def _extract_aggregation_result_column_quoted_identifiers(
         self,
@@ -775,7 +818,7 @@ class OrderedDataFrame:
             self._extract_aggregation_result_column_quoted_identifiers(*agg_exprs)
         )
 
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             DataFrameReference(
                 self._dataframe_ref.snowpark_dataframe.group_by(cols).agg(*agg_exprs),
                 snowflake_quoted_identifiers=result_column_quoted_identifiers,
@@ -783,6 +826,11 @@ class OrderedDataFrame:
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
             ordering_columns=[OrderingColumn(identifier) for identifier in cols],
         )
+        # Update the row count upper bound
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self, DataFrameOperation.GROUP_BY, args={}
+        )
+        return new_df
 
     def sort(
         self,
@@ -806,7 +854,7 @@ class OrderedDataFrame:
         if ordering_columns == self.ordering_columns:
             return self
 
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             self._to_projected_snowpark_dataframe_reference(
                 include_row_count_column=True, include_ordering_columns=True
             ),
@@ -817,6 +865,12 @@ class OrderedDataFrame:
             # No need to reset row count, since sorting should not add/drop rows.
             row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
         )
+        new_df.row_count = self.row_count
+        # Update the row count upper bound
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self, DataFrameOperation.SORT, args={}
+        )
+        return new_df
 
     def pivot(
         self,
@@ -834,7 +888,7 @@ class OrderedDataFrame:
         See detailed docstring in Snowpark DataFrame's pivot.
         """
         snowpark_dataframe = self.to_projected_snowpark_dataframe()
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             # the pivot result columns for dynamic pivot are data dependent, a schema call is required
             # to know all the quoted identifiers for the pivot result.
             DataFrameReference(
@@ -845,6 +899,11 @@ class OrderedDataFrame:
                 ).agg(*agg_exprs)
             )
         )
+        # Update the row count upper bound
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self, DataFrameOperation.PIVOT, args={}
+        )
+        return new_df
 
     def unpivot(
         self,
@@ -903,7 +962,7 @@ class OrderedDataFrame:
         ]
         # add the name column and value colum to the result
         result_column_quoted_identifiers += [name_column, value_column]
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             DataFrameReference(
                 projected_dataframe_ref.snowpark_dataframe.unpivot(
                     value_column=value_column,
@@ -915,6 +974,11 @@ class OrderedDataFrame:
             ),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
         )
+        # Update the row count upper bound
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self, DataFrameOperation.UNPIVOT, args={"column_list": column_list}
+        )
+        return new_df
 
     def agg(
         self,
@@ -930,10 +994,15 @@ class OrderedDataFrame:
         result_column_quoted_identifiers = (
             self._extract_aggregation_result_column_quoted_identifiers(*exprs)
         )
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             DataFrameReference(snowpark_dataframe, result_column_quoted_identifiers),
             projected_column_snowflake_quoted_identifiers=result_column_quoted_identifiers,
         )
+        # Update the row count upper bound
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self, DataFrameOperation.AGG, args={}
+        )
+        return new_df
 
     def _deduplicate_active_column_snowflake_quoted_identifiers(
         self,
@@ -1168,6 +1237,7 @@ class OrderedDataFrame:
         original_right_quoted_identifiers = (
             right.projected_column_snowflake_quoted_identifiers
         )
+        original_right_ordered_dataframe = right
         # De-duplicate the column identifiers of right against self (left), so that
         # Snowpark doesn't perform any de-duplication on the result dataframe during join.
         right = right._deduplicate_active_column_snowflake_quoted_identifiers(
@@ -1189,13 +1259,27 @@ class OrderedDataFrame:
             # if no join needed, we simply return the deduplicated right frame with the projected columns
             # set to the left.projected_column_snowflake_quoted_identifiers and the deduplicated the right
             # projected_column_snowflake_quoted_identifiers.
-            return OrderedDataFrame(
+            new_df = OrderedDataFrame(
                 right._dataframe_ref,
                 projected_column_snowflake_quoted_identifiers=projected_column_snowflake_quoted_identifiers,
                 ordering_columns=self.ordering_columns,
                 row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
                 row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
             )
+            new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+                self,
+                DataFrameOperation.JOIN,
+                args={
+                    "right": original_right_ordered_dataframe,
+                    "left_on_cols": left_on_cols,
+                    "right_on_cols": right_on_cols,
+                    "how": how,
+                    "left_match_col": left_match_col,
+                    "right_match_col": right_match_col,
+                    "match_comparator": match_comparator,
+                },
+            )
+            return new_df
 
         # reproject the snowpark dataframe with only necessary columns
         left_snowpark_dataframe_ref = self._to_projected_snowpark_dataframe_reference(
@@ -1262,7 +1346,7 @@ class OrderedDataFrame:
         else:
             ordering_columns = self.ordering_columns + right.ordering_columns
 
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             DataFrameReference(
                 snowpark_dataframe,
                 # the result of join retains column quoted identifier of both left + right
@@ -1272,6 +1356,20 @@ class OrderedDataFrame:
             projected_column_snowflake_quoted_identifiers=projected_column_snowflake_quoted_identifiers,
             ordering_columns=ordering_columns,
         )
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self,
+            DataFrameOperation.JOIN,
+            args={
+                "right": original_right_ordered_dataframe,
+                "left_on_cols": left_on_cols,
+                "right_on_cols": right_on_cols,
+                "how": how,
+                "left_match_col": left_match_col,
+                "right_match_col": right_match_col,
+                "match_comparator": match_comparator,
+            },
+        )
+        return new_df
 
     def _has_same_base_ordered_dataframe(self, other: "OrderedDataFrame") -> bool:
         """
@@ -1421,7 +1519,7 @@ class OrderedDataFrame:
                     include_row_count_column=False,
                 )
             )
-            return OrderedDataFrame(
+            new_df = OrderedDataFrame(
                 dataframe_ref=aligned_ordered_frame._dataframe_ref,
                 projected_column_snowflake_quoted_identifiers=self.projected_column_snowflake_quoted_identifiers
                 + aligned_ordered_frame.projected_column_snowflake_quoted_identifiers,
@@ -1429,6 +1527,12 @@ class OrderedDataFrame:
                 row_position_snowflake_quoted_identifier=self.row_position_snowflake_quoted_identifier,
                 row_count_snowflake_quoted_identifier=self.row_count_snowflake_quoted_identifier,
             )
+            new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+                self,
+                DataFrameOperation.ALIGN,
+                args={"right": right, "how": how},
+            )
+            return new_df
 
         from snowflake.snowpark.modin.plugin._internal.join_utils import (
             JoinOrAlignOrderedDataframeResultHelper,
@@ -1731,7 +1835,13 @@ class OrderedDataFrame:
 
         # call select to make sure only the result_projected_column_snowflake_quoted_identifiers are projected
         # in the join result
-        return joined_ordered_frame.select(select_list)
+        new_df = joined_ordered_frame.select(select_list)
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self,
+            DataFrameOperation.ALIGN,
+            args={"right": right, "how": how},
+        )
+        return new_df
 
     def filter(self, expr: ColumnOrSqlExpr) -> "OrderedDataFrame":
         """
@@ -1744,7 +1854,7 @@ class OrderedDataFrame:
             include_ordering_columns=True
         )
         snowpark_dataframe = projected_dataframe_ref.snowpark_dataframe.filter(expr)
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             DataFrameReference(
                 snowpark_dataframe,
                 # same columns are retained after filtering
@@ -1753,6 +1863,12 @@ class OrderedDataFrame:
             projected_column_snowflake_quoted_identifiers=projected_dataframe_ref.snowflake_quoted_identifiers,
             ordering_columns=self.ordering_columns,
         )
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self,
+            DataFrameOperation.FILTER,
+            args={},
+        )
+        return new_df
 
     def limit(self, n: int, offset: int = 0, sort: bool = True) -> "OrderedDataFrame":
         """
@@ -1770,7 +1886,7 @@ class OrderedDataFrame:
         snowpark_dataframe = projected_dataframe_ref.snowpark_dataframe.limit(
             n=n, offset=offset
         )
-        return OrderedDataFrame(
+        new_df = OrderedDataFrame(
             DataFrameReference(
                 snowpark_dataframe,
                 # the same columns are retained for limit
@@ -1779,6 +1895,12 @@ class OrderedDataFrame:
             projected_column_snowflake_quoted_identifiers=projected_dataframe_ref.snowflake_quoted_identifiers,
             ordering_columns=self.ordering_columns,
         )
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self,
+            DataFrameOperation.LIMIT,
+            args={"n": n},
+        )
+        return new_df
 
     @property
     def write(self) -> DataFrameWriter:
@@ -2009,7 +2131,7 @@ class OrderedDataFrame:
         # df_s = df.sample(frac=0.5)
         # assert df_s.index == df_s.index may fail because both the LHS and RHS will call the sample method during
         # evaluation and the results won't be deterministic.
-        return cache_result(
+        new_df = cache_result(
             OrderedDataFrame(
                 DataFrameReference(
                     snowpark_dataframe,
@@ -2020,3 +2142,9 @@ class OrderedDataFrame:
                 ordering_columns=self.ordering_columns,
             )
         )
+        new_df.row_count_upper_bound = RowCountEstimator.upper_bound(
+            self,
+            DataFrameOperation.SAMPLE,
+            args={"n": n, "frac": frac},
+        )
+        return new_df
