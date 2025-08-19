@@ -230,13 +230,13 @@ class TimeType(_AtomicType):
         ast.time_type = True
 
 
-class AnsiIntervalType(_AtomicType):
+class _AnsiIntervalType(_AtomicType):
     """The interval type which conforms to the ANSI SQL standard."""
 
     pass
 
 
-class YearMonthIntervalType(AnsiIntervalType):
+class YearMonthIntervalType(_AnsiIntervalType):
     """YearMonthIntervalType data type. This maps to the INTERVAL YEAR TO MONTH data type in Snowflake.
 
     Args:
