@@ -264,7 +264,11 @@ class YearMonthIntervalType(_AnsiIntervalType):
             end_field = start_field
 
         fields = self._FIELD_NAMES.keys()
-        if start_field not in fields or end_field not in fields:
+        if (
+            start_field not in fields
+            or end_field not in fields
+            or start_field > end_field
+        ):
             raise ValueError(f"interval {start_field} to {end_field} is invalid")
 
         self.start_field = start_field
