@@ -1417,13 +1417,6 @@ def test_snow_type_to_dtype_str():
             "yearmonthinterval",
             "interval year",
         ),
-        (
-            YearMonthIntervalType(1, 0),
-            "interval month to year",
-            '"interval month to year"',
-            "yearmonthinterval",
-            "interval month to year",
-        ),
     ],
 )
 def test_datatype(tpe, simple_string, json, type_name, json_value):
@@ -2180,6 +2173,9 @@ def test_year_month_interval_type_invalid_fields():
 
     with pytest.raises(ValueError, match="interval 10 to 20 is invalid"):
         YearMonthIntervalType(10, 20)
+
+    with pytest.raises(ValueError, match="interval 1 to 0 is invalid"):
+        YearMonthIntervalType(1, 0)
 
 
 def test_most_permissive_type():
