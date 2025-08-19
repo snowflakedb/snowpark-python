@@ -260,14 +260,13 @@ def col(
 ) -> Column:
     """Returns the :class:`~snowflake.snowpark.Column` with the specified name.
 
-        Args:
-            col_name: The name of the column.
+    Args:
+        col_name: The name of the column.
 
-        Example::
-            >>> df = session.sql("select 1 as a")
-    #        >>> raise ValueError("123")
-            >>> df.select(col("a")).collect()
-            [Row(A=1)]
+    Example::
+        >>> df = session.sql("select 1 as a")
+        >>> df.select(col("a")).collect()
+        [Row(A=1)]
     """
     ...  # pragma: no cover
 
