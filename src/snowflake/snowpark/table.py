@@ -4,6 +4,7 @@
 #
 
 import sys
+import datetime
 from logging import getLogger
 from typing import Dict, List, NamedTuple, Optional, Union, overload
 
@@ -31,7 +32,10 @@ from snowflake.snowpark._internal.ast.utils import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
-from snowflake.snowpark._internal.utils import publicapi
+from snowflake.snowpark._internal.utils import (
+    publicapi,
+    validate_and_normalize_time_travel_params,
+)
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
 from snowflake.snowpark.row import Row
@@ -288,6 +292,13 @@ class Table(DataFrame):
         is_temp_table_for_cleanup: bool = False,
         _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
+        *,
+        time_travel_mode: Optional[str] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime.datetime]] = None,
+        timezone: Optional[str] = "NTZ",
+        stream: Optional[str] = None,
     ) -> None:
         if _ast_stmt is None and session is not None and _emit_ast:
             _ast_stmt = session._ast_batch.bind()
@@ -296,10 +307,20 @@ class Table(DataFrame):
             ast.variant.table_init = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
 
+        time_travel_config = validate_and_normalize_time_travel_params(
+            time_travel_mode=time_travel_mode,
+            statement=statement,
+            offset=offset,
+            timestamp=timestamp,
+            timezone=timezone,
+            stream=stream,
+        )
+
         snowflake_table_plan = SnowflakeTable(
             table_name,
             session=session,
             is_temp_table_for_cleanup=is_temp_table_for_cleanup,
+            time_travel_config=time_travel_config,
         )
         if session.sql_simplifier_enabled:
             plan = session._analyzer.create_select_statement(
@@ -314,6 +335,7 @@ class Table(DataFrame):
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
         self._is_temp_table_for_cleanup = is_temp_table_for_cleanup
+        self._time_travel_config = time_travel_config
 
         # By default, the set the initial API call to say 'Table.__init__' since
         # people could instantiate a table directly. This value is overwritten when
@@ -321,19 +343,47 @@ class Table(DataFrame):
         set_api_call_source(self, "Table.__init__")
 
     def _copy_without_ast(self):
+        kwargs = {}
+        if self._time_travel_config:
+            kwargs.update(
+                {
+                    "time_travel_mode": self._time_travel_config.mode,
+                    "statement": self._time_travel_config.statement,
+                    "offset": self._time_travel_config.offset,
+                    "timestamp": self._time_travel_config.timestamp,
+                    "timezone": self._time_travel_config.timezone,
+                    "stream": self._time_travel_config.stream,
+                }
+            )
+
         return Table(
             self.table_name,
             session=self._session,
             is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
             _emit_ast=False,
+            **kwargs,
         )
 
     def __copy__(self) -> "Table":
+        kwargs = {}
+        if self._time_travel_config:
+            kwargs.update(
+                {
+                    "time_travel_mode": self._time_travel_config.mode,
+                    "statement": self._time_travel_config.statement,
+                    "offset": self._time_travel_config.offset,
+                    "timestamp": self._time_travel_config.timestamp,
+                    "timezone": self._time_travel_config.timezone,
+                    "stream": self._time_travel_config.stream,
+                }
+            )
+
         return Table(
             self.table_name,
             session=self._session,
             is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
             _emit_ast=self._session.ast_enabled,
+            **kwargs,
         )
 
     def __enter__(self):
