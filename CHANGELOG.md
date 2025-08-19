@@ -27,7 +27,12 @@
 - Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
 
 #### Dependency Updates
+
 #### Bug Fixes
+- Added time travel support for querying historical data:
+  - `Session.table()` now supports time travel parameters: `time_travel_mode`, `statement`, `offset`, `timestamp`, `timezone`, and `stream`.
+  - `DataFrameReader.table()` supports the same time travel parameters as direct arguments.
+  - `DataFrameReader` supports time travel via option chaining (e.g., `session.read.option("time_travel_mode", "at").option("offset", -60).table("my_table")`).
 
 ## 1.37.0 (2025-08-18)
 
@@ -98,10 +103,6 @@
 - Added support for the following functions in `functions.py`:
   - `ai_sentiment`
 - Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
-
-### Snowpark pandas API Updates
-
-#### New Features
 
 #### Improvements
 - Hybrid execution row estimate improvements and a reduction of eager calls.
