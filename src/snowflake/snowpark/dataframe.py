@@ -5040,10 +5040,11 @@ class DataFrame:
             import datetime
 
             def format_timestamp_spark(dt: datetime.datetime) -> str:
+                # we don't want to use dt.strftime() to format dates since it's platform-specific and might give different results in different environments.
                 if dt.microsecond == 0:
-                    return dt.strftime("%Y-%m-%d %H:%M:%S")
+                    return f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
                 else:
-                    base_format = dt.strftime("%Y-%m-%d %H:%M:%S.%f")
+                    base_format = f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}.{dt.microsecond:06d}"
                     return base_format.rstrip("0").rstrip(".")
 
             # Special handling for cell printing in Spark
