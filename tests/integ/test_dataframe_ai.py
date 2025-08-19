@@ -131,3 +131,110 @@ def test_dataframe_ai_complete_error_handling(session):
             input_columns="invalid",  # Should be list or dict
             model="snowflake-arctic",
         )
+
+
+def test_dataframe_ai_filter_simple_text(session):
+    """Test DataFrame.ai.filter with simple text predicate."""
+    # Create a DataFrame with sentiment data
+    df = session.create_dataframe(
+        [
+            ["This is amazing!"],
+            ["This is terrible!"],
+            ["This is okay."],
+            ["I love this product!"],
+            ["I hate this service."],
+        ],
+        schema=["review"],
+    )
+
+    # Filter for positive reviews
+    positive_df = df.ai.filter(
+        "Is this review positive?", input_columns=[col("review")]
+    )
+
+    # Check that we get some results (should be the positive ones)
+    results = positive_df.collect(_emit_ast=False)
+    assert len(results) >= 1  # At least some positive reviews should be found
+    assert len(results) <= 5  # Not more than the original count
+
+    # Verify the filtered results contain positive sentiment words
+    positive_reviews = [row["REVIEW"] for row in results]
+    positive_indicators = ["amazing", "love"]
+    assert any(
+        any(indicator in review.lower() for indicator in positive_indicators)
+        for review in positive_reviews
+    )
+
+
+def test_dataframe_ai_filter_with_named_placeholders(session):
+    """Test DataFrame.ai.filter with named placeholders."""
+    # Create a DataFrame with country and continent data
+    df = session.create_dataframe(
+        [
+            ["Switzerland", "Europe"],
+            ["Korea", "Asia"],
+            ["Brazil", "South America"],
+            ["Germany", "Europe"],
+            ["Japan", "Asia"],
+        ],
+        schema=["country", "continent"],
+    )
+
+    # Filter for European countries
+    european_df = df.ai.filter(
+        "Is {country} located in {continent} and specifically in Europe?",
+        input_columns={"country": col("country"), "continent": col("continent")},
+    )
+
+    # Check results
+    results = european_df.collect(_emit_ast=False)
+    assert len(results) >= 1  # Should find at least one European country
+
+    # Verify the results are European countries
+    countries = [row["COUNTRY"] for row in results]
+    european_countries = ["Switzerland", "Germany"]
+    assert any(country in european_countries for country in countries)
+
+
+def test_dataframe_ai_filter_with_positional_placeholders(session):
+    """Test DataFrame.ai.filter with positional placeholders."""
+    # Create a DataFrame with programming languages and their types
+    df = session.create_dataframe(
+        [
+            ["Python", "programming"],
+            ["SQL", "database"],
+            ["HTML", "markup"],
+            ["JavaScript", "programming"],
+            ["CSS", "styling"],
+        ],
+        schema=["language", "type"],
+    )
+
+    # Filter for programming languages
+    programming_df = df.ai.filter(
+        "Is {0} primarily used for {1} and is it a programming language?",
+        input_columns=[col("language"), col("type")],
+    )
+
+    # Check results
+    results = programming_df.collect(_emit_ast=False)
+    assert len(results) >= 1  # Should find at least one programming language
+
+    # Verify the results contain programming languages
+    languages = [row["LANGUAGE"] for row in results]
+    programming_languages = ["Python", "JavaScript"]
+    assert any(lang in programming_languages for lang in languages)
+
+
+def test_dataframe_ai_filter_error_handling(session):
+    """Test error handling in DataFrame.ai.filter."""
+    df = session.create_dataframe([["test"]], schema=["text"])
+
+    # Test invalid input_columns type
+    with pytest.raises(
+        TypeError, match="input_columns must be a list of Columns or a dict"
+    ):
+        df.ai.filter(
+            "Test predicate",
+            input_columns="invalid",  # Should be list or dict
+        )
