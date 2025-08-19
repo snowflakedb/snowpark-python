@@ -1694,16 +1694,14 @@ def test_create_dataframe_with_basic_data_types(session):
     IS_IN_STORED_PROC,
     reason="FEAT: session.sql is not supported in stored proc",
 )
-def test_create_dataframe_with_yearmonthinterval_type(session):
+def test_create_dataframe_with_year_month_interval_type(session):
     session.sql("alter session set feature_interval_types=enabled;").collect()
+
     schema = StructType([StructField("interval_col", YearMonthIntervalType())])
-
     data = [["1-2"], ["-2-3"]]
-
     df = session.create_dataframe(data, schema=schema)
 
     assert isinstance(df.schema.fields[0].datatype, YearMonthIntervalType)
-
     result = df.collect()
     assert len(result) == 2
     assert result[0][0] == "+1-02"
