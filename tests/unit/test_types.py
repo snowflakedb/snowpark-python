@@ -953,6 +953,9 @@ def test_convert_sf_to_sp_year_month_interval_type():
     assert snowpark_type.start_field == YearMonthIntervalType.MONTH
     assert snowpark_type.end_field == YearMonthIntervalType.MONTH
 
+    with pytest.raises(ValueError):
+        convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 3, 0, 0)
+
 
 def test_convert_sf_to_sp_type_internal_size():
     snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 0, 16777216)
@@ -2166,6 +2169,17 @@ def test_extract_nullable_keyword_mix_of_no_keywords():
     # This doesn't match 'NOT NULL', so it returns original string with is_nullable=True
     assert base_str == "mytype null"
     assert is_nullable is True
+
+
+def test_year_month_interval_type_invalid_fields():
+    with pytest.raises(RuntimeError, match="interval 5 to 0 is invalid"):
+        YearMonthIntervalType(5, 0)
+
+    with pytest.raises(RuntimeError, match="interval 0 to 5 is invalid"):
+        YearMonthIntervalType(0, 5)
+
+    with pytest.raises(RuntimeError, match="interval 10 to 20 is invalid"):
+        YearMonthIntervalType(10, 20)
 
 
 def test_most_permissive_type():

@@ -96,6 +96,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    YearMonthIntervalType,
 )
 from tests.utils import (
     IS_IN_STORED_PROC,
@@ -1687,6 +1688,23 @@ def test_create_dataframe_with_basic_data_types(session):
     assert result[0].asDict(True) == {k: v for k, v in zip(expected_names, data1)}
     assert result[1].asDict(True) == {k: v for k, v in zip(expected_names, data2)}
     assert df.select(expected_names).collect() == expected_rows
+
+
+def test_create_dataframe_with_yearmonthinterval_type(session):
+    session.sql("alter session set feature_interval_types=enabled;").collect()
+    schema = StructType([StructField("interval_col", YearMonthIntervalType())])
+
+    data = [["1-2"], ["-2-3"]]
+
+    df = session.create_dataframe(data, schema=schema)
+
+    assert isinstance(df.schema.fields[0].datatype, YearMonthIntervalType)
+
+    result = df.collect()
+    assert len(result) == 2
+    assert result[0][0] == "+1-02"
+    assert result[1][0] == "-2-03"
+    session.sql("alter session set feature_interval_types=disabled;").collect()
 
 
 def test_create_dataframe_with_semi_structured_data_types(session):
