@@ -28,6 +28,7 @@
 - Fixed a bug in CTE optimization stage where `deepcopy` of internal plans would cause a memory spike when a dataframe is created locally using `session.create_dataframe()` using a large input data.
 - Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
 - Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
+- Fixed the repr of TimestampType to match the actual subtype it represents.
 
 #### Deprecations
 - Deprecated `pkg_resources`.
