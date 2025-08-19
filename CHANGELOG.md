@@ -124,6 +124,10 @@
   - `ai_sentiment`
 - Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
 
+### Snowpark pandas API Updates
+
+#### New Features
+
 #### Improvements
 - Hybrid execution row estimate improvements and a reduction of eager calls.
 - Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution.

@@ -2026,14 +2026,22 @@ def _normalize_timestamp(timestamp: Union[str, datetime.datetime]) -> str:
     """
     if isinstance(timestamp, datetime.datetime):
         return str(timestamp)
+    timestamp_str = timestamp.strip()
     try:
-        parsed_timestamp = datetime.datetime.strptime(
-            timestamp.strip(), "%Y-%m-%d %H:%M:%S"
-        )
-        return parsed_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        # Try to parse with fractional seconds first
+        try:
+            parsed_timestamp = datetime.datetime.strptime(
+                timestamp_str, "%Y-%m-%d %H:%M:%S.%f"
+            )
+        except ValueError:
+            # Fall back to the original format without fractional seconds
+            parsed_timestamp = datetime.datetime.strptime(
+                timestamp_str, "%Y-%m-%d %H:%M:%S"
+            )
+        return str(parsed_timestamp)
     except ValueError:
         raise ValueError(
-            f"Timestamp must be in format 'YYYY-MM-DD HH:MM:SS'. Got: {timestamp}"
+            f"Timestamp must be in format 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD HH:MM:SS.fff'. Got: {timestamp}"
         )
 
 
