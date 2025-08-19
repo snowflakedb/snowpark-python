@@ -6,6 +6,10 @@
 
 #### New Features
 
+- Added time travel support for querying historical data:
+  - `Session.table()` now supports time travel parameters: `time_travel_mode`, `statement`, `offset`, `timestamp`, `timezone`, and `stream`.
+  - `DataFrameReader.table()` supports the same time travel parameters as direct arguments.
+  - `DataFrameReader` supports time travel via option chaining (e.g., `session.read.option("time_travel_mode", "at").option("offset", -60).table("my_table")`).
 - Added support for specifying the following parameters to `DataFrameWriter.copy_into_location` for validation and writing data to external locations:
     - `validation_mode`
     - `storage_integration`
@@ -119,10 +123,6 @@
 - Added support for the following functions in `functions.py`:
   - `ai_sentiment`
 - Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
-
-### Snowpark pandas API Updates
-
-#### New Features
 
 #### Improvements
 - Hybrid execution row estimate improvements and a reduction of eager calls.

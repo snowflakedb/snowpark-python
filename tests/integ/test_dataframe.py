@@ -5922,6 +5922,7 @@ def test_time_travel_core_functionality(session):
     df = session.create_dataframe(data, schema=["id", "name", "price"])
     df.write.save_as_table(table_name, table_type="temporary")
     session.table(table_name).collect()
+
     # Sleep to ensure stable time travel window to prevent flaky offset calculation
     import time
 
@@ -6154,7 +6155,7 @@ def test_time_travel_comprehensive_coverage(session):
         ]
         Utils.check_answer(df_join_before, expected_join_before)
 
-        # Test session.read.table() with timestamp and timezone options
+        # Test session.read.option().table() with timestamp and timezone options
         df_reader_join_before = (
             session.read.option("time_travel_mode", "before")
             .option("timestamp", ts_before_update)
@@ -6251,6 +6252,40 @@ def test_time_travel_comprehensive_coverage(session):
             .table(table1_name)
         )
         Utils.check_answer(table_before.sort("id"), option_table.sort("id"))
+
+        # ==============Test 5: Table copy operations with time travel ==============
+        time_travel_table = session.table(
+            table1_name, time_travel_mode="before", statement=update_query_id
+        )
+
+        copied_via_select = time_travel_table.select("id", "price", "active")
+        Utils.check_answer(copied_via_select.sort("id"), expected_initial)
+
+        copied_via_filter = time_travel_table.filter(col("id") > 0).select(
+            "id", "price", "active"
+        )
+        Utils.check_answer(copied_via_filter.sort("id"), expected_initial)
+
+        import copy
+
+        manual_copy = copy.copy(time_travel_table)
+        Utils.check_answer(
+            manual_copy.select("id", "price", "active").sort("id"), expected_initial
+        )
+
+        # Verify time travel config is preserved in copies
+        copied_with_ops = (
+            time_travel_table.select("id", "name", "price")
+            .filter(col("price") > 150)
+            .sort("id")
+        )
+        expected_copied = [
+            Row(2, "product_b", 200.75),
+            Row(3, "product_c", 300.25),
+        ]
+        Utils.check_answer(copied_with_ops, expected_copied)
+
+        time_travel_table.show()
 
     finally:
         Utils.drop_table(session, table1_name)
