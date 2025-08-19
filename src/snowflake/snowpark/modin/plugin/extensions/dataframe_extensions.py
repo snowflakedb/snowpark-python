@@ -21,6 +21,7 @@ from pandas._typing import IndexLabel
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
+from snowflake.snowpark.modin.plugin.extensions.ai_extensions import ArtificialIntelligence
 from snowflake.snowpark.modin.plugin.extensions.utils import add_cache_result_docstring
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
     materialization_warning,
@@ -637,3 +638,12 @@ def to_iceberg(
         index=index,
         index_label=index_label,
     )
+
+@register_dataframe_accessor("ai")
+@property
+def ai(self) -> tuple[int, int]:
+    """
+    Return an ArtificialIntelligence extension object
+    """
+    # TODO: SNOW-1063346: Modin upgrade - modin.pandas.DataFrame functions
+    return ArtificialIntelligence(self)
