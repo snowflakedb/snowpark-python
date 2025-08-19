@@ -16,11 +16,7 @@ import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 # Use correct version from here:
-from snowflake.snowpark._internal.utils import (
-    installed_pandas,
-    pandas,
-    quote_name,
-)
+from snowflake.snowpark._internal.utils import installed_pandas, pandas, quote_name
 
 # TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
 # The core issue is that in the connector detection of both pandas/arrow are mixed, which is wrong.
@@ -234,13 +230,13 @@ class TimeType(_AtomicType):
         ast.time_type = True
 
 
-class _AnsiIntervalType(_AtomicType):
+class AnsiIntervalType(_AtomicType):
     """The interval type which conforms to the ANSI SQL standard."""
 
     pass
 
 
-class YearMonthIntervalType(_AnsiIntervalType):
+class YearMonthIntervalType(AnsiIntervalType):
     """YearMonthIntervalType data type. This maps to the INTERVAL YEAR TO MONTH data type in Snowflake.
 
     Args:
@@ -248,8 +244,6 @@ class YearMonthIntervalType(_AnsiIntervalType):
         end_field: The end field of the interval (0=YEAR, 1=MONTH)
 
     Notes:
-        YearMonthIntervalType is currently in private preview since 1.38.0. It needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED`.
-
         YearMonthIntervalType is currently not supported in UDFs and Stored Procedures.
     """
 
@@ -270,11 +264,7 @@ class YearMonthIntervalType(_AnsiIntervalType):
             end_field = start_field
 
         fields = self._FIELD_NAMES.keys()
-        if (
-            start_field not in fields
-            or end_field not in fields
-            or start_field > end_field
-        ):
+        if start_field not in fields or end_field not in fields:
             raise ValueError(f"interval {start_field} to {end_field} is invalid")
 
         self.start_field = start_field
@@ -1026,6 +1016,7 @@ _atomic_types: List[Type[DataType]] = [
     IntegerType,
     LongType,
     DateType,
+    YearMonthIntervalType,
     NullType,
 ]
 
@@ -1036,10 +1027,16 @@ _timestamp_types: List[DataType] = [
     TimestampType(timezone=TimestampTimeZone.TZ),
 ]
 
+_interval_types: List[DataType] = [
+    YearMonthIntervalType(),
+    # TODO: Add DayToSecondIntervalType when implemented
+]
+
 _all_atomic_types: Dict[str, Type[DataType]] = {t.typeName(): t for t in _atomic_types}
 _all_timestamp_types: Dict[str, DataType] = {
     t.json_value(): t for t in _timestamp_types
 }
+_all_interval_types: Dict[str, DataType] = {t.json_value(): t for t in _interval_types}
 
 _complex_types: List[Type[Union[ArrayType, MapType, StructType]]] = [
     ArrayType,
@@ -1062,6 +1059,8 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
             return _all_atomic_types[json_value]()
         if json_value in _all_timestamp_types:
             return TimestampType(timezone=_all_timestamp_types[json_value].tz)
+        elif json_value in _all_interval_types:
+            return _all_interval_types[json_value]
         elif json_value == "decimal":
             return DecimalType()
         elif json_value == "variant":
