@@ -6,6 +6,12 @@
 
 #### New Features
 
+- Added support for specifying the following parameters to `DataFrameWriter.copy_into_location` for validation and writing data to external locations:
+    - `validation_mode`
+    - `storage_integration`
+    - `credentials`
+    - `encryption`
+
 #### Bug Fixes
 
 #### Deprecations
