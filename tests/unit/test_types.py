@@ -2172,13 +2172,13 @@ def test_extract_nullable_keyword_mix_of_no_keywords():
 
 
 def test_year_month_interval_type_invalid_fields():
-    with pytest.raises(RuntimeError, match="interval 5 to 0 is invalid"):
+    with pytest.raises(ValueError, match="interval 5 to 0 is invalid"):
         YearMonthIntervalType(5, 0)
 
-    with pytest.raises(RuntimeError, match="interval 0 to 5 is invalid"):
+    with pytest.raises(ValueError, match="interval 0 to 5 is invalid"):
         YearMonthIntervalType(0, 5)
 
-    with pytest.raises(RuntimeError, match="interval 10 to 20 is invalid"):
+    with pytest.raises(ValueError, match="interval 10 to 20 is invalid"):
         YearMonthIntervalType(10, 20)
 
 
