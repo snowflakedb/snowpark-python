@@ -3950,7 +3950,7 @@ def test_write_copy_into_location_storage_integration(session):
     storage_integration = os.getenv("SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION")
     s3_test_bucket_path = os.getenv("SNOWPARK_PYTHON_API_TEST_BUCKET_PATH")
     if not storage_integration or not s3_test_bucket_path:
-        pytest.skip("The test resource is not available")
+        raise ValueError("TEST PURPOSE ONLY")
     df = session.create_dataframe(
         [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
         schema=["FIRST_NAME", "LAST_NAME"],
