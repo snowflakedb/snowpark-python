@@ -194,7 +194,7 @@ class TimestampType(_AtomicType):
 
     def __repr__(self) -> str:
         return (
-            f"timezone=TimestampTimeZone('{self.tz}')"
+            f"TimestampType(timezone=TimestampTimeZone('{self.tz}'))"
             if self.tzinfo != ""
             else "TimestampType()"
         )
