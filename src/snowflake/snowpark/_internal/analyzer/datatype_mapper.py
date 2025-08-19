@@ -55,6 +55,9 @@ def str_to_sql(value: str) -> str:
 def str_to_sql_for_year_month_interval(
     value: str, datatype: YearMonthIntervalType
 ) -> str:
+    # Extract interval value from strings like "INTERVAL 1-7 YEAR TO MONTH"
+    # Examples: "1-7" -> INTERVAL '1-7' YEAR TO MONTH, "1" -> INTERVAL '1' YEAR
+    # "1-7" -> INTERVAL '7' MONTH
     extracted_values = value.split(" ")[1]
     start_field = datatype.start_field if datatype.start_field is not None else 0
     end_field = datatype.end_field if datatype.end_field is not None else 1
@@ -62,6 +65,7 @@ def str_to_sql_for_year_month_interval(
         extracted_values = extracted_values.split("-")
         extracted_value = extracted_values[0]
         if datatype.start_field == 1 and len(extracted_values) == 2:
+            # Extract the second value if we only have a MONTH interval.
             extracted_value = extracted_values[1]
         return (
             f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()}"
