@@ -3231,8 +3231,8 @@ def test_limit(session):
 
 
 @pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: session.sql is not supported and interval is in PrPr",
+    "config.getoption('local_testing_mode', default=False)" or IS_IN_STORED_PROC,
+    reason="FEAT: session.sql is not supported in stored proc or local testing",
 )
 def test_yearmonth_interval_type_dataframe(session):
     session.sql("alter session set feature_interval_types=enabled;").collect()
