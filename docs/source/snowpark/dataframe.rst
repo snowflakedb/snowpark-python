@@ -121,6 +121,7 @@ DataFrame
     DataFrameAnalyticsFunctions.compute_lead
     DataFrameAnalyticsFunctions.time_series_agg
     DataFrameAIFunctions.complete
+    DataFrameAIFunctions.filter
     dataframe.map
     dataframe.map_in_pandas
 
