@@ -1704,6 +1704,94 @@ def test_create_dataframe_with_yearmonthinterval_type(session):
     assert len(result) == 2
     assert result[0][0] == "+1-02"
     assert result[1][0] == "-2-03"
+
+    test_schema = StructType(
+        [
+            StructField("test_date", DateType()),
+            StructField("interval_col", YearMonthIntervalType()),
+        ]
+    )
+
+    test_data = [["2023-01-15", "1-6"], ["2022-06-30", "-0-3"]]
+
+    test_df = session.create_dataframe(test_data, schema=test_schema)
+
+    addition_result = test_df.select(
+        (test_df.test_date + test_df.interval_col).alias("date_plus_interval")
+    ).collect()
+
+    subtraction_result = test_df.select(
+        (test_df.test_date - test_df.interval_col).alias("date_minus_interval")
+    ).collect()
+
+    assert len(addition_result) == 2
+    assert addition_result[0][0] == datetime.date(2024, 7, 15)
+    assert addition_result[1][0] == datetime.date(2022, 3, 30)
+
+    assert len(subtraction_result) == 2
+    assert subtraction_result[0][0] == datetime.date(2021, 7, 15)
+    assert subtraction_result[1][0] == datetime.date(2022, 9, 30)
+
+    interval_arithmetic_df = session.sql(
+        """
+        SELECT
+            DATE '2023-01-01' + INTERVAL '1-2' YEAR TO MONTH as addition_result,
+            DATE '2023-12-31' - INTERVAL '0-6' YEAR TO MONTH as subtraction_result
+    """
+    )
+
+    arithmetic_result = interval_arithmetic_df.collect()
+    assert len(arithmetic_result) == 1
+    assert arithmetic_result[0][0] == datetime.date(2024, 3, 1)
+    assert arithmetic_result[0][1] == datetime.date(2023, 6, 30)
+
+    interval_schema = StructType(
+        [
+            StructField("interval1", YearMonthIntervalType()),
+            StructField("interval2", YearMonthIntervalType()),
+        ]
+    )
+
+    interval_data = [["2-6", "1-3"], ["1-0", "-0-6"], ["-1-2", "2-4"], ["-2-11", "0-1"]]
+
+    interval_df = session.create_dataframe(interval_data, schema=interval_schema)
+
+    interval_addition_result = interval_df.select(
+        (interval_df.interval1 + interval_df.interval2).alias("interval_sum")
+    ).collect()
+
+    interval_subtraction_result = interval_df.select(
+        (interval_df.interval1 - interval_df.interval2).alias("interval_diff")
+    ).collect()
+
+    assert len(interval_addition_result) == 4
+    assert interval_addition_result[0][0] == "+3-09"
+    assert interval_addition_result[1][0] == "+0-06"
+    assert interval_addition_result[2][0] == "+1-02"
+    assert interval_addition_result[3][0] == "-2-10"
+
+    assert len(interval_subtraction_result) == 4
+    assert interval_subtraction_result[0][0] == "+1-03"
+    assert interval_subtraction_result[1][0] == "+1-06"
+    assert interval_subtraction_result[2][0] == "-3-06"
+    assert interval_subtraction_result[3][0] == "-3-00"
+
+    interval_sql_df = session.sql(
+        """
+        SELECT
+            INTERVAL '2-6' YEAR TO MONTH + INTERVAL '1-3' YEAR TO MONTH as interval_addition,
+            INTERVAL '3-0' YEAR TO MONTH - INTERVAL '1-6' YEAR TO MONTH as interval_subtraction,
+            INTERVAL '1-6' YEAR TO MONTH - INTERVAL '3-0' YEAR TO MONTH as interval_subtraction_2,
+    """
+    )
+
+    interval_sql_result = interval_sql_df.collect()
+    assert len(interval_sql_result) == 1
+    assert len(interval_sql_result[0]) == 3
+    assert interval_sql_result[0][0] == "+3-09"
+    assert interval_sql_result[0][1] == "+1-06"
+    assert interval_sql_result[0][2] == "-1-06"
+
     session.sql("alter session set feature_interval_types=disabled;").collect()
 
 
