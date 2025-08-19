@@ -2513,7 +2513,7 @@ class Session:
         time_travel_mode: Optional[str] = None,
         statement: Optional[str] = None,
         offset: Optional[int] = None,
-        timestamp: Optional[Union[str, datetime]] = None,
+        timestamp: Optional[Union[str, datetime.datetime]] = None,
         timezone: Optional[str] = "NTZ",
         stream: Optional[str] = None,
     ) -> Table:
