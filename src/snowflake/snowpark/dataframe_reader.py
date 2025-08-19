@@ -1351,7 +1351,7 @@ class DataFrameReader:
                     By default we use java 11.
 
             properties: A dictionary containing key-value pair that is needed during establishing connection with external data source.
-                Please do not include any secrest in this parameter.
+                Please do not include any secrets in this parameter.
 
             table: The name of the table in the external data source.
                 This parameter cannot be used together with the `query` parameter.
@@ -1402,8 +1402,8 @@ class DataFrameReader:
         ).collect()
         secret = None
         for r in eai_info:
-            if "ALLOWED_NETWORK_RULES" == r[0]:
-                secret = r[2]
+            if "ALLOWED_AUTHENTICATION_SECRETS" == r[0]:
+                secret = r[2][1:-1].split(",")[0].strip()
                 break
 
         if external_access_integration is None or imports is None:
@@ -1432,6 +1432,8 @@ class DataFrameReader:
             session_init_statement=session_init_statement,
             _emit_ast=_emit_ast,
         )
+        # remove clear text secret in connection string or properties
+        jdbc_client.secret_detector()
 
         partitions = jdbc_client.partitions
 
@@ -1441,7 +1443,7 @@ class DataFrameReader:
         ).write.save_as_table(partitions_table, table_type="temp")
 
         df = jdbc_client.read(partitions_table)
-        return df
+        return jdbc_client.to_result_snowpark_df(df, jdbc_client.schema)
 
     @private_preview(version="1.29.0")
     @publicapi

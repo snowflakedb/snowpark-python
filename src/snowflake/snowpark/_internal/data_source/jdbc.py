@@ -9,7 +9,11 @@ from typing import Optional, Union, List, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source import DataSourcePartitioner
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
-from snowflake.snowpark._internal.utils import generate_random_alphanumeric
+from snowflake.snowpark._internal.utils import (
+    generate_random_alphanumeric,
+    random_name_for_temp_object,
+    TempObjectType,
+)
 from snowflake.snowpark.types import (
     StructType,
     DecimalType,
@@ -19,6 +23,9 @@ from snowflake.snowpark.types import (
     BooleanType,
     ArrayType,
     StructField,
+    VariantType,
+    TimestampType,
+    TimestampTimeZone,
 )
 
 if TYPE_CHECKING:
@@ -37,7 +44,7 @@ JAVA_TYPE_TO_SNOWFLAKE_TYPE = {
     "java.lang.Double": FloatType,
     "java.lang.Boolean": BooleanType,
     "java.lang.String": StringType,
-    "java.sql.Timestamp": StringType,
+    "java.sql.Timestamp": TimestampType,
     "java.sql.Date": DateType,
     "java.sql.Array": ArrayType,
     "java.lang.String[]": ArrayType,
@@ -53,7 +60,7 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
     "NCHAR": StringType,
     "NVARCHAR": StringType,
     "NCLOB": StringType,
-    "TIMESTAMP": StringType,
+    "TIMESTAMP": TimestampType,
     "VARBINARY": StringType,
 }
 
@@ -69,9 +76,9 @@ class JDBC:
         external_access_integration: str,
         imports: List[str],
         is_query: bool,
+        secret: str,
         *,
         properties: Optional[dict] = None,
-        secret: Optional[str] = None,
         packages: Optional[List[str]] = None,
         java_version: Optional[int] = 11,
         column: Optional[str] = None,
@@ -108,31 +115,31 @@ class JDBC:
         self.session_init_statement = session_init_statement
         self.raw_schema = None
         self._emit_ast = _emit_ast
-        self.imports = (
+        self.imports_sql = (
             f"""IMPORTS =({",".join([f"'{imp}'" for imp in self.imports])})"""
             if self.imports is not None
             else ""
         )
-        self.packages = (
+        self.packages_sql = (
             f"""PACKAGES=({','.join([f"'{pack}'" for pack in self.packages])})"""
             if self.packages is not None
             else "PACKAGES=('com.snowflake:snowpark:latest')"
         )
+        self.secret_sql = f"SECRETS = ('cred' = {self.secret})"
         self._infer_schema_successful = True
 
     @cached_property
     def schema(self) -> StructType:
-        infer_schema_udtf_name = (
-            f"JDBC_INFER_SCHEMA_{generate_random_alphanumeric().upper()}"
-        )
+        infer_schema_udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
         infer_schema_udtf_registration = f"""
             CREATE OR REPLACE FUNCTION {infer_schema_udtf_name}(query VARCHAR)
             RETURNS TABLE (field_name VARCHAR, jdbc_type VARCHAR, java_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN)
             LANGUAGE JAVA
             RUNTIME_VERSION = '{self.java_version}'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
-            {self.imports}
-            {self.packages}
+            {self.imports_sql}
+            {self.packages_sql}
+            {self.secret_sql}
             HANDLER = 'DataLoader'
             as
             $$
@@ -267,7 +274,7 @@ class JDBC:
         )
 
     def read(self, partition_table: str) -> "DataFrame":
-        jdbc_ingestion_name = f"JDBC_INGESTION_{generate_random_alphanumeric().upper()}"
+        jdbc_ingestion_name = random_name_for_temp_object(TempObjectType.FUNCTION)
         udtf_table_return_type = ", ".join(
             [f"{field.name} VARCHAR" for field in self.schema.fields]
         )
@@ -278,8 +285,9 @@ class JDBC:
             LANGUAGE JAVA
             RUNTIME_VERSION = '{self.java_version}'
             EXTERNAL_ACCESS_INTEGRATIONS=({self.external_access_integration})
-            {self.imports}
-            {self.packages}
+            {self.imports_sql}
+            {self.packages_sql}
+            {self.secret_sql}
             HANDLER = 'DataLoader'
             as
             $$
@@ -370,16 +378,16 @@ class JDBC:
             if self.properties is not None
             else ""
         )
-        get_secret = f"""
+        get_secret = """
                     SnowflakeSecrets secrets = SnowflakeSecrets.newInstance();
-                    UsernamePassword up = secrets.getUsernamePassword("{self.secret}");
+                    UsernamePassword up = secrets.getUsernamePassword("cred");
                     properties.put("user", up.getUsername());
                     properties.put("password", up.getPassword());
         """
         return f"""
                 String url = "{self.url}";
                 java.util.Properties properties = new java.util.Properties();
-                {get_secret if self.secret is not None else ""}
+                {get_secret}
                 {user_properties_overwrite}
                 return DriverManager.getConnection(url, properties);
             """
@@ -418,7 +426,7 @@ class JDBC:
             nullable,
         ) in self.raw_schema:
             jdbc_to_snow_type = JDBC_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, None)
-            java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, StringType)
+            java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, VariantType)
             snow_type = (
                 java_to_snow_type if jdbc_to_snow_type is None else jdbc_to_snow_type
             )
@@ -434,6 +442,8 @@ class JDBC:
                     precision if precision is not None else 38,
                     scale if scale is not None else 0,
                 )
+            elif snow_type == TimestampType:
+                data_type = snow_type(TimestampTimeZone.TZ)
             else:
                 data_type = snow_type()
 
@@ -473,3 +483,15 @@ class JDBC:
         self.url = re.sub(
             r"(?<=://)([^:/]+)(:[^@]+)?@", "", self.url  # Matches user[:password]@
         )
+
+    @staticmethod
+    def to_result_snowpark_df(
+        res_df: "DataFrame",
+        schema: StructType,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        cols = [
+            res_df[field.name].cast(field.datatype).alias(field.name)
+            for field in schema.fields
+        ]
+        return res_df.select(cols, _emit_ast=_emit_ast)
