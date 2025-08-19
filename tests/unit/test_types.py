@@ -235,7 +235,10 @@ def test_sf_datatype_names():
     assert str(FloatType()) == "FloatType()"
     assert str(DoubleType()) == "DoubleType()"
     assert str(DecimalType(1, 2)) == "DecimalType(1, 2)"
-    assert str(TimestampType(TimestampTimeZone.TZ)) == "TimestampType(timezone=TimestampTimeZone('tz'))"
+    assert (
+        str(TimestampType(TimestampTimeZone.TZ))
+        == "TimestampType(timezone=TimestampTimeZone('tz'))"
+    )
 
 
 def test_sf_datatype_hashes():
@@ -261,7 +264,9 @@ def test_sf_datatype_hashes():
     assert hash(FloatType()) == hash("FloatType()")
     assert hash(DoubleType()) == hash("DoubleType()")
     assert hash(DecimalType(1, 2)) == hash("DecimalType(1, 2)")
-    assert hash(TimestampType(TimestampTimeZone.TZ)) == hash("TimestampType(timezone=TimestampTimeZone('tz'))")
+    assert hash(TimestampType(TimestampTimeZone.TZ)) == hash(
+        "TimestampType(timezone=TimestampTimeZone('tz'))"
+    )
 
 
 def test_merge_type():
