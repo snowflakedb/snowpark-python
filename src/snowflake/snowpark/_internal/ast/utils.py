@@ -1095,13 +1095,13 @@ def fill_write_file(
         for k, v in credentials.items():
             t = expr.credentials.add()
             t._1 = k
-            t._2 = v
+            build_expr_from_python_val(t._2, v)
 
     if encryption is not None:
         for k, v in encryption.items():
             t = expr.encryption.add()
             t._1 = k
-            t._2 = v
+            build_expr_from_python_val(t._2, v)
 
     if copy_options:
         for k, v in copy_options.items():  # type: ignore[assignment] # TODO(SNOW-1491199) # Incompatible types in assignment (expression has type "dict[Any, Any]", variable has type "str")
