@@ -18,6 +18,7 @@
 
 #### Improvements
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
+- Updated the error message for when Snowpark pandas is referenced within apply.
 
 #### Dependency Updates
 #### Bug Fixes
