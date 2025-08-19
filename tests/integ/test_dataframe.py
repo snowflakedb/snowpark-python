@@ -1691,8 +1691,8 @@ def test_create_dataframe_with_basic_data_types(session):
 
 
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="FEAT: session.sql is not supported in stored proc",
+    "config.getoption('local_testing_mode', default=False)" or IS_IN_STORED_PROC,
+    reason="FEAT: session.sql is not supported in stored proc or local testing",
 )
 def test_create_dataframe_with_year_month_interval_type(session):
     session.sql("alter session set feature_interval_types=enabled;").collect()
