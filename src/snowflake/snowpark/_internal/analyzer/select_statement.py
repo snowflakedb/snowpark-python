@@ -85,6 +85,7 @@ from snowflake.snowpark._internal.select_projection_complexity_utils import (
 from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     ExprAliasUpdateDict,
+    generate_time_travel_sql_clause,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -588,7 +589,14 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_query(self) -> str:
-        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.entity.name}"
+        table_reference = self.entity.name
+
+        if self.entity.time_travel_config is not None:
+            table_reference += generate_time_travel_sql_clause(
+                self.entity.time_travel_config
+            )
+
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{table_reference}"
 
     @property
     def commented_sql(self) -> str:
@@ -596,12 +604,26 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_in_subquery(self) -> str:
-        return self.entity.name
+        table_reference = self.entity.name
+
+        if self.entity.time_travel_config is not None:
+            table_reference += generate_time_travel_sql_clause(
+                self.entity.time_travel_config
+            )
+
+        return table_reference
 
     @property
     def sql_in_subquery_with_uuid(self) -> str:
+        table_reference = self.entity.name
+
+        if self.entity.time_travel_config is not None:
+            table_reference += generate_time_travel_sql_clause(
+                self.entity.time_travel_config
+            )
+
         UUID = analyzer_utils.format_uuid(self.uuid)
-        return f"{UUID}{self.entity.name}{UUID}"
+        return f"{UUID}{table_reference}{UUID}"
 
     @property
     def schema_query(self) -> str:

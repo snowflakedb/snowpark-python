@@ -570,3 +570,176 @@ def test_nullable_is_false_dataframe(session):
         session.create_dataframe(
             [None for _ in range(ARRAY_BIND_THRESHOLD + 1)], schema=schema
         ).collect()
+
+
+def test_time_travel(session):
+    with session.query_history() as query_history:
+        session.sql(
+            """create or replace temp table test_time_travel_table(id int, name string)
+                as select * from values
+                (1, 'alice'),
+                (2, 'bob'),
+                (3, 'charlie'),
+                (4, 'david')"""
+        ).collect()
+        session.sql(
+            """insert into test_time_travel_table values (5, 'eve'), (6, 'frank')"""
+        ).collect()
+    query_id = query_history.queries[-1].query_id
+
+    # ============== session.py::table() and dataframe_reader.py::table() (df_1 to df_5) ==============
+    from datetime import datetime
+
+    df_1 = session.table(
+        "test_time_travel_table", time_travel_mode="before", statement=query_id
+    )
+    check_generated_plan_queries(df_1._plan)
+
+    df_2 = (
+        session.read.table(
+            "test_time_travel_table", time_travel_mode="At", statement=query_id
+        )
+        .select("id", "name")
+        .filter(col("id") > 2)
+    )
+    check_generated_plan_queries(df_2._plan)
+
+    df_3 = session.table(
+        "test_time_travel_table", time_travel_mode="Before", offset=-20
+    )
+    check_generated_plan_queries(df_3._plan)
+
+    df_4 = session.read.table(
+        "test_time_travel_table",
+        time_travel_mode="before",
+        timestamp=datetime.now(),
+        timezone="LTZ",
+    ).select("name")
+    check_generated_plan_queries(df_4._plan)
+
+    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    df_5 = session.table(
+        "test_time_travel_table", time_travel_mode="at", timestamp=timestamp_str
+    )
+    check_generated_plan_queries(df_5._plan)
+
+    # ============== DataFrameReader option-based time travel (df_6 to df_10) ==============
+
+    df_6 = (
+        session.read.option("time_travel_mode", "before")
+        .option("statement", query_id)
+        .table("test_time_travel_table")
+    )
+    check_generated_plan_queries(df_6._plan)
+
+    df_7 = (
+        session.read.option("time_travel_mode", "at")
+        .option("offset", -120)
+        .table("test_time_travel_table")
+    )
+    check_generated_plan_queries(df_7._plan)
+
+    df_8 = (
+        session.read.option("time_travel_mode", "before")
+        .option("timestamp", timestamp_str)
+        .option("timezone", "LTZ")
+        .table("test_time_travel_table")
+    )
+    check_generated_plan_queries(df_8._plan)
+
+    df_9 = (
+        session.read.option("time_travel_mode", "before")  # This will be IGNORED
+        .option("offset", -60)  # This will be IGNORED
+        .table("test_time_travel_table", time_travel_mode="at", statement=query_id)
+    )  # Only these are used
+    check_generated_plan_queries(df_9._plan)
+
+    df_10 = (
+        session.read.option("time_travel_mode", "at")
+        .option("timestamp", timestamp_str)
+        .table("test_time_travel_table")
+    )
+    check_generated_plan_queries(df_10._plan)
+
+    # ============== error handling ==============
+    with pytest.raises(
+        ValueError,
+        match="Invalid time travel mode: befor. Must be 'at' or 'before'.",
+    ):
+        session.read.table("test_time_travel_table", time_travel_mode="befor")
+
+    with pytest.raises(
+        ValueError,
+        match="Must specify time travel mode 'at' or 'before' if any other time travel parameter is provided.",
+    ):
+        session.read.option("offset", -10).table("test_time_travel_table")
+
+    with pytest.raises(
+        ValueError,
+        match="Exactly one of 'statement', 'offset', 'timestamp', or 'stream' must be provided.",
+    ):
+        session.table(
+            "test_time_travel_table",
+            time_travel_mode="before",
+            statement=query_id,
+            offset=-10,
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="Exactly one of 'statement', 'offset', 'timestamp', or 'stream' must be provided.",
+    ):
+        session.read.option("time_travel_mode", "at").option(
+            "statement", query_id
+        ).option("offset", -60).table("test_time_travel_table")
+
+    with pytest.raises(
+        ValueError,
+        match="Exactly one of 'statement', 'offset', 'timestamp', or 'stream' must be provided.",
+    ):
+        session.read.table("test_time_travel_table", time_travel_mode="at")
+
+    with pytest.raises(
+        ValueError,
+        match="Exactly one of 'statement', 'offset', 'timestamp', or 'stream' must be provided.",
+    ):
+        session.table(
+            "test_time_travel_table",
+            time_travel_mode="at",
+            statement=query_id,
+            offset=-10,
+        ).select("id")
+
+    with pytest.raises(
+        ValueError, match=r"'offset' must be a negative integer \(seconds\)\."
+    ):
+        session.read.table(
+            "test_time_travel_table", time_travel_mode="before", offset=1
+        )
+
+    with pytest.raises(
+        ValueError, match=r"'offset' must be a negative integer \(seconds\)\."
+    ):
+        session.table("test_time_travel_table", time_travel_mode="at", offset=60)
+
+    with pytest.raises(
+        ValueError,
+        match="'timezone' value LZ must be None or one of 'NTZ', 'LTZ', or 'TZ'.",
+    ):
+        session.table(
+            "test_time_travel_table",
+            time_travel_mode="before",
+            timestamp=datetime.now(),
+            timezone="LZ",
+        )
+
+    with pytest.raises(
+        ValueError,
+        match=r"Timestamp must be in format 'YYYY-MM-DD HH:MM:SS'. Got: 2023-01-01 25:00:00",
+    ):
+        session.read.table(
+            "test_time_travel_table",
+            time_travel_mode="at",
+            timestamp="2023-01-01 25:00:00",
+            timezone="LtZ",
+        )
