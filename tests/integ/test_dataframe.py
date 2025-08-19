@@ -3946,11 +3946,18 @@ def test_write_copy_into_location_csv(session, partition_by):
     reason="The test resource is only available on GitHub",
 )
 def test_write_copy_into_location_storage_integration(session):
+    if any(
+        platform in session.connection.host.split(".") for platform in ["gcp", "azure"]
+    ):
+        pytest.skip(
+            reason="Skipping test for Azure and GCP deployment as test resources are not available"
+        )
     # set up in github repo Actions secrets and variables
     storage_integration = os.getenv("SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION")
     s3_test_bucket_path = os.getenv("SNOWPARK_PYTHON_API_TEST_BUCKET_PATH")
-    if not storage_integration or not s3_test_bucket_path:
-        raise ValueError("TEST PURPOSE ONLY")
+    assert (
+        storage_integration and s3_test_bucket_path
+    ), "AWS test resources are not available"
     df = session.create_dataframe(
         [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
         schema=["FIRST_NAME", "LAST_NAME"],

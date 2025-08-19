@@ -920,12 +920,19 @@ def test_writer_json(session, tmpdir_factory):
     IS_NOT_ON_GITHUB,
     reason="The test resource is only available on GitHub",
 )
-def test_writer_external_cloud_storage(session, temp_stage):
+def test_writer_external_cloud_storage(session):
+    if any(
+        platform in session.connection.host.split(".") for platform in ["gcp", "azure"]
+    ):
+        pytest.skip(
+            reason="Skipping test for Azure and GCP deployment as test resources are not available"
+        )
     # set up in github repo Actions secrets and variables
     storage_integration = os.getenv("SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION")
     s3_test_bucket_path = os.getenv("SNOWPARK_PYTHON_API_TEST_BUCKET_PATH")
-    if not storage_integration or not s3_test_bucket_path:
-        pytest.skip("The test resource is not available")
+    assert (
+        storage_integration and s3_test_bucket_path
+    ), "AWS test resources are not available"
     df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
     result = df.write.parquet(
         f"{s3_test_bucket_path}/ci_test/test.parquet",
