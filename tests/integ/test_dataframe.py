@@ -5910,3 +5910,348 @@ def test_order_by_col(session, sql_simplifier_enabled, local_testing_mode):
 
     df = session.create_dataframe([(1, 2.0, "foo"), (2, None, "bar")], ["a", "b", "c"])
     Utils.check_answer(df.select("c").orderBy("b"), df.select("c").orderBy(col("b")))
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Time travel is not supported in Local Testing",
+)
+def test_time_travel_core_functionality(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    data = [(1, "product_a", 100), (2, "product_b", 200), (3, "product_c", 300)]
+    df = session.create_dataframe(data, schema=["id", "name", "price"])
+    df.write.save_as_table(table_name, table_type="temporary")
+    session.table(table_name).collect()
+    # Sleep to ensure stable time travel window to prevent flaky offset calculation
+    import time
+
+    time.sleep(2)
+
+    ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
+    with session.query_history() as query_history:
+        session.sql(
+            f"UPDATE {table_name} SET price = price + 50 WHERE id <= 2"
+        ).collect()
+    update_qid = query_history.queries[-1].query_id
+
+    expected_before_update = [
+        Row(1, "product_a", 100),
+        Row(2, "product_b", 200),
+        Row(3, "product_c", 300),
+    ]
+    expected_after_update = [
+        Row(1, "product_a", 150),
+        Row(2, "product_b", 250),
+        Row(3, "product_c", 300),
+    ]
+    try:
+        # ==============Test 1: BEFORE/AT with statement ==============
+        df_before_stmt = session.table(
+            table_name, time_travel_mode="before", statement=update_qid
+        )
+        Utils.check_answer(df_before_stmt, expected_before_update)
+
+        df_at_stmt = session.table(
+            table_name, time_travel_mode="at", statement=update_qid
+        )
+        Utils.check_answer(df_at_stmt, expected_after_update)
+
+        df_reader_before_stmt = session.read.table(
+            table_name, time_travel_mode="before", statement=update_qid
+        )
+        Utils.check_answer(df_reader_before_stmt, df_before_stmt)
+
+        df_reader_at_stmt = session.read.table(
+            table_name, time_travel_mode="at", statement=update_qid
+        )
+        Utils.check_answer(df_reader_at_stmt, df_at_stmt)
+
+        # ==============Test 2: BEFORE/AT with offset ==============
+        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
+            0
+        ]
+        offset_seconds = (
+            int((ts_after_update - ts_before_update).total_seconds()) + 1
+        )  # round up
+        df_at_offset = session.table(
+            table_name, time_travel_mode="at", offset=-offset_seconds
+        )
+        Utils.check_answer(df_at_offset, expected_before_update)
+
+        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
+            0
+        ]
+        offset_seconds = (
+            int((ts_after_update - ts_before_update).total_seconds()) + 1
+        )  # round up
+        df_before_offset = session.table(
+            table_name, time_travel_mode="before", offset=-offset_seconds
+        )
+        Utils.check_answer(df_before_offset, expected_before_update)
+
+        # ==============Test 3: BEFORE/AT with timestamp ==============
+        df_before_ts = session.table(
+            table_name,
+            time_travel_mode="before",
+            timestamp=ts_before_update,
+            timezone="LTZ",
+        )
+        Utils.check_answer(df_before_ts, expected_before_update)
+
+        df_at_ts = session.table(
+            table_name,
+            time_travel_mode="at",
+            timestamp=ts_before_update,
+            timezone="LTZ",
+        )
+        Utils.check_answer(df_at_ts, expected_before_update)
+
+        df_reader_before_ts = session.read.table(
+            table_name,
+            time_travel_mode="before",
+            timestamp=ts_before_update,
+            timezone="LTZ",
+        )
+        Utils.check_answer(df_before_ts, df_reader_before_ts)
+
+        # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
+        df_before_ts_after_update = session.table(
+            table_name,
+            time_travel_mode="before",
+            timestamp=ts_after_update,
+            timezone="LTZ",
+        )
+        Utils.check_answer(df_before_ts_after_update, expected_after_update)
+
+        df_at_ts_after_update = session.table(
+            table_name, time_travel_mode="at", timestamp=ts_after_update, timezone="LTZ"
+        )
+        Utils.check_answer(df_at_ts_after_update, expected_after_update)
+
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Time travel is not supported in Local Testing",
+)
+def test_time_travel_comprehensive_coverage(session):
+    # ============== Test Setup ==============
+    table1_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table2_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    data_1 = [
+        (1, "product_a", 100.50, True),
+        (2, "product_b", 200.75, False),
+        (3, "product_c", 300.25, True),
+    ]
+    df_1 = session.create_dataframe(data_1, schema=["id", "name", "price", "active"])
+    df_1.write.save_as_table(table1_name, table_type="temporary")
+
+    data_2 = [(1, "electronics"), (2, "clothing"), (3, "automotive")]
+    df_2 = session.create_dataframe(data_2, schema=["id", "category"])
+    df_2.write.save_as_table(table2_name, table_type="temporary")
+
+    # Sleep to ensure stable time travel window
+    import time
+
+    time.sleep(2)
+
+    ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
+
+    with session.query_history() as query_history:
+        session.sql(
+            f"UPDATE {table1_name} SET price = price * 1.1 WHERE id <= 2"
+        ).collect()
+    update_query_id = query_history.queries[-1].query_id
+
+    with session.query_history() as query_history:
+        session.sql(
+            f"INSERT INTO {table1_name} VALUES (4, 'product_d', 400.0, false)"
+        ).collect()
+    insert_query_id = query_history.queries[-1].query_id
+
+    try:
+        # ==============Test 1: session.table() with time travel and basic data validation ==============
+        df_before = (
+            session.table(
+                table1_name, time_travel_mode="before", statement=update_query_id
+            )
+            .select("id", "price", "active")
+            .sort("id")
+        )
+        expected_initial = [
+            Row(1, 100.50, True),
+            Row(2, 200.75, False),
+            Row(3, 300.25, True),
+        ]
+        Utils.check_answer(df_before, expected_initial)
+
+        df_at = (
+            session.table(table1_name, time_travel_mode="at", statement=update_query_id)
+            .select("id", "name", "price", "active")
+            .sort("id")
+        )
+        expected_after_update = [
+            Row(1, "product_a", 110.55, True),
+            Row(2, "product_b", 220.825, False),
+            Row(3, "product_c", 300.25, True),
+        ]
+        Utils.check_answer(df_at, expected_after_update)
+
+        # Test session.read.table() and option-based equivalence
+        df_reader_at = session.read.table(
+            table1_name, time_travel_mode="at", statement=update_query_id
+        )
+        Utils.check_answer(df_at.sort("id"), df_reader_at.sort("id"))
+
+        df_option_at = (
+            session.read.option("time_travel_mode", "at")
+            .option("statement", update_query_id)
+            .table(table1_name)
+            .select("id", "name", "price", "active")
+        )
+        Utils.check_answer(df_at.sort("id"), df_option_at.sort("id"))
+
+        df_before_insert = (
+            session.table(
+                table1_name, time_travel_mode="before", statement=insert_query_id
+            )
+            .select("id", "name", "price", "active")
+            .sort("id")
+        )
+        Utils.check_answer(df_before_insert, expected_after_update)
+
+        df_at_insert = (
+            session.table(table1_name, time_travel_mode="at", statement=insert_query_id)
+            .select("id", "name", "price", "active")
+            .sort("id")
+        )
+        expected_after_insert = [
+            Row(1, "product_a", 110.55, True),
+            Row(2, "product_b", 220.825, False),
+            Row(3, "product_c", 300.25, True),
+            Row(4, "product_d", 400.0, False),
+        ]
+        Utils.check_answer(df_at_insert, expected_after_insert)
+
+        # ==============Test 2: session.table() with time travel, joins and timestamp ==============
+        df_join_before = (
+            session.table(
+                table1_name,
+                time_travel_mode="before",
+                timestamp=ts_before_update,
+                timezone="LTZ",
+            )
+            .join(session.table(table2_name), "id")
+            .select("id", "name", "category", "price")
+            .sort("id")
+        )
+        expected_join_before = [
+            Row(1, "product_a", "electronics", 100.50),
+            Row(2, "product_b", "clothing", 200.75),
+            Row(3, "product_c", "automotive", 300.25),
+        ]
+        Utils.check_answer(df_join_before, expected_join_before)
+
+        # Test session.read.table() with timestamp and timezone options
+        df_reader_join_before = (
+            session.read.option("time_travel_mode", "before")
+            .option("timestamp", ts_before_update)
+            .option("timezone", "LTZ")
+            .table(table1_name)
+            .join(session.table(table2_name), "id")
+            .select("id", "name", "category", "price")
+            .sort("id")
+        )
+        Utils.check_answer(df_join_before, df_reader_join_before)
+
+        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
+            0
+        ]
+        df_join_after = (
+            session.table(
+                table1_name,
+                time_travel_mode="at",
+                timestamp=ts_after_update,
+                timezone="LTZ",
+            )
+            .join(session.table(table2_name), "id")
+            .select("id", "name", "category", "price")
+            .sort("id")
+        )
+        expected_join_after = [
+            Row(1, "product_a", "electronics", 110.55),
+            Row(2, "product_b", "clothing", 220.825),
+            Row(3, "product_c", "automotive", 300.25),
+        ]
+        Utils.check_answer(df_join_after, expected_join_after)
+
+        # ==============Test 3: DataFrame chained operations with time travel ==============
+        df_chained_before = (
+            session.table(
+                table1_name, time_travel_mode="before", statement=update_query_id
+            )
+            .select("id", "name", "price", "active")
+            .filter(col("price") > 150)
+            .with_column("discounted_price", col("price") * 0.9)
+            .sort("id")
+        )
+        expected_chained_before = [
+            Row(2, "product_b", 200.75, False, 180.675),
+            Row(3, "product_c", 300.25, True, 270.225),
+        ]
+        Utils.check_answer(df_chained_before, expected_chained_before)
+
+        df_chained_after = (
+            session.table(table1_name, time_travel_mode="at", statement=update_query_id)
+            .select("id", "name", "price", "active")
+            .filter(col("price") > 150)
+            .with_column("discounted_price", col("price") * 0.9)
+            .sort("id")
+        )
+        expected_chained_after = [
+            Row(2, "product_b", 220.825, False, 198.7425),
+            Row(3, "product_c", 300.25, True, 270.225),
+        ]
+        Utils.check_answer(df_chained_after, expected_chained_after)
+
+        # Test session.read.table() equivalence for chained operations
+        df_reader_chained = (
+            session.read.table(
+                table1_name, time_travel_mode="before", statement=update_query_id
+            )
+            .select("id", "name", "price", "active")
+            .filter(col("price") > 150)
+            .with_column("discounted_price", col("price") * 0.9)
+            .sort("id")
+        )
+        Utils.check_answer(df_chained_before, df_reader_chained)
+
+        # ==============Test 4: session.table() vs session.read.table() vs session.read.option().table() equivalence ==============
+        table_before = session.table(
+            table1_name, time_travel_mode="before", statement=update_query_id
+        )
+        read_table_before = session.read.table(
+            table1_name, time_travel_mode="before", statement=update_query_id
+        )
+        Utils.check_answer(table_before.sort("id"), read_table_before.sort("id"))
+
+        table_at = session.table(
+            table1_name, time_travel_mode="at", statement=update_query_id
+        )
+        read_table_at = session.read.table(
+            table1_name, time_travel_mode="at", statement=update_query_id
+        )
+        Utils.check_answer(table_at.sort("id"), read_table_at.sort("id"))
+
+        option_table = (
+            session.read.option("time_travel_mode", "before")
+            .option("statement", update_query_id)
+            .table(table1_name)
+        )
+        Utils.check_answer(table_before.sort("id"), option_table.sort("id"))
+
+    finally:
+        Utils.drop_table(session, table1_name)
+        Utils.drop_table(session, table2_name)
