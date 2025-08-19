@@ -70,6 +70,7 @@ from snowflake.snowpark.functions import (
     uniform,
     when,
     cast,
+    to_timestamp_ntz,
 )
 from snowflake.snowpark.types import (
     FileType,
@@ -2282,6 +2283,35 @@ def test_show_dataframe_spark(session):
             |2022-12-31 18:00:00.0101|2023-01-01 00:00:01.0101|
             |2023-01-01 03:00:00     |2023-01-01 00:00:01     |
             +------------------------+------------------------+
+            """
+            ),
+        )
+
+        assert_show_string_equals(
+            session.create_dataframe(
+                [
+                    ("0001-01-01 00:00:00",),
+                    ("554-01-01 00:00:00.120000",),
+                    ("554-01-01 00:00:00.12345678",),
+                    ("554-01-01 00:00:00.12000009",),
+                ],
+                schema=["ts_str"],
+            )
+            .select(to_timestamp_ntz(col("ts_str")))
+            ._show_string_spark(
+                truncate=False,
+                _spark_session_tz="Turkey",
+            ),
+            dedent(
+                """
+           +------------------------------+
+           |"TO_TIMESTAMP_NTZ(""TS_STR"")"|
+           +------------------------------+
+           |0001-01-01 00:00:00           |
+           |0554-01-01 00:00:00.12        |
+           |0554-01-01 00:00:00.123456    |
+           |0554-01-01 00:00:00.12        |
+           +------------------------------+
             """
             ),
         )
