@@ -3,18 +3,22 @@
 #
 
 from collections.abc import Hashable, Sequence
-from typing import Literal, Optional, Union
+from typing import Iterable, Literal, Optional, Union
 
 import pandas as native_pd
 
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark.functions import array_construct
+from snowflake.snowpark.functions import array_construct, Column
 from snowflake.snowpark.modin.plugin._internal import join_utils
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
-from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import OrderingColumn
+from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
+    OrderingColumn,
+    OrderedDataFrame,
+)
 from snowflake.snowpark.modin.plugin._internal.utils import (
     INDEX_LABEL,
     append_columns,
+    generate_snowflake_quoted_identifiers_helper,
     pandas_lit,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
@@ -130,8 +134,50 @@ def convert_to_single_level_index(frame: InternalFrame, axis: int) -> InternalFr
         )
 
 
-def _dedupe_identifiers_without_reorder(t: tuple) -> tuple:
-    return tuple(item for index, item in enumerate(t) if item not in t[:index])
+def _select_possibly_duplicate_identifiers_in_order(
+    frame: OrderedDataFrame, identifiers: Iterable[str]
+) -> OrderedDataFrame:
+    """
+    Select an iterable of identifiers in the given order from an OrderedDataFrame.
+
+    If a given identifier appears more than once in `t`, then the column that
+    that identifier refers to will be selected in whatever positions it appears
+    in `t`. One of the instances of the selected column will have the given
+    identifier as its alias, while the other instances will have different, unique
+    aliases.
+
+    For example, suppose that we want to select identifiers ["a", "b", "a"].
+    Then the expressions that we select through this method may be
+    [Column("a").as_("a"), Column("b"), Column("a").as_("a_1")]
+
+    This function is useful for implementing concat(), because we may want to
+    select the same column twice from the same frame, e.g. if we are using a
+    column both as an index column and as a row order column. Snowflake does not
+    allow us to use the same column alias twice.
+
+    Args:
+        frame: An OrderedDataFrame.
+        t: An iterable of identifiers.
+
+    Returns:
+        A new OrderedDataFrame with the selected identifiers in the given order.
+    """
+    expressions_to_select: list[Union[str, Column]] = []
+    selected_identifiers = set[str]()
+    selected_aliases = list[str]()
+    for identifier in identifiers:
+        if identifier in selected_identifiers:
+            alias = generate_snowflake_quoted_identifiers_helper(
+                pandas_labels=[identifier], excluded=[*identifiers, *selected_aliases]
+            )[0]
+            expression_to_select = Column(identifier).as_(alias)
+        else:
+            alias = expression_to_select = identifier
+        expressions_to_select.append(expression_to_select)
+        selected_identifiers.add(identifier)
+        selected_aliases.append(alias)
+
+    return frame.select(expressions_to_select)
 
 
 def union_all(
@@ -201,24 +247,15 @@ def union_all(
         + frame2.ordering_column_snowflake_quoted_identifiers
     )
 
-    # ensure there is no overlap in column identifiers before the union, this occurs when there is an
-    # existing row_position column used for ordering and the index
-    frame1_identifiers_for_union_all = _dedupe_identifiers_without_reorder(
-        frame1_identifiers_for_union_all
-    )
-    frame2_identifiers_for_union_all = _dedupe_identifiers_without_reorder(
-        frame2_identifiers_for_union_all
-    )
-
     # In Snowflake UNION ALL operator, the names of the output columns are based on the
     # names of the columns of the first query. So here we copy identifiers from
     # first frame.
     # Reference: https://docs.snowflake.com/en/sql-reference/operators-query
-    ordered_dataframe1 = frame1.ordered_dataframe.select(
-        frame1_identifiers_for_union_all
+    ordered_dataframe1 = _select_possibly_duplicate_identifiers_in_order(
+        frame1.ordered_dataframe, frame1_identifiers_for_union_all
     )
-    ordered_dataframe2 = frame2.ordered_dataframe.select(
-        frame2_identifiers_for_union_all
+    ordered_dataframe2 = _select_possibly_duplicate_identifiers_in_order(
+        frame2.ordered_dataframe, frame2_identifiers_for_union_all
     )
     ordered_unioned_dataframe = ordered_dataframe1.union_all(ordered_dataframe2)
     ordered_dataframe = ordered_unioned_dataframe.sort(frame1.ordering_columns)

@@ -107,6 +107,7 @@ from snowflake.snowpark._internal.analyzer.schema_utils import (
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     DynamicTableCreateMode,
+    LeafNode,
     LogicalPlan,
     ReadFileNode,
     SaveMode,
@@ -193,10 +194,7 @@ class SnowflakePlan(LogicalPlan):
                         df_ast_id = top_plan.df_ast_ids[-1]
                         stmt_cache = top_plan.session._ast_batch._bind_stmt_cache
 
-                    df_transform_debug_trace = ""
-                    error_source_context = ""
-                    missing_object_context = ""
-                    existing_object_context = ""
+                    debug_context_arr = []
                     try:
                         if (
                             "SQL compilation error:" in e.msg
@@ -204,33 +202,37 @@ class SnowflakePlan(LogicalPlan):
                             and top_plan is not None
                             and _enable_trace_sql_errors_to_dataframe
                         ):
-                            error_source_context = get_python_source_from_sql_error(
+                            if error_source_context := get_python_source_from_sql_error(
                                 top_plan, e.msg
-                            )
+                            ):
+                                debug_context_arr.append(error_source_context)
                         if (
                             _enable_dataframe_trace_on_error
                             and df_ast_id is not None
                             and stmt_cache is not None
                         ):
-                            df_transform_debug_trace = get_df_transform_trace_message(
+                            if df_transform_trace := get_df_transform_trace_message(
                                 df_ast_id, stmt_cache
-                            )
+                            ):
+                                debug_context_arr.append(df_transform_trace)
                         if (
                             "does not exist or not authorized" in e.msg
                             and top_plan is not None
                             and _enable_trace_sql_errors_to_dataframe
                         ):
-                            missing_object_context = get_missing_object_context(
+                            if missing_object_context := get_missing_object_context(
                                 top_plan, e.msg
-                            )
+                            ):
+                                debug_context_arr.append(missing_object_context)
                         if (
                             ("already exists" in e.msg)
                             and top_plan is not None
                             and context._enable_trace_sql_errors_to_dataframe
                         ):
-                            existing_object_context = get_existing_object_context(
+                            if existing_object_context := get_existing_object_context(
                                 top_plan, e.msg
-                            )
+                            ):
+                                debug_context_arr.append(existing_object_context)
                     except Exception as trace_error:
                         # If we encounter an error when getting the df_transform_debug_trace,
                         # we will ignore the error and not add the debug trace to the error message.
@@ -239,15 +241,10 @@ class SnowflakePlan(LogicalPlan):
                         )
                         pass
 
-                    debug_header = "\n\n--- Additional Debug Information ---\n"
-                    debug_context = (
-                        debug_header
-                        + df_transform_debug_trace
-                        + error_source_context
-                        + missing_object_context
-                        + existing_object_context
-                    )
-                    if debug_context == debug_header:
+                    if debug_context_arr:
+                        debug_header = "\n\n--- Additional Debug Information ---\n"
+                        debug_context = debug_header + "\n".join(debug_context_arr)
+                    else:
                         debug_context = ""
 
                     if "unexpected 'as'" in e.msg.lower():
@@ -591,9 +588,9 @@ class SnowflakePlan(LogicalPlan):
             self.schema_query is not None
         ), "No schema query is available for the SnowflakePlan"
         if self.session.reduce_describe_query_enabled:
-            return cached_analyze_attributes(self.schema_query, self.session)
+            return cached_analyze_attributes(self.schema_query, self.session, self.uuid)
         else:
-            return analyze_attributes(self.schema_query, self.session)
+            return analyze_attributes(self.schema_query, self.session, self.uuid)
 
     @property
     def attributes(self) -> List[Attribute]:
@@ -728,19 +725,21 @@ class SnowflakePlan(LogicalPlan):
             self.uuid,
         )
         final_sql = remove_comments(last_query.sql, child_uuids)
+        if self.schema_query:
+            self.schema_query = remove_comments(self.schema_query, child_uuids)
         last_query.sql = final_sql
         last_query.query_line_intervals = query_line_intervals
 
     def __copy__(self) -> "SnowflakePlan":
         if self.session._cte_optimization_enabled:
             plan = SnowflakePlan(
-                copy.deepcopy(self.queries) if self.queries else [],
+                [copy.copy(q) for q in (self.queries or [])],
                 self.schema_query,
-                copy.deepcopy(self.post_actions) if self.post_actions else None,
+                copy.copy(self.post_actions) if self.post_actions else None,
                 copy.copy(self.expr_to_alias) if self.expr_to_alias else None,
                 self.source_plan,
                 self.is_ddl_on_temp_object,
-                copy.deepcopy(self.api_calls) if self.api_calls else None,
+                self.api_calls.copy() if self.api_calls else None,
                 self.df_aliased_col_name_to_real_col_name,
                 session=self.session,
                 referenced_ctes=self.referenced_ctes,
@@ -763,12 +762,17 @@ class SnowflakePlan(LogicalPlan):
 
     def __deepcopy__(self, memodict={}) -> "SnowflakePlan":  # noqa: B006
         if self.source_plan:
-            copied_source_plan = copy.deepcopy(self.source_plan, memodict)
+            if isinstance(self.source_plan, LeafNode):
+                # Shallow copy LeafNode as they may have large data that should not be
+                # modified during the optimization stage.
+                copied_source_plan = copy.copy(self.source_plan)
+            else:
+                copied_source_plan = copy.deepcopy(self.source_plan, memodict)
         else:
             copied_source_plan = None
 
         copied_plan = SnowflakePlan(
-            queries=copy.deepcopy(self.queries) if self.queries else [],
+            queries=[copy.copy(q) for q in (self.queries or [])],
             schema_query=self.schema_query,
             post_actions=(
                 copy.deepcopy(self.post_actions) if self.post_actions else None
@@ -1064,6 +1068,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         is_distinct: bool = False,
+        ilike_pattern: Optional[str] = None,
     ) -> SnowflakePlan:
 
         return self.build(
@@ -1076,6 +1081,7 @@ class SnowflakePlanBuilder:
                     if context._enable_trace_sql_errors_to_dataframe
                     else None
                 ),
+                ilike_pattern=ilike_pattern,
             ),
             child,
             source_plan,
@@ -2406,6 +2412,16 @@ class Query:
             + ")"
         )
 
+    def __copy__(self) -> "Query":
+        return Query(
+            sql=self.sql,
+            query_id_place_holder=self.query_id_place_holder,
+            is_ddl_on_temp_object=self.is_ddl_on_temp_object,
+            temp_obj_name_placeholder=self.temp_obj_name_placeholder,
+            params=self.params,
+            query_line_intervals=self.query_line_intervals,
+        )
+
     def __eq__(self, other: "Query") -> bool:
         return (
             self.sql == other.sql
@@ -2424,3 +2440,11 @@ class BatchInsertQuery(Query):
     ) -> None:
         super().__init__(sql)
         self.rows = rows
+
+    def __copy__(self) -> "BatchInsertQuery":
+        copied_query = BatchInsertQuery(
+            sql=self.sql,
+            rows=self.rows,
+        )
+        copied_query.query_id_place_holder = self.query_id_place_holder
+        return copied_query

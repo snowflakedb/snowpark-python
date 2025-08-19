@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.35.0" %}
+{% set version = "1.36.0" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 {% set build_number = os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) %}
 
@@ -61,12 +61,12 @@ requirements:
     - libffi <=3.4.4
     - pyyaml
     # Snowpark IR
-    - protobuf >=3.20,<6
+    - protobuf >=3.20,<6.32
     - python-dateutil
     - tzlocal
   run_constrained:
     # Snowpark pandas
-    - modin >=0.33.0,<0.35.0
+    - modin >=0.34.0,<0.36.0
 {% endif %}
 
 test:

@@ -1,6 +1,61 @@
 # Release History
 
-## 1.36.0 (YYYY-MM-DD)
+## 1.37.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following `xpath` functions in `functions.py`:
+  - `xpath`
+  - `xpath_string`
+  - `xpath_boolean`
+  - `xpath_int`
+  - `xpath_float`
+  - `xpath_double`
+  - `xpath_long`
+  - `xpath_short`
+- Added support for parameter `use_vectorized_scanner` in function `Session.write_arrow()`.
+- Dataframe profiler adds the following information about each query: describe query time, execution time, and sql query text. To view this information, call session.dataframe_profiler.enable() and call get_execution_profile on a dataframe.
+- Added support for `DataFrame.col_ilike`.
+- Added support for non-blocking stored procedure calls that return `AsyncJob` objects.
+  - Added `block: bool = True` parameter to `Session.call()`. When `block=False`, returns an `AsyncJob` instead of blocking until completion.
+  - Added `block: bool = True` parameter to `StoredProcedure.__call__()` for async support across both named and anonymous stored procedures.
+  - Added `Session.call_nowait()` that is equivalent to `Session.call(block=False)`.
+
+#### Bug Fixes
+
+- Fixed a bug in CTE optimization stage where `deepcopy` of internal plans would cause a memory spike when a dataframe is created locally using `session.create_dataframe()` using a large input data.
+- Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
+- Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
+
+#### Deprecations
+- Deprecated `pkg_resources`.
+
+#### Dependency Updates
+
+- Added a dependency on `protobuf<6.32`
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for efficient transfer of data between Snowflake and Ray with the `DataFrame.set_backend` method. The installed version of `modin` must be at least 0.35.0, and `ray` must be installed.
+
+#### Improvements
+
+#### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.34.0 and <0.36.0 (was previously >= 0.33.0 and <0.35.0).
+- Added support for pandas 2.3 when the installed `modin` version is at least 0.35.0.
+
+#### Bug Fixes
+
+- Fixed an issue in hybrid execution mode (PrPr) where `pd.to_datetime` and `pd.to_timedelta` would unexpectedly raise `IndexError`.
+- Fixed a bug where `pd.explain_switch` would raise `IndexError` or return `None` if called before any potential switch operations were performed.
+- Fixed a bug where calling `pd.concat(axis=0)` on a dataframe with the default, positional index and a dataframe with a different index would produce invalid SQL.
+
+## 1.36.0 (2025-08-05)
 
 ### Snowpark Python API Updates
 
@@ -13,12 +68,17 @@
 - Added a dataframe profiler. To use, you can call get_execution_profile() on your desired dataframe. This profiler reports the queries executed to evaluate a dataframe, and statistics about each of the query operators. Currently an experimental feature
 - Added support for the following functions in `functions.py`:
   - `ai_sentiment`
+- Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 
+#### Improvements
+- Hybrid execution row estimate improvements and a reduction of eager calls.
+- Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution.
 - Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
+- Added support for mapping np.unique to DataFrame and Series inputs using pd.unique.
 
 #### Bug Fixes
 
@@ -63,6 +123,7 @@
 
 - Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
 - Added an example for reading a file from a stage in the docstring for `pd.read_excel`.
+- Implemented more efficient data transfer between the Snowflake and Ray backends of Modin (requires modin>=0.35.0 to use).
 
 #### Bug Fixes
 

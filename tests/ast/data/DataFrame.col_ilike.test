@@ -1,0 +1,244 @@
+## TEST CASE
+
+df1 = session.table(tables.table1)
+
+df2 = df1.col_ilike("%ABC%")
+
+df3 = df1.select("*").col_ilike("%ABC%")
+
+df4 = df1.select(df1["*"]).col_ilike("%ABC%")
+
+## EXPECTED UNPARSER OUTPUT
+
+df1 = session.table("table1")
+
+df2 = df1.col_ilike("%ABC%")
+
+df3 = df1.select("*")
+
+df3 = df3.col_ilike("%ABC%")
+
+df4 = df1.select(df1["*"])
+
+df4 = df4.col_ilike("%ABC%")
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 42
+          end_line: 25
+          file: 2
+          start_column: 14
+          start_line: 25
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_col_ilike {
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        pattern: "%ABC%"
+        src {
+          end_column: 36
+          end_line: 27
+          file: 2
+          start_column: 14
+          start_line: 27
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            sql_expr {
+              sql: "*"
+              src {
+                end_column: 29
+                end_line: 29
+                file: 2
+                start_column: 14
+                start_line: 29
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 29
+          end_line: 29
+          file: 2
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_col_ilike {
+        df {
+          dataframe_ref {
+            id: 3
+          }
+        }
+        pattern: "%ABC%"
+        src {
+          end_column: 48
+          end_line: 29
+          file: 2
+          start_column: 14
+          start_line: 29
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            dataframe_col {
+              col_name: "*"
+              df {
+                dataframe_ref {
+                  id: 1
+                }
+              }
+              src {
+                end_column: 33
+                end_line: 31
+                file: 2
+                start_column: 25
+                start_line: 31
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 34
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_col_ilike {
+        df {
+          dataframe_ref {
+            id: 5
+          }
+        }
+        pattern: "%ABC%"
+        src {
+          end_column: 53
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 6
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 36
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

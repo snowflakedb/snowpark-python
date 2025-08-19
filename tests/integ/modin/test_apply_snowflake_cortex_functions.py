@@ -26,12 +26,6 @@ ExtractAnswer = cortex.ExtractAnswer
     reason="TODO: SNOW-1859087 snowflake.cortex.summarize SSL error",
 )
 def test_apply_snowflake_cortex_summarize(session):
-
-    # TODO: SNOW-1758914 snowflake.cortex.summarize error on GCP
-    with SqlCounter(query_count=0):
-        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-            return
-
     with SqlCounter(query_count=1):
         content = """pandas on Snowflake lets you run your pandas code in a distributed manner directly on your data in
         Snowflake. Just by changing the import statement and a few lines of code, you can get the familiar pandas experience
@@ -53,12 +47,6 @@ def test_apply_snowflake_cortex_summarize(session):
     reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
 )
 def test_apply_snowflake_cortex_sentiment_series(session):
-
-    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
-    with SqlCounter(query_count=0):
-        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-            return
-
     with SqlCounter(query_count=1):
         content = "A very very bad review!"
         s = pd.Series([content])
@@ -71,11 +59,6 @@ def test_apply_snowflake_cortex_sentiment_series(session):
     reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
 )
 def test_apply_snowflake_cortex_sentiment_df(session):
-
-    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
-    with SqlCounter(query_count=0):
-        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-            return
     text_list = [
         "A first row of text.",
         "This is a very bad test.",
@@ -115,12 +98,6 @@ def test_apply_snowflake_cortex_sentiment_df(session):
 def test_apply_snowflake_cortex_classify_text(
     session, is_series, operation, query_count
 ):
-
-    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
-    with SqlCounter(query_count=0):
-        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-            return
-
     with SqlCounter(query_count=query_count):
         content = "One day I will see the world."
 
@@ -155,11 +132,6 @@ def test_apply_snowflake_cortex_classify_text(
     ],
 )
 def test_apply_snowflake_cortex_translate(session, is_series, operation, query_count):
-
-    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
-    with SqlCounter(query_count=0):
-        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-            return
     with SqlCounter(query_count=query_count):
         content = "Good Morning"
 
@@ -200,11 +172,6 @@ def test_apply_snowflake_cortex_translate(session, is_series, operation, query_c
 def test_apply_snowflake_cortex_extract_answer(
     session, is_series, operation, query_count
 ):
-
-    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
-    with SqlCounter(query_count=0):
-        if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-            return
     with SqlCounter(query_count=query_count):
         content = "The Snowflake company was co-founded by Thierry Cruanes, Marcin Zukowski, and Benoit Dageville in 2012 and is headquartered in Bozeman, Montana."
 
@@ -273,11 +240,6 @@ def test_apply_snowflake_cortex_extract_answer(
     ],
 )
 def test_apply_snowflake_cortex_negative(session, is_series, operation):
-
-    # TODO: SNOW-1758914 snowflake.cortex.sentiment error on GCP
-    if session.connection.host == "sfctest0.us-central1.gcp.snowflakecomputing.com":
-        return
-
     content = "One day I will see the world."
     modin_input = (pd.Series if is_series else pd.DataFrame)([content])
     with pytest.raises(NotImplementedError):

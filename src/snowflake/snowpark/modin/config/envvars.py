@@ -23,7 +23,7 @@ import sys
 import warnings
 from textwrap import dedent
 from typing import Any, Optional
-
+import modin.config as modin_config
 from packaging import version
 from pandas.util._decorators import doc  # type: ignore[attr-defined]
 import modin.config as modin_config
@@ -78,7 +78,6 @@ class EnvironmentVariable(Parameter, type=str, abstract=True):  # pragma: no cov
             help += f" (valid examples are: {', '.join(str(c) for c in cls.choices)})"
         return help
 
-
 class SnowflakeModinTelemetryFlushInterval(EnvironmentVariable, type=int):
     """
     Minimum number of seconds between a flush of telemetry to snowflake
@@ -87,7 +86,6 @@ class SnowflakeModinTelemetryFlushInterval(EnvironmentVariable, type=int):
 
     varname = "SNOWFLAKE_MODIN_TELEMETRY_FLUSH_INTERVAL"
     default = 5
-
 
 modin_config.SnowflakeModinTelemetryFlushInterval = SnowflakeModinTelemetryFlushInterval
 
@@ -103,8 +101,18 @@ class SnowflakeModinTelemetryEnabled(EnvironmentVariable, type=bool):
     varname = "SNOWFLAKE_MODIN_TELEMETRY_ENABLED"
     default = True
 
-
 modin_config.SnowflakeModinTelemetryEnabled = SnowflakeModinTelemetryEnabled
+class SnowflakePandasTransferThreshold(EnvironmentVariable, type=int):
+    """
+    Targeted max number of dataframe rows which should be transferred from
+    Snowflake when using hybrid execution.
+    """
+
+    varname = "SNOWFLAKE_PANDAS_MAX_XFER_ROWS"
+    default = 10_000_000
+
+# have to monkey patch this into modin right now to use config contexts
+modin_config.SnowflakePandasTransferThreshold = SnowflakePandasTransferThreshold
 
 
 class EnvWithSibilings(
