@@ -1690,6 +1690,10 @@ def test_create_dataframe_with_basic_data_types(session):
     assert df.select(expected_names).collect() == expected_rows
 
 
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="FEAT: session.sql is not supported in stored proc",
+)
 def test_create_dataframe_with_yearmonthinterval_type(session):
     session.sql("alter session set feature_interval_types=enabled;").collect()
     schema = StructType([StructField("interval_col", YearMonthIntervalType())])
