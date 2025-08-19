@@ -622,10 +622,27 @@ def test_validate_and_normalize_time_travel_params():
 
 def test_normalize_timestamp():
     """Test timestamp normalization."""
-    # Valid cases
+    # Valid cases - datetime objects
     dt = datetime(2023, 1, 1, 12, 30, 45)
     assert _normalize_timestamp(dt) == "2023-01-01 12:30:45"
+
+    dt_with_microseconds = datetime(2023, 1, 1, 12, 30, 45, 123456)
+    assert _normalize_timestamp(dt_with_microseconds) == "2023-01-01 12:30:45.123456"
     assert _normalize_timestamp("  2024-02-29 00:00:00 ") == "2024-02-29 00:00:00"
+    assert _normalize_timestamp("2023-01-01 12:00:00") == "2023-01-01 12:00:00"
+
+    # string timestamps with fractional seconds
+    assert (
+        _normalize_timestamp("2023-01-01 12:00:00.123456")
+        == "2023-01-01 12:00:00.123456"
+    )
+    assert (
+        _normalize_timestamp("  2023-01-01 12:00:00.1 ") == "2023-01-01 12:00:00.100000"
+    )
+    assert (
+        _normalize_timestamp("2023-01-01 12:00:00.999999")
+        == "2023-01-01 12:00:00.999999"
+    )
 
     # Error cases
     invalid_timestamps = [
@@ -634,6 +651,7 @@ def test_normalize_timestamp():
         "2023-01-01",
         "",
         "2023/01/01 12:00:00",
+        "2023-01-01 12:00:00.1234567",  # 7 digits not supported by Python
     ]
     for ts in invalid_timestamps:
         with pytest.raises(ValueError, match="Timestamp must be in format"):
