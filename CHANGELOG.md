@@ -22,6 +22,7 @@
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 
+
 #### Bug Fixes
 
 - Fixed the repr of TimestampType to match the actual subtype it represents.
