@@ -183,15 +183,7 @@ def _task_fetch_data_from_source(
 
     for i, result in enumerate(worker.read(partition)):
         if stop_event and stop_event.is_set():
-            parquet_queue.put(
-                (
-                    PARTITION_TASK_ERROR_SIGNAL,
-                    SnowparkDataframeReaderException(
-                        "Data fetching stopped by thread failure"
-                    ),
-                )
-            )
-            break
+            return
         convert_to_parquet_bytesio(result, i)
 
     parquet_queue.put((f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}{partition_idx}", None))
