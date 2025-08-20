@@ -120,6 +120,7 @@ DataFrame
     DataFrameAnalyticsFunctions.compute_lag
     DataFrameAnalyticsFunctions.compute_lead
     DataFrameAnalyticsFunctions.time_series_agg
+    DataFrameAIFunctions.agg
     DataFrameAIFunctions.complete
     DataFrameAIFunctions.filter
     dataframe.map

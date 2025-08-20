@@ -8,8 +8,8 @@ from snowflake.snowpark._internal.utils import (
     create_prompt_column_from_template,
     experimental,
 )
-from snowflake.snowpark.column import Column
-from snowflake.snowpark.functions import ai_complete, ai_filter
+from snowflake.snowpark.column import Column, _to_col_if_str
+from snowflake.snowpark.functions import ai_complete, ai_filter, ai_agg
 from snowflake.snowpark._internal.telemetry import add_api_call
 
 if TYPE_CHECKING:
@@ -221,3 +221,100 @@ class DataFrameAIFunctions:
             "DataFrame.ai.filter",
         )
         return filtered_df
+
+    @experimental(version="1.37.0")
+    def agg(
+        self,
+        task_description: str,
+        input_column: Union[str, Column],
+        *,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Aggregate a column of text data using a natural language task description.
+
+        This method reduces a column of text by performing a natural language aggregation
+        as described in the task description. For instance, it can summarize large datasets or
+        extract specific insights.
+
+        Args:
+            task_description: A plain English string that describes the aggregation task, such as
+                "Summarize the product reviews for a blog post targeting consumers" or
+                "Identify the most positive review and translate it into French and Polish, one word only".
+            input_column: The column (Column object or column name as string) containing the text data
+                on which the aggregation operation is to be performed.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_AGG_OUTPUT`` is appended.
+
+        Examples::
+
+            >>> # Aggregate product reviews
+            >>> df = session.create_dataframe([
+            ...     ["Excellent product, highly recommend!"],
+            ...     ["Great quality and fast shipping"],
+            ...     ["Average product, nothing special"],
+            ...     ["Poor quality, very disappointed"],
+            ... ], schema=["review"])
+            >>> summary_df = df.ai.agg(
+            ...     task_description="Summarize these product reviews for a blog post targeting consumers",
+            ...     input_column="review",
+            ...     output_column="summary"
+            ... )
+            >>> summary_df.columns
+            ['SUMMARY']
+            >>> summary_df.count()
+            1
+
+            >>> # Aggregate with Column object
+            >>> from snowflake.snowpark.functions import col
+            >>> df = session.create_dataframe([
+            ...     ["Customer service was excellent"],
+            ...     ["Product arrived damaged"],
+            ...     ["Great value for money"],
+            ...     ["Would buy again"],
+            ... ], schema=["feedback"])
+            >>> insights_df = df.ai.agg(
+            ...     task_description="Extract the main positive and negative points from customer feedback",
+            ...     input_column=col("feedback"),
+            ...     output_column="insights"
+            ... )
+            >>> insights_df.count()
+            1
+
+        Note:
+            For optimal performance, follow these guidelines:
+
+                - Use plain English text for the task description.
+
+                - Describe the text provided in the task description. For example, instead of a task
+                  description like "summarize", use "Summarize the phone call transcripts".
+
+                - Describe the intended use case. For example, instead of "find the best review",
+                  use "Find the most positive and well-written restaurant review to highlight on
+                  the restaurant website".
+
+                - Consider breaking the task description into multiple steps. For example, instead of
+                  "Summarize the new articles", use "You will be provided with news articles from
+                  various publishers presenting events from different points of view. Please create
+                  a concise and elaborative summary of source texts without missing any crucial information.".
+        """
+
+        # Call the ai_agg function
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.agg")
+        result_col = ai_agg(
+            input_col,
+            task_description=task_description,
+            _emit_ast=False,
+        )
+
+        # Create a new DataFrame with the aggregated result
+        output_column_name = output_column or "AI_AGG_OUTPUT"
+        df = self._dataframe.select(
+            result_col.alias(output_column_name), _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            "DataFrame.ai.agg",
+        )
+        return df

@@ -4,6 +4,7 @@
 
 import pytest
 from snowflake.snowpark.functions import col
+from snowflake.snowpark.exceptions import SnowparkSQLException
 
 
 pytestmark = [
@@ -238,3 +239,179 @@ def test_dataframe_ai_filter_error_handling(session):
             "Test predicate",
             input_columns="invalid",  # Should be list or dict
         )
+
+
+def test_dataframe_ai_agg_basic(session):
+    """Test DataFrame.ai.agg with basic usage."""
+    # Create a DataFrame with review data
+    df = session.create_dataframe(
+        [
+            ["Excellent product, highly recommend!"],
+            ["Great quality and fast shipping"],
+            ["Average product, nothing special"],
+            ["Poor quality, very disappointed"],
+            ["Amazing value for money"],
+        ],
+        schema=["review"],
+    )
+
+    summary_df = df.ai.agg(
+        task_description="Summarize these product reviews for a blog post targeting consumers",
+        input_column=col("review"),
+        output_column="summary",
+    )
+
+    # Verify results
+    results = summary_df.collect(_emit_ast=False)
+    assert len(results) == 1  # Should be a single aggregated row
+    assert results[0]["SUMMARY"] is not None
+    assert len(results[0]["SUMMARY"]) > 10  # Should have meaningful content
+
+    summary_df = df.ai.agg(
+        task_description="Summarize these product reviews for a blog post targeting consumers",
+        input_column=col("review"),
+    )
+
+    # Verify results
+    results = summary_df.collect(_emit_ast=False)
+    assert len(results) == 1  # Should be a single aggregated row
+    assert results[0]["AI_AGG_OUTPUT"] is not None
+    assert len(results[0]["AI_AGG_OUTPUT"]) > 10  # Should have meaningful content
+
+
+def test_dataframe_ai_agg_error_handling(session):
+    """Test error handling in DataFrame.ai.agg."""
+    df = session.create_dataframe([["test"]], schema=["text"])
+
+    # Test invalid input_column type
+    with pytest.raises(TypeError, match="expected Column or str"):
+        df.ai.agg(
+            task_description="Summarize the text",
+            input_column=123,  # Invalid type
+        )
+
+    # Test invalid column name
+    with pytest.raises(SnowparkSQLException, match="invalid identifier 'INVALID'"):
+        df.ai.agg(
+            task_description="Summarize the text",
+            input_column=col("invalid"),  # Invalid column name
+        ).collect(_emit_ast=False)
+
+
+def test_grouped_dataframe_ai_agg(session):
+    """Comprehensive test for GroupedDataFrame.ai_agg with various grouping scenarios and chained operations."""
+
+    # Create a single DataFrame with product reviews that can be grouped in multiple ways
+    df = session.create_dataframe(
+        [
+            ["electronics", "high", 4.5, "Excellent product, highly recommend!"],
+            ["electronics", "high", 4.8, "Outstanding quality and performance"],
+            ["electronics", "low", 2.5, "Not worth the price, disappointed"],
+            ["electronics", "low", 2.2, "Broke after a week, poor quality"],
+            ["clothing", "high", 4.2, "Perfect fit and great material"],
+            ["clothing", "high", 4.6, "Beautiful design, love it!"],
+            ["clothing", "low", 2.8, "Poor quality fabric, not as described"],
+            ["clothing", "low", 2.1, "Color faded quickly, sizing issues"],
+            ["books", "high", 4.9, "Fantastic read, couldn't put it down!"],
+            ["books", "high", 4.7, "Well written and engaging"],
+            ["toys", "low", 1.5, "Poor quality, broke quickly"],
+            ["toys", "low", 1.8, "Not safe for children, avoid"],
+        ],
+        schema=["category", "quality_level", "rating", "review"],
+    )
+
+    # Test 1: Group by empty list (aggregate entire DataFrame)
+    global_summary_df = df.group_by().ai_agg(
+        "review",
+        task_description="Create an overall summary of all customer reviews",
+    )
+
+    count = global_summary_df.count(_emit_ast=False)
+    assert count == 1  # Single row for global aggregation
+
+    # Test 2: Group by single column with string expr
+    category_summary_df = (
+        df.group_by("category")
+        .ai_agg(
+            "review",
+            task_description="Summarize product reviews for a blog post",
+        )
+        .filter(col("CATEGORY") != "toys")  # Chain filter operation
+        .sort(col("CATEGORY").asc())  # Chain sort operation
+    )
+
+    category_results = category_summary_df.collect(_emit_ast=False)
+    assert len(category_results) == 3  # 3 categories after filtering out toys
+    categories = [row["CATEGORY"] for row in category_results]
+    assert categories == ["books", "clothing", "electronics"]  # Alphabetically sorted
+
+    # Verify each category has a summary
+    for row in category_results:
+        summary_cols = [c for c in row.as_dict().keys() if c != "CATEGORY"]
+        assert len(summary_cols) == 1
+        assert row[summary_cols[0]] is not None
+        assert len(row[summary_cols[0]]) > 10
+
+    # Test 3: Group by single column with Column object and select operation
+    quality_summary_df = (
+        df.group_by("quality_level")
+        .ai_agg(
+            col("review"),  # Using Column object
+            task_description="Extract key insights from customer feedback",
+        )
+        .select("QUALITY_LEVEL")  # Chain select to keep only grouping column
+    )
+
+    quality_results = quality_summary_df.collect(_emit_ast=False)
+    assert len(quality_results) == 2  # Two quality levels: high and low
+    assert all(
+        len(row.as_dict()) == 1 for row in quality_results
+    )  # Only QUALITY_LEVEL column
+    quality_levels = {row["QUALITY_LEVEL"] for row in quality_results}
+    assert quality_levels == {"high", "low"}
+
+    # Test 4: Group by multiple columns with filtering and limit
+    multi_group_df = (
+        df.group_by(["category", "quality_level"])
+        .ai_agg(
+            col("review"),
+            task_description="Summarize reviews highlighting common themes",
+        )
+        .filter(col("QUALITY_LEVEL") == "high")  # Only high quality items
+        .sort(col("CATEGORY").desc())  # Sort by category descending
+        .limit(2)  # Limit to top 2 results
+    )
+
+    multi_results = multi_group_df.collect(_emit_ast=False)
+    assert len(multi_results) == 2  # Limited to 2 results
+
+    # Verify the results are high quality and sorted correctly
+    for row in multi_results:
+        assert row["QUALITY_LEVEL"] == "high"
+
+    # First result should be from toys or electronics (descending order)
+    first_category = multi_results[0]["CATEGORY"]
+    assert first_category in ["toys", "electronics", "clothing", "books"]
+
+    # Test 5: Complex chaining with rename and additional filter
+    complex_chain_df = (
+        df.filter(col("rating") > 2.0)  # Pre-filter low ratings
+        .group_by("category")
+        .ai_agg(
+            "review",
+            task_description="Brief summary of positive reviews",
+        )
+        .filter(
+            col("CATEGORY").isin(["electronics", "books"])
+        )  # Keep only specific categories
+        .with_column_renamed("CATEGORY", "PRODUCT_TYPE")  # Rename column
+        .sort("PRODUCT_TYPE")
+    )
+
+    complex_results = complex_chain_df.collect(_emit_ast=False)
+    assert len(complex_results) == 2  # Only electronics and books
+    assert "PRODUCT_TYPE" in complex_results[0].as_dict()
+    assert "CATEGORY" not in complex_results[0].as_dict()
+
+    product_types = [row["PRODUCT_TYPE"] for row in complex_results]
+    assert product_types == ["books", "electronics"]  # Sorted alphabetically
