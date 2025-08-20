@@ -15,11 +15,13 @@
 ### Snowpark pandas API Updates
 
 #### New Features
-- Added support for `pd.read_snowflake()`, `pd.to_iceberg()`, `pd.to_pandas()`,
-  `pd.to_snowpark()`, `pd.to_snowflake()`, `DataFrame.to_iceberg()`,
-  `DataFrame.to_pandas()`, `DataFrame.to_snowpark()`, `DataFrame.to_snowflake()`,
-  `Series.to_iceberg()`, `Series.to_pandas()`, `Series.to_snowpark()`, and
-  `Series.to_snowflake()` on the Pandas and Ray backends.
+- Completed support for `pd.read_snowflake()`, `pd.to_iceberg()`,
+  `pd.to_pandas()`, `pd.to_snowpark()`, `pd.to_snowflake()`,
+  `DataFrame.to_iceberg()`, `DataFrame.to_pandas()`, `DataFrame.to_snowpark()`,
+  `DataFrame.to_snowflake()`, `Series.to_iceberg()`, `Series.to_pandas()`,
+  `Series.to_snowpark()`, and `Series.to_snowflake()` on the Pandas and Ray
+  backends. Previously, only some of these functions and methods were supported
+  on the Pandas backend.
 
 #### Improvements
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
