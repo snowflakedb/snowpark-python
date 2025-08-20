@@ -1235,8 +1235,11 @@ def file_operation_statement(
 
 
 def convert_value_to_sql_option(
-    value: Optional[Union[str, bool, int, float, list, tuple]]
+    value: Optional[Union[str, bool, int, float, list, tuple]],
+    parse_none_as_string: bool = False,
 ) -> str:
+    if value is None and parse_none_as_string:
+        value = str(value)
     if isinstance(value, str):
         if len(value) > 1 and is_single_quoted(value):
             return value
@@ -1252,13 +1255,15 @@ def convert_value_to_sql_option(
         return str(value)
 
 
-def get_options_statement(options: Dict[str, Any]) -> str:
+def get_options_statement(
+    options: Dict[str, Any], skip_none: bool = True, parse_none_as_string: bool = False
+) -> str:
     return (
         SPACE
         + SPACE.join(
-            f"{k}{EQUALS}{convert_value_to_sql_option(v)}"
+            f"{k}{EQUALS}{convert_value_to_sql_option(v, parse_none_as_string=parse_none_as_string)}"
             for k, v in options.items()
-            if v is not None
+            if v is not None or (v is None and not skip_none)
         )
         + SPACE
     )
@@ -1712,12 +1717,22 @@ def copy_into_location(
         else EMPTY_STRING
     )
     credentials_str = (
-        NEW_LINE + CREDENTIALS + EQUALS + convert_dict_to_sql_option(credentials)
+        NEW_LINE
+        + CREDENTIALS
+        + EQUALS
+        + LEFT_PARENTHESIS
+        + get_options_statement(credentials)
+        + RIGHT_PARENTHESIS
         if credentials
         else EMPTY_STRING
     )
     encryption_str = (
-        NEW_LINE + ENCRYPTION + EQUALS + convert_dict_to_sql_option(encryption)
+        NEW_LINE
+        + ENCRYPTION
+        + EQUALS
+        + LEFT_PARENTHESIS
+        + get_options_statement(encryption, skip_none=False, parse_none_as_string=True)
+        + RIGHT_PARENTHESIS
         if encryption
         else EMPTY_STRING
     )
@@ -1949,28 +1964,6 @@ def get_file_format_spec(
         file_format_str += FORMAT_NAME + EQUALS + file_format_name
     file_format_str += RIGHT_PARENTHESIS
     return file_format_str
-
-
-def convert_dict_to_sql_option(
-    dict: Dict[str, Any],
-    value_as_string_identifier: bool = True,
-    upper_key: bool = True,
-    delimiter: str = " ",
-) -> str:
-    # convert dict to sql option string
-    # by default: {"key1": "value1", "key2": "value2"} -> "(key1='value1' key2='value2')"
-    if not dict:
-        return EMPTY_STRING
-    ret_str = LEFT_PARENTHESIS
-    for k, v in dict.items():
-        v = "NONE" if v is None else v
-        k = k.upper() if upper_key else k
-        ret_str += f"{k}='{v}'" if value_as_string_identifier else f"{k}={v}"
-        ret_str += delimiter
-    if ret_str.endswith(delimiter):
-        ret_str = ret_str[: -len(delimiter)]
-    ret_str += RIGHT_PARENTHESIS
-    return ret_str
 
 
 def cte_statement(queries: List[str], table_names: List[str]) -> str:
