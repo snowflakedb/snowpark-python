@@ -301,7 +301,7 @@ class YearMonthIntervalType(_AnsiIntervalType):
         ast.year_month_interval_type.end_field = self.end_field
 
 
-class DayTimeIntervalType(AnsiIntervalType):
+class DayTimeIntervalType(_AnsiIntervalType):
     """DayTimeIntervalType data type. This maps to the INTERVAL DAY TO SECOND data type in Snowflake.
 
     Args:
@@ -309,10 +309,14 @@ class DayTimeIntervalType(AnsiIntervalType):
         end_field: The end field of the interval (0=DAY, 1=HOUR, 2=MINUTE, 3=SECOND)
     """
 
-    DAY = 0
-    HOUR = 1
-    MINUTE = 2
-    SECOND = 3
+    DAY = 0  #: Constant representing the DAY field for interval start/end positions
+    HOUR = 1  #: Constant representing the HOUR field for interval start/end positions
+    MINUTE = (
+        2  #: Constant representing the MINUTE field for interval start/end positions
+    )
+    SECOND = (
+        3  #: Constant representing the SECOND field for interval start/end positions
+    )
 
     _FIELD_NAMES = {DAY: "day", HOUR: "hour", MINUTE: "minute", SECOND: "second"}
 
@@ -328,8 +332,12 @@ class DayTimeIntervalType(AnsiIntervalType):
             end_field = start_field
 
         fields = self._FIELD_NAMES.keys()
-        if start_field not in fields or end_field not in fields:
-            raise RuntimeError(f"interval {start_field} to {end_field} is invalid")
+        if (
+            start_field not in fields
+            or end_field not in fields
+            or start_field > end_field
+        ):
+            raise ValueError(f"interval {start_field} to {end_field} is invalid")
 
         self.start_field = start_field
         self.end_field = end_field
