@@ -475,10 +475,10 @@ class JDBC:
             "user",
             "username",
         }
-
-        for key in list(self.properties.keys()):
-            if key.lower() in secret_keys:
-                del self.properties[key]
+        if self.properties is not None:
+            for key in list(self.properties.keys()):
+                if key.lower() in secret_keys:
+                    del self.properties[key]
 
         self.url = re.sub(
             r"(?<=://)([^:/]+)(:[^@]+)?@", "", self.url  # Matches user[:password]@

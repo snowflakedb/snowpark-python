@@ -422,6 +422,7 @@ class DataFrameReader:
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
         self.__format: Optional[str] = None
+        self._data_source_format = ["jdbc", "dbapi"]
 
         self._ast = None
         if _emit_ast:
@@ -561,9 +562,8 @@ class DataFrameReader:
             "parquet",
             "orc",
             "xml",
-            "dbapi",
-            "jdbc",
         ]
+        allowed_formats.extend(self._data_source_format)
         if canon_format not in allowed_formats:
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
@@ -573,13 +573,14 @@ class DataFrameReader:
     @publicapi
     def format(
         self,
-        format: Literal["csv", "json", "avro", "parquet", "orc", "xml", "jdbc"],
+        format: Literal["csv", "json", "avro", "parquet", "orc", "xml"],
         _emit_ast: bool = True,
     ) -> "DataFrameReader":
         """Specify the format of the file(s) to load.
 
         Args:
             format: The format of the file(s) to load. Supported formats are csv, json, avro, parquet, orc, and xml.
+                Snowpark data source type is also supported, currently support jdbc.
 
         Returns:
             a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
@@ -607,16 +608,18 @@ class DataFrameReader:
             )
 
         format_str = self._format.lower()
-        if format_str == "dbapi" and path is not None:
+        if format_str in self._data_source_format and path is not None:
             raise ValueError(
-                "The 'path' parameter is not supported for the dbapi format. Please omit this parameter when calling."
+                f"The 'path' parameter is not supported for the {format_str} format. Please omit this parameter when calling."
             )
-        if format_str != "dbapi" and path is None:
+        if format_str not in self._data_source_format and path is None:
             raise TypeError(
                 "DataFrameReader.load() missing 1 required positional argument: 'path'"
             )
         if format_str == "dbapi":
             return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
+        if format_str == "jdbc":
+            return self.jdbc(**{k.lower(): v for k, v in self._cur_options.items()})
 
         loader = getattr(self, self._format, None)
         if loader is not None:
@@ -1443,7 +1446,9 @@ class DataFrameReader:
         ).write.save_as_table(partitions_table, table_type="temp")
 
         df = jdbc_client.read(partitions_table)
-        return jdbc_client.to_result_snowpark_df(df, jdbc_client.schema)
+        return jdbc_client.to_result_snowpark_df(
+            df, jdbc_client.schema, _emit_ast=_emit_ast
+        )
 
     @private_preview(version="1.29.0")
     @publicapi

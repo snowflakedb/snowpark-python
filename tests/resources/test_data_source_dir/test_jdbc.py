@@ -12,6 +12,8 @@ from snowflake.snowpark.types import (
     VariantType,
     TimestampType,
     TimestampTimeZone,
+    FloatType,
+    DoubleType,
 )
 
 from ...parameters import ORACLEDB_CONNECTION_PARAMETERS
@@ -44,11 +46,51 @@ expected_schema = StructType(
         ),
         StructField("TIMESTAMP_TZ_COL", VariantType(), nullable=True),
         StructField("TIMESTAMP_LTZ_COL", VariantType(), nullable=True),
-        StructField("BLOB_COL", VariantType(), nullable=True),
         StructField("RAW_COL", StringType(), nullable=True),
         StructField("GUID_COL", StringType(), nullable=True),
     ]
 )
+
+custom_schema_result = StructType(
+    [
+        StructField("ID", DecimalType(38, 0), nullable=False),
+        StructField("NUMBER_COL", DecimalType(10, 2), nullable=True),
+        StructField("BINARY_FLOAT_COL", FloatType(), nullable=True),
+        StructField("BINARY_DOUBLE_COL", DoubleType(), nullable=True),
+        StructField("VARCHAR2_COL", StringType(), nullable=True),
+        StructField("CHAR_COL", StringType(), nullable=True),
+        StructField("CLOB_COL", StringType(), nullable=True),
+        StructField("NCHAR_COL", StringType(), nullable=True),
+        StructField("NVARCHAR2_COL", StringType(), nullable=True),
+        StructField("NCLOB_COL", StringType(), nullable=True),
+        StructField(
+            "DATE_COL", TimestampType(timezone=TimestampTimeZone.TZ), nullable=True
+        ),
+        StructField(
+            "TIMESTAMP_COL", TimestampType(timezone=TimestampTimeZone.TZ), nullable=True
+        ),
+        StructField("TIMESTAMP_TZ_COL", VariantType(), nullable=True),
+        StructField("TIMESTAMP_LTZ_COL", VariantType(), nullable=True),
+        StructField("RAW_COL", StringType(), nullable=True),
+        StructField("GUID_COL", StringType(), nullable=True),
+    ]
+)
+
+expected_sql_no_partition = [
+    "SELECT SNOWPARK_JDBC_SELECT_SQL_ALIAS.* FROM (SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARCHAR2_COL, CHAR_COL, CLOB_COL, NCHAR_COL, NVARCHAR2_COL, NCLOB_COL, DATE_COL, TIMESTAMP_COL, TIMESTAMP_TZ_COL, TIMESTAMP_LTZ_COL, RAW_COL, GUID_COL FROM ALL_TYPE_TABLE) SNOWPARK_JDBC_SELECT_SQL_ALIAS"
+]
+
+expected_sql_partition_column = [
+    "SELECT SNOWPARK_JDBC_SELECT_SQL_ALIAS.* FROM (SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARCHAR2_COL, CHAR_COL, CLOB_COL, NCHAR_COL, NVARCHAR2_COL, NCLOB_COL, DATE_COL, TIMESTAMP_COL, TIMESTAMP_TZ_COL, TIMESTAMP_LTZ_COL, RAW_COL, GUID_COL FROM ALL_TYPE_TABLE) SNOWPARK_JDBC_SELECT_SQL_ALIAS WHERE ID < '3' OR ID is null",
+    "SELECT SNOWPARK_JDBC_SELECT_SQL_ALIAS.* FROM (SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARCHAR2_COL, CHAR_COL, CLOB_COL, NCHAR_COL, NVARCHAR2_COL, NCLOB_COL, DATE_COL, TIMESTAMP_COL, TIMESTAMP_TZ_COL, TIMESTAMP_LTZ_COL, RAW_COL, GUID_COL FROM ALL_TYPE_TABLE) SNOWPARK_JDBC_SELECT_SQL_ALIAS WHERE ID >= '3' AND ID < '6'",
+    "SELECT SNOWPARK_JDBC_SELECT_SQL_ALIAS.* FROM (SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARCHAR2_COL, CHAR_COL, CLOB_COL, NCHAR_COL, NVARCHAR2_COL, NCLOB_COL, DATE_COL, TIMESTAMP_COL, TIMESTAMP_TZ_COL, TIMESTAMP_LTZ_COL, RAW_COL, GUID_COL FROM ALL_TYPE_TABLE) SNOWPARK_JDBC_SELECT_SQL_ALIAS WHERE ID >= '6'",
+]
+
+expected_sql_predicates = [
+    "SELECT SNOWPARK_JDBC_SELECT_SQL_ALIAS.* FROM (SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARCHAR2_COL, CHAR_COL, CLOB_COL, NCHAR_COL, NVARCHAR2_COL, NCLOB_COL, DATE_COL, TIMESTAMP_COL, TIMESTAMP_TZ_COL, TIMESTAMP_LTZ_COL, RAW_COL, GUID_COL FROM ALL_TYPE_TABLE) SNOWPARK_JDBC_SELECT_SQL_ALIAS WHERE ID < 6",
+    "SELECT SNOWPARK_JDBC_SELECT_SQL_ALIAS.* FROM (SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARCHAR2_COL, CHAR_COL, CLOB_COL, NCHAR_COL, NVARCHAR2_COL, NCLOB_COL, DATE_COL, TIMESTAMP_COL, TIMESTAMP_TZ_COL, TIMESTAMP_LTZ_COL, RAW_COL, GUID_COL FROM ALL_TYPE_TABLE) SNOWPARK_JDBC_SELECT_SQL_ALIAS WHERE ID >= 6",
+]
+
 
 raw_schema = [
     Row(
@@ -161,14 +203,6 @@ raw_schema = [
         JAVA_TYPE="oracle.sql.TIMESTAMPLTZ",
         PRECISION=0,
         SCALE=6,
-        NULLABLE=True,
-    ),
-    Row(
-        FIELD_NAME="BLOB_COL",
-        JDBC_TYPE="BLOB",
-        JAVA_TYPE="oracle.jdbc.OracleBlob",
-        PRECISION=-1,
-        SCALE=0,
         NULLABLE=True,
     ),
     Row(
