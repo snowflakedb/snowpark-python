@@ -93,6 +93,9 @@ def str_to_sql_for_year_month_interval(
 
 
 def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) -> str:
+    # Extract interval value from strings like "INTERVAL 1 01:01:01.7878 DAY TO SECOND"
+    # Examples: "1 01:01:01.7878" -> INTERVAL '1 01:01:01.7878' DAY TO SECOND, "1" -> INTERVAL '1' DAY
+    # "01.7878" -> INTERVAL '7' SECOND
     start_field = datatype.start_field if datatype.start_field is not None else 0
     end_field = datatype.end_field if datatype.end_field is not None else 1
     if datatype.start_field == datatype.end_field:
@@ -411,7 +414,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if isinstance(data_type, YearMonthIntervalType):
         return "INTERVAL '1-0' YEAR TO MONTH"
     if isinstance(data_type, YearMonthIntervalType):
-        return "INTERVAL '1 01:01:01.0001' YEAR TO MONTH"
+        return "INTERVAL '1 01:01:01.0001' DAY TO SECOND"
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
