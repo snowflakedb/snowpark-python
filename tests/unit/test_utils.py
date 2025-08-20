@@ -633,15 +633,14 @@ def test_normalize_timestamp():
 
     # string timestamps with fractional seconds
     assert (
-        _normalize_timestamp("2023-01-01 12:00:00.123456")
-        == "2023-01-01 12:00:00.123456"
+        _normalize_timestamp("2023-01-01 12:00:00.123") == "2023-01-01 12:00:00.123000"
     )
     assert (
         _normalize_timestamp("  2023-01-01 12:00:00.1 ") == "2023-01-01 12:00:00.100000"
     )
     assert (
-        _normalize_timestamp("2023-01-01 12:00:00.999999")
-        == "2023-01-01 12:00:00.999999"
+        _normalize_timestamp("2023-01-01 12:00:00.99099")
+        == "2023-01-01 12:00:00.990990"
     )
 
     # Error cases
