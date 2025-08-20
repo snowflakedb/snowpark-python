@@ -3,7 +3,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import sys
 from typing import Callable, Optional
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -27,14 +26,6 @@ from snowflake.snowpark.column import (
 from snowflake.snowpark.types import (
     DataType,
 )
-
-# Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
-# Python 3.9 can use both
-# Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
-if sys.version_info <= (3, 9):
-    pass
-else:
-    pass
 
 
 # check function to allow test_dataframe_alias_negative to pass in AST mode.
