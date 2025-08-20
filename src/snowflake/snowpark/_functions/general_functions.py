@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.type_utils import (
 )
 from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
+    publicapi,
 )
 from snowflake.snowpark.column import (
     Column,
@@ -41,6 +42,7 @@ def _check_column_parameters(name1: str, name2: Optional[str]) -> None:
         )
 
 
+@publicapi
 def lit(
     literal: ColumnOrLiteral,
     datatype: Optional[DataType] = None,
@@ -120,6 +122,7 @@ def _call_function(
     )
 
 
+@publicapi
 def call_function(
     function_name: str,
     *args: ColumnOrLiteral,
@@ -154,6 +157,7 @@ def call_function(
     return _call_function(function_name, *args, _ast=ast, _emit_ast=_emit_ast)
 
 
+@publicapi
 def function(function_name: str, _emit_ast: bool = True) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
@@ -186,6 +190,7 @@ def function(function_name: str, _emit_ast: bool = True) -> Callable:
     return lambda *args: call_function(function_name, *args, _emit_ast=_emit_ast)
 
 
+@publicapi
 def col(
     name1: str,
     name2: Optional[str] = None,

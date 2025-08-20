@@ -367,6 +367,7 @@ def column(
         )
 
 
+@publicapi
 def lit(
     literal: ColumnOrLiteral,
     datatype: Optional[DataType] = None,
@@ -10382,6 +10383,7 @@ def call_function(
     return general_functions.call_function(function_name, *args, _emit_ast=_emit_ast)
 
 
+@publicapi
 def function(function_name: str, _emit_ast: bool = True) -> Callable:
     """
     Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
