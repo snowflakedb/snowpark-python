@@ -33,7 +33,7 @@
   `create_or_replace_view()` on dataframes or series using the pandas or ray 
   backends.
 
-## 1.37.0 (YYYY-MM-DD)
+## 1.37.0 (2025-08-18)
 
 ### Snowpark Python API Updates
 
