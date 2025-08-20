@@ -8,6 +8,8 @@
 
 #### Bug Fixes
 
+- Fixed the repr of TimestampType to match the actual subtype it represents.
+
 #### Deprecations
 
 #### Dependency Updates
