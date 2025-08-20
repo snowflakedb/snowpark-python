@@ -252,9 +252,10 @@ def update_resolvable_node(
         # df_aliased_col_name_to_real_col_name is updated at the frontend api
         # layer when alias is called, not produced during code generation. Should
         # always retain the original value of the map.
-        node.df_aliased_col_name_to_real_col_name.update(
+        node.df_aliased_col_name_to_real_col_name = copy.deepcopy(
             node.from_.df_aliased_col_name_to_real_col_name
         )
+
         # projection_in_str for SelectStatement runs a analyzer.analyze() which
         # needs the correct expr_to_alias map setup. This map is setup during
         # snowflake plan generation and cached for later use. Calling snowflake_plan
