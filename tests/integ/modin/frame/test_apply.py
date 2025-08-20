@@ -1255,3 +1255,15 @@ def test_apply_udtf_caching_mutated_arg():
         eval_snowpark_pandas_result(
             *create_test_dfs(test_data), lambda df: df.apply(operation, arg=arg2)
         )
+
+
+@sql_count_checker(query_count=3)
+def test_snowpandas_in_apply_negative():
+    df = pd.DataFrame({"date": ["2025-01-01"], "time": ["12:34:56"]})
+    with pytest.raises(
+        SnowparkSQLException,
+        match=re.escape(
+            "pandas on Snowflake cannot be referenced within the pandas on Snowflake apply() function"
+        ),
+    ):
+        df.apply(lambda row: pd.to_datetime(f"{row.date} {row.time}"), axis=1)
