@@ -1435,8 +1435,6 @@ class DataFrameReader:
             session_init_statement=session_init_statement,
             _emit_ast=_emit_ast,
         )
-        # remove clear text secret in connection string or properties
-        jdbc_client.secret_detector()
 
         partitions = jdbc_client.partitions
 

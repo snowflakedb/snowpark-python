@@ -127,6 +127,7 @@ class JDBC:
         )
         self.secret_sql = f"SECRETS = ('cred' = {self.secret})"
         self._infer_schema_successful = True
+        self.secret_detector()
 
     @cached_property
     def schema(self) -> StructType:
@@ -368,16 +369,14 @@ class JDBC:
         )
 
     def generate_create_connection(self):
-        user_properties_overwrite = (
-            "\n".join(
+        user_properties_overwrite = ""
+        if self.properties is not None:
+            user_properties_overwrite = "\n".join(
                 [
                     f'properties.put("{key}", "{value}");'
                     for key, value in self.properties.items()
                 ]
             )
-            if self.properties is not None
-            else ""
-        )
         get_secret = """
                     SnowflakeSecrets secrets = SnowflakeSecrets.newInstance();
                     UsernamePassword up = secrets.getUsernamePassword("cred");
