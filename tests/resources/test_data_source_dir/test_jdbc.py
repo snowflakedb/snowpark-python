@@ -13,7 +13,6 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimestampTimeZone,
     FloatType,
-    DoubleType,
 )
 
 from ...parameters import ORACLEDB_CONNECTION_PARAMETERS
@@ -30,8 +29,8 @@ expected_schema = StructType(
     [
         StructField("ID", DecimalType(38, 0), nullable=False),
         StructField("NUMBER_COL", DecimalType(10, 2), nullable=True),
-        StructField("BINARY_FLOAT_COL", VariantType(), nullable=True),
-        StructField("BINARY_DOUBLE_COL", VariantType(), nullable=True),
+        StructField("BINARY_FLOAT_COL", FloatType(), nullable=True),
+        StructField("BINARY_DOUBLE_COL", FloatType(), nullable=True),
         StructField("VARCHAR2_COL", StringType(), nullable=True),
         StructField("CHAR_COL", StringType(), nullable=True),
         StructField("CLOB_COL", StringType(), nullable=True),
@@ -56,7 +55,7 @@ custom_schema_result = StructType(
         StructField("ID", DecimalType(38, 0), nullable=False),
         StructField("NUMBER_COL", DecimalType(10, 2), nullable=True),
         StructField("BINARY_FLOAT_COL", FloatType(), nullable=True),
-        StructField("BINARY_DOUBLE_COL", DoubleType(), nullable=True),
+        StructField("BINARY_DOUBLE_COL", FloatType(), nullable=True),
         StructField("VARCHAR2_COL", StringType(), nullable=True),
         StructField("CHAR_COL", StringType(), nullable=True),
         StructField("CLOB_COL", StringType(), nullable=True),

@@ -425,7 +425,7 @@ class JDBC:
             nullable,
         ) in self.raw_schema:
             jdbc_to_snow_type = JDBC_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, None)
-            java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, VariantType)
+            java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(java_type, VariantType)
             snow_type = (
                 java_to_snow_type if jdbc_to_snow_type is None else jdbc_to_snow_type
             )
