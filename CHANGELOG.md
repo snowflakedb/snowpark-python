@@ -14,6 +14,10 @@
 
 #### Dependency Updates
 
+#### Improvements
+
+- Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
+
 ### Snowpark pandas API Updates
 
 #### New Features
