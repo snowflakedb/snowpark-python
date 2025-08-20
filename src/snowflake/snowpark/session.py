@@ -3740,6 +3740,8 @@ class Session:
                     data_type, DateType
                 ):
                     converted_row.append(str(value))
+                elif isinstance(data_type, YearMonthIntervalType):
+                    converted_row.append(value)
                 elif isinstance(data_type, _AtomicType):  # consider inheritance
                     converted_row.append(value)
                 elif isinstance(value, (list, tuple, array)) and isinstance(
@@ -3768,8 +3770,6 @@ class Session:
                     converted_row.append(value)
                 elif isinstance(data_type, VectorType):
                     converted_row.append(json.dumps(value, cls=PythonObjJSONEncoder))
-                elif isinstance(data_type, YearMonthIntervalType):
-                    converted_row.append(value)
                 else:
                     raise TypeError(
                         f"Cannot cast {type(value)}({value}) to {str(data_type)}."
