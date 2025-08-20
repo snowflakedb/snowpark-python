@@ -2273,6 +2273,20 @@ def test_year_month_interval_type_invalid_fields():
         YearMonthIntervalType(1, 0)
 
 
+def test_day_time_interval_type_invalid_fields():
+    with pytest.raises(ValueError, match="interval 5 to 0 is invalid"):
+        DayTimeIntervalType(5, 0)
+
+    with pytest.raises(ValueError, match="interval 0 to 5 is invalid"):
+        DayTimeIntervalType(0, 5)
+
+    with pytest.raises(ValueError, match="interval 10 to 20 is invalid"):
+        DayTimeIntervalType(10, 20)
+
+    with pytest.raises(ValueError, match="interval 1 to 0 is invalid"):
+        DayTimeIntervalType(1, 0)
+
+
 def test_most_permissive_type():
     basic = [
         NullType(),

@@ -499,6 +499,10 @@ def test_schema_expression():
         schema_expression(YearMonthIntervalType(), True)
         == "NULL :: INTERVAL YEAR TO MONTH"
     )
+    assert (
+        schema_expression(DayTimeIntervalType(), True)
+        == "NULL :: INTERVAL DAY TO SECOND"
+    )
 
     assert (
         schema_expression(GeographyType(), False)
@@ -557,4 +561,8 @@ def test_schema_expression():
     assert (
         schema_expression(YearMonthIntervalType(), False)
         == "INTERVAL '1-0' YEAR TO MONTH"
+    )
+    assert (
+        schema_expression(YearMonthIntervalType(), False)
+        == "INTERVAL '1 01:01:01.0001' DAY TO SECOND"
     )
