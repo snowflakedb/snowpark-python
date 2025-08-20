@@ -4,6 +4,7 @@
 #
 
 import copy
+import datetime
 import itertools
 import random
 import re
@@ -5037,8 +5038,6 @@ class DataFrame:
             _spark_column_names = []
 
         def cell_to_str(cell: Any, datatype: DataType) -> str:
-            import datetime
-
             def format_timestamp_spark(dt: datetime.datetime) -> str:
                 # we don't want to use dt.strftime() to format dates since it's platform-specific and might give different results in different environments.
                 if dt.microsecond == 0:
