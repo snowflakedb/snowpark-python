@@ -1,5 +1,27 @@
 # Release History
 
+## 1.38.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Deprecations
+
+#### Dependency Updates
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+- Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
+
+#### Dependency Updates
+#### Bug Fixes
+
 ## 1.37.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
