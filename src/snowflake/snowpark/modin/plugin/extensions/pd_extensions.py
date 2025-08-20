@@ -441,6 +441,25 @@ def _read_snowflake_pandas_backend(
     return df.set_backend("Pandas")
 
 
+@_register_pd_accessor("read_snowflake", backend="Ray")
+@doc(
+    _READ_SNOWFLAKE_DOC,
+    table_name="RESULT_2",
+    stored_procedure_name="MULTIPLY_COL_BY_VALUE_2",
+)
+def _read_snowflake_ray_backend(
+    name_or_query, index_col=None, columns=None, enforce_ordering=False
+) -> pd.DataFrame:
+    with config_context(Backend="Snowflake"):
+        df = pd.read_snowflake(
+            name_or_query,
+            index_col=index_col,
+            columns=columns,
+            enforce_ordering=enforce_ordering,
+        )
+    return df.set_backend("Ray")
+
+
 @register_pd_accessor("to_snowflake")
 def to_snowflake(
     obj: Union[DataFrame, Series],
@@ -922,6 +941,36 @@ def to_iceberg(
         index=index,
         index_label=index_label,
     )
+
+
+def make_pass_through_function(name: str) -> callable:
+    """
+    Define a function that passes through to a method on the first argument.
+
+    Parameters
+    ----------
+    name : str
+        The name of the function to pass through.
+
+    Returns
+    -------
+    callable
+        A function that passes through to the method on the first argument.
+    """
+    return lambda obj, *args, **kwargs: getattr(obj, name)(*args, **kwargs)
+
+
+for backend in ("Ray", "Pandas"):
+    for function in (
+        "to_iceberg",
+        "to_view",
+        "to_dynamic_table",
+        "to_snowflake",
+        "to_snowpark",
+    ):
+        register_pd_accessor(name=function, backend=backend)(
+            make_pass_through_function(function)
+        )
 
 
 @register_pd_accessor("explain_switch")

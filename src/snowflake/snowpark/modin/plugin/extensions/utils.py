@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Hashable, Sequence
 from types import BuiltinFunctionType
-from typing import Any, Callable
+from typing import Any, Callable, NoReturn
 
 import modin.pandas as pd
 import numpy as np
@@ -580,3 +580,81 @@ def try_convert_index_to_native(index_like: Any) -> Any:
     if isinstance(index_like, Index):
         index_like = index_like.to_pandas()
     return index_like
+
+
+def _make_non_snowflake_accessor(method: str) -> Callable:
+    """
+    Create a method that moves the object to Snowflake backend and calls the specified method.
+
+    Args:
+        method: The method name to call on the Snowflake-backend object.
+
+    Returns:
+        A method that moves the object to Snowflake and calls the method.
+    """
+    return lambda self, *args, **kwargs: getattr(self.move_to("Snowflake"), method)(
+        *args, **kwargs
+    )
+
+
+def _make_non_snowflake_not_implemented_accessor(
+    backend: str, method: str, object_type: str
+) -> Callable[..., NoReturn]:
+    """
+    Create a function that raises NotImplementedError for unsupported backend/method combinations.
+
+    Args:
+        backend: The backend name (e.g., "Pandas", "Ray").
+        method: The method name that is not supported.
+        object_type: The object type ("DataFrame" or "Series").
+
+    Returns:
+        A function that raises NotImplementedError when called.
+    """
+
+    def raise_error(self, *args, **kwargs) -> NoReturn:
+        raise NotImplementedError(
+            f"Modin supports the method {object_type}.{method} on the Snowflake backend, but not on the backend {backend}."
+        )
+
+    return raise_error
+
+
+def register_non_snowflake_accessors(
+    register_accessor_func: Callable, object_type: str
+) -> None:
+    """
+    Register accessors for non-Snowflake backends.
+
+    Args:
+        register_accessor_func: The function that registers the accessor.
+        object_type: The name of the object type.
+    """
+    for backend in ("Pandas", "Ray"):
+        register_accessor_func(name="to_pandas", backend=backend)(
+            pd.DataFrame._to_pandas
+            if object_type == "DataFrame"
+            else pd.Series._to_pandas
+        )
+
+        # Register methods that move to Snowflake backend
+        # TODO: Improve performance of to_snowflake() by writing to a Snowflake
+        # table directly instead of going through Snowpark pandas.
+        for method in ("to_snowflake", "to_snowpark", "to_iceberg"):
+            register_accessor_func(name=method, backend=backend)(
+                _make_non_snowflake_accessor(method=method)
+            )
+
+        # Register methods that are not implemented on non-Snowflake backends
+        for method in (
+            "create_or_replace_view",
+            "create_or_replace_dynamic_table",
+            "to_view",
+            "to_dynamic_table",
+            "cache_result",
+        ):
+            register_accessor_func(name=method, backend=backend)(
+                _make_non_snowflake_not_implemented_accessor(
+                    backend=backend, method=method, object_type=object_type
+                )
+            )
