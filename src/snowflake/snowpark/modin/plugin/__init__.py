@@ -22,7 +22,7 @@ recommended_supported_modin_version = "0.35.0"
 install_modin_msg = (
     f"Please set the modin version as {recommended_supported_modin_version} in the Packages menu at the top of your notebook."
     if "snowbook" in sys.modules  # this indicates the environment is Snowflake Notebook
-    else 'Run `pip install "snowflake-snowpark-python[modin] --upgrade"` to resolve.'
+    else 'Run `pip install --upgrade "snowflake-snowpark-python[modin]"` to resolve.'
 )
 
 try:
@@ -67,7 +67,7 @@ else:
 install_pandas_msg = (
     f"Please set the pandas version as {supported_pandas_major_version}.{recommended_pandas_minor_version}.x in the Packages menu at the top of your notebook."
     if "snowbook" in sys.modules  # this indicates the environment is Snowflake Notebook
-    else 'Run `pip install "snowflake-snowpark-python[modin] --upgrade"` to resolve.'
+    else 'Run `pip install --upgrade "snowflake-snowpark-python[modin]"` to resolve.'
 )
 
 if not pandas_version_supported:
