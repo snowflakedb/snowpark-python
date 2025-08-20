@@ -1796,15 +1796,16 @@ def test_pattern(session, mode):
     reason="Local testing does not support file.put",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
-@pytest.mark.parametrize("extern", [True, False])
-def test_pattern_with_infer(session, mode, extern):
-    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+@pytest.mark.parametrize("stage_template", [
+    None,
+    "TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage/{}",
+    "TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage_via_integration/{}"
+])
+def test_pattern_with_infer(session, mode, stage_template):
+    stage_name = (stage_template or "{}").format(Utils.random_name_for_temp_object(TempObjectType.STAGE))
 
     if current_account(session) != "SFCTEST0_AWS_US_WEST_2":
         pytest.skip("Test requires resources in sfctest0 test account")
-
-    if extern:
-        stage_name = f"TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage/{stage_name}"
 
     expected_schema = StructType(
         [
@@ -1821,7 +1822,7 @@ def test_pattern_with_infer(session, mode, extern):
     ]
 
     try:
-        if not extern:
+        if not stage_template:
             Utils.create_stage(session, stage_name, is_temporary=True)
         with tempfile.TemporaryDirectory() as temp_dir:
             for i in range(3):
@@ -1859,7 +1860,7 @@ def test_pattern_with_infer(session, mode, extern):
         single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv")
         Utils.check_answer(single_file_with_pattern_df, expected_rows)
 
-        # Test loading a directory while including patter and FILES
+        # Test loading a directory while including pattern and FILES
         reader = base_reader().option(
             "INFER_SCHEMA_OPTIONS", {"FILES": ["good1.csv.gz"]}
         )
@@ -1872,7 +1873,7 @@ def test_pattern_with_infer(session, mode, extern):
         assert df.schema == expected_schema
         Utils.check_answer(df, expected_rows * 3)
 
-        if not extern:
+        if not stage_template:
             # Test using fully qualified stage name
             reader = base_reader()
             df = reader.csv(
@@ -1882,7 +1883,7 @@ def test_pattern_with_infer(session, mode, extern):
             Utils.check_answer(df, expected_rows * 3)
 
     finally:
-        if extern:
+        if stage_template:
             session.sql(f"rm @{stage_name}").collect()
         else:
             Utils.drop_stage(session, stage_name)
