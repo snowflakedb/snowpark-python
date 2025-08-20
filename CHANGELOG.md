@@ -1,5 +1,27 @@
 # Release History
 
+## 1.38.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Deprecations
+
+#### Dependency Updates
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+- Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
+
+#### Dependency Updates
+#### Bug Fixes
+
 ## 1.37.0 (2025-08-18)
 
 ### Snowpark Python API Updates
@@ -53,6 +75,7 @@
 
 - Fixed an issue in hybrid execution mode (PrPr) where `pd.to_datetime` and `pd.to_timedelta` would unexpectedly raise `IndexError`.
 - Fixed a bug where `pd.explain_switch` would raise `IndexError` or return `None` if called before any potential switch operations were performed.
+- Fixed a bug where calling `pd.concat(axis=0)` on a dataframe with the default, positional index and a dataframe with a different index would produce invalid SQL.
 
 ## 1.36.0 (2025-08-05)
 
