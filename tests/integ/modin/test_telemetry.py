@@ -14,11 +14,14 @@ import pandas
 import pytest
 from modin.pandas.dataframe import DataFrame
 from pandas._libs.lib import NoDefault, no_default
+from modin.config import context as config_context
+from snowflake.snowpark.modin.config import SnowflakeModinTelemetryFlushInterval
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 import snowflake.snowpark.session
 from snowflake.snowpark._internal.telemetry import TelemetryClient, TelemetryField
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
+    ModinTelemetrySender,
     _not_equal_to_default,
     _send_modin_api_telemetry,
     _send_snowpark_pandas_telemetry_helper,
@@ -200,7 +203,7 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
     )
 
 
-@patch.object(TelemetryClient, "send")
+@patch.object(ModinTelemetrySender, "_send_telemetry")
 @sql_count_checker(query_count=0)
 def test_send_modin_api_telemetry(send_mock):
     session = snowflake.snowpark.session._get_active_session()
@@ -211,6 +214,7 @@ def test_send_modin_api_telemetry(send_mock):
         aggregatable=True,
     )
     send_mock.assert_called_with(
+        ANY,
         {
             "data": {
                 "modin_event": "test_event",
@@ -224,21 +228,55 @@ def test_send_modin_api_telemetry(send_mock):
             "python_version": ANY,
             "operating_system": ANY,
             "interactive": ANY,
-        }
+        },
     )
 
 
 @patch("snowflake.snowpark.modin.plugin._internal.telemetry._send_modin_api_telemetry")
-@sql_count_checker(query_count=2, union_count=8)
-def test_modin_telemetry(send_telemetry_mock, session):
+@sql_count_checker(query_count=4, union_count=16)
+def test_modin_telemetry_send_immediately(send_telemetry_mock, session):
     """
     Tests that a call to a pandas-api method triggers a call to _send_modin_api_telemetry
     """
+    with config_context(SnowflakeModinTelemetryFlushInterval=0):
+        assert SnowflakeModinTelemetryFlushInterval.get() == 0
+        df = pd.DataFrame(BASIC_TYPE_DATA1)
+        # to_string is an eager API that will trigger telemetry immediately
+        df.describe().to_string()
+        df.describe().to_string()
+        send_telemetry_mock.assert_called()
+        found_metric = False
+        for call in send_telemetry_mock.mock_calls:
+            if "snowflakequerycompiler.describe.stat.count" in call.kwargs["event"]:
+                assert call.kwargs["value"] == 1.0
+                found_metric = True
+                break
+        assert found_metric
+
+
+@patch("snowflake.snowpark.modin.plugin._internal.telemetry._send_modin_api_telemetry")
+@patch(
+    "snowflake.snowpark.modin.plugin._internal.telemetry._check_and_reset_metric_flush_time"
+)
+@sql_count_checker(query_count=4, union_count=16)
+def test_modin_telemetry_time_passed(check_flush_mock, send_telemetry_mock, session):
+    check_flush_mock.return_value = False
     df = pd.DataFrame(BASIC_TYPE_DATA1)
     # to_string is an eager API that will trigger telemetry immediately
     df.describe().to_string()
-
-    send_telemetry_mock.assert_called()
+    df.describe().to_string()
+    check_flush_mock.return_value = True
+    df = df + df
+    found_metric = 0
+    for call in send_telemetry_mock.mock_calls:
+        if "snowflakequerycompiler.describe.stat.count" in call.kwargs["event"]:
+            assert call.kwargs["value"] == 2.0
+            assert call.kwargs["aggregatable"] is True
+            found_metric += 1
+            break
+        if "snowflakequerycompiler.describe.stat.mean" in call.kwargs["event"]:
+            assert call.kwargs["aggregatable"] == False
+    assert found_metric
 
 
 @sql_count_checker(query_count=0)
@@ -818,27 +856,55 @@ def test_telemetry_read_json(tmp_path):
     ]
 
 
-@patch.object(TelemetryClient, "send")
-@sql_count_checker(query_count=2)
-def test_modin_e2e_telemetry(send_mock, session):
+@sql_count_checker(query_count=1)
+@patch.object(ModinTelemetrySender, "_send_telemetry")
+def test_modin_e2e_telemetry_remote(send_mock):
     """
-    Tests that a DataFrame operation triggers a call to TelemetryClient.send with the correct modin telemetry.
+    Tests that a DataFrame operation triggers a call to telemetry with the correct modin telemetry.
     """
-    df = pd.DataFrame(BASIC_TYPE_DATA1)
-    df.value_counts().to_string()
-
-    found_modin_telemetry = False
-    for call in send_mock.call_args_list:
-        message = call.args[0]
-
-        if message.get("source") != "modin":
-            continue
-        data = message.get("data", {})
-        assert data.get("category") == "modin"
-        assert data.get("modin_event_aggregatable") is False
-        if (
-            data.get("modin_event")
-            == "modin.query-compiler.snowflakequerycompiler.value_counts"
-        ):
+    with config_context(SnowflakeModinTelemetryFlushInterval=0):
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        assert df.get_backend() == "Snowflake"
+        print(df.sum())
+        found_modin_telemetry = False
+        for call in send_mock.call_args_list:
+            message = call.args[1]
+            if message.get("source") != "modin":
+                continue
             found_modin_telemetry = True
-    assert found_modin_telemetry, "Modin API telemetry for was not sent."
+            data = message.get("data", {})
+            assert data.get("category") == "modin"
+            if (
+                data.get("modin_event")
+                == "modin.query-compiler.snowflakequerycompiler.sum.stat.mean"
+            ):
+                found_modin_telemetry = True
+        assert found_modin_telemetry, "Modin API telemetry for was not sent."
+
+
+@sql_count_checker(query_count=0)
+@patch.object(ModinTelemetrySender, "_send_telemetry")
+def test_modin_e2e_telemetry_local(send_mock):
+    """
+    Tests that a DataFrame operation triggers a call to telemetry with the correct modin telemetry.
+    """
+    import time
+
+    with config_context(SnowflakeModinTelemetryFlushInterval=0, Backend="Pandas"):
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        assert df.get_backend() == "Pandas"
+        print(df.sum())
+        found_modin_telemetry = False
+        for call in send_mock.call_args_list:
+            message = call.args[1]
+            if message.get("source") != "modin":
+                continue
+            found_modin_telemetry = True
+            data = message.get("data", {})
+            assert data.get("category") == "modin"
+            if (
+                data.get("modin_event")
+                == "modin.query-compiler.nativequerycompiler.sum.stat.mean"
+            ):
+                found_modin_telemetry = True
+        assert found_modin_telemetry, "Modin API telemetry for was not sent."

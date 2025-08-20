@@ -67,6 +67,19 @@ class PropertyMethodType(Enum):
     FDEL = "delete"
 
 
+class ModinTelemetrySender:
+    """
+    Class designed to allow for easier testing of telemetry
+    """
+
+    @classmethod
+    def _send_telemetry(cls, session: Session, message: dict) -> None:
+        """
+        Internal method to allow for easier testing
+        """
+        return session._conn._telemetry_client.send(message)
+
+
 @safe_telemetry
 def _send_modin_api_telemetry(
     session: Session, event: str, value: Union[int, float], aggregatable: bool
@@ -99,7 +112,7 @@ def _send_modin_api_telemetry(
         TelemetryField.KEY_DATA.value: data,
         PCTelemetryField.KEY_SOURCE.value: "modin",
     }
-    session._conn._telemetry_client.send(message)
+    ModinTelemetrySender()._send_telemetry(session, message)
 
 
 @safe_telemetry
@@ -650,9 +663,9 @@ class TelemetryMeta(type):
 
 
 _modin_event_log: list = [[]]
-_next_modin_metric_flush: float = (
-    time.time() + SnowflakeModinTelemetryFlushInterval.get()
-)
+_next_modin_metric_flush: float = 0
+_modin_metric_flush_interval = 0
+
 MODIN_SWITCH_DECISION_METRICS = (
     "modin.hybrid.merge.decision",
     "modin.hybrid.auto.decision",
@@ -661,13 +674,74 @@ MODIN_PERFORMANCE_METRICS = ("modin.query-compiler",)
 MODIN_ALL_COLLECTED_METRICS = MODIN_SWITCH_DECISION_METRICS + MODIN_PERFORMANCE_METRICS
 
 
+def _check_and_reset_metric_flush_time() -> bool:
+    """
+    Return False if we still need to aggregate more metrics
+    Return True if we should flush the metrics, and reset the clock
+
+    """
+    global _next_modin_metric_flush
+    global _modin_metric_flush_interval
+
+    # Check whether the settings for the flush interval have changed, and
+    # if so, reset the timer.
+    current_flush_interval = SnowflakeModinTelemetryFlushInterval.get()
+    if _modin_metric_flush_interval != current_flush_interval:
+        _modin_metric_flush_interval = current_flush_interval
+        _next_modin_metric_flush = (
+            time.time() + SnowflakeModinTelemetryFlushInterval.get()
+        )
+
+    if _next_modin_metric_flush > time.time():
+        return False
+
+    # reset the timer
+    _next_modin_metric_flush = time.time() + SnowflakeModinTelemetryFlushInterval.get()
+    return True
+
+
+def _flush_modin_metrics() -> None:
+    """
+    Flush the collected modin metrics through the normal telemetry channel.
+    Aggregate all metrics with the same name into simple statistics. Set
+    the aggregatable field to True only for the count statistic.
+
+    This will output metrics of the form:
+      modin.query-compiler.snowflakequerycompiler.value_counts.stat.mean
+      modin.query-compiler.snowflakequerycompiler.value_counts.stat.median
+      modin.query-compiler.snowflakequerycompiler.value_counts.stat.count
+      modin.hybrid.auto.decision.Pandas.count
+      modin.hybrid.auto.decision.Snowflake.mean
+      ...
+    """
+    global _modin_event_log
+    try:
+        summary_stat_names = ["count", "median", "mean"]
+        processing_df = native_pd.DataFrame(
+            _modin_event_log, columns=["metric", "value"]
+        )
+        summary_stats = processing_df.groupby("metric").agg(summary_stat_names)
+        session = snowflake.snowpark.session._get_active_session()
+        for row in summary_stats.iterrows():
+            for stat in summary_stats:
+                stat_specific_metric = f"{row[0]}.stat.{stat[1]}"
+
+                _send_modin_api_telemetry(
+                    session=session,
+                    event=stat_specific_metric,
+                    value=row[1][stat],
+                    aggregatable=stat == ("value", "count"),
+                )
+    except Exception:
+        pass
+    _modin_event_log = [[]]
+
+
 def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -> None:
     """
     Telemetry hook that collects modin telemetry events of interest for
     transmission to Snowflake.
     """
-    global _modin_event_log
-    global _next_modin_metric_flush
     simplified_metric = metric_name
 
     if not (
@@ -681,32 +755,10 @@ def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -
         # strip off the groups
         simplified_metric = ".".join(metric_name.split(".")[0:5])
     _modin_event_log.append([simplified_metric, metric_value])
-
     # We will lose telemetry at the tail end of the process, but
     # that's OK - this telemetry is meant to be lossy
-    if _next_modin_metric_flush < time.time():
-        try:
-            summary_stat_names = ["count", "median", "mean"]
-            processing_df = native_pd.DataFrame(
-                _modin_event_log, columns=["metric", "value"]
-            )
-            summary_stats = processing_df.groupby("metric").agg(summary_stat_names)
-            session = snowflake.snowpark.session._get_active_session()
-            for row in summary_stats:
-                for stat in summary_stats:
-                    stat_specific_metric = f"{simplified_metric}.{stat}"
-                    _send_modin_api_telemetry(
-                        session=session,
-                        event=stat_specific_metric,
-                        value=row[stat],
-                        aggregatable=stat == "count",
-                    )
-        except Exception:
-            pass
-        _next_modin_metric_flush = (
-            time.time() + SnowflakeModinTelemetryFlushInterval.get()
-        )
-        _modin_event_log = [[]]
+    if _check_and_reset_metric_flush_time():
+        _flush_modin_metrics()
 
 
 hybrid_switch_log = native_pd.DataFrame({})

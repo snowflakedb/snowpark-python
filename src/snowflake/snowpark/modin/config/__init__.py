@@ -55,6 +55,8 @@ from snowflake.snowpark.modin.config.envvars import (
     RayRedisPassword,
     ReadSqlEngine,
     SnowflakePandasTransferThreshold,
+    SnowflakeModinTelemetryFlushInterval,
+    SnowflakeModinTelemetryEnabled,
     StorageFormat,
     TestDatasetSize,
     TestReadFromPostgres,
