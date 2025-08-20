@@ -4,6 +4,7 @@
 
 import pytest
 from snowflake.snowpark.functions import col
+from snowflake.snowpark.exceptions import SnowparkSQLException
 
 
 pytestmark = [
@@ -288,6 +289,13 @@ def test_dataframe_ai_agg_error_handling(session):
             task_description="Summarize the text",
             input_column=123,  # Invalid type
         )
+
+    # Test invalid column name
+    with pytest.raises(SnowparkSQLException, match="invalid identifier 'INVALID'"):
+        df.ai.agg(
+            task_description="Summarize the text",
+            input_column=col("invalid"),  # Invalid column name
+        ).collect(_emit_ast=False)
 
 
 def test_grouped_dataframe_ai_agg(session):
