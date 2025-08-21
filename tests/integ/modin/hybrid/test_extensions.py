@@ -230,39 +230,48 @@ def test_series_to_iceberg(
     "function,method_name",
     (
         param(
-            lambda obj, *args, **kwargs: obj.create_or_replace_view(*args, **kwargs),
+            lambda obj: obj.create_or_replace_view(name="test_view"),
             "create_or_replace_view",
             id="create_or_replace_view_method",
         ),
         param(
-            lambda obj, *args, **kwargs: obj.create_or_replace_dynamic_table(
-                *args, **kwargs
+            lambda obj: obj.create_or_replace_dynamic_table(
+                name="test_dynamic_table",
             ),
             "create_or_replace_dynamic_table",
             id="create_or_replace_dynamic_table_method",
         ),
         param(
-            lambda obj, *args, **kwargs: obj.to_view(*args, **kwargs),
+            lambda obj: obj.to_view(name="test_view"),
             "to_view",
             id="to_view_method",
         ),
         param(
-            pd.to_view,
+            lambda obj: pd.to_view(obj, name="test_view"),
             "to_view",
             id="to_view_function",
         ),
         param(
-            lambda obj, *args, **kwargs: obj.to_dynamic_table(*args, **kwargs),
+            lambda obj: obj.to_dynamic_table(
+                name="test_dynamic_table",
+                warehouse="test_warehouse",
+                lag="test_lag",
+            ),
             "to_dynamic_table",
             id="to_dynamic_table_method",
         ),
         param(
-            pd.to_dynamic_table,
+            lambda obj: pd.to_dynamic_table(
+                obj,
+                name="test_dynamic_table",
+                warehouse="test_warehouse",
+                lag="test_lag",
+            ),
             "to_dynamic_table",
             id="to_dynamic_table_function",
         ),
         param(
-            lambda obj, *args, **kwargs: obj.cache_result(*args, **kwargs),
+            lambda obj: obj.cache_result(),
             "cache_result",
             id="cache_result_method",
         ),
