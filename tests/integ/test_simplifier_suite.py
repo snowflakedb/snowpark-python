@@ -4,6 +4,7 @@
 
 import itertools
 import sys
+import time
 from typing import Tuple
 
 import pytest
@@ -1394,6 +1395,141 @@ def test_col_ilike(session, use_simplified_query_generation):
         else:
             res = df.drop("name").col_ilike("%id%").collect()
             assert len(res) == 4 and len(res[0]) == 2  # USER_ID and dept_id columns
+
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
+
+
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_time_travel(session, use_simplified_query_generation):
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set(
+            "use_simplified_query_generation", use_simplified_query_generation
+        )
+
+        table1 = "test_time_travel_all_apis"
+        df = session.create_dataframe(
+            [[1, "product_a", 100], [2, "product_b", 200]],
+            schema=["id", "name", "price"],
+        )
+        df.write.save_as_table(table1, mode="overwrite", table_type="temporary")
+
+        # for join operations
+        table2 = "test_time_travel_categories"
+        df2 = session.create_dataframe(
+            [[1, "electronics"], [2, "clothing"]], schema=["id", "category"]
+        )
+        df2.write.save_as_table(table2, mode="overwrite", table_type="temporary")
+
+        time.sleep(2)
+
+        with session.query_history() as query_history:
+            session.sql(
+                f"UPDATE {table1} SET price = price + 50 WHERE id = 1"
+            ).collect()
+        update_qid = query_history.queries[-1].query_id
+
+        # ============== Test 1: session.table() API ==============
+        df_table_before = session.table(
+            table1, time_travel_mode="before", statement=update_qid
+        )
+        table_result = df_table_before.collect()
+        prices_before = {row["ID"]: row["PRICE"] for row in table_result}
+        assert prices_before[1] == 100  # Original price before update
+        assert prices_before[2] == 200  # Unchanged
+
+        df_table_at = session.table(table1, time_travel_mode="at", statement=update_qid)
+        table_at_result = df_table_at.collect()
+        prices_at = {row["ID"]: row["PRICE"] for row in table_at_result}
+        assert prices_at[1] == 150  # Updated price after update
+        assert prices_at[2] == 200  # Unchanged
+
+        # Test filter, select, limit
+        df_table_filtered = (
+            session.table(table1, time_travel_mode="before", statement=update_qid)
+            .filter(col("id") == 1)
+            .select("name", "price")
+            .limit(1)
+        )
+        table_filtered_result = df_table_filtered.collect()
+        assert len(table_filtered_result) == 1
+        assert table_filtered_result[0]["PRICE"] == 100
+
+        # ============== Test 2: session.read.table() API ==============
+        df_reader_before = session.read.table(
+            table1, time_travel_mode="before", statement=update_qid
+        )
+        reader_result = df_reader_before.collect()
+        reader_prices_before = {row["ID"]: row["PRICE"] for row in reader_result}
+        assert reader_prices_before[1] == 100
+        assert reader_prices_before[2] == 200
+
+        df_reader_at = session.read.table(
+            table1, time_travel_mode="at", statement=update_qid
+        )
+        reader_at_result = df_reader_at.collect()
+        reader_prices_at = {row["ID"]: row["PRICE"] for row in reader_at_result}
+        assert reader_prices_at[1] == 150
+        assert reader_prices_at[2] == 200
+
+        # Test join operations
+        df_reader_join = (
+            session.read.table(table1, time_travel_mode="before", statement=update_qid)
+            .join(session.table(table2), "id")
+            .select("id", "name", "category", "price")
+        )
+        reader_join_result = df_reader_join.collect()
+        assert len(reader_join_result) == 2
+        join_prices = {row["ID"]: row["PRICE"] for row in reader_join_result}
+        assert join_prices[1] == 100
+
+        # ============== Test 3: session.read.option().table() API ==============
+        df_option_before = (
+            session.read.option("time_travel_mode", "before")
+            .option("statement", update_qid)
+            .table(table1)
+        )
+        option_result = df_option_before.collect()
+        option_prices_before = {row["ID"]: row["PRICE"] for row in option_result}
+        assert option_prices_before[1] == 100
+        assert option_prices_before[2] == 200
+
+        df_option_at = (
+            session.read.option("time_travel_mode", "at")
+            .option("statement", update_qid)
+            .table(table1)
+        )
+        option_at_result = df_option_at.collect()
+        option_prices_at = {row["ID"]: row["PRICE"] for row in option_at_result}
+        assert option_prices_at[1] == 150
+        assert option_prices_at[2] == 200
+
+        # Test option chaining
+        df_option_filtered = (
+            session.read.option("time_travel_mode", "before")
+            .option("statement", update_qid)
+            .table(table1)
+            .filter(col("id") == 2)
+            .select("name", "price")
+            .limit(1)
+        )
+        option_filtered_result = df_option_filtered.collect()
+        assert len(option_filtered_result) == 1
+        assert option_filtered_result[0]["PRICE"] == 200
+
+        # Test direct params overriding options
+        df_mixed = (
+            session.read.option("time_travel_mode", "before")  # Should be ignored
+            .option("statement", "dummy_qid")  # Should be ignored
+            .table(
+                table1, time_travel_mode="at", statement=update_qid  # Direct param wins
+            )
+        )  # Direct param wins
+        mixed_result = df_mixed.collect()
+        mixed_prices = {row["ID"]: row["PRICE"] for row in mixed_result}
+        assert mixed_prices[1] == 150
+        assert mixed_prices[2] == 200
 
     finally:
         session.conf.set("use_simplified_query_generation", original)
