@@ -413,7 +413,7 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
         )
     if isinstance(data_type, YearMonthIntervalType):
         return "INTERVAL '1-0' YEAR TO MONTH"
-    if isinstance(data_type, YearMonthIntervalType):
+    if isinstance(data_type, DayTimeIntervalType):
         return "INTERVAL '1 01:01:01.0001' DAY TO SECOND"
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
