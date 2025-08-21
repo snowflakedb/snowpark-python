@@ -6,7 +6,7 @@
 import sys
 import datetime
 from logging import getLogger
-from typing import Dict, List, NamedTuple, Optional, Union, overload
+from typing import Dict, List, Literal, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -34,7 +34,7 @@ from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_so
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
 from snowflake.snowpark._internal.utils import (
     publicapi,
-    validate_and_normalize_time_travel_params,
+    TimeTravelConfig,
 )
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
@@ -294,7 +294,7 @@ class Table(DataFrame):
         _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
         *,
-        time_travel_mode: Optional[str] = None,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime.datetime]] = None,
@@ -308,7 +308,7 @@ class Table(DataFrame):
             ast.variant.table_init = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
 
-        time_travel_config = validate_and_normalize_time_travel_params(
+        time_travel_config = TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode=time_travel_mode,
             statement=statement,
             offset=offset,
@@ -346,9 +346,7 @@ class Table(DataFrame):
     def _copy_without_ast(self):
         kwargs = {}
         if self._time_travel_config:
-            time_travel_dict = self._time_travel_config._asdict()
-            time_travel_dict["time_travel_mode"] = time_travel_dict.pop("mode")
-            kwargs.update(time_travel_dict)
+            kwargs.update(self._time_travel_config.asdict_for_table())
 
         return Table(
             self.table_name,
@@ -361,9 +359,7 @@ class Table(DataFrame):
     def __copy__(self) -> "Table":
         kwargs = {}
         if self._time_travel_config:
-            time_travel_dict = self._time_travel_config._asdict()
-            time_travel_dict["time_travel_mode"] = time_travel_dict.pop("mode")
-            kwargs.update(time_travel_dict)
+            kwargs.update(self._time_travel_config.asdict_for_table())
 
         return Table(
             self.table_name,
