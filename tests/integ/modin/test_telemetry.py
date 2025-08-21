@@ -815,12 +815,11 @@ def test_modin_e2e_telemetry_remote(send_mock):
             message = call.args[1]
             if message.get("source") != "modin":
                 continue
-            found_modin_telemetry = True
             data = message.get("data", {})
             assert data.get("category") == "modin"
             if (
                 data.get("modin_event")
-                == "modin.query-compiler.snowflakequerycompiler.sum.stat.mean"
+                == "modin.query-compiler.snowflakequerycompiler.agg.stat.median"
             ):
                 found_modin_telemetry = True
         assert found_modin_telemetry, "Modin API telemetry for was not sent."
@@ -842,12 +841,38 @@ def test_modin_e2e_telemetry_local(send_mock):
             message = call.args[1]
             if message.get("source") != "modin":
                 continue
-            found_modin_telemetry = True
+            data = message.get("data", {})
+            assert data.get("category") == "modin"
+            # this telemetry is on the basequerycompiler, rather than the
+            # nativequery compiler
+            if (
+                data.get("modin_event")
+                == "modin.query-compiler.basequerycompiler.sum.stat.count"
+            ):
+                found_modin_telemetry = True
+        assert found_modin_telemetry, "Modin API telemetry for was not sent."
+        
+@sql_count_checker(query_count=0)
+@patch.object(ModinTelemetrySender, "_send_telemetry")
+def test_modin_e2e_telemetry_auto_switch(send_mock):
+    """
+    Tests that a DataFrame operation triggers a call to telemetry with the correct modin telemetry.
+    """
+
+    with config_context(SnowflakeModinTelemetryFlushInterval=0, AutoSwitchBackend=True):
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        assert df.get_backend() == "Pandas"
+        print(df.sum())
+        found_modin_telemetry = False
+        for call in send_mock.call_args_list:
+            message = call.args[1]
+            if message.get("source") != "modin":
+                continue
             data = message.get("data", {})
             assert data.get("category") == "modin"
             if (
                 data.get("modin_event")
-                == "modin.query-compiler.nativequerycompiler.sum.stat.mean"
+                == "modin.hybrid.auto.decision.Pandas.stat.count"
             ):
                 found_modin_telemetry = True
         assert found_modin_telemetry, "Modin API telemetry for was not sent."
