@@ -68,6 +68,7 @@ def test_standalone_api_telemetry():
         }
     ]
 
+
 @patch.object(TelemetryClient, "send")
 def test_snowpark_pandas_telemetry_method_decorator(send_mock, test_table_name):
     """
@@ -238,7 +239,7 @@ def test_modin_telemetry_time_passed(check_flush_mock, send_telemetry_mock, sess
             found_metric += 1
             break
         if "snowflakequerycompiler.describe.stat.mean" in call.kwargs["event"]:
-            assert call.kwargs["aggregatable"] == False
+            assert call.kwargs["aggregatable"] is False
     assert found_metric
 
 
@@ -432,6 +433,7 @@ def test_telemetry_with_rolling():
         == "Rolling.Rolling.sum"
     )
 
+
 @patch.object(TelemetryClient, "send")
 @sql_count_checker(query_count=2, join_count=2)
 def test_telemetry_getitem_setitem(send_mock):
@@ -454,6 +456,7 @@ def test_telemetry_getitem_setitem(send_mock):
         {"name": df_getitem_name},
         {"name": series_getitem_name},
     ]
+
 
 @patch.object(TelemetryClient, "send")
 @pytest.mark.parametrize(
@@ -488,6 +491,7 @@ def test_telemetry_private_method(
     data = _extract_calls_from_send_mock(send_mock, expected_func_name)
     assert data[0]["api_calls"] == [{"name": expected_func_name}]
 
+
 @patch.object(TelemetryClient, "send")
 @sql_count_checker(query_count=0)
 def test_telemetry_property_index(send_mock):
@@ -506,7 +510,7 @@ def test_telemetry_property_index(send_mock):
     ]
 
 
-def _extract_calls_from_send_mock(send_mock:MagicMock, func_name:str) -> List:
+def _extract_calls_from_send_mock(send_mock: MagicMock, func_name: str) -> List:
     """
     Extract telemetry data from a MagicMock object on the
     TelemetryClient
@@ -521,6 +525,7 @@ def _extract_calls_from_send_mock(send_mock:MagicMock, func_name:str) -> List:
             telemetry_data.append(data)
     return telemetry_data
 
+
 # TODO SNOW-996140: add telemetry for iloc/loc set
 @patch.object(TelemetryClient, "send")
 @pytest.mark.parametrize(
@@ -530,8 +535,8 @@ def _extract_calls_from_send_mock(send_mock:MagicMock, func_name:str) -> List:
         ["loc", lambda df: df.loc[0, "a"], 2, 2],
     ],
 )
-def test_telemetry_property_iloc(send_mock,
-    name, method, expected_query_count, expected_join_count
+def test_telemetry_property_iloc(
+    send_mock, name, method, expected_query_count, expected_join_count
 ):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
@@ -539,12 +544,13 @@ def test_telemetry_property_iloc(send_mock,
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         _ = method(df)
 
-    telemetry_data = _extract_calls_from_send_mock(send_mock, f"DataFrame.property.{name}_get")
+    telemetry_data = _extract_calls_from_send_mock(
+        send_mock, f"DataFrame.property.{name}_get"
+    )
 
     assert len(telemetry_data) == 1
-    assert telemetry_data[0]['func_name'] == f"DataFrame.property.{name}_get"
-    assert telemetry_data[0]['api_calls'][0]['name'] == f"DataFrame.property.{name}_get"
-
+    assert telemetry_data[0]["func_name"] == f"DataFrame.property.{name}_get"
+    assert telemetry_data[0]["api_calls"][0]["name"] == f"DataFrame.property.{name}_get"
 
 
 def _set_iloc(df: pd.DataFrame) -> None:
@@ -554,12 +560,15 @@ def _set_iloc(df: pd.DataFrame) -> None:
 def _del_iloc(df: pd.DataFrame) -> None:
     del df.iloc
 
+
 @patch.object(TelemetryClient, "send")
 @pytest.mark.parametrize(
     "method_verb, name, method, method_noun",
     [("set", "iloc", _set_iloc, "setter"), ("delete", "iloc", _del_iloc, "deleter")],
 )
-def test_telemetry_property_missing_methods(send_mock, method_verb, name, method, method_noun):
+def test_telemetry_property_missing_methods(
+    send_mock, method_verb, name, method, method_noun
+):
     """Test telemetry for property methods that don't exist, e.g. users can't assign a value to the `iloc` property."""
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df._query_compiler.snowpark_pandas_api_calls.clear()
@@ -579,6 +588,7 @@ def test_telemetry_property_missing_methods(send_mock, method_verb, name, method
             "name": expected_func_name,
         }
     ]
+
 
 @patch.object(TelemetryClient, "send")
 @sql_count_checker(query_count=1)
@@ -665,6 +675,7 @@ def test_telemetry_func_call_count(send_mock, session):
         # t called __repr__() 1 time.
         assert telemetry_data[-1]["call_count"] == 1
 
+
 @patch.object(TelemetryClient, "send")
 def test_telemetry_multiple_func_call_count(send_mock, session):
     # TODO (SNOW-1893699): test failing on github with sql simplifier disabled.
@@ -679,8 +690,12 @@ def test_telemetry_multiple_func_call_count(send_mock, session):
         s.__repr__()
         s.__dataframe__()
 
-        repr_telemetry_data = _extract_calls_from_send_mock(send_mock, "DataFrame.__repr__")      
-        dataframe_telemetry_data = _extract_calls_from_send_mock(send_mock, "DataFrame.__dataframe__")
+        repr_telemetry_data = _extract_calls_from_send_mock(
+            send_mock, "DataFrame.__repr__"
+        )
+        dataframe_telemetry_data = _extract_calls_from_send_mock(
+            send_mock, "DataFrame.__dataframe__"
+        )
 
         # last call from telemetry data
         # s called __repr__() 2 times.
@@ -817,7 +832,6 @@ def test_modin_e2e_telemetry_local(send_mock):
     """
     Tests that a DataFrame operation triggers a call to telemetry with the correct modin telemetry.
     """
-    import time
 
     with config_context(SnowflakeModinTelemetryFlushInterval=0, Backend="Pandas"):
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})

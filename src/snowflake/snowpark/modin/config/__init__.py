@@ -120,4 +120,6 @@ __all__ = [
     # Plugin settings
     "DocModule",
     "SnowflakePandasTransferThreshold",
+    "SnowflakeModinTelemetryFlushInterval",
+    "SnowflakeModinTelemetryEnabled",
 ]

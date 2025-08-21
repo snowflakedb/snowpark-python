@@ -26,7 +26,6 @@ from typing import Any, Optional
 import modin.config as modin_config
 from packaging import version
 from pandas.util._decorators import doc  # type: ignore[attr-defined]
-import modin.config as modin_config
 
 from snowflake.snowpark.modin.config.pubsub import (
     _TYPE_PARAMS,
