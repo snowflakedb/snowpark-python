@@ -8,9 +8,15 @@
 
 #### Bug Fixes
 
+- Fixed the repr of TimestampType to match the actual subtype it represents.
+
 #### Deprecations
 
 #### Dependency Updates
+
+#### Improvements
+
+- Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
 
 ### Snowpark pandas API Updates
 
@@ -18,15 +24,15 @@
 
 #### Improvements
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
+- Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
 - Improved performance by deferring row position computation. 
   - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
   - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 
-
 #### Dependency Updates
 #### Bug Fixes
 
-## 1.37.0 (YYYY-MM-DD)
+## 1.37.0 (2025-08-18)
 
 ### Snowpark Python API Updates
 
