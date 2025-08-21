@@ -88,6 +88,7 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     StructType,
+    TimestampTimeZone,
     VariantType,
     StructField,
 )
@@ -104,7 +105,7 @@ logger = getLogger(__name__)
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
 
-TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
+_TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
     "TIME_TRAVEL_MODE": "time_travel_mode",
     "STATEMENT": "statement",
     "OFFSET": "offset",
@@ -126,7 +127,7 @@ READER_OPTIONS_ALIAS_MAP = {
     "NULLVALUE": "NULL_IF",
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
-    **{k: v.upper() for k, v in TIME_TRAVEL_OPTIONS_PARAMS_MAP.items()},
+    **{k: v.upper() for k, v in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items()},
 }
 
 _MAX_RETRY_TIME = 3
@@ -145,7 +146,7 @@ def _extract_time_travel_from_options(options: dict) -> dict:
     """Extract time travel options from DataFrameReader options."""
     return {
         param_name: options[option_key]
-        for option_key, param_name in TIME_TRAVEL_OPTIONS_PARAMS_MAP.items()
+        for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items()
         if option_key in options
     }
 
@@ -505,7 +506,7 @@ class DataFrameReader:
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime]] = None,
-        timezone: Optional[str] = "NTZ",
+        timezone: Optional[Union[str, TimestampTimeZone]] = TimestampTimeZone.DEFAULT,
         stream: Optional[str] = None,
     ) -> Table:
         """Returns a Table that points to the specified table.
@@ -558,18 +559,14 @@ class DataFrameReader:
             build_table_name(ast.name, name)
 
         if time_travel_mode is not None:
-            direct_param_values = [
-                time_travel_mode,
-                statement,
-                offset,
-                timestamp,
-                timezone,
-                stream,
-            ]
-            time_travel_params = dict(
-                zip(TIME_TRAVEL_OPTIONS_PARAMS_MAP.values(), direct_param_values)
-            )
-            time_travel_params = {k: v for k, v in time_travel_params.items()}
+            time_travel_params = {
+                "time_travel_mode": time_travel_mode,
+                "statement": statement,
+                "offset": offset,
+                "timestamp": timestamp,
+                "timezone": timezone,
+                "stream": stream,
+            }
         else:
             time_travel_params = _extract_time_travel_from_options(self._cur_options)
 

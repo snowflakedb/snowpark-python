@@ -578,6 +578,11 @@ class SelectableEntity(Selectable):
         self.entity = entity
         # Metadata/Attributes for the plan
         self._attributes: Optional[List[Attribute]] = None
+        self.table_reference = self.entity.name
+        if self.entity.time_travel_config is not None:
+            self.table_reference += generate_time_travel_sql_clause(
+                self.entity.time_travel_config
+            )
 
     def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
         copied = SelectableEntity(
@@ -589,14 +594,7 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_query(self) -> str:
-        table_reference = self.entity.name
-
-        if self.entity.time_travel_config is not None:
-            table_reference += generate_time_travel_sql_clause(
-                self.entity.time_travel_config
-            )
-
-        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{table_reference}"
+        return f"{analyzer_utils.SELECT}{analyzer_utils.STAR}{analyzer_utils.FROM}{self.table_reference}"
 
     @property
     def commented_sql(self) -> str:
@@ -604,26 +602,12 @@ class SelectableEntity(Selectable):
 
     @property
     def sql_in_subquery(self) -> str:
-        table_reference = self.entity.name
-
-        if self.entity.time_travel_config is not None:
-            table_reference += generate_time_travel_sql_clause(
-                self.entity.time_travel_config
-            )
-
-        return table_reference
+        return self.table_reference
 
     @property
     def sql_in_subquery_with_uuid(self) -> str:
-        table_reference = self.entity.name
-
-        if self.entity.time_travel_config is not None:
-            table_reference += generate_time_travel_sql_clause(
-                self.entity.time_travel_config
-            )
-
         UUID = analyzer_utils.format_uuid(self.uuid)
-        return f"{UUID}{table_reference}{UUID}"
+        return f"{UUID}{self.table_reference}{UUID}"
 
     @property
     def schema_query(self) -> str:

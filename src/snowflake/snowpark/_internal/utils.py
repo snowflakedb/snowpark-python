@@ -66,6 +66,7 @@ if TYPE_CHECKING:
         QueryLineInterval,
     )
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+    from snowflake.snowpark.types import TimestampTimeZone
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2
@@ -1956,7 +1957,7 @@ def validate_and_normalize_time_travel_params(
     statement: Optional[str] = None,
     offset: Optional[int] = None,
     timestamp: Optional[Union[str, datetime.datetime]] = None,
-    timezone: Optional[str] = "NTZ",
+    timezone: Optional[Union[str, "TimestampTimeZone"]] = "NTZ",
     stream: Optional[str] = None,
 ) -> Optional[TimeTravelConfig]:
     """
@@ -1999,10 +2000,18 @@ def validate_and_normalize_time_travel_params(
     if timestamp is not None:
         normalized_timestamp = _normalize_timestamp(timestamp)
 
-    if timezone is not None and timezone.upper() not in ["NTZ", "LTZ", "TZ"]:
-        raise ValueError(
-            f"'timezone' value {timezone} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
-        )
+    # Normalize timezone
+    timezone = timezone
+    if timezone is not None:
+        if hasattr(timezone, "value"):
+            timezone = timezone.value.upper() if timezone.value != "default" else "NTZ"
+        else:
+            timezone = timezone.upper()
+
+        if timezone not in ["NTZ", "LTZ", "TZ"]:
+            raise ValueError(
+                f"'timezone' value {timezone} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
+            )
 
     return TimeTravelConfig(
         mode=time_travel_mode,
@@ -2028,21 +2037,16 @@ def _normalize_timestamp(timestamp: Union[str, datetime.datetime]) -> str:
         return str(timestamp)
     timestamp_str = timestamp.strip()
     try:
-        # Try to parse with fractional seconds first
-        try:
-            parsed_timestamp = datetime.datetime.strptime(
-                timestamp_str, "%Y-%m-%d %H:%M:%S.%f"
-            )
-        except ValueError:
-            # Fall back to the original format without fractional seconds
-            parsed_timestamp = datetime.datetime.strptime(
-                timestamp_str, "%Y-%m-%d %H:%M:%S"
-            )
-        return str(parsed_timestamp)
+        datetime.datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S.%f")
     except ValueError:
-        raise ValueError(
-            f"Timestamp must be in format 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD HH:MM:SS.fff'. Got: {timestamp}"
-        )
+        try:
+            # Fall back to format without fractional seconds
+            datetime.datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            raise ValueError(
+                f"Timestamp must be in format 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD HH:MM:SS.ffffff'. Got: {timestamp}"
+            )
+    return timestamp_str
 
 
 def generate_time_travel_sql_clause(config: TimeTravelConfig) -> str:

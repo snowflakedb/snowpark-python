@@ -2514,7 +2514,7 @@ class Session:
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime.datetime]] = None,
-        timezone: Optional[str] = "NTZ",
+        timezone: Optional[Union[str, TimestampTimeZone]] = TimestampTimeZone.DEFAULT,
         stream: Optional[str] = None,
     ) -> Table:
         """
