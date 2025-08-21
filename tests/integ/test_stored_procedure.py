@@ -16,13 +16,6 @@ from textwrap import dedent
 
 import pytest
 
-from tests.integ.datasource.test_oracledb import (
-    ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
-)
-from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
-from tests.resources.test_data_source_dir.test_data_source_data import (
-    oracledb_real_data,
-)
 
 try:
     import pandas as pd  # noqa: F401
@@ -2518,7 +2511,16 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
     reason="data source is not supported in local testing",
     run=False,
 )
-def test_data_source_udtf_ingestion(session, db_parameters):
+@pytest.mark.skipif(IS_NOT_ON_GITHUB, reason="test only works on github action")
+def test_data_source_udtf_ingestion(db_parameters):
+    from tests.integ.datasource.test_oracledb import (
+        ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
+    )
+    from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
+    from tests.resources.test_data_source_dir.test_data_source_data import (
+        oracledb_real_data,
+    )
+
     with Session.builder.configs(db_parameters).create() as new_session:
         new_session.custom_package_usage_config["enabled"] = True
         new_session.custom_package_usage_config["force_push"] = True
