@@ -2537,6 +2537,7 @@ def test_data_source_udtf_ingestion(session, db_parameters):
             connection = oracledb.connect(user=username, password=password, dsn=dsn)
             return connection
 
+        udtf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
         sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
 
         def data_source(session_: Session) -> DataFrame:
@@ -2544,15 +2545,15 @@ def test_data_source_udtf_ingestion(session, db_parameters):
             original_sql = session_.sql
 
             def my_register(*args, **kwargs):
-                kwargs["name"] = sp_name
+                kwargs["name"] = udtf_name
                 return original_register(*args, **kwargs)
 
             def my_sql(*args, **kwargs):
                 query = args[0].strip()
                 if query.startswith("select * from"):
-                    query_componets = query.split("(")
+                    query_components = query.split("(")
                     new_args = (
-                        f"{query_componets[0]}({sp_name}({query_componets[2]}",
+                        f"{query_components[0]}({udtf_name}({query_components[2]}",
                     ) + args[1:]
                     return original_sql(*new_args, **kwargs)
                 return original_sql(*args, **kwargs)
