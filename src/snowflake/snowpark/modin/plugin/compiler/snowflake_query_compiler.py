@@ -5370,6 +5370,106 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         return SnowflakeQueryCompiler(resampled_frame_all_bins)
 
+    def groupby_rolling(
+        self,
+        rolling_kwargs: dict[str, Any],
+        rolling_method: AggFuncType,
+        groupby_kwargs: dict[str, Any],
+        is_series: bool,
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Return a rolling grouper, providing rolling functionality per group.
+
+        This implementation supports both fixed window-based and time-based rolling operations
+        with groupby functionality.
+
+        Args:
+            rolling_kwargs: Dictionary containing rolling window parameters
+            rolling_method: The aggregation method to apply (e.g., 'mean', 'sum')
+            groupby_kwargs: Dictionary containing groupby parameters
+            is_series: Whether the operation is on a Series
+            agg_args: Additional arguments for aggregation
+            agg_kwargs: Additional keyword arguments for aggregation
+
+        Returns:
+            SnowflakeQueryCompiler: A new query compiler with the rolling operation applied
+        """
+        # Validate parameters
+        if rolling_kwargs.get("axis", 0) != 0:
+            raise ErrorMessage.not_implemented(
+                "GroupBy rolling with axis != 0 is not supported yet in Snowpark pandas."
+            )
+
+        if rolling_kwargs.get("win_type") is not None:
+            raise ErrorMessage.not_implemented(
+                "GroupBy rolling with win_type parameter is not supported yet in Snowpark pandas."
+            )
+
+        if rolling_kwargs.get("method", "single") != "single":
+            raise ErrorMessage.not_implemented(
+                "GroupBy rolling with method != 'single' is not supported yet in Snowpark pandas."
+            )
+
+        window = rolling_kwargs.get("window")
+        min_periods = rolling_kwargs.get(
+            "min_periods", (1 if isinstance(window, str) else window)
+        )
+        window_kwargs = {
+            "window": window,
+            "min_periods": min_periods,
+            "center": rolling_kwargs.get("center", False),
+            "on": rolling_kwargs.get("on", None),
+            "axis": 0,
+            "closed": rolling_kwargs.get("closed", None),
+        }
+
+        if not isinstance(window, (int, float)):
+            raise ErrorMessage.not_implemented(
+                "GroupBy rolling only supports numeric window sizes in Snowpark pandas."
+            )
+        if isinstance(window, int) and min_periods > window:
+            raise ValueError(f"min_periods {min_periods} must be <= window {window}")
+
+        # Extract groupby columns
+        by_labels = extract_groupby_column_pandas_labels(
+            self,
+            groupby_kwargs.get("by", None),
+            groupby_kwargs.get("level", None),
+        )
+        extended_qc = self
+        result_qc = extended_qc._window_agg(
+            window_func=WindowFunction.ROLLING,
+            agg_func=rolling_method,
+            window_kwargs=window_kwargs,
+            agg_kwargs=agg_kwargs,
+            partition_cols=by_labels,
+        )
+
+        if by_labels:
+            result_qc = result_qc.reset_index()
+
+            # Set index with group columns then original index
+            index_cols = list(by_labels) + ["index"]
+            result_qc = result_qc.set_index(keys=index_cols, drop=True)
+
+            frame = result_qc._modin_frame
+            expected_names = list(by_labels) + [None]
+            new_frame = InternalFrame.create(
+                ordered_dataframe=frame.ordered_dataframe,
+                data_column_pandas_labels=frame.data_column_pandas_labels,
+                data_column_pandas_index_names=frame.data_column_pandas_index_names,
+                data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
+                index_column_pandas_labels=expected_names,  # This is the key change
+                index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                index_column_types=frame.cached_index_column_snowpark_pandas_types,
+            )
+
+            result_qc = SnowflakeQueryCompiler(new_frame)
+        return result_qc
+
     def groupby_shift(
         self,
         by: Any,
@@ -15164,6 +15264,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_func: AggFuncType,
         window_kwargs: dict[str, Any],
         agg_kwargs: dict[str, Any],
+        partition_cols: Optional[list[str]] = None,
     ) -> "SnowflakeQueryCompiler":
         """
         Compute rolling window with given aggregation.
@@ -15172,6 +15273,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             agg_func: callable, str, list or dict. the aggregation function used.
             rolling_kwargs: keyword arguments passed to rolling.
             agg_kwargs: keyword arguments passed for the aggregation function.
+            partition_cols: list of columns to partition by, if any.
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
@@ -15214,7 +15316,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             window_expr = Window.orderBy(
                 col(row_position_quoted_identifier)
             ).rows_between(rows_between_start, rows_between_end)
+            if partition_cols:
+                # Get the actual Snowflake quoted identifiers for the partition columns
+                partition_identifiers = []
+                for col_label in partition_cols:
+                    if col_label in frame.data_column_pandas_labels:
+                        idx = frame.data_column_pandas_labels.index(col_label)
+                        partition_identifiers.append(
+                            frame.data_column_snowflake_quoted_identifiers[idx]
+                        )
 
+                if partition_identifiers:
+                    window_expr = window_expr.partitionBy(
+                        *[col(pid) for pid in partition_identifiers]
+                    )
             if window_func == WindowFunction.ROLLING:
                 # min_periods defaults to the size of the window if window is specified by an integer
                 min_periods = window if min_periods is None else min_periods
@@ -15244,6 +15359,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             for t in frame.cached_data_column_snowpark_pandas_types
         )
 
+        # Determine which columns to apply the window function to
+        # For groupby rolling, we want to exclude the partition columns from aggregation
+        # but keep them in the result with their original values
+        if partition_cols:
+            # Only apply window functions to non-partition columns
+            agg_column_identifiers = [
+                quoted_identifier
+                for i, quoted_identifier in enumerate(
+                    frame.data_column_snowflake_quoted_identifiers
+                )
+                if frame.data_column_pandas_labels[i] not in partition_cols
+            ]
+
+            # Keep partition columns with original values
+            partition_column_expressions = {}
+            for col_label in partition_cols:
+                if col_label in frame.data_column_pandas_labels:
+                    idx = frame.data_column_pandas_labels.index(col_label)
+                    partition_column_expressions[
+                        frame.data_column_snowflake_quoted_identifiers[idx]
+                    ] = col(frame.data_column_snowflake_quoted_identifiers[idx])
+        else:
+            # Regular rolling
+            agg_column_identifiers = frame.data_column_snowflake_quoted_identifiers
+            partition_column_expressions = {}
+
         # Perform Aggregation over the window_expr
         if agg_func == "sem":
             if input_contains_timedelta:
@@ -15252,40 +15393,33 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Standard error of mean (SEM) does not have native Snowflake engine support
             # so calculate as STDDEV/SQRT(N-ddof)
             ddof = agg_kwargs.get("ddof", 1)
-            new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
-                {
-                    quoted_identifier: iff(
-                        count(col(quoted_identifier)).over(window_expr) >= min_periods,
-                        when(
-                            # If STDDEV is Null (like when the window has 1 element), return NaN
-                            # Note that in Python, np.nan / np.inf results in np.nan, so this check must come first
-                            builtin("stddev")(col(quoted_identifier))
-                            .over(window_expr)
-                            .is_null(),
-                            pandas_lit(None),
-                        )
-                        .when(
-                            # Elif (N-ddof) is negative number, return NaN to mimic pandas sqrt of a negative number
-                            count(col(quoted_identifier)).over(window_expr) - ddof < 0,
-                            pandas_lit(None),
-                        )
-                        .when(
-                            # Elif (N-ddof) is 0, return np.inf to mimic pandas division by 0
-                            count(col(quoted_identifier)).over(window_expr) - ddof == 0,
-                            pandas_lit(np.inf),
-                        )
-                        .otherwise(
-                            # Else compute STDDEV/SQRT(N-ddof)
-                            builtin("stddev")(col(quoted_identifier)).over(window_expr)
-                            / builtin("sqrt")(
-                                count(col(quoted_identifier)).over(window_expr) - ddof
-                            ),
-                        ),
+            agg_expressions = {
+                quoted_identifier: iff(
+                    count(col(quoted_identifier)).over(window_expr) >= min_periods,
+                    when(
+                        builtin("stddev")(col(quoted_identifier))
+                        .over(window_expr)
+                        .is_null(),
                         pandas_lit(None),
                     )
-                    for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
-                }
-            ).frame
+                    .when(
+                        count(col(quoted_identifier)).over(window_expr) - ddof < 0,
+                        pandas_lit(None),
+                    )
+                    .when(
+                        count(col(quoted_identifier)).over(window_expr) - ddof == 0,
+                        pandas_lit(np.inf),
+                    )
+                    .otherwise(
+                        builtin("stddev")(col(quoted_identifier)).over(window_expr)
+                        / builtin("sqrt")(
+                            count(col(quoted_identifier)).over(window_expr) - ddof
+                        ),
+                    ),
+                    pandas_lit(None),
+                )
+                for quoted_identifier in agg_column_identifiers
+            }
         elif agg_func == "corr":
             if input_contains_timedelta:
                 ErrorMessage.not_implemented(_TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED)
@@ -15374,29 +15508,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 and input_contains_timedelta
             ):
                 raise DataError(_TIMEDELTA_ROLLING_AGGREGATION_NOT_SUPPORTED)
+                # Build expressions for aggregated columns
+            agg_expressions = {
+                quoted_identifier: iff(
+                    count(col(row_position_quoted_identifier)).over(window_expr)
+                    >= min_periods
+                    if agg_func == "count"
+                    else count(col(quoted_identifier)).over(window_expr) >= min_periods,
+                    snowflake_agg_func.snowpark_aggregation(
+                        builtin("zeroifnull")(col(quoted_identifier))
+                        if window_func == WindowFunction.EXPANDING and agg_func == "sum"
+                        else col(quoted_identifier)
+                    ).over(window_expr),
+                    pandas_lit(None),
+                )
+                for quoted_identifier in agg_column_identifiers
+            }
 
-            new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
-                {
-                    # If aggregation is count use count on row_position_quoted_identifier
-                    # to include NULL values for min_periods comparison
-                    quoted_identifier: iff(
-                        count(col(row_position_quoted_identifier)).over(window_expr)
-                        >= min_periods
-                        if agg_func == "count"
-                        else count(col(quoted_identifier)).over(window_expr)
-                        >= min_periods,
-                        snowflake_agg_func.snowpark_aggregation(
-                            # Expanding is cumulative so replace NULL with 0 for sum aggregation
-                            builtin("zeroifnull")(col(quoted_identifier))
-                            if window_func == WindowFunction.EXPANDING
-                            and agg_func == "sum"
-                            else col(quoted_identifier)
-                        ).over(window_expr),
-                        pandas_lit(None),
-                    )
-                    for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
-                }
-            ).frame
+        # Combine partition column expressions (unchanged) with aggregated expressions
+        all_expressions = {**partition_column_expressions, **agg_expressions}
+
+        new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+            all_expressions
+        ).frame
         return self.__constructor__(new_frame)
 
     def expanding_count(
