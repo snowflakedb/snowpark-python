@@ -734,7 +734,7 @@ def _flush_modin_metrics() -> None:
                 )
     except Exception:
         pass
-    _modin_event_log = [[]]
+    _modin_event_log = []
 
 
 def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -> None:
