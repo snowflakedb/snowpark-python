@@ -16,6 +16,14 @@ from textwrap import dedent
 
 import pytest
 
+from tests.integ.datasource.test_oracledb import (
+    ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
+)
+from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
+from tests.resources.test_data_source_dir.test_data_source_data import (
+    oracledb_real_data,
+)
+
 try:
     import pandas as pd  # noqa: F401
 
@@ -28,7 +36,9 @@ except ImportError:
 from snowflake.snowpark import Session, AsyncJob
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.udf_utils import resolve_imports_and_packages
-from snowflake.snowpark._internal.utils import unwrap_stage_location_single_quote
+from snowflake.snowpark._internal.utils import (
+    unwrap_stage_location_single_quote,
+)
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkInvalidObjectNameException,
@@ -2501,3 +2511,71 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
 
     ingestion = sproc(core_ingestion_logic, return_type=StringType())
     assert ingestion() == "success"
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="data source is not supported in local testing",
+    run=False,
+)
+def test_data_source_udtf_ingestion(session, db_parameters):
+    with Session.builder.configs(db_parameters).create() as new_session:
+        new_session.custom_package_usage_config["enabled"] = True
+        new_session.custom_package_usage_config["force_push"] = True
+        new_session.add_packages("oracledb")
+        new_session.add_packages("snowflake-snowpark-python")
+
+        def create_connection_oracledb():
+            import oracledb
+
+            host = ORACLEDB_CONNECTION_PARAMETERS["host"]
+            port = ORACLEDB_CONNECTION_PARAMETERS["port"]
+            service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
+            username = ORACLEDB_CONNECTION_PARAMETERS["username"]
+            password = ORACLEDB_CONNECTION_PARAMETERS["password"]
+            dsn = f"{host}:{port}/{service_name}"
+            connection = oracledb.connect(user=username, password=password, dsn=dsn)
+            return connection
+
+        sp_name = Utils.random_name_for_temp_object(TempObjectType.PROCEDURE)
+
+        def data_source(session_: Session) -> DataFrame:
+            original_register = session_.udtf.register
+            original_sql = session_.sql
+
+            def my_register(*args, **kwargs):
+                kwargs["name"] = sp_name
+                return original_register(*args, **kwargs)
+
+            def my_sql(*args, **kwargs):
+                query = args[0].strip()
+                if query.startswith("select * from"):
+                    query_componets = query.split("(")
+                    new_args = (
+                        f"{query_componets[0]}({sp_name}({query_componets[2]}",
+                    ) + args[1:]
+                    return original_sql(*new_args, **kwargs)
+                return original_sql(*args, **kwargs)
+
+            session_.udtf.register = my_register
+            session_.sql = my_sql
+            return session_.read.dbapi(
+                create_connection_oracledb,
+                table="ALL_TYPE_TABLE",
+                udtf_configs={
+                    "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION
+                },
+            )
+
+        new_session.sproc.register(
+            data_source,
+            name=sp_name,
+            return_type=StructType(),
+            packages=["oracledb", "snowflake-snowpark-python"],
+            replace=True,
+            external_access_integrations=[ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION],
+        )
+        df = new_session.call(
+            sp_name,
+        ).order_by("ID")
+        assert df.collect() == oracledb_real_data

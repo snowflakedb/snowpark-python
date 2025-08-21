@@ -9,6 +9,7 @@
 #### Bug Fixes
 
 - Fixed the repr of TimestampType to match the actual subtype it represents.
+- Fixed a bug in `DataFrameReader.dbapi` that udtf ingestion does not work in stored procedure.
 
 #### Deprecations
 
