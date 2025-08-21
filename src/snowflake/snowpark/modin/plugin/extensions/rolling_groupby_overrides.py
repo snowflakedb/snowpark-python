@@ -60,6 +60,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         axis: Union[int, str] = 0,
         closed: str | None = None,
         method: str = "single",
+        dropna: bool = True,
     ) -> None:
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         self._dataframe = dataframe
@@ -77,6 +78,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         }
         self.groupby_kwargs = {
             "by": by,
+            "dropna": dropna,
         }
 
     def _method_not_implemented(self, method: str):  # pragma: no cover

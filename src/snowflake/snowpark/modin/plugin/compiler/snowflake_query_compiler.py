@@ -5396,6 +5396,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler: A new query compiler with the rolling operation applied
         """
+
+        dropna = groupby_kwargs.get("dropna", True)
+
         # Validate parameters
         if rolling_kwargs.get("axis", 0) != 0:
             raise ErrorMessage.not_implemented(
@@ -5429,7 +5432,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             raise ErrorMessage.not_implemented(
                 "GroupBy rolling only supports numeric window sizes in Snowpark pandas."
             )
-        if isinstance(window, int) and min_periods > window:
+        if min_periods and isinstance(window, int) and min_periods > window:
             raise ValueError(f"min_periods {min_periods} must be <= window {window}")
 
         # Extract groupby columns
@@ -5438,7 +5441,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             groupby_kwargs.get("by", None),
             groupby_kwargs.get("level", None),
         )
+
         extended_qc = self
+        if dropna:
+            extended_qc = extended_qc.dropna(axis=0, how="any", subset=by_labels)
+            # ordered_dataframe = self._modin_frame.ordered_dataframe.dropna(
+            #     subset=by_snowflake_quoted_identifiers_list
+            # )
+
         result_qc = extended_qc._window_agg(
             window_func=WindowFunction.ROLLING,
             agg_func=rolling_method,
