@@ -18,9 +18,7 @@ from snowflake.snowpark._internal.utils import (
     get_line_numbers,
     get_plan_from_line_numbers,
     TimeTravelConfig,
-    validate_and_normalize_time_travel_params,
     _normalize_timestamp,
-    generate_time_travel_sql_clause,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
@@ -573,49 +571,49 @@ def test_time_travel_config():
 def test_validate_and_normalize_time_travel_params():
     """Test time travel parameter validation and normalization."""
     # Test no time travel
-    assert validate_and_normalize_time_travel_params() is None
-    assert validate_and_normalize_time_travel_params(time_travel_mode=None) is None
+    assert TimeTravelConfig.validate_and_normalize_params() is None
+    assert TimeTravelConfig.validate_and_normalize_params(time_travel_mode=None) is None
 
     # Test valid cases
-    config = validate_and_normalize_time_travel_params(
+    config = TimeTravelConfig.validate_and_normalize_params(
         time_travel_mode="at", statement="query_123"
     )
     assert config.mode == "at" and config.statement == "query_123"
 
-    config = validate_and_normalize_time_travel_params(
+    config = TimeTravelConfig.validate_and_normalize_params(
         time_travel_mode="before", offset=-3600
     )
     assert config.mode == "before" and config.offset == -3600
 
     # Test datetime object normalization
     dt = datetime(2023, 1, 1, 12, 0, 0)
-    config = validate_and_normalize_time_travel_params(
+    config = TimeTravelConfig.validate_and_normalize_params(
         time_travel_mode="at", timestamp=dt
     )
     assert "2023-01-01 12:00:00" in config.timestamp
 
     # Test error cases
     with pytest.raises(ValueError, match="Must specify time travel mode"):
-        validate_and_normalize_time_travel_params(statement="query_123")
+        TimeTravelConfig.validate_and_normalize_params(statement="query_123")
 
     with pytest.raises(ValueError, match="Invalid time travel mode"):
-        validate_and_normalize_time_travel_params(
+        TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="invalid", statement="query_123"
         )
 
     with pytest.raises(ValueError, match="Exactly one of"):
-        validate_and_normalize_time_travel_params(time_travel_mode="at")
+        TimeTravelConfig.validate_and_normalize_params(time_travel_mode="at")
 
     with pytest.raises(ValueError, match="Exactly one of"):
-        validate_and_normalize_time_travel_params(
+        TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", statement="q1", offset=-60
         )
 
     with pytest.raises(ValueError, match="'offset' must be a negative integer"):
-        validate_and_normalize_time_travel_params(time_travel_mode="at", offset=60)
+        TimeTravelConfig.validate_and_normalize_params(time_travel_mode="at", offset=60)
 
     with pytest.raises(ValueError, match="'timezone' value .* must be None or one of"):
-        validate_and_normalize_time_travel_params(
+        TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", timestamp="2023-01-01 12:00:00", timezone="UTC"
         )
 
@@ -679,10 +677,10 @@ def test_generate_time_travel_sql_clause():
     ]
 
     for config, expected in test_cases:
-        assert generate_time_travel_sql_clause(config) == expected
+        assert config.generate_sql_clause() == expected
 
-    config = validate_and_normalize_time_travel_params(
+    config = TimeTravelConfig.validate_and_normalize_params(
         time_travel_mode="at", statement="abc123"
     )
-    sql_clause = generate_time_travel_sql_clause(config)
+    sql_clause = config.generate_sql_clause()
     assert sql_clause == " AT (STATEMENT => 'abc123')"

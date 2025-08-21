@@ -85,7 +85,6 @@ from snowflake.snowpark._internal.select_projection_complexity_utils import (
 from snowflake.snowpark._internal.utils import (
     is_sql_select_statement,
     ExprAliasUpdateDict,
-    generate_time_travel_sql_clause,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -580,9 +579,7 @@ class SelectableEntity(Selectable):
         self._attributes: Optional[List[Attribute]] = None
         self.table_reference = self.entity.name
         if self.entity.time_travel_config is not None:
-            self.table_reference += generate_time_travel_sql_clause(
-                self.entity.time_travel_config
-            )
+            self.table_reference += self.entity.time_travel_config.generate_sql_clause()
 
     def __deepcopy__(self, memodict={}) -> "SelectableEntity":  # noqa: B006
         copied = SelectableEntity(

@@ -502,7 +502,7 @@ class DataFrameReader:
         name: Union[str, Iterable[str]],
         _emit_ast: bool = True,
         *,
-        time_travel_mode: Optional[str] = None,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime]] = None,

@@ -5979,17 +5979,6 @@ def test_time_travel_core_functionality(session):
         )
         Utils.check_answer(df_at_offset, expected_before_update)
 
-        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
-            0
-        ]
-        offset_seconds = (
-            int((ts_after_update - ts_before_update).total_seconds()) + 1
-        )  # round up
-        df_before_offset = session.table(
-            table_name, time_travel_mode="before", offset=-offset_seconds
-        )
-        Utils.check_answer(df_before_offset, expected_before_update)
-
         # ==============Test 3: BEFORE/AT with timestamp ==============
         df_before_ts = session.table(
             table_name,

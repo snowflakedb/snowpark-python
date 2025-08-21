@@ -2510,7 +2510,7 @@ class Session:
         is_temp_table_for_cleanup: bool = False,
         _emit_ast: bool = True,
         *,
-        time_travel_mode: Optional[str] = None,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime.datetime]] = None,
