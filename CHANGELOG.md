@@ -1,6 +1,35 @@
 # Release History
 
-## 1.37.0 (YYYY-MM-DD)
+## 1.38.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+- Fixed the repr of TimestampType to match the actual subtype it represents.
+
+#### Deprecations
+
+#### Dependency Updates
+
+#### Improvements
+
+- Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+- Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
+- Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
+
+#### Dependency Updates
+#### Bug Fixes
+
+## 1.37.0 (2025-08-18)
 
 ### Snowpark Python API Updates
 
