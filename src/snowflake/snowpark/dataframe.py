@@ -679,9 +679,9 @@ class DataFrame:
     @_ast_id.setter
     def _ast_id(self, value: Optional[int]) -> None:
         self.__ast_id = value
-        if self._plan is not None:
+        if self._plan is not None and value is not None:
             self._plan.add_df_ast_id(value)
-        if self._select_statement is not None:
+        if self._select_statement is not None and value is not None:
             self._select_statement.add_df_ast_id(value)
 
     @publicapi
@@ -1075,13 +1075,24 @@ class DataFrame:
                 **kwargs,
             )
 
-        # if the returned result is not a pandas dataframe, raise Exception
-        # this might happen when calling this method with non-select commands
-        # e.g., session.sql("create ...").to_pandas()
         if block:
             if not isinstance(result, pandas.DataFrame):
+                query = self._plan.queries[-1].sql.strip().lower()
+                is_select_statement = is_sql_select_statement(query)
+                if is_select_statement:
+                    _logger.warning(
+                        "The query result format is set to JSON. "
+                        "The result of to_pandas() may not align with the result returned in the ARROW format. "
+                        "For best compatibility with to_pandas(), set the query result format to ARROW."
+                    )
                 return pandas.DataFrame(
-                    result, columns=[attr.name for attr in self._plan.attributes]
+                    result,
+                    columns=[
+                        unquote_if_quoted(attr.name)
+                        if is_select_statement
+                        else attr.name
+                        for attr in self._plan.attributes
+                    ],
                 )
 
         return result
@@ -1921,6 +1932,65 @@ class DataFrame:
         if _emit_ast:
             df._ast_id = stmt.uid
 
+        return df
+
+    @df_api_usage
+    @publicapi
+    def col_ilike(
+        self,
+        pattern: str,
+        _ast_stmt: proto.Bind = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Returns a new DataFrame with only the columns whose names match the specified
+        pattern using case-insensitive ILIKE matching (similar to SELECT * ILIKE 'pattern' in SQL).
+
+        Args:
+            pattern: The ILIKE pattern to match column names against. You can use the following wildcards:
+                - Use an underscore (_) to match any single character.
+                - Use a percent sign (%) to match any sequence of zero or more characters.
+                - To match a sequence anywhere within the column name, begin and end the pattern with %.
+
+        Returns:
+            DataFrame: A new DataFrame containing only columns matching the pattern.
+
+        Raises:
+            ValueError: If SQL simplifier is not enabled.
+            SnowparkSQLException: If no columns match the specified pattern.
+
+        Examples::
+
+            >>> # Select all columns containing 'id' (case-insensitive)
+            >>> df = session.create_dataframe([[1, "John", 101], [2, "Jane", 102]],
+            ...                                 schema=["USER_ID", "Name", "dept_id"])
+            >>> df.col_ilike("%id%").show()
+            -------------------------
+            |"USER_ID"  |"DEPT_ID"  |
+            -------------------------
+            |1          |101        |
+            |2          |102        |
+            -------------------------
+            <BLANKLINE>
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.dataframe_col_ilike, stmt)
+                ast.pattern = pattern
+                self._set_ast_ref(ast.df)
+            else:
+                stmt = _ast_stmt
+
+        if self._select_statement:  # sql simplifier is enabled
+            df = self._with_plan(self._select_statement.ilike(pattern), _ast_stmt=stmt)
+        else:
+            df = self._with_plan(
+                Project([], self._plan, ilike_pattern=pattern), _ast_stmt=stmt
+            )
+
+        add_api_call(df, "DataFrame.col_ilike")
         return df
 
     @df_api_usage
@@ -4987,7 +5057,7 @@ class DataFrame:
                     "{"
                     + ", ".join(
                         [
-                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.key_type or StringType())}"
+                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.value_type or StringType())}"
                             for k, v in sorted(cell.items())
                         ]
                     )
@@ -6295,7 +6365,9 @@ class DataFrame:
             return res_dfs
 
     @experimental(version="1.36.0")
-    def get_execution_profile(self, output_file: Optional[str] = None) -> None:
+    def get_execution_profile(
+        self, output_file: Optional[str] = None, verbose: bool = False
+    ) -> None:
         """
         Get the execution profile of the dataframe. Output is written to the file specified by output_file if provided,
         otherwise it is written to the console.
@@ -6313,8 +6385,12 @@ class DataFrame:
             return
         try:
             profiler = QueryProfiler(self._session, output_file)
+            if self._plan.uuid in query_history._describe_queries:
+                profiler.print_describe_queries(
+                    query_history._describe_queries[self._plan.uuid]
+                )
             for query_id in query_history.dataframe_queries[self._plan.uuid]:
-                profiler.profile_query(query_id)
+                profiler.profile_query(query_id, verbose)
         finally:
             profiler.close()
 
@@ -6411,7 +6487,7 @@ Query List:
         """
         :param proto.Bind ast_stmt: The AST statement protobuf corresponding to this value.
         """
-        df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt, _emit_ast=False)
+        df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt)
         df._statement_params = self._statement_params
 
         if _ast_stmt is not None:

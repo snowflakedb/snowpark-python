@@ -1829,10 +1829,10 @@ def test_createDataFrame_with_given_schema_timestamp(session):
 
     assert (
         schema_str
-        == "StructType([StructField('TIMESTAMP', TimestampType(tz=ntz), nullable=True), "
-        "StructField('TIMESTAMP_NTZ', TimestampType(tz=ntz), nullable=True), "
-        "StructField('TIMESTAMP_LTZ', TimestampType(tz=ltz), nullable=True), "
-        "StructField('TIMESTAMP_TZ', TimestampType(tz=tz), nullable=True)])"
+        == "StructType([StructField('TIMESTAMP', TimestampType(timezone=TimestampTimeZone('ntz')), nullable=True), "
+        "StructField('TIMESTAMP_NTZ', TimestampType(timezone=TimestampTimeZone('ntz')), nullable=True), "
+        "StructField('TIMESTAMP_LTZ', TimestampType(timezone=TimestampTimeZone('ltz')), nullable=True), "
+        "StructField('TIMESTAMP_TZ', TimestampType(timezone=TimestampTimeZone('tz')), nullable=True)])"
     )
     ts_sample_ntz_output = datetime.strptime(
         "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"

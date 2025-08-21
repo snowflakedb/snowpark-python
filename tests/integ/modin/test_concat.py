@@ -1124,6 +1124,52 @@ def test_concat_from_file(resources_path):
     )
 
 
+class TestConcatPositionalIndexWithOtherIndex_SNOW_2268219:
+    @sql_count_checker(query_count=1, union_count=1, join_count=1)
+    @pytest.mark.parametrize(
+        "testing_dfs_from_read_snowflake",
+        [native_pd.DataFrame({"col0": [1]})],
+        indirect=True,
+    )
+    def test_positional_index_on_left(
+        self,
+        testing_dfs_from_read_snowflake,
+    ):
+        snow_df1, native_df1 = testing_dfs_from_read_snowflake
+        snow_df2, native_df2 = snow_df1.copy(), native_df1.copy()
+        snow_df2.index = [2]
+        native_df2.index = [2]
+        eval_snowpark_pandas_result(
+            "pd",
+            "native_pd",
+            _concat_operation(
+                snow_objs=[snow_df1, snow_df2], native_objs=[native_df1, native_df2]
+            ),
+        )
+
+    @sql_count_checker(query_count=1, union_count=1, join_count=1)
+    @pytest.mark.parametrize(
+        "testing_dfs_from_read_snowflake",
+        [native_pd.DataFrame({"col0": [1]})],
+        indirect=True,
+    )
+    def test_positional_index_on_right(
+        self,
+        testing_dfs_from_read_snowflake,
+    ):
+        snow_df1, native_df1 = testing_dfs_from_read_snowflake
+        snow_df2, native_df2 = snow_df1.copy(), native_df1.copy()
+        snow_df1.index = [2]
+        native_df1.index = [2]
+        eval_snowpark_pandas_result(
+            "pd",
+            "native_pd",
+            _concat_operation(
+                snow_objs=[snow_df1, snow_df2], native_objs=[native_df1, native_df2]
+            ),
+        )
+
+
 @sql_count_checker(query_count=1, join_count=2)
 def test_concat_keys():
     native_data = {
@@ -1190,7 +1236,7 @@ def test_concat_object_with_same_index_with_dup_sort(join):
     assert_frame_equal(snow_res, expected_result)
 
 
-@sql_count_checker(query_count=4, join_count=0)
+@sql_count_checker(query_count=3, join_count=0)
 def test_concat_series_from_same_df(join):
     num_cols = 4
     select_data = [f'{i} as "{i}"' for i in range(num_cols)]
@@ -1215,7 +1261,7 @@ def test_concat_series_from_same_df(join):
     assert_frame_equal(df, final_df)
 
 
-@sql_count_checker(query_count=4, join_count=0)
+@sql_count_checker(query_count=3, join_count=0)
 def test_df_creation_from_series_from_same_df():
     num_cols = 6
     select_data = [f'{i} as "{i}"' for i in range(num_cols)]

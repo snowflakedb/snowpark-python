@@ -21,19 +21,17 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import SnowflakePlan, 
 from snowflake.snowpark.types import StringType
 from tests.utils import Utils
 import snowflake.snowpark.context as context
+from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 
 
 @pytest.fixture(autouse=True)
-def setup(request):
-    original = context._enable_trace_sql_errors_to_dataframe
-    context.configure_development_features(
-        enable_trace_sql_errors_to_dataframe=True, enable_eager_schema_validation=False
-    )
+def setup(request, session):
+    original = session.ast_enabled
+    set_ast_state(AstFlagSource.TEST, True)
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=True)
     yield
-    context.configure_development_features(
-        enable_trace_sql_errors_to_dataframe=original,
-        enable_eager_schema_validation=False,
-    )
+    context.configure_development_features(enable_trace_sql_errors_to_dataframe=False)
+    set_ast_state(AstFlagSource.TEST, original)
 
 
 def test_select_statement_sql_query(mock_session, mock_analyzer):

@@ -108,6 +108,8 @@ from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
+    XPATH_HANDLERS_FILE_PATH,
+    XPATH_HANDLER_MAP,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
@@ -145,7 +147,7 @@ from snowflake.snowpark._internal.utils import (
     AstFlagSource,
     AstMode,
 )
-from snowflake.snowpark.async_job import AsyncJob
+from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
@@ -202,8 +204,10 @@ from snowflake.snowpark.table_function import (
 )
 from snowflake.snowpark.types import (
     ArrayType,
+    BooleanType,
     DateType,
     DecimalType,
+    FloatType,
     GeographyType,
     GeometryType,
     IntegerType,
@@ -225,6 +229,7 @@ from snowflake.snowpark.udtf import UDTFRegistration
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
+    from snowflake.snowpark.udf import UserDefinedFunction  # pragma: no cover
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -293,6 +298,7 @@ _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
 _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES = (
     "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES"
 )
+_PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED = "ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY"
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -670,6 +676,12 @@ class Session:
         else:
             self._disable_multiline_queries()
 
+        self._internal_telemetry_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED, False
+            )
+        )
+
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
@@ -745,7 +757,17 @@ class Session:
         # of SnowflakePlan or Selectable objects
         self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
+        # this lock is used to protect XPath UDF cache to avoid race conditions during
+        # UDF registration and retrieval
+        self._xpath_udf_cache_lock = create_rlock(
+            self._conn._thread_safe_session_enabled
+        )
+
         self._custom_package_usage_config: Dict = {}
+
+        # Cache for XPath UDFs (thread-safe)
+        self._xpath_udf_cache: Dict[str, Any] = {}
+
         self._collect_snowflake_plan_telemetry_at_critical_path: bool = (
             self.is_feature_enabled_for_version(
                 _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION
@@ -1520,7 +1542,7 @@ class Session:
             >>> # and pandas with the version "2.1.*"
             >>> # and dateutil with the local version in your environment
             >>> session.custom_package_usage_config = {"enabled": True}  # This is added because latest dateutil is not in snowflake yet
-            >>> session.add_packages("numpy", "pandas==2.1.*", dateutil)
+            >>> session.add_packages("numpy", "pandas==2.2.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -1571,7 +1593,7 @@ class Session:
             >>> session.clear_packages()
             >>> len(session.get_packages())
             0
-            >>> session.add_packages("numpy", "pandas==2.1.4")
+            >>> session.add_packages("numpy", "pandas==2.2.*")
             >>> len(session.get_packages())
             2
             >>> session.remove_package("numpy")
@@ -2930,6 +2952,7 @@ class Session:
         chunk_size: Optional[int] = WRITE_ARROW_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
+        use_vectorized_scanner: bool = False,
         parallel: int = 4,
         quote_identifiers: bool = True,
         auto_create_table: bool = False,
@@ -2962,6 +2985,8 @@ class Session:
             on_error: Action to take when COPY INTO statements fail, default follows documentation at:
                 https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
                 (Default value = 'abort_statement').
+            use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
+                `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
             parallel: Number of threads to be used when uploading chunks, default follows documentation at:
                 https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
             quote_identifiers: By default, identifiers, specifically database, schema, table and column names
@@ -3000,6 +3025,7 @@ class Session:
             chunk_size=chunk_size,
             compression=compression,
             on_error=on_error,
+            use_vectorized_scanner=use_vectorized_scanner,
             parallel=parallel,
             quote_identifiers=quote_identifiers,
             auto_create_table=auto_create_table,
@@ -4064,17 +4090,21 @@ class Session:
             >>> session.telemetry_enabled
             True
         """
-        return self._conn._conn.telemetry_enabled
+        return self._conn._telemetry_client._enabled
 
     @telemetry_enabled.setter
     def telemetry_enabled(self, value):
         # Set both in-band and out-of-band telemetry to True/False
         if value:
-            self._conn._conn.telemetry_enabled = True
-            self._conn._telemetry_client.telemetry._enabled = True
+            self._conn._telemetry_client._enabled = True
+            if is_in_stored_procedure() and not self._stored_proc_telemetry_enabled:
+                _logger.debug(
+                    "Client side parameter ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY is set to False, telemetry could not be enabled"
+                )
+                self._conn._telemetry_client._enabled = False
+
         else:
-            self._conn._conn.telemetry_enabled = False
-            self._conn._telemetry_client.telemetry._enabled = False
+            self._conn._telemetry_client._enabled = False
 
     @property
     def file(self) -> FileOperation:
@@ -4183,20 +4213,27 @@ class Session:
         sproc_name: str,
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
+        block: bool = True,
         log_on_exception: bool = False,
         return_dataframe: Optional[bool] = None,
         _emit_ast: bool = True,
-    ) -> Any:
+    ) -> Union[Any, AsyncJob]:
         """Calls a stored procedure by name.
 
         Args:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Whether to block until the result is available. When it is ``False``, this function
+                executes the stored procedure asynchronously and returns an :class:`AsyncJob`.
             log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
                 as a table return type.
             return_dataframe: When set to True, the return value of this function is a DataFrame object.
                 This is useful when the given stored procedure's return type is a table.
+
+        Returns:
+            When block=True: The stored procedure result (scalar value or DataFrame)
+            When block=False: An AsyncJob object for retrieving results later
 
         Example::
 
@@ -4235,8 +4272,68 @@ class Session:
             sproc_name,
             *args,
             statement_params=statement_params,
+            block=block,
             log_on_exception=log_on_exception,
             is_return_table=return_dataframe,
+            _emit_ast=_emit_ast,
+        )
+
+    @publicapi
+    def call_nowait(
+        self,
+        sproc_name: str,
+        *args: Any,
+        statement_params: Optional[Dict[str, Any]] = None,
+        log_on_exception: bool = False,
+        return_dataframe: Optional[bool] = None,
+        _emit_ast: bool = True,
+    ) -> AsyncJob:
+        """Calls a stored procedure by name asynchronously and returns an AsyncJob.
+        It is equivalent to ``call(block=False)``.
+
+        Args:
+            sproc_name: The name of stored procedure in Snowflake.
+            args: Arguments should be basic Python types.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
+                as a table return type.
+            return_dataframe: When set to True, the return value of this function is a DataFrame object.
+                This is useful when the given stored procedure's return type is a table.
+
+        Returns:
+            An AsyncJob object that can be used to retrieve results or check status.
+
+        Example::
+
+            >>> import snowflake.snowpark
+            >>> from snowflake.snowpark.functions import sproc
+            >>> import time
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>>
+            >>> @sproc(name="simple_add_sp", replace=True)
+            ... def simple_add(session: snowflake.snowpark.Session, a: int, b: int) -> int:
+            ...     return a + b
+            >>> async_job = session.call_nowait("simple_add_sp", 1, 2)
+            >>> while not async_job.is_done():
+            ...     time.sleep(1.0)
+            >>> async_job.is_done()
+            True
+            >>> async_job.is_failed()
+            False
+            >>> async_job.status()
+            'SUCCESS'
+            >>> result = async_job.result()
+            >>> print(result)
+            3
+        """
+        return self.call(
+            sproc_name,
+            *args,
+            statement_params=statement_params,
+            block=False,
+            log_on_exception=log_on_exception,
+            return_dataframe=return_dataframe,
             _emit_ast=_emit_ast,
         )
 
@@ -4248,7 +4345,8 @@ class Session:
         is_return_table: Optional[bool] = None,
         log_on_exception: bool = False,
         _emit_ast: bool = True,
-    ) -> Any:
+        block: bool = True,
+    ) -> Union[Any, AsyncJob]:
         """Private implementation of session.call
 
         Args:
@@ -4291,20 +4389,15 @@ class Session:
             is_return_table = self._infer_is_return_table(
                 sproc_name, *args, log_on_exception=log_on_exception
             )
-        if is_return_table:
-            qid = self._conn.execute_and_get_sfqid(
-                query, statement_params=statement_params
-            )
-            df = self.sql(result_scan_statement(qid), _ast_stmt=stmt)
-            set_api_call_source(df, "Session.call")
-            return df
 
-        # TODO SNOW-1672561: This here needs to emit an eval as well.
-        df = self.sql(query, _ast_stmt=stmt)
-        set_api_call_source(df, "Session.call")
-
-        # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
-        return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
+        return self._execute_sproc_internal(
+            query=query,
+            is_return_table=is_return_table,
+            block=block,
+            statement_params=statement_params,
+            ast_stmt=stmt,
+            log_on_exception=log_on_exception,
+        )
 
     @deprecated(
         version="0.7.0",
@@ -4512,4 +4605,105 @@ class Session:
             _logger.warning("query `%s` cannot be explained", query)
             return None
 
+    def _get_or_register_xpath_udf(
+        self, return_type: Literal["array", "string", "boolean", "int", "float"]
+    ) -> "UserDefinedFunction":
+        """
+        Get or register an XPath UDF for the specified return type.
+
+        This function manages UDF registration for XPath evaluation. It uses session-level
+        caching to avoid re-registering the same UDF multiple times. The cache is stored
+        in the session object for thread safety.
+        """
+        # Use session's xpath UDF cache with thread safety
+        with self._xpath_udf_cache_lock:
+            cache_key = return_type
+
+            if cache_key not in self._xpath_udf_cache:
+                # Determine Snowpark return type
+                return_type_map = {
+                    "array": ArrayType(StringType()),
+                    "string": StringType(),
+                    "boolean": BooleanType(),
+                    "int": IntegerType(),
+                    "float": FloatType(),
+                }
+
+                # Get the handler function name for this return type
+                handler_name = XPATH_HANDLER_MAP[return_type]
+
+                # Handle stored procedure case
+                if is_in_stored_procedure():  # pragma: no cover
+                    # create a temp stage for UDF import files
+                    # we have to use "temp" object instead of "scoped temp" object in stored procedure
+                    # so we need to upload the file to the temp stage first to use register_from_file
+                    temp_stage = random_name_for_temp_object(TempObjectType.STAGE)
+                    sql_create_temp_stage = (
+                        f"create temp stage if not exists {temp_stage}"
+                    )
+                    self.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                        _emit_ast=False
+                    )
+                    self._conn.upload_file(
+                        XPATH_HANDLERS_FILE_PATH,
+                        temp_stage,
+                        compress_data=False,
+                        overwrite=True,
+                        skip_upload_on_content_match=True,
+                    )
+                    python_file_path = f"{STAGE_PREFIX}{temp_stage}/{os.path.basename(XPATH_HANDLERS_FILE_PATH)}"
+                else:
+                    python_file_path = XPATH_HANDLERS_FILE_PATH
+
+                # Register UDF from file
+                xpath_udf = self.udf.register_from_file(
+                    python_file_path,
+                    handler_name,
+                    return_type=return_type_map[return_type],
+                    input_types=[StringType(), StringType()],
+                    packages=["snowflake-snowpark-python", "lxml<6"],
+                    replace=True,
+                    _emit_ast=False,
+                )
+
+                self._xpath_udf_cache[cache_key] = xpath_udf
+
+            return self._xpath_udf_cache[cache_key]
+
     createDataFrame = create_dataframe
+
+    def _execute_sproc_internal(
+        self,
+        query: str,
+        is_return_table: bool,
+        block: bool,
+        statement_params: Optional[Dict[str, Any]] = None,
+        ast_stmt=None,
+        log_on_exception: bool = False,
+    ) -> Union[Any, AsyncJob]:
+        """Unified internal executor for sync/async, table/scalar SPROCs."""
+        if not block:
+            results_cursor = self._conn.execute_async_and_notify_query_listener(
+                query, _statement_params=statement_params
+            )
+            return AsyncJob(
+                results_cursor["queryId"],
+                query,
+                self,
+                _AsyncResultType.ROW if is_return_table else _AsyncResultType.COUNT,
+                log_on_exception=log_on_exception,
+            )
+
+        if is_return_table:
+            qid = self._conn.execute_and_get_sfqid(
+                query, statement_params=statement_params
+            )
+            df = self.sql(result_scan_statement(qid), _ast_stmt=ast_stmt)
+            set_api_call_source(df, "Session.call")
+            return df
+        else:
+            # TODO SNOW-1672561: This here needs to emit an eval as well.
+            df = self.sql(query, _ast_stmt=ast_stmt)
+            set_api_call_source(df, "Session.call")
+            # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
+            return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]

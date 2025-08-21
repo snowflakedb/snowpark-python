@@ -208,8 +208,10 @@ def _deepcopy_selectable_fields(
     """
     Make a deep copy of the fields from the from_selectable to the to_selectable
     """
-    to_selectable.pre_actions = deepcopy(from_selectable.pre_actions)
-    to_selectable.post_actions = deepcopy(from_selectable.post_actions)
+    # shallow copy pre_actions as it can have large data for BatchInsertQuery which should
+    # never be modified during the optimization stage.
+    to_selectable.pre_actions = copy(from_selectable.pre_actions)
+    to_selectable.post_actions = copy(from_selectable.post_actions)
     to_selectable.flatten_disabled = from_selectable.flatten_disabled
     to_selectable._column_states = deepcopy(from_selectable._column_states)
     to_selectable.expr_to_alias = deepcopy(from_selectable.expr_to_alias)
@@ -640,9 +642,9 @@ class SelectableEntity(Selectable):
 
 @SnowflakePlan.Decorator.wrap_exception
 def _analyze_attributes(
-    sql: str, session: "snowflake.snowpark.session.Session"  # type: ignore
+    sql: str, session: "snowflake.snowpark.session.Session", dataframe_uuid: Optional[str] = None  # type: ignore
 ) -> List[Attribute]:
-    return analyze_attributes(sql, session)
+    return analyze_attributes(sql, session, dataframe_uuid)
 
 
 class SelectSQL(Selectable):
@@ -675,7 +677,7 @@ class SelectSQL(Selectable):
                 self.pre_actions[0].query_id_place_holder
             )
             self._schema_query = analyzer_utils.schema_value_statement(
-                _analyze_attributes(sql, self._session)
+                _analyze_attributes(sql, self._session, self._uuid)
             )  # Change to subqueryable schema query so downstream query plan can describe the SQL
             self._query_param = None
         else:
@@ -853,6 +855,7 @@ class SelectStatement(Selectable):
         schema_query: Optional[str] = None,
         distinct: bool = False,
         exclude_cols: Optional[Set[str]] = None,
+        ilike_cols: Optional[str] = None,
     ) -> None:
         super().__init__(analyzer)
         self.projection: Optional[List[Expression]] = projection
@@ -869,6 +872,8 @@ class SelectStatement(Selectable):
         self.distinct_: bool = distinct
         # An optional set to store the columns that should be excluded from the projection
         self.exclude_cols: Optional[Set[str]] = exclude_cols
+        # An optional pattern for ILIKE matching columns
+        self.ilike_cols: Optional[str] = ilike_cols
         self._projection_in_str = None
         self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
@@ -915,6 +920,7 @@ class SelectStatement(Selectable):
             schema_query=self.schema_query,
             distinct=self.distinct_,
             exclude_cols=self.exclude_cols,
+            ilike_cols=self.ilike_cols,
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
@@ -946,6 +952,7 @@ class SelectStatement(Selectable):
             schema_query=self._schema_query,
             distinct=self.distinct_,
             exclude_cols=self.exclude_cols,
+            ilike_cols=self.ilike_cols,
         )
 
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
@@ -999,18 +1006,21 @@ class SelectStatement(Selectable):
         """Boolean that indicates if the SelectStatement has the following forms of projection:
         - select columns
         - exclude columns
+        - ilike cols pattern
         """
 
         return (
-            self.projection is not None and len(self.projection) > 0
-        ) or self.exclude_cols is not None
+            (self.projection is not None and len(self.projection) > 0)
+            or self.exclude_cols is not None
+            or self.ilike_cols is not None
+        )
 
     @property
     def projection_in_str(self) -> str:
         if not self._projection_in_str:
             if self.projection:
                 assert (
-                    self.exclude_cols is None
+                    self.exclude_cols is None and self.ilike_cols is None
                 ), "We should not have reached this state. There is likely a bug in flattening logic."
                 self._projection_in_str = (
                     analyzer_utils.COMMA + analyzer_utils.NEW_LINE + analyzer_utils.TAB
@@ -1020,11 +1030,17 @@ class SelectStatement(Selectable):
                 )
             else:
                 self._projection_in_str = analyzer_utils.STAR
+                if self.ilike_cols is not None:
+                    # For ILIKE pattern matching
+                    self._projection_in_str = (
+                        f"{self._projection_in_str}{analyzer_utils.ILIKE}"
+                        f"'{self.ilike_cols}'"
+                    )
                 if self.exclude_cols is not None:
                     # we sort the exclude_cols to make sure the projection_in_str is deterministic
                     # this is done to remove test flakiness
                     self._projection_in_str = (
-                        f"{analyzer_utils.STAR}{analyzer_utils.EXCLUDE}"
+                        f"{self._projection_in_str}{analyzer_utils.EXCLUDE}"
                         f"({analyzer_utils.COMMA.join(sorted(self.exclude_cols))})"
                     )
         return self._projection_in_str
@@ -1373,8 +1389,9 @@ class SelectStatement(Selectable):
         elif self.distinct_:
             # .distinct().select() != .select().distinct() therefore we cannot flatten
             can_be_flattened = False
-        elif self.exclude_cols is not None:
-            # exclude syntax only support: SELECT * EXCLUDE(col1, col2) FROM TABLE
+        elif self.exclude_cols is not None or self.ilike_cols is not None:
+            # exclude syntax only support:s SELECT * EXCLUDE(col1, col2) FROM TABLE
+            # ilike syntax only supports: SELECT * ILIKE 'pattern' FROM TABLE
             can_be_flattened = False
         else:
             can_be_flattened = can_select_statement_be_flattened(
@@ -1540,7 +1557,6 @@ class SelectStatement(Selectable):
         statement.
         """
         # .select().drop(); cannot be flattened; exclude syntax is select * exclude ...
-
         # .order_by().drop() can be flattened
         # .filter().drop() can be flattened
         # .limit().drop() can be flattened
@@ -1570,6 +1586,34 @@ class SelectStatement(Selectable):
         )
         assert new_column_states is not None
         new.column_states = new_column_states
+        return new
+
+    def ilike(self, pattern: str) -> "SelectStatement":
+        # .select().col_ilike(); cannot be flattened; ilike syntax is select * ilike ...
+        # .col_ilike().col_ilike() cannot be flattened
+        # .order_by().col_ilike() can be flattened
+        # .filter().col_ilike() can be flattened
+        # .limit().col_ilike() can be flattened
+        # .distinct().col_ilike() can be flattened
+        can_be_flattened = (
+            not self.flatten_disabled and not self.projection and not self.ilike_cols
+        )
+        if can_be_flattened:
+            new = copy(self)
+            new.from_ = self.from_.to_subqueryable()
+            new.pre_actions = new.from_.pre_actions
+            new.post_actions = new.from_.post_actions
+            new._merge_projection_complexity_with_subquery = False
+            new.df_ast_ids = (
+                self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+            )
+        else:
+            new = SelectStatement(
+                from_=self.to_subqueryable(),
+                analyzer=self.analyzer,
+            )
+
+        new.ilike_cols = pattern
         return new
 
     def set_operator(

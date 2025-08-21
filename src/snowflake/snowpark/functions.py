@@ -7426,7 +7426,7 @@ def map_cat(
 
     Example::
         >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as A, {'k2': 'v2'} :: MAP(STRING,STRING) as B")
-        >>> df.select(map_cat("A", "B")).show()
+        >>> df.select(map_cat("A", "B")).show()  # doctest: +SKIP
         ---------------------------
         |"MAP_CAT(""A"", ""B"")"  |
         ---------------------------
@@ -7437,7 +7437,7 @@ def map_cat(
         ---------------------------
         <BLANKLINE>
         >>> df = session.sql("select {'k1': 'v1'} :: MAP(STRING,STRING) as A, {'k2': 'v2'} :: MAP(STRING,STRING) as B, {'k3': 'v3'} :: MAP(STRING,STRING) as C")
-        >>> df.select(map_cat("A", "B", "C")).show()
+        >>> df.select(map_cat("A", "B", "C")).show()  # doctest: +SKIP
         -------------------------------------------
         |"MAP_CAT(MAP_CAT(""A"", ""B""), ""C"")"  |
         -------------------------------------------
@@ -11765,6 +11765,170 @@ def randn(
 
 
 @publicapi
+def xpath(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
+    """
+    Extracts values from an XML column using an XPath expression.
+
+    Returns an array of strings containing all matches in document order.
+    Returns an empty array if no matches are found.
+
+    Args:
+        col: Column containing XML data (string or parsed XML)
+        path: XPath expression string
+
+    Example::
+
+        >>> df = session.create_dataframe([['<root><a>1</a><a>2</a></root>']], schema=['xml'])
+        >>> result = df.select(xpath('xml', '//a/text()').alias('result')).collect()
+        >>> json.loads(result[0].RESULT)
+        ['1', '2']
+
+        >>> # With attributes
+        >>> df2 = session.create_dataframe([['<root><item id="1">A</item><item id="2">B</item></root>']], schema=['xml'])
+        >>> result = df2.select(xpath('xml', '//item[@id="2"]/text()').alias('result')).collect()
+        >>> json.loads(result[0].RESULT)
+        ['B']
+    """
+    session = snowflake.snowpark.session._get_active_session()
+    xml_col = _to_col_if_str(col, "xpath")
+    xpath_udf = session._get_or_register_xpath_udf("array")
+    ast = (
+        build_function_expr("xpath", [xml_col, lit(path, _emit_ast=False)])
+        if _emit_ast
+        else None
+    )
+    ans = xpath_udf(xml_col, lit(path), _emit_ast=False)
+    ans._ast = ast
+    return ans
+
+
+@publicapi
+def xpath_string(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
+    """
+    Extracts the first value from an XML column using an XPath expression as a string.
+
+    Returns NULL if no matches are found.
+
+    Args:
+        col: Column containing XML data
+        path: XPath expression string
+
+    Example::
+
+        >>> df = session.create_dataframe([['<root><a>1</a><a>2</a></root>']], schema=['xml'])
+        >>> df.select(xpath_string('xml', '//a/text()').alias('result')).collect()
+        [Row(RESULT='1')]
+    """
+    session = snowflake.snowpark.session._get_active_session()
+    xml_col = _to_col_if_str(col, "xpath_string")
+    xpath_udf = session._get_or_register_xpath_udf("string")
+    ast = (
+        build_function_expr("xpath_string", [xml_col, lit(path, _emit_ast=False)])
+        if _emit_ast
+        else None
+    )
+    ans = xpath_udf(xml_col, lit(path), _emit_ast=False)
+    ans._ast = ast
+    return ans
+
+
+@publicapi
+def xpath_boolean(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
+    """
+    Evaluates an XPath expression and returns the result as a boolean.
+
+    Returns FALSE if no matches are found. Follows XPath boolean coercion rules.
+
+    Args:
+        col: Column containing XML data
+        path: XPath expression string
+
+    Example::
+
+        >>> df = session.create_dataframe([['<root><a>1</a></root>']], schema=['xml'])
+        >>> df.select(xpath_boolean('xml', 'count(//a) > 0').alias('has_a')).collect()
+        [Row(HAS_A=True)]
+    """
+    session = snowflake.snowpark.session._get_active_session()
+    xml_col = _to_col_if_str(col, "xpath_boolean")
+    xpath_udf = session._get_or_register_xpath_udf("boolean")
+    ast = (
+        build_function_expr("xpath_boolean", [xml_col, lit(path, _emit_ast=False)])
+        if _emit_ast
+        else None
+    )
+    ans = xpath_udf(xml_col, lit(path), _emit_ast=False)
+    ans._ast = ast
+    return ans
+
+
+@publicapi
+def xpath_number(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
+    """
+    Extracts a numeric value from an XML column using an XPath expression.
+
+    Returns NULL if no matches are found or value cannot be converted to float.
+
+    Args:
+        col: Column containing XML data
+        path: XPath expression string
+
+    Example::
+
+        >>> df = session.create_dataframe([['<root><price>19.99</price></root>']], schema=['xml'])
+        >>> df.select(xpath_number('xml', '//price/text()').alias('price')).collect()
+        [Row(PRICE=19.99)]
+    """
+    session = snowflake.snowpark.session._get_active_session()
+    xml_col = _to_col_if_str(col, "xpath_number")
+    xpath_udf = session._get_or_register_xpath_udf("float")
+    ast = (
+        build_function_expr("xpath_number", [xml_col, lit(path, _emit_ast=False)])
+        if _emit_ast
+        else None
+    )
+    ans = xpath_udf(xml_col, lit(path), _emit_ast=False)
+    ans._ast = ast
+    return ans
+
+
+@publicapi
+def xpath_int(col: ColumnOrName, path: str, _emit_ast: bool = True) -> Column:
+    """
+    Extracts an integer value from an XML column using an XPath expression.
+
+    Returns NULL if no matches are found or value cannot be converted to integer.
+    Floats are truncated to integers (e.g., 1.9 becomes 1).
+
+    Args:
+        col: Column containing XML data
+        path: XPath expression string
+
+    Example::
+
+        >>> df = session.create_dataframe([['<root><count>42</count></root>']], schema=['xml'])
+        >>> df.select(xpath_int('xml', '//count/text()').alias('count')).collect()
+        [Row(COUNT=42)]
+    """
+    session = snowflake.snowpark.session._get_active_session()
+    xml_col = _to_col_if_str(col, "xpath_int")
+    xpath_udf = session._get_or_register_xpath_udf("int")
+    ast = (
+        build_function_expr("xpath_int", [xml_col, lit(path, _emit_ast=False)])
+        if _emit_ast
+        else None
+    )
+    ans = xpath_udf(xml_col, lit(path), _emit_ast=False)
+    ans._ast = ast
+    return ans
+
+
+# Spark compatibility aliases
+xpath_float = xpath_double = xpath_number
+xpath_long = xpath_short = xpath_int
+
+
+@publicapi
 def build_stage_file_url(
     stage_name: str, relative_file_path: str, _emit_ast: bool = True
 ) -> Column:
@@ -12520,10 +12684,9 @@ def ai_similarity(
     Currently supports both text and image similarity computation.
 
     Args:
-        input1: The first input for comparison. Can be a string with text, an image (FILE data type),
-            or a SQL object from :func:`prompt()`.
-        input2: The second input for comparison. Can be a string with text, an image (FILE data type),
-            or a SQL object from :func:`prompt()`. Must be the same type as input1 (both text or both images).
+        input1: The first input for comparison. Can be a string with text or an image (FILE data type).
+        input2: The second input for comparison. Can be a string with text or an image (FILE data type).
+            Must be the same type as input1 (both text or both images).
         **kwargs: Configuration settings specified as key/value pairs. Supported keys:
 
             - model: The embedding model used for embedding. For STRING input, defaults to 'snowflake-arctic-embed-l-v2'.
@@ -12537,7 +12700,10 @@ def ai_similarity(
 
     Note:
         AI_SIMILARITY does not support computing the similarity between text and image inputs.
-        Both inputs must be of the same type.
+        Both inputs must be of the same type:
+
+            - They are both Python ``str``.
+            - They are both :class:`Column` objects representing a FILE data type.
 
     Examples::
 

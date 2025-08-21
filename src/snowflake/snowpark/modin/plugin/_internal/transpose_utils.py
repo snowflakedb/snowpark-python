@@ -64,7 +64,6 @@ def prepare_and_unpivot_for_transpose(
     original_frame: InternalFrame,
     query_compiler: "SnowflakeQueryCompiler",  # type: ignore[name-defined] # noqa: F821
     is_single_row: bool = False,
-    dummy_row_pos_mode: bool = False,
 ) -> Union[UnpivotResultInfo, "SnowflakeQueryCompiler"]:  # type: ignore[name-defined] # noqa: F821
 
     # Check if the columns are all json serializable, if not, then go through fallback path.  The transpose approach
@@ -76,7 +75,7 @@ def prepare_and_unpivot_for_transpose(
         return DataFrameDefault.register(native_pd.DataFrame.transpose)(query_compiler)
 
     # Ensure there is a row position since preserving order is important for unpivot and transpose.
-    original_frame = original_frame.ensure_row_position_column(dummy_row_pos_mode)
+    original_frame = original_frame.ensure_row_position_column()
 
     # Transpose is implemented with unpivot followed by pivot. However when the input dataframe is empty, there are two issues
     # 1) unpivot on empty table returns empty, which results in missing values in UNPIVOT_NAME_COLUMN

@@ -9,7 +9,7 @@ import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Optional, Union
-from packaging import version
+from packaging import version  # noqa: E402,F401
 
 import modin.pandas as pd
 import numpy as np
@@ -121,7 +121,7 @@ _logger = logging.getLogger(__name__)
 # Flag guarding certain features available only in newer modin versions.
 # Snowpark pandas supports the newest two released versions of modin; update this flag and remove legacy
 # code as needed when we bump dependency versions.
-MODIN_IS_AT_LEAST_0_34_0 = version.parse(pd.__version__) >= version.parse("0.34.0")
+MODIN_IS_AT_LEAST_0_35_0 = version.parse(pd.__version__) >= version.parse("0.35.0")
 
 
 # This is the default statement parameters for queries from Snowpark pandas API. It provides the fine grain metric for
@@ -326,7 +326,6 @@ def _create_read_only_table(
 def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
     enforce_ordering: bool,
-    dummy_row_pos_mode: bool = False,
 ) -> tuple[OrderedDataFrame, str]:
     """
     create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
@@ -436,12 +435,7 @@ def create_initial_ordered_dataframe(
         if enforce_ordering:
             row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
         else:
-            if dummy_row_pos_mode:
-                row_position_column_str = (
-                    f"0 as {row_position_snowflake_quoted_identifier}"
-                )
-            else:
-                row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
+            row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
 
         columns_to_select = ", ".join(
             [row_position_column_str] + snowflake_quoted_identifiers
@@ -498,19 +492,15 @@ def create_initial_ordered_dataframe(
                 f"Failed to create Snowpark pandas DataFrame out of query {table_name_or_query} with error {ex}",
                 error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
             ) from ex
-        initial_ordered_dataframe = (
+        ordered_dataframe = (
             snowpark_pandas_df._query_compiler._modin_frame.ordered_dataframe
         )
-        ordered_dataframe = initial_ordered_dataframe
         row_position_snowflake_quoted_identifier = (
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
     # Set the materialized row count
-    materialized_row_count = (
-        initial_ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
-            statement_params=get_default_snowpark_pandas_statement_params(),
-            _emit_ast=False,
-        )
+    materialized_row_count = ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
+        statement_params=get_default_snowpark_pandas_statement_params(), _emit_ast=False
     )
     ordered_dataframe.row_count = materialized_row_count
     ordered_dataframe.row_count_upper_bound = materialized_row_count

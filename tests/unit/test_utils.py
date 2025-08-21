@@ -177,14 +177,6 @@ def test_ttl_cache():
     assert len(sum_two_long._cache) == 2
     assert len(sum_two_short._cache) == 1
 
-    @ttl_cache(60)
-    def union_sets(a, b):
-        return a | b
-
-    # Even though the inputs are unhashable the result is still cached
-    union_sets({1}, {2})
-    assert len(union_sets._cache) == 1
-
 
 def test_remove_comments():
 

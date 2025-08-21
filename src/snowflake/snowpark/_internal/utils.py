@@ -29,6 +29,7 @@ from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache, wraps
 from itertools import count
 from json import JSONEncoder
+from time import perf_counter
 from random import Random
 from typing import (
     IO,
@@ -209,6 +210,16 @@ XML_ROW_DATA_COLUMN_NAME = "ROW_DATA"
 XML_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "xml_reader.py")
 XML_READER_API_SIGNATURE = "DataFrameReader.xml[rowTag]"
 XML_READER_SQL_COMMENT = f"/* Python:snowflake.snowpark.{XML_READER_API_SIGNATURE} */"
+
+# Map of XPath return types to handler function names
+XPATH_HANDLER_MAP = {
+    "array": "xpath_array_handler",
+    "string": "xpath_string_handler",
+    "boolean": "xpath_boolean_handler",
+    "int": "xpath_int_handler",
+    "float": "xpath_float_handler",
+}
+XPATH_HANDLERS_FILE_PATH = os.path.join(os.path.dirname(__file__), "xpath_handlers.py")
 
 QUERY_TAG_STRING = "QUERY_TAG"
 SKIP_LEVELS_TWO = (
@@ -1844,6 +1855,7 @@ def get_sorted_key_for_version(version_str):
 def ttl_cache(ttl_seconds: float):
     """
     A decorator that caches function results with a time-to-live (TTL) expiration.
+    The decorator expects the first argument to be the ttl_key which should be hashable.
 
     Args:
         ttl_seconds (float): Time-to-live in seconds for cached items
@@ -1853,16 +1865,6 @@ def ttl_cache(ttl_seconds: float):
         cache = {}
         expiry_heap = []  # heap of (expiry_time, cache_key)
         cache_lock = threading.RLock()
-
-        def _make_cache_key(*args, **kwargs) -> int:
-            """Create a hashable cache key from function arguments."""
-            key = (args, tuple(sorted(kwargs.items())))
-            try:
-                # Try to create a simple tuple key
-                return hash(key)
-            except TypeError:
-                # If args contain unhashable types, convert to string representation
-                return hash(str(key))
 
         def _cleanup_expired(current_time: float):
             """Remove expired entries from cache and heap."""
@@ -1881,8 +1883,8 @@ def ttl_cache(ttl_seconds: float):
                 expiry_heap.clear()
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
-            cache_key = _make_cache_key(*args, **kwargs)
+        def wrapper(hashable_ttl_key, *args, **kwargs):
+            cache_key = hash(hashable_ttl_key)
             current_time = time.time()
 
             with cache_lock:
@@ -1891,7 +1893,7 @@ def ttl_cache(ttl_seconds: float):
                 if cache_key in cache:
                     return cache[cache_key]
 
-                result = func(*args, **kwargs)
+                result = func(hashable_ttl_key, *args, **kwargs)
 
                 cache[cache_key] = result
                 expiry_time = current_time + ttl_seconds
@@ -2060,3 +2062,13 @@ def get_plan_from_line_numbers(
             )
 
     raise ValueError(f"Line number {line_number} does not fall within any interval")
+
+
+@contextlib.contextmanager
+def measure_time() -> Callable[[], float]:
+    """
+    A simple context manager that measures the time taken to execute a code block
+    """
+    start_time = end_time = perf_counter()
+    yield lambda: end_time - start_time
+    end_time = perf_counter()

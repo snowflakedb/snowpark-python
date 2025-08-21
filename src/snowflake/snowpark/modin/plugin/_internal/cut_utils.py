@@ -152,7 +152,6 @@ def compute_bin_indices(
     cuts_frame: InternalFrame,
     n_cuts: int,
     right: bool = True,
-    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Given a frame of cuts, i.e. borders of bins (strictly increasing) compute for the data in values_frame the index of the bin they fall into.
@@ -184,7 +183,7 @@ def compute_bin_indices(
     # within OrderedDataFrame yet, we use the Snowpark layer directly. This should have no negative
     # consequences when it comes to building lazy graphs, as both cut and qcut are materializing operations.
 
-    cuts_frame = cuts_frame.ensure_row_position_column(dummy_row_pos_mode)
+    cuts_frame = cuts_frame.ensure_row_position_column()
     # perform asof join to find the closet to the cut frame data.
     asof_result = join(
         values_frame,

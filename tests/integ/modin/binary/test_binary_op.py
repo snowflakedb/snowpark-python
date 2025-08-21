@@ -548,6 +548,38 @@ def test_binary_add_between_series(native_df):
     )
 
 
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "testing_dfs_from_read_snowflake",
+    [native_pd.DataFrame({"col0": [0]})],
+    indirect=True,
+)
+def test_add_dataframe_from_read_snowflake_to_self_SNOW_2252101(
+    testing_dfs_from_read_snowflake,
+):
+    eval_snowpark_pandas_result(
+        *testing_dfs_from_read_snowflake,
+        lambda df: repr(df + df),
+        comparator=str.__eq__,
+    )
+
+
+@sql_count_checker(query_count=1)
+@pytest.mark.parametrize(
+    "testing_dfs_from_read_snowflake",
+    [native_pd.DataFrame({"col0": ["a"], "col1": ["b"]})],
+    indirect=True,
+)
+def test_comparing_series_from_same_read_snowflake_result_does_not_require_join_SNOW_2250244(
+    testing_dfs_from_read_snowflake,
+):
+    eval_snowpark_pandas_result(
+        *testing_dfs_from_read_snowflake,
+        lambda df: repr(df["col0"] == df["col1"]),
+        comparator=str.__eq__,
+    )
+
+
 def _gen_random_int_list_with_nones(N: int) -> list[int]:
     assert N > 3
     arr = [random.randint(-1000000, 1000000) for _ in range(N)]

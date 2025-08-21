@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import math
 import os
 import queue
 import time
@@ -182,15 +183,7 @@ def _task_fetch_data_from_source(
 
     for i, result in enumerate(worker.read(partition)):
         if stop_event and stop_event.is_set():
-            parquet_queue.put(
-                (
-                    PARTITION_TASK_ERROR_SIGNAL,
-                    SnowparkDataframeReaderException(
-                        "Data fetching stopped by thread failure"
-                    ),
-                )
-            )
-            break
+            return
         convert_to_parquet_bytesio(result, i)
 
     parquet_queue.put((f"{PARTITION_TASK_COMPLETE_SIGNAL_PREFIX}{partition_idx}", None))
@@ -337,7 +330,7 @@ def worker_process(
             break
 
 
-def process_completed_futures(thread_futures):
+def process_completed_futures(thread_futures) -> float:
     """Process completed futures with simplified error handling."""
     for parquet_id, future in list(thread_futures):  # Iterate over a copy of the set
         if future.done():
@@ -359,6 +352,7 @@ def process_completed_futures(thread_futures):
                         )
                 thread_futures.clear()  # Clear the set since all are cancelled
                 raise
+    return time.perf_counter()
 
 
 def _drain_process_status_queue(
@@ -385,7 +379,7 @@ def process_parquet_queue_with_threads(
     statements_params: Optional[Dict[str, str]] = None,
     on_error: str = "abort_statement",
     fetch_with_process: bool = False,
-) -> None:
+) -> Tuple[float, float, float]:
     """
     Process parquet data from a multiprocessing queue using a thread pool.
 
@@ -410,6 +404,9 @@ def process_parquet_queue_with_threads(
     Raises:
         SnowparkDataframeReaderException: If any worker process fails
     """
+    fetch_to_local_end_time = time.perf_counter()
+    upload_to_sf_start_time = math.inf
+    upload_to_sf_end_time = -math.inf
 
     completed_partitions = set()
     gracefully_exited_processes = set()
@@ -423,7 +420,7 @@ def process_parquet_queue_with_threads(
         thread_futures = set()  # stores tuples of (parquet_id, thread_future)
         while len(completed_partitions) < total_partitions or thread_futures:
             # Process any completed futures and handle errors
-            process_completed_futures(thread_futures)
+            upload_to_sf_end_time = process_completed_futures(thread_futures)
 
             try:
                 backpressure_semaphore.acquire()
@@ -435,6 +432,7 @@ def process_parquet_queue_with_threads(
                     completed_partitions.add(partition_idx)
                     logger.debug(f"Partition {partition_idx} completed.")
                     backpressure_semaphore.release()  # Release semaphore since no thread was created
+                    fetch_to_local_end_time = time.perf_counter()
                     continue
                 # Check for errors
                 elif parquet_id == PARTITION_TASK_ERROR_SIGNAL:
@@ -445,6 +443,11 @@ def process_parquet_queue_with_threads(
                 # Process valid BytesIO parquet data
                 logger.debug(f"Retrieved BytesIO parquet from queue: {parquet_id}")
 
+                upload_to_sf_start_time = (
+                    time.perf_counter()
+                    if upload_to_sf_start_time == math.inf
+                    else upload_to_sf_start_time
+                )
                 thread_future = thread_executor.submit(
                     _upload_and_copy_into_table_with_retry,
                     session,
@@ -519,3 +522,10 @@ def process_parquet_queue_with_threads(
                 raise SnowparkDataframeReaderException(
                     f"Partition {idx} data fetching thread failed with error: {e}"
                 )
+    logger.debug(f"fetch to local end at {fetch_to_local_end_time}")
+    logger.debug(f"upload and copy into end at {upload_to_sf_end_time}")
+    logger.debug(
+        f"upload and copy into total time: {upload_to_sf_end_time - upload_to_sf_start_time}"
+    )
+
+    return fetch_to_local_end_time, upload_to_sf_start_time, upload_to_sf_end_time

@@ -25,6 +25,10 @@ called. This includes most methods that are ordinarily completely unsupported by
 and have `N` in their implemented status in the :doc:`DataFrame <supported/dataframe_supported>` and
 :doc:`Series <supported/series_supported>` supported API lists.
 
+Applying Snowpark functions like `floor` and `abs`, or Snowflake Cortex functions
+like `snowflake.cortex.sentiment`, to a DataFrame or Series on the `Pandas`
+backend will automatically move data to the `Snowflake` backend for execution.
+
 Post-Operation Switchpoints:
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 read_snowflake, value_counts, tail, var, std, sum, sem, max, min, mean, agg, aggregate, count, nunique, cummax, cummin, cumprod, cumsum
@@ -108,9 +112,28 @@ backend is 10M rows. This can be configured through the modin environment variab
 
     # Use a config context to set the Pandas backend parameters
     with config_context(NativePandasMaxRows=1234):
-        # Operations only performed using the Pandas backend
+        # Operations on local data frames discouraged above 1234
         df = pd.DataFrame([4, 5, 6])
 
+Configuring Transfer Costs
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Transfer costs are also considered for data moving between engines. For data moving
+from Snowflake this threshold can be configured with the SnowflakePandasTransferThreshold
+environment variable. This is set to 100k rows by default; which will penalize
+the movement of data as it nears this threshold. The default may change in the future.
+
+.. code-block:: python
+
+    # Change row transfer threshold to 500k
+    from modin.config import SnowflakePandasTransferThreshold, context as config_context
+    SnowflakePandasTransferThreshold.put(500_000)
+
+    # Use a config context to set the transfer limit
+    with config_context(SnowflakePandasTransferThreshold=1234):
+        # Data movement out of Snowflake strongly discouraged above
+        # 617 rows ( 1234 / 2 )
+        df = pd.DataFrame([4, 5, 6])
 
 Debugging Hybrid Execution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
