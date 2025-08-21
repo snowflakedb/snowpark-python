@@ -2,8 +2,9 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import json
 import pytest
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, lit
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
 
@@ -415,3 +416,150 @@ def test_grouped_dataframe_ai_agg(session):
 
     product_types = [row["PRODUCT_TYPE"] for row in complex_results]
     assert product_types == ["books", "electronics"]  # Sorted alphabetically
+
+
+def test_dataframe_ai_classify_basic(session):
+    """Test DataFrame.ai.classify with basic usage."""
+    # Create a DataFrame with text data
+    df = session.create_dataframe(
+        [
+            ["I love hiking in the mountains"],
+            ["My favorite dish is pasta carbonara"],
+            ["Just finished reading a great book"],
+            ["Learning to cook Italian cuisine"],
+        ],
+        schema=["text"],
+    )
+
+    # Use DataFrame.ai.classify with list of categories
+    result_df = df.ai.classify(
+        input_column="text",
+        categories=["hiking", "cooking", "reading"],
+        output_column="category",
+    )
+
+    # Check schema
+    assert result_df.columns == ["TEXT", "CATEGORY"]
+
+    # Collect and verify results
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 4
+
+    # Verify some expected classifications
+    text_to_category = {
+        row["TEXT"]: json.loads(row["CATEGORY"])["labels"][0] for row in results
+    }
+
+    # These should be fairly obvious classifications
+    assert text_to_category["My favorite dish is pasta carbonara"] == "cooking"
+    assert text_to_category["Just finished reading a great book"] == "reading"
+    assert text_to_category["I love hiking in the mountains"] == "hiking"
+
+
+def test_dataframe_ai_classify_multi_label(session):
+    """Test DataFrame.ai.classify with multi-label classification."""
+    # Create a DataFrame with text that may belong to multiple categories
+    df = session.create_dataframe(
+        [
+            ["I enjoy traveling and trying local cuisines"],
+            ["Reading books while on a flight to Paris"],
+            ["Cooking recipes from different countries I've visited"],
+            ["Training for a marathon while exploring new cities"],
+        ],
+        schema=["text"],
+    )
+    df = df.with_column(
+        "categories", lit(["travel", "cooking", "reading", "sports", "education"])
+    )
+
+    # Use multi-label classification with task description
+    result_df = df.ai.classify(
+        input_column=col("text"),
+        categories=col("categories"),
+        output_column="topics",
+        task_description="Identify all topics mentioned in the text",
+        output_mode="multi",
+    )
+
+    # Check schema
+    assert result_df.columns == ["TEXT", "CATEGORIES", "TOPICS"]
+
+    # Collect and verify results
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 4
+
+    # First text mentions both travel and cooking
+    first_labels = json.loads(results[0]["TOPICS"])["labels"]
+    assert "travel" in first_labels or "cooking" in first_labels
+    # At least one row should have multiple labels
+    assert any(len(json.loads(row["TOPICS"])["labels"]) > 1 for row in results)
+
+
+def test_dataframe_ai_classify_with_examples(session):
+    """Test DataFrame.ai.classify with few-shot examples."""
+    # Create a DataFrame with ambiguous text
+    df = session.create_dataframe(
+        [
+            ["The service was outstanding"],
+            ["The product broke after one day"],
+            ["Average experience, nothing special"],
+            ["Exceeded all my expectations"],
+        ],
+        schema=["feedback"],
+    )
+
+    # Use classification with examples for better accuracy
+    result_df = df.ai.classify(
+        input_column="feedback",
+        categories=["positive", "negative", "neutral"],
+        output_column="sentiment",
+        task_description="Classify customer feedback sentiment",
+        examples=[
+            {
+                "input": "This is the best product ever",
+                "labels": ["positive"],
+                "explanation": "The feedback expresses strong satisfaction",
+            },
+            {
+                "input": "Terrible quality, want my money back",
+                "labels": ["negative"],
+                "explanation": "The feedback expresses dissatisfaction and complaint",
+            },
+            {
+                "input": "It is okay, not great but not bad",
+                "labels": ["neutral"],
+                "explanation": "The feedback shows neither strong positive nor negative sentiment",
+            },
+        ],
+    )
+
+    # Check schema
+    assert result_df.columns == ["FEEDBACK", "SENTIMENT"]
+
+    # Collect and verify results
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 4
+
+    # Check sentiment classifications
+    feedback_to_sentiment = {
+        row["FEEDBACK"]: json.loads(row["SENTIMENT"])["labels"][0] for row in results
+    }
+
+    assert feedback_to_sentiment["The service was outstanding"] == "positive"
+    assert feedback_to_sentiment["The product broke after one day"] == "negative"
+    assert feedback_to_sentiment["Average experience, nothing special"] == "neutral"
+    assert feedback_to_sentiment["Exceeded all my expectations"] == "positive"
+
+
+def test_dataframe_ai_classify_default_output_column(session):
+    """Test DataFrame.ai.classify with default output column name."""
+    df = session.create_dataframe([["apple"], ["carrot"], ["chicken"]], schema=["item"])
+
+    # Don't specify output_column, should use default
+    result_df = df.ai.classify(
+        input_column="item",
+        categories=["fruit", "vegetable", "meat", "dairy"],
+    )
+
+    # Check that default column name is used
+    assert "AI_CLASSIFY_OUTPUT" in result_df.columns
