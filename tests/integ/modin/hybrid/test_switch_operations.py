@@ -329,7 +329,7 @@ def test_explain_switch_empty():
     assert new_switch_index_names == empty_switch_index_names
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_explain_switch(init_transaction_tables, us_holidays_data):
     clear_hybrid_switch_log()
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
