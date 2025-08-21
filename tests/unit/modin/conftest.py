@@ -18,7 +18,7 @@ from snowflake.snowpark.types import StringType
 from modin.config import AutoSwitchBackend
 
 # Disable automatic backend selection for hybrid execution by default.
-AutoSwitchBackend.disable()
+AutoSwitchBackend.enable()
 
 
 @pytest.fixture(scope="function", autouse=True)
