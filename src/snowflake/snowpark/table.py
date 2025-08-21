@@ -39,6 +39,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import TimestampTimeZone
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -297,7 +298,7 @@ class Table(DataFrame):
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime.datetime]] = None,
-        timezone: Optional[str] = "NTZ",
+        timezone: Optional[Union[str, TimestampTimeZone]] = TimestampTimeZone.DEFAULT,
         stream: Optional[str] = None,
     ) -> None:
         if _ast_stmt is None and session is not None and _emit_ast:
@@ -345,16 +346,9 @@ class Table(DataFrame):
     def _copy_without_ast(self):
         kwargs = {}
         if self._time_travel_config:
-            kwargs.update(
-                {
-                    "time_travel_mode": self._time_travel_config.mode,
-                    "statement": self._time_travel_config.statement,
-                    "offset": self._time_travel_config.offset,
-                    "timestamp": self._time_travel_config.timestamp,
-                    "timezone": self._time_travel_config.timezone,
-                    "stream": self._time_travel_config.stream,
-                }
-            )
+            time_travel_dict = self._time_travel_config._asdict()
+            time_travel_dict["time_travel_mode"] = time_travel_dict.pop("mode")
+            kwargs.update(time_travel_dict)
 
         return Table(
             self.table_name,
@@ -367,16 +361,9 @@ class Table(DataFrame):
     def __copy__(self) -> "Table":
         kwargs = {}
         if self._time_travel_config:
-            kwargs.update(
-                {
-                    "time_travel_mode": self._time_travel_config.mode,
-                    "statement": self._time_travel_config.statement,
-                    "offset": self._time_travel_config.offset,
-                    "timestamp": self._time_travel_config.timestamp,
-                    "timezone": self._time_travel_config.timezone,
-                    "stream": self._time_travel_config.stream,
-                }
-            )
+            time_travel_dict = self._time_travel_config._asdict()
+            time_travel_dict["time_travel_mode"] = time_travel_dict.pop("mode")
+            kwargs.update(time_travel_dict)
 
         return Table(
             self.table_name,
