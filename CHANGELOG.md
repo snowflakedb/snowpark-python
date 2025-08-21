@@ -73,8 +73,6 @@
 
 #### Improvements
 
-- Refactored the `functions.py` module to improve code organization and readability.
-
 #### Dependency Updates
 
 - Updated the supported `modin` versions to >=0.34.0 and <0.36.0 (was previously >= 0.33.0 and <0.35.0).
