@@ -851,7 +851,8 @@ def test_modin_e2e_telemetry_local(send_mock):
             ):
                 found_modin_telemetry = True
         assert found_modin_telemetry, "Modin API telemetry for was not sent."
-        
+
+
 @sql_count_checker(query_count=0)
 @patch.object(ModinTelemetrySender, "_send_telemetry")
 def test_modin_e2e_telemetry_auto_switch(send_mock):

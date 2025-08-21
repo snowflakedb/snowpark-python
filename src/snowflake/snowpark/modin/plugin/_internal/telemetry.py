@@ -166,6 +166,7 @@ def _send_snowpark_pandas_telemetry_helper(
     }
     ModinTelemetrySender()._send_telemetry(session, message)
 
+
 def _not_equal_to_default(arg_val: Any, default_val: Any) -> bool:
     # Return True if argument arg_val is not equal to its default value.
     try:
@@ -746,7 +747,7 @@ def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -
     metric_valid = False
     # ignore telemetry from dunder and internal metrics
     if metric_name.startswith(MODIN_PERFORMANCE_METRICS):
-        parts = metric_name.split('.')
+        parts = metric_name.split(".")
         if parts[3].startswith("_"):
             return
         metric_valid = True
@@ -755,10 +756,10 @@ def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -
         # strip off the groups
         simplified_metric = ".".join(metric_name.split(".")[0:5])
         metric_valid = True
-        
+
     if not metric_valid:
         return
-        
+
     _modin_event_log.append([simplified_metric, metric_value])
     # We will lose telemetry at the tail end of the process, but
     # that's OK - this telemetry is meant to be lossy
