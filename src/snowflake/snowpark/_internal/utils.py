@@ -2001,7 +2001,6 @@ def validate_and_normalize_time_travel_params(
         normalized_timestamp = _normalize_timestamp(timestamp)
 
     # Normalize timezone
-    timezone = timezone
     if timezone is not None:
         if hasattr(timezone, "value"):
             timezone = timezone.value.upper() if timezone.value != "default" else "NTZ"
