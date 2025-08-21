@@ -6,6 +6,7 @@
 File containing top-level APIs defined in Snowpark pandas but not the Modin API layer
 under the `pd` namespace, such as `pd.read_snowflake`.
 """
+from functools import wraps
 from typing import Any, Iterable, List, Literal, Optional, Union
 
 from modin.pandas import DataFrame, Series
@@ -16,7 +17,7 @@ from modin.pandas.api.extensions import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.row import Row
-from .general_overrides import register_pd_accessor
+from .general_overrides import register_pd_accessor as register_snowflake_accessor
 from pandas._typing import IndexLabel
 import pandas as native_pd
 from snowflake.snowpark import DataFrame as SnowparkDataFrame
@@ -36,14 +37,30 @@ from snowflake.snowpark.modin.plugin.utils.warning_message import (
 )
 
 
-register_pd_accessor("Index")(Index)
-register_pd_accessor("DatetimeIndex")(DatetimeIndex)
-register_pd_accessor("TimedeltaIndex")(TimedeltaIndex)
+register_snowflake_accessor("Index")(Index)
+register_snowflake_accessor("DatetimeIndex")(DatetimeIndex)
+register_snowflake_accessor("TimedeltaIndex")(TimedeltaIndex)
 
 
 def _snowpark_pandas_obj_check(obj: Union[DataFrame, Series]):
     if not isinstance(obj, (DataFrame, Series)):
         raise TypeError("obj must be a Snowpark pandas DataFrame or Series")
+
+
+def _check_obj_and_set_backend_to_snowflake(
+    obj: Any,
+) -> Union[Series, DataFrame]:
+    """
+    Check if the object is a Snowpark pandas object and set the backend to Snowflake.
+
+    Args:
+        obj: The object to be checked and moved to Snowflake backend.
+
+    Returns:
+        The Series or DataFrame on the Snowflake backend.
+    """
+    _snowpark_pandas_obj_check(obj)
+    return obj.set_backend("Snowflake") if obj.get_backend() != "Snowflake" else obj
 
 
 # Use a template string so that we can share it between the read_snowflake
@@ -397,7 +414,7 @@ _READ_SNOWFLAKE_DOC = """
 """
 
 
-@register_pd_accessor("read_snowflake")
+@register_snowflake_accessor("read_snowflake")
 @doc(
     _READ_SNOWFLAKE_DOC,
     table_name="RESULT_0",
@@ -460,7 +477,7 @@ def _read_snowflake_ray_backend(
     return df.set_backend("Ray")
 
 
-@register_pd_accessor("to_snowflake")
+@_register_pd_accessor("to_snowflake")
 def to_snowflake(
     obj: Union[DataFrame, Series],
     name: Union[str, Iterable[str]],
@@ -496,14 +513,12 @@ def to_snowflake(
         - :func:`Series.to_snowflake <modin.pandas.Series.to_snowflake>`
         - :func:`read_snowflake <modin.pandas.read_snowflake>`
     """
-    _snowpark_pandas_obj_check(obj)
-
-    return obj._query_compiler.to_snowflake(
+    return _check_obj_and_set_backend_to_snowflake(obj)._query_compiler.to_snowflake(
         name, if_exists, index, index_label, table_type
     )
 
 
-@register_pd_accessor("to_snowpark")
+@_register_pd_accessor("to_snowpark")
 def to_snowpark(
     obj: Union[DataFrame, Series],
     index: bool = True,
@@ -647,12 +662,12 @@ def to_snowpark(
         ------------
         <BLANKLINE>
     """
-    _snowpark_pandas_obj_check(obj)
+    return _check_obj_and_set_backend_to_snowflake(obj)._query_compiler.to_snowpark(
+        index, index_label
+    )
 
-    return obj._query_compiler.to_snowpark(index, index_label)
 
-
-@register_pd_accessor("to_pandas")
+@register_snowflake_accessor("to_pandas")
 @materialization_warning
 def to_pandas(
     obj: Union[DataFrame, Series],
@@ -697,7 +712,7 @@ def to_pandas(
     return obj.to_pandas(statement_params=statement_params, *kwargs)
 
 
-@register_pd_accessor("to_view")
+@register_snowflake_accessor("to_view")
 def to_view(
     obj: Union[DataFrame, Series],
     name: Union[str, Iterable[str]],
@@ -728,7 +743,6 @@ def to_view(
             then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
     """
     _snowpark_pandas_obj_check(obj)
-
     return obj.to_view(
         name=name,
         comment=comment,
@@ -737,7 +751,7 @@ def to_view(
     )
 
 
-@register_pd_accessor("to_dynamic_table")
+@register_snowflake_accessor("to_dynamic_table")
 def to_dynamic_table(
     obj: Union[DataFrame, Series],
     name: Union[str, Iterable[str]],
@@ -810,7 +824,6 @@ def to_dynamic_table(
         for more details on refresh mode.
     """
     _snowpark_pandas_obj_check(obj)
-
     return obj.to_dynamic_table(
         name=name,
         warehouse=warehouse,
@@ -829,7 +842,7 @@ def to_dynamic_table(
     )
 
 
-@register_pd_accessor("to_iceberg")
+@_register_pd_accessor("to_iceberg")
 def to_iceberg(
     obj: Union[DataFrame, Series],
     table_name: Union[str, Iterable[str]],
@@ -924,8 +937,7 @@ def to_iceberg(
         ... }
         >>> pd.to_iceberg(df.to_snowpark_pandas(), "my_table", iceberg_config=iceberg_config, mode="overwrite") # doctest: +SKIP
     """
-    _snowpark_pandas_obj_check(obj)
-    return obj._query_compiler.to_iceberg(
+    return _check_obj_and_set_backend_to_snowflake(obj)._query_compiler.to_iceberg(
         table_name=table_name,
         iceberg_config=iceberg_config,
         mode=mode,
@@ -943,37 +955,34 @@ def to_iceberg(
     )
 
 
-def make_pass_through_function(name: str) -> callable:
+def _make_unimplemented_extension(name: str, to_wrap: callable):
     """
-    Define a function that passes through to a method on the first argument.
+    Make an extension for an unimplemented function.
 
-    Parameters
-    ----------
-    name : str
-        The name of the function to pass through.
+    Args:
+        name: The name of the function.
+        to_wrap: The function to wrap.
 
-    Returns
-    -------
-    callable
-        A function that passes through to the method on the first argument.
+    Returns:
+        A function that raises NotImplementedError.
     """
-    return lambda obj, *args, **kwargs: getattr(obj, name)(*args, **kwargs)
+
+    @wraps(to_wrap)
+    def _unimplemented_extension(obj, *args, **kwargs):
+        _snowpark_pandas_obj_check(obj)
+        # Let the object take care of raising the NotImplementedError.
+        return getattr(obj, name)(*args, **kwargs)
+
+    return _unimplemented_extension
 
 
-for backend in ("Ray", "Pandas"):
-    for function in (
-        "to_iceberg",
-        "to_view",
-        "to_dynamic_table",
-        "to_snowflake",
-        "to_snowpark",
-    ):
-        register_pd_accessor(name=function, backend=backend)(
-            make_pass_through_function(function)
-        )
+for function in (to_dynamic_table, to_view):
+    _register_pd_accessor(name=function.__name__, backend=None)(
+        _make_unimplemented_extension(name=function.__name__, to_wrap=function)
+    )
 
 
-@register_pd_accessor("explain_switch")
+@register_snowflake_accessor("explain_switch")
 def explain_switch(simple=True) -> Union[native_pd.DataFrame, None]:
     """
     Shows a log of all backend switching decisions made by Snowpark pandas.

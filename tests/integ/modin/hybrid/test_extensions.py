@@ -28,8 +28,14 @@ def to_iceberg(request):
     return request.param
 
 
+@pytest.fixture(params=["Ray", "Pandas", "Snowflake"])
+def global_backend(request):
+    with modin_config_context(Backend=request.param):
+        yield request.param
+
+
 @sql_count_checker(query_count=0)
-@pytest.mark.parametrize("backend", ["Ray", "Pandas"])
+@pytest.mark.parametrize("object_backend", ["Ray", "Pandas"])
 @pytest.mark.parametrize(
     "to_pandas",
     [
@@ -37,14 +43,15 @@ def to_iceberg(request):
         pytest.param(pd.to_pandas, id="function"),
     ],
 )
-def test_to_pandas(backend, to_pandas):
-    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}).set_backend(backend)
+def test_to_pandas(object_backend, to_pandas, global_backend):
+    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}).set_backend(object_backend)
     assert to_pandas(df).equals(df._to_pandas())
     assert to_pandas(df["a"]).equals(df["a"]._to_pandas())
 
 
 @pytest.mark.parametrize(
-    "backend", [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"]
+    "object_backend",
+    [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"],
 )
 @pytest.mark.parametrize(
     "to_snowpark",
@@ -60,27 +67,28 @@ def test_to_pandas(backend, to_pandas):
     ],
 )
 @sql_count_checker(query_count=4)
-def test_to_snowpark(backend, to_snowpark):
-    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}).set_backend(backend)
+def test_to_snowpark(object_backend, to_snowpark, global_backend):
+    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}).set_backend(object_backend)
     assert (
         to_snowpark(df)
         .to_pandas()  # query #1
         .equals(df.move_to("snowflake").to_snowpark().to_pandas())  # query #2
     )
-    assert df.get_backend() == backend
+    assert df.get_backend() == object_backend
 
     column = df["a"]
-    assert column.get_backend() == backend
+    assert column.get_backend() == object_backend
     assert (
         to_snowpark(column)
         .to_pandas()  # query #3
         .equals(column.move_to("snowflake").to_snowpark().to_pandas())  # query #4
     )
-    assert column.get_backend() == backend
+    assert column.get_backend() == object_backend
 
 
 @pytest.mark.parametrize(
-    "backend", [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"]
+    "object_backend",
+    [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"],
 )
 @pytest.mark.parametrize(
     "to_snowflake",
@@ -96,8 +104,8 @@ def test_to_snowpark(backend, to_snowpark):
     ],
 )
 @sql_count_checker(query_count=6)
-def test_to_snowflake(backend, to_snowflake, test_table_name):
-    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}).set_backend(backend)
+def test_to_snowflake(object_backend, to_snowflake, test_table_name, global_backend):
+    df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}).set_backend(object_backend)
     to_snowflake(df, test_table_name, if_exists="replace", index=False)  # query #1
     assert (
         pd.read_snowflake(test_table_name)  # query #2
@@ -108,7 +116,7 @@ def test_to_snowflake(backend, to_snowflake, test_table_name):
     )
 
     column = df["a"]
-    assert column.get_backend() == backend
+    assert column.get_backend() == object_backend
     to_snowflake(column, test_table_name, if_exists="replace", index=False)  # query #4
     assert (
         pd.read_snowflake(test_table_name)  # query #5
@@ -119,32 +127,40 @@ def test_to_snowflake(backend, to_snowflake, test_table_name):
     )
 
 
-@pytest.mark.parametrize("backend", ["Pandas", "Ray"])
-def test_read_snowflake_on_different_backend(backend, test_table_name):
-    with modin_config_context(Backend=backend):
-        native_df = native_pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-        snowpark_df = pd.session.create_dataframe(native_df)
-        snowpark_df.write.save_as_table(test_table_name, table_type="temp")
+@pytest.fixture(params=["Pandas", "Ray"])
+def backend_for_read_snowflake(request):
+    with modin_config_context(Backend=request.param):
+        yield request.param
 
-        with SqlCounter(query_count=2):
-            result_df = pd.read_snowflake(test_table_name)
 
-        assert result_df.get_backend() == backend
-        assert result_df.to_pandas().astype(native_df.dtypes).equals(native_df)
+def test_read_snowflake_on_different_backend(
+    backend_for_read_snowflake, test_table_name
+):
+    native_df = native_pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+    snowpark_df = pd.session.create_dataframe(native_df)
+    snowpark_df.write.save_as_table(test_table_name, table_type="temp")
+
+    with SqlCounter(query_count=2):
+        result_df = pd.read_snowflake(test_table_name)
+
+    assert result_df.get_backend() == backend_for_read_snowflake
+    assert result_df.to_pandas().astype(native_df.dtypes).equals(native_df)
 
 
 @sql_count_checker(query_count=4)
 @pytest.mark.parametrize(
-    "backend", [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"]
+    "object_backend",
+    [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"],
 )
 def test_dataframe_to_iceberg(
-    backend,
+    object_backend,
     session,
     to_iceberg,
     test_table_name,
+    global_backend,
 ):
     native_dataframe = native_pd.DataFrame([1])
-    modin_dataframe = pd.DataFrame(native_dataframe).set_backend(backend)
+    modin_dataframe = pd.DataFrame(native_dataframe).set_backend(object_backend)
 
     session.sql(
         "CREATE EXTERNAL VOLUME if not exists python_connector_iceberg_exvol"
@@ -172,16 +188,18 @@ def test_dataframe_to_iceberg(
 
 @sql_count_checker(query_count=4)
 @pytest.mark.parametrize(
-    "backend", [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"]
+    "object_backend",
+    [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"],
 )
 def test_series_to_iceberg(
-    backend,
+    object_backend,
     session,
     to_iceberg,
     test_table_name,
+    global_backend,
 ):
     native_series = native_pd.Series([1, 2, 3], name="x")
-    modin_series = pd.Series(native_series).set_backend(backend)
+    modin_series = pd.Series(native_series).set_backend(object_backend)
 
     session.sql(
         "CREATE EXTERNAL VOLUME if not exists python_connector_iceberg_exvol"
@@ -208,7 +226,6 @@ def test_series_to_iceberg(
 
 
 @sql_count_checker(query_count=0)
-@pytest.mark.parametrize("backend", ["Ray", "Pandas"])
 @pytest.mark.parametrize(
     "function,method_name",
     (
@@ -252,13 +269,15 @@ def test_series_to_iceberg(
     ),
 )
 @pytest.mark.parametrize("modin_class", [pd.DataFrame, pd.Series])
-def test_unimplemented_extensions(function, method_name, backend, modin_class):
-    with modin_config_context(Backend=backend):
-        object = modin_class([1])
-        with pytest.raises(
-            NotImplementedError,
-            match=re.escape(
-                f"Modin supports the method {modin_class.__name__}.{method_name} on the Snowflake backend, but not on the backend {backend}."
-            ),
-        ):
-            function(object)
+@pytest.mark.parametrize("object_backend", ["Ray", "Pandas"])
+def test_unimplemented_extensions(
+    function, method_name, modin_class, global_backend, object_backend
+):
+    object = modin_class([1]).set_backend(object_backend)
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            f"Modin supports the method {modin_class.__name__}.{method_name} on the Snowflake backend, but not on the backend {object_backend}."
+        ),
+    ):
+        function(object)
