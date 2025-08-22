@@ -26,6 +26,8 @@ from snowflake.snowpark.types import (
     VariantType,
     TimestampType,
     TimestampTimeZone,
+    IntegerType,
+    DoubleType,
 )
 
 if TYPE_CHECKING:
@@ -62,6 +64,12 @@ JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
     "NCLOB": StringType,
     "TIMESTAMP": TimestampType,
     "VARBINARY": StringType,
+    "BIGINT": IntegerType,
+    "FLOAT": FloatType,
+    "DOUBLE": DoubleType,
+    "DECIMAL": DecimalType,
+    "BOOLEAN": BooleanType,
+    "BIT": StringType,
 }
 
 PARTITION_TABLE_COLUMN_NAME = "partition"
