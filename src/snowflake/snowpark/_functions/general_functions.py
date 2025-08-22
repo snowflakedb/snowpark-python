@@ -46,29 +46,6 @@ def lit(
     datatype: Optional[DataType] = None,
     _emit_ast: bool = True,
 ) -> Column:
-    """
-    Creates a :class:`~snowflake.snowpark.Column` expression for a literal value.
-    It supports basic Python data types, including ``int``, ``float``, ``str``,
-    ``bool``, ``bytes``, ``bytearray``, ``datetime.time``, ``datetime.date``,
-    ``datetime.datetime`` and ``decimal.Decimal``. Also, it supports Python structured data types,
-    including ``list``, ``tuple`` and ``dict``, but this container must
-    be JSON serializable. If a ``Column`` object is passed, it is returned as is.
-
-    Example::
-
-        >>> import datetime
-        >>> columns = [lit(1), lit("1"), lit(1.0), lit(True), lit(b'snow'), lit(datetime.date(2023, 2, 2)), lit([1, 2]), lit({"snow": "flake"}), lit(lit(1))]
-        >>> session.create_dataframe([[]]).select([c.as_(str(i)) for i, c in enumerate(columns)]).show()
-        ---------------------------------------------------------------------------------------------
-        |"0"  |"1"  |"2"  |"3"   |"4"                 |"5"         |"6"   |"7"                |"8"  |
-        ---------------------------------------------------------------------------------------------
-        |1    |1    |1.0  |True  |bytearray(b'snow')  |2023-02-02  |[     |{                  |1    |
-        |     |     |     |      |                    |            |  1,  |  "snow": "flake"  |     |
-        |     |     |     |      |                    |            |  2   |}                  |     |
-        |     |     |     |      |                    |            |]     |                   |     |
-        ---------------------------------------------------------------------------------------------
-        <BLANKLINE>
-    """
 
     if _emit_ast:
         ast = proto.Expr()
@@ -125,27 +102,6 @@ def call_function(
     *args: ColumnOrLiteral,
     _emit_ast: bool = True,
 ) -> Column:
-    """Invokes a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function) with the specified name
-    and arguments.
-
-    Args:
-        function_name: The name of built-in function in Snowflake
-        args: Arguments can be in two types:
-
-            - :class:`~snowflake.snowpark.Column`, or
-            - Basic Python types, which are converted to Snowpark literals.
-
-    Example::
-        >>> df = session.create_dataframe([1, 2, 3, 4], schema=["a"])  # a single column with 4 rows
-        >>> df.select(call_function("avg", col("a"))).show()
-        ----------------
-        |"AVG(""A"")"  |
-        ----------------
-        |2.500000      |
-        ----------------
-        <BLANKLINE>
-
-    """
     ast = (
         build_function_expr("call_function", [function_name, *args])
         if _emit_ast
@@ -155,34 +111,6 @@ def call_function(
 
 
 def function(function_name: str, _emit_ast: bool = True) -> Callable:
-    """
-    Function object to invoke a Snowflake `system-defined function <https://docs.snowflake.com/en/sql-reference-functions.html>`_ (built-in function). Use this to invoke
-    any built-in functions not explicitly listed in this object.
-
-    Args:
-        function_name: The name of built-in function in Snowflake.
-
-    Returns:
-        A :class:`Callable` object for calling a Snowflake system-defined function.
-
-    Example::
-        >>> df = session.create_dataframe([1, 2, 3, 4], schema=["a"])  # a single column with 4 rows
-        >>> df.select(call_function("avg", col("a"))).show()
-        ----------------
-        |"AVG(""A"")"  |
-        ----------------
-        |2.500000      |
-        ----------------
-        <BLANKLINE>
-        >>> my_avg = function('avg')
-        >>> df.select(my_avg(col("a"))).show()
-        ----------------
-        |"AVG(""A"")"  |
-        ----------------
-        |2.500000      |
-        ----------------
-        <BLANKLINE>
-    """
     return lambda *args: call_function(function_name, *args, _emit_ast=_emit_ast)
 
 
