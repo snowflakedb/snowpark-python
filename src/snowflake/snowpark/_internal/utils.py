@@ -428,6 +428,16 @@ def normalize_path(path: str, is_local: bool) -> str:
     return f"'{path}'"
 
 
+def is_cloud_path(path: str) -> bool:
+    return (
+        path.startswith("s3://")
+        or path.startswith("s3china://")
+        or path.startswith("s3gov://")
+        or path.startswith("azure://")
+        or path.startswith("gcs://")
+    )
+
+
 def warn_session_config_update_in_multithreaded_mode(config: str) -> None:
     if threading.active_count() > 1:
         _logger.warning(
