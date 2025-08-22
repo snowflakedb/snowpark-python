@@ -9,7 +9,13 @@ from snowflake.snowpark._internal.utils import (
     experimental,
 )
 from snowflake.snowpark.column import Column, _to_col_if_str
-from snowflake.snowpark.functions import ai_complete, ai_filter, ai_agg, ai_classify
+from snowflake.snowpark.functions import (
+    ai_complete,
+    ai_filter,
+    ai_agg,
+    ai_classify,
+    ai_similarity,
+)
 from snowflake.snowpark._internal.telemetry import add_api_call
 
 if TYPE_CHECKING:
@@ -460,5 +466,143 @@ class DataFrameAIFunctions:
         add_api_call(
             df,
             "DataFrame.ai.classify",
+        )
+        return df
+
+    @experimental(version="1.37.0")
+    def similarity(
+        self,
+        input1: Union[str, Column],
+        input2: Union[str, Column],
+        *,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+        **kwargs,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Compute similarity scores between two columns using AI-powered embeddings.
+
+        This method computes a similarity score based on the vector cosine similarity
+        of the inputs' embedding vectors. Supports both text and image similarity.
+
+        Args:
+            input1: The first column (Column object or column name as string) for comparison.
+                Can contain text strings or images (FILE data type).
+            input2: The second column (Column object or column name as string) for comparison.
+                Must be the same type as input1 (both text or both images).
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_SIMILARITY_OUTPUT`` is appended.
+            **kwargs: Configuration settings specified as key/value pairs. Supported keys:
+
+                - model: The embedding model used for embeddings.
+                  For text input, defaults to 'snowflake-arctic-embed-l-v2'.
+                  For image input, defaults to 'voyage-multimodal-3'.
+                  Supported models include:
+                    - Text: 'snowflake-arctic-embed-l-v2', 'nv-embed-qa-4',
+                      'multilingual-e5-large', 'voyage-multilingual-2',
+                      'snowflake-arctic-embed-m-v1.5', 'snowflake-arctic-embed-m',
+                      'e5-base-v2'
+                    - Images: 'voyage-multimodal-3'
+
+        Returns:
+            A new DataFrame with an appended output column containing similarity scores.
+            The scores range from -1 to 1, where higher values indicate greater similarity.
+
+        Examples::
+
+            >>> # Text similarity between two columns
+            >>> from snowflake.snowpark.functions import col
+            >>> df = session.create_dataframe(
+            ...     [
+            ...         ["I love programming", "I enjoy coding"],
+            ...         ["The weather is nice", "It's raining heavily"],
+            ...         ["Python is great", "Python is awesome"],
+            ...     ],
+            ...     schema=["text1", "text2"]
+            ... )
+            >>> result_df = df.ai.similarity(
+            ...     input1="text1",
+            ...     input2="text2",
+            ...     output_column="similarity_score"
+            ... )
+            >>> result_df.columns
+            ['TEXT1', 'TEXT2', 'SIMILARITY_SCORE']
+            >>> results = result_df.collect()
+            >>> results[0]["SIMILARITY_SCORE"] > 0.5  # Similar texts
+            True
+
+            >>> # Multilingual text similarity with custom model
+            >>> df = session.create_dataframe(
+            ...     [
+            ...         ["I love programming", "我喜欢编程"],  # Same meaning in English and Chinese
+            ...         ["Good morning", "Buenas noches"],  # Different meanings
+            ...     ],
+            ...     schema=["english", "other_language"]
+            ... )
+            >>> result_df = df.ai.similarity(
+            ...     input1=col("english"),
+            ...     input2=col("other_language"),
+            ...     output_column="cross_lingual_similarity",
+            ...     model="multilingual-e5-large"
+            ... )
+            >>> result_df.columns
+            ['ENGLISH', 'OTHER_LANGUAGE', 'CROSS_LINGUAL_SIMILARITY']
+
+            >>> # Image similarity
+            >>> from snowflake.snowpark.functions import to_file
+            >>> # Upload images to a stage first
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+            >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/cat.jpeg", "@mystage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/kitchen.png", "@mystage", auto_compress=False)
+            >>> # Create DataFrame with image pairs
+            >>> df = session.create_dataframe(
+            ...     [
+            ...         ["@mystage/dog.jpg", "@mystage/cat.jpeg"],  # Animal comparison
+            ...         ["@mystage/dog.jpg", "@mystage/kitchen.png"],  # Animal vs non-animal
+            ...     ],
+            ...     schema=["image1", "image2"]
+            ... )
+            >>> result_df = df.ai.similarity(
+            ...     input1=to_file(col("image1")),
+            ...     input2=to_file(col("image2")),
+            ...     output_column="visual_similarity"
+            ... )
+            >>> result_df.columns
+            ['IMAGE1', 'IMAGE2', 'VISUAL_SIMILARITY']
+            >>> results = result_df.collect()
+            >>> # Dog and cat (both animals) should be more similar than dog and kitchen
+            >>> results[0]["VISUAL_SIMILARITY"] > results[1]["VISUAL_SIMILARITY"]
+            True
+
+        Note:
+            - Both inputs must be of the same type (both text or both images)
+            - AI_SIMILARITY does not support computing similarity between text and image inputs
+            - Similarity scores range from -1 to 1, where:
+                - 1 indicates identical or very similar content
+                - 0 indicates no similarity
+                - -1 indicates opposite or very dissimilar content
+        """
+
+        # Convert string inputs to Column objects
+        input1_col = _to_col_if_str(input1, "DataFrame.ai.similarity")
+        input2_col = _to_col_if_str(input2, "DataFrame.ai.similarity")
+
+        # Call the ai_similarity function
+        result_col = ai_similarity(
+            input1_col,
+            input2_col,
+            _emit_ast=False,
+            **kwargs,
+        )
+
+        # Add the output column to the DataFrame
+        output_column_name = output_column or "AI_SIMILARITY_OUTPUT"
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            "DataFrame.ai.similarity",
         )
         return df
