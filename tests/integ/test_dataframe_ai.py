@@ -563,3 +563,165 @@ def test_dataframe_ai_classify_default_output_column(session):
 
     # Check that default column name is used
     assert "AI_CLASSIFY_OUTPUT" in result_df.columns
+
+
+def test_dataframe_ai_similarity_basic(session):
+    """Test DataFrame.ai.similarity with basic text similarity."""
+    # Create a DataFrame with text pairs
+    df = session.create_dataframe(
+        [
+            ["I love programming", "I enjoy coding"],
+            ["The weather is nice today", "It's a beautiful day"],
+            ["Python is great", "Python is awesome"],
+            ["Cats are cute", "Dogs are loyal"],
+        ],
+        schema=["text1", "text2"],
+    )
+
+    # Use DataFrame.ai.similarity with string column names
+    result_df = df.ai.similarity(
+        input1="text1",
+        input2="text2",
+        output_column="similarity_score",
+    )
+
+    # Check schema
+    assert result_df.columns == ["TEXT1", "TEXT2", "SIMILARITY_SCORE"]
+
+    # Collect and verify results
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 4
+
+    # Verify similarity scores are in range
+    for row in results:
+        score = row["SIMILARITY_SCORE"]
+        assert score is not None
+        assert -1 <= score <= 1
+
+    # Verify relative similarities make sense
+    # "I love programming" and "I enjoy coding" should be more similar
+    # than "Cats are cute" and "Dogs are loyal"
+    programming_similarity = results[0]["SIMILARITY_SCORE"]
+    python_similarity = results[2]["SIMILARITY_SCORE"]
+    pets_similarity = results[3]["SIMILARITY_SCORE"]
+
+    # Python statements should be very similar
+    assert python_similarity > 0.7
+    # Programming statements should be somewhat similar
+    assert programming_similarity > 0.4
+    # Pets statements are less similar (different animals)
+    assert pets_similarity < programming_similarity
+
+
+def test_dataframe_ai_similarity_default_output_column(session):
+    """Test DataFrame.ai.similarity with default output column name."""
+    df = session.create_dataframe(
+        [["apple", "orange"], ["car", "vehicle"]], schema=["word1", "word2"]
+    )
+
+    # Don't specify output_column, should use default
+    result_df = df.ai.similarity(
+        input1="word1",
+        input2="word2",
+    )
+
+    # Check that default column name is used
+    assert "AI_SIMILARITY_OUTPUT" in result_df.columns
+
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 2
+    for row in results:
+        assert row["AI_SIMILARITY_OUTPUT"] is not None
+
+
+def test_dataframe_ai_similarity_with_custom_model(session):
+    """Test DataFrame.ai.similarity with custom embedding model."""
+    # Create a DataFrame with multilingual text
+    df = session.create_dataframe(
+        [
+            ["Hello world", "Hola mundo"],  # English and Spanish
+            ["Good morning", "Guten Morgen"],  # English and German
+            ["Thank you", "Merci"],  # English and French
+        ],
+        schema=["english", "other_language"],
+    )
+
+    # Use multilingual model for better cross-lingual similarity
+    result_df = df.ai.similarity(
+        input1=col("english"),
+        input2=col("other_language"),
+        output_column="cross_lingual_similarity",
+        model="multilingual-e5-large",
+    )
+
+    # Check schema
+    assert result_df.columns == [
+        "ENGLISH",
+        "OTHER_LANGUAGE",
+        "CROSS_LINGUAL_SIMILARITY",
+    ]
+
+    # Collect and verify results
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 3
+
+    # With multilingual model, translations should have high similarity
+    for row in results:
+        # Translations should have moderate to high similarity with multilingual model
+        assert row["CROSS_LINGUAL_SIMILARITY"] > 0.3
+
+
+def test_dataframe_ai_similarity_error_handling(session):
+    """Test error handling in DataFrame.ai.similarity."""
+    df = session.create_dataframe([["test"]], schema=["text"])
+
+    # Test invalid input type
+    with pytest.raises(TypeError, match="expected Column or str"):
+        df.ai.similarity(
+            input1=123,  # Invalid type
+            input2="text",
+        )
+
+    with pytest.raises(TypeError, match="expected Column or str"):
+        df.ai.similarity(
+            input1="text",
+            input2=[col("text")],  # Invalid type (list)
+        )
+
+    # Test invalid column name
+    with pytest.raises(SnowparkSQLException, match="invalid identifier"):
+        df.ai.similarity(
+            input1="text",
+            input2="nonexistent_column",
+        ).collect(_emit_ast=False)
+
+
+def test_dataframe_ai_similarity_with_nulls(session):
+    """Test DataFrame.ai.similarity behavior with NULL values."""
+    # Create a DataFrame with some NULL values
+    df = session.create_dataframe(
+        [
+            ["Hello", "World"],
+            [None, "Test"],
+            ["Test", None],
+            ["Snowflake", "Database"],
+        ],
+        schema=["col1", "col2"],
+    )
+
+    result_df = df.ai.similarity(
+        input1="col1",
+        input2="col2",
+        output_column="similarity",
+    )
+
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 4
+
+    # Rows with NULLs should return NULL similarity scores
+    assert results[1]["SIMILARITY"] is None  # First column is NULL
+    assert results[2]["SIMILARITY"] is None  # Second column is NULL
+
+    # Rows without NULLs should have valid scores
+    assert results[0]["SIMILARITY"] is not None
+    assert results[3]["SIMILARITY"] is not None
