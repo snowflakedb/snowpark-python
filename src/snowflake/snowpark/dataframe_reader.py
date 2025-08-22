@@ -1047,7 +1047,7 @@ class DataFrameReader:
                     should_fallback = True
                 except Exception as e:
                     warning(
-                        "infer_schema_patter_matching",
+                        "infer_schema_pattern_matching",
                         f"Failed to infer schema for provided pattern {pattern} with error:\n{e}",
                     )
 
