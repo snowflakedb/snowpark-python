@@ -1796,13 +1796,18 @@ def test_pattern(session, mode):
     reason="Local testing does not support file.put",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
-@pytest.mark.parametrize("stage_template", [
-    None,
-    "TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage/{}",
-    "TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage_via_integration/{}"
-])
+@pytest.mark.parametrize(
+    "stage_template",
+    [
+        None,
+        "TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage/{}",
+        "TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage_via_integration/{}",
+    ],
+)
 def test_pattern_with_infer(session, mode, stage_template):
-    stage_name = (stage_template or "{}").format(Utils.random_name_for_temp_object(TempObjectType.STAGE))
+    stage_name = (stage_template or "{}").format(
+        Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    )
 
     if current_account(session) != "SFCTEST0_AWS_US_WEST_2":
         pytest.skip("Test requires resources in sfctest0 test account")
