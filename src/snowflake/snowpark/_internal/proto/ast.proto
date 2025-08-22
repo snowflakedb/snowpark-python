@@ -835,7 +835,7 @@ message DataframeCollect {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe-io.ir:148
+// dataframe-io.ir:152
 message DataframeCopyIntoTable {
   repeated Tuple_String_Expr copy_options = 1;
   Expr df = 2;
@@ -859,7 +859,7 @@ message DataframeCount {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe-io.ir:132
+// dataframe-io.ir:136
 message DataframeCreateOrReplaceDynamicTable {
   repeated Expr clustering_keys = 1;
   google.protobuf.StringValue comment = 2;
@@ -877,7 +877,7 @@ message DataframeCreateOrReplaceDynamicTable {
   string warehouse = 14;
 }
 
-// dataframe-io.ir:124
+// dataframe-io.ir:128
 message DataframeCreateOrReplaceView {
   google.protobuf.StringValue comment = 1;
   Expr df = 2;
@@ -2441,32 +2441,40 @@ message WindowSpecRowsBetween {
   WindowSpecExpr wnd = 4;
 }
 
-// dataframe-io.ir:101
+// dataframe-io.ir:105
 message WriteCopyIntoLocation {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
-  google.protobuf.StringValue file_format_name = 3;
-  google.protobuf.StringValue file_format_type = 4;
+  repeated Tuple_String_Expr credentials = 3;
+  repeated Tuple_String_Expr encryption = 4;
+  google.protobuf.StringValue file_format_name = 5;
+  google.protobuf.StringValue file_format_type = 6;
+  repeated Tuple_String_String format_type_options = 7;
+  bool header = 8;
+  string location = 9;
+  Expr partition_by = 10;
+  SrcPosition src = 11;
+  repeated Tuple_String_String statement_params = 12;
+  google.protobuf.StringValue storage_integration = 13;
+  google.protobuf.StringValue validation_mode = 14;
+  Expr writer = 15;
+}
+
+// dataframe-io.ir:112
+message WriteCsv {
+  bool block = 1;
+  repeated Tuple_String_Expr copy_options = 2;
+  repeated Tuple_String_Expr credentials = 3;
+  repeated Tuple_String_Expr encryption = 4;
   repeated Tuple_String_String format_type_options = 5;
   bool header = 6;
   string location = 7;
   Expr partition_by = 8;
   SrcPosition src = 9;
   repeated Tuple_String_String statement_params = 10;
-  Expr writer = 11;
-}
-
-// dataframe-io.ir:108
-message WriteCsv {
-  bool block = 1;
-  repeated Tuple_String_Expr copy_options = 2;
-  repeated Tuple_String_String format_type_options = 3;
-  bool header = 4;
-  string location = 5;
-  Expr partition_by = 6;
-  SrcPosition src = 7;
-  repeated Tuple_String_String statement_params = 8;
-  Expr writer = 9;
+  google.protobuf.StringValue storage_integration = 11;
+  google.protobuf.StringValue validation_mode = 12;
+  Expr writer = 13;
 }
 
 message WriteFile {
@@ -2479,7 +2487,7 @@ message WriteFile {
   }
 }
 
-// dataframe-io.ir:114
+// dataframe-io.ir:118
 message WriteInsertInto {
   bool overwrite = 1;
   SrcPosition src = 2;
@@ -2487,17 +2495,21 @@ message WriteInsertInto {
   Expr writer = 4;
 }
 
-// dataframe-io.ir:110
+// dataframe-io.ir:114
 message WriteJson {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
-  repeated Tuple_String_String format_type_options = 3;
-  bool header = 4;
-  string location = 5;
-  Expr partition_by = 6;
-  SrcPosition src = 7;
-  repeated Tuple_String_String statement_params = 8;
-  Expr writer = 9;
+  repeated Tuple_String_Expr credentials = 3;
+  repeated Tuple_String_Expr encryption = 4;
+  repeated Tuple_String_String format_type_options = 5;
+  bool header = 6;
+  string location = 7;
+  Expr partition_by = 8;
+  SrcPosition src = 9;
+  repeated Tuple_String_String statement_params = 10;
+  google.protobuf.StringValue storage_integration = 11;
+  google.protobuf.StringValue validation_mode = 12;
+  Expr writer = 13;
 }
 
 // dataframe.ir:44
@@ -2517,30 +2529,38 @@ message WritePandas {
   string table_type = 13;
 }
 
-// dataframe-io.ir:112
+// dataframe-io.ir:116
 message WriteParquet {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
-  repeated Tuple_String_String format_type_options = 3;
-  bool header = 4;
-  string location = 5;
-  Expr partition_by = 6;
-  SrcPosition src = 7;
-  repeated Tuple_String_String statement_params = 8;
-  Expr writer = 9;
+  repeated Tuple_String_Expr credentials = 3;
+  repeated Tuple_String_Expr encryption = 4;
+  repeated Tuple_String_String format_type_options = 5;
+  bool header = 6;
+  string location = 7;
+  Expr partition_by = 8;
+  SrcPosition src = 9;
+  repeated Tuple_String_String statement_params = 10;
+  google.protobuf.StringValue storage_integration = 11;
+  google.protobuf.StringValue validation_mode = 12;
+  Expr writer = 13;
 }
 
-// dataframe-io.ir:106
+// dataframe-io.ir:110
 message WriteSave {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
-  repeated Tuple_String_String format_type_options = 3;
-  bool header = 4;
-  string location = 5;
-  Expr partition_by = 6;
-  SrcPosition src = 7;
-  repeated Tuple_String_String statement_params = 8;
-  Expr writer = 9;
+  repeated Tuple_String_Expr credentials = 3;
+  repeated Tuple_String_Expr encryption = 4;
+  repeated Tuple_String_String format_type_options = 5;
+  bool header = 6;
+  string location = 7;
+  Expr partition_by = 8;
+  SrcPosition src = 9;
+  repeated Tuple_String_String statement_params = 10;
+  google.protobuf.StringValue storage_integration = 11;
+  google.protobuf.StringValue validation_mode = 12;
+  Expr writer = 13;
 }
 
 // dataframe-io.ir:70
