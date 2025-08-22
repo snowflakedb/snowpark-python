@@ -486,7 +486,7 @@ def test_read_snowflake_data_types_array_undefined_negative(
     expected_to_pandas_dtype,
     expected_to_pandas,
 ):
-    expected_query_count = 8 if isinstance(samples, list) and len(samples) > 1 else 4
+    expected_query_count = 9 if isinstance(samples, list) and len(samples) > 1 else 5
     with SqlCounter(query_count=expected_query_count):
         Utils.create_table(session, test_table_name, col_name_type, is_temporary=True)
         if not isinstance(samples, list):

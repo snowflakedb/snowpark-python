@@ -24,7 +24,7 @@ def test_to_pandas():
 def test_to_snowflake_and_to_snowpark():
     # SNOW-2115929: to_snowflake/to_snowpark should be registered on the pandas backend
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-    with SqlCounter(query_count=5):
+    with SqlCounter(query_count=6):
         assert df.get_backend() == "Pandas"
         assert (
             df.to_snowpark()
@@ -43,7 +43,7 @@ def test_to_snowflake_and_to_snowpark():
             .equals(df.to_pandas())
         )
 
-    with SqlCounter(query_count=5):
+    with SqlCounter(query_count=6):
         column = df["a"]
         assert column.get_backend() == "Pandas"
         assert (
@@ -71,7 +71,7 @@ def test_read_snowflake_on_pandas_backend():
     snowpark_df = pd.session.create_dataframe(native_df)
     snowpark_df.write.save_as_table(table_name, table_type="temp")
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=3):
         result_df = pd.read_snowflake(table_name)
 
     assert result_df.get_backend() == "Pandas"

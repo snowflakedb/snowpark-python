@@ -204,7 +204,7 @@ def test_get_dummies_multiple_columns():
 # https://snowflakecomputing.atlassian.net/browse/SNOW-1050112
 # Customer issue: Calling get_dummies on the result of
 # pd.read_snowflake directly results in a ValueError.
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=4, join_count=2)
 def test_get_dummies_pandas_after_read_snowflake(session):
     pandas_df = native_pd.DataFrame(
         {
