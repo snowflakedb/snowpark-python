@@ -13,6 +13,7 @@ from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import iceberg_supported
 
 
 @pytest.fixture(
@@ -147,7 +148,7 @@ def test_read_snowflake_on_different_backend(
     assert result_df.to_pandas().astype(native_df.dtypes).equals(native_df)
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=5)
 @pytest.mark.parametrize(
     "object_backend",
     [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"],
@@ -158,7 +159,10 @@ def test_dataframe_to_iceberg(
     to_iceberg,
     test_table_name,
     global_backend,
+    local_testing_mode,
 ):
+    if not iceberg_supported(session, local_testing_mode=local_testing_mode):
+        pytest.skip("Test requires iceberg support.")
     native_dataframe = native_pd.DataFrame([1])
     modin_dataframe = pd.DataFrame(native_dataframe).set_backend(object_backend)
 
@@ -186,7 +190,7 @@ def test_dataframe_to_iceberg(
     )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=5)
 @pytest.mark.parametrize(
     "object_backend",
     [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"],
@@ -197,7 +201,10 @@ def test_series_to_iceberg(
     to_iceberg,
     test_table_name,
     global_backend,
+    local_testing_mode,
 ):
+    if not iceberg_supported(session, local_testing_mode=local_testing_mode):
+        pytest.skip("Test requires iceberg support.")
     native_series = native_pd.Series([1, 2, 3], name="x")
     modin_series = pd.Series(native_series).set_backend(object_backend)
 
