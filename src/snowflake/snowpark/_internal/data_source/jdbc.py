@@ -133,7 +133,7 @@ class JDBC:
     def schema(self) -> StructType:
         infer_schema_udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
         infer_schema_udtf_registration = f"""
-            CREATE OR REPLACE FUNCTION {infer_schema_udtf_name}(query VARCHAR)
+            CREATE OR REPLACE TEMPORARY FUNCTION {infer_schema_udtf_name}(query VARCHAR)
             RETURNS TABLE (field_name VARCHAR, jdbc_type VARCHAR, java_type VARCHAR, precision INTEGER, scale INTEGER, nullable BOOLEAN)
             LANGUAGE JAVA
             RUNTIME_VERSION = '{self.java_version}'
@@ -281,7 +281,7 @@ class JDBC:
         )
 
         jdbc_udtf_registration = f"""
-            CREATE OR REPLACE FUNCTION {jdbc_ingestion_name}(query VARCHAR)
+            CREATE OR REPLACE TEMPORARY FUNCTION {jdbc_ingestion_name}(query VARCHAR)
             RETURNS TABLE ({udtf_table_return_type})
             LANGUAGE JAVA
             RUNTIME_VERSION = '{self.java_version}'
