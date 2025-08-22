@@ -9,7 +9,7 @@
 #### Bug Fixes
 
 - Fixed the repr of TimestampType to match the actual subtype it represents.
-- Fixed a bug in schema inference caused that caused incorrect stage prefixes to be used.
+- Fixed a bug in schema inference that caused incorrect stage prefixes to be used.
 
 #### Deprecations
 
