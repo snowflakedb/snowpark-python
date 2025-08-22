@@ -25,7 +25,7 @@
   `pd.to_pandas()`, `pd.to_snowpark()`, `pd.to_snowflake()`,
   `DataFrame.to_iceberg()`, `DataFrame.to_pandas()`, `DataFrame.to_snowpark()`,
   `DataFrame.to_snowflake()`, `Series.to_iceberg()`, `Series.to_pandas()`,
-  `Series.to_snowpark()`, and `Series.to_snowflake()` on the Pandas and Ray
+  `Series.to_snowpark()`, and `Series.to_snowflake()` on the "Pandas" and "Ray"
   backends. Previously, only some of these functions and methods were supported
   on the Pandas backend.
 
