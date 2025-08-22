@@ -1878,7 +1878,7 @@ def test_pattern_with_infer(session, mode, stage_template):
         assert df.schema == expected_schema
         Utils.check_answer(df, expected_rows * 3)
 
-        if not stage_template:
+        if stage_template is None:
             # Test using fully qualified stage name
             reader = base_reader()
             df = reader.csv(

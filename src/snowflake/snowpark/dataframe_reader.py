@@ -1016,18 +1016,30 @@ class DataFrameReader:
 
             if len(matches):
                 try:
+                    # Use fully qualified stage name to describe if available
                     stage, _ = get_stage_parts(path)
+                    fully_qualified_stage, _ = get_stage_parts(
+                        path, return_full_stage_name=True
+                    )
+
                     stage_description = self._session._conn.run_query(
-                        f"describe stage {stage}"
+                        f"describe stage {fully_qualified_stage}"
                     )["data"]
+
                     stage_locations_json = [
                         x for x in stage_description if x[0] == "STAGE_LOCATION"
                     ][0][3]
+
+                    # If stage locations is available then the stage is external
+                    # and stage prefixes will include CSP specific prefix information.
                     stage_locations = (
                         json.loads(stage_locations_json)
                         if stage_locations_json
                         else [stage]
                     )
+
+                    # Compile prefixes are case insensitive regexes because
+                    # casing is not consistent in bucket describe query.
                     regexes = [
                         re.compile(f"^{re.escape(location)}", re.IGNORECASE)
                         for location in stage_locations
@@ -1043,7 +1055,9 @@ class DataFrameReader:
                     infer_schema_options["FILES"] = files
 
                     # Reconstruct path using just stage and any qualifiers
-                    infer_path = path.partition(stage)[0] + stage
+                    infer_path = (
+                        path.partition(fully_qualified_stage)[0] + fully_qualified_stage
+                    )
                     should_fallback = True
                 except Exception as e:
                     warning(
