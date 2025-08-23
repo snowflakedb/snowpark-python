@@ -55,6 +55,14 @@
 
 #### New Features
 
+- Added support for the scalar functions in `functions.py`:
+  - `div0null`
+  - `all_user_names`
+  - `application_json`
+  - `array_remove_at`
+  - `as_boolean`
+  - `boolor_agg`
+
 - Added support for the following `xpath` functions in `functions.py`:
   - `xpath`
   - `xpath_string`

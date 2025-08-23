@@ -30,7 +30,9 @@ Functions
     ai_sentiment
     ai_similarity
     ai_summarize_agg
+    all_user_names
     any_value
+    application_json
     approx_count_distinct
     approx_percentile
     approx_percentile_accumulate
@@ -55,6 +57,7 @@ Functions
     array_position
     array_prepend
     array_remove
+    array_remove_at
     array_reverse
     array_size
     array_slice
@@ -66,6 +69,7 @@ Functions
     arrays_zip
     as_array
     as_binary
+    as_boolean
     as_char
     as_date
     as_decimal
@@ -101,6 +105,7 @@ Functions
     bitshiftright
     build_stage_file_url
     builtin
+    boolor_agg
     bround
     call_builtin
     call_function

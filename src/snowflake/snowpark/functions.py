@@ -13214,3 +13214,134 @@ def ai_sentiment(
         return _call_function(
             sql_func_name, text_col, cat_col, _ast=ast, _emit_ast=_emit_ast
         )
+
+
+@publicapi
+def div0null(
+    dividend: Union[ColumnOrName, int, float],
+    divisor: Union[ColumnOrName, int, float],
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Performs division like the division operator (/),
+    but returns 0 when the divisor is 0 or NULL (rather than reporting an error).
+
+    Example::
+
+        >>> df = session.create_dataframe([[10, 2], [10, 0], [10, None]], schema=["dividend", "divisor"])
+        >>> df.select(div0null(df["dividend"], df["divisor"]).alias("result")).collect()
+        [Row(RESULT=Decimal('5.000000')), Row(RESULT=Decimal('0.000000')), Row(RESULT=Decimal('0.000000'))]
+    """
+    dividend_col = (
+        lit(dividend)
+        if isinstance(dividend, (int, float))
+        else _to_col_if_str(dividend, "div0null")
+    )
+    divisor_col = (
+        lit(divisor)
+        if isinstance(divisor, (int, float))
+        else _to_col_if_str(divisor, "div0null")
+    )
+    return builtin("div0null", _emit_ast=_emit_ast)(dividend_col, divisor_col)
+
+
+def all_user_names(_emit_ast: bool = True) -> Column:
+    """
+    Returns a list of all user names in the current account.
+
+    Example::
+
+        >>> # Return result is tied to session, so we only test if the result exists
+        >>> result = session.create_dataframe([1]).select(all_user_names()).collect()
+        >>> assert result[0]['ALL_USER_NAMES()'] is not None
+        >>> assert isinstance(result[0]['ALL_USER_NAMES()'], str)
+    """
+    return builtin("all_user_names", _emit_ast=_emit_ast)()
+
+
+@publicapi
+def application_json(message: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Wraps a message string in an application/json content type format for notification purposes.
+
+    Args:
+        message: A column or column name containing the message to be wrapped in JSON format.
+
+    Returns:
+        A Column containing the message wrapped in application/json format.
+
+    Example::
+
+        >>> df = session.create_dataframe([['{"data": "hello world"}']], schema=["message"])
+        >>> df.select(application_json(df["message"]).alias("result")).collect()
+        [Row(RESULT='{"application/json":"{\\"data\\": \\"hello world\\"}"}')]
+    """
+    c = _to_col_if_str(message, "application_json")
+    return builtin("snowflake.notification.application_json", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def array_remove_at(
+    array: ColumnOrName, position: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns an ARRAY with the element at the specified position removed.
+
+    Args:
+        array: Column containing the source ARRAY.
+        position: Column containing a (zero-based) position in the source ARRAY.
+            The element at this position is removed from the resulting ARRAY.
+            A negative position is interpreted as an index from the back of the array (e.g. -1 removes the last element in the array).
+
+    Returns:
+        A Column containing the resulting ARRAY with the specified element removed.
+
+    Example::
+
+        >>> df = session.create_dataframe([([2, 5, 7], 0), ([2, 5, 7], -1), ([2, 5, 7], 10)], schema=["array_col", "position_col"])
+        >>> df.select(array_remove_at("array_col", "position_col").alias("result")).collect()
+        [Row(RESULT='[\\n  5,\\n  7\\n]'), Row(RESULT='[\\n  2,\\n  5\\n]'), Row(RESULT='[\\n  2,\\n  5,\\n  7\\n]')]
+    """
+    a = _to_col_if_str(array, "array_remove_at")
+    p = _to_col_if_str(position, "array_remove_at")
+    return builtin("array_remove_at", _emit_ast=_emit_ast)(a, p)
+
+
+@publicapi
+def as_boolean(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Casts a VARIANT value to a boolean.
+
+    Example::
+
+        >>> df = session.sql("select true::variant as a, false::variant as b, 'text'::variant as c")
+        >>> df.select(as_boolean(col("a")).alias("true_result"), as_boolean(col("b")).alias("false_result"), as_boolean(col("c")).alias("null_result")).collect()
+        [Row(TRUE_RESULT=True, FALSE_RESULT=False, NULL_RESULT=None)]
+    """
+    c = _to_col_if_str(variant, "as_boolean")
+    return builtin("as_boolean", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def boolor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the logical OR of all non-NULL records in a group. If all records are NULL,
+    returns NULL.
+
+    Example::
+
+        >>> df = session.create_dataframe([
+        ...     [True, False, True],
+        ...     [False, False, False],
+        ...     [True, True, False],
+        ...     [False, True, True]
+        ... ], schema=["a", "b", "c"])
+        >>> df.select(
+        ...     boolor_agg(df["a"]).alias("boolor_a"),
+        ...     boolor_agg(df["b"]).alias("boolor_b"),
+        ...     boolor_agg(df["c"]).alias("boolor_c")
+        ... ).collect()
+        [Row(BOOLOR_A=True, BOOLOR_B=True, BOOLOR_C=True)]
+    """
+    c = _to_col_if_str(e, "boolor_agg")
+    return builtin("boolor_agg", _emit_ast=_emit_ast)(c)
