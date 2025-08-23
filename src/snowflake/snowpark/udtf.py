@@ -28,6 +28,7 @@ import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.ast.utils import (
+    add_intermediate_stmt,
     build_udtf,
     build_udtf_apply,
     with_src_position,
@@ -92,6 +93,7 @@ class UserDefinedTableFunction:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         _ast: Optional[proto.Udtf] = None,
         _ast_id: Optional[int] = None,
+        _session: Optional["snowflake.snowpark.Session"] = None,
     ) -> None:
         #: The Python class or a tuple containing the Python file path and the function name.
         self.handler: Union[Callable, Tuple[str, str]] = handler
@@ -106,6 +108,7 @@ class UserDefinedTableFunction:
         # If None, no ast will be emitted. Else, passed whenever udf is invoked.
         self._ast = _ast
         self._ast_id = _ast_id
+        self._session = _session
 
     @publicapi
     def __call__(
@@ -117,10 +120,11 @@ class UserDefinedTableFunction:
 
         udtf_expr = None
         if _emit_ast and self._ast is not None:
-            assert (
-                self._ast is not None
-            ), "Need to ensure _emit_ast is True when registering UDTF."
-            assert self._ast_id is not None, "Need to assign UDTF an ID."
+            if self._ast_id is None:
+                session = (
+                    self._session or snowflake.snowpark.session._get_active_session()
+                )
+                add_intermediate_stmt(session._ast_batch, self)
             udtf_expr = proto.Expr()
             build_udtf_apply(udtf_expr, self._ast_id, *arguments, **named_arguments)
 
@@ -944,9 +948,12 @@ class UDTFRegistration:
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.bind()
-                ast = with_src_position(stmt.expr.udtf, stmt)
-                ast_id = stmt.uid
+                if self._session is not None:
+                    stmt = self._session._ast_batch.bind()
+                    ast = with_src_position(stmt.expr.udtf, stmt)
+                    ast_id = stmt.uid
+                else:
+                    ast = proto.Udtf()
 
             return UserDefinedTableFunction(
                 handler,
@@ -955,6 +962,7 @@ class UDTFRegistration:
                 kwargs["_registered_object_name"],
                 _ast=ast,
                 _ast_id=ast_id,
+                _session=self._session,
             )
 
         check_output_schema_type(output_schema)
@@ -999,9 +1007,12 @@ class UDTFRegistration:
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.bind()
-            ast = with_src_position(stmt.expr.udtf, stmt)
-            ast_id = stmt.uid
+            if self._session is not None:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.udtf, stmt)
+                ast_id = stmt.uid
+            else:
+                ast = proto.Udtf()
             build_udtf(
                 ast,
                 handler,
@@ -1128,6 +1139,7 @@ class UDTFRegistration:
             packages=packages,
             _ast=ast,
             _ast_id=ast_id,
+            _session=self._session,
         )
 
 
