@@ -12,9 +12,10 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Cursor,
 )
 from snowflake.snowpark._internal.utils import (
-    generate_random_alphanumeric,
     get_sorted_key_for_version,
     measure_time,
+    random_name_for_temp_object,
+    TempObjectType,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -142,7 +143,7 @@ class BaseDriver:
     ) -> "snowflake.snowpark.DataFrame":
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
 
-        udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
+        udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
         with measure_time() as udtf_register_time:
             session.udtf.register(
                 self.udtf_class_builder(fetch_size=fetch_size, schema=schema),

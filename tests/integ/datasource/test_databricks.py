@@ -198,8 +198,8 @@ def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
     assert df.schema == EXPECTED_TYPE
 
     assert (
-        "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
-        and "table(data_source_udtf" in caplog.text
+        "TEMPORARY  FUNCTION  SNOWPARK_TEMP_FUNCTION" "" in caplog.text
+        and "table(SNOWPARK_TEMP_FUNCTION" in caplog.text
     )
 
 

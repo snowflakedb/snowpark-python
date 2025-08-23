@@ -190,7 +190,7 @@ def test_udtf_ingestion_oracledb(session):
     for q in his.queries:
         if (
             """CREATE
-TEMPORARY  FUNCTION  data_source_udtf"""
+TEMPORARY  FUNCTION  SNOWPARK_TEMP_FUNCTION"""
             in q.sql_text
         ):
             flag = True
