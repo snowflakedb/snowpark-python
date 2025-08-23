@@ -6,6 +6,7 @@ import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 from numpy.testing import assert_equal
 from pandas._libs import lib
 
@@ -120,15 +121,276 @@ def test_index_intersection():
     assert_index_equal(diff, pd.Index([3, 4], dtype="int64"))
 
 
-@sql_count_checker(query_count=0)
-@pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
-def test_index_get_level_values(native_index):
-    snow_index = pd.Index(native_index)
-    with pytest.raises(
-        NotImplementedError,
-        match="Snowpark pandas does not yet support the method Index.get_level_values",
-    ):
-        assert_index_equal(snow_index.get_level_values(0), snow_index)
+@pytest.mark.parametrize(
+    "native_class, snow_class",
+    [
+        param(native_pd.DatetimeIndex, pd.DatetimeIndex, id="DatetimeIndex"),
+        param(native_pd.TimedeltaIndex, pd.TimedeltaIndex, id="TimedeltaIndex"),
+        param(native_pd.Index, pd.Index, id="Index"),
+    ],
+)
+@pytest.mark.parametrize(
+    "values",
+    [
+        param(tuple(), id="empty"),
+        param([1], id="not_empty"),
+    ],
+)
+class TestGetLevelValues:
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "name, level",
+        (
+            (None, 0),
+            (None, None),
+            (None, -1),
+            (0, 0),
+            (1, 0),
+            (1, 1.0),
+            (1, np.int64(1)),
+            (1, -1),
+            (2, 0),
+            (2, -1),
+            ("name", "name"),
+            ("name", 0),
+            ("name", -1),
+            (pd.Timedelta(1), pd.Timedelta(1)),
+            (pd.Timestamp("1994-07-29"), pd.Timestamp("1994-07-29")),
+            (("name",), ("name",)),
+            (3.5, 3.5),
+            param(
+                True,
+                True,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            param(
+                False,
+                False,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            param(
+                np.nan,
+                np.nan,
+                marks=pytest.mark.xfail(
+                    strict=True,
+                    raises=KeyError,
+                    reason="https://github.com/pandas-dev/pandas/issues/62169",
+                ),
+            ),
+            param(
+                pd.NaT,
+                pd.NaT,
+                marks=pytest.mark.xfail(
+                    strict=True,
+                    raises=KeyError,
+                    reason="https://github.com/pandas-dev/pandas/issues/62169",
+                ),
+            ),
+            param(
+                pd.NA,
+                pd.NA,
+                marks=pytest.mark.xfail(
+                    strict=True, raises=TypeError, reason="SNOW-2288761"
+                ),
+            ),
+        ),
+        ids=str,
+    )
+    def test_valid_level(self, values, native_class, snow_class, name, level):
+        if native_class is native_pd.TimedeltaIndex and len(values) == 0:
+            pytest.xfail("SNOW-2288735")
+        eval_snowpark_pandas_result(
+            snow_class(values, name=name),
+            native_class(values, name=name),
+            lambda x: x.get_level_values(level),
+        )
+
+    @pytest.mark.parametrize(
+        "name, level",
+        [
+            (None, 1),
+            (None, "name"),
+            (None, pd.Timedelta(1)),
+            (None, pd.Timestamp("1994-07-29")),
+            param(
+                None,
+                True,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            param(
+                None,
+                False,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            (None, np.nan),
+            (None, pd.NA),
+            (1, 1),
+            (1, "name"),
+            (1, pd.Timedelta(1)),
+            (1, pd.Timestamp("1994-07-29")),
+            param(
+                1,
+                True,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            param(
+                1,
+                False,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            (1, None),
+            (1, np.nan),
+            (1, pd.NA),
+            ("name", "other_name"),
+            ("name", 1),
+            ("name", pd.Timedelta(1)),
+            ("name", None),
+            param(
+                "name",
+                True,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            param(
+                "name",
+                False,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            ("name", None),
+            ("name", np.nan),
+            ("name", pd.NA),
+            (pd.Timedelta(1), 1),
+            (pd.Timedelta(1), 1.0),
+            (pd.Timedelta(1), "name"),
+            (pd.Timedelta(1), pd.Timedelta(2)),
+            (pd.Timedelta(1), pd.Timestamp("1994-07-29")),
+            param(
+                pd.Timedelta(1),
+                True,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            param(
+                pd.Timedelta(1),
+                False,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            (pd.Timedelta(1), None),
+            (pd.Timedelta(1), np.nan),
+            (pd.Timedelta(1), pd.NA),
+            (pd.Timestamp("1994-07-29"), 1),
+            (pd.Timestamp("1994-07-29"), 1.0),
+            (pd.Timestamp("1994-07-29"), "name"),
+            (pd.Timestamp("1994-07-29"), pd.Timedelta(1)),
+            param(
+                pd.Timestamp("1994-07-29"),
+                True,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            param(
+                pd.Timestamp("1994-07-29"),
+                False,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            (pd.Timestamp("1994-07-29"), np.nan),
+            (pd.Timestamp("1994-07-29"), pd.NA),
+            *(
+                # pandas may or may not raise an error for these cases due to
+                # https://github.com/pandas-dev/pandas/issues/62169
+                param(
+                    *values,
+                    marks=pytest.mark.skip(
+                        reason="https://github.com/pandas-dev/pandas/issues/62169"
+                    ),
+                )
+                for values in (
+                    (True, 1),
+                    (True, 1.0),
+                    (True, "name"),
+                    (True, pd.Timedelta(1)),
+                    (True, pd.Timestamp("1994-07-29")),
+                    (True, False),
+                    (True, None),
+                    (True, np.nan),
+                    (True, pd.NA),
+                    (False, 1),
+                    (False, 1.0),
+                    (False, "name"),
+                    (False, pd.Timedelta(1)),
+                    (False, pd.Timestamp("1994-07-29")),
+                    (False, True),
+                    (False, None),
+                    (False, np.nan),
+                    (False, pd.NA),
+                    (np.nan, 1),
+                )
+            ),
+            (np.nan, "name"),
+            (np.nan, pd.Timedelta(1)),
+            (np.nan, pd.Timestamp("1994-07-29")),
+            (np.nan, True),
+            param(
+                np.nan,
+                False,
+                marks=pytest.mark.skip(
+                    reason="https://github.com/pandas-dev/pandas/issues/62169"
+                ),
+            ),
+            (np.nan, None),
+            (np.nan, pd.NA),
+            *(
+                param(
+                    *values,
+                    marks=pytest.mark.xfail(
+                        strict=True,
+                        raises=TypeError,
+                        reason="SNOW-2288761",
+                    ),
+                )
+                for values in (
+                    (pd.NA, 1),
+                    (pd.NA, 1.0),
+                    (pd.NA, "name"),
+                    (pd.NA, pd.Timedelta(1)),
+                    (pd.NA, pd.Timestamp("1994-07-29")),
+                    (pd.NA, True),
+                    (pd.NA, False),
+                    (pd.NA, None),
+                    (pd.NA, np.nan),
+                )
+            ),
+        ],
+    )
+    @sql_count_checker(query_count=0)
+    def test_invalid_level(self, values, native_class, snow_class, name, level):
+        eval_snowpark_pandas_result(
+            snow_class(values, name=name),
+            native_class(values, name=name),
+            lambda index: index.get_level_values(level),
+            expect_exception=True,
+        )
 
 
 @sql_count_checker(query_count=0)
