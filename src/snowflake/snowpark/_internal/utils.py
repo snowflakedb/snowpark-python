@@ -41,6 +41,7 @@ from typing import (
     Iterator,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -65,6 +66,7 @@ if TYPE_CHECKING:
         QueryLineInterval,
     )
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+    from snowflake.snowpark.types import TimestampTimeZone
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2
@@ -1932,6 +1934,149 @@ def remove_comments(sql_query: str, uuids: List[str]) -> str:
         for line in sql_query.split("\n")
         if line not in comment_placeholders and line != ""
     )
+
+
+class TimeTravelConfig(NamedTuple):
+    """Configuration for time travel operations."""
+
+    mode: str  # 'at' or 'before'
+    statement: Optional[str] = None
+    offset: Optional[int] = None
+    timestamp: Optional[str] = None
+    timezone: str = "NTZ"
+    stream: Optional[str] = None
+
+    def asdict_for_table(self):
+        result = self._asdict()
+        result["time_travel_mode"] = result.pop("mode")
+        return result
+
+    @staticmethod
+    def validate_and_normalize_params(
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime.datetime]] = None,
+        timezone: Optional[Union[str, "TimestampTimeZone"]] = "NTZ",
+        stream: Optional[str] = None,
+    ) -> Optional["TimeTravelConfig"]:
+        """
+        Validates and normalizes time travel parameters.
+        Returns:
+            TimeTravelConfig if time travel is specified, None otherwise.
+        Raises:
+            ValueError: If parameters are invalid.
+        """
+        time_travel_arg_count = sum(
+            arg is not None for arg in (statement, offset, timestamp, stream)
+        )
+
+        # Validate mode
+        if time_travel_mode is None:
+            if time_travel_arg_count == 0:
+                return None
+            else:
+                raise ValueError(
+                    "Must specify time travel mode 'at' or 'before' if any other time travel parameter is provided."
+                )
+
+        if time_travel_mode.lower() not in ["at", "before"]:
+            raise ValueError(
+                f"Invalid time travel mode: {time_travel_mode}. Must be 'at' or 'before'."
+            )
+
+        # Validate exactly one parameter is provided
+        if time_travel_arg_count != 1:
+            raise ValueError(
+                "Exactly one of 'statement', 'offset', 'timestamp', or 'stream' must be provided."
+            )
+
+        # Validate offset
+        if offset is not None and offset > 0:
+            raise ValueError("'offset' must be a negative integer (seconds).")
+
+        # Normalize timestamp
+        normalized_timestamp = None
+        if timestamp is not None:
+            normalized_timestamp = _normalize_timestamp(timestamp)
+
+        # Normalize timezone
+        if timezone is not None:
+            if hasattr(timezone, "value"):
+                timezone = (
+                    timezone.value.upper() if timezone.value != "default" else "NTZ"
+                )
+            else:
+                timezone = timezone.upper()
+
+            if timezone not in ["NTZ", "LTZ", "TZ"]:
+                raise ValueError(
+                    f"'timezone' value {timezone} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
+                )
+
+        return TimeTravelConfig(
+            mode=time_travel_mode,
+            statement=statement,
+            offset=offset,
+            timestamp=normalized_timestamp,
+            timezone=timezone,
+            stream=stream,
+        )
+
+    def generate_sql_clause(self) -> str:
+        """
+        Generates the time travel SQL clause.
+        Args:
+            config: Time travel configuration.
+        Returns:
+            SQL clause like " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('...'))"
+        """
+        clause = f" {self.mode.upper()} "
+
+        if self.statement is not None:
+            clause += f"(STATEMENT => '{self.statement}')"
+        elif self.offset is not None:
+            clause += f"(OFFSET => {self.offset})"
+        elif self.stream is not None:
+            clause += f"(STREAM => '{self.stream}')"
+        elif self.timestamp is not None:
+            if self.timezone.upper() == "NTZ":
+                func_name = "TO_TIMESTAMP_NTZ"
+            elif self.timezone.upper() == "LTZ":
+                func_name = "TO_TIMESTAMP_LTZ"
+            elif self.timezone.upper() == "TZ":
+                func_name = "TO_TIMESTAMP_TZ"
+            else:
+                func_name = "TO_TIMESTAMP_NTZ"  # default fallback
+            clause += f"(TIMESTAMP => {func_name}('{self.timestamp}'))"
+
+        return clause
+
+
+def _normalize_timestamp(timestamp: Union[str, datetime.datetime]) -> str:
+    """
+    Normalizes timestamp to string format.
+    Args:
+        timestamp: String or datetime object.
+    Returns:
+        Normalized timestamp string.
+    Raises:
+        ValueError: If timestamp format is invalid.
+    """
+    if isinstance(timestamp, datetime.datetime):
+        return str(timestamp)
+    timestamp_str = timestamp.strip()
+    try:
+        datetime.datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S.%f")
+    except ValueError:
+        try:
+            # Fall back to format without fractional seconds
+            datetime.datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            raise ValueError(
+                f"Timestamp must be in format 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD HH:MM:SS.ffffff'. Got: {timestamp}"
+            )
+    return timestamp_str
 
 
 def get_line_numbers(

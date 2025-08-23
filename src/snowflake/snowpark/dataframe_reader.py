@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 import threading
+from datetime import datetime
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -86,6 +87,7 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     StructType,
+    TimestampTimeZone,
     VariantType,
     StructField,
 )
@@ -101,6 +103,17 @@ else:
 logger = getLogger(__name__)
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
+
+_TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
+    "TIME_TRAVEL_MODE": "time_travel_mode",
+    "STATEMENT": "statement",
+    "OFFSET": "offset",
+    "TIMESTAMP": "timestamp",
+    "TIMEZONE": "timezone",
+    "STREAM": "stream",
+    "AS-OF-TIMESTAMP": "timestamp",
+}
+
 READER_OPTIONS_ALIAS_MAP = {
     "DELIMITER": "FIELD_DELIMITER",
     "HEADER": "PARSE_HEADER",
@@ -113,6 +126,7 @@ READER_OPTIONS_ALIAS_MAP = {
     "NULLVALUE": "NULL_IF",
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
+    **{k: v.upper() for k, v in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items()},
 }
 
 _MAX_RETRY_TIME = 3
@@ -125,6 +139,15 @@ def _validate_stage_path(path: str) -> str:
             f"'{path}' is an invalid Snowflake stage location. DataFrameReader can only read files from stage locations."
         )
     return path
+
+
+def _extract_time_travel_from_options(options: dict) -> dict:
+    """Extract time travel options from DataFrameReader options."""
+    return {
+        param_name: options[option_key]
+        for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items()
+        if option_key in options
+    }
 
 
 class DataFrameReader:
@@ -473,13 +496,57 @@ class DataFrameReader:
         return metadata_project, metadata_schema
 
     @publicapi
-    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
+    def table(
+        self,
+        name: Union[str, Iterable[str]],
+        _emit_ast: bool = True,
+        *,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
+        timezone: Optional[Union[str, TimestampTimeZone]] = TimestampTimeZone.DEFAULT,
+        stream: Optional[str] = None,
+    ) -> Table:
         """Returns a Table that points to the specified table.
 
-        This method is an alias of :meth:`~snowflake.snowpark.session.Session.table`.
+        This method is an alias of :meth:`~snowflake.snowpark.session.Session.table` with
+        additional support for setting time travel options via the :meth:`option` method.
 
         Args:
             name: Name of the table to use.
+            time_travel_mode: Time travel mode, either 'at' or 'before'. Can also be set via
+                ``option("time_travel_mode", "at")``.
+            statement: Query ID for time travel. Can also be set via ``option("statement", "query_id")``.
+            offset: Negative integer representing seconds in the past for time travel.
+                Can also be set via ``option("offset", -60)``.
+            timestamp: Timestamp string or datetime object for time travel.
+                Can also be set via ``option("timestamp", "2023-01-01 12:00:00")``.
+            timezone: Timezone for timestamp conversion ('NTZ', 'LTZ', or 'TZ').
+                Can also be set via ``option("timezone", "LTZ")``.
+            stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
+
+        Note:
+            Time travel options can be set either as direct parameters or via the
+            :meth:`option` method, but NOT both. If any direct time travel parameter
+            is provided, all time travel options will be ignored to avoid conflicts.
+
+        Examples::
+
+            # Using direct parameters
+            >>> table = session.read.table("my_table", time_travel_mode="at", offset=-3600)  # doctest: +SKIP
+
+            # Using options (recommended for chaining)
+            >>> table = (session.read  # doctest: +SKIP
+            ...     .option("time_travel_mode", "at")
+            ...     .option("offset", -3600)
+            ...     .table("my_table"))
+
+            # Mixing options and parameters (direct parameters completely override options)
+            >>> table = (session.read  # doctest: +SKIP
+            ...     .option("time_travel_mode", "before")  # This will be IGNORED
+            ...     .option("offset", -60)                 # This will be IGNORED
+            ...     .table("my_table", time_travel_mode="at", offset=-3600))  # Only this is used
         """
 
         # AST.
@@ -490,7 +557,19 @@ class DataFrameReader:
             ast.reader.CopyFrom(self._ast)
             build_table_name(ast.name, name)
 
-        table = self._session.table(name, _emit_ast=False)
+        if time_travel_mode is not None:
+            time_travel_params = {
+                "time_travel_mode": time_travel_mode,
+                "statement": statement,
+                "offset": offset,
+                "timestamp": timestamp,
+                "timezone": timezone,
+                "stream": stream,
+            }
+        else:
+            time_travel_params = _extract_time_travel_from_options(self._cur_options)
+
+        table = self._session.table(name, _emit_ast=False, **time_travel_params)
 
         if _emit_ast and stmt is not None:
             table._ast_id = stmt.uid
