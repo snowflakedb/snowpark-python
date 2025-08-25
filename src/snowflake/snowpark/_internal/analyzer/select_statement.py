@@ -877,7 +877,7 @@ class SelectStatement(Selectable):
         self._projection_in_str = None
         self._query_params = None
         self.expr_to_alias.update(self.from_.expr_to_alias)
-        self.df_aliased_col_name_to_real_col_name.update(
+        self.df_aliased_col_name_to_real_col_name = deepcopy(
             self.from_.df_aliased_col_name_to_real_col_name
         )
         self.api_calls = (
