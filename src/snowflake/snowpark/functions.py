@@ -10919,7 +10919,10 @@ def make_ym_interval(
     _emit_ast: bool = True,
 ) -> Column:
     """
-    Creates a year-month interval expression.
+    Creates a year-month interval expression using with specified years and months.
+
+    This YearMonthInterval is not to be confused with the interval created by make_interval.
+    You can define a table column to be of data type YearMonthIntervalType.
 
     Args:
         years: The number of years, positive or negative
@@ -10931,10 +10934,16 @@ def make_ym_interval(
     Example::
 
         >>> from snowflake.snowpark.functions import make_ym_interval
+        >>>
         >>> df = session.create_dataframe([[1, 2]], ["years", "months"])
         >>> df.select(make_ym_interval(col("years"), col("months")).alias("interval")).show()
-        >>> # make_ym_interval(2014, 12) returns INTERVAL '2015-0' YEAR TO MONTH
-        >>> # make_ym_interval(1, 14) returns INTERVAL '2-2' YEAR TO MONTH
+        --------------
+        |"INTERVAL"  |
+        --------------
+        |+1-02       |
+        --------------
+        <BLANKLINE>
+
     """
     if isinstance(years, (int, float)) and isinstance(months, (int, float)):
         years_int = int(years)

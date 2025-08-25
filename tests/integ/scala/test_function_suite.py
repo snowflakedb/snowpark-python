@@ -5685,4 +5685,7 @@ def test_make_ym_interval(session):
     assert row_neg["INTERVAL_NEG_2"] == "-0-02"
     assert row_neg["INTERVAL_NEG_BOTH"] == "-15-02"
 
+    df = session.create_dataframe([[1, 2]], ["years", "months"])
+    df.select(make_ym_interval(col("years"), col("months")).alias("interval")).show()
+
     session.sql("alter session set feature_interval_types=disabled;").collect()
