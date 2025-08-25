@@ -26,15 +26,10 @@ jobs:
 
           # Create JIRA issue using REST API
           RESPONSE=$(curl -s -X POST \ 
-
             -H "Content-Type: application/json" \ 
-
             -H "Accept: application/json" \ 
-
             -u "$JIRA_USER_EMAIL:$JIRA_API_TOKEN" \ 
-
             "$JIRA_BASE_URL/rest/api/2/issue" \ 
-
             -d '{
               "fields": {
                 "project": {
@@ -71,13 +66,9 @@ jobs:
         run: |
           # Add comment to GitHub issue with JIRA link
           curl -s -X POST \ 
-
             -H "Authorization: token $GITHUB_TOKEN" \ 
-
             -H "Accept: application/vnd.github.v3+json" \ 
-
             "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" \ 
-
             -d '{
               "body": "JIRA ticket created: [${{ steps.create.outputs.jira_key }}](${{ secrets.JIRA_BASE_URL }}/browse/${{ steps.create.outputs.jira_key }})"
             }'
