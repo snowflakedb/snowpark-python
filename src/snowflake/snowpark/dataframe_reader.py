@@ -573,14 +573,16 @@ class DataFrameReader:
     @publicapi
     def format(
         self,
-        format: Literal["csv", "json", "avro", "parquet", "orc", "xml"],
+        format: Literal[
+            "csv", "json", "avro", "parquet", "orc", "xml", "dbapi", "jdbc"
+        ],
         _emit_ast: bool = True,
     ) -> "DataFrameReader":
         """Specify the format of the file(s) to load.
 
         Args:
             format: The format of the file(s) to load. Supported formats are csv, json, avro, parquet, orc, and xml.
-                Snowpark data source type is also supported, currently support jdbc.
+                Snowpark data source type is also supported, currently support dbapi and jdbc.
 
         Returns:
             a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
@@ -1338,7 +1340,7 @@ class DataFrameReader:
 
         Args:
             url: A connection string used to establish connections to external data source with JDBC driver.
-                Please do not include any secrets in this parameter.
+                Please do not include any secrets in this parameter. Secret in connection string will be removed and ignored.
             udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
                 This parameter is required for jdbc.
 
@@ -1400,6 +1402,12 @@ class DataFrameReader:
         imports = udtf_configs.get("imports", None)
         packages = udtf_configs.get("packages", ["com.snowflake:snowpark:latest"])
         java_version = udtf_configs.get("java_version", 11)
+
+        if external_access_integration is None or imports is None:
+            raise ValueError(
+                "external_access_integration and imports must be specified in udtf configs"
+            )
+
         eai_info = self._session.sql(
             f"describe external access integration {external_access_integration}"
         ).collect()
@@ -1414,10 +1422,6 @@ class DataFrameReader:
             "Please re-create your external access integration to include a secret."
         )
 
-        if external_access_integration is None or imports is None:
-            raise ValueError(
-                "external_access_integration and imports must be specified in udtf configs"
-            )
         jdbc_client = JDBC(
             session=self._session,
             url=url,

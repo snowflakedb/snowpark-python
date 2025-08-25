@@ -4,6 +4,7 @@
 import logging
 import re
 from collections import defaultdict
+from enum import Enum
 from functools import cached_property
 from typing import Optional, Union, List, TYPE_CHECKING
 
@@ -28,6 +29,7 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     IntegerType,
     DoubleType,
+    TimeType,
 )
 
 if TYPE_CHECKING:
@@ -38,6 +40,50 @@ logger = logging.getLogger(__name__)
 
 # reference for java type to snowflake type:
 # https://docs.snowflake.com/en/developer-guide/udf-stored-procedure-data-type-mapping
+
+
+class JDBCType(Enum):
+    # ARRAY = "ARRAY"  # not supported in snowflake
+    BIGINT = "BIGINT"
+    BINARY = "BINARY"
+    BIT = "BIT"
+    # BLOB = "BLOB"  # not supported in snowflake
+    BOOLEAN = "BOOLEAN"
+    CHAR = "CHAR"
+    CLOB = "CLOB"
+    # DATALINK = "DATALINK"  # not supported in snowflake
+    DATE = "DATE"
+    DECIMAL = "DECIMAL"
+    # DISTINCT = "DISTINCT"  # not supported in snowflake
+    DOUBLE = "DOUBLE"
+    FLOAT = "FLOAT"
+    INTEGER = "INTEGER"
+    # JAVA_OBJECT = "JAVA_OBJECT"  # not supported in snowflake
+    LONGNVARCHAR = "LONGNVARCHAR"
+    LONGVARBINARY = "LONGVARBINARY"
+    LONGVARCHAR = "LONGVARCHAR"
+    NCHAR = "NCHAR"
+    NCLOB = "NCLOB"
+    # NULL = "NULL"  # not supported in snowflake
+    NUMERIC = "NUMERIC"
+    NVARCHAR = "NVARCHAR"
+    OTHER = "OTHER"
+    # REAL = "REAL"  # not supported in snowflake
+    # REF = "REF"  # not supported in snowflake
+    # REF_CURSOR = "REF_CURSOR"  # not supported in snowflake
+    # ROWID = "ROWID"  # not supported in snowflake
+    SMALLINT = "SMALLINT"
+    # SQLXML = "SQLXML" # not supported in snowflake
+    # STRUCT = "STRUCT"  # not supported in snowflake
+    TIME = "TIME"
+    TIME_WITH_TIMEZONE = "TIME_WITH_TIMEZONE"
+    TIMESTAMP = "TIMESTAMP"
+    TIMESTAMP_WITH_TIMEZONE = "TIMESTAMP_WITH_TIMEZONE"
+    TINYINT = "TINYINT"
+    VARBINARY = "VARBINARY"
+    VARCHAR = "VARCHAR"
+    NONE = None
+
 
 JAVA_TYPE_TO_SNOWFLAKE_TYPE = {
     "java.math.BigDecimal": DecimalType,
@@ -55,21 +101,33 @@ JAVA_TYPE_TO_SNOWFLAKE_TYPE = {
     "java.lang.Short": DecimalType,
 }
 JDBC_TYPE_TO_SNOWFLAKE_TYPE = {
-    "NUMERIC": DecimalType,
-    "VARCHAR": StringType,
-    "CHAR": StringType,
-    "CLOB": StringType,
-    "NCHAR": StringType,
-    "NVARCHAR": StringType,
-    "NCLOB": StringType,
-    "TIMESTAMP": TimestampType,
-    "VARBINARY": StringType,
-    "BIGINT": IntegerType,
-    "FLOAT": FloatType,
-    "DOUBLE": DoubleType,
-    "DECIMAL": DecimalType,
-    "BOOLEAN": BooleanType,
-    "BIT": StringType,
+    JDBCType.BIGINT: IntegerType,
+    JDBCType.BINARY: StringType,
+    JDBCType.BIT: StringType,
+    JDBCType.BOOLEAN: BooleanType,
+    JDBCType.CHAR: StringType,
+    JDBCType.CLOB: StringType,
+    JDBCType.DATE: DateType,
+    JDBCType.DECIMAL: DecimalType,
+    JDBCType.DOUBLE: DoubleType,
+    JDBCType.FLOAT: FloatType,
+    JDBCType.INTEGER: IntegerType,
+    JDBCType.LONGNVARCHAR: StringType,
+    JDBCType.LONGVARBINARY: StringType,
+    JDBCType.LONGVARCHAR: StringType,
+    JDBCType.NCHAR: StringType,
+    JDBCType.NCLOB: StringType,
+    JDBCType.NUMERIC: DecimalType,
+    JDBCType.NVARCHAR: StringType,
+    JDBCType.OTHER: StringType,
+    JDBCType.SMALLINT: IntegerType,
+    JDBCType.TIME: TimeType,
+    JDBCType.TIME_WITH_TIMEZONE: TimestampType,
+    JDBCType.TIMESTAMP: TimestampType,
+    JDBCType.TIMESTAMP_WITH_TIMEZONE: TimestampType,
+    JDBCType.TINYINT: IntegerType,
+    JDBCType.VARBINARY: StringType,
+    JDBCType.VARCHAR: StringType,
 }
 
 PARTITION_TABLE_COLUMN_NAME = "partition"
@@ -432,6 +490,8 @@ class JDBC:
             scale,
             nullable,
         ) in self.raw_schema:
+            jdbc_type = JDBCType(jdbc_type)
+
             jdbc_to_snow_type = JDBC_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, None)
             java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(java_type, VariantType)
             snow_type = (
@@ -449,7 +509,16 @@ class JDBC:
                     precision if precision is not None else 38,
                     scale if scale is not None else 0,
                 )
-            elif snow_type == TimestampType:
+            elif snow_type == TimestampType and jdbc_type in (
+                JDBCType.TIMESTAMP,
+                None,
+                JDBCType.OTHER,
+            ):
+                data_type = snow_type(TimestampTimeZone.NTZ)
+            elif snow_type == TimestampType and jdbc_type in (
+                JDBCType.TIMESTAMP_WITH_TIMEZONE,
+                JDBCType.TIME_WITH_TIMEZONE,
+            ):
                 data_type = snow_type(TimestampTimeZone.TZ)
             else:
                 data_type = snow_type()
@@ -461,11 +530,7 @@ class JDBC:
         select_sql_alias = (
             f"SNOWPARK_JDBC_SELECT_SQL_ALIAS_{generate_random_alphanumeric(5)}"
         )
-        cols = (
-            [col[0] for col in self.raw_schema]
-            if self.raw_schema is not None
-            else ["*"]
-        )
+        cols = [col[0] for col in self.raw_schema]
         if self.is_query:
             return f"SELECT {select_sql_alias}.* FROM ({self.table_or_query}) {select_sql_alias}"
         else:
