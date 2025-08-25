@@ -78,6 +78,34 @@ class EnvironmentVariable(Parameter, type=str, abstract=True):  # pragma: no cov
         return help
 
 
+class SnowflakeModinTelemetryFlushInterval(EnvironmentVariable, type=int):
+    """
+    Minimum number of seconds between a flush of telemetry to snowflake
+    from metrics generated in the client modin layer.
+    """
+
+    varname = "SNOWFLAKE_MODIN_TELEMETRY_FLUSH_INTERVAL"
+    default = 5
+
+
+modin_config.SnowflakeModinTelemetryFlushInterval = SnowflakeModinTelemetryFlushInterval
+
+
+class SnowflakeModinTelemetryEnabled(EnvironmentVariable, type=bool):
+    """
+    Enable or disable telemetry sent to Snowflake from the modin
+    client. This only includes telemetry sent through the modin
+    metrics events, not all snowpark telemetry generated through lazily
+    evaluated queries on the Snowflake backend.
+    """
+
+    varname = "SNOWFLAKE_MODIN_TELEMETRY_ENABLED"
+    default = True
+
+
+modin_config.SnowflakeModinTelemetryEnabled = SnowflakeModinTelemetryEnabled
+
+
 class SnowflakePandasTransferThreshold(EnvironmentVariable, type=int):
     """
     Targeted max number of dataframe rows which should be transferred from
