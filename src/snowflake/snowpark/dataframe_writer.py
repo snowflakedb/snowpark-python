@@ -40,6 +40,7 @@ from snowflake.snowpark._internal.utils import (
     SUPPORTED_TABLE_TYPES,
     get_aliased_option_name,
     get_copy_into_location_options,
+    is_cloud_path,
     normalize_remote_file_or_dir,
     parse_table_name,
     publicapi,
@@ -547,6 +548,10 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[True] = True,
+        validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> List[Row]:
@@ -565,6 +570,10 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: Literal[False] = False,
+        validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> AsyncJob:
@@ -582,6 +591,10 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        validation_mode: Optional[Literal["RETURN_ROWS"]] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> Union[List[Row], AsyncJob]:
@@ -599,6 +612,12 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            validation_mode: String (constant) that instructs the COPY command to return the results of the query in the SQL
+                statement instead of unloading the results to the specified cloud storage location.
+                The only supported validation option is RETURN_ROWS. This option returns all rows produced by the query.
+            storage_integration: Specifies the name of the storage integration used to delegate authentication responsibility for external cloud storage to a Snowflake identity and access management (IAM) entity.
+            credentials: Specifies the security credentials for connecting to the cloud provider and accessing the private/protected cloud storage.
+            encryption: Specifies the encryption settings used to decrypt encrypted files in the storage location.
 
         Returns:
             A list of :class:`Row` objects containing unloading results.
@@ -636,6 +655,10 @@ class DataFrameWriter:
             header=header,
             statement_params=statement_params,
             block=block,
+            validation_mode=validation_mode,
+            storage_integration=storage_integration,
+            credentials=credentials,
+            encryption=encryption,
             _emit_ast=_emit_ast,
             **copy_options,
         )
@@ -652,6 +675,10 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[Dict[str, Any]],
     ) -> Union[List[Row], AsyncJob]:
@@ -678,6 +705,10 @@ class DataFrameWriter:
                 header=header,
                 statement_params=statement_params,
                 block=block,
+                validation_mode=validation_mode,
+                storage_integration=storage_integration,
+                credentials=credentials,
+                encryption=encryption,
                 **copy_options,
             )
 
@@ -696,7 +727,11 @@ class DataFrameWriter:
                 kwargs[DATAFRAME_AST_PARAMETER],
             ) = self._dataframe._session._ast_batch.flush(stmt)
 
-        stage_location = normalize_remote_file_or_dir(location)
+        stage_location = (
+            normalize_remote_file_or_dir(location)
+            if not is_cloud_path(location)
+            else location
+        )
         partition_by = partition_by if partition_by is not None else self._partition_by
         if isinstance(partition_by, str):
             partition_by = sql_expr(partition_by)._expression
@@ -733,6 +768,10 @@ class DataFrameWriter:
                 format_type_options=cur_format_type_options,
                 copy_options=cur_copy_options,
                 header=header,
+                validation_mode=validation_mode,
+                storage_integration=storage_integration,
+                credentials=credentials,
+                encryption=encryption,
             )
         )
         add_api_call(df, "DataFrameWriter.copy_into_location")
@@ -781,6 +820,10 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[str],
     ) -> Union[List[Row], AsyncJob]:
@@ -797,6 +840,11 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            validation_mode: Specifies the validation mode to use for unloading data from the table.
+            storage_integration: Specifies the name of the storage integration used to delegate authentication responsibility for external cloud storage to a Snowflake identity and access management (IAM) entity.
+            credentials: Specifies the security credentials for connecting to the cloud provider and accessing the private/protected cloud storage.
+            encryption: Specifies the encryption settings used to decrypt encrypted files in the storage location.
+
         Returns:
             A list of :class:`Row` objects containing unloading results.
 
@@ -823,6 +871,10 @@ class DataFrameWriter:
             header=header,
             statement_params=statement_params,
             block=block,
+            validation_mode=validation_mode,
+            storage_integration=storage_integration,
+            credentials=credentials,
+            encryption=encryption,
             _emit_ast=_emit_ast,
             **copy_options,
         )
@@ -837,6 +889,10 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[str],
     ) -> Union[List[Row], AsyncJob]:
@@ -852,6 +908,11 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            validation_mode: Specifies the validation mode to use for unloading data from the table.
+            storage_integration: Specifies the name of the storage integration used to delegate authentication responsibility for external cloud storage to a Snowflake identity and access management (IAM) entity.
+            credentials: Specifies the security credentials for connecting to the cloud provider and accessing the private/protected cloud storage.
+            encryption: Specifies the encryption settings used to decrypt encrypted files in the storage location.
+
         Returns:
             A list of :class:`Row` objects containing unloading results.
 
@@ -873,6 +934,10 @@ class DataFrameWriter:
             header=header,
             statement_params=statement_params,
             block=block,
+            validation_mode=validation_mode,
+            storage_integration=storage_integration,
+            credentials=credentials,
+            encryption=encryption,
             _emit_ast=_emit_ast,
             **copy_options,
         )
@@ -887,6 +952,10 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[str],
     ) -> Union[List[Row], AsyncJob]:
@@ -902,6 +971,10 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            validation_mode: Specifies the validation mode to use for unloading data from the table.
+            storage_integration: Specifies the name of the storage integration used to delegate authentication responsibility for external cloud storage to a Snowflake identity and access management (IAM) entity.
+            credentials: Specifies the security credentials for connecting to the cloud provider and accessing the private/protected cloud storage.
+            encryption: Specifies the encryption settings used to decrypt encrypted files in the storage location.
 
         Returns:
             A list of :class:`Row` objects containing unloading results.
@@ -924,6 +997,10 @@ class DataFrameWriter:
             header=header,
             statement_params=statement_params,
             block=block,
+            validation_mode=validation_mode,
+            storage_integration=storage_integration,
+            credentials=credentials,
+            encryption=encryption,
             _emit_ast=_emit_ast,
             **copy_options,
         )
@@ -938,6 +1015,10 @@ class DataFrameWriter:
         header: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
+        validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         _emit_ast: bool = True,
         **copy_options: Optional[str],
     ) -> Union[List[Row], AsyncJob]:
@@ -953,6 +1034,12 @@ class DataFrameWriter:
             block: A bool value indicating whether this function will wait until the result is available.
                 When it is ``False``, this function executes the underlying queries of the dataframe
                 asynchronously and returns an :class:`AsyncJob`.
+            validation_mode: String (constant) that instructs the COPY command to return the results of the query in the SQL
+                statement instead of unloading the results to the specified cloud storage location.
+                The only supported validation option is RETURN_ROWS. This option returns all rows produced by the query.
+            storage_integration: Specifies the name of the storage integration used to delegate authentication responsibility for external cloud storage to a Snowflake identity and access management (IAM) entity.
+            credentials: Specifies the security credentials for connecting to the cloud provider and accessing the private/protected cloud storage.
+            encryption: Specifies the encryption settings used to decrypt encrypted files in the storage location.
 
         Returns:
             A list of :class:`Row` objects containing unloading results.
@@ -975,6 +1062,10 @@ class DataFrameWriter:
             header=header,
             statement_params=statement_params,
             block=block,
+            validation_mode=validation_mode,
+            storage_integration=storage_integration,
+            credentials=credentials,
+            encryption=encryption,
             _emit_ast=_emit_ast,
             **copy_options,
         )

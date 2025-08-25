@@ -1428,6 +1428,10 @@ class Analyzer:
                 file_format_type=logical_plan.file_format_type,
                 format_type_options=logical_plan.format_type_options,
                 header=logical_plan.header,
+                validation_mode=logical_plan.validation_mode,
+                storage_integration=logical_plan.storage_integration,
+                credentials=logical_plan.credentials,
+                encryption=logical_plan.encryption,
                 **logical_plan.copy_options,
             )
 
