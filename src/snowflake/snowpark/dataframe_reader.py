@@ -4,6 +4,7 @@
 import json
 import multiprocessing as mp
 import os
+import re
 import sys
 import time
 import queue
@@ -1014,20 +1015,55 @@ class DataFrameReader:
             )["data"]
 
             if len(matches):
-                should_fallback = True
-                files = []
-                # Construct a list of file prefixes not including the stage
-                for match in matches:
-                    # Try to remove any protocol
-                    (pre, _, post) = match[0].partition("://")
-                    match = post if post else pre
-                    files.append(match.partition("/")[2])
+                try:
+                    # Use fully qualified stage name to describe if available
+                    stage, _ = get_stage_parts(path)
+                    fully_qualified_stage, _ = get_stage_parts(
+                        path, return_full_stage_name=True
+                    )
 
-                infer_schema_options["FILES"] = files
+                    stage_description = self._session._conn.run_query(
+                        f"describe stage {fully_qualified_stage}"
+                    )["data"]
 
-                # Reconstruct path using just stage and any qualifiers
-                stage, _ = get_stage_parts(path)
-                infer_path = path.partition(stage)[0] + stage
+                    stage_locations_json = [
+                        x for x in stage_description if x[0] == "STAGE_LOCATION"
+                    ][0][3]
+
+                    # If stage locations is available then the stage is external
+                    # and stage prefixes will include CSP specific prefix information.
+                    stage_locations = (
+                        json.loads(stage_locations_json)
+                        if stage_locations_json
+                        else [stage]
+                    )
+
+                    # Compile prefixes are case insensitive regexes because
+                    # casing is not consistent in bucket describe query.
+                    regexes = [
+                        re.compile(f"^{re.escape(location)}", re.IGNORECASE)
+                        for location in stage_locations
+                    ]
+
+                    files = []
+                    # Construct a list of file prefixes not including the stage
+                    for match in matches:
+                        prefix = match[0]
+                        for regex in regexes:
+                            prefix = regex.sub("", prefix)
+                        files.append(prefix)
+                    infer_schema_options["FILES"] = files
+
+                    # Reconstruct path using just stage and any qualifiers
+                    infer_path = (
+                        path.partition(fully_qualified_stage)[0] + fully_qualified_stage
+                    )
+                    should_fallback = True
+                except Exception as e:
+                    warning(
+                        "infer_schema_pattern_matching",
+                        f"Failed to infer schema for provided pattern {pattern} with error:\n{e}",
+                    )
 
         infer_schema_query = infer_schema_statement(
             infer_path, file_format_name, infer_schema_options or None
