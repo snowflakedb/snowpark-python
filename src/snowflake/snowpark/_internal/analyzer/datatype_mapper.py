@@ -37,6 +37,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -49,6 +50,31 @@ MICROS_PER_MILLIS = 1000
 def str_to_sql(value: str) -> str:
     sql_str = str(value).replace("\\", "\\\\").replace("'", "''").replace("\n", "\\n")
     return f"'{sql_str}'"
+
+
+def str_to_sql_for_year_month_interval(
+    value: str, datatype: YearMonthIntervalType
+) -> str:
+    # Extract interval value from strings like "INTERVAL 1-7 YEAR TO MONTH"
+    # Examples: "1-7" -> INTERVAL '1-7' YEAR TO MONTH, "1" -> INTERVAL '1' YEAR
+    # "1-7" -> INTERVAL '7' MONTH
+    parts = value.split(" ")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid interval format: {value}")
+    extracted_values = parts[1]
+    start_field = datatype.start_field if datatype.start_field is not None else 0
+    end_field = datatype.end_field if datatype.end_field is not None else 1
+    if datatype.start_field == datatype.end_field:
+        extracted_values = extracted_values.split("-")
+        extracted_value = extracted_values[0]
+        if datatype.start_field == 1 and len(extracted_values) == 2:
+            # Extract the second value if we only have a MONTH interval.
+            extracted_value = extracted_values[1]
+        return (
+            f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()}"
+        )
+    else:
+        return f"INTERVAL '{extracted_values}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
 
 
 def float_nan_inf_to_sql(value: float) -> str:
@@ -82,6 +108,8 @@ def to_sql_no_cast(
             return f"TO_GEOGRAPHY({str_to_sql(value)})"
         if isinstance(datatype, GeometryType):
             return f"TO_GEOMETRY({str_to_sql(value)})"
+        if isinstance(datatype, YearMonthIntervalType):
+            return str_to_sql_for_year_month_interval(value, datatype)
         return str_to_sql(value)
     if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
         cast_value = float_nan_inf_to_sql(value)
@@ -120,7 +148,14 @@ def to_sql(
     # Handle null values
     if isinstance(
         datatype,
-        (NullType, ArrayType, MapType, StructType, GeographyType, GeometryType),
+        (
+            NullType,
+            ArrayType,
+            MapType,
+            StructType,
+            GeographyType,
+            GeometryType,
+        ),
     ):
         if value is None:
             return "NULL"
@@ -151,6 +186,9 @@ def to_sql(
     if isinstance(datatype, FileType):
         if value is None:
             return "TO_FILE(NULL)"
+    if isinstance(datatype, YearMonthIntervalType):
+        if value is None:
+            return "NULL :: INTERVAL YEAR TO MONTH"
     if value is None:
         return "NULL"
 
@@ -240,6 +278,9 @@ def to_sql(
     if isinstance(value, str) and isinstance(datatype, FileType):
         return f"TO_FILE({str_to_sql(value)})"
 
+    if isinstance(value, str) and isinstance(datatype, YearMonthIntervalType):
+        return f"{str_to_sql_for_year_month_interval(value, datatype)} :: {convert_sp_to_sf_type(datatype)}"
+
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
 
@@ -327,6 +368,8 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             "'STAGE_FILE_URL', 'some_new_file.jpeg', 'SIZE', 123, 'ETAG', 'xxx', 'CONTENT_TYPE', 'image/jpeg', "
             "'LAST_MODIFIED', '2025-01-01'))"
         )
+    if isinstance(data_type, YearMonthIntervalType):
+        return "INTERVAL '1-0' YEAR TO MONTH"
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 

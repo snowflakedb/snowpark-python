@@ -71,6 +71,8 @@ from snowflake.snowpark.types import (
     Variant,
     VariantType,
     VectorType,
+    YearMonthInterval,
+    YearMonthIntervalType,
     _FractionalType,
     _IntegralType,
     _NumericType,
@@ -219,6 +221,19 @@ def convert_sf_to_sp_type(
         return BooleanType()
     if column_type_name == "BINARY":
         return BinaryType()
+    if column_type_name == "INTERVAL_YEAR_MONTH":
+        if scale == 0:
+            return YearMonthIntervalType(
+                YearMonthIntervalType.YEAR, YearMonthIntervalType.MONTH
+            )
+        elif scale == 1:
+            return YearMonthIntervalType(YearMonthIntervalType.YEAR)
+        elif scale == 2:
+            return YearMonthIntervalType(YearMonthIntervalType.MONTH)
+        else:
+            raise ValueError(
+                f"Invalid scale value {scale} for YearMonthIntervalType. Expected 0, 1, or 2."
+            )
     if column_type_name == "TEXT":
         if internal_size > 0:
             return StringType(internal_size, internal_size == max_string_size)
@@ -290,6 +305,8 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
         return "DATE"
     if isinstance(datatype, TimeType):
         return "TIME"
+    if isinstance(datatype, YearMonthIntervalType):
+        return datatype.simple_string().upper()
     if isinstance(datatype, TimestampType):
         if datatype.tz == TimestampTimeZone.NTZ:
             return "TIMESTAMP_NTZ"
@@ -603,7 +620,9 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
             for k, v in curr_dict.items()
         }
 
-    if isinstance(tp, (GeometryType, GeographyType, VariantType, FileType)):
+    if isinstance(
+        tp, (GeometryType, GeographyType, VariantType, FileType, YearMonthIntervalType)
+    ):
         if value.strip() == "None":
             return None
         return value
@@ -742,6 +761,9 @@ def python_type_to_snow_type(
     if tp == File:
         return FileType(), False
 
+    if tp == YearMonthInterval:
+        return YearMonthIntervalType(), False
+
     if tp == Timestamp or tp_origin == Timestamp:
         if not tp_args:
             timezone = TimestampTimeZone.DEFAULT
@@ -771,6 +793,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             DateType,
             TimestampType,
             TimeType,
+            YearMonthIntervalType,
             GeographyType,
             GeometryType,
             VariantType,
@@ -1002,6 +1025,11 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_tz"] = functools.partial(
 DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
     TimestampType, timezone=TimestampTimeZone.LTZ
 )
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_to_month"] = YearMonthIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["intervalyeartomonth"] = YearMonthIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["str"] = StringType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["varchar"] = StringType
+
 
 DECIMAL_RE = re.compile(
     r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"

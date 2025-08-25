@@ -220,6 +220,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
     FileType,
     _AtomicType,
 )
@@ -3639,6 +3640,7 @@ class Session:
                         TimestampType,
                         VariantType,
                         VectorType,
+                        YearMonthIntervalType,
                         FileType,
                     ),
                 )
@@ -3692,6 +3694,8 @@ class Session:
                     data_type, DateType
                 ):
                     converted_row.append(str(value))
+                elif isinstance(data_type, YearMonthIntervalType):
+                    converted_row.append(value)
                 elif isinstance(data_type, _AtomicType):  # consider inheritance
                     converted_row.append(value)
                 elif isinstance(value, (list, tuple, array)) and isinstance(
@@ -3768,6 +3772,8 @@ class Session:
                 )
             elif isinstance(field.datatype, FileType):
                 project_columns.append(to_file(column(name)).as_(name))
+            elif isinstance(field.datatype, YearMonthIntervalType):
+                project_columns.append(column(name).cast(field.datatype).as_(name))
             else:
                 project_columns.append(column(name))
 
