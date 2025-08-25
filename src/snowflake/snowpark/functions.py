@@ -12776,6 +12776,229 @@ def ai_similarity(
         )
 
 
+@publicapi
+def ai_parse_document(
+    file: Column,
+    _emit_ast: bool = True,
+    **kwargs,
+) -> Column:
+    """
+    Returns the extracted content from a document as a JSON-formatted string.
+    This function supports two types of extraction: Optical Character Recognition (OCR), and layout.
+
+    Args:
+        file: A FILE type column containing the document to parse. The document must be on a
+            Snowflake stage that uses server-side encryption and is accessible to the user.
+        **kwargs: Configuration settings specified as key/value pairs. Supported keys:
+
+            - mode: Specifies the parsing mode. Supported modes are:
+                - 'OCR': The function extracts text only. This is the default mode.
+                - 'LAYOUT': The function extracts layout as well as text, including structural
+                  content such as tables.
+
+            - page_split: If set to True, the function splits the document into pages and
+              processes each page separately. This feature supports only PDF, PowerPoint (.pptx),
+              and Word (.docx) documents. Documents in other formats return an error.
+              The default is False.
+              Tip: To process long documents that exceed the token limit, set this option to True.
+
+    Returns:
+        A JSON object (as a string) that contains the extracted data and associated metadata.
+        The options argument determines the structure of the returned object.
+
+        If ``page_split`` is set, the output contains:
+            - pages: An array of JSON objects, each containing text extracted from the document.
+            - metadata: Contains metadata about the document, such as page count.
+            - errorInformation: Contains error information if document can't be parsed (only on error).
+
+        If ``page_split`` is False or not present, the output contains:
+            - content: Plain text (in OCR mode) or Markdown-formatted text (in LAYOUT mode).
+            - metadata: Contains metadata about the document, such as page count.
+            - errorInformation: Contains error information if document can't be parsed (only on error).
+
+    Examples::
+
+        >>> import json
+        >>> # Parse a PDF document with default OCR mode
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/doc.pdf", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_parse_document(to_file("@mystage/doc.pdf")).alias("parsed_content")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> "Sample PDF" in result["content"]
+        True
+        >>> result["metadata"]["pageCount"]
+        3
+
+        >>> # Parse with LAYOUT mode to extract tables and structure
+        >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_parse_document(
+        ...         to_file("@mystage/invoice.pdf"),
+        ...         mode='LAYOUT'
+        ...     ).alias("parsed_content")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> "| Customer Name |" in result["content"] and "| Country |" in result["content"]  # Markdown format
+        True
+
+        >>> # Parse with page splitting for documents
+        >>> df = session.range(1).select(
+        ...     ai_parse_document(
+        ...         to_file("@mystage/doc.pdf"),
+        ...         page_split=True
+        ...     ).alias("parsed_content")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> len(result["pages"])
+        3
+        >>> 'Sample PDF' in result["pages"][0]["content"]
+        True
+        >>> result["pages"][0]["index"]
+        0
+    """
+    sql_func_name = "ai_parse_document"
+    config_dict = dict(kwargs)
+
+    if config_dict:
+        ast = (
+            build_function_expr(sql_func_name, [file, config_dict])
+            if _emit_ast
+            else None
+        )
+        # only object constant is supported for now
+        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        return _call_function(
+            sql_func_name, file, config_col, _ast=ast, _emit_ast=_emit_ast
+        )
+    else:
+        ast = build_function_expr(sql_func_name, [file]) if _emit_ast else None
+        return _call_function(sql_func_name, file, _ast=ast, _emit_ast=_emit_ast)
+
+
+@publicapi
+def ai_transcribe(
+    audio_file: Column,
+    _emit_ast: bool = True,
+    **kwargs,
+) -> Column:
+    """
+    Transcribes text from an audio file with optional timestamps and speaker labels.
+
+    AI_TRANSCRIBE supports numerous languages (automatically detected), and audio can contain
+    more than one language. Timestamps and speaker labels are extracted based on the specified
+    timestamp granularity.
+
+    Args:
+        audio_file: A FILE type column representing an audio file. The audio file must be on a
+            Snowflake stage that uses server-side encryption and is accessible to the user.
+            Use the to_file() function to create a reference to your staged file.
+        **kwargs: Configuration settings specified as key/value pairs. Supported keys:
+
+            - timestamp_granularity: A string specifying the desired timestamp granularity.
+              Possible values are:
+                - 'word': The file is transcribed as a series of words, each with its own timestamp.
+                - 'speaker': The file is transcribed as a series of conversational "turns",
+                  each with its own timestamp and speaker label.
+
+              If this field is not specified, the entire file is transcribed as a single
+              segment without timestamps by default.
+
+    Returns:
+        A string containing a JSON representation of the transcription result. The JSON object
+        contains the following fields:
+
+            - audio_duration: The total duration of the audio file in seconds.
+            - text: The transcription of the complete audio file (when timestamp_granularity
+              is not specified).
+            - segments: An array of segments (when timestamp_granularity is set to 'word'
+              or 'speaker'). Each segment contains:
+                - start: The start time of the segment in seconds.
+                - end: The end time of the segment in seconds.
+                - text: The transcription text for the segment.
+                - speaker_label: The label of the speaker for the segment (only when
+                  timestamp_granularity is 'speaker'). Labels are of the form "SPEAKER_00",
+                  "SPEAKER_01", etc.
+
+    Note:
+        - Supports languages: Arabic, Bulgarian, Cantonese, Catalan, Chinese, Czech, Dutch,
+          English, French, German, Greek, Hungarian, Indonesian, Italian, Japanese, Korean,
+          Latvian, Polish, Portuguese, Romanian, Russian, Serbian, Slovenian, Spanish,
+          Swedish, Thai, Turkish, Ukrainian.
+        - Supported audio formats: FLAC, MP3, Ogg, WAV, WebM
+        - Maximum file size: 700 MB
+        - Maximum duration: 60 minutes with timestamps, 120 minutes without
+
+    Examples::
+
+        >>> import json
+        >>> # Basic transcription without timestamps
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/audio.ogg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_transcribe(to_file("@mystage/audio.ogg")).alias("transcript")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> result['audio_duration'] > 120  # more than 2 minutes
+        True
+        >>> "glad to see things are going well" in result['text'].lower()
+        True
+
+        >>> # Transcription with word-level timestamps
+        >>> df = session.range(1).select(
+        ...     ai_transcribe(
+        ...         to_file("@mystage/audio.ogg"),
+        ...         timestamp_granularity='word'
+        ...     ).alias("transcript")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> len(result["segments"]) > 0
+        True
+        >>> result["segments"][0]["text"].lower()
+        'glad'
+        >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
+        True
+
+        >>> # Transcription with speaker diarization
+        >>> _ = session.file.put("tests/resources/conversation.ogg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_transcribe(
+        ...         to_file("@mystage/conversation.ogg"),
+        ...         timestamp_granularity='speaker'
+        ...     ).alias("transcript")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> result["audio_duration"] > 100  # more than 100 seconds
+        True
+        >>> len(result["segments"]) > 0
+        True
+        >>> result["segments"][0]["speaker_label"]
+        'SPEAKER_00'
+        >>> 'jenny' in result["segments"][0]["text"].lower()
+        True
+        >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
+        True
+    """
+    sql_func_name = "ai_transcribe"
+    config_dict = dict(kwargs)
+
+    if config_dict:
+        ast = (
+            build_function_expr(sql_func_name, [audio_file, config_dict])
+            if _emit_ast
+            else None
+        )
+        # only object constant is supported for now
+        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        return _call_function(
+            sql_func_name, audio_file, config_col, _ast=ast, _emit_ast=_emit_ast
+        )
+    else:
+        ast = build_function_expr(sql_func_name, [audio_file]) if _emit_ast else None
+        return _call_function(sql_func_name, audio_file, _ast=ast, _emit_ast=_emit_ast)
+
+
 @overload
 @publicapi
 def ai_complete(

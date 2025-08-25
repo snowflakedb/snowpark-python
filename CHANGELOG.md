@@ -6,6 +6,9 @@
 
 #### New Features
 
+- Added support for the following AI-powered functions in `functions.py`:
+  - `ai_parse_document`
+  - `ai_transcribe`
 - Added support for specifying the following parameters to `DataFrameWriter.copy_into_location` for validation and writing data to external locations:
     - `validation_mode`
     - `storage_integration`
