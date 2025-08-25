@@ -5984,7 +5984,7 @@ def test_time_travel_core_functionality(session):
             table_name,
             time_travel_mode="before",
             timestamp=ts_before_update,
-            timezone="LTZ",
+            timezone=TimestampTimeZone.LTZ,
         )
         Utils.check_answer(df_before_ts, expected_before_update)
 
@@ -6021,7 +6021,7 @@ def test_time_travel_core_functionality(session):
         # ==============Test 5: PySpark as-of-timestamp compatibility ==============
         df_as_of = (
             session.read.option("as-of-timestamp", ts_before_update)
-            .option("timezone", "LTZ")
+            .option("timezone", TimestampTimeZone.LTZ)
             .table(table_name)
         )
         Utils.check_answer(df_as_of, expected_before_update)
@@ -6172,7 +6172,7 @@ def test_time_travel_comprehensive_coverage(session):
                 table1_name,
                 time_travel_mode="at",
                 timestamp=ts_after_update,
-                timezone="LTZ",
+                timezone=TimestampTimeZone.LTZ,
             )
             .join(session.table(table2_name), "id")
             .select("id", "name", "category", "price")
