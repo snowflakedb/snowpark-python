@@ -6018,6 +6018,14 @@ def test_time_travel_core_functionality(session):
         )
         Utils.check_answer(df_at_ts_after_update, expected_after_update)
 
+        # ==============Test 5: PySpark as-of-timestamp compatibility ==============
+        df_as_of = (
+            session.read.option("as-of-timestamp", ts_before_update)
+            .option("timezone", "LTZ")
+            .table(table_name)
+        )
+        Utils.check_answer(df_as_of, expected_before_update)
+
     finally:
         Utils.drop_table(session, table_name)
 
@@ -6242,6 +6250,14 @@ def test_time_travel_comprehensive_coverage(session):
         )
         Utils.check_answer(table_before.sort("id"), option_table.sort("id"))
 
+        # as-of-timestamp equivalence test
+        as_of_table = (
+            session.read.option("as-of-timestamp", ts_before_update)
+            .option("timezone", "LTZ")
+            .table(table1_name)
+        )
+        Utils.check_answer(table_before.sort("id"), as_of_table.sort("id"))
+
         # ==============Test 5: Table copy operations with time travel ==============
         time_travel_table = session.table(
             table1_name, time_travel_mode="before", statement=update_query_id
@@ -6273,6 +6289,18 @@ def test_time_travel_comprehensive_coverage(session):
             Row(3, "product_c", 300.25),
         ]
         Utils.check_answer(copied_with_ops, expected_copied)
+
+        # Test as-of-timestamp with chained operations and string format
+        ts_string = ts_before_update.strftime("%Y-%m-%d %H:%M:%S")
+        as_of_chained = (
+            session.read.option("as-of-timestamp", ts_string)
+            .option("timezone", "LTZ")
+            .table(table1_name)
+            .select("id", "name", "price")
+            .filter(col("price") > 150)
+            .sort("id")
+        )
+        Utils.check_answer(as_of_chained, expected_copied)
 
         time_travel_table.show()
 

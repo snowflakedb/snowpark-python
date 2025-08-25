@@ -634,6 +634,9 @@ def test_time_travel_option_based(session, time_travel_test_setup):
         {"time_travel_mode": "at", "offset": -1},
         {"time_travel_mode": "before", "timestamp": timestamp_str, "timezone": "LTZ"},
         {"time_travel_mode": "at", "timestamp": timestamp_str},
+        {"as-of-timestamp": timestamp_str},
+        {"time_travel_mode": "at", "as-of-timestamp": timestamp_str},
+        {"as-of-timestamp": timestamp_str, "timezone": "LTZ"},
     ]
 
     for options in test_cases:
@@ -670,12 +673,35 @@ def test_time_travel_subquery_operations(session, time_travel_test_setup):
         check_generated_plan_queries(df_result._plan)
 
 
-def test_time_travel_error_handling(session):
+def test_time_travel_error_handling(session, time_travel_test_setup):
+    table_creation_ts = time_travel_test_setup["table_creation_ts"]
+    timestamp_str = table_creation_ts.strftime("%Y-%m-%d %H:%M:%S")
+
     with pytest.raises(ValueError, match="Must specify time travel mode"):
         session.table("test_time_travel_table", offset=-1)
 
     with pytest.raises(ValueError, match="Must specify time travel mode"):
         session.read.option("offset", -1).table("test_time_travel_table")
+
+    with pytest.raises(
+        ValueError,
+        match="Cannot use 'as-of-timestamp' option with time_travel_mode='before'",
+    ):
+        (
+            session.read.option("time_travel_mode", "before")
+            .option("as-of-timestamp", timestamp_str)
+            .table("test_time_travel_table")
+        )
+
+    with pytest.raises(
+        ValueError, match="Cannot use both 'as-of-timestamp' and 'timestamp' options."
+    ):
+        (
+            session.read.option("time_travel_mode", "at")
+            .option("as-of-timestamp", timestamp_str)
+            .option("timestamp", timestamp_str)
+            .table("test_time_travel_table")
+        )
 
     with pytest.raises(ValueError, match="Invalid time travel mode"):
         session.read.table("test_time_travel_table", time_travel_mode="abc")

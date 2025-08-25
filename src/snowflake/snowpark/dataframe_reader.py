@@ -112,7 +112,6 @@ _TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
     "TIMESTAMP": "timestamp",
     "TIMEZONE": "timezone",
     "STREAM": "stream",
-    "AS-OF-TIMESTAMP": "timestamp",
 }
 
 READER_OPTIONS_ALIAS_MAP = {
@@ -128,6 +127,7 @@ READER_OPTIONS_ALIAS_MAP = {
     "DATEFORMAT": "DATE_FORMAT",
     "TIMESTAMPFORMAT": "TIMESTAMP_FORMAT",
     **{k: v.upper() for k, v in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items()},
+    "AS-OF-TIMESTAMP": "AS-OF-TIMESTAMP",
 }
 
 _MAX_RETRY_TIME = 3
@@ -143,12 +143,39 @@ def _validate_stage_path(path: str) -> str:
 
 
 def _extract_time_travel_from_options(options: dict) -> dict:
-    """Extract time travel options from DataFrameReader options."""
-    return {
-        param_name: options[option_key]
-        for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items()
-        if option_key in options
-    }
+    """
+    Extract time travel options from DataFrameReader options.
+
+    Special handling for 'AS-OF-TIMESTAMP' (PySpark compatibility):
+    - Automatically sets time_travel_mode to 'at'
+    - Cannot be used with time_travel_mode='before' (raises error)
+    - Cannot be mixed with regular 'timestamp' option (raises error)
+    """
+    result = {}
+    excluded_keys = set()
+
+    # Handle PySpark as-of-timestamp special case
+    if "AS-OF-TIMESTAMP" in options:
+        if (
+            "TIME_TRAVEL_MODE" in options
+            and options["TIME_TRAVEL_MODE"].lower() == "before"
+        ):
+            raise ValueError(
+                "Cannot use 'as-of-timestamp' option with time_travel_mode='before'"
+            )
+        if "TIMESTAMP" in options:
+            raise ValueError(
+                "Cannot use both 'as-of-timestamp' and 'timestamp' options."
+            )
+        result["time_travel_mode"] = "at"
+        result["timestamp"] = options["AS-OF-TIMESTAMP"]
+        excluded_keys.add("TIMESTAMP")
+
+    for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items():
+        if option_key in options and option_key not in excluded_keys:
+            result[param_name] = options[option_key]
+
+    return result
 
 
 class DataFrameReader:
@@ -522,7 +549,8 @@ class DataFrameReader:
             offset: Negative integer representing seconds in the past for time travel.
                 Can also be set via ``option("offset", -60)``.
             timestamp: Timestamp string or datetime object for time travel.
-                Can also be set via ``option("timestamp", "2023-01-01 12:00:00")``.
+                Can also be set via ``option("timestamp", "2023-01-01 12:00:00")`` or
+                ``option("as-of-timestamp", "2023-01-01 12:00:00")``.
             timezone: Timezone for timestamp conversion ('NTZ', 'LTZ', or 'TZ').
                 Can also be set via ``option("timezone", "LTZ")``.
             stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
@@ -531,6 +559,9 @@ class DataFrameReader:
             Time travel options can be set either as direct parameters or via the
             :meth:`option` method, but NOT both. If any direct time travel parameter
             is provided, all time travel options will be ignored to avoid conflicts.
+
+            PySpark Compatibility: The ``as-of-timestamp`` option automatically sets
+            ``time_travel_mode="at"`` and cannot be used with ``time_travel_mode="before"``.
 
         Examples::
 
@@ -542,6 +573,9 @@ class DataFrameReader:
             ...     .option("time_travel_mode", "at")
             ...     .option("offset", -3600)
             ...     .table("my_table"))
+
+            # PySpark-style as-of-timestamp (automatically sets mode to "at")
+            >>> table = session.read.option("as-of-timestamp", "2023-01-01 12:00:00").table("my_table")  # doctest: +SKIP
 
             # Mixing options and parameters (direct parameters completely override options)
             >>> table = (session.read  # doctest: +SKIP
@@ -568,6 +602,7 @@ class DataFrameReader:
                 "stream": stream,
             }
         else:
+            # if time_travel_mode is not provided, extract time travel config from options
             time_travel_params = _extract_time_travel_from_options(self._cur_options)
 
         table = self._session.table(name, _emit_ast=False, **time_travel_params)
@@ -1005,14 +1040,26 @@ class DataFrameReader:
         """Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
-        `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
-        and
-        `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
+        `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_,
+        `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_,
+        and `time travel options <https://docs.snowflake.com/en/sql-reference/constructs/at-before>`_.
         (Note that although specifying copy options can make error handling more robust during the
         reading process, it may have an effect on performance.)
 
+        Time travel options can be used with ``table()`` method:
+            - ``time_travel_mode``: Either "at" or "before"
+            - ``statement``: Query ID for statement-based time travel
+            - ``offset``: Seconds to go back in time (negative integer)
+            - ``timestamp``: Specific timestamp for time travel
+            - ``timezone``: Timezone for timestamp interpretation
+            - ``stream``: Stream name for stream-based time travel
+
+        Special PySpark compatibility option:
+            - ``as-of-timestamp``: Automatically sets ``time_travel_mode`` to "at" and uses the
+              provided timestamp. Cannot be used with ``time_travel_mode="before"``.
+
         Args:
-            key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
+            key: Name of the option (e.g. ``compression``, ``skip_header``, ``time_travel_mode``, etc.).
             value: Value of the option.
         """
 
