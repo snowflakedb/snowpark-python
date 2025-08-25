@@ -1991,10 +1991,6 @@ class TimeTravelConfig(NamedTuple):
                 "Exactly one of 'statement', 'offset', 'timestamp', or 'stream' must be provided."
             )
 
-        # Validate offset
-        if offset is not None and offset > 0:
-            raise ValueError("'offset' must be a negative integer (seconds).")
-
         # Normalize timestamp
         normalized_timestamp = None
         if timestamp is not None:
@@ -2059,24 +2055,13 @@ def _normalize_timestamp(timestamp: Union[str, datetime.datetime]) -> str:
     Args:
         timestamp: String or datetime object.
     Returns:
-        Normalized timestamp string.
-    Raises:
-        ValueError: If timestamp format is invalid.
+        String representation of timestamp.
     """
     if isinstance(timestamp, datetime.datetime):
         return str(timestamp)
-    timestamp_str = timestamp.strip()
-    try:
-        datetime.datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S.%f")
-    except ValueError:
-        try:
-            # Fall back to format without fractional seconds
-            datetime.datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            raise ValueError(
-                f"Timestamp must be in format 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DD HH:MM:SS.ffffff'. Got: {timestamp}"
-            )
-    return timestamp_str
+    # Return string as-is - let Snowflake server handle format validation via auto-detection on different formats
+    # <https://docs.snowflake.com/en/sql-reference/date-time-input-output#timestamp-formats>
+    return timestamp.strip()
 
 
 def get_line_numbers(

@@ -609,9 +609,6 @@ def test_validate_and_normalize_time_travel_params():
             time_travel_mode="at", statement="q1", offset=-60
         )
 
-    with pytest.raises(ValueError, match="'offset' must be a negative integer"):
-        TimeTravelConfig.validate_and_normalize_params(time_travel_mode="at", offset=60)
-
     with pytest.raises(ValueError, match="'timezone' value .* must be None or one of"):
         TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode="at", timestamp="2023-01-01 12:00:00", timezone="UTC"
@@ -628,26 +625,6 @@ def test_normalize_timestamp():
     assert _normalize_timestamp(dt_with_microseconds) == "2023-01-01 12:30:45.123456"
     assert _normalize_timestamp("  2024-02-29 00:00:00 ") == "2024-02-29 00:00:00"
     assert _normalize_timestamp("2023-01-01 12:00:00") == "2023-01-01 12:00:00"
-
-    # string timestamps with fractional seconds
-    assert _normalize_timestamp("2023-01-01 12:00:00.123") == "2023-01-01 12:00:00.123"
-    assert _normalize_timestamp("  2023-01-01 12:00:00.1 ") == "2023-01-01 12:00:00.1"
-    assert (
-        _normalize_timestamp("2023-01-01 12:00:00.99099") == "2023-01-01 12:00:00.99099"
-    )
-
-    # Error cases
-    invalid_timestamps = [
-        "invalid",
-        "2023-13-01 12:00:00",
-        "2023-01-01",
-        "",
-        "2023/01/01 12:00:00",
-        "2023-01-01 12:00:00.1234567",  # 7 digits not supported by Python
-    ]
-    for ts in invalid_timestamps:
-        with pytest.raises(ValueError, match="Timestamp must be in format"):
-            _normalize_timestamp(ts)
 
 
 def test_generate_time_travel_sql_clause():
