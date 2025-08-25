@@ -27,13 +27,9 @@ jobs:
           JIRA_API_URL="${JIRA_BASE_URL}/rest/api/2/issue/${ISSUE_KEY}/transitions"
 
           curl -X POST \ 
-
             --url "$JIRA_API_URL" \ 
-
             --user "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" \ 
-
             --header "Content-Type: application/json" \ 
-
             --data "{
               "update": {
                 "comment": [
