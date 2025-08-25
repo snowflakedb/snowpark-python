@@ -65,9 +65,7 @@ def test_move_to_ray(session, pandas_df):
         df_equals(result_df, snow_df)
 
 
-@pytest.mark.skip(
-    reason="Connection credentials for session creation are not accessible in test environments",
-)
+@pytest.mark.skip(reason="SNOW-2276090")
 @sql_count_checker(query_count=4)
 def test_move_from_ray(session, pandas_df):
     with config_context(Backend="Ray", AutoSwitchBackend=False):

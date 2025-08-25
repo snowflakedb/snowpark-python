@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import os
 import copy
 import datetime
 import decimal
@@ -16,6 +17,7 @@ from itertools import product
 from textwrap import dedent
 from typing import Tuple
 from unittest import mock
+from zoneinfo import ZoneInfo
 
 import snowflake.snowpark.context as context
 from snowflake.snowpark.dataframe import map
@@ -69,6 +71,7 @@ from snowflake.snowpark.functions import (
     uniform,
     when,
     cast,
+    to_timestamp_ntz,
 )
 from snowflake.snowpark.types import (
     FileType,
@@ -96,6 +99,7 @@ from snowflake.snowpark.types import (
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
+    IS_NOT_ON_GITHUB,
     TestData,
     TestFiles,
     Utils,
@@ -2145,7 +2149,7 @@ def test_show_dataframe_spark(session):
             col_1  | 1
             col_2  | one
             col_3  | 1.1
-            col_4  | 2017-02-24 12:00:05.456000
+            col_4  | 2017-02-24 12:00:05.456
             col_5  | 20:57:06
             col_6  | 2017-02-25
             col_7  | true
@@ -2171,11 +2175,11 @@ def test_show_dataframe_spark(session):
             ),
             dedent(
                 """
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
-            |col_1|col_2|col_3|col_4                     |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11                   |col_12|col_13   |col_14                     |col_15    |col_16             |col_17               |col_18            |col_19             |
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
-            |1    |one  |1.1  |2017-02-24 12:00:05.456000|20:57:06|2017-02-25|true |false|NULL |[61]  |[FF FE 61 00 62 00 63 00]|1     |[1, 2, 3]|[[61 62 63], [FF FE 61 00]]|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  3\\n]|{\\n  "a": "foo"\\n}|{foo -> {1 -> bar}}|
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
+            +-----+-----+-----+-----------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
+            |col_1|col_2|col_3|col_4                  |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11                   |col_12|col_13   |col_14                     |col_15    |col_16             |col_17               |col_18            |col_19             |
+            +-----+-----+-----+-----------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
+            |1    |one  |1.1  |2017-02-24 12:00:05.456|20:57:06|2017-02-25|true |false|NULL |[61]  |[FF FE 61 00 62 00 63 00]|1     |[1, 2, 3]|[[61 62 63], [FF FE 61 00]]|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  3\\n]|{\\n  "a": "foo"\\n}|{foo -> {1 -> bar}}|
+            +-----+-----+-----+-----------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
             """
             ),
         )
@@ -2221,6 +2225,95 @@ def test_show_dataframe_spark(session):
             |1.000005E17 |
             |1.000005E-17|
             +------------+
+            """
+            ),
+        )
+
+        df3_col_names = ["col1", "col2"]
+        df3 = session.create_dataframe(
+            [
+                (
+                    datetime.datetime(
+                        2023,
+                        1,
+                        1,
+                        0,
+                        0,
+                        0,
+                        microsecond=10100,
+                        tzinfo=ZoneInfo("Asia/Tokyo"),
+                    ),
+                    datetime.datetime(2023, 1, 1, 0, 0, 1, microsecond=10100),
+                ),
+                (
+                    datetime.datetime(2023, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
+                    datetime.datetime(2023, 1, 1, 0, 0, 1),
+                ),
+            ],
+            schema=StructType(
+                [
+                    StructField("col1", TimestampType(TimestampTimeZone.LTZ)),
+                    StructField("col2", TimestampType(TimestampTimeZone.NTZ)),
+                ]
+            ),
+        )
+
+        assert_show_string_equals(
+            df3._show_string_spark(truncate=False, _spark_column_names=df3_col_names),
+            dedent(
+                """
+            +------------------------+------------------------+
+            |col1                    |col2                    |
+            +------------------------+------------------------+
+            |2022-12-31 07:00:00.0101|2023-01-01 00:00:01.0101|
+            |2022-12-31 16:00:00     |2023-01-01 00:00:01     |
+            +------------------------+------------------------+
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df3._show_string_spark(
+                truncate=False,
+                _spark_column_names=df3_col_names,
+                _spark_session_tz="Turkey",
+            ),
+            dedent(
+                """
+            +------------------------+------------------------+
+            |col1                    |col2                    |
+            +------------------------+------------------------+
+            |2022-12-31 18:00:00.0101|2023-01-01 00:00:01.0101|
+            |2023-01-01 03:00:00     |2023-01-01 00:00:01     |
+            +------------------------+------------------------+
+            """
+            ),
+        )
+
+        assert_show_string_equals(
+            session.create_dataframe(
+                [
+                    ("0001-01-01 00:00:00",),
+                    ("554-01-01 00:00:00.120000",),
+                    ("554-01-01 00:00:00.12345678",),
+                    ("554-01-01 00:00:00.12000009",),
+                ],
+                schema=["ts_str"],
+            )
+            .select(to_timestamp_ntz(col("ts_str")))
+            ._show_string_spark(
+                truncate=False,
+                _spark_session_tz="Turkey",
+            ),
+            dedent(
+                """
+           +------------------------------+
+           |"TO_TIMESTAMP_NTZ(""TS_STR"")"|
+           +------------------------------+
+           |0001-01-01 00:00:00           |
+           |0554-01-01 00:00:00.12        |
+           |0554-01-01 00:00:00.123456    |
+           |0554-01-01 00:00:00.12        |
+           +------------------------------+
             """
             ),
         )
@@ -3889,7 +3982,8 @@ def test_write_copy_into_location_basic(session):
             [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
             schema=["FIRST_NAME", "LAST_NAME"],
         )
-        df.write.copy_into_location(temp_stage)
+        ret = df.write.copy_into_location(temp_stage)
+        assert len(ret) == 1 and ret[0].rows_unloaded == 3
         copied_files = session.sql(f"list @{temp_stage}").collect()
         assert len(copied_files) == 1
         assert ".csv" in copied_files[0][0]
@@ -3930,6 +4024,67 @@ def test_write_copy_into_location_csv(session, partition_by):
         assert len(copied_files) == 2
         assert ".csv.gz" in copied_files[0][0]
         assert ".csv.gz" in copied_files[1][0]
+    finally:
+        Utils.drop_stage(session, temp_stage)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    IS_NOT_ON_GITHUB,
+    reason="The test resource is only available on GitHub",
+)
+def test_write_copy_into_location_storage_integration(session):
+    if any(
+        platform in session.connection.host.split(".") for platform in ["gcp", "azure"]
+    ):
+        pytest.skip(
+            reason="Skipping test for Azure and GCP deployment as test resources are not available"
+        )
+    # set up in github repo Actions secrets and variables
+    storage_integration = os.getenv("SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION")
+    s3_test_bucket_path = os.getenv("SNOWPARK_PYTHON_API_TEST_BUCKET_PATH")
+    assert (
+        storage_integration and s3_test_bucket_path
+    ), "AWS test resources are not available"
+    df = session.create_dataframe(
+        [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+        schema=["FIRST_NAME", "LAST_NAME"],
+    )
+    ret = df.write.copy_into_location(
+        f"{s3_test_bucket_path}/ci_test/test.csv",
+        storage_integration=storage_integration,
+        encryption={"type": None},
+        overwrite=True,
+    )
+    assert len(ret) == 1 and ret[0].rows_unloaded == 3
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+def test_write_copy_into_location_options(session):
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        ret = df.write.copy_into_location(temp_stage, validation_mode="RETURN_ROWS")
+        Utils.check_answer(
+            ret,
+            [
+                Row(FIRST_NAME="John", LAST_NAME="Berry"),
+                Row(FIRST_NAME="Rick", LAST_NAME="Berry"),
+                Row(FIRST_NAME="Anthony", LAST_NAME="Davis"),
+            ],
+        )
+        copied_files = session.sql(f"list @{temp_stage}").collect()
+        assert len(copied_files) == 0
     finally:
         Utils.drop_stage(session, temp_stage)
 
