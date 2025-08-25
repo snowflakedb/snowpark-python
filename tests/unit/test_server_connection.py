@@ -4,6 +4,7 @@
 
 import io
 import logging
+import os
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -169,3 +170,70 @@ def test_run_query_when_ignore_results_true(mock_server_connection):
     )
     mock_server_connection._to_data_or_iter.assert_called()
     assert "sfqid" in result and result["sfqid"] == "ignore_results is False"
+
+
+def test_add_application_parameters_with_multiple_applications(mock_server_connection):
+    """Test that snowbook works alongside other application detections."""
+    with mock.patch("importlib.util.find_spec") as mock_find_spec:
+        mock_find_spec.side_effect = (
+            lambda name: mock.MagicMock()
+            if name in ["streamlit", "snowflake.ml"]
+            else None
+        )
+
+        mock_server_connection._lower_case_parameters = {}
+        mock_server_connection._add_application_parameters()
+
+        assert (
+            mock_server_connection._lower_case_parameters["application"]
+            == "streamlit:SnowparkML"
+        )
+
+
+def test_snowbook_detection_overrides_application(mock_server_connection):
+    """Test that 'notebook' is added when snowbook is available."""
+    with mock.patch("importlib.util.find_spec") as mock_find_spec:
+        mock_find_spec.side_effect = (
+            lambda name: mock.MagicMock()
+            if name in ["streamlit", "snowflake.ml", "snowbook"]
+            else None
+        )
+
+        mock_server_connection._lower_case_parameters = {}
+        mock_server_connection._add_application_parameters()
+
+        assert (
+            mock_server_connection._lower_case_parameters["application"]
+            == "Snowflake Web App (snowsight_notebook)"
+        )
+
+
+def test_env_var_partner_takes_precedence(mock_server_connection):
+    """Test that ENV_VAR_PARTNER takes precedence over module detection."""
+    with mock.patch.dict(os.environ, {"SF_PARTNER": "custom_partner"}):
+        with mock.patch("importlib.util.find_spec", return_value=mock.MagicMock()):
+            mock_server_connection._lower_case_parameters = {}
+            mock_server_connection._add_application_parameters()
+
+            assert (
+                mock_server_connection._lower_case_parameters["application"]
+                == "custom_partner"
+            )
+
+
+def test_existing_application_param_not_overwritten(mock_server_connection):
+    """Test that existing application parameter is preserved."""
+    with mock.patch("importlib.util.find_spec") as mock_find_spec:
+        mock_find_spec.side_effect = (
+            lambda name: mock.MagicMock()
+            if name in ["streamlit", "snowflake.ml"]
+            else None
+        )
+
+        mock_server_connection._lower_case_parameters = {"application": "existing_app"}
+        mock_server_connection._add_application_parameters()
+
+        assert (
+            mock_server_connection._lower_case_parameters["application"]
+            == "existing_app"
+        )

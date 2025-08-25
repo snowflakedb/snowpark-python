@@ -6,9 +6,16 @@
 
 #### New Features
 
+- Added support for specifying the following parameters to `DataFrameWriter.copy_into_location` for validation and writing data to external locations:
+    - `validation_mode`
+    - `storage_integration`
+    - `credentials`
+    - `encryption`
+
 #### Bug Fixes
 
 - Fixed the repr of TimestampType to match the actual subtype it represents.
+- Fixed a bug in schema inference that caused incorrect stage prefixes to be used.
 
 #### Deprecations
 
@@ -21,13 +28,27 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+- Completed support for `pd.read_snowflake()`, `pd.to_iceberg()`,
+  `pd.to_pandas()`, `pd.to_snowpark()`, `pd.to_snowflake()`,
+  `DataFrame.to_iceberg()`, `DataFrame.to_pandas()`, `DataFrame.to_snowpark()`,
+  `DataFrame.to_snowflake()`, `Series.to_iceberg()`, `Series.to_pandas()`,
+  `Series.to_snowpark()`, and `Series.to_snowflake()` on the "Pandas" and "Ray"
+  backends. Previously, only some of these functions and methods were supported
+  on the Pandas backend.
+- Added support for `Index.get_level_values()`.
 
 #### Improvements
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
 - Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
 
 #### Dependency Updates
+
 #### Bug Fixes
+- Raised `NotImplementedError` instead of `AttributeError` on attempting to call
+  Snowflake extension functions/methods `to_dynamic_table()`, `cache_result()`,
+  `to_view()`, `create_or_replace_dynamic_table()`, and
+  `create_or_replace_view()` on dataframes or series using the pandas or ray 
+  backends.
 
 ## 1.37.0 (2025-08-18)
 
