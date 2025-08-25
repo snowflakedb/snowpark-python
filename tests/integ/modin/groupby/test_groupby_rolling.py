@@ -115,3 +115,14 @@ def test_groupby_rolling_by_mul_cols():
         lambda df: df.groupby(["A", "B"]).rolling(2).sum(),
         test_attrs=False,
     )
+
+
+@sql_count_checker(query_count=1)
+def test_groupby_rolling_series_negative():
+    date_idx = pd.date_range("1/1/2000", periods=8, freq="min")
+    date_idx.names = ["grp_col"]
+    snow_ser = pd.Series([1, 1, np.nan, 2])
+    with pytest.raises(
+        NotImplementedError, match="Series RollingGroupby is not yet implemented."
+    ):
+        snow_ser.groupby(snow_ser.index).rolling(2).sum()

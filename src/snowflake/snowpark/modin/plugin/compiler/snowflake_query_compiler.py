@@ -5392,9 +5392,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         extended_qc = self
         if dropna:
             extended_qc = extended_qc.dropna(axis=0, how="any", subset=by_labels)
-            # ordered_dataframe = self._modin_frame.ordered_dataframe.dropna(
-            #     subset=by_snowflake_quoted_identifiers_list
-            # )
 
         result_qc = extended_qc._window_agg(
             window_func=WindowFunction.ROLLING,
@@ -15196,6 +15193,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
                 for quoted_identifier in agg_column_identifiers
             }
+            # Combine partition column expressions (unchanged) with aggregated expressions
+            all_expressions = {**partition_column_expressions, **agg_expressions}
+
+            new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+                all_expressions
+            ).frame
         elif agg_func == "corr":
             if input_contains_timedelta:
                 ErrorMessage.not_implemented(_TIMEDELTA_ROLLING_CORR_NOT_SUPPORTED)
@@ -15300,12 +15303,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 for quoted_identifier in agg_column_identifiers
             }
 
-        # Combine partition column expressions (unchanged) with aggregated expressions
-        all_expressions = {**partition_column_expressions, **agg_expressions}
+            # Combine partition column expressions (unchanged) with aggregated expressions
+            all_expressions = {**partition_column_expressions, **agg_expressions}
 
-        new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
-            all_expressions
-        ).frame
+            new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+                all_expressions
+            ).frame
         return self.__constructor__(new_frame)
 
     def expanding_count(

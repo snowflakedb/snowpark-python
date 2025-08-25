@@ -98,7 +98,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         if self._dataframe.ndim == 1:
             raise ErrorMessage.not_implemented(
-                "Series GroupbyResampler is not yet implemented."
+                "Series RollingGroupby is not yet implemented."
             )
         func = series_not_implemented()(self.__class__)
         register_series_accessor(self.__class__.__name__)(func)
