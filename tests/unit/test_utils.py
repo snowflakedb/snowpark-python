@@ -562,8 +562,8 @@ GROUP BY u.name"""
 
 def test_time_travel_config():
     """Test TimeTravelConfig NamedTuple creation."""
-    config = TimeTravelConfig(mode="at", statement="query_123")
-    assert config.mode == "at"
+    config = TimeTravelConfig(time_travel_mode="at", statement="query_123")
+    assert config.time_travel_mode == "at"
     assert config.statement == "query_123"
     assert config.timezone == "NTZ"
 
@@ -578,12 +578,12 @@ def test_validate_and_normalize_time_travel_params():
     config = TimeTravelConfig.validate_and_normalize_params(
         time_travel_mode="at", statement="query_123"
     )
-    assert config.mode == "at" and config.statement == "query_123"
+    assert config.time_travel_mode == "at" and config.statement == "query_123"
 
     config = TimeTravelConfig.validate_and_normalize_params(
         time_travel_mode="before", offset=-3600
     )
-    assert config.mode == "before" and config.offset == -3600
+    assert config.time_travel_mode == "before" and config.offset == -3600
 
     # Test datetime object normalization
     dt = datetime(2023, 1, 1, 12, 0, 0)
@@ -653,24 +653,37 @@ def test_normalize_timestamp():
 def test_generate_time_travel_sql_clause():
     """Test SQL clause generation."""
     test_cases = [
-        (TimeTravelConfig(mode="AT", statement="q123"), " AT (STATEMENT => 'q123')"),
-        (TimeTravelConfig(mode="BEFORE", offset=-3600), " BEFORE (OFFSET => -3600)"),
-        (TimeTravelConfig(mode="AT", stream="stream1"), " AT (STREAM => 'stream1')"),
+        (
+            TimeTravelConfig(time_travel_mode="AT", statement="q123"),
+            " AT (STATEMENT => 'q123')",
+        ),
+        (
+            TimeTravelConfig(time_travel_mode="BEFORE", offset=-3600),
+            " BEFORE (OFFSET => -3600)",
+        ),
+        (
+            TimeTravelConfig(time_travel_mode="AT", stream="stream1"),
+            " AT (STREAM => 'stream1')",
+        ),
         (
             TimeTravelConfig(
-                mode="AT", timestamp="2023-01-01 12:00:00", timezone="NTZ"
+                time_travel_mode="AT", timestamp="2023-01-01 12:00:00", timezone="NTZ"
             ),
             " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('2023-01-01 12:00:00'))",
         ),
         (
             TimeTravelConfig(
-                mode="BEFORE", timestamp="2023-01-01 12:00:00", timezone="LTZ"
+                time_travel_mode="BEFORE",
+                timestamp="2023-01-01 12:00:00",
+                timezone="LTZ",
             ),
             " BEFORE (TIMESTAMP => TO_TIMESTAMP_LTZ('2023-01-01 12:00:00'))",
         ),
         (
             TimeTravelConfig(
-                mode="at", timestamp="2023-01-01 12:00:00", timezone="UNKNOWN"
+                time_travel_mode="at",
+                timestamp="2023-01-01 12:00:00",
+                timezone="UNKNOWN",
             ),
             " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('2023-01-01 12:00:00'))",
         ),  # fallback

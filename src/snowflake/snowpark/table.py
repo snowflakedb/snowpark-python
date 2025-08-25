@@ -346,7 +346,7 @@ class Table(DataFrame):
     def _copy_without_ast(self):
         kwargs = {}
         if self._time_travel_config:
-            kwargs.update(self._time_travel_config.asdict_for_table())
+            kwargs.update(self._time_travel_config._asdict())
 
         return Table(
             self.table_name,
@@ -359,7 +359,7 @@ class Table(DataFrame):
     def __copy__(self) -> "Table":
         kwargs = {}
         if self._time_travel_config:
-            kwargs.update(self._time_travel_config.asdict_for_table())
+            kwargs.update(self._time_travel_config._asdict())
 
         return Table(
             self.table_name,

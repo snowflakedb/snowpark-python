@@ -1944,17 +1944,12 @@ def remove_comments(sql_query: str, uuids: List[str]) -> str:
 class TimeTravelConfig(NamedTuple):
     """Configuration for time travel operations."""
 
-    mode: str  # 'at' or 'before'
+    time_travel_mode: str  # 'at' or 'before'
     statement: Optional[str] = None
     offset: Optional[int] = None
     timestamp: Optional[str] = None
     timezone: str = "NTZ"
     stream: Optional[str] = None
-
-    def asdict_for_table(self):
-        result = self._asdict()
-        result["time_travel_mode"] = result.pop("mode")
-        return result
 
     @staticmethod
     def validate_and_normalize_params(
@@ -2020,7 +2015,7 @@ class TimeTravelConfig(NamedTuple):
                 )
 
         return TimeTravelConfig(
-            mode=time_travel_mode,
+            time_travel_mode=time_travel_mode,
             statement=statement,
             offset=offset,
             timestamp=normalized_timestamp,
@@ -2036,7 +2031,7 @@ class TimeTravelConfig(NamedTuple):
         Returns:
             SQL clause like " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('...'))"
         """
-        clause = f" {self.mode.upper()} "
+        clause = f" {self.time_travel_mode.upper()} "
 
         if self.statement is not None:
             clause += f"(STATEMENT => '{self.statement}')"
