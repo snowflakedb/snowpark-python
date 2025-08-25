@@ -666,12 +666,11 @@ _modin_event_log: list = [[]]
 _next_modin_metric_flush: float = 0
 _modin_metric_flush_interval = 0
 
-MODIN_SWITCH_DECISION_METRICS = (
+MODIN_SWITCH_DECISION_METRIC_PREFIXES = (
     "modin.hybrid.merge.decision",
     "modin.hybrid.auto.decision",
 )
-MODIN_PERFORMANCE_METRICS = ("modin.query-compiler",)
-MODIN_ALL_COLLECTED_METRICS = MODIN_SWITCH_DECISION_METRICS + MODIN_PERFORMANCE_METRICS
+MODIN_PERFORMANCE_METRIC_PREFIXES = ("modin.query-compiler",)
 
 
 def _check_and_reset_metric_flush_time() -> bool:
@@ -746,13 +745,13 @@ def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -
 
     metric_valid = False
     # ignore telemetry from dunder and internal metrics
-    if metric_name.startswith(MODIN_PERFORMANCE_METRICS):
+    if metric_name.startswith(MODIN_PERFORMANCE_METRIC_PREFIXES):
         parts = metric_name.split(".")
         if parts[3].startswith("_"):
             return
         metric_valid = True
 
-    if metric_name.startswith(MODIN_SWITCH_DECISION_METRICS):
+    if metric_name.startswith(MODIN_SWITCH_DECISION_METRIC_PREFIXES):
         # strip off the groups
         simplified_metric = ".".join(metric_name.split(".")[0:5])
         metric_valid = True
