@@ -553,6 +553,6 @@ def test_schema_expression():
         == "INTERVAL '1-0' YEAR TO MONTH"
     )
     assert (
-        schema_expression(YearMonthIntervalType(), False)
+        schema_expression(DayTimeIntervalType(), False)
         == "INTERVAL '1 01:01:01.0001' DAY TO SECOND"
     )
