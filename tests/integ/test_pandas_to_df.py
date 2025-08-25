@@ -639,7 +639,7 @@ StructField('"sTr"', StringType({max_size}), nullable=True), \
 StructField('"dOublE"', DoubleType(), nullable=True), \
 StructField('"LoNg"', LongType(), nullable=True), \
 StructField('"booL"', BooleanType(), nullable=True), \
-StructField('"timestamp"', TimestampType(tz=ntz), nullable=True), \
+StructField('"timestamp"', TimestampType(timezone=TimestampTimeZone('ntz')), nullable=True), \
 StructField('TIMEDELTA', LongType(), nullable=True)\
 ])\
 """
@@ -755,7 +755,7 @@ def test_create_from_pandas_datetime_types(session):
     sp_df = session.create_dataframe(data=pandas_df)
     assert (
         str(sp_df.schema)
-        == "StructType([StructField('A', TimestampType(tz=ntz), nullable=True)])"
+        == "StructType([StructField('A', TimestampType(timezone=TimestampTimeZone('ntz')), nullable=True)])"
     )
     assert sp_df.select("A").collect() == [Row(datetime(1997, 6, 3, 14, 21, 32, 00))]
 

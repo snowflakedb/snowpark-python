@@ -428,6 +428,16 @@ def normalize_path(path: str, is_local: bool) -> str:
     return f"'{path}'"
 
 
+def is_cloud_path(path: str) -> bool:
+    return (
+        path.startswith("s3://")
+        or path.startswith("s3china://")
+        or path.startswith("s3gov://")
+        or path.startswith("azure://")
+        or path.startswith("gcs://")
+    )
+
+
 def warn_session_config_update_in_multithreaded_mode(config: str) -> None:
     if threading.active_count() > 1:
         _logger.warning(
@@ -689,7 +699,9 @@ def create_or_update_statement_params_with_query_tag(
     return ret
 
 
-def get_stage_parts(stage_location: str) -> tuple[str, str]:
+def get_stage_parts(
+    stage_location: str, *, return_full_stage_name: bool = False
+) -> tuple[str, str]:
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
@@ -707,6 +719,9 @@ def get_stage_parts(stage_location: str) -> tuple[str, str]:
             # the path is after it
             full_stage_name = normalized[:i]
             path = normalized[i + 1 :]
+            if return_full_stage_name:
+                return full_stage_name.removeprefix("@"), path
+
             # Find the last match of the first group, which should be the stage name.
             # If not found, the stage name should be invalid
             res = re.findall(SNOWFLAKE_STAGE_NAME_PATTERN, full_stage_name)

@@ -155,7 +155,6 @@ UNSUPPORTED_INDEX_METHODS = [
     lambda idx: idx.union(),
     lambda idx: idx.difference(),
     lambda idx: idx.get_indexer_for(),
-    lambda idx: idx.get_level_values(),
     lambda idx: idx.slice_indexer(),
     lambda idx: idx.nbytes(),
     lambda idx: idx.memory_usage(),

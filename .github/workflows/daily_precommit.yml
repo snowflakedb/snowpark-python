@@ -170,6 +170,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       # SNOW-2213578 : Remove the test below and run udf tests for 3.13
       - if: ${{ matrix.python-version == '3.13' }}
@@ -180,6 +182,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Run data source tests
         # psycopg2 is not supported on macos 3.9
@@ -307,6 +311,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_sql_simplifier
           TOX_PARALLEL_NO_SPINNER: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -523,6 +529,8 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
           TZ: EST
         shell: bash
 
@@ -589,6 +597,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       # SNOW-2213578 : Remove the test below and run udf tests for 3.13
       - if: ${{ matrix.python-version == '3.13' }}
@@ -599,6 +609,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -686,6 +698,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --join_alias_fix
           TOX_PARALLEL_NO_SPINNER: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - if: ${{ matrix.python-version == '3.12' }}
         name: Run tests (excluding doctests and udf tests)
@@ -696,6 +710,8 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --join_alias_fix
           TOX_PARALLEL_NO_SPINNER: 1
           SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
