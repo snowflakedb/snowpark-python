@@ -14,6 +14,7 @@
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 - Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `make_dt_interval` that allows users to easily create `DayTimeIntervalType` without using SQL.
 
 #### Bug Fixes
 
