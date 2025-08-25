@@ -12898,9 +12898,9 @@ def ai_transcribe(
 
             - timestamp_granularity: A string specifying the desired timestamp granularity.
               Possible values are:
-                - 'word': The file is transcribed as a series of words, each with its own timestamp.
-                - 'speaker': The file is transcribed as a series of conversational "turns",
-                  each with its own timestamp and speaker label.
+
+              - 'word': The file is transcribed as a series of words, each with its own timestamp.
+              - 'speaker': The file is transcribed as a series of conversational "turns", each with its own timestamp and speaker label.
 
               If this field is not specified, the entire file is transcribed as a single
               segment without timestamps by default.
@@ -12912,14 +12912,15 @@ def ai_transcribe(
             - audio_duration: The total duration of the audio file in seconds.
             - text: The transcription of the complete audio file (when timestamp_granularity
               is not specified).
-            - segments: An array of segments (when timestamp_granularity is set to 'word'
-              or 'speaker'). Each segment contains:
-                - start: The start time of the segment in seconds.
-                - end: The end time of the segment in seconds.
-                - text: The transcription text for the segment.
-                - speaker_label: The label of the speaker for the segment (only when
-                  timestamp_granularity is 'speaker'). Labels are of the form "SPEAKER_00",
-                  "SPEAKER_01", etc.
+            - segments: An array of segments (when timestamp_granularity is set to 'word' or 'speaker').
+              Each segment contains:
+
+              - start: The start time of the segment in seconds.
+              - end: The end time of the segment in seconds.
+              - text: The transcription text for the segment.
+              - speaker_label: The label of the speaker for the segment (only when
+                timestamp_granularity is 'speaker'). Labels are of the form "SPEAKER_00",
+                "SPEAKER_01", etc.
 
     Note:
         - Supports languages: Arabic, Bulgarian, Cantonese, Catalan, Chinese, Czech, Dutch,
