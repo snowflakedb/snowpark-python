@@ -13,6 +13,7 @@
     - `encryption`
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `make_ym_interval` that allows users to easily create `YearMonthIntervalType` without using SQL.
 
 #### Bug Fixes
 
