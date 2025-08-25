@@ -1971,7 +1971,7 @@ class Index:
 
         Parameters
         ----------
-        level : int or str
+        level : Any
             It is either the integer position or the name of the level.
 
         Returns
@@ -1981,7 +1981,16 @@ class Index:
 
         Notes
         -----
-        For Index, level should be 0, since there are no multiple levels.
+        For Index, level should be 0, -1, or the name of the index, since there
+        is only one level.
+
+        Examples
+        --------
+        >>> idx = pd.Index(['a', 'b', 'c'], name='index')
+        >>> idx.get_level_values(0)
+        Index(['a', 'b', 'c'], dtype='object', name='index')
+        >>> idx.get_level_values('index')
+        Index(['a', 'b', 'c'], dtype='object', name='index')
         """
 
     def isin():

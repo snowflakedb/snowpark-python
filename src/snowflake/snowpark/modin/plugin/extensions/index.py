@@ -876,10 +876,21 @@ class Index(metaclass=TelemetryMeta):
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
         return self.__constructor__(tup[0]), tup[1]
 
-    @index_not_implemented()
-    def get_level_values(self, level: int | str) -> Index:
-        WarningMessage.index_to_pandas_warning("get_level_values")
-        return self.__constructor__(self.to_pandas().get_level_values(level=level))
+    def get_level_values(self, level: Any) -> Index:
+        if self.nlevels > 1:
+            ErrorMessage.not_implemented_error(
+                "get_level_values() is not supported for MultiIndex"
+            )  # pragma: no cover
+        if isinstance(level, int):
+            if level not in (0, -1):
+                raise IndexError(
+                    f"Too many levels: Index has only 1 level, not {level + 1}"
+                )
+        elif not (level is self.name or level == self.name):
+            raise KeyError(
+                f"Requested level ({level}) does not match index name ({self.name})"
+            )
+        return self
 
     @index_not_implemented()
     def isin(self) -> None:
