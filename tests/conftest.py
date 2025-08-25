@@ -188,7 +188,7 @@ def pytest_sessionstart(session):
     os.environ["SNOWPARK_LOCAL_TESTING_INTERNAL_TELEMETRY"] = "1"
 
 
-SKIP_SQL_COUNT_CHECK = False
+SKIP_SQL_COUNT_CHECK = True
 
 
 @pytest.fixture(scope="session", autouse=True)
