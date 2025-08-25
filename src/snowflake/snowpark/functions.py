@@ -11043,6 +11043,184 @@ def interval_year_month_from_parts(
 
 
 @publicapi
+def make_dt_interval(
+    days: Union[ColumnOrName, int, None] = None,
+    hours: Union[ColumnOrName, int, None] = None,
+    mins: Union[ColumnOrName, int, None] = None,
+    secs: Union[ColumnOrName, int, None] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates a day-time interval expression using with specified days, hours, mins and seconds.
+
+    This DayTime is not to be confused with the interval created by make_interval.
+    You can define a table column to be of data type DayTimeIntervalType.
+
+    Args:
+        days: The number of days, positive or negative (defaults to 0)
+        hours: The number of hours, positive or negative (defaults to 0)
+        mins: The number of minutes, positive or negative (defaults to 0)
+        secs: The number of seconds, positive or negative (defaults to 0)
+
+    Returns:
+        A Column representing a day-time interval
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import make_dt_interval
+        >>>
+        >>> df = session.create_dataframe([[1, 12, 30, 01.001001]], ['day', 'hour', 'min', 'sec'])
+        >>> df.select(make_dt_interval(col("day"), col("hour"), col("min"), col("sec")).alias("interval")).show()
+        ------------------
+        |"INTERVAL"      |
+        ------------------
+        |1 12:30:01.001  |
+        ------------------
+        <BLANKLINE>
+
+    """
+    import builtins
+
+    # Check original types before converting None values to determine the path
+    original_days = days
+    original_hours = hours
+    original_mins = mins
+    original_secs = secs
+
+    # Convert None to 0 for type checking
+    days = 0 if days is None else days
+    hours = 0 if hours is None else hours
+    mins = 0 if mins is None else mins
+    secs = 0 if secs is None else secs
+
+    # Use original values to determine if all are literals (int/float/None)
+    if (
+        isinstance(original_days, (int, float, type(None)))
+        and isinstance(original_hours, (int, float, type(None)))
+        and isinstance(original_mins, (int, float, type(None)))
+        and isinstance(original_secs, (int, float, type(None)))
+    ):
+        # All are literals (including None) - use literal path
+
+        # Convert all values to handle potential floats
+        total_seconds = days * 86400 + hours * 3600 + mins * 60 + secs
+
+        # Determine sign
+        is_negative = total_seconds < 0
+        abs_total_seconds = builtins.abs(total_seconds)
+
+        # Extract components
+        days_part = int(abs_total_seconds // 86400)
+        remaining_seconds = abs_total_seconds % 86400
+        hours_part = int(remaining_seconds // 3600)
+        remaining_seconds = remaining_seconds % 3600
+        mins_part = int(remaining_seconds // 60)
+        secs_part = remaining_seconds % 60
+
+        if secs_part == int(secs_part):
+            secs_formatted = f"{int(secs_part):02d}"
+        else:
+            secs_formatted = f"{secs_part:06.3f}"
+
+        # Build the interval string in format: D HH:MM:SS.FFF
+        sign_prefix = "-" if is_negative else ""
+        interval_value = f"{sign_prefix}{days_part} {hours_part:02d}:{mins_part:02d}:{secs_formatted}"
+
+        return sql_expr(
+            f"""INTERVAL '{interval_value}' DAY TO SECOND""",
+            _emit_ast=_emit_ast,
+        )
+    else:
+        # Handle None values by converting to lit(0) for column operations
+        days_col = (
+            lit(0)
+            if original_days is None
+            else _to_col_if_str(original_days, "make_dt_interval")
+        )
+        hours_col = (
+            lit(0)
+            if original_hours is None
+            else _to_col_if_str(original_hours, "make_dt_interval")
+        )
+        mins_col = (
+            lit(0)
+            if original_mins is None
+            else _to_col_if_str(original_mins, "make_dt_interval")
+        )
+        secs_col = (
+            lit(0)
+            if original_secs is None
+            else _to_col_if_str(original_secs, "make_dt_interval")
+        )
+
+        total_seconds = (
+            days_col * lit(86400)
+            + hours_col * lit(3600)
+            + mins_col * lit(60)
+            + secs_col
+        )
+
+        is_negative = total_seconds < lit(0)
+        abs_total_seconds = iff(is_negative, total_seconds * lit(-1), total_seconds)
+
+        days_part = cast(floor(abs_total_seconds / lit(86400)), "int")
+        remaining_after_days = abs_total_seconds % lit(86400)
+
+        hours_part = cast(floor(remaining_after_days / lit(3600)), "int")
+        remaining_after_hours = remaining_after_days % lit(3600)
+
+        mins_part = cast(floor(remaining_after_hours / lit(60)), "int")
+        secs_part = remaining_after_hours % lit(60)
+
+        hours_str = iff(
+            hours_part < lit(10),
+            concat(lit("0"), cast(hours_part, "str")),
+            cast(hours_part, "str"),
+        )
+
+        mins_str = iff(
+            mins_part < lit(10),
+            concat(lit("0"), cast(mins_part, "str")),
+            cast(mins_part, "str"),
+        )
+
+        secs_int = cast(floor(secs_part), "int")
+        secs_str = iff(
+            secs_int < lit(10),
+            concat(lit("0"), cast(secs_int, "str")),
+            cast(secs_int, "str"),
+        )
+
+        has_fraction = secs_part != cast(secs_int, "double")
+        fractional_part = secs_part - cast(secs_int, "double")
+
+        fraction_str = iff(
+            has_fraction,
+            concat(
+                lit("."),
+                lpad(cast(round(fractional_part * lit(1000)), "str"), 3, lit("0")),
+            ),
+            lit(""),
+        )
+
+        secs_formatted = concat(secs_str, fraction_str)
+
+        sign_prefix = iff(is_negative, lit("-"), lit(""))
+        interval_value = concat(
+            sign_prefix,
+            cast(days_part, "str"),
+            lit(" "),
+            hours_str,
+            lit(":"),
+            mins_str,
+            lit(":"),
+            secs_formatted,
+        )
+
+        return cast(interval_value, "INTERVAL DAY TO SECOND")
+
+
+@publicapi
 @deprecated(
     version="1.28.0",
     extra_warning_text="Please consider installing snowflake-ml-python and using `snowflake.cortex.summarize` instead.",

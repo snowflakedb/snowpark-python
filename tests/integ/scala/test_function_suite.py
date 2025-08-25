@@ -5,7 +5,7 @@
 
 import json
 from contextlib import contextmanager
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from functools import partial
 
@@ -136,6 +136,7 @@ from snowflake.snowpark.functions import (
     lpad,
     ltrim,
     interval_year_month_from_parts,
+    make_dt_interval,
     max,
     md5,
     mean,
@@ -5724,3 +5725,72 @@ def test_interval_year_month_from_parts(session):
     assert result_nulls[0]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
     assert result_nulls[1]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
     assert result_nulls[2]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
+)
+def test_make_dt_interval(session):
+    session.sql("alter session set feature_interval_types=enabled;").collect()
+
+    df = session.create_dataframe([[1]], ["dummy"])
+
+    result = df.select(make_dt_interval(1, 2, 30, 15.5).alias("interval")).collect()
+    assert result[0]["INTERVAL"] == timedelta(days=1, seconds=9015, microseconds=500000)
+
+    result = df.select(make_dt_interval(5).alias("interval")).collect()
+    assert result[0]["INTERVAL"] == "+000000005 00:00:00.000000000"
+
+    result = df.select(make_dt_interval(hours=12).alias("interval")).collect()
+    assert result[0]["INTERVAL"] == timedelta(hours=12)
+
+    result = df.select(make_dt_interval(secs=30.123).alias("interval")).collect()
+    assert result[0]["INTERVAL"] == timedelta(seconds=30.123)
+
+    result = df.select(make_dt_interval(-2, 3, 15, 30).alias("interval")).collect()
+    assert result[0]["INTERVAL"] == timedelta(days=-2, hours=3, minutes=15, seconds=30)
+
+    result = df.select(make_dt_interval(-1, -2, -30, -15).alias("interval")).collect()
+    assert result[0]["INTERVAL"] == timedelta(
+        days=-1, hours=-2, minutes=-30, seconds=-15
+    )
+
+    result = df.select(make_dt_interval(0, 0, 0, 0).alias("interval")).collect()
+    assert result[0]["INTERVAL"] == timedelta()
+
+    result = df.select(make_dt_interval(0, 5, 0, 30).alias("interval")).collect()
+    assert result[0]["INTERVAL"] == timedelta(hours=5, seconds=30)
+
+    df_cols = session.create_dataframe(
+        [[1, 12, 30, 15.001], [2, 6, 45, 30.500], [0, 23, 59, 59.999]],
+        ["days", "hours", "mins", "secs"],
+    )
+
+    result = df_cols.select(
+        make_dt_interval(col("days"), col("hours"), col("mins"), col("secs")).alias(
+            "interval"
+        )
+    ).collect()
+
+    assert result[0]["INTERVAL"] == timedelta(
+        days=1, hours=12, minutes=30, seconds=15.001
+    )
+    assert result[1]["INTERVAL"] == timedelta(
+        days=2, hours=6, minutes=45, seconds=30.500
+    )
+    assert result[2]["INTERVAL"] == timedelta(hours=23, minutes=59, seconds=59.999)
+
+    df_mixed = session.create_dataframe([[1, 30], [2, 45]], ["days", "mins"])
+
+    result = df_mixed.select(
+        make_dt_interval(days=col("days"), mins=col("mins")).alias("interval")
+    ).collect()
+
+    assert result[0]["INTERVAL"] == timedelta(days=1, minutes=30)
+    assert result[1]["INTERVAL"] == timedelta(days=2, minutes=45)
+
+    session.sql("alter session set feature_interval_types=disabled;").collect()
