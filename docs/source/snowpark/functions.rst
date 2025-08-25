@@ -283,6 +283,7 @@ Functions
     lpad
     ltrim
     make_interval
+    make_dt_interval
     map_cat
     map_concat
     map_contains_key
