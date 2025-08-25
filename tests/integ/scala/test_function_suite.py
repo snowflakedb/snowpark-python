@@ -5616,6 +5616,13 @@ def test_any_value(session):
     ] or non_deterministic_result_2 == [Row(1, 1), Row(2, 2)]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
+)
 def test_make_ym_interval(session):
     session.sql("alter session set feature_interval_types=enabled;").collect()
 
