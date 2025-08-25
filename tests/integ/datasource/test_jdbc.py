@@ -10,6 +10,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     TempObjectType,
 )
+from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.types import StructType, StructField, FloatType, DoubleType
 from tests.resources.test_data_source_dir.test_jdbc import (
     URL,
@@ -23,8 +24,12 @@ from tests.resources.test_data_source_dir.test_jdbc import (
     expected_sql_predicates,
     custom_schema_result,
 )
+from tests.resources.test_data_source_dir.test_postgres_data import (
+    POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION,
+)
 
-SELECT_QUERY = "SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARCHAR2_COL, CHAR_COL, CLOB_COL, NCHAR_COL, NVARCHAR2_COL, NCLOB_COL, DATE_COL, TIMESTAMP_COL, TIMESTAMP_TZ_COL, TIMESTAMP_LTZ_COL, RAW_COL, GUID_COL FROM ALL_TYPE_TABLE"
+SELECT_QUERY = "SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARCHAR2_COL, CHAR_COL, CLOB_COL, NCHAR_COL, NVARCHAR2_COL, NCLOB_COL, DATE_COL, TIMESTAMP_COL, TIMESTAMP_TZ_COL, TIMESTAMP_LTZ_COL, RAW_COL, GUID_COL FROM ALL_TYPE_TABLE_JDBC"
+TABLE_NAME = "ALL_TYPE_TABLE_JDBC"
 
 
 @pytest.fixture(scope="module")
@@ -83,6 +88,25 @@ def test_basic_jdbc(session, jar_path):
         .load()
         .order_by("ID")
     )
+    assert df.collect() == expected_data
+
+
+@pytest.mark.parametrize(
+    "table, query",
+    [
+        (TABLE_NAME, None),
+        (None, SELECT_QUERY),
+        (None, f"({SELECT_QUERY})"),
+    ],
+)
+def test_query_and_table(session, table, query, jar_path):
+    udtf_configs = {
+        "external_access_integration": EXTERNAL_ACCESS_INTEGRATION,
+        "imports": [jar_path],
+    }
+    df = session.read.jdbc(
+        url=URL, udtf_configs=udtf_configs, query=query, table=table
+    ).order_by("ID")
     assert df.collect() == expected_data
 
 
@@ -206,3 +230,45 @@ def test_data_ingestion(session, jar_path):
         client.read(partitions_table), client.schema
     ).order_by("ID")
     assert df.collect() == expected_data
+
+
+def test_jdbc_connection_error(session, jar_path):
+    udtf_configs = {
+        "external_access_integration": EXTERNAL_ACCESS_INTEGRATION,
+        "imports": [jar_path],
+    }
+
+    udtf_configs_no_secret = {
+        "external_access_integration": POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        "imports": [jar_path],
+    }
+
+    # Invalid URL
+    with pytest.raises(SnowparkSQLException, match="Failed to create JDBC connection"):
+        session.read.jdbc(
+            url="jdbc:invalid:url", udtf_configs=udtf_configs, query=SELECT_QUERY
+        ).collect()
+
+    # secret not in EAI
+    with pytest.raises(
+        AssertionError, match="Secret is not detected in external access integration"
+    ):
+        session.read.jdbc(
+            url=URL, udtf_configs=udtf_configs_no_secret, query=SELECT_QUERY
+        )
+
+    # Missing secret
+    with pytest.raises(
+        SnowparkSQLException,
+        match="Secret 'INVALID_SECRET' does not exist or operation not authorized",
+    ):
+        client = JDBC(
+            session,
+            URL,
+            table_or_query=SELECT_QUERY,
+            external_access_integration=EXTERNAL_ACCESS_INTEGRATION,
+            imports=[jar_path],
+            is_query=True,
+            secret="INVALID_SECRET",
+        )
+        client.schema

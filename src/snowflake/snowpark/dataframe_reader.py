@@ -1409,6 +1409,11 @@ class DataFrameReader:
                 secret = r[2][1:-1].split(",")[0].strip()
                 break
 
+        assert secret != "", (
+            "Secret is not detected in external access integration. "
+            "Please re-create your external access integration to include a secret."
+        )
+
         if external_access_integration is None or imports is None:
             raise ValueError(
                 "external_access_integration and imports must be specified in udtf configs"
