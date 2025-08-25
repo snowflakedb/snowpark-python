@@ -9,6 +9,7 @@
 #### Bug Fixes
 
 - Fixed the repr of TimestampType to match the actual subtype it represents.
+- Explicitly include setuptools as runtime dependency in conda build recipe as well
 
 #### Deprecations
 
