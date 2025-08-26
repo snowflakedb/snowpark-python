@@ -10988,6 +10988,120 @@ def make_interval(
 
 
 @publicapi
+def make_dt_interval(
+    days: Optional[ColumnOrName] = None,
+    hours: Optional[ColumnOrName] = None,
+    mins: Optional[ColumnOrName] = None,
+    secs: Optional[ColumnOrName] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates a day-time interval expression using with specified days, hours, mins and seconds.
+
+    This DayTime is not to be confused with the interval created by make_interval.
+    You can define a table column to be of data type DayTimeIntervalType.
+
+    Args:
+        days: The number of days, positive or negative
+        hours: The number of hours, positive or negative
+        mins: The number of minutes, positive or negative
+        secs: The number of seconds, positive or negative
+
+    Returns:
+        A Column representing a day-time interval
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import make_dt_interval
+        >>>
+        >>> df = session.create_dataframe([[1, 12, 30, 01.001001]], ['day', 'hour', 'min', 'sec'])
+        >>> df.select(make_dt_interval(col("day"), col("hour"), col("min"), col("sec")).alias("interval")).show()
+        ------------------
+        |"INTERVAL"      |
+        ------------------
+        |1 12:30:01.001  |
+        ------------------
+        <BLANKLINE>
+
+    """
+    days_col = lit(0) if days is None else _to_col_if_str(days, "make_dt_interval")
+    hours_col = lit(0) if hours is None else _to_col_if_str(hours, "make_dt_interval")
+    mins_col = lit(0) if mins is None else _to_col_if_str(mins, "make_dt_interval")
+    secs_col = lit(0) if secs is None else _to_col_if_str(secs, "make_dt_interval")
+
+    total_seconds = (
+        days_col * lit(86400) + hours_col * lit(3600) + mins_col * lit(60) + secs_col
+    )
+
+    is_negative = total_seconds < lit(0)
+    abs_total_seconds = abs(total_seconds)
+
+    days_part = cast(floor(abs_total_seconds / lit(86400)), "int")
+    remaining_after_days = abs_total_seconds % lit(86400)
+
+    hours_part = cast(floor(remaining_after_days / lit(3600)), "int")
+    remaining_after_hours = remaining_after_days % lit(3600)
+
+    mins_part = cast(floor(remaining_after_hours / lit(60)), "int")
+    secs_part = remaining_after_hours % lit(60)
+
+    hours_str = iff(
+        hours_part < lit(10),
+        concat(lit("0"), cast(hours_part, "str")),
+        cast(hours_part, "str"),
+    )
+
+    mins_str = iff(
+        mins_part < lit(10),
+        concat(lit("0"), cast(mins_part, "str")),
+        cast(mins_part, "str"),
+    )
+
+    secs_int = cast(floor(secs_part), "int")
+    secs_str = iff(
+        secs_int < lit(10),
+        concat(lit("0"), cast(secs_int, "str")),
+        cast(secs_int, "str"),
+    )
+
+    has_fraction = secs_part != cast(secs_int, "double")
+    fractional_part = secs_part - cast(secs_int, "double")
+
+    fraction_str = iff(
+        has_fraction,
+        concat(
+            lit("."),
+            lpad(cast(round(fractional_part * lit(1000)), "str"), 3, lit("0")),
+        ),
+        lit(""),
+    )
+
+    secs_formatted = concat(secs_str, fraction_str)
+
+    sign_prefix = iff(is_negative, lit("-"), lit(""))
+    interval_value = concat(
+        sign_prefix,
+        cast(days_part, "str"),
+        lit(" "),
+        hours_str,
+        lit(":"),
+        mins_str,
+        lit(":"),
+        secs_formatted,
+    )
+
+    def get_col_name(col):
+        if isinstance(col._expr1, Literal):
+            return str(col._expr1.value)
+        else:
+            return str(col._expr1)
+
+    alias_name = f"make_dt_interval({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
+
+    return cast(interval_value, "INTERVAL DAY TO SECOND").alias(alias_name)
+
+
+@publicapi
 @deprecated(
     version="1.28.0",
     extra_warning_text="Please consider installing snowflake-ml-python and using `snowflake.cortex.summarize` instead.",
