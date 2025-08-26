@@ -10945,13 +10945,10 @@ def make_ym_interval(
         <BLANKLINE>
 
     """
-    if years is None:
-        years = lit(0)
-    if months is None:
-        months = lit(0)
-
-    years_col = _to_col_if_str(years, "make_ym_interval")
-    months_col = _to_col_if_str(months, "make_ym_interval")
+    years_col = lit(0) if years is None else _to_col_if_str(years, "make_ym_interval")
+    months_col = (
+        lit(0) if months is None else _to_col_if_str(months, "make_ym_interval")
+    )
 
     total_months = years_col * lit(12) + months_col
 
@@ -10980,7 +10977,17 @@ def make_ym_interval(
         ),
     )
 
-    return cast(interval_string, "INTERVAL YEAR TO MONTH")
+    def get_col_name(col):
+        if isinstance(col._expr1, Literal):
+            return str(col._expr1.value)
+        else:
+            return str(col._expr1)
+
+    alias_name = (
+        f"make_ym_interval({get_col_name(years_col)}, {get_col_name(months_col)})"
+    )
+
+    return cast(interval_string, "INTERVAL YEAR TO MONTH").alias(alias_name)
 
 
 @publicapi
