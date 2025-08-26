@@ -1948,7 +1948,7 @@ class TimeTravelConfig(NamedTuple):
     statement: Optional[str] = None
     offset: Optional[int] = None
     timestamp: Optional[str] = None
-    timezone: str = "NTZ"
+    timestamp_type: str = "NTZ"
     stream: Optional[str] = None
 
     @staticmethod
@@ -1957,7 +1957,7 @@ class TimeTravelConfig(NamedTuple):
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime.datetime]] = None,
-        timezone: Optional[Union[str, "TimestampTimeZone"]] = "NTZ",
+        timestamp_type: Optional[Union[str, "TimestampTimeZone"]] = "NTZ",
         stream: Optional[str] = None,
     ) -> Optional["TimeTravelConfig"]:
         """
@@ -1996,18 +1996,20 @@ class TimeTravelConfig(NamedTuple):
         if timestamp is not None:
             normalized_timestamp = _normalize_timestamp(timestamp)
 
-        # Normalize timezone
-        if timezone is not None:
-            if hasattr(timezone, "value"):
-                timezone = (
-                    timezone.value.upper() if timezone.value != "default" else "NTZ"
+        # Normalize timestamp_type
+        if timestamp_type is not None:
+            if hasattr(timestamp_type, "value"):
+                timestamp_type = (
+                    timestamp_type.value.upper()
+                    if timestamp_type.value != "default"
+                    else "NTZ"
                 )
             else:
-                timezone = timezone.upper()
+                timestamp_type = timestamp_type.upper()
 
-            if timezone not in ["NTZ", "LTZ", "TZ"]:
+            if timestamp_type not in ["NTZ", "LTZ", "TZ"]:
                 raise ValueError(
-                    f"'timezone' value {timezone} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
+                    f"'timestamp_type' value {timestamp_type} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
                 )
 
         return TimeTravelConfig(
@@ -2015,7 +2017,7 @@ class TimeTravelConfig(NamedTuple):
             statement=statement,
             offset=offset,
             timestamp=normalized_timestamp,
-            timezone=timezone,
+            timestamp_type=timestamp_type,
             stream=stream,
         )
 
@@ -2036,11 +2038,11 @@ class TimeTravelConfig(NamedTuple):
         elif self.stream is not None:
             clause += f"(STREAM => '{self.stream}')"
         elif self.timestamp is not None:
-            if self.timezone.upper() == "NTZ":
+            if self.timestamp_type.upper() == "NTZ":
                 func_name = "TO_TIMESTAMP_NTZ"
-            elif self.timezone.upper() == "LTZ":
+            elif self.timestamp_type.upper() == "LTZ":
                 func_name = "TO_TIMESTAMP_LTZ"
-            elif self.timezone.upper() == "TZ":
+            elif self.timestamp_type.upper() == "TZ":
                 func_name = "TO_TIMESTAMP_TZ"
             else:
                 func_name = "TO_TIMESTAMP_NTZ"  # default fallback

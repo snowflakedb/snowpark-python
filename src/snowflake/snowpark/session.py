@@ -2514,7 +2514,9 @@ class Session:
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime.datetime]] = None,
-        timezone: Optional[Union[str, TimestampTimeZone]] = TimestampTimeZone.DEFAULT,
+        timestamp_type: Optional[
+            Union[str, TimestampTimeZone]
+        ] = TimestampTimeZone.DEFAULT,
         stream: Optional[str] = None,
     ) -> Table:
         """
@@ -2532,7 +2534,7 @@ class Session:
             statement: Query ID for time travel.
             offset: Negative integer representing seconds in the past for time travel.
             timestamp: Timestamp string in 'YYYY-MM-DD HH:MM:SS' format or datetime object.
-            timezone: Timezone for timestamp conversion ('NTZ', 'LTZ', or 'TZ'). Defaults to 'NTZ'.
+            timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ'). If not provided, defaults to 'NTZ'.
             stream: Stream name for time travel.
 
             Note:
@@ -2551,7 +2553,7 @@ class Session:
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
 
-            >>> df_at_time = session.table("my_table", time_travel_mode="at", timestamp="2023-01-01 12:00:00", timezone="LTZ") # doctest: +SKIP
+            >>> df_at_time = session.table("my_table", time_travel_mode="at", timestamp="2023-01-01 12:00:00", timestamp_type="LTZ") # doctest: +SKIP
             >>> df_before = session.table("my_table", time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012") # doctest: +SKIP
             >>> df_offset = session.table("my_table", time_travel_mode="at", offset=-3600) # doctest: +SKIP
             >>> df_stream = session.table("my_table", time_travel_mode="at", stream="my_stream") # doctest: +SKIP
@@ -2578,7 +2580,7 @@ class Session:
             statement=statement,
             offset=offset,
             timestamp=timestamp,
-            timezone=timezone,
+            timestamp_type=timestamp_type,
             stream=stream,
         )
         # Replace API call origin for table

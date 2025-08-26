@@ -5984,7 +5984,7 @@ def test_time_travel_core_functionality(session):
             table_name,
             time_travel_mode="before",
             timestamp=ts_before_update,
-            timezone=TimestampTimeZone.LTZ,
+            timestamp_type=TimestampTimeZone.LTZ,
         )
         Utils.check_answer(df_before_ts, expected_before_update)
 
@@ -5992,7 +5992,7 @@ def test_time_travel_core_functionality(session):
             table_name,
             time_travel_mode="at",
             timestamp=ts_before_update,
-            timezone="LTZ",
+            timestamp_type="LTZ",
         )
         Utils.check_answer(df_at_ts, expected_before_update)
 
@@ -6000,7 +6000,7 @@ def test_time_travel_core_functionality(session):
             table_name,
             time_travel_mode="before",
             timestamp=ts_before_update,
-            timezone="LTZ",
+            timestamp_type="LTZ",
         )
         Utils.check_answer(df_before_ts, df_reader_before_ts)
 
@@ -6009,19 +6009,22 @@ def test_time_travel_core_functionality(session):
             table_name,
             time_travel_mode="before",
             timestamp=ts_after_update,
-            timezone="LTZ",
+            timestamp_type="LTZ",
         )
         Utils.check_answer(df_before_ts_after_update, expected_after_update)
 
         df_at_ts_after_update = session.table(
-            table_name, time_travel_mode="at", timestamp=ts_after_update, timezone="LTZ"
+            table_name,
+            time_travel_mode="at",
+            timestamp=ts_after_update,
+            timestamp_type="LTZ",
         )
         Utils.check_answer(df_at_ts_after_update, expected_after_update)
 
         # ==============Test 5: PySpark as-of-timestamp compatibility ==============
         df_as_of = (
             session.read.option("as-of-timestamp", ts_before_update)
-            .option("timezone", TimestampTimeZone.LTZ)
+            .option("timestamp_type", TimestampTimeZone.LTZ)
             .table(table_name)
         )
         Utils.check_answer(df_as_of, expected_before_update)
@@ -6139,7 +6142,7 @@ def test_time_travel_comprehensive_coverage(session):
                 table1_name,
                 time_travel_mode="before",
                 timestamp=ts_before_update,
-                timezone="LTZ",
+                timestamp_type="LTZ",
             )
             .join(session.table(table2_name), "id")
             .select("id", "name", "category", "price")
@@ -6156,7 +6159,7 @@ def test_time_travel_comprehensive_coverage(session):
         df_reader_join_before = (
             session.read.option("time_travel_mode", "before")
             .option("timestamp", ts_before_update)
-            .option("timezone", "LTZ")
+            .option("timestamp_type", "LTZ")
             .table(table1_name)
             .join(session.table(table2_name), "id")
             .select("id", "name", "category", "price")
@@ -6172,7 +6175,7 @@ def test_time_travel_comprehensive_coverage(session):
                 table1_name,
                 time_travel_mode="at",
                 timestamp=ts_after_update,
-                timezone=TimestampTimeZone.LTZ,
+                timestamp_type=TimestampTimeZone.LTZ,
             )
             .join(session.table(table2_name), "id")
             .select("id", "name", "category", "price")
@@ -6253,7 +6256,7 @@ def test_time_travel_comprehensive_coverage(session):
         # as-of-timestamp equivalence test
         as_of_table = (
             session.read.option("as-of-timestamp", ts_before_update)
-            .option("timezone", "LTZ")
+            .option("timestamp_type", "LTZ")
             .table(table1_name)
         )
         Utils.check_answer(table_before.sort("id"), as_of_table.sort("id"))
@@ -6294,7 +6297,7 @@ def test_time_travel_comprehensive_coverage(session):
         ts_string = ts_before_update.strftime("%Y-%m-%d %H:%M:%S")
         as_of_chained = (
             session.read.option("as-of-timestamp", ts_string)
-            .option("timezone", "LTZ")
+            .option("timestamp_type", "LTZ")
             .table(table1_name)
             .select("id", "name", "price")
             .filter(col("price") > 150)

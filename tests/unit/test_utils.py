@@ -565,7 +565,7 @@ def test_time_travel_config():
     config = TimeTravelConfig(time_travel_mode="at", statement="query_123")
     assert config.time_travel_mode == "at"
     assert config.statement == "query_123"
-    assert config.timezone == "NTZ"
+    assert config.timestamp_type == "NTZ"
 
 
 def test_validate_and_normalize_time_travel_params():
@@ -609,9 +609,11 @@ def test_validate_and_normalize_time_travel_params():
             time_travel_mode="at", statement="q1", offset=-60
         )
 
-    with pytest.raises(ValueError, match="'timezone' value .* must be None or one of"):
+    with pytest.raises(
+        ValueError, match="'timestamp_type' value .* must be None or one of"
+    ):
         TimeTravelConfig.validate_and_normalize_params(
-            time_travel_mode="at", timestamp="2023-01-01 12:00:00", timezone="UTC"
+            time_travel_mode="at", timestamp="2023-01-01 12:00:00", timestamp_type="UTC"
         )
 
 
@@ -644,7 +646,9 @@ def test_generate_time_travel_sql_clause():
         ),
         (
             TimeTravelConfig(
-                time_travel_mode="AT", timestamp="2023-01-01 12:00:00", timezone="NTZ"
+                time_travel_mode="AT",
+                timestamp="2023-01-01 12:00:00",
+                timestamp_type="NTZ",
             ),
             " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('2023-01-01 12:00:00'))",
         ),
@@ -652,7 +656,7 @@ def test_generate_time_travel_sql_clause():
             TimeTravelConfig(
                 time_travel_mode="BEFORE",
                 timestamp="2023-01-01 12:00:00",
-                timezone="LTZ",
+                timestamp_type="LTZ",
             ),
             " BEFORE (TIMESTAMP => TO_TIMESTAMP_LTZ('2023-01-01 12:00:00'))",
         ),
@@ -660,7 +664,7 @@ def test_generate_time_travel_sql_clause():
             TimeTravelConfig(
                 time_travel_mode="at",
                 timestamp="2023-01-01 12:00:00",
-                timezone="UNKNOWN",
+                timestamp_type="UNKNOWN",
             ),
             " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('2023-01-01 12:00:00'))",
         ),  # fallback

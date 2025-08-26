@@ -110,7 +110,7 @@ _TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
     "STATEMENT": "statement",
     "OFFSET": "offset",
     "TIMESTAMP": "timestamp",
-    "TIMEZONE": "timezone",
+    "TIMESTAMP_TYPE": "timestamp_type",
     "STREAM": "stream",
 }
 
@@ -531,7 +531,9 @@ class DataFrameReader:
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime]] = None,
-        timezone: Optional[Union[str, TimestampTimeZone]] = TimestampTimeZone.DEFAULT,
+        timestamp_type: Optional[
+            Union[str, TimestampTimeZone]
+        ] = TimestampTimeZone.DEFAULT,
         stream: Optional[str] = None,
     ) -> Table:
         """Returns a Table that points to the specified table.
@@ -549,8 +551,8 @@ class DataFrameReader:
             timestamp: Timestamp string or datetime object for time travel.
                 Can also be set via ``option("timestamp", "2023-01-01 12:00:00")`` or
                 ``option("as-of-timestamp", "2023-01-01 12:00:00")``.
-            timezone: Timezone for timestamp conversion ('NTZ', 'LTZ', or 'TZ').
-                Can also be set via ``option("timezone", "LTZ")``.
+            timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+                Can also be set via ``option("timestamp_type", "LTZ")``.
             stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
 
         Note:
@@ -596,7 +598,7 @@ class DataFrameReader:
                 "statement": statement,
                 "offset": offset,
                 "timestamp": timestamp,
-                "timezone": timezone,
+                "timestamp_type": timestamp_type,
                 "stream": stream,
             }
         else:
@@ -1049,7 +1051,7 @@ class DataFrameReader:
             - ``statement``: Query ID for statement-based time travel
             - ``offset``: Seconds to go back in time (negative integer)
             - ``timestamp``: Specific timestamp for time travel
-            - ``timezone``: Timezone for timestamp interpretation
+            - ``timestamp_type``: Type of timestamp interpretation
             - ``stream``: Stream name for stream-based time travel
 
         Special PySpark compatibility option:

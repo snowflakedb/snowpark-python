@@ -298,7 +298,9 @@ class Table(DataFrame):
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime.datetime]] = None,
-        timezone: Optional[Union[str, TimestampTimeZone]] = TimestampTimeZone.DEFAULT,
+        timestamp_type: Optional[
+            Union[str, TimestampTimeZone]
+        ] = TimestampTimeZone.DEFAULT,
         stream: Optional[str] = None,
     ) -> None:
         if _ast_stmt is None and session is not None and _emit_ast:
@@ -313,7 +315,7 @@ class Table(DataFrame):
             statement=statement,
             offset=offset,
             timestamp=timestamp,
-            timezone=timezone,
+            timestamp_type=timestamp_type,
             stream=stream,
         )
 

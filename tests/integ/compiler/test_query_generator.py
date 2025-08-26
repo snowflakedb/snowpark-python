@@ -618,7 +618,7 @@ def test_time_travel_basic_functionality(session, time_travel_test_setup):
         "test_time_travel_table",
         time_travel_mode="before",
         timestamp=table_creation_ts,
-        timezone="LTZ",
+        timestamp_type="LTZ",
     ).select("name")
     check_generated_plan_queries(df_3._plan)
 
@@ -632,11 +632,15 @@ def test_time_travel_option_based(session, time_travel_test_setup):
     test_cases = [
         {"time_travel_mode": "before", "statement": query_id},
         {"time_travel_mode": "at", "offset": -1},
-        {"time_travel_mode": "before", "timestamp": timestamp_str, "timezone": "LTZ"},
+        {
+            "time_travel_mode": "before",
+            "timestamp": timestamp_str,
+            "timestamp_type": "LTZ",
+        },
         {"time_travel_mode": "at", "timestamp": timestamp_str},
         {"as-of-timestamp": timestamp_str},
         {"time_travel_mode": "at", "as-of-timestamp": timestamp_str},
-        {"as-of-timestamp": timestamp_str, "timezone": "LTZ"},
+        {"as-of-timestamp": timestamp_str, "timestamp_type": "LTZ"},
     ]
 
     for options in test_cases:
