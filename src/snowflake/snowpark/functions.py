@@ -10914,8 +10914,8 @@ def make_interval(
 
 @publicapi
 def make_ym_interval(
-    years: Union[ColumnOrName, int] = 0,
-    months: Union[ColumnOrName, int] = 0,
+    years: Optional[ColumnOrName] = None,
+    months: Optional[ColumnOrName] = None,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -10945,53 +10945,42 @@ def make_ym_interval(
         <BLANKLINE>
 
     """
-    if isinstance(years, (int, float)) and isinstance(months, (int, float)):
-        years_int = int(years)
-        months_int = int(months)
+    if years is None:
+        years = lit(0)
+    if months is None:
+        months = lit(0)
 
-        total_months = years_int * 12 + months_int
-        if total_months >= 0:
-            normalized_years, normalized_months = divmod(total_months, 12)
-        else:
-            normalized_years = total_months * -1 // 12
-            normalized_months = (12 * normalized_years + total_months) * -1
+    years_col = _to_col_if_str(years, "make_ym_interval")
+    months_col = _to_col_if_str(months, "make_ym_interval")
 
-        return sql_expr(
-            f"""INTERVAL '{'-' if total_months < 0 else ''}{normalized_years}-{normalized_months}' YEAR TO MONTH""",
-            _emit_ast=_emit_ast,
-        )
-    else:
-        years_col = _to_col_if_str(years, "make_ym_interval")
-        months_col = _to_col_if_str(months, "make_ym_interval")
+    total_months = years_col * lit(12) + months_col
 
-        total_months = years_col * lit(12) + months_col
+    normalized_years = iff(
+        total_months >= lit(0),
+        cast(floor(total_months / lit(12)), "int"),
+        cast(floor((total_months * lit(-1)) / lit(12)), "int"),
+    )
 
-        normalized_years = iff(
-            total_months >= lit(0),
-            cast(floor(total_months / lit(12)), "int"),
-            cast(floor((total_months * lit(-1)) / lit(12)), "int"),
-        )
+    normalized_months = iff(
+        total_months >= lit(0),
+        cast(total_months % lit(12), "int"),
+        cast((lit(12) * normalized_years + total_months) * lit(-1), "int"),
+    )
 
-        normalized_months = iff(
-            total_months >= lit(0),
-            cast(total_months % lit(12), "int"),
-            cast((lit(12) * normalized_years + total_months) * lit(-1), "int"),
-        )
+    sign_prefix = iff(total_months < lit(0), lit("-"), lit(""))
 
-        sign_prefix = iff(total_months < lit(0), lit("-"), lit(""))
+    interval_string = concat(
+        sign_prefix,
+        cast(normalized_years, "str"),
+        lit("-"),
+        iff(
+            normalized_months < lit(10),
+            concat(lit("0"), cast(normalized_months, "str")),
+            cast(normalized_months, "str"),
+        ),
+    )
 
-        interval_string = concat(
-            sign_prefix,
-            cast(normalized_years, "str"),
-            lit("-"),
-            iff(
-                normalized_months < lit(10),
-                concat(lit("0"), cast(normalized_months, "str")),
-                cast(normalized_months, "str"),
-            ),
-        )
-
-        return cast(interval_string, "INTERVAL YEAR TO MONTH")
+    return cast(interval_string, "INTERVAL YEAR TO MONTH")
 
 
 @publicapi
