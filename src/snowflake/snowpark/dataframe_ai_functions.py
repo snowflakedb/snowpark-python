@@ -8,6 +8,7 @@ from snowflake.snowpark._internal.utils import (
     create_prompt_column_from_template,
     experimental,
 )
+from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import Column, _to_col_if_str
 from snowflake.snowpark.functions import (
     ai_complete,
@@ -15,6 +16,9 @@ from snowflake.snowpark.functions import (
     ai_agg,
     ai_classify,
     ai_similarity,
+    ai_sentiment,
+    ai_embed,
+    ai_summarize_agg,
 )
 from snowflake.snowpark._internal.telemetry import add_api_call
 
@@ -232,7 +236,7 @@ class DataFrameAIFunctions:
     def agg(
         self,
         task_description: str,
-        input_column: Union[str, Column],
+        input_column: ColumnOrName,
         *,
         output_column: Optional[str] = None,
         _emit_ast: bool = True,
@@ -328,7 +332,7 @@ class DataFrameAIFunctions:
     @experimental(version="1.37.0")
     def classify(
         self,
-        input_column: Union[str, Column],
+        input_column: ColumnOrName,
         categories: Union[List[str], Column],
         *,
         output_column: Optional[str] = None,
@@ -472,8 +476,8 @@ class DataFrameAIFunctions:
     @experimental(version="1.37.0")
     def similarity(
         self,
-        input1: Union[str, Column],
-        input2: Union[str, Column],
+        input1: ColumnOrName,
+        input2: ColumnOrName,
         *,
         output_column: Optional[str] = None,
         _emit_ast: bool = True,
@@ -604,5 +608,318 @@ class DataFrameAIFunctions:
         add_api_call(
             df,
             "DataFrame.ai.similarity",
+        )
+        return df
+
+    @experimental(version="1.37.0")
+    def sentiment(
+        self,
+        input_column: ColumnOrName,
+        categories: Optional[List[str]] = None,
+        *,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Extract sentiment analysis from text content.
+
+        This method analyzes the sentiment of text in each row, providing overall sentiment
+        and optionally sentiment for specific categories or aspects mentioned in the text.
+
+        Args:
+            input_column: The column (Column object or column name as string) containing the text
+                to analyze for sentiment.
+            categories: Optional list of up to 10 categories (also called entities or aspects) for which
+                sentiment should be extracted. Each category may be a maximum of 30 characters long.
+                For example, if extracting sentiment from restaurant reviews, you might specify
+                ``['cost', 'quality', 'service', 'wait time']`` as categories. If not provided,
+                only overall sentiment is returned.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_SENTIMENT_OUTPUT`` is appended.
+
+        Returns:
+            A new DataFrame with an appended output column containing sentiment results.
+            The output is a JSON object with a ``categories`` field containing an array of records.
+            Each record includes:
+
+                - ``name``: The category name (``overall`` for overall sentiment)
+                - ``sentiment``: One of ``unknown``, ``positive``, ``negative``, ``neutral``, or ``mixed``
+
+        Examples::
+
+            >>> # Overall sentiment analysis
+            >>> df = session.create_dataframe([
+            ...     ["The movie had amazing visual effects but the plot was terrible."],
+            ...     ["The food was delicious but the service was slow."],
+            ...     ["Everything about this experience was perfect!"],
+            ... ], schema=["review"])
+            >>> result_df = df.ai.sentiment(
+            ...     input_column="review",
+            ...     output_column="sentiment"
+            ... )
+            >>> result_df.columns
+            ['REVIEW', 'SENTIMENT']
+            >>> results = result_df.collect()
+            >>> import json
+            >>> overall_sentiment = json.loads(results[2]["SENTIMENT"])["categories"][0]
+            >>> overall_sentiment["name"]
+            'overall'
+            >>> overall_sentiment["sentiment"]
+            'positive'
+
+            >>> # Sentiment analysis with specific categories
+            >>> from snowflake.snowpark.functions import col
+            >>> df = session.create_dataframe([
+            ...     ["The hotel room was spacious and clean, but the wifi was terrible and the breakfast was mediocre."],
+            ...     ["Great location and friendly staff, though the parking was expensive."],
+            ... ], schema=["review"])
+            >>> result_df = df.ai.sentiment(
+            ...     input_column=col("review"),
+            ...     categories=["room", "wifi", "breakfast", "location", "staff", "parking"],
+            ...     output_column="detailed_sentiment"
+            ... )
+            >>> result_df.columns
+            ['REVIEW', 'DETAILED_SENTIMENT']
+            >>> results = result_df.collect()
+            >>> sentiments = json.loads(results[0]["DETAILED_SENTIMENT"])["categories"]
+            >>> # Check that we have sentiments for overall plus the specified categories
+            >>> len(sentiments) > 1
+            True
+            >>> category_names = [s["name"] for s in sentiments]
+            >>> "overall" in category_names
+            True
+            >>> "room" in category_names
+            True
+
+        Note:
+            AI_SENTIMENT can analyze sentiment in English, French, German, Hindi, Italian, Spanish,
+            and Portuguese. You can specify categories in the language of the text or in English.
+        """
+
+        # Convert string input column to Column object
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.sentiment")
+
+        # Call the ai_sentiment function
+        result_col = ai_sentiment(
+            input_col,
+            categories=categories,
+            _emit_ast=False,
+        )
+
+        # Add the output column to the DataFrame
+        output_column_name = output_column or "AI_SENTIMENT_OUTPUT"
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            "DataFrame.ai.sentiment",
+        )
+        return df
+
+    @experimental(version="1.37.0")
+    def embed(
+        self,
+        input_column: ColumnOrName,
+        model: str,
+        *,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Generate embedding vectors from text or images.
+
+        This method creates dense vector representations (embeddings) of text or images,
+        which can be used for similarity search, clustering, or as features for machine learning.
+
+        Args:
+            input_column: The column (Column object or column name as string) containing the text
+                or images (FILE data type) to embed.
+            model: The embedding model to use. Supported models:
+
+                For text embeddings:
+                    - ``snowflake-arctic-embed-l-v2.0``: Arctic large model (default for text)
+                    - ``snowflake-arctic-embed-l-v2.0-8k``: Arctic large model with 8K context
+                    - ``nv-embed-qa-4``: NVIDIA embedding model for Q&A
+                    - ``multilingual-e5-large``: Multilingual embedding model
+                    - ``voyage-multilingual-2``: Voyage multilingual model
+
+                For image embeddings:
+                    - ``voyage-multimodal-3``: Voyage multimodal model (only for images)
+
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_EMBED_OUTPUT`` is appended.
+
+        Returns:
+            A new DataFrame with an appended output column containing VECTOR embeddings.
+
+        Examples::
+
+            >>> # Text embeddings with default model
+            >>> df = session.create_dataframe([
+            ...     ["Machine learning is fascinating"],
+            ...     ["Snowflake provides cloud data platform"],
+            ...     ["Python is a versatile programming language"],
+            ... ], schema=["text"])
+            >>> result_df = df.ai.embed(
+            ...     input_column="text",
+            ...     model="snowflake-arctic-embed-l-v2.0",
+            ...     output_column="text_vector"
+            ... )
+            >>> results = result_df.collect()
+            >>> # Verify we got embeddings
+            >>> all(len(row["TEXT_VECTOR"]) > 0 for row in results)
+            True
+
+            >>> # Multilingual text embeddings
+            >>> from snowflake.snowpark.functions import col
+            >>> df = session.create_dataframe([
+            ...     ["Hello world"],
+            ...     ["Bonjour le monde"],
+            ...     ["Hola mundo"],
+            ...     ["你好世界"],
+            ... ], schema=["greeting"])
+            >>> result_df = df.ai.embed(
+            ...     input_column=col("greeting"),
+            ...     model="multilingual-e5-large",
+            ...     output_column="multilingual_vector"
+            ... )
+            >>> results = result_df.collect()
+            >>> # All greetings should have embeddings
+            >>> all(len(row["MULTILINGUAL_VECTOR"]) > 0 for row in results)
+            True
+
+            >>> # Image embeddings
+            >>> from snowflake.snowpark.functions import to_file
+            >>> # Upload images to a stage first
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+            >>> _ = session.file.put("tests/resources/dog.jpg", "@mystage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/cat.jpeg", "@mystage", auto_compress=False)
+            >>> df = session.read.file("@mystage")
+            >>> result_df = df.ai.embed(
+            ...     input_column="file",
+            ...     model="voyage-multimodal-3",
+            ...     output_column="image_vector"
+            ... )
+            >>> results = result_df.collect()
+            >>> # Both images should have embeddings
+            >>> all(len(row["IMAGE_VECTOR"]) > 0 for row in results)
+            True
+
+        Note:
+            - Embeddings can be used with vector similarity functions to find similar items
+            - Different models produce embeddings of different dimensions
+            - For best results, use the same model for all items you want to compare
+        """
+
+        # Convert string input column to Column object
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.embed")
+
+        # Call the ai_embed function
+        result_col = ai_embed(
+            model=model,
+            input=input_col,
+            _emit_ast=False,
+        )
+
+        # Add the output column to the DataFrame
+        output_column_name = output_column or "AI_EMBED_OUTPUT"
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            "DataFrame.ai.embed",
+        )
+        return df
+
+    @experimental(version="1.37.0")
+    def summarize_agg(
+        self,
+        input_column: ColumnOrName,
+        *,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Summarize a column of text data using AI.
+
+        This method aggregates and summarizes text data from multiple rows into a single
+        comprehensive summary. It's particularly useful for creating summaries from
+        collections of reviews, feedback, transcripts, or other text content.
+
+        Args:
+            input_column: The column (Column object or column name as string) containing the text
+                data to summarize.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_SUMMARIZE_AGG_OUTPUT`` is appended.
+
+        Returns:
+            A new DataFrame with a single row containing the summarized text.
+
+        Examples::
+
+            >>> # Summarize product reviews
+            >>> df = session.create_dataframe([
+            ...     ["The product quality is excellent and shipping was fast."],
+            ...     ["Great value for money, highly recommend!"],
+            ...     ["Customer service was very helpful and responsive."],
+            ...     ["The packaging could be better, but the product itself is good."],
+            ...     ["Easy to use and works as advertised."],
+            ... ], schema=["review"])
+            >>> summary_df = df.ai.summarize_agg(
+            ...     input_column="review",
+            ...     output_column="reviews_summary"
+            ... )
+            >>> summary_df.columns
+            ['REVIEWS_SUMMARY']
+            >>> summary_df.count()
+            1
+            >>> results = summary_df.collect()
+            >>> len(results[0]["REVIEWS_SUMMARY"]) > 10
+            True
+
+            >>> # Summarize with Column object
+            >>> from snowflake.snowpark.functions import col
+            >>> df = session.create_dataframe([
+            ...     ["Meeting started with project updates"],
+            ...     ["Discussed timeline and deliverables"],
+            ...     ["Identified key risks and mitigation strategies"],
+            ...     ["Assigned action items to team members"],
+            ... ], schema=["meeting_notes"])
+            >>> summary_df = df.ai.summarize_agg(
+            ...     input_column=col("meeting_notes"),
+            ...     output_column="meeting_summary"
+            ... )
+            >>> summary_df.columns
+            ['MEETING_SUMMARY']
+            >>> summary_df.count()
+            1
+
+        Note:
+            - This is an aggregation function that combines multiple rows into a single summary
+            - For best results, provide clear and coherent text in the input column
+            - The summary will capture the main themes and important points from all input rows
+            - Unlike the ``agg`` method which requires a task description, ``summarize_agg``
+              automatically generates a comprehensive summary
+        """
+
+        # Convert string input column to Column object
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.summarize_agg")
+
+        # Call the ai_summarize_agg function
+        result_col = ai_summarize_agg(
+            input_col,
+            _emit_ast=False,
+        )
+
+        # Create a new DataFrame with the summarized result
+        output_column_name = output_column or "AI_SUMMARIZE_AGG_OUTPUT"
+        df = self._dataframe.select(
+            result_col.alias(output_column_name), _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            "DataFrame.ai.summarize_agg",
         )
         return df

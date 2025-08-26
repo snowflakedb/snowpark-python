@@ -123,7 +123,11 @@ DataFrame
     DataFrameAIFunctions.agg
     DataFrameAIFunctions.classify
     DataFrameAIFunctions.complete
+    DataFrameAIFunctions.embed
     DataFrameAIFunctions.filter
+    DataFrameAIFunctions.sentiment
+    DataFrameAIFunctions.similarity
+    DataFrameAIFunctions.summarize_agg
     dataframe.map
     dataframe.map_in_pandas
 
