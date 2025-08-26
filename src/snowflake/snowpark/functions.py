@@ -12361,6 +12361,170 @@ def prompt(
 
 
 @publicapi
+def ai_extract(
+    input: Union[ColumnOrLiteralStr, Column],
+    response_format: Union[dict, list],
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Extracts information from an input string or file based on the specified response format.
+
+    Args:
+        input: Either:
+            - A string or Column containing text to extract information from
+            - A FILE type Column representing a document to extract from
+
+        response_format: Information to be extracted in one of the following formats:
+
+            - Simple object schema (dict) mapping feature names to extraction prompts:
+              ``{'name': 'What is the last name of the employee?', 'address': 'What is the address of the employee?'}``
+            - Array of strings containing the information to be extracted:
+              ``['What is the last name of the employee?', 'What is the address of the employee?']``
+            - Array of arrays containing two strings (feature name and extraction prompt):
+              ``[['name', 'What is the last name of the employee?'], ['address', 'What is the address of the employee?']]``
+            - Array of strings with colon-separated feature names and extraction prompts:
+              ``['name: What is the last name of the employee?', 'address: What is the address of the employee?']``
+
+    Returns:
+        A Column containing a JSON object with the extracted information.
+
+    Note:
+        - You can either ask questions in natural language or describe information to be extracted
+          (e.g., 'City, street, ZIP' instead of 'What is the address?')
+        - To extract a list, add 'List:' at the beginning of each question
+        - Maximum of 100 features can be extracted
+        - Documents must be no more than 125 pages long
+        - Maximum output length is 512 tokens per question
+
+        Supported file formats: PDF, PNG, PPTX, EML, DOC, DOCX, JPEG, JPG, HTM, HTML, TEXT, TXT, TIF, TIFF
+        Files must be less than 100 MB in size.
+
+    Examples::
+
+        >>> # Extract from text string
+        >>> df = session.range(1).select(
+        ...     ai_extract(
+        ...         'John Smith lives in San Francisco and works for Snowflake',
+        ...         {'name': 'What is the first name of the employee?', 'city': 'What is the address of the employee?'}
+        ...     ).alias("extracted")
+        ... )
+        >>> df.show()
+        --------------------------------
+        |"EXTRACTED"                   |
+        --------------------------------
+        |{                             |
+        |  "response": {               |
+        |    "city": "San Francisco",  |
+        |    "name": "John"            |
+        |  }                           |
+        |}                             |
+        --------------------------------
+        <BLANKLINE>
+
+        >>> # Extract using array format
+        >>> df = session.create_dataframe(
+        ...     ["Alice Johnson works in Seattle", "Bob Williams works in Portland"],
+        ...     schema=["text"]
+        ... )
+        >>> extracted_df = df.select(
+        ...     col("text"),
+        ...     ai_extract(col("text"), [['name', 'What is the first name?'], ['city', 'What city do they work in?']]).alias("info")
+        ... )
+        >>> extracted_df.show()
+        ------------------------------------------------------------
+        |"TEXT"                          |"INFO"                   |
+        ------------------------------------------------------------
+        |Alice Johnson works in Seattle  |{                        |
+        |                                |  "response": {          |
+        |                                |    "city": "Seattle",   |
+        |                                |    "name": "Alice"      |
+        |                                |  }                      |
+        |                                |}                        |
+        |Bob Williams works in Portland  |{                        |
+        |                                |  "response": {          |
+        |                                |    "city": "Portland",  |
+        |                                |    "name": "Bob"        |
+        |                                |  }                      |
+        |                                |}                        |
+        ------------------------------------------------------------
+        <BLANKLINE>
+
+        >>> # Extract lists using List: prefix
+        >>> df = session.range(1).select(
+        ...     ai_extract(
+        ...         'Python, Java, and JavaScript are popular programming languages',
+        ...         [['languages', 'List: What programming languages are mentioned?']]
+        ...     ).alias("extracted")
+        ... )
+        >>> df.show()
+        ----------------------
+        |"EXTRACTED"         |
+        ----------------------
+        |{                   |
+        |  "response": {     |
+        |    "languages": [  |
+        |      "Python",     |
+        |      "Java",       |
+        |      "JavaScript"  |
+        |    ]               |
+        |  }                 |
+        |}                   |
+        ----------------------
+        <BLANKLINE>
+
+
+        >>> # Extract from file
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_extract(
+        ...         to_file('@mystage/invoice.pdf'),
+        ...         [['date', 'What is the date of the invoice?'], ['amount', 'What is the amount of the invoice?']]
+        ...     ).alias("extracted")
+        ... )
+        >>> df.show()
+        --------------------------------
+        |"EXTRACTED"                   |
+        --------------------------------
+        |{                             |
+        |  "response": {               |
+        |    "amount": "USD $950.00",  |
+        |    "date": "Nov 26, 2016"    |
+        |  }                           |
+        |}                             |
+        --------------------------------
+        <BLANKLINE>
+    """
+    sql_func_name = "ai_extract"
+
+    # Convert input to column if it's a string literal
+    if isinstance(input, str):
+        input_col = lit(input)
+    else:
+        input_col = input
+
+    # Convert response_format to SQL expression
+    # We use json.dumps and replace double quotes with single quotes as per SQL requirements
+    response_format_col = sql_expr(json.dumps(response_format).replace('"', "'"))
+
+    # Build AST if needed
+    ast = (
+        build_function_expr(sql_func_name, [input, response_format])
+        if _emit_ast
+        else None
+    )
+
+    # Call the function with positional arguments
+    return _call_function(
+        sql_func_name,
+        input_col,
+        response_format_col,
+        _ast=ast,
+        _emit_ast=_emit_ast,
+    )
+
+
+@publicapi
 def ai_filter(
     predicate: ColumnOrLiteralStr,
     file: Optional[Column] = None,
