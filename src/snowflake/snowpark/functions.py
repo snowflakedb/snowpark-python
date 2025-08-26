@@ -11145,13 +11145,13 @@ def make_dt_interval(
         secs_formatted,
     )
 
-    def get_col_name(col, original_param):
-        if original_param is None:
-            return "0"
+    def get_col_name(col):
+        if isinstance(col._expr1, Literal):
+            return str(col._expr1.value)
         else:
             return str(col._expr1)
 
-    alias_name = f"make_dt_interval({get_col_name(days_col, days)}, {get_col_name(hours_col, hours)}, {get_col_name(mins_col, mins)}, {get_col_name(secs_col, secs)})"
+    alias_name = f"make_dt_interval({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
 
     return cast(interval_value, "INTERVAL DAY TO SECOND").alias(alias_name)
 
