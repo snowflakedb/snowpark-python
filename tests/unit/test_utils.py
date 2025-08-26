@@ -565,7 +565,7 @@ def test_time_travel_config():
     config = TimeTravelConfig(time_travel_mode="at", statement="query_123")
     assert config.time_travel_mode == "at"
     assert config.statement == "query_123"
-    assert config.timestamp_type == "NTZ"
+    assert config.timestamp_type is None
 
 
 def test_validate_and_normalize_time_travel_params():
@@ -618,15 +618,80 @@ def test_validate_and_normalize_time_travel_params():
 
 
 def test_normalize_timestamp():
-    """Test timestamp normalization."""
-    # Valid cases - datetime objects
+    """Test timestamp normalization and timestamp_type handling."""
     dt = datetime(2023, 1, 1, 12, 30, 45)
     assert _normalize_timestamp(dt) == "2023-01-01 12:30:45"
 
     dt_with_microseconds = datetime(2023, 1, 1, 12, 30, 45, 123456)
     assert _normalize_timestamp(dt_with_microseconds) == "2023-01-01 12:30:45.123456"
     assert _normalize_timestamp("  2024-02-29 00:00:00 ") == "2024-02-29 00:00:00"
-    assert _normalize_timestamp("2023-01-01 12:00:00") == "2023-01-01 12:00:00"
+
+    # timestamp_type handling - various timezone sources
+    import pytz
+    from datetime import timezone, timedelta
+
+    timezones_to_test = [
+        pytz.UTC,  # UTC
+        pytz.timezone("US/Eastern"),  # EST/EDT
+        pytz.timezone("Europe/London"),  # GMT/BST
+        pytz.timezone("Asia/Tokyo"),  # JST
+        timezone.utc,  # UTC
+        timezone(timedelta(hours=5, minutes=30)),  # +05:30 (India)
+        timezone(timedelta(hours=-8)),  # -08:00 (PST)
+    ]
+
+    from snowflake.snowpark.types import TimestampTimeZone
+
+    for tz in timezones_to_test:
+        ts_with_tz = datetime(2023, 6, 15, 14, 30, 0, tzinfo=tz)
+
+        config = TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", timestamp=ts_with_tz
+        )
+        assert config.timestamp_type == "TZ"
+        assert any(indicator in config.timestamp for indicator in ["+", "-", "UTC"])
+
+        # Respect explicit timestamp_type choice
+        for explicit_type in ["NTZ", "LTZ"]:
+            config_explicit = TimeTravelConfig.validate_and_normalize_params(
+                time_travel_mode="at",
+                timestamp=ts_with_tz,
+                timestamp_type=explicit_type,
+            )
+            assert config_explicit.timestamp_type == explicit_type
+
+        for enum_type in [
+            TimestampTimeZone.NTZ,
+            TimestampTimeZone.LTZ,
+            TimestampTimeZone.TZ,
+        ]:
+            config_enum = TimeTravelConfig.validate_and_normalize_params(
+                time_travel_mode="at", timestamp=ts_with_tz, timestamp_type=enum_type
+            )
+            assert config_enum.timestamp_type == enum_type.value.upper()
+
+    # Timezone-naive datetime uses default
+    ts_naive = datetime(2023, 1, 1, 12, 0, 0)
+    config_naive = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", timestamp=ts_naive
+    )
+    assert config_naive.timestamp_type == "NTZ"
+
+    # String timestamps - user responsibility
+    config_string = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at",
+        timestamp="2023-01-01 12:00:00+05:30",  # String with timezone offset
+        timestamp_type="NTZ",  # User's potentially wrong choice
+    )
+    assert config_string.timestamp_type == "NTZ"
+
+    # TimestampTimeZone.DEFAULT handling
+    config_default = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at",
+        timestamp="2023-01-01 12:00:00",
+        timestamp_type=TimestampTimeZone.DEFAULT,
+    )
+    assert config_default.timestamp_type == "NTZ"
 
 
 def test_generate_time_travel_sql_clause():

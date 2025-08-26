@@ -552,6 +552,10 @@ class DataFrameReader:
                 Can also be set via ``option("timestamp", "2023-01-01 12:00:00")`` or
                 ``option("as-of-timestamp", "2023-01-01 12:00:00")``.
             timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+                  - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
+                  - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
+                  - datetime without timezone (naive) → uses provided timestamp_type or defaults to 'NTZ'
+                  - string timestamps → uses provided timestamp_type or defaults to 'NTZ'
                 Can also be set via ``option("timestamp_type", "LTZ")``.
             stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
 
@@ -576,6 +580,14 @@ class DataFrameReader:
 
             # PySpark-style as-of-timestamp (automatically sets mode to "at")
             >>> table = session.read.option("as-of-timestamp", "2023-01-01 12:00:00").table("my_table")  # doctest: +SKIP
+
+            # timestamp_type automatically set to "TZ" due to timezone info
+            >>> import datetime, pytz  # doctest: +SKIP
+            >>> tz_aware = datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=pytz.UTC)  # doctest: +SKIP
+            >>> table1 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware)  # doctest: +SKIP
+
+            # timestamp_type remains "NTZ" (user's explicit choice respected)
+            >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
 
             # Mixing options and parameters (direct parameters completely override options)
             >>> table = (session.read  # doctest: +SKIP
@@ -1051,7 +1063,7 @@ class DataFrameReader:
             - ``statement``: Query ID for statement-based time travel
             - ``offset``: Seconds to go back in time (negative integer)
             - ``timestamp``: Specific timestamp for time travel
-            - ``timestamp_type``: Type of timestamp interpretation
+            - ``timestamp_type``: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ')
             - ``stream``: Stream name for stream-based time travel
 
         Special PySpark compatibility option:

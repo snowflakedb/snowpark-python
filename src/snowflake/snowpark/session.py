@@ -2533,8 +2533,12 @@ class Session:
                 Exactly one of statement, offset, timestamp, or stream must be provided when time_travel_mode is set.
             statement: Query ID for time travel.
             offset: Negative integer representing seconds in the past for time travel.
-            timestamp: Timestamp string in 'YYYY-MM-DD HH:MM:SS' format or datetime object.
-            timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ'). If not provided, defaults to 'NTZ'.
+            timestamp: Timestamp string or datetime object.
+            timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+                  - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
+                  - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
+                  - datetime without timezone (naive) → uses provided timestamp_type or defaults to 'NTZ'
+                  - string timestamps → uses provided timestamp_type or defaults to 'NTZ'
             stream: Stream name for time travel.
 
             Note:
@@ -2557,6 +2561,14 @@ class Session:
             >>> df_before = session.table("my_table", time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012") # doctest: +SKIP
             >>> df_offset = session.table("my_table", time_travel_mode="at", offset=-3600) # doctest: +SKIP
             >>> df_stream = session.table("my_table", time_travel_mode="at", stream="my_stream") # doctest: +SKIP
+
+            # timestamp_type automatically set to "TZ" due to timezone info
+            >>> import datetime, pytz  # doctest: +SKIP
+            >>> tz_aware = datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=pytz.UTC)  # doctest: +SKIP
+            >>> table1 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware)  # doctest: +SKIP
+
+            # timestamp_type remains "NTZ" (user's explicit choice respected)
+            >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
         """
         if _emit_ast:
             stmt = self._ast_batch.bind()
