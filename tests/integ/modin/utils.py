@@ -262,7 +262,7 @@ def assert_snowpark_pandas_equal_to_pandas(
         kwargs.update(check_dtype=False)
 
     # Only Snowflake supports the statement_params parameter
-    if snow.get_backend() == "Snowflake":
+    if hasattr(snow, "get_backend") and snow.get_backend() == "Snowflake":
         snow_to_native = snow.to_pandas(statement_params=statement_params)
     else:
         snow_to_native = snow.to_pandas()  # pragma: no cover
