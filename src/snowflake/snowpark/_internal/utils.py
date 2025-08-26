@@ -1966,11 +1966,14 @@ class TimeTravelConfig(NamedTuple):
         timestamp_type handling:
             - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
             - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
-            - datetime without timezone (naive) → uses provided timestamp_type or defaults to 'NTZ'
-            - string timestamps → uses provided timestamp_type or defaults to 'NTZ'
+            - datetime without timezone (naive) + timestamp_type NOT provided → no casting, raw string (timestamp_type=None)
+            - datetime without timezone (naive) + timestamp_type explicitly provided → uses provided timestamp_type
+            - string timestamps + timestamp_type NOT provided → no casting, raw string (timestamp_type=None, Snowflake native handling)
+            - string timestamps + timestamp_type explicitly provided → uses TO_TIMESTAMP_XXX casting
 
-        This behavior ensures timezone information is preserved when using datetime objects
-        with timezone info, while still respecting explicit user choices.
+        This behavior preserves timezone information for datetime objects, provides sensible defaults
+        for naive datetime objects, and lets Snowflake handle string timestamp formats natively unless
+        explicit casting is requested.
 
         Returns:
             TimeTravelConfig if time travel is specified, None otherwise.
@@ -2005,32 +2008,25 @@ class TimeTravelConfig(NamedTuple):
         normalized_timestamp = None
         if timestamp is not None:
             normalized_timestamp = _normalize_timestamp(timestamp)
-            # Set timestamp_type to "TZ" if not explicitly provided
-            if (
-                isinstance(timestamp, datetime.datetime)
-                and timestamp.tzinfo is not None
-                and timestamp_type is None
-            ):
-                timestamp_type = "TZ"
-
-        # Set default timestamp_type if not provided
-        if timestamp_type is None:
-            timestamp_type = "NTZ"
+            if isinstance(timestamp, datetime.datetime):
+                if timestamp.tzinfo is not None and timestamp_type is None:
+                    timestamp_type = "TZ"
 
         # Normalize timestamp_type
-        if hasattr(timestamp_type, "value"):
-            timestamp_type = (
-                timestamp_type.value.upper()
-                if timestamp_type.value != "default"
-                else "NTZ"
-            )
-        else:
-            timestamp_type = timestamp_type.upper()
+        if timestamp_type is not None:
+            if hasattr(timestamp_type, "value"):
+                timestamp_type = (
+                    timestamp_type.value.upper()
+                    if timestamp_type.value != "default"
+                    else "NTZ"
+                )
+            else:
+                timestamp_type = timestamp_type.upper()
 
-        if timestamp_type not in ["NTZ", "LTZ", "TZ"]:
-            raise ValueError(
-                f"'timestamp_type' value {timestamp_type} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
-            )
+            if timestamp_type not in ["NTZ", "LTZ", "TZ"]:
+                raise ValueError(
+                    f"'timestamp_type' value {timestamp_type} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
+                )
 
         return TimeTravelConfig(
             time_travel_mode=time_travel_mode,
@@ -2058,16 +2054,19 @@ class TimeTravelConfig(NamedTuple):
         elif self.stream is not None:
             clause += f"(STREAM => '{self.stream}')"
         elif self.timestamp is not None:
-            timestamp_type = self.timestamp_type or "NTZ"
-            if timestamp_type.upper() == "NTZ":
-                func_name = "TO_TIMESTAMP_NTZ"
-            elif timestamp_type.upper() == "LTZ":
-                func_name = "TO_TIMESTAMP_LTZ"
-            elif timestamp_type.upper() == "TZ":
-                func_name = "TO_TIMESTAMP_TZ"
+            if self.timestamp_type is not None:
+                timestamp_type = self.timestamp_type.upper()
+                if timestamp_type == "NTZ":
+                    func_name = "TO_TIMESTAMP_NTZ"
+                elif timestamp_type == "LTZ":
+                    func_name = "TO_TIMESTAMP_LTZ"
+                elif timestamp_type == "TZ":
+                    func_name = "TO_TIMESTAMP_TZ"
+                else:
+                    func_name = "TO_TIMESTAMP"
+                clause += f"(TIMESTAMP => {func_name}('{self.timestamp}'))"
             else:
-                func_name = "TO_TIMESTAMP_NTZ"  # default fallback
-            clause += f"(TIMESTAMP => {func_name}('{self.timestamp}'))"
+                clause += f"(TIMESTAMP => '{self.timestamp}')"
 
         return clause
 

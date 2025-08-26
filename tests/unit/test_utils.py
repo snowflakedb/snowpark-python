@@ -670,20 +670,28 @@ def test_normalize_timestamp():
             )
             assert config_enum.timestamp_type == enum_type.value.upper()
 
-    # Timezone-naive datetime uses default
     ts_naive = datetime(2023, 1, 1, 12, 0, 0)
     config_naive = TimeTravelConfig.validate_and_normalize_params(
         time_travel_mode="at", timestamp=ts_naive
     )
-    assert config_naive.timestamp_type == "NTZ"
+    assert config_naive.timestamp_type is None
 
-    # String timestamps - user responsibility
-    config_string = TimeTravelConfig.validate_and_normalize_params(
-        time_travel_mode="at",
-        timestamp="2023-01-01 12:00:00+05:30",  # String with timezone offset
-        timestamp_type="NTZ",  # User's potentially wrong choice
+    config_naive_explicit = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", timestamp=ts_naive, timestamp_type="LTZ"
     )
-    assert config_string.timestamp_type == "NTZ"
+    assert config_naive_explicit.timestamp_type == "LTZ"
+
+    config_string_no_type = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", timestamp="2023-01-01 12:00:00+05:30"
+    )
+    assert config_string_no_type.timestamp_type is None
+
+    config_string_explicit = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at",
+        timestamp="2023-01-01 12:00:00+05:30",
+        timestamp_type="TZ",
+    )
+    assert config_string_explicit.timestamp_type == "TZ"
 
     # TimestampTimeZone.DEFAULT handling
     config_default = TimeTravelConfig.validate_and_normalize_params(
@@ -731,8 +739,16 @@ def test_generate_time_travel_sql_clause():
                 timestamp="2023-01-01 12:00:00",
                 timestamp_type="UNKNOWN",
             ),
-            " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('2023-01-01 12:00:00'))",
-        ),  # fallback
+            " AT (TIMESTAMP => TO_TIMESTAMP('2023-01-01 12:00:00'))",
+        ),  # fallback uses generic TO_TIMESTAMP
+        (
+            TimeTravelConfig(
+                time_travel_mode="before",
+                timestamp="2023-01-01 12:00:00",
+                timestamp_type=None,
+            ),
+            " BEFORE (TIMESTAMP => '2023-01-01 12:00:00')",
+        ),
     ]
 
     for config, expected in test_cases:
