@@ -261,7 +261,11 @@ def assert_snowpark_pandas_equal_to_pandas(
     if expected_dtypes is not None:
         kwargs.update(check_dtype=False)
 
-    snow_to_native = snow.to_pandas(statement_params=statement_params)
+    # Only Snowflake supports the statement_params parameter
+    if snow.get_backend() == "Snowflake":
+        snow_to_native = snow.to_pandas(statement_params=statement_params)
+    else:
+        snow_to_native = snow.to_pandas()
 
     if isinstance(expected_pandas, native_pd.DataFrame):
         assert isinstance(snow, DataFrame)
