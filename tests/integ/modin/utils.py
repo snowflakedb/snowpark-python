@@ -415,6 +415,16 @@ def eval_snowpark_pandas_result(
                      4) if no exception is expected, and results are series or dataframe, but doesn't match
         NotImplementedError if the result of the operation is neither a series or dataframe
     """
+
+    # Modin does not fuly support attrs on backends other than Snowflake
+    # https://github.com/modin-project/modin/issues/7652
+    if (
+        test_attrs
+        and isinstance(snow_pandas, (Series, DataFrame))
+        and snow_pandas.get_backend() != "Snowflake"
+    ):
+        test_attrs = False  # pragma: no cover
+
     if expect_exception:
         with pytest.raises(Exception) as pd_e:
             operation(native_pandas)
