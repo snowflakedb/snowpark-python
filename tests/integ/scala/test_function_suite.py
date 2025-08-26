@@ -220,6 +220,7 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     TimestampType,
     VariantType,
+    YearMonthIntervalType,
 )
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
@@ -5653,8 +5654,11 @@ def test_make_ym_interval(session):
         schema=["years", "months"],
     )
 
+    schema_result = df.select(make_ym_interval(col("years"), col("months")))
+    assert schema_result.schema.fields[0].datatype == YearMonthIntervalType(0, 1)
+
     result = df.select(
-        make_ym_interval(col("years"), col("months")).alias("interval_result"),
+        make_ym_interval(col("years"), col("months")),
         col("years"),
         col("months"),
     ).collect()
@@ -5685,54 +5689,58 @@ def test_make_ym_interval(session):
 
     assert len(result) == 21
     for i, expected in enumerate(expected_values):
-        assert result[i]["INTERVAL_RESULT"] == expected
+        assert result[i]["make_ym_interval(years, months)"] == expected
 
     df_only_years = session.create_dataframe([(5,), (-3,), (0,)], schema=["years"])
-    result_years = df_only_years.select(
-        make_ym_interval(col("years")).alias("interval_result")
-    ).collect()
+    years_schema_result = df_only_years.select(make_ym_interval(col("years")))
+    assert years_schema_result.schema.fields[0].datatype == YearMonthIntervalType(0, 1)
 
-    assert result_years[0]["INTERVAL_RESULT"] == "+5-00"
-    assert result_years[1]["INTERVAL_RESULT"] == "-3-00"
-    assert result_years[2]["INTERVAL_RESULT"] == "+0-00"
+    result_years = years_schema_result.collect()
+    assert result_years[0]["make_ym_interval(years, 0)"] == "+5-00"
+    assert result_years[1]["make_ym_interval(years, 0)"] == "-3-00"
+    assert result_years[2]["make_ym_interval(years, 0)"] == "+0-00"
 
     df_only_months = session.create_dataframe([(15,), (-7,), (0,)], schema=["months"])
-    result_months = df_only_months.select(
-        make_ym_interval(months=col("months")).alias("interval_result")
-    ).collect()
+    months_schema_result = df_only_months.select(make_ym_interval(months=col("months")))
+    assert months_schema_result.schema.fields[0].datatype == YearMonthIntervalType(0, 1)
 
-    assert result_months[0]["INTERVAL_RESULT"] == "+1-03"
-    assert result_months[1]["INTERVAL_RESULT"] == "-0-07"
-    assert result_months[2]["INTERVAL_RESULT"] == "+0-00"
+    result_months = months_schema_result.collect()
+    assert result_months[0]["make_ym_interval(0, months)"] == "+1-03"
+    assert result_months[1]["make_ym_interval(0, months)"] == "-0-07"
+    assert result_months[2]["make_ym_interval(0, months)"] == "+0-00"
 
     df_literals = session.create_dataframe([(1,)], schema=["dummy"])
-    result_literals = df_literals.select(
-        make_ym_interval(lit(2), lit(5)).alias("literal_test"),
-        make_ym_interval(lit(-1), lit(13)).alias("negative_positive"),
-        make_ym_interval(lit(0)).alias("zero_years"),
-        make_ym_interval(months=lit(25)).alias("only_months"),
-    ).collect()
+    literals_schema_result = df_literals.select(
+        make_ym_interval(lit(2), lit(5)),
+        make_ym_interval(lit(-1), lit(13)),
+        make_ym_interval(lit(0)),
+        make_ym_interval(months=lit(25)),
+    )
 
-    assert result_literals[0]["LITERAL_TEST"] == "+2-05"
-    assert result_literals[0]["NEGATIVE_POSITIVE"] == "+0-01"
-    assert result_literals[0]["ZERO_YEARS"] == "+0-00"
-    assert result_literals[0]["ONLY_MONTHS"] == "+2-01"
+    for field in literals_schema_result.schema.fields:
+        assert field.datatype == YearMonthIntervalType(0, 1)
+
+    result_literals = literals_schema_result.collect()
+    assert result_literals[0]["make_ym_interval(2, 5)"] == "+2-05"
+    assert result_literals[0]["make_ym_interval(-1, 13)"] == "+0-01"
+    assert result_literals[0]["make_ym_interval(0, 0)"] == "+0-00"
+    assert result_literals[0]["make_ym_interval(0, 25)"] == "+2-01"
 
     df_schema_test = session.create_dataframe([(1, 2)], schema=["y", "m"])
     schema_result = df_schema_test.select(make_ym_interval(col("y"), col("m")))
     schema_fields = schema_result.schema.fields
     assert len(schema_fields) == 1
-    assert "INTERVAL" in str(schema_fields[0].datatype).upper()
+    assert schema_fields[0].datatype == YearMonthIntervalType(0, 1)
 
     df_nulls = session.create_dataframe(
         [(None, 5), (3, None), (None, None)], schema=["years", "months"]
     )
     result_nulls = df_nulls.select(
-        make_ym_interval(col("years"), col("months")).alias("interval_result")
+        make_ym_interval(col("years"), col("months"))
     ).collect()
 
-    assert result_nulls[0]["INTERVAL_RESULT"] is None
-    assert result_nulls[1]["INTERVAL_RESULT"] is None
-    assert result_nulls[2]["INTERVAL_RESULT"] is None
+    assert result_nulls[0]["make_ym_interval(years, months)"] is None
+    assert result_nulls[1]["make_ym_interval(years, months)"] is None
+    assert result_nulls[2]["make_ym_interval(years, months)"] is None
 
     session.sql("alter session set feature_interval_types=disabled;").collect()
