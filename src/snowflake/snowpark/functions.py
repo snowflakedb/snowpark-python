@@ -11245,7 +11245,7 @@ def max_by(
         ...     [2020, 20, 8000]
         ... ], schema=["employee_id", "department_id", "salary"])
         >>> df.select(max_by("employee_id", "salary", 3)).collect()
-        [Row(MAX_BY("EMPLOYEE_ID", "SALARY", 3)='[\\n  900,\\n  2010,\\n  1001\\n]')]
+        [Row(MAX_BY("EMPLOYEE_ID", "SALARY", 3)='[\\n  2010,\\n  900,\\n  1001\\n]')]
     """
     c1 = _to_col_if_str(col_to_return, "max_by")
     c2 = _to_col_if_str(col_containing_maximum, "max_by")
@@ -11289,7 +11289,7 @@ def min_by(
         ...     [2020, 20, 8000]
         ... ], schema=["employee_id", "department_id", "salary"])
         >>> df.select(min_by("employee_id", "salary", 3).alias("min_by")).collect()
-        [Row(MIN_BY='[\\n  1030,\\n  2020,\\n  1020\\n]')]
+        [Row(MIN_BY='[\\n  2020,\\n  1030,\\n  1020\\n]')]
 
     """
     c1 = _to_col_if_str(col_to_return, "min_by")
