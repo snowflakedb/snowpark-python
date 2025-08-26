@@ -3,7 +3,7 @@
 #
 
 import logging
-import contextlib
+from unittest import mock
 import pytest
 from unittest.mock import patch
 import tqdm.auto
@@ -11,18 +11,108 @@ import tqdm.auto
 import pandas as native_pd
 import numpy as np
 from numpy.testing import assert_array_equal
-from modin.config import context as config_context
+from pytest import param
+from modin.config import context as config_context, Backend
 import modin.pandas as pd
+import snowflake.snowpark.functions as snowpark_functions
+from tests.utils import running_on_jenkins
+import re
+from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from snowflake.snowpark.modin.plugin._internal.utils import (
-    MODIN_IS_AT_LEAST_0_34_0,
+from snowflake.snowpark.modin.plugin._internal.row_count_estimation import (
+    MAX_ROW_COUNT_FOR_ESTIMATION,
 )
-
+from snowflake.snowpark.modin.plugin._internal.telemetry import (
+    clear_hybrid_switch_log,
+)
+from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
+from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+from snowflake.snowpark.modin.plugin.extensions.datetime_index import DatetimeIndex
 from tests.integ.utils.sql_counter import sql_count_checker
+
+# snowflake-ml-python, which provides snowflake.cortex, may not be available in
+# the test environment. If it's not available, skip all tests in this module.
+cortex = pytest.importorskip("snowflake.cortex")
+Sentiment = cortex.Sentiment
+
+
+@sql_count_checker(query_count=0)
+def test_get_rows_with_large_and_none_upper_bound():
+    """
+    Tests that _get_rows returns a large default value when row_count_upper_bound
+    is None or very large.
+    """
+
+    pandas_df = pd.DataFrame({"A": [1, 2, 3, 4]})
+    df = pandas_df.move_to("Snowflake")
+    df._query_compiler._modin_frame.ordered_dataframe.row_count_upper_bound = None
+    assert (
+        SnowflakeQueryCompiler._get_rows(df._query_compiler)
+        == MAX_ROW_COUNT_FOR_ESTIMATION
+    )
+    df._query_compiler._modin_frame.ordered_dataframe.row_count_upper_bound = (
+        MAX_ROW_COUNT_FOR_ESTIMATION + 1
+    )
+    assert (
+        SnowflakeQueryCompiler._get_rows(df._query_compiler)
+        == MAX_ROW_COUNT_FOR_ESTIMATION
+    )
+    assert (
+        df._query_compiler.move_to_cost(
+            type(pandas_df._query_compiler), "DataFrame", "apply", {}
+        )
+        == QCCoercionCost.COST_IMPOSSIBLE
+    )
+
+
+@sql_count_checker(query_count=9, union_count=1)
+def test_snowflake_pandas_transfer_threshold():
+    """
+    Tests that the SnowflakePandasTransferThreshold configuration variable
+    is correctly used in the cost model.
+    """
+    # Verify the default value of the configuration variable.
+    assert SnowflakePandasTransferThreshold.get() == 100_000
+
+    # Create a SnowflakeQueryCompiler and verify that it has the default value.
+    compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
+    assert compiler._transfer_threshold() == 100_000
+
+    df = pd.DataFrame()
+    assert df.get_backend() == "Pandas"
+    snow_df = pd.DataFrame({"A": [1, 2, 3] * 100})
+    snow_df = snow_df.move_to("Snowflake")
+    assert snow_df.get_backend() == "Snowflake"
+    cost = snow_df._query_compiler.move_to_cost(
+        type(df._query_compiler), "DataFrame", "test_op", {}
+    )
+    assert cost < QCCoercionCost.COST_LOW
+    pandas_df = snow_df.transpose()
+
+    assert pandas_df.get_backend() == "Pandas"
+
+    # Set and verify that we can set the transfer cost to
+    # something low and it works.
+    # TODO: Allow for usage of this variable with the modin
+    # config context.
+    with config_context(SnowflakePandasTransferThreshold=10):
+        compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
+        assert compiler._transfer_threshold() == 10
+
+        snow_df = pd.DataFrame({"A": [1, 2, 3] * 100})
+        snow_df = snow_df.move_to("Snowflake")
+        # Verify that the move_to_cost changes when this value is changed.
+        cost = snow_df._query_compiler.move_to_cost(
+            type(df._query_compiler), "DataFrame", "test_op", {}
+        )
+        assert cost == QCCoercionCost.COST_IMPOSSIBLE
+        assert snow_df.get_backend() == "Snowflake"
+        result_df = snow_df.transpose()
+        assert result_df.get_backend() == "Snowflake"
 
 
 @sql_count_checker(query_count=0)
@@ -32,7 +122,6 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
     that is incompatible with Snowpark pandas, and that a warning is issued
     when attempting to convert it.
     """
-    from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 
     # DataFrame with a compatible dtype.
     df_compatible = pd.DataFrame({"A": [1, 2, 3]})
@@ -75,39 +164,62 @@ def test_merge(init_transaction_tables, us_holidays_data):
     assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=4)
 def test_filtered_data(init_transaction_tables):
     # When data is filtered, the engine should change when it is sufficiently small.
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     assert df_transactions.get_backend() == "Snowflake"
     # in-place operations that do not change the backend
+    # TODO: the following will result in an align which will grow the
+    # size of the row estimate
     df_transactions["DATE"] = pd.to_datetime(df_transactions["DATE"])
     assert df_transactions.get_backend() == "Snowflake"
     base_date = pd.Timestamp("2025-06-09").date()
+
+    # Filter 1 will stay in snowflake, because no operations are
+    # performed which will trigger a switch
     df_transactions_filter1 = df_transactions[
         (df_transactions["DATE"] >= base_date - pd.Timedelta("7 days"))
         & (df_transactions["DATE"] < base_date)
-    ]
+    ][["DATE", "REVENUE"]]
     assert df_transactions_filter1.get_backend() == "Snowflake"
+
+    # We still do not know the size of the underlying data, so
+    # GroupBy.sum will keep the data in Snowflake
     # The smaller dataframe does operations in pandas
-    df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()["REVENUE"]
-    assert df_transactions_filter1.get_backend() == "Pandas"
+    df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()
+    # We still operate in Snowflake because we cannot properly estimate the rows
+    assert df_transactions_filter1.get_backend() == "Snowflake"
+
+    # Filter 2 will immediately move to pandas because we know the size of the
+    # resultset. The SQL here is functionatly the same as above.
     df_transactions_filter2 = pd.read_snowflake(
-        "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09'"
+        "SELECT Date, SUM(Revenue) AS REVENUE FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09' GROUP BY DATE"
     )
     assert df_transactions_filter2.get_backend() == "Pandas"
+
+    # Sort and compare the results.
     assert_array_equal(
         # Snowpark handles index objects differently from native pandas, so just check values
-        df_transactions_filter1.to_pandas().values,
-        df_transactions_filter2.groupby("DATE").sum()["REVENUE"].to_pandas().values,
+        # A .head on filter1 will trigger migration to pandas
+        df_transactions_filter1["REVENUE"]
+        .to_pandas()
+        .sort_values(ascending=True)
+        .values,
+        df_transactions_filter2["REVENUE"]
+        .to_pandas()
+        .sort_values(ascending=True)
+        .values,
     )
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=4)
 def test_apply(init_transaction_tables, us_holidays_data):
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS").head(1000)
+    assert df_transactions.get_backend() == "Snowflake"
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
     df_us_holidays["Date"] = pd.to_datetime(df_us_holidays["Date"])
+    assert df_us_holidays.get_backend() == "Pandas"
 
     def forecast_revenue(df, start_date, end_date):
         # Filter data from last year
@@ -136,6 +248,11 @@ def test_apply(init_transaction_tables, us_holidays_data):
 
     start_date = pd.Timestamp("2025-10-01")
     end_date = pd.Timestamp("2025-10-31")
+
+    assert (
+        df_transactions._query_compiler._modin_frame.ordered_dataframe.row_count_upper_bound
+        == 1000
+    )
     df_forecast = forecast_revenue(df_transactions, start_date, end_date)
     assert df_forecast.get_backend() == "Pandas"
 
@@ -167,7 +284,7 @@ def small_snow_df():
 @pytest.mark.parametrize(
     "operation",
     [
-        pytest.param(
+        param(
             "tail",
             marks=pytest.mark.xfail(
                 reason="pd.DataFrame([[0, 1], [2, 3]]).groupby(0)[1].tail() fails with some indexing error.",
@@ -196,12 +313,24 @@ def test_groupby_agg_post_op_switch(operation, small_snow_df):
     assert small_snow_df.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=1)
-def test_explain_switch(us_holidays_data):
-    from snowflake.snowpark.modin.plugin._internal.telemetry import (
-        clear_hybrid_switch_log,
-    )
+@sql_count_checker(query_count=0)
+def test_explain_switch_empty():
+    clear_hybrid_switch_log()
+    empty_switch = pd.explain_switch()
+    assert len(empty_switch) == 0
+    empty_switch_cols = empty_switch.columns.tolist()
+    empty_switch_index_names = empty_switch.index.names
+    pd.DataFrame().move_to("Snowflake")
+    new_switch = pd.explain_switch()
+    assert len(new_switch) > 0
+    new_switch_cols = new_switch.columns.tolist()
+    new_switch_index_names = new_switch.index.names
+    assert new_switch_cols == empty_switch_cols
+    assert new_switch_index_names == empty_switch_index_names
 
+
+@sql_count_checker(query_count=1)
+def test_explain_switch(init_transaction_tables, us_holidays_data):
     clear_hybrid_switch_log()
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
@@ -219,18 +348,8 @@ def test_np_where_manual_switch():
         # Snowpark pandas currently does not support np.where with native objects
         np.where(df, [1, 2], [3, 4])
     df.set_backend("Pandas", inplace=True)
-    # SNOW-2173644: Prior to modin 0.34, manually switching the backend to pandas would cause lookup
-    # of the __array_function__ method to fail.
-    with (
-        pytest.raises(
-            AttributeError,
-            match=r"DataFrame object has no attribute __array_function__",
-        )
-        if not MODIN_IS_AT_LEAST_0_34_0
-        else contextlib.nullcontext()
-    ):
-        result = np.where(df, [1, 2], [3, 4])
-        assert_array_equal(result, np.array([[1, 4]]))
+    result = np.where(df, [1, 2], [3, 4])
+    assert_array_equal(result, np.array([[1, 4]]))
 
 
 @sql_count_checker(query_count=0)
@@ -296,3 +415,172 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
             assert snow_result == '{"__reduced__":{"0":1,"1":2,"2":3}}'
         else:
             assert snow_result == pandas_result
+
+
+@sql_count_checker(query_count=0)
+def test_to_datetime():
+    assert Backend.get() == "Snowflake"
+    # Should return a Snowpark pandas object without error
+    result = pd.to_datetime([3, 4, 5], unit="Y")
+    assert isinstance(result, DatetimeIndex)
+
+
+@sql_count_checker(
+    query_count=12,
+    join_count=6,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="tests queries across different execution modes",
+)
+def test_query_count_no_switch(init_transaction_tables):
+    """
+    Tests that when there is no switching behavior the query count is the
+    same under hybrid mode and non-hybrid mode.
+    """
+
+    def inner_test(df_in):
+        df_result = df_in[(df_in["REVENUE"] > 123) & (df_in["REVENUE"] < 200)]
+        df_result["REVENUE_DUPE"] = df_result["REVENUE"]
+        df_result["COUNT"] = df_result.groupby("DATE")["REVENUE"].transform("count")
+        return df_result
+
+    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    inner_test(df_transactions)
+    orig_len = None
+    hybrid_len = None
+    with pd.session.query_history() as query_history_orig:
+        with config_context(AutoSwitchBackend=False, NativePandasMaxRows=10):
+            df_result = inner_test(df_transactions)
+            orig_len = len(df_result)
+
+    with pd.session.query_history() as query_history_hybrid:
+        with config_context(AutoSwitchBackend=True, NativePandasMaxRows=10):
+            df_result = inner_test(df_transactions)
+            hybrid_len = len(df_result)
+
+    assert orig_len == hybrid_len
+    assert len(query_history_orig.queries) == len(query_history_hybrid.queries)
+
+
+non_callable_func_not_implemented = pytest.mark.xfail(
+    strict=True,
+    raises=NotImplementedError,
+    match=re.escape("Snowpark pandas apply API only supports callables func"),
+)
+
+
+class TestApplySnowparkAndCortexFunctions:
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "func",
+        [
+            snowpark_functions.floor,
+            param(
+                [
+                    snowpark_functions.floor,
+                    np.floor,
+                ],
+                marks=non_callable_func_not_implemented,
+            ),
+            param(
+                {
+                    "col0": snowpark_functions.floor,
+                },
+                marks=non_callable_func_not_implemented,
+            ),
+            param(
+                {"col0": [np.floor, snowpark_functions.floor]},
+                marks=non_callable_func_not_implemented,
+            ),
+        ],
+    )
+    def test_applying_snowpark_function_to_dataframe_causes_backend_switch(self, func):
+        """Test that applying Snowpark functions triggers switch from pandas backend to Snowflake."""
+        pandas_backend_df = pd.DataFrame({"col0": [-1.7, 2.3, 3.9]}).set_backend(
+            "pandas"
+        )
+        result = pandas_backend_df.apply(func)
+        assert result.get_backend() == "Snowflake"
+        result.to_pandas()
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.parametrize(
+        "func",
+        [
+            abs,
+            [
+                abs,
+                round,
+            ],
+            {
+                "col0": abs,
+            },
+            {"col0": [abs, round]},
+        ],
+    )
+    def test_applying_non_snowpark_function_to_dataframe_keeps_pandas_backend(
+        self, func
+    ):
+        """Test that non-snowpark python functions don't trigger backend switch."""
+
+        pandas_backend_df = pd.DataFrame({"col0": [-1.7, 2.3, 3.9]}).set_backend(
+            "pandas"
+        )
+        result = pandas_backend_df.apply(func)
+        assert result.get_backend() == "Pandas"
+        result.to_pandas()
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "data_class,method",
+        [
+            (pd.Series, pd.Series.map),
+            (pd.Series, pd.Series.apply),
+            (pd.DataFrame, pd.DataFrame.applymap),
+            (pd.DataFrame, pd.DataFrame.map),
+        ],
+    )
+    def test_mapping_snowpark_function_causes_backend_switch(self, data_class, method):
+        pandas_backend_df = data_class([1.7, 2.3]).set_backend("pandas")
+        result = method(pandas_backend_df, snowpark_functions.floor)
+        assert result.get_backend() == "Snowflake"
+        result.to_pandas()
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "func",
+        [
+            snowpark_functions.floor,
+            param(
+                [snowpark_functions.floor, abs],
+                marks=non_callable_func_not_implemented,
+            ),
+        ],
+    )
+    def test_applying_snowpark_function_to_series_causes_backend_switch(self, func):
+        series = pd.Series([1.7, 2.3, 3.9]).set_backend("pandas")
+        result = series.apply(func)
+        assert result.get_backend() == "Snowflake"
+        result.to_pandas()
+
+    @sql_count_checker(query_count=1)
+    @pytest.mark.parametrize(
+        "data_class,method",
+        [
+            (pd.Series, pd.Series.map),
+            (pd.Series, pd.Series.apply),
+            (pd.DataFrame, pd.DataFrame.apply),
+            (pd.DataFrame, pd.DataFrame.applymap),
+            (pd.DataFrame, pd.DataFrame.map),
+        ],
+    )
+    @pytest.mark.skipif(
+        running_on_jenkins(),
+        reason="TODO: SNOW-1859087 applying snowflake.cortex functions causes SSL error",
+    )
+    def test_applying_cortex_function_causes_backend_switch(self, data_class, method):
+        """Test that applying Snowflake Cortex functions triggers switch from pandas backend to Snowflake."""
+        pandas_backend_data = data_class(["happy"]).set_backend("pandas")
+        sentiment = method(pandas_backend_data, Sentiment)
+        assert sentiment.get_backend() == "Snowflake"
+        sentiment.to_pandas()

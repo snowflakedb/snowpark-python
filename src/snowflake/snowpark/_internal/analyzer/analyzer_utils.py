@@ -76,6 +76,7 @@ MINUS = " - "
 PLUS = " + "
 DISTINCT = " DISTINCT "
 LIKE = " LIKE "
+ILIKE = " ILIKE "
 CAST = " CAST "
 TRY_CAST = " TRY_CAST "
 IN = " IN "
@@ -207,6 +208,9 @@ UUID_COMMENT = "-- {}"
 MODEL = "MODEL"
 EXCLAMATION_MARK = "!"
 HAVING = " HAVING "
+STORAGE_INTEGRATION = " STORAGE_INTEGRATION "
+CREDENTIALS = " CREDENTIALS "
+ENCRYPTION = " ENCRYPTION "
 
 TEMPORARY_STRING_SET = frozenset(["temporary", "temp"])
 
@@ -508,10 +512,16 @@ def project_statement(
     child: str,
     is_distinct: bool = False,
     child_uuid: Optional[str] = None,
+    ilike_pattern: Optional[str] = None,
 ) -> str:
     if not project:
-        columns = STAR
+        columns = (
+            STAR
+            if not ilike_pattern
+            else f"{STAR}{ILIKE}{SINGLE_QUOTE}{ilike_pattern}{SINGLE_QUOTE}"
+        )
     else:
+        assert not ilike_pattern, "ilike pattern only works with *"
         columns = NEW_LINE + TAB + (COMMA + NEW_LINE + TAB).join(project)
     UUID = format_uuid(child_uuid)
     return (
@@ -1225,8 +1235,11 @@ def file_operation_statement(
 
 
 def convert_value_to_sql_option(
-    value: Optional[Union[str, bool, int, float, list, tuple]]
+    value: Optional[Union[str, bool, int, float, list, tuple]],
+    parse_none_as_string: bool = False,
 ) -> str:
+    if value is None and parse_none_as_string:
+        value = str(value)
     if isinstance(value, str):
         if len(value) > 1 and is_single_quoted(value):
             return value
@@ -1242,13 +1255,15 @@ def convert_value_to_sql_option(
         return str(value)
 
 
-def get_options_statement(options: Dict[str, Any]) -> str:
+def get_options_statement(
+    options: Dict[str, Any], skip_none: bool = True, parse_none_as_string: bool = False
+) -> str:
     return (
         SPACE
         + SPACE.join(
-            f"{k}{EQUALS}{convert_value_to_sql_option(v)}"
+            f"{k}{EQUALS}{convert_value_to_sql_option(v, parse_none_as_string=parse_none_as_string)}"
             for k, v in options.items()
-            if v is not None
+            if v is not None or (v is None and not skip_none)
         )
         + SPACE
     )
@@ -1636,15 +1651,23 @@ def copy_into_location(
     file_format_type: Optional[str] = None,
     format_type_options: Optional[Dict[str, Any]] = None,
     header: bool = False,
+    validation_mode: Optional[str] = None,
+    storage_integration: Optional[str] = None,
+    credentials: Optional[dict] = None,
+    encryption: Optional[dict] = None,
     **copy_options: Any,
 ) -> str:
     """
     COPY INTO { internalStage | externalStage | externalLocation }
          FROM { [<namespace>.]<table_name> | ( <query> ) }
+    [ STORAGE_INTEGRATION = '<storage_integration_name>' ]
+    [ CREDENTIALS = ( <cloud_specific_credentials> ) ]
+    [ ENCRYPTION =  ( <cloud_specific_encryption> ) ]
     [ PARTITION BY <expr> ]
     [ FILE_FORMAT = ( { FORMAT_NAME = '[<namespace>.]<file_format_name>' |
                         TYPE = { CSV | JSON | PARQUET } [ formatTypeOptions ] } ) ]
     [ copyOptions ]
+    [ VALIDATION_MODE = RETURN_ROWS ]
     [ HEADER ]
     """
     partition_by_clause = (
@@ -1682,6 +1705,38 @@ def copy_into_location(
         get_options_statement(copy_options) if copy_options else EMPTY_STRING
     )
     header_clause = f"{HEADER}{EQUALS}{header}" if header is not None else EMPTY_STRING
+    validation_mode_clause = (
+        f"{VALIDATION_MODE}{EQUALS}{validation_mode}"
+        if validation_mode
+        else EMPTY_STRING
+    )
+
+    storage_integration_str = (
+        NEW_LINE + STORAGE_INTEGRATION + EQUALS + storage_integration
+        if storage_integration
+        else EMPTY_STRING
+    )
+    credentials_str = (
+        NEW_LINE
+        + CREDENTIALS
+        + EQUALS
+        + LEFT_PARENTHESIS
+        + get_options_statement(credentials)
+        + RIGHT_PARENTHESIS
+        if credentials
+        else EMPTY_STRING
+    )
+    encryption_str = (
+        NEW_LINE
+        + ENCRYPTION
+        + EQUALS
+        + LEFT_PARENTHESIS
+        + get_options_statement(encryption, skip_none=False, parse_none_as_string=True)
+        + RIGHT_PARENTHESIS
+        if encryption
+        else EMPTY_STRING
+    )
+
     return (
         COPY
         + INTO
@@ -1690,11 +1745,15 @@ def copy_into_location(
         + LEFT_PARENTHESIS
         + query
         + RIGHT_PARENTHESIS
+        + storage_integration_str
+        + credentials_str
+        + encryption_str
         + partition_by_clause
         + file_format_clause
         + SPACE
         + copy_options_clause
         + SPACE
+        + validation_mode_clause
         + header_clause
     )
 
@@ -1924,6 +1983,7 @@ def write_arrow(
     chunk_size: Optional[int] = None,
     compression: str = "gzip",
     on_error: str = "abort_statement",
+    use_vectorized_scanner: bool = False,
     parallel: int = 4,
     quote_identifiers: bool = True,
     auto_create_table: bool = False,
@@ -1971,6 +2031,8 @@ def write_arrow(
         on_error: Action to take when COPY INTO statements fail, default follows documentation at:
             https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
             (Default value = 'abort_statement').
+        use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
+            `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
         parallel: Number of threads to be used when uploading chunks, default follows documentation at:
             https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
         quote_identifiers: By default, identifiers, specifically database, schema, table and column names
@@ -2126,6 +2188,7 @@ def write_arrow(
             f"FROM (SELECT {parquet_columns} FROM @{stage_location}) "
             f"FILE_FORMAT=("
             f"TYPE=PARQUET "
+            f"USE_VECTORIZED_SCANNER={use_vectorized_scanner} "
             f"COMPRESSION={compression_map[compression]}"
             f"{' BINARY_AS_TEXT=FALSE' if auto_create_table or overwrite else ''}"
             f"{sql_use_logical_type}"

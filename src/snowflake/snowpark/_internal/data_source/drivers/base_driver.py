@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from enum import Enum
-import time
 import datetime
 from typing import List, Callable, Any, Optional, TYPE_CHECKING
 from snowflake.connector.options import pandas as pd
@@ -12,8 +11,12 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
     Cursor,
 )
-from snowflake.snowpark._internal.utils import generate_random_alphanumeric
-from snowflake.snowpark._internal.utils import get_sorted_key_for_version
+from snowflake.snowpark._internal.utils import (
+    get_sorted_key_for_version,
+    measure_time,
+    random_name_for_temp_object,
+    TempObjectType,
+)
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
     StructType,
@@ -140,22 +143,22 @@ class BaseDriver:
     ) -> "snowflake.snowpark.DataFrame":
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
 
-        udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
-        start = time.time()
-        session.udtf.register(
-            self.udtf_class_builder(fetch_size=fetch_size, schema=schema),
-            name=udtf_name,
-            output_schema=StructType(
-                [
-                    StructField(field.name, VariantType(), field.nullable)
-                    for field in schema.fields
-                ]
-            ),
-            external_access_integrations=[external_access_integrations],
-            packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
-            imports=imports,
-        )
-        logger.debug(f"register ingestion udtf takes: {time.time() - start} seconds")
+        udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
+        with measure_time() as udtf_register_time:
+            session.udtf.register(
+                self.udtf_class_builder(fetch_size=fetch_size, schema=schema),
+                name=udtf_name,
+                output_schema=StructType(
+                    [
+                        StructField(field.name, VariantType(), field.nullable)
+                        for field in schema.fields
+                    ]
+                ),
+                external_access_integrations=[external_access_integrations],
+                packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
+                imports=imports,
+            )
+        logger.debug(f"register ingestion udtf takes: {udtf_register_time()} seconds")
         call_udtf_sql = f"""
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
             """

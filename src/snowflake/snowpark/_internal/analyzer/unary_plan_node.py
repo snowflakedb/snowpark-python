@@ -265,9 +265,15 @@ class Filter(UnaryNode):
 
 
 class Project(UnaryNode):
-    def __init__(self, project_list: List[NamedExpression], child: LogicalPlan) -> None:
+    def __init__(
+        self,
+        project_list: List[NamedExpression],
+        child: LogicalPlan,
+        ilike_pattern: Optional[str] = None,
+    ) -> None:
         super().__init__(child)
         self.project_list = project_list
+        self.ilike_pattern = ilike_pattern
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

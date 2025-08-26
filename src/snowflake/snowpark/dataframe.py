@@ -4,6 +4,7 @@
 #
 
 import copy
+import datetime
 import itertools
 import random
 import re
@@ -25,6 +26,7 @@ from typing import (
     Union,
     overload,
 )
+from zoneinfo import ZoneInfo
 
 import snowflake.snowpark
 import snowflake.snowpark.context as context
@@ -175,6 +177,7 @@ from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
 from snowflake.snowpark.dataframe_writer import DataFrameWriter
 from snowflake.snowpark.exceptions import SnowparkDataframeException
+from snowflake.snowpark._internal.debug_utils import QueryProfiler
 from snowflake.snowpark.functions import (
     abs as abs_,
     col,
@@ -209,6 +212,8 @@ from snowflake.snowpark.types import (
     StructType,
     _NumericType,
     _FractionalType,
+    TimestampType,
+    TimestampTimeZone,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -616,7 +621,7 @@ class DataFrame:
 
         self._statement_params = None
         self.is_cached: bool = is_cached  #: Whether the dataframe is cached.
-        self._is_grouped_by_and_aggregated = False
+        self._ops_after_agg = None
 
         # Whether all columns are VARIANT data type,
         # which support querying nested fields via dot notations
@@ -678,9 +683,9 @@ class DataFrame:
     @_ast_id.setter
     def _ast_id(self, value: Optional[int]) -> None:
         self.__ast_id = value
-        if self._plan is not None:
+        if self._plan is not None and value is not None:
             self._plan.add_df_ast_id(value)
-        if self._select_statement is not None:
+        if self._select_statement is not None and value is not None:
             self._select_statement.add_df_ast_id(value)
 
     @publicapi
@@ -1074,13 +1079,24 @@ class DataFrame:
                 **kwargs,
             )
 
-        # if the returned result is not a pandas dataframe, raise Exception
-        # this might happen when calling this method with non-select commands
-        # e.g., session.sql("create ...").to_pandas()
         if block:
             if not isinstance(result, pandas.DataFrame):
+                query = self._plan.queries[-1].sql.strip().lower()
+                is_select_statement = is_sql_select_statement(query)
+                if is_select_statement:
+                    _logger.warning(
+                        "The query result format is set to JSON. "
+                        "The result of to_pandas() may not align with the result returned in the ARROW format. "
+                        "For best compatibility with to_pandas(), set the query result format to ARROW."
+                    )
                 return pandas.DataFrame(
-                    result, columns=[attr.name for attr in self._plan.attributes]
+                    result,
+                    columns=[
+                        unquote_if_quoted(attr.name)
+                        if is_select_statement
+                        else attr.name
+                        for attr in self._plan.attributes
+                    ],
                 )
 
         return result
@@ -1924,6 +1940,65 @@ class DataFrame:
 
     @df_api_usage
     @publicapi
+    def col_ilike(
+        self,
+        pattern: str,
+        _ast_stmt: proto.Bind = None,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Returns a new DataFrame with only the columns whose names match the specified
+        pattern using case-insensitive ILIKE matching (similar to SELECT * ILIKE 'pattern' in SQL).
+
+        Args:
+            pattern: The ILIKE pattern to match column names against. You can use the following wildcards:
+                - Use an underscore (_) to match any single character.
+                - Use a percent sign (%) to match any sequence of zero or more characters.
+                - To match a sequence anywhere within the column name, begin and end the pattern with %.
+
+        Returns:
+            DataFrame: A new DataFrame containing only columns matching the pattern.
+
+        Raises:
+            ValueError: If SQL simplifier is not enabled.
+            SnowparkSQLException: If no columns match the specified pattern.
+
+        Examples::
+
+            >>> # Select all columns containing 'id' (case-insensitive)
+            >>> df = session.create_dataframe([[1, "John", 101], [2, "Jane", 102]],
+            ...                                 schema=["USER_ID", "Name", "dept_id"])
+            >>> df.col_ilike("%id%").show()
+            -------------------------
+            |"USER_ID"  |"DEPT_ID"  |
+            -------------------------
+            |1          |101        |
+            |2          |102        |
+            -------------------------
+            <BLANKLINE>
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            if _ast_stmt is None:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.dataframe_col_ilike, stmt)
+                ast.pattern = pattern
+                self._set_ast_ref(ast.df)
+            else:
+                stmt = _ast_stmt
+
+        if self._select_statement:  # sql simplifier is enabled
+            df = self._with_plan(self._select_statement.ilike(pattern), _ast_stmt=stmt)
+        else:
+            df = self._with_plan(
+                Project([], self._plan, ilike_pattern=pattern), _ast_stmt=stmt
+            )
+
+        add_api_call(df, "DataFrame.col_ilike")
+        return df
+
+    @df_api_usage
+    @publicapi
     def filter(
         self,
         expr: ColumnOrSqlExpr,
@@ -1969,7 +2044,8 @@ class DataFrame:
         # the filtering for dataframe after aggregation without nesting using HAVING
         if (
             context._is_snowpark_connect_compatible_mode
-            and self._is_grouped_by_and_aggregated
+            and self._ops_after_agg is not None
+            and "filter" not in self._ops_after_agg
         ):
             having_plan = Filter(filter_col_expr, self._plan, is_having=True)
             if self._select_statement:
@@ -1984,7 +2060,8 @@ class DataFrame:
                 )
             else:
                 df = self._with_plan(having_plan, _ast_stmt=stmt)
-            df._is_grouped_by_and_aggregated = True
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("filter")
             return df
         else:
             if self._select_statement:
@@ -2133,7 +2210,8 @@ class DataFrame:
         # the sorting for dataframe after aggregation without nesting
         if (
             context._is_snowpark_connect_compatible_mode
-            and self._is_grouped_by_and_aggregated
+            and self._ops_after_agg is not None
+            and "sort" not in self._ops_after_agg
         ):
             sort_plan = Sort(sort_exprs, self._plan, is_order_by_append=True)
             if self._select_statement:
@@ -2148,7 +2226,8 @@ class DataFrame:
                 )
             else:
                 df = self._with_plan(sort_plan, _ast_stmt=stmt)
-            df._is_grouped_by_and_aggregated = True
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("sort")
             return df
         else:
             df = (
@@ -2854,13 +2933,39 @@ class DataFrame:
         else:
             stmt = None
 
-        if self._select_statement:
-            return self._with_plan(
-                self._select_statement.limit(n, offset=offset), _ast_stmt=stmt
+        # In snowpark_connect_compatible mode, we need to handle
+        # the limit for dataframe after aggregation without nesting
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._ops_after_agg is not None
+            and "limit" not in self._ops_after_agg
+        ):
+            limit_plan = Limit(
+                Literal(n), Literal(offset), self._plan, is_limit_append=True
             )
-        return self._with_plan(
-            Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
-        )
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            limit_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(limit_plan, _ast_stmt=stmt)
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("limit")
+            return df
+        else:
+            if self._select_statement:
+                return self._with_plan(
+                    self._select_statement.limit(n, offset=offset), _ast_stmt=stmt
+                )
+            return self._with_plan(
+                Limit(Literal(n), Literal(offset), self._plan), _ast_stmt=stmt
+            )
 
     @df_api_usage
     @publicapi
@@ -4917,6 +5022,7 @@ class DataFrame:
         truncate: Union[bool, int] = True,
         vertical: bool = False,
         _spark_column_names: List[str] = None,
+        _spark_session_tz: str = None,
         **kwargs,
     ) -> str:
         """Spark's show() logic - translated from scala to python."""
@@ -4932,6 +5038,14 @@ class DataFrame:
             _spark_column_names = []
 
         def cell_to_str(cell: Any, datatype: DataType) -> str:
+            def format_timestamp_spark(dt: datetime.datetime) -> str:
+                # we don't want to use dt.strftime() to format dates since it's platform-specific and might give different results in different environments.
+                if dt.microsecond == 0:
+                    return f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
+                else:
+                    base_format = f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}.{dt.microsecond:06d}"
+                    return base_format.rstrip("0").rstrip(".")
+
             # Special handling for cell printing in Spark
             # TODO: this operation can be pushed down to Snowflake for execution.
             if cell is None:
@@ -4940,6 +5054,22 @@ class DataFrame:
                 res = "true" if cell else "false"
             elif isinstance(cell, bytes) or isinstance(cell, bytearray):
                 res = f"[{' '.join([format(b, '02X') for b in cell])}]"
+            elif (
+                isinstance(cell, datetime.datetime)
+                and isinstance(datatype, TimestampType)
+                and datatype.tz == TimestampTimeZone.NTZ
+            ):
+                res = format_timestamp_spark(cell)
+            elif isinstance(cell, datetime.datetime) and isinstance(
+                datatype, TimestampType
+            ):
+                if _spark_session_tz and cell.tzinfo is not None:
+                    converted_dt = cell.astimezone(ZoneInfo(_spark_session_tz)).replace(
+                        tzinfo=None
+                    )
+                    res = format_timestamp_spark(converted_dt)
+                else:
+                    res = format_timestamp_spark(cell)
             elif isinstance(cell, list) and isinstance(datatype, ArrayType):
                 res = (
                     "["
@@ -4956,7 +5086,7 @@ class DataFrame:
                     "{"
                     + ", ".join(
                         [
-                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.key_type or StringType())}"
+                            f"{cell_to_str(k, datatype.key_type or StringType())} -> {cell_to_str(v, datatype.value_type or StringType())}"
                             for k, v in sorted(cell.items())
                         ]
                     )
@@ -6106,6 +6236,22 @@ class DataFrame:
 
         if _emit_ast:
             cached_df._ast_id = stmt.uid
+
+        # Preserve query history from the original dataframe for profiling
+        if (
+            self._session.dataframe_profiler._query_history is not None
+            and self._plan.uuid
+            in self._session.dataframe_profiler._query_history._dataframe_queries
+        ):
+            # Copy the original dataframe's query history to the cached dataframe's UUID
+            original_queries = (
+                self._session.dataframe_profiler._query_history._dataframe_queries[
+                    self._plan.uuid
+                ]
+            )
+            self._session.dataframe_profiler._query_history._dataframe_queries[
+                cached_df._plan.uuid
+            ] = original_queries.copy()
         return cached_df
 
     @publicapi
@@ -6247,6 +6393,36 @@ class DataFrame:
 
             return res_dfs
 
+    @experimental(version="1.36.0")
+    def get_execution_profile(
+        self, output_file: Optional[str] = None, verbose: bool = False
+    ) -> None:
+        """
+        Get the execution profile of the dataframe. Output is written to the file specified by output_file if provided,
+        otherwise it is written to the console.
+        """
+        if self._session.dataframe_profiler._query_history is None:
+            _logger.warning(
+                "No query history found. Enable dataframe profiler using session.dataframe_profiler.enable()"
+            )
+            return
+        query_history = self._session.dataframe_profiler._query_history
+        if self._plan.uuid not in query_history.dataframe_queries:
+            _logger.warning(
+                f"No queries found for dataframe with plan uuid {self._plan.uuid}. Make sure to evaluate the dataframe before calling get_execution_profile."
+            )
+            return
+        try:
+            profiler = QueryProfiler(self._session, output_file)
+            if self._plan.uuid in query_history._describe_queries:
+                profiler.print_describe_queries(
+                    query_history._describe_queries[self._plan.uuid]
+                )
+            for query_id in query_history.dataframe_queries[self._plan.uuid]:
+                profiler.profile_query(query_id, verbose)
+        finally:
+            profiler.close()
+
     @property
     def queries(self) -> Dict[str, List[str]]:
         """
@@ -6340,7 +6516,7 @@ Query List:
         """
         :param proto.Bind ast_stmt: The AST statement protobuf corresponding to this value.
         """
-        df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt, _emit_ast=False)
+        df = DataFrame(self._session, plan, _ast_stmt=_ast_stmt)
         df._statement_params = self._statement_params
 
         if _ast_stmt is not None:

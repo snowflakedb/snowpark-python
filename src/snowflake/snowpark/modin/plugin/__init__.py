@@ -17,33 +17,13 @@ if sys.version_info.major == 3 and sys.version_info.minor == 8:
 # since modin may raise its own warnings/errors on the wrong pandas version
 import pandas  # isort: skip  # noqa: E402
 
-# TODO SNOW-1758773: perform version check in modin instead
-supported_pandas_major_version = 2
-supported_pandas_minor_version = 2
-actual_pandas_version = version.parse(pandas.__version__)
-recommended_supported_modin_version = "0.33.2"
+recommended_supported_modin_version = "0.35.0"
 
 install_modin_msg = (
     f"Please set the modin version as {recommended_supported_modin_version} in the Packages menu at the top of your notebook."
     if "snowbook" in sys.modules  # this indicates the environment is Snowflake Notebook
-    else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
+    else 'Run `pip install --upgrade "snowflake-snowpark-python[modin]"` to resolve.'
 )
-
-install_pandas_msg = (
-    f"Please set the pandas version as {supported_pandas_major_version}.{supported_pandas_minor_version}.x in the Packages menu at the top of your notebook."
-    if "snowbook" in sys.modules  # this indicates the environment is Snowflake Notebook
-    else 'Run `pip install "snowflake-snowpark-python[modin]"` to resolve.'
-)
-
-if (
-    actual_pandas_version.major != supported_pandas_major_version
-    and actual_pandas_version.minor != supported_pandas_minor_version
-):
-    raise RuntimeError(
-        f"The pandas version installed ({pandas.__version__}) does not match the supported pandas version in"
-        + f" Snowpark pandas ({supported_pandas_major_version}.{supported_pandas_minor_version}.x). "
-        + install_pandas_msg
-    )  # pragma: no cover
 
 try:
     import modin  # type: ignore
@@ -52,8 +32,8 @@ except ModuleNotFoundError:  # pragma: no cover
         "Modin is not installed. " + install_modin_msg
     )  # pragma: no cover
 
-modin_min_supported_version = version.parse("0.33.0")
-modin_max_supported_version = version.parse("0.35.0")  # non-inclusive
+modin_min_supported_version = version.parse("0.34.0")
+modin_max_supported_version = version.parse("0.36.0")  # non-inclusive
 actual_modin_version = version.parse(modin.__version__)
 if not (
     modin_min_supported_version <= actual_modin_version < modin_max_supported_version
@@ -64,6 +44,40 @@ if not (
         + install_modin_msg
     )  # pragma: no cover
 
+
+# TODO SNOW-1758773: perform pandas version check in modin instead
+actual_pandas_version = version.parse(pandas.__version__)
+supported_pandas_major_version = 2
+# TODO MODIN_IS_AT_LEAST_0_35_0 after dropping modin 0.34.x,
+# remove this conditional check to always allow both 2.2 and 2.3
+MODIN_IS_AT_LEAST_0_35_0 = actual_modin_version >= version.parse("0.35.0")
+if MODIN_IS_AT_LEAST_0_35_0:
+    recommended_pandas_minor_version = 3
+    pandas_version_supported = (
+        actual_pandas_version.major == supported_pandas_major_version
+        and actual_pandas_version.minor in (2, 3)
+    )
+else:
+    recommended_pandas_minor_version = 2
+    pandas_version_supported = (
+        actual_pandas_version.major == supported_pandas_major_version
+        and actual_pandas_version.minor == recommended_pandas_minor_version
+    )
+
+install_pandas_msg = (
+    f"Please set the pandas version as {supported_pandas_major_version}.{recommended_pandas_minor_version}.x in the Packages menu at the top of your notebook."
+    if "snowbook" in sys.modules  # this indicates the environment is Snowflake Notebook
+    else 'Run `pip install --upgrade "snowflake-snowpark-python[modin]"` to resolve.'
+)
+
+if not pandas_version_supported:
+    raise RuntimeError(
+        f"The pandas version installed ({pandas.__version__}) does not match the supported pandas version in"
+        + f" Snowpark pandas ({supported_pandas_major_version}.{recommended_pandas_minor_version}.x). "
+        + install_pandas_msg
+    )  # pragma: no cover
+
+
 # === INITIALIZE EXTENSION SYSTEM ===
 # Initialize all extension modules.
 import snowflake.snowpark.modin.plugin.extensions.pd_extensions  # isort: skip  # noqa: E402,F401
@@ -71,7 +85,6 @@ import snowflake.snowpark.modin.plugin.extensions.io_overrides  # isort: skip  #
 import snowflake.snowpark.modin.plugin.extensions.general_overrides  # isort: skip  # noqa: E402,F401
 
 # base overrides occur before subclass overrides in case subclasses override a base method
-import snowflake.snowpark.modin.plugin.extensions.base_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.base_overrides  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_extensions  # isort: skip  # noqa: E402,F401
 import snowflake.snowpark.modin.plugin.extensions.dataframe_overrides  # isort: skip  # noqa: E402,F401
@@ -138,7 +151,12 @@ for (doc_module, target_module) in function_inherit_modules:
 # Configure Modin engine so it detects our Snowflake I/O classes.
 # This is necessary to define the `from_pandas` method for each Modin backend, which is called in I/O methods.
 
-from modin.config import Engine, Backend, Execution  # isort: skip  # noqa: E402
+from modin.config import (  # isort: skip  # noqa: E402
+    Engine,
+    Backend,
+    Execution,
+    ValueSource,
+)
 
 # Secretly insert our factory class into Modin so the dispatcher can find it
 from modin.core.execution.dispatching.factories import (  # isort: skip  # noqa: E402
@@ -165,8 +183,8 @@ from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: 
 )
 from modin.config import AutoSwitchBackend  # isort: skip  # noqa: E402
 
-# Disable automatic backend switching by default
-AutoSwitchBackend().disable()
+if AutoSwitchBackend.get_value_source() is ValueSource.DEFAULT:
+    AutoSwitchBackend.disable()
 
 # Hybrid Mode Registration
 # In hybrid execution mode, the client will automatically switch backends when a
@@ -185,6 +203,7 @@ pre_op_switch_points: list[dict[str, Union[str, None]]] = [
     {"class_name": "Series", "method": "plot"},
     {"class_name": "Series", "method": "quantile"},
     {"class_name": "DataFrame", "method": "T"},
+    {"class_name": "DataFrame", "method": "transpose"},
     {"class_name": None, "method": "read_csv"},
     {"class_name": None, "method": "read_json"},
     {"class_name": None, "method": "concat"},
@@ -249,7 +268,26 @@ for point in post_op_switch_points:
         method=point["method"],
         backend="Snowflake",
     )
-Backend.set_active_backends(["Snowflake", "Pandas"])
+
+# On the pandas backend, auto-switch for apply-like methods so that those
+# methods can apply Snowpark and Cortex functions.
+for class_name, method in (
+    ("DataFrame", "apply"),
+    ("DataFrame", "applymap"),
+    ("DataFrame", "map"),
+    ("Series", "apply"),
+    ("Series", "map"),
+):
+    register_function_for_pre_op_switch(
+        class_name=class_name,
+        method=method,
+        backend="Pandas",
+    )
+
+if MODIN_IS_AT_LEAST_0_35_0:
+    Backend.set_active_backends(["Snowflake", "Pandas", "Ray"])
+else:
+    Backend.set_active_backends(["Snowflake", "Pandas"])
 
 
 # === SET UP TELEMETRY ===

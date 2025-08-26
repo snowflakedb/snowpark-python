@@ -35,6 +35,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     pivot_statement,
     unpivot_statement,
     sample_by_statement,
+    get_options_statement,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Inner,
@@ -376,6 +377,7 @@ def test_convert_value_to_sql_option():
     assert convert_value_to_sql_option("") == "''"
     assert convert_value_to_sql_option(1) == "1"
     assert convert_value_to_sql_option(None) == "None"
+    assert convert_value_to_sql_option(None, parse_none_as_string=True) == "'None'"
     assert convert_value_to_sql_option((1,)) == "(1)"
     assert convert_value_to_sql_option((1, 2)) == "(1, 2)"
 
@@ -509,6 +511,16 @@ def test_project_statement_formatting():
 
     assert project_statement(["col1", "col2"], "table1", is_distinct=True) == (
         " SELECT  DISTINCT \n" "    col1, \n" "    col2\n" " FROM (\n" "table1\n" ")"
+    )
+
+    # Test ilike_pattern with star projection
+    assert project_statement([], "table1", ilike_pattern="%id%") == (
+        " SELECT  *  ILIKE '%id%'\n" " FROM (\n" "table1\n" ")"
+    )
+
+    # Test ilike_pattern with specific pattern
+    assert project_statement([], "table1", ilike_pattern="user%", is_distinct=True) == (
+        " SELECT  DISTINCT  *  ILIKE 'user%'\n" " FROM (\n" "table1\n" ")"
     )
 
 
@@ -727,3 +739,24 @@ def test_unpivot_statement_formatting():
         " UNPIVOT  INCLUDE NULLS (\n"
         "    sales_amount FOR month IN (JAN, FEB, MAR)\n)"
     )
+
+
+def test_get_options_statement():
+    # basic rendering and ordering
+    assert get_options_statement({"A": 1, "B": "x"}) == " A = 1 B = 'x' "
+    # skip None by default
+    assert get_options_statement({"A": None, "B": 2}) == " B = 2 "
+    # include None when skip_none=False
+    assert get_options_statement({"A": None}, skip_none=False) == " A = None "
+    # include None and quote it when parse_none_as_string=True
+    assert (
+        get_options_statement({"A": None}, skip_none=False, parse_none_as_string=True)
+        == " A = 'None' "
+    )
+    # list/tuple handling
+    assert (
+        get_options_statement({"FILES": ["a", "b"], "COLS": (1, 2)})
+        == " FILES = ('a', 'b') COLS = (1, 2) "
+    )
+    # already single-quoted string should pass through unchanged
+    assert get_options_statement({"P": "'abc'"}) == " P = 'abc' "

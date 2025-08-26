@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     warning,
     zip_file_or_directory_to_stream,
+    is_cloud_path,
 )
 from tests.utils import IS_WINDOWS, TestFiles
 
@@ -168,6 +169,37 @@ def test_normalize_file(is_local):
     assert normalize_path(name3, is_local) == (
         f"'{symbol}s ta/\\'ge'" if is_local and IS_WINDOWS else f"'{symbol}s ta\\\\'ge'"
     )
+
+
+def test_is_cloud_path_comprehensive():
+    # True cases: supported cloud schemes
+    true_cases = [
+        "s3://mybucket/key",
+        "s3china://cn-bucket/key",
+        "s3gov://gov-bucket/key",
+        "azure://container/blob",
+        "gcs://bucket/obj",
+    ]
+    for p in true_cases:
+        assert is_cloud_path(p)
+
+    # False cases: unsupported or similar-looking schemes
+    false_cases = [
+        "S3://upper/bucket",  # case sensitive
+        "s3a://bucket/key",
+        "s3n://bucket/key",
+        "abfs://container/path",
+        "http://example.com/file",
+        "https://example.com/file",
+        "snow://location",
+        "@mystage/path",
+        "file://local/path",
+        "/absolute/local/path",
+        "relative/path",
+        " s3://leading/space",  # not trimmed
+    ]
+    for p in false_cases:
+        assert is_cloud_path(p) is False
 
 
 def test_get_udf_upload_prefix():
@@ -326,10 +358,11 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_data_source_dir/test_postgres_data.py",
                 "resources/test_data_source_dir/test_databricks_data.py",
                 "resources/test_data_source_dir/test_mysql_data.py",
-                "resources/test_df_debug_dir/",
-                "resources/test_df_debug_dir/dataframe_generator1.py",
-                "resources/test_df_debug_dir/dataframe_generator2.py",
-                "resources/test_df_debug_dir/sample_read_file.txt",
+                "resources/test_debug_utils_dir/",
+                "resources/test_debug_utils_dir/dataframe_generator1.py",
+                "resources/test_debug_utils_dir/dataframe_generator2.py",
+                "resources/test_debug_utils_dir/sample_read_file.txt",
+                "resources/test_debug_utils_dir/sample_write_file.txt",
                 "resources/test_sp_dir/",
                 "resources/test_sp_dir/test_sp_file.py",
                 "resources/test_sp_dir/test_sp_mod3_file.py",

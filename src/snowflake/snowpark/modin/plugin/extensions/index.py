@@ -28,6 +28,7 @@ from functools import cached_property
 from typing import Any, Callable, Hashable, Iterable, Iterator, Literal
 
 import modin
+from modin.config import context as config_context
 import numpy as np
 import numpy.typing as npt
 import pandas as native_pd
@@ -172,32 +173,38 @@ class Index(metaclass=TelemetryMeta):
         query_compiler: SnowflakeQueryCompiler = None,
         **kwargs: Any,
     ) -> SnowflakeQueryCompiler:
-        if query_compiler:
-            # Raise warning if `data` is query compiler with non-default arguments.
-            for arg_name, arg_value in kwargs.items():
-                assert (
-                    arg_value == ctor_defaults[arg_name]
-                ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
-        elif isinstance(data, BasePandasDataset):
-            if data.ndim != 1:
-                raise ValueError("Index data must be 1 - dimensional")
-            series_has_no_name = data.name is None
-            idx = (
-                data.to_frame().set_index(0 if series_has_no_name else data.name).index
-            )
-            if series_has_no_name:
-                idx.name = None
-            query_compiler = idx._query_compiler
-        elif isinstance(data, Index):
-            query_compiler = data._query_compiler
-        else:
-            query_compiler = DataFrame(
-                index=cls._NATIVE_INDEX_TYPE(data=data, **kwargs)
-            )._query_compiler
+        # Keep the backend as Snowflake within this method to ensure we always return an SFQC object.
+        # In hybrid mode, the DataFrame constructor may inappropriately create a native QC object
+        # that causes difficult-to-find errors further down the line.
+        with config_context(Backend="Snowflake", AutoSwitchBackend=False):
+            if query_compiler:
+                # Raise warning if `data` is query compiler with non-default arguments.
+                for arg_name, arg_value in kwargs.items():
+                    assert (
+                        arg_value == ctor_defaults[arg_name]
+                    ), f"Non-default argument '{arg_name}={arg_value}' when constructing Index with query compiler"
+            elif isinstance(data, BasePandasDataset):
+                if data.ndim != 1:
+                    raise ValueError("Index data must be 1 - dimensional")
+                series_has_no_name = data.name is None
+                idx = (
+                    data.to_frame()
+                    .set_index(0 if series_has_no_name else data.name)
+                    .index
+                )
+                if series_has_no_name:
+                    idx.name = None
+                query_compiler = idx._query_compiler
+            elif isinstance(data, Index):
+                query_compiler = data._query_compiler
+            else:
+                query_compiler = DataFrame(
+                    index=cls._NATIVE_INDEX_TYPE(data=data, **kwargs)
+                )._query_compiler
 
-        if len(query_compiler.columns):
-            query_compiler = query_compiler.drop(columns=query_compiler.columns)
-        return query_compiler
+            if len(query_compiler.columns):
+                query_compiler = query_compiler.drop(columns=query_compiler.columns)
+            return query_compiler
 
     def __getattr__(self, key: str) -> Any:
         try:
@@ -869,10 +876,21 @@ class Index(metaclass=TelemetryMeta):
         tup = self.to_pandas()._get_indexer_strict(key=key, axis_name=axis_name)
         return self.__constructor__(tup[0]), tup[1]
 
-    @index_not_implemented()
-    def get_level_values(self, level: int | str) -> Index:
-        WarningMessage.index_to_pandas_warning("get_level_values")
-        return self.__constructor__(self.to_pandas().get_level_values(level=level))
+    def get_level_values(self, level: Any) -> Index:
+        if self.nlevels > 1:
+            ErrorMessage.not_implemented_error(
+                "get_level_values() is not supported for MultiIndex"
+            )  # pragma: no cover
+        if isinstance(level, int):
+            if level not in (0, -1):
+                raise IndexError(
+                    f"Too many levels: Index has only 1 level, not {level + 1}"
+                )
+        elif not (level is self.name or level == self.name):
+            raise KeyError(
+                f"Requested level ({level}) does not match index name ({self.name})"
+            )
+        return self
 
     @index_not_implemented()
     def isin(self) -> None:

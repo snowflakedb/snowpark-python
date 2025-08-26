@@ -9,7 +9,6 @@ import inspect
 import os
 import sys
 import threading
-import time
 from logging import getLogger
 from typing import (
     IO,
@@ -63,6 +62,7 @@ from snowflake.snowpark._internal.utils import (
     get_version,
     is_in_stored_procedure,
     is_sql_select_statement,
+    measure_time,
     normalize_local_file,
     normalize_remote_file_or_dir,
     result_set_to_iter,
@@ -143,17 +143,15 @@ class ServerConnection:
                 @functools.wraps(func)
                 def wrap(*args, **kwargs):
                     logger.debug(msg)
-                    start_time = time.perf_counter()
-                    result = func(*args, **kwargs)
-                    end_time = time.perf_counter()
-                    duration = end_time - start_time
+                    with measure_time() as query_duration:
+                        result = func(*args, **kwargs)
                     sfqid = result["sfqid"] if result and "sfqid" in result else None
                     # If we don't have a query id, then its pretty useless to send perf telemetry
                     if sfqid:
                         args[0]._telemetry_client.send_upload_file_perf_telemetry(
-                            func.__name__, duration, sfqid
+                            func.__name__, query_duration(), sfqid
                         )
-                    logger.debug(f"Finished in {duration:.4f} secs")
+                    logger.debug(f"Finished in {query_duration():.4f} secs")
                     return result
 
                 return wrap
@@ -222,6 +220,8 @@ class ServerConnection:
                     applications.append("streamlit")
                 if importlib.util.find_spec("snowflake.ml"):
                     applications.append("SnowparkML")
+                if importlib.util.find_spec("snowbook"):
+                    applications = ["Snowflake Web App (snowsight_notebook)"]
                 self._lower_case_parameters[PARAM_APPLICATION] = (
                     ":".join(applications) or get_application_name()
                 )
@@ -434,7 +434,10 @@ class ServerConnection:
         notify_kwargs = {}
         if DATAFRAME_AST_PARAMETER in kwargs and is_ast_enabled():
             notify_kwargs["dataframeAst"] = kwargs[DATAFRAME_AST_PARAMETER]
-
+        if "_statement_params" in kwargs and kwargs["_statement_params"]:
+            statement_params = kwargs["_statement_params"]
+            if "_PLAN_UUID" in statement_params:
+                notify_kwargs["dataframe_uuid"] = statement_params["_PLAN_UUID"]
         try:
             results_cursor = self._cursor.execute(query, **kwargs)
         except Exception as ex:
@@ -456,14 +459,23 @@ class ServerConnection:
     def execute_async_and_notify_query_listener(
         self, query: str, **kwargs: Any
     ) -> Dict[str, Any]:
+        notify_kwargs = {}
+
+        if "_statement_params" in kwargs and kwargs["_statement_params"]:
+            statement_params = kwargs["_statement_params"]
+            if "_PLAN_UUID" in statement_params:
+                notify_kwargs["dataframe_uuid"] = statement_params["_PLAN_UUID"]
+
         try:
             results_cursor = self._cursor.execute_async(query, **kwargs)
         except Error as err:
             self.notify_query_listeners(
-                QueryRecord(err.sfqid, err.query), is_error=True
+                QueryRecord(err.sfqid, err.query), is_error=True, **notify_kwargs
             )
             raise err
-        self.notify_query_listeners(QueryRecord(results_cursor["queryId"], query))
+        self.notify_query_listeners(
+            QueryRecord(results_cursor["queryId"], query), **notify_kwargs
+        )
         return results_cursor
 
     def execute_and_get_sfqid(

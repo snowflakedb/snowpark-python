@@ -27,6 +27,7 @@ Functions
     ai_classify
     ai_complete
     ai_filter
+    ai_sentiment
     ai_similarity
     ai_summarize_agg
     any_value
@@ -405,4 +406,13 @@ Functions
     when_not_matched
     window
     xmlget
+    xpath
+    xpath_boolean
+    xpath_double
+    xpath_float
+    xpath_int
+    xpath_long
+    xpath_number
+    xpath_short
+    xpath_string
     year

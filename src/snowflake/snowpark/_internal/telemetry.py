@@ -4,8 +4,10 @@
 #
 
 import functools
+import json
 import threading
 from enum import Enum, unique
+from logging import getLogger
 import time
 from typing import Any, Dict, List, Optional
 
@@ -34,6 +36,7 @@ from snowflake.snowpark._internal.utils import (
     get_version,
     is_in_stored_procedure,
     is_interactive,
+    generate_random_alphanumeric,
 )
 
 try:
@@ -42,6 +45,8 @@ try:
     PS_UTIL_AVAILABLE = True
 except ImportError:
     PS_UTIL_AVAILABLE = False
+
+_logger = getLogger(__name__)
 
 
 @unique
@@ -116,6 +121,7 @@ class TelemetryField(Enum):
     )
     # multi-threading
     THREAD_IDENTIFIER = "thread_ident"
+    # data source
 
 
 # These DataFrame APIs call other DataFrame APIs
@@ -472,13 +478,50 @@ class TelemetryClient:
         self.python_version: str = get_python_version()
         self.os: str = get_os_name()
         self.is_interactive = is_interactive()
+        self._enabled = True
+
+        # Initializing telemetry client for stored procedures
+        # In stored procs, we can't import this package at the top level, so we need to do it here
+        internal_metrics_available = None
+        if is_in_stored_procedure():
+            try:
+                from _snowflake import internal_metrics
+
+                internal_metrics_available = True
+            except ImportError:
+                internal_metrics_available = False
+        self.stored_proc_meter = (
+            internal_metrics.get_meter("snowpark-python-client")
+            if internal_metrics_available
+            else None
+        )
+        # We periodically clean out the stored procedure meter of unused gauges
+        self.clean_up_stored_proc_meter_interval = 1000
 
     def send(self, msg: Dict, timestamp: Optional[int] = None):
+        if not self._enabled:
+            _logger.info("Telemetry client is disabled, skipping telemetry")
+            return
+        if not timestamp:
+            timestamp = get_time_millis()
         if self.telemetry:
-            if not timestamp:
-                timestamp = get_time_millis()
             telemetry_data = PCTelemetryData(message=msg, timestamp=timestamp)
             self.telemetry.try_add_log_to_batch(telemetry_data)
+        elif self.stored_proc_meter is not None:
+            gauge_id = generate_random_alphanumeric(10)
+            self.stored_proc_meter.create_gauge(
+                f"snowflake.snowpark.client.gauge{gauge_id}",
+                description=json.dumps(msg, ensure_ascii=False, separators=(",", ":")),
+                unit="data",
+            ).set(
+                200
+            )  # this is a dummy value
+            if (
+                len(self.stored_proc_meter._instrument_id_instrument)
+                >= self.clean_up_stored_proc_meter_interval
+            ):
+                with self.stored_proc_meter._instrument_id_instrument_lock:
+                    self.stored_proc_meter._instrument_id_instrument.clear()
 
     def _create_basic_telemetry_data(self, telemetry_type: str) -> Dict[str, Any]:
         message = {
@@ -547,12 +590,17 @@ class TelemetryClient:
         )
 
     @safe_telemetry
-    def send_data_source_perf_telemetry(self, func_name: str, duration: float):
-        self.send_performance_telemetry(
-            category=TelemetryField.PERF_CAT_DATA_SOURCE.value,
-            func_name=func_name,
-            duration=duration,
-        )
+    def send_data_source_perf_telemetry(self, telemetry_json_string: dict):
+        message = {
+            **self._create_basic_telemetry_data(
+                TelemetryField.TYPE_PERFORMANCE_DATA.value
+            ),
+            TelemetryField.KEY_DATA.value: {
+                TelemetryField.KEY_CATEGORY.value: TelemetryField.PERF_CAT_DATA_SOURCE.value,
+                TelemetryField.MESSAGE.value: json.dumps(telemetry_json_string),
+            },
+        }
+        self.send(message)
 
     @safe_telemetry
     def send_function_usage_telemetry(

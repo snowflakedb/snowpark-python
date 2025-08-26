@@ -1,47 +1,169 @@
 # Release History
 
-## 1.36.0 (YYYY-MM-DD)
+## 1.38.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for specifying the following parameters to `DataFrameWriter.copy_into_location` for validation and writing data to external locations:
+    - `validation_mode`
+    - `storage_integration`
+    - `credentials`
+    - `encryption`
+
+#### Bug Fixes
+
+- Fixed the repr of TimestampType to match the actual subtype it represents.
+- Fixed a bug in `DataFrameReader.dbapi` that udtf ingestion does not work in stored procedure.
+- Fixed a bug in schema inference that caused incorrect stage prefixes to be used.
+
+#### Deprecations
+
+#### Dependency Updates
+
+#### Improvements
+
+- Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
+- Bumped cloudpickle dependency to also support `cloudpickle==3.1.1` in addition to previous versions.
+
+### Snowpark pandas API Updates
+
+#### New Features
+- Completed support for `pd.read_snowflake()`, `pd.to_iceberg()`,
+  `pd.to_pandas()`, `pd.to_snowpark()`, `pd.to_snowflake()`,
+  `DataFrame.to_iceberg()`, `DataFrame.to_pandas()`, `DataFrame.to_snowpark()`,
+  `DataFrame.to_snowflake()`, `Series.to_iceberg()`, `Series.to_pandas()`,
+  `Series.to_snowpark()`, and `Series.to_snowflake()` on the "Pandas" and "Ray"
+  backends. Previously, only some of these functions and methods were supported
+  on the Pandas backend.
+- Added support for `Index.get_level_values()`.
+
+#### Improvements
+- Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
+- Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
+
+#### Dependency Updates
+
+#### Bug Fixes
+- Raised `NotImplementedError` instead of `AttributeError` on attempting to call
+  Snowflake extension functions/methods `to_dynamic_table()`, `cache_result()`,
+  `to_view()`, `create_or_replace_dynamic_table()`, and
+  `create_or_replace_view()` on dataframes or series using the pandas or ray 
+  backends.
+
+## 1.37.0 (2025-08-18)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following `xpath` functions in `functions.py`:
+  - `xpath`
+  - `xpath_string`
+  - `xpath_boolean`
+  - `xpath_int`
+  - `xpath_float`
+  - `xpath_double`
+  - `xpath_long`
+  - `xpath_short`
+- Added support for parameter `use_vectorized_scanner` in function `Session.write_arrow()`.
+- Dataframe profiler adds the following information about each query: describe query time, execution time, and sql query text. To view this information, call session.dataframe_profiler.enable() and call get_execution_profile on a dataframe.
+- Added support for `DataFrame.col_ilike`.
+- Added support for non-blocking stored procedure calls that return `AsyncJob` objects.
+  - Added `block: bool = True` parameter to `Session.call()`. When `block=False`, returns an `AsyncJob` instead of blocking until completion.
+  - Added `block: bool = True` parameter to `StoredProcedure.__call__()` for async support across both named and anonymous stored procedures.
+  - Added `Session.call_nowait()` that is equivalent to `Session.call(block=False)`.
+
+#### Bug Fixes
+
+- Fixed a bug in CTE optimization stage where `deepcopy` of internal plans would cause a memory spike when a dataframe is created locally using `session.create_dataframe()` using a large input data.
+- Fixed a bug in `DataFrameReader.parquet` where the `ignore_case` option in the `infer_schema_options` was not respected.
+- Fixed a bug that `to_pandas()` has different format of column name when query result format is set to 'JSON' and 'ARROW'.
+
+#### Deprecations
+- Deprecated `pkg_resources`.
+
+#### Dependency Updates
+
+- Added a dependency on `protobuf<6.32`
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for efficient transfer of data between Snowflake and Ray with the `DataFrame.set_backend` method. The installed version of `modin` must be at least 0.35.0, and `ray` must be installed.
+
+#### Improvements
+
+#### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.34.0 and <0.36.0 (was previously >= 0.33.0 and <0.35.0).
+- Added support for pandas 2.3 when the installed `modin` version is at least 0.35.0.
+
+#### Bug Fixes
+
+- Fixed an issue in hybrid execution mode (PrPr) where `pd.to_datetime` and `pd.to_timedelta` would unexpectedly raise `IndexError`.
+- Fixed a bug where `pd.explain_switch` would raise `IndexError` or return `None` if called before any potential switch operations were performed.
+- Fixed a bug where calling `pd.concat(axis=0)` on a dataframe with the default, positional index and a dataframe with a different index would produce invalid SQL.
+
+## 1.36.0 (2025-08-05)
+
+### Snowpark Python API Updates
 
 #### New Features
 
 - `Session.create_dataframe` now accepts keyword arguments that are forwarded to the internal call to `Session.write_pandas` or `Session.write_arrow` when creating a DataFrame from a pandas DataFrame or a pyarrow Table.
+- Added new APIs for `AsyncJob`:
+  - `AsyncJob.is_failed()` returns a `bool` indicating if a job has failed. Can be used in combination with `AsyncJob.is_done()` to determine if a job is finished and errored.
+  - `AsyncJob.status()` returns a string representing the current query status (e.g., "RUNNING", "SUCCESS", "FAILED_WITH_ERROR") for detailed monitoring without calling `result()`.
+- Added a dataframe profiler. To use, you can call get_execution_profile() on your desired dataframe. This profiler reports the queries executed to evaluate a dataframe, and statistics about each of the query operators. Currently an experimental feature
+- Added support for the following functions in `functions.py`:
+  - `ai_sentiment`
+- Updated the interface for experimental feature `context.configure_development_features`. All development features are disabled by default unless explicitly enabled by the user.
 
-## 1.35.0 (YYYY-MM-DD)
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+- Hybrid execution row estimate improvements and a reduction of eager calls.
+- Add a new configuration variable to control transfer costs out of Snowflake when using hybrid execution.
+- Added support for creating permanent and immutable UDFs/UDTFs with `DataFrame/Series/GroupBy.apply`, `map`, and `transform` by passing the `snowflake_udf_params` keyword argument. See documentation for details.
+- Added support for mapping np.unique to DataFrame and Series inputs using pd.unique.
+
+#### Bug Fixes
+
+- Fixed an issue where Snowpark pandas plugin would unconditionally disable `AutoSwitchBackend` even when users had explicitly configured it via environment variables or programmatically.
+
+## 1.35.0 (2025-07-24)
 
 ### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following functions in `functions.py`:
+  - `ai_embed`
+  - `try_parse_json`
 
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `dbapi` fail in python stored procedure with process exit with code 1.
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` accept illegal schema.
-
-#### New Features
-
-- Added support for Python 3.13 runtime.
-- Added support for the following functions in `functions.py`:
-  - `ai_embed`
-  - `try_parse_json`
-
-#### Improvements
-
-- Improve `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
-- Improve error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
-- Bumped cloudpickle dependency to also support `cloudpickle==3.1.1` in addition to previous versions.
-
-#### Bug Fixes
-
 - Fixed a bug in `DataFrameReader.dbapi` (PrPr) that `custom_schema` does not work when connecting to Postgres and Mysql.
 - Fixed a bug in schema inference that would cause it to fail for external stages.
 
-### Snowpark Local Testing Updates
+#### Improvements
 
-- Added local testing support for reading files with `SnowflakeFile` using local file paths, the Snow URL semantic (snow://...), local testing framework stages, and Snowflake stages (@stage/file_path).
+- Improved `query` parameter in `DataFrameReader.dbapi` (PrPr) so that parentheses are not needed around the query.
+- Improved error experience in `DataFrameReader.dbapi` (PrPr) when exception happen during inferring schema of target data source.
+
+
+### Snowpark Local Testing Updates
 
 #### New Features
 
-#### Improvements
-
-#### Bug Fixes
+- Added local testing support for reading files with `SnowflakeFile` using local file paths, the Snow URL semantic (snow://...), local testing framework stages, and Snowflake stages (@stage/file_path).
 
 ### Snowpark pandas API Updates
 
@@ -53,6 +175,7 @@
 
 - Reduced the number of UDFs/UDTFs created by repeated calls to `apply` or `map` with the same arguments on Snowpark pandas objects.
 - Added an example for reading a file from a stage in the docstring for `pd.read_excel`.
+- Implemented more efficient data transfer between the Snowflake and Ray backends of Modin (requires modin>=0.35.0 to use).
 
 #### Bug Fixes
 
@@ -70,8 +193,7 @@
 - Added debuggability improvements to eagerly validate dataframe schema metadata. Enable it using `snowflake.snowpark.context.configure_development_features()`.
 - Added a new function `snowflake.snowpark.dataframe.map_in_pandas` that allows users map a function across a dataframe. The mapping function takes an iterator of pandas dataframes as input and provides one as output.
 - Added a ttl cache to describe queries. Repeated queries in a 15 second interval will use the cached value rather than requery Snowflake.
-- Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in
-local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
+- Added a parameter `fetch_with_process` to `DataFrameReader.dbapi` (PrPr) to enable multiprocessing for parallel data fetching in local ingestion. By default, local ingestion uses multithreading. Multiprocessing may improve performance for CPU-bound tasks like Parquet file generation.
 - Added a new function `snowflake.snowpark.functions.model` that allows users to call methods of a model.
 
 #### Improvements

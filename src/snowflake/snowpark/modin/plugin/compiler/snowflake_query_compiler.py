@@ -171,6 +171,7 @@ from snowflake.snowpark.functions import (
     when,
     year,
 )
+from snowflake.snowpark.modin.config.envvars import SnowflakePandasTransferThreshold
 from snowflake.snowpark.modin.plugin._internal import (
     concat_utils,
     generator_utils,
@@ -208,6 +209,7 @@ from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     DEFAULT_UDTF_PARTITION_SIZE,
     GroupbyApplySortMethod,
     SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY,
+    SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY,
     check_return_variant_and_get_return_type,
     create_udf_for_series_apply,
     create_udtf_for_apply_axis_1,
@@ -403,6 +405,10 @@ from snowflake.snowpark.modin.utils import MODIN_UNNAMED_SERIES_LABEL
 from snowflake.snowpark.modin.plugin.utils.numpy_to_pandas import (
     NUMPY_UNIVERSAL_FUNCTION_TO_SNOWFLAKE_FUNCTION,
 )
+from snowflake.snowpark.modin.plugin.compiler.ray_utils import (
+    move_from_ray_helper,
+    move_to_ray_helper,
+)
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import (
@@ -561,6 +567,27 @@ def _propagate_attrs_on_methods(cls):  # type: ignore
     return cls
 
 
+def _apply_func_has_snowpark_function(func: Any) -> bool:
+    """
+    Check if the function passed to an apply-like method is a Snowpark or Cortex function.
+
+    Args:
+        func: The function to check. Could be a single function, a list-like
+              of functions, or a dict-like of functions.
+
+    Returns:
+        True if the function is a Snowpark or Cortex function, False otherwise.
+    """
+    if is_dict_like(func):
+        return any(_apply_func_has_snowpark_function(func[key]) for key in func.keys())
+    if is_list_like(func):
+        return any(_apply_func_has_snowpark_function(each_item) for each_item in func)
+    return (
+        func in SUPPORTED_SNOWFLAKE_CORTEX_FUNCTIONS_IN_APPLY
+        or func in SUPPORTED_SNOWPARK_PYTHON_FUNCTIONS_IN_APPLY
+    )
+
+
 @_propagate_attrs_on_methods
 class SnowflakeQueryCompiler(BaseQueryCompiler):
     """based on: https://modin.readthedocs.io/en/0.11.0/flow/modin/backends/base/query_compiler.html
@@ -577,7 +604,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     _MAX_SIZE_THIS_ENGINE_CAN_HANDLE = 10_000_000_000_000
     _OPERATION_INITIALIZATION_OVERHEAD = 100
     _OPERATION_PER_ROW_OVERHEAD = 10
-    _TRANSFER_THRESHOLD = 10_000_000
 
     def __init__(self, frame: InternalFrame) -> None:
         """this stores internally a local pandas object (refactor this)"""
@@ -783,9 +809,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 or ordered_dataframe.row_count_upper_bound
                 > MAX_ROW_COUNT_FOR_ESTIMATION
             ):
-                num_rows = query_compiler.get_axis_len(0)
-            if num_rows is None:
-                return 1000000000
+                return MAX_ROW_COUNT_FOR_ESTIMATION
         else:
             num_rows = query_compiler.get_axis_len(0)
         return num_rows
@@ -799,9 +823,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ordered_dataframe.row_count_upper_bound is None
             or ordered_dataframe.row_count_upper_bound > MAX_ROW_COUNT_FOR_ESTIMATION
         ):
-            num_rows = self.get_axis_len(0)
-        if num_rows is None:
-            num_rows = 10_000_000_000
+            return MAX_ROW_COUNT_FOR_ESTIMATION, num_columns
         return num_rows, num_columns
 
     @classmethod
@@ -835,6 +857,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
                 return False
         return True
+
+    @classmethod
+    def _transfer_threshold(cls) -> int:
+        return SnowflakePandasTransferThreshold.get()
 
     def move_to_cost(
         self,
@@ -917,6 +943,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
+
+        if arguments is not None and (
+            (
+                (
+                    (
+                        api_cls_name == "DataFrame"
+                        and operation in ("apply", "applymap", "map")
+                    )
+                    or (api_cls_name == "Series" and operation == "apply")
+                )
+                and _apply_func_has_snowpark_function(arguments.get("func"))
+            )
+            or (
+                api_cls_name == "Series"
+                and operation == "map"
+                and _apply_func_has_snowpark_function(arguments.get("arg"))
+            )
+        ):
+            # Force switch to Snowflake by making the cost really negative,
+            # so that regardless of the value of move_to_cost() and stay_cost(),
+            # we switch to Snowflake. Cost 0 does not force the switch.
+            return -3 * QCCoercionCost.COST_IMPOSSIBLE
+
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
             return QCCoercionCost.COST_HIGH
@@ -1207,6 +1256,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def execute(self) -> None:
         pass
 
+    def move_to(
+        self, target_backend: str
+    ) -> Union[BaseQueryCompiler, Any]:  # pragma: no cover
+        try:
+            if target_backend == "Ray":
+                return move_to_ray_helper(self)
+            return NotImplemented
+        except Exception as e:
+            logging.warning(f"Exception while attempting to move data to ray: {e}")
+            return NotImplemented
+
+    @classmethod
+    def move_from(
+        cls, source_qc: BaseQueryCompiler
+    ) -> Union[BaseQueryCompiler, Any]:  # pragma: no cover
+        try:
+            if source_qc.get_backend() == "Ray":
+                return move_from_ray_helper(source_qc, max_sessions=8)
+            return NotImplemented
+        except Exception as e:
+            logging.warning(f"Exception while attempting to move data from ray: {e}")
+            return NotImplemented
+
     def to_numpy(
         self,
         dtype: Optional[npt.DTypeLike] = None,
@@ -1226,8 +1298,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         return self.to_pandas().to_numpy(dtype=dtype, na_value=na_value, **kwargs)
 
-    # TODO: MODIN_IS_AT_LEAST_0_34_0
-    # delete this comment and pragma: no cover once we no longer support 0.33.x
     def do_array_ufunc_implementation(
         self,
         frame: BasePandasDataset,
@@ -1235,7 +1305,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method: str,
         *inputs: Any,
         **kwargs: Any,
-    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
+    ) -> Union[DataFrame, Series, Any]:
         """
         Apply the provided NumPy ufunc to the underlying data.
 
@@ -1291,8 +1361,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # return the sentinel NotImplemented if we do not support this function
         return NotImplemented  # pragma: no cover
 
-    # TODO: MODIN_IS_AT_LEAST_0_34_0
-    # delete this comment and pragma: no cover once we no longer support 0.33.x
     def do_array_function_implementation(
         self,
         frame: BasePandasDataset,
@@ -1300,7 +1368,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         types: tuple,
         args: tuple,
         kwargs: dict,
-    ) -> Union[DataFrame, Series, Any]:  # pragma: no cover
+    ) -> Union[DataFrame, Series, Any]:
         """
         Apply the provided NumPy array function to the underlying data.
 
@@ -16575,7 +16643,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> None:
         ErrorMessage.method_not_implemented_error("cat", "Series.str")
 
-    def str_decode(self, encoding: str, errors: str) -> None:
+    def str_decode(
+        self, encoding: str, errors: str, dtype: Optional[npt.DTypeLike] = None
+    ) -> None:
         ErrorMessage.method_not_implemented_error("decode", "Series.str")
 
     def str_encode(self, encoding: str, errors: str) -> None:

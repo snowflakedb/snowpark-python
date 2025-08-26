@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import os
 import copy
 import logging
 
@@ -24,7 +24,13 @@ from snowflake.snowpark.types import (
     StructType,
 )
 from unittest.mock import patch
-from tests.utils import TestFiles, Utils, iceberg_supported, is_in_stored_procedure
+from tests.utils import (
+    TestFiles,
+    Utils,
+    iceberg_supported,
+    is_in_stored_procedure,
+    IS_NOT_ON_GITHUB,
+)
 
 
 @pytest.fixture(scope="function")
@@ -904,6 +910,40 @@ def test_writer_json(session, tmpdir_factory):
         Utils.assert_rows_count(data4, ROWS_COUNT)
     finally:
         Utils.drop_stage(session, temp_stage)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location with storage_integration is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    IS_NOT_ON_GITHUB,
+    reason="The test resource is only available on GitHub",
+)
+def test_writer_external_cloud_storage(session):
+    if any(
+        platform in session.connection.host.split(".") for platform in ["gcp", "azure"]
+    ):
+        pytest.skip(
+            reason="Skipping test for Azure and GCP deployment as test resources are not available"
+        )
+    # set up in github repo Actions secrets and variables
+    storage_integration = os.getenv("SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION")
+    s3_test_bucket_path = os.getenv("SNOWPARK_PYTHON_API_TEST_BUCKET_PATH")
+    assert (
+        storage_integration and s3_test_bucket_path
+    ), "AWS test resources are not available"
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    result = df.write.parquet(
+        f"{s3_test_bucket_path}/ci_test/test.parquet",
+        storage_integration=storage_integration,
+        overwrite=True,
+        validation_mode="RETURN_ROWS",
+    )
+    Utils.check_answer(
+        result,
+        [Row(a=1, b=2), Row(a=3, b=4), Row(a=5, b=6)],
+    )
 
 
 @pytest.mark.skipif(

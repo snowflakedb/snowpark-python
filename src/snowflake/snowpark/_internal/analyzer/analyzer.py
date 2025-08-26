@@ -1015,6 +1015,7 @@ class Analyzer:
                 ),
                 resolved_children[logical_plan.child],
                 logical_plan,
+                ilike_pattern=logical_plan.ilike_pattern,
             )
 
         if isinstance(logical_plan, Distinct):
@@ -1166,9 +1167,10 @@ class Analyzer:
             )
 
         if isinstance(logical_plan, Limit):
-            on_top_of_order_by = isinstance(
-                logical_plan.child, SnowflakePlan
-            ) and isinstance(logical_plan.child.source_plan, Sort)
+            on_top_of_order_by = logical_plan.is_limit_append or (
+                isinstance(logical_plan.child, SnowflakePlan)
+                and isinstance(logical_plan.child.source_plan, Sort)
+            )
             return self.plan_builder.limit(
                 self.to_sql_try_avoid_cast(
                     logical_plan.limit_expr, df_aliased_col_name_to_real_col_name
@@ -1426,6 +1428,10 @@ class Analyzer:
                 file_format_type=logical_plan.file_format_type,
                 format_type_options=logical_plan.format_type_options,
                 header=logical_plan.header,
+                validation_mode=logical_plan.validation_mode,
+                storage_integration=logical_plan.storage_integration,
+                credentials=logical_plan.credentials,
+                encryption=logical_plan.encryption,
                 **logical_plan.copy_options,
             )
 

@@ -288,13 +288,18 @@ class SnowflakeCreateTable(LogicalPlan):
 
 class Limit(LogicalPlan):
     def __init__(
-        self, limit_expr: Expression, offset_expr: Expression, child: LogicalPlan
+        self,
+        limit_expr: Expression,
+        offset_expr: Expression,
+        child: LogicalPlan,
+        is_limit_append: bool = False,
     ) -> None:
         super().__init__()
         self.limit_expr = limit_expr
         self.offset_expr = offset_expr
         self.child = child
         self.children.append(child)
+        self.is_limit_append = is_limit_append
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:
@@ -403,6 +408,10 @@ class CopyIntoLocationNode(LogicalPlan):
         format_type_options: Optional[Dict[str, str]] = None,
         header: bool = False,
         copy_options: Dict[str, Any],
+        validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
     ) -> None:
         super().__init__()
         self.child = child
@@ -414,3 +423,7 @@ class CopyIntoLocationNode(LogicalPlan):
         self.file_format_name = file_format_name
         self.file_format_type = file_format_type
         self.copy_options = copy_options
+        self.validation_mode = validation_mode
+        self.storage_integration = storage_integration
+        self.credentials = credentials
+        self.encryption = encryption

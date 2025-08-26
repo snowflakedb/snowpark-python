@@ -312,15 +312,21 @@ def test_write_arrow_alternate_schema(session, basic_arrow_table, quote_identifi
 
 
 @pytest.mark.parametrize(
-    "compression,parallel,use_logical_type,on_error",
+    "compression,parallel,use_logical_type,on_error, use_vectorized_scanner",
     [
-        ("gzip", 2, None, "SKIP_FILE"),
-        ("snappy", 3, True, "CONTINUE"),
-        ("gzip", 4, False, "ABORT_STATEMENT"),
+        ("gzip", 2, None, "SKIP_FILE", True),
+        ("snappy", 3, True, "CONTINUE", False),
+        ("gzip", 4, False, "ABORT_STATEMENT", True),
     ],
 )
 def test_misc_settings(
-    session, arrow_table, compression, parallel, use_logical_type, on_error
+    session,
+    arrow_table,
+    compression,
+    parallel,
+    use_logical_type,
+    on_error,
+    use_vectorized_scanner,
 ):
     copy_compression = {"gzip": "auto", "snappy": "snappy"}[compression]
     sql_use_logical_type = (
@@ -329,7 +335,7 @@ def test_misc_settings(
     queries = [
         f"^CREATE .*TEMP.* STAGE .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={compression}\\)",
         f"PUT.*PARALLEL={parallel}",
-        f'COPY INTO "SNOWPARK_PYTHON_MOCKED_ARROW_TABLE" .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={copy_compression}{sql_use_logical_type.upper()}\\) PURGE=TRUE ON_ERROR={on_error}',
+        f'COPY INTO "SNOWPARK_PYTHON_MOCKED_ARROW_TABLE" .* FILE_FORMAT=\\(TYPE=PARQUET USE_VECTORIZED_SCANNER={use_vectorized_scanner} COMPRESSION={copy_compression}{sql_use_logical_type.upper()}\\) PURGE=TRUE ON_ERROR={on_error}',
     ]
 
     with mock.patch("snowflake.connector.cursor.SnowflakeCursor.execute") as execute:
@@ -340,6 +346,7 @@ def test_misc_settings(
             parallel=parallel,
             use_logical_type=use_logical_type,
             on_error=on_error,
+            use_vectorized_scanner=use_vectorized_scanner,
         )
         for query in queries:
             assert any(
