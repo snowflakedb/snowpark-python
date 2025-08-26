@@ -2538,8 +2538,10 @@ class Session:
 
                 - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
                 - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
-                - datetime without timezone (naive) → uses provided timestamp_type or defaults to 'NTZ'
-                - string timestamps → uses provided timestamp_type or defaults to 'NTZ'
+                - datetime without timezone (naive) + timestamp_type NOT provided → no casting, raw string (timestamp_type=None)
+                - datetime without timezone (naive) + timestamp_type explicitly provided → uses provided timestamp_type
+                - string timestamps + timestamp_type NOT provided → no casting, raw string (timestamp_type=None, Snowflake native handling)
+                - string timestamps + timestamp_type explicitly provided → uses TO_TIMESTAMP_XXX casting
 
             stream: Stream name for time travel.
 
