@@ -850,12 +850,12 @@ def resample(
 def rolling(
     self,
     window,
-    min_periods: int | None = None,
+    min_periods: Union[int, None] = None,
     center: bool = False,
-    win_type: str | None = None,
-    on: str | None = None,
+    win_type: Union[str, None] = None,
+    on: Union[str, None] = None,
     axis: Union[int, str] = 0,
-    closed: str | None = None,
+    closed: Union[str, None] = None,
     method: str = "single",
     **kwargs,
 ):

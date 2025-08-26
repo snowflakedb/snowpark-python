@@ -123,6 +123,7 @@ def test_groupby_rolling_series_negative():
     date_idx.names = ["grp_col"]
     snow_ser = pd.Series([1, 1, np.nan, 2])
     with pytest.raises(
-        NotImplementedError, match="Series RollingGroupby is not yet implemented."
+        NotImplementedError,
+        match="Snowpark pandas does not yet support the method GroupBy.rolling for Series",
     ):
         snow_ser.groupby(snow_ser.index).rolling(2).sum()

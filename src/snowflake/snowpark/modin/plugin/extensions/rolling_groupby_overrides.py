@@ -80,6 +80,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
             "by": by,
             "dropna": dropna,
         }
+        self._series_not_implemented()
 
     def _method_not_implemented(self, method: str):  # pragma: no cover
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
@@ -98,7 +99,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
         if self._dataframe.ndim == 1:
             raise ErrorMessage.not_implemented(
-                "Series RollingGroupby is not yet implemented."
+                "Snowpark pandas does not yet support the method GroupBy.rolling for Series"
             )
         func = series_not_implemented()(self.__class__)
         register_series_accessor(self.__class__.__name__)(func)
