@@ -265,7 +265,7 @@ def assert_snowpark_pandas_equal_to_pandas(
     if snow.get_backend() == "Snowflake":
         snow_to_native = snow.to_pandas(statement_params=statement_params)
     else:
-        snow_to_native = snow.to_pandas()
+        snow_to_native = snow.to_pandas() # pragma: no cover
 
     if isinstance(expected_pandas, native_pd.DataFrame):
         assert isinstance(snow, DataFrame)
