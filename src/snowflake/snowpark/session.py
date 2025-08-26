@@ -2540,6 +2540,7 @@ class Session:
                 - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
                 - datetime without timezone (naive) → uses provided timestamp_type or defaults to 'NTZ'
                 - string timestamps → uses provided timestamp_type or defaults to 'NTZ'
+
             stream: Stream name for time travel.
 
             Note:
