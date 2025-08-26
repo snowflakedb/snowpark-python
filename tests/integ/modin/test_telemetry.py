@@ -64,7 +64,7 @@ def _extract_snowpark_pandas_telemetry_log_data(
 @patch(
     "snowflake.snowpark.modin.plugin._internal.telemetry._send_snowpark_pandas_telemetry_helper"
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_snowpark_pandas_telemetry_standalone_function_decorator(
     send_telemetry_mock,
     session,
@@ -803,7 +803,7 @@ def test_telemetry_cache_result():
     ]
 
 
-@sql_count_checker(query_count=9)
+@sql_count_checker(query_count=8)
 def test_telemetry_read_json(tmp_path):
     # read_json is overridden in io_overrides.py
     with open(tmp_path / "file.json", "w") as f:

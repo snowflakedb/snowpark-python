@@ -27,7 +27,7 @@ def to_dynamic_table(request):
     return request.param
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_to_dynamic_table_enforce_ordering_raises(session, to_dynamic_table) -> None:
     try:
         # create table
@@ -98,7 +98,7 @@ def test_to_dynamic_table_no_enforce_ordering(session, to_dynamic_table) -> None
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
@@ -153,7 +153,7 @@ def test_to_dynamic_table_multiple_sessions_no_enforce_ordering(
         (False, ["my_index"], []),
     ],
 )
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_to_dynamic_table_index(
     session, index, index_labels, expected_index_columns, to_dynamic_table
 ):
@@ -204,7 +204,7 @@ def test_to_dynamic_table_index(
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_to_dynamic_table_multiindex(session, to_dynamic_table):
     try:
         # create table

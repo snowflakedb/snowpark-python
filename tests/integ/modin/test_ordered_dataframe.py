@@ -1119,6 +1119,10 @@ def test_snowpark_pandas_statement_params(session, df1):
 @sql_count_checker(query_count=7)
 @pytest.mark.parametrize("columns", [["A", "b", "C"]])
 def test_ordered_dataframe_row_count(session, columns):
+    from modin.config import AutoSwitchBackend
+
+    AutoSwitchBackend.enable()
+
     num_rows = 10
     data = [[0] * len(columns) for _ in range(num_rows)]
     test_table_name = random_name_for_temp_object(TempObjectType.TABLE)
