@@ -5626,70 +5626,113 @@ def test_any_value(session):
 def test_make_ym_interval(session):
     session.sql("alter session set feature_interval_types=enabled;").collect()
 
-    df_literals = session.create_dataframe([[1]], ["dummy"])
-
-    result = df_literals.select(
-        make_ym_interval(1, 2).alias("interval_1_2"),
-        make_ym_interval(0, 5).alias("interval_0_5"),
-        make_ym_interval(2, 0).alias("interval_2_0"),
-    ).collect()
-
-    assert len(result) == 1
-
-    row = result[0]
-
-    assert row["INTERVAL_1_2"] == "+1-02"
-    assert row["INTERVAL_0_5"] == "+0-05"
-    assert row["INTERVAL_2_0"] == "+2-00"
-
-    result_normalized = df_literals.select(
-        make_ym_interval(1, 14).alias("interval_normalized"),
-        make_ym_interval(0, 25).alias("interval_months_only"),
-    ).collect()
-
-    assert len(result_normalized) == 1
-
-    row_norm = result_normalized[0]
-
-    assert row_norm["INTERVAL_NORMALIZED"] == "+2-02"
-    assert row_norm["INTERVAL_MONTHS_ONLY"] == "+2-01"
-
-    df_columns = session.create_dataframe(
-        [(1, 2), (0, 14), (3, 5), (-1, 2), (1, -2), (0, -2), (1, -14), (-14, -14)],
+    df = session.create_dataframe(
+        [
+            (0, 0),
+            (1, 0),
+            (0, 1),
+            (1, 1),
+            (2, 11),
+            (1, 12),
+            (0, 13),
+            (1, 24),
+            (-1, 0),
+            (0, -1),
+            (-1, -1),
+            (-2, -11),
+            (-1, -12),
+            (0, -13),
+            (-1, -24),
+            (10, 5),
+            (-10, -5),
+            (999, 999),
+            (-999, -999),
+            (0, 999),
+            (0, -999),
+        ],
         schema=["years", "months"],
     )
 
-    result_columns = df_columns.select(
-        make_ym_interval(col("years"), col("months")).alias("interval_col"),
+    result = df.select(
+        make_ym_interval(col("years"), col("months")).alias("interval_result"),
         col("years"),
         col("months"),
     ).collect()
 
-    assert len(result_columns) == 8
-    assert result_columns[0]["INTERVAL_COL"] == "+1-02"
-    assert result_columns[1]["INTERVAL_COL"] == "+1-02"
-    assert result_columns[2]["INTERVAL_COL"] == "+3-05"
-    assert result_columns[3]["INTERVAL_COL"] == "-0-10"
-    assert result_columns[4]["INTERVAL_COL"] == "+0-10"
-    assert result_columns[5]["INTERVAL_COL"] == "-0-02"
-    assert result_columns[6]["INTERVAL_COL"] == "-0-02"
-    assert result_columns[7]["INTERVAL_COL"] == "-15-02"
+    expected_values = [
+        "+0-00",
+        "+1-00",
+        "+0-01",
+        "+1-01",
+        "+2-11",
+        "+2-00",
+        "+1-01",
+        "+3-00",
+        "-1-00",
+        "-0-01",
+        "-1-01",
+        "-2-11",
+        "-2-00",
+        "-1-01",
+        "-3-00",
+        "+10-05",
+        "-10-05",
+        "+1082-03",
+        "-1082-03",
+        "+83-03",
+        "-83-03",
+    ]
 
-    result_negative = df_literals.select(
-        make_ym_interval(-1, 2).alias("interval_neg_year"),
-        make_ym_interval(1, -2).alias("interval_neg_month"),
-        make_ym_interval(0, -2).alias("interval_neg"),
-        make_ym_interval(1, -14).alias("interval_neg_2"),
-        make_ym_interval(-14, -14).alias("interval_neg_both"),
+    assert len(result) == 21
+    for i, expected in enumerate(expected_values):
+        assert result[i]["INTERVAL_RESULT"] == expected
+
+    df_only_years = session.create_dataframe([(5,), (-3,), (0,)], schema=["years"])
+    result_years = df_only_years.select(
+        make_ym_interval(col("years")).alias("interval_result")
     ).collect()
 
-    assert len(result_negative) == 1
-    row_neg = result_negative[0]
+    assert result_years[0]["INTERVAL_RESULT"] == "+5-00"
+    assert result_years[1]["INTERVAL_RESULT"] == "-3-00"
+    assert result_years[2]["INTERVAL_RESULT"] == "+0-00"
 
-    assert row_neg["INTERVAL_NEG_YEAR"] == "-0-10"
-    assert row_neg["INTERVAL_NEG_MONTH"] == "+0-10"
-    assert row_neg["INTERVAL_NEG"] == "-0-02"
-    assert row_neg["INTERVAL_NEG_2"] == "-0-02"
-    assert row_neg["INTERVAL_NEG_BOTH"] == "-15-02"
+    df_only_months = session.create_dataframe([(15,), (-7,), (0,)], schema=["months"])
+    result_months = df_only_months.select(
+        make_ym_interval(months=col("months")).alias("interval_result")
+    ).collect()
+
+    assert result_months[0]["INTERVAL_RESULT"] == "+1-03"
+    assert result_months[1]["INTERVAL_RESULT"] == "-0-07"
+    assert result_months[2]["INTERVAL_RESULT"] == "+0-00"
+
+    df_literals = session.create_dataframe([(1,)], schema=["dummy"])
+    result_literals = df_literals.select(
+        make_ym_interval(lit(2), lit(5)).alias("literal_test"),
+        make_ym_interval(lit(-1), lit(13)).alias("negative_positive"),
+        make_ym_interval(lit(0)).alias("zero_years"),
+        make_ym_interval(months=lit(25)).alias("only_months"),
+    ).collect()
+
+    assert result_literals[0]["LITERAL_TEST"] == "+2-05"
+    assert result_literals[0]["NEGATIVE_POSITIVE"] == "+0-01"
+    assert result_literals[0]["ZERO_YEARS"] == "+0-00"
+    assert result_literals[0]["ONLY_MONTHS"] == "+2-01"
+
+    df_schema_test = session.create_dataframe([(1, 2)], schema=["y", "m"])
+    schema_result = df_schema_test.select(make_ym_interval(col("y"), col("m")))
+    schema_fields = schema_result.schema.fields
+    assert len(schema_fields) == 1
+    assert "INTERVAL" in str(schema_fields[0].datatype).upper()
+
+    df_nulls = session.create_dataframe(
+        [(None, 5), (3, None), (None, None)], schema=["years", "months"]
+    )
+    result_nulls = df_nulls.select(
+        make_ym_interval(col("years"), col("months")).alias("interval_result")
+    ).collect()
+
+    assert result_nulls[0]["INTERVAL_RESULT"] is None
+    assert result_nulls[1]["INTERVAL_RESULT"] is None
+    assert result_nulls[2]["INTERVAL_RESULT"] is None
 
     session.sql("alter session set feature_interval_types=disabled;").collect()
