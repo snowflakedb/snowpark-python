@@ -2535,10 +2535,11 @@ class Session:
             offset: Negative integer representing seconds in the past for time travel.
             timestamp: Timestamp string or datetime object.
             timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
-                  - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
-                  - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
-                  - datetime without timezone (naive) → uses provided timestamp_type or defaults to 'NTZ'
-                  - string timestamps → uses provided timestamp_type or defaults to 'NTZ'
+
+                - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
+                - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
+                - datetime without timezone (naive) → uses provided timestamp_type or defaults to 'NTZ'
+                - string timestamps → uses provided timestamp_type or defaults to 'NTZ'
             stream: Stream name for time travel.
 
             Note:

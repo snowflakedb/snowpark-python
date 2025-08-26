@@ -552,10 +552,12 @@ class DataFrameReader:
                 Can also be set via ``option("timestamp", "2023-01-01 12:00:00")`` or
                 ``option("as-of-timestamp", "2023-01-01 12:00:00")``.
             timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
-                  - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
-                  - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
-                  - datetime without timezone (naive) → uses provided timestamp_type or defaults to 'NTZ'
-                  - string timestamps → uses provided timestamp_type or defaults to 'NTZ'
+
+                - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
+                - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
+                - datetime without timezone (naive) → uses provided timestamp_type or defaults to 'NTZ'
+                - string timestamps → uses provided timestamp_type or defaults to 'NTZ'
+
                 Can also be set via ``option("timestamp_type", "LTZ")``.
             stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
 
