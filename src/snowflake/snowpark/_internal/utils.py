@@ -2007,7 +2007,7 @@ class TimeTravelConfig(NamedTuple):
         # Normalize timestamp
         normalized_timestamp = None
         if timestamp is not None:
-            normalized_timestamp = _normalize_timestamp(timestamp)
+            normalized_timestamp = str(timestamp).strip()
             if isinstance(timestamp, datetime.datetime):
                 if timestamp.tzinfo is not None and timestamp_type is None:
                     timestamp_type = "TZ"
@@ -2069,21 +2069,6 @@ class TimeTravelConfig(NamedTuple):
                 clause += f"(TIMESTAMP => '{self.timestamp}')"
 
         return clause
-
-
-def _normalize_timestamp(timestamp: Union[str, datetime.datetime]) -> str:
-    """
-    Normalizes timestamp to string format.
-    Args:
-        timestamp: String or datetime object.
-    Returns:
-        String representation of timestamp.
-    """
-    if isinstance(timestamp, datetime.datetime):
-        return str(timestamp)
-    # Return string as-is - let Snowflake server handle format validation via auto-detection on different formats
-    # <https://docs.snowflake.com/en/sql-reference/date-time-input-output#timestamp-formats>
-    return timestamp.strip()
 
 
 def get_line_numbers(

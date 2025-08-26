@@ -2514,9 +2514,7 @@ class Session:
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime.datetime]] = None,
-        timestamp_type: Optional[
-            Union[str, TimestampTimeZone]
-        ] = TimestampTimeZone.DEFAULT,
+        timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
     ) -> Table:
         """
@@ -2535,14 +2533,6 @@ class Session:
             offset: Negative integer representing seconds in the past for time travel.
             timestamp: Timestamp string or datetime object.
             timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
-
-                - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
-                - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
-                - datetime without timezone (naive) + timestamp_type NOT provided → no casting, raw string (timestamp_type=None)
-                - datetime without timezone (naive) + timestamp_type explicitly provided → uses provided timestamp_type
-                - string timestamps + timestamp_type NOT provided → no casting, raw string (timestamp_type=None, Snowflake native handling)
-                - string timestamps + timestamp_type explicitly provided → uses TO_TIMESTAMP_XXX casting
-
             stream: Stream name for time travel.
 
             Note:

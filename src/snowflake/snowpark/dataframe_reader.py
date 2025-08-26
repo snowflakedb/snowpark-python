@@ -531,9 +531,7 @@ class DataFrameReader:
         statement: Optional[str] = None,
         offset: Optional[int] = None,
         timestamp: Optional[Union[str, datetime]] = None,
-        timestamp_type: Optional[
-            Union[str, TimestampTimeZone]
-        ] = TimestampTimeZone.DEFAULT,
+        timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
         stream: Optional[str] = None,
     ) -> Table:
         """Returns a Table that points to the specified table.
@@ -552,14 +550,6 @@ class DataFrameReader:
                 Can also be set via ``option("timestamp", "2023-01-01 12:00:00")`` or
                 ``option("as-of-timestamp", "2023-01-01 12:00:00")``.
             timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
-
-                - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
-                - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
-                - datetime without timezone (naive) + timestamp_type NOT provided → no casting, raw string (timestamp_type=None)
-                - datetime without timezone (naive) + timestamp_type explicitly provided → uses provided timestamp_type
-                - string timestamps + timestamp_type NOT provided → no casting, raw string (timestamp_type=None, Snowflake native handling)
-                - string timestamps + timestamp_type explicitly provided → uses TO_TIMESTAMP_XXX casting
-
                 Can also be set via ``option("timestamp_type", "LTZ")``.
             stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
 
@@ -1068,16 +1058,6 @@ class DataFrameReader:
             - ``offset``: Seconds to go back in time (negative integer)
             - ``timestamp``: Specific timestamp for time travel
             - ``timestamp_type``: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
-
-              Smart timestamp_type handling:
-
-              - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
-              - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
-              - datetime without timezone (naive) + timestamp_type NOT provided → no casting, raw string (timestamp_type=None)
-              - datetime without timezone (naive) + timestamp_type explicitly provided → uses provided timestamp_type
-              - string timestamps + timestamp_type NOT provided → no casting, raw string (timestamp_type=None, Snowflake native handling)
-              - string timestamps + timestamp_type explicitly provided → uses TO_TIMESTAMP_XXX casting
-            - ``stream``: Stream name for stream-based time travel
 
         Special PySpark compatibility option:
             - ``as-of-timestamp``: Automatically sets ``time_travel_mode`` to "at" and uses the

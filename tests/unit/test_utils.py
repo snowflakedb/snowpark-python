@@ -18,7 +18,6 @@ from snowflake.snowpark._internal.utils import (
     get_line_numbers,
     get_plan_from_line_numbers,
     TimeTravelConfig,
-    _normalize_timestamp,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
@@ -618,14 +617,7 @@ def test_validate_and_normalize_time_travel_params():
 
 
 def test_normalize_timestamp():
-    """Test timestamp normalization and timestamp_type handling."""
-    dt = datetime(2023, 1, 1, 12, 30, 45)
-    assert _normalize_timestamp(dt) == "2023-01-01 12:30:45"
-
-    dt_with_microseconds = datetime(2023, 1, 1, 12, 30, 45, 123456)
-    assert _normalize_timestamp(dt_with_microseconds) == "2023-01-01 12:30:45.123456"
-    assert _normalize_timestamp("  2024-02-29 00:00:00 ") == "2024-02-29 00:00:00"
-
+    """Test timestamp and timestamp_type handling."""
     # timestamp_type handling - various timezone sources
     import pytz
     from datetime import timezone, timedelta
