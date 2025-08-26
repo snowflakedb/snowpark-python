@@ -1058,6 +1058,7 @@ class DataFrameReader:
             - ``offset``: Seconds to go back in time (negative integer)
             - ``timestamp``: Specific timestamp for time travel
             - ``timestamp_type``: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+            - ``stream``: Stream name for time travel.
 
         Special PySpark compatibility option:
             - ``as-of-timestamp``: Automatically sets ``time_travel_mode`` to "at" and uses the

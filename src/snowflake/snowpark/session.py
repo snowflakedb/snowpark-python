@@ -2526,8 +2526,7 @@ class Session:
 
             _emit_ast: Whether to emit AST statements.
 
-            time_travel_mode: Time travel mode, either 'at' or 'before'. When specified,
-                returns a DataFrame with time travel query instead of a Table.
+            time_travel_mode: Time travel mode, either 'at' or 'before'.
                 Exactly one of statement, offset, timestamp, or stream must be provided when time_travel_mode is set.
             statement: Query ID for time travel.
             offset: Negative integer representing seconds in the past for time travel.

@@ -10,6 +10,7 @@ import json
 import logging
 import math
 import sys
+import time
 from array import array
 from collections import namedtuple
 from decimal import Decimal
@@ -5921,11 +5922,8 @@ def test_time_travel_core_functionality(session):
     data = [(1, "product_a", 100), (2, "product_b", 200), (3, "product_c", 300)]
     df = session.create_dataframe(data, schema=["id", "name", "price"])
     df.write.save_as_table(table_name, table_type="temporary")
-    session.table(table_name).collect()
 
     # Sleep to ensure stable time travel window to prevent flaky offset calculation
-    import time
-
     time.sleep(2)
 
     ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
@@ -5980,6 +5978,9 @@ def test_time_travel_core_functionality(session):
         Utils.check_answer(df_at_offset, expected_before_update)
 
         # ==============Test 3: BEFORE/AT with timestamp ==============
+        # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
+        # in current session's timezone context, preventing timezone mismatches that could
+        # cause time travel to resolve to a future point or before table creation (which would fail).
         df_before_ts = session.table(
             table_name,
             time_travel_mode="before",
@@ -6054,8 +6055,6 @@ def test_time_travel_comprehensive_coverage(session):
     df_2.write.save_as_table(table2_name, table_type="temporary")
 
     # Sleep to ensure stable time travel window
-    import time
-
     time.sleep(2)
 
     ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
@@ -6137,6 +6136,9 @@ def test_time_travel_comprehensive_coverage(session):
         Utils.check_answer(df_at_insert, expected_after_insert)
 
         # ==============Test 2: session.table() with time travel, joins and timestamp ==============
+        # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
+        # in current session's timezone context, preventing timezone mismatches that could
+        # cause time travel to resolve to a future point or before table creation (which would fail).
         df_join_before = (
             session.table(
                 table1_name,
