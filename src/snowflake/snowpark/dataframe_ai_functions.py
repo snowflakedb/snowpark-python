@@ -501,6 +501,7 @@ class DataFrameAIFunctions:
                   For text input, defaults to 'snowflake-arctic-embed-l-v2'.
                   For image input, defaults to 'voyage-multimodal-3'.
                   Supported models include:
+
                     - Text: 'snowflake-arctic-embed-l-v2', 'nv-embed-qa-4',
                       'multilingual-e5-large', 'voyage-multilingual-2',
                       'snowflake-arctic-embed-m-v1.5', 'snowflake-arctic-embed-m',

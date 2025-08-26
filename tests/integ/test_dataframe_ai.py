@@ -968,7 +968,7 @@ def test_dataframe_ai_summarize_agg_basic(session):
 
     # Check schema and results
     assert summary_df.columns == ["REVIEWS_SUMMARY"]
-    assert summary_df.count() == 1
+    assert summary_df.count(_emit_ast=False) == 1
 
     results = summary_df.collect(_emit_ast=False)
     assert len(results) == 1
@@ -992,7 +992,7 @@ def test_dataframe_ai_summarize_agg_default_output_column(session):
 
     # Check that default column name is used
     assert "AI_SUMMARIZE_AGG_OUTPUT" in summary_df.columns
-    assert summary_df.count() == 1
+    assert summary_df.count(_emit_ast=False) == 1
 
     results = summary_df.collect(_emit_ast=False)
     assert results[0]["AI_SUMMARIZE_AGG_OUTPUT"] is not None
