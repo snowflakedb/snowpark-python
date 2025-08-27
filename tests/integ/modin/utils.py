@@ -261,10 +261,13 @@ def assert_snowpark_pandas_equal_to_pandas(
     if expected_dtypes is not None:
         kwargs.update(check_dtype=False)
 
-    # Only Snowflake supports the statement_params parameter
-    if hasattr(snow, "get_backend") and snow.get_backend() == "Snowflake":
+    # Only Snowflake supports the statement_params parameter, but because we
+    # also need to support Index objects with this we cannot use get_backend
+    # to determine the underlying runtime. Instead we failover to regular
+    # to_pandas when we are using Pandas-backed objects
+    try:
         snow_to_native = snow.to_pandas(statement_params=statement_params)
-    else:
+    except Exception:
         snow_to_native = snow.to_pandas()  # pragma: no cover
 
     if isinstance(expected_pandas, native_pd.DataFrame):
