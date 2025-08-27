@@ -21,6 +21,7 @@
     - `encryption`
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 
 #### Bug Fixes
 
