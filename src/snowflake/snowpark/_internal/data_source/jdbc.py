@@ -82,6 +82,7 @@ class JDBCType(Enum):
     TINYINT = "TINYINT"
     VARBINARY = "VARBINARY"
     VARCHAR = "VARCHAR"
+    NOT_SUPPORTED = "NOT_SUPPORTED"
     NONE = None
 
 
@@ -146,7 +147,7 @@ class JDBC:
         *,
         properties: Optional[dict] = None,
         packages: Optional[List[str]] = None,
-        java_version: Optional[int] = 11,
+        java_version: Optional[int] = 17,
         column: Optional[str] = None,
         lower_bound: Optional[Union[str, int]] = None,
         upper_bound: Optional[Union[str, int]] = None,
@@ -490,7 +491,10 @@ class JDBC:
             scale,
             nullable,
         ) in self.raw_schema:
-            jdbc_type = JDBCType(jdbc_type)
+            try:
+                jdbc_type = JDBCType(jdbc_type)
+            except Exception:
+                jdbc_type = JDBCType.NOT_SUPPORTED
 
             jdbc_to_snow_type = JDBC_TYPE_TO_SNOWFLAKE_TYPE.get(jdbc_type, None)
             java_to_snow_type = JAVA_TYPE_TO_SNOWFLAKE_TYPE.get(java_type, VariantType)

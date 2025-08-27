@@ -1349,6 +1349,9 @@ class DataFrameReader:
                 - external_access_integration (str, required): The name of the external access integration,
                     which allows the UDTF to access external endpoints.
 
+                - secret (str, required): The name of the snowflake secret that contain username and password of
+                    external data source.
+
                 - imports (List[str], required): A list of stage file names to import into the UDTF.
                     Please include Jar file of jdbc driver to establish connection to external data source.
 
@@ -1401,26 +1404,13 @@ class DataFrameReader:
         )
         imports = udtf_configs.get("imports", None)
         packages = udtf_configs.get("packages", ["com.snowflake:snowpark:latest"])
-        java_version = udtf_configs.get("java_version", 11)
+        java_version = udtf_configs.get("java_version", 17)
+        secret = udtf_configs.get("secret", None)
 
-        if external_access_integration is None or imports is None:
+        if external_access_integration is None or imports is None or secret is None:
             raise ValueError(
-                "external_access_integration and imports must be specified in udtf configs"
+                "external_access_integration, secret and imports must be specified in udtf configs"
             )
-
-        eai_info = self._session.sql(
-            f"describe external access integration {external_access_integration}"
-        ).collect()
-        secret = None
-        for r in eai_info:
-            if "ALLOWED_AUTHENTICATION_SECRETS" == r[0]:
-                secret = r[2][1:-1].split(",")[0].strip()
-                break
-
-        assert secret != "", (
-            "Secret is not detected in external access integration. "
-            "Please re-create your external access integration to include a secret."
-        )
 
         jdbc_client = JDBC(
             session=self._session,
