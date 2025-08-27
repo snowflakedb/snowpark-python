@@ -663,7 +663,7 @@ class TelemetryMeta(type):
 
 
 _modin_event_log: list = [[]]
-_next_modin_metric_flush: float = 0
+_last_modin_metric_flush: float = 0
 _modin_metric_flush_interval = 0
 
 MODIN_SWITCH_DECISION_METRIC_PREFIXES = (
@@ -679,24 +679,17 @@ def _check_and_reset_metric_flush_time() -> bool:
     Return True if we should flush the metrics, and reset the clock
 
     """
-    global _next_modin_metric_flush
+    global _last_modin_metric_flush
     global _modin_metric_flush_interval
 
-    # Check whether the settings for the flush interval have changed, and
-    # if so, reset the timer.
+    # Support a changing flush interval
     current_flush_interval = SnowflakeModinTelemetryFlushInterval.get()
-    if _modin_metric_flush_interval != current_flush_interval:
-        _modin_metric_flush_interval = current_flush_interval
-        _next_modin_metric_flush = (
-            time.time() + SnowflakeModinTelemetryFlushInterval.get()
-        )
+    current_time = time.time()
+    if current_time > _last_modin_metric_flush + current_flush_interval:
+        _last_modin_metric_flush = current_time
+        return True
 
-    if _next_modin_metric_flush > time.time():
-        return False
-
-    # reset the timer
-    _next_modin_metric_flush = time.time() + SnowflakeModinTelemetryFlushInterval.get()
-    return True
+    return False
 
 
 def _flush_modin_metrics() -> None:

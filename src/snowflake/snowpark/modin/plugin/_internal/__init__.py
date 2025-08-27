@@ -3,4 +3,5 @@
 #
 from snowflake.snowpark.modin.plugin._internal.telemetry import ModinTelemetrySender
 
+# exported to allow for mocking of the telemetry in a consistent way
 __all__ = ["ModinTelemetrySender"]
