@@ -4761,4 +4761,4 @@ class Session:
             ast = with_src_position(stmt.expr.directory, stmt)
             ast.stage_name = stage_name
 
-        return self.sql(f"SELECT * FROM DIRECTORY({stage_name})", ast_stmt=stmt)
+        return self.sql(f"SELECT * FROM DIRECTORY({stage_name})", _ast_stmt=stmt)
