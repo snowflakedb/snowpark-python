@@ -4749,9 +4749,9 @@ class Session:
             >>> # Get file URLs for CSV files only
             >>> csv_files = session.directory('test_stage').filter(
             ...     col('RELATIVE_PATH').like('%.csv%')
-            ... ).select('FILE_URL')
+            ... ).select('RELATIVE_PATH')
             >>> csv_files.show()
-            [ROW(FILE_URL='tests/resources/testCSV.csv')]
+            [ROW(RELATIVE_PATH='tests/resources/testCSV.csv')]
 
         For details, see the Snowflake documentation on
         `Snowflake Directory Tables Documentation <https://docs.snowflake.com/en/user-guide/data-load-dirtables-query>`_
