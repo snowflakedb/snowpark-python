@@ -217,6 +217,7 @@ Functions
     initcap
     insert
     instr
+    interval_year_month_from_parts
     is_array
     is_binary
     is_boolean
@@ -257,7 +258,6 @@ Functions
     lpad
     ltrim
     make_interval
-    make_ym_interval
     map_cat
     map_concat
     map_contains_key
