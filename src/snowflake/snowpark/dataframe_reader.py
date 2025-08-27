@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 import threading
+from datetime import datetime
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -87,6 +88,7 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     StructType,
+    TimestampTimeZone,
     VariantType,
     StructField,
 )
@@ -102,6 +104,16 @@ else:
 logger = getLogger(__name__)
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
+
+_TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
+    "TIME_TRAVEL_MODE": "time_travel_mode",
+    "STATEMENT": "statement",
+    "OFFSET": "offset",
+    "TIMESTAMP": "timestamp",
+    "TIMESTAMP_TYPE": "timestamp_type",
+    "STREAM": "stream",
+}
+
 READER_OPTIONS_ALIAS_MAP = {
     "DELIMITER": "FIELD_DELIMITER",
     "HEADER": "PARSE_HEADER",
@@ -126,6 +138,42 @@ def _validate_stage_path(path: str) -> str:
             f"'{path}' is an invalid Snowflake stage location. DataFrameReader can only read files from stage locations."
         )
     return path
+
+
+def _extract_time_travel_from_options(options: dict) -> dict:
+    """
+    Extract time travel options from DataFrameReader options.
+
+    Special handling for 'AS-OF-TIMESTAMP' (PySpark compatibility):
+    - Automatically sets time_travel_mode to 'at'
+    - Cannot be used with time_travel_mode='before' (raises error)
+    - Cannot be mixed with regular 'timestamp' option (raises error)
+    """
+    result = {}
+    excluded_keys = set()
+
+    # Handle PySpark as-of-timestamp special case
+    if "AS-OF-TIMESTAMP" in options:
+        if (
+            "TIME_TRAVEL_MODE" in options
+            and options["TIME_TRAVEL_MODE"].lower() == "before"
+        ):
+            raise ValueError(
+                "Cannot use 'as-of-timestamp' option with time_travel_mode='before'"
+            )
+        if "TIMESTAMP" in options:
+            raise ValueError(
+                "Cannot use both 'as-of-timestamp' and 'timestamp' options."
+            )
+        result["time_travel_mode"] = "at"
+        result["timestamp"] = options["AS-OF-TIMESTAMP"]
+        excluded_keys.add("TIMESTAMP")
+
+    for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items():
+        if option_key in options and option_key not in excluded_keys:
+            result[param_name] = options[option_key]
+
+    return result
 
 
 class DataFrameReader:
@@ -474,13 +522,72 @@ class DataFrameReader:
         return metadata_project, metadata_schema
 
     @publicapi
-    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
+    def table(
+        self,
+        name: Union[str, Iterable[str]],
+        _emit_ast: bool = True,
+        *,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
+        timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
+        stream: Optional[str] = None,
+    ) -> Table:
         """Returns a Table that points to the specified table.
 
-        This method is an alias of :meth:`~snowflake.snowpark.session.Session.table`.
+        This method is an alias of :meth:`~snowflake.snowpark.session.Session.table` with
+        additional support for setting time travel options via the :meth:`option` method.
 
         Args:
             name: Name of the table to use.
+            time_travel_mode: Time travel mode, either 'at' or 'before'. Can also be set via
+                ``option("time_travel_mode", "at")``.
+            statement: Query ID for time travel. Can also be set via ``option("statement", "query_id")``.
+            offset: Negative integer representing seconds in the past for time travel.
+                Can also be set via ``option("offset", -60)``.
+            timestamp: Timestamp string or datetime object for time travel.
+                Can also be set via ``option("timestamp", "2023-01-01 12:00:00")`` or
+                ``option("as-of-timestamp", "2023-01-01 12:00:00")``.
+            timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+                Can also be set via ``option("timestamp_type", "LTZ")``.
+            stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
+
+        Note:
+            Time travel options can be set either as direct parameters or via the
+            :meth:`option` method, but NOT both. If any direct time travel parameter
+            is provided, all time travel options will be ignored to avoid conflicts.
+
+            PySpark Compatibility: The ``as-of-timestamp`` option automatically sets
+            ``time_travel_mode="at"`` and cannot be used with ``time_travel_mode="before"``.
+
+        Examples::
+
+            # Using direct parameters
+            >>> table = session.read.table("my_table", time_travel_mode="at", offset=-3600)  # doctest: +SKIP
+
+            # Using options (recommended for chaining)
+            >>> table = (session.read  # doctest: +SKIP
+            ...     .option("time_travel_mode", "at")
+            ...     .option("offset", -3600)
+            ...     .table("my_table"))
+
+            # PySpark-style as-of-timestamp (automatically sets mode to "at")
+            >>> table = session.read.option("as-of-timestamp", "2023-01-01 12:00:00").table("my_table")  # doctest: +SKIP
+
+            # timestamp_type automatically set to "TZ" due to timezone info
+            >>> import datetime, pytz  # doctest: +SKIP
+            >>> tz_aware = datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=pytz.UTC)  # doctest: +SKIP
+            >>> table1 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware)  # doctest: +SKIP
+
+            # timestamp_type remains "NTZ" (user's explicit choice respected)
+            >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
+
+            # Mixing options and parameters (direct parameters completely override options)
+            >>> table = (session.read  # doctest: +SKIP
+            ...     .option("time_travel_mode", "before")  # This will be IGNORED
+            ...     .option("offset", -60)                 # This will be IGNORED
+            ...     .table("my_table", time_travel_mode="at", offset=-3600))  # Only this is used
         """
 
         # AST.
@@ -491,7 +598,20 @@ class DataFrameReader:
             ast.reader.CopyFrom(self._ast)
             build_table_name(ast.name, name)
 
-        table = self._session.table(name, _emit_ast=False)
+        if time_travel_mode is not None:
+            time_travel_params = {
+                "time_travel_mode": time_travel_mode,
+                "statement": statement,
+                "offset": offset,
+                "timestamp": timestamp,
+                "timestamp_type": timestamp_type,
+                "stream": stream,
+            }
+        else:
+            # if time_travel_mode is not provided, extract time travel config from options
+            time_travel_params = _extract_time_travel_from_options(self._cur_options)
+
+        table = self._session.table(name, _emit_ast=False, **time_travel_params)
 
         if _emit_ast and stmt is not None:
             table._ast_id = stmt.uid
@@ -926,14 +1046,26 @@ class DataFrameReader:
         """Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
-        `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
-        and
-        `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
+        `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_,
+        `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_,
+        and `time travel options <https://docs.snowflake.com/en/sql-reference/constructs/at-before>`_.
         (Note that although specifying copy options can make error handling more robust during the
         reading process, it may have an effect on performance.)
 
+        Time travel options can be used with ``table()`` method:
+            - ``time_travel_mode``: Either "at" or "before"
+            - ``statement``: Query ID for statement-based time travel
+            - ``offset``: Seconds to go back in time (negative integer)
+            - ``timestamp``: Specific timestamp for time travel
+            - ``timestamp_type``: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+            - ``stream``: Stream name for time travel.
+
+        Special PySpark compatibility option:
+            - ``as-of-timestamp``: Automatically sets ``time_travel_mode`` to "at" and uses the
+              provided timestamp. Cannot be used with ``time_travel_mode="before"``.
+
         Args:
-            key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
+            key: Name of the option (e.g. ``compression``, ``skip_header``, ``time_travel_mode``, etc.).
             value: Value of the option.
         """
 
