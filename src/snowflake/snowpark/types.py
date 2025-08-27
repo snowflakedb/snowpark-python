@@ -16,7 +16,12 @@ import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
 # Use correct version from here:
-from snowflake.snowpark._internal.utils import installed_pandas, pandas, quote_name
+from snowflake.snowpark._internal.utils import (
+    installed_pandas,
+    pandas,
+    quote_name,
+    private_preview,
+)
 
 # TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
 # The core issue is that in the connector detection of both pandas/arrow are mixed, which is wrong.
@@ -236,6 +241,10 @@ class _AnsiIntervalType(_AtomicType):
     pass
 
 
+@private_preview(
+    version="1.38.0",
+    extra_doc_string="The YearMonthIntervalType is currently in PrPr and needs to be enabled by setting this parameter to `enabled` feature_interval_types.",
+)
 class YearMonthIntervalType(_AnsiIntervalType):
     """YearMonthIntervalType data type. This maps to the INTERVAL YEAR TO MONTH data type in Snowflake.
 
