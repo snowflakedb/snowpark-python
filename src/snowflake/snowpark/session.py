@@ -2509,6 +2509,13 @@ class Session:
         name: Union[str, Iterable[str]],
         is_temp_table_for_cleanup: bool = False,
         _emit_ast: bool = True,
+        *,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime.datetime]] = None,
+        timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
+        stream: Optional[str] = None,
     ) -> Table:
         """
         Returns a Table that points the specified table.
@@ -2518,6 +2525,14 @@ class Session:
                 fully-qualified object identifier (database name, schema name, and table name).
 
             _emit_ast: Whether to emit AST statements.
+
+            time_travel_mode: Time travel mode, either 'at' or 'before'.
+                Exactly one of statement, offset, timestamp, or stream must be provided when time_travel_mode is set.
+            statement: Query ID for time travel.
+            offset: Negative integer representing seconds in the past for time travel.
+            timestamp: Timestamp string or datetime object.
+            timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+            stream: Stream name for time travel.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -2534,6 +2549,19 @@ class Session:
             >>> current_schema = session.get_current_schema()
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
+
+            >>> df_at_time = session.table("my_table", time_travel_mode="at", timestamp="2023-01-01 12:00:00", timestamp_type="LTZ") # doctest: +SKIP
+            >>> df_before = session.table("my_table", time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012") # doctest: +SKIP
+            >>> df_offset = session.table("my_table", time_travel_mode="at", offset=-3600) # doctest: +SKIP
+            >>> df_stream = session.table("my_table", time_travel_mode="at", stream="my_stream") # doctest: +SKIP
+
+            # timestamp_type automatically set to "TZ" due to timezone info
+            >>> import datetime, pytz  # doctest: +SKIP
+            >>> tz_aware = datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=pytz.UTC)  # doctest: +SKIP
+            >>> table1 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware)  # doctest: +SKIP
+
+            # timestamp_type remains "NTZ" (user's explicit choice respected)
+            >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
         """
         if _emit_ast:
             stmt = self._ast_batch.bind()
@@ -2553,6 +2581,12 @@ class Session:
             is_temp_table_for_cleanup=is_temp_table_for_cleanup,
             _ast_stmt=stmt,
             _emit_ast=_emit_ast,
+            time_travel_mode=time_travel_mode,
+            statement=statement,
+            offset=offset,
+            timestamp=timestamp,
+            timestamp_type=timestamp_type,
+            stream=stream,
         )
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
