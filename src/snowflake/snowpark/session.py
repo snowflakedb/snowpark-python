@@ -4767,9 +4767,9 @@ class Session:
             ast = with_src_position(stmt.expr.directory, stmt)
             ast.stage_name = stage_name
 
+        # string "@<stage_name>" does not work with parameter binding
         return self.sql(
-            "SELECT * FROM DIRECTORY(?)",
-            params=[stage_name],
+            f"SELECT * FROM DIRECTORY({stage_name})",
             _ast_stmt=stmt,
             _emit_ast=_emit_ast,
         )
