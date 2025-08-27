@@ -4768,7 +4768,8 @@ class Session:
             ast.stage_name = stage_name
 
         return self.sql(
-            f"SELECT * FROM DIRECTORY({stage_name})",
+            "SELECT * FROM DIRECTORY(?)",
+            params=[stage_name],
             _ast_stmt=stmt,
             _emit_ast=_emit_ast,
         )
