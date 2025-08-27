@@ -10913,7 +10913,10 @@ def make_interval(
     return res
 
 
-@private_preview(version="1.38.0")
+@private_preview(
+    version="1.38.0",
+    extra_doc_string="The interval_year_month_from_parts function creates a column of type YearMonthIntervalType. This type is currently in PrPr and needs to be enabled by setting this parameter to `enabled` feature_interval_types.",
+)
 @publicapi
 def interval_year_month_from_parts(
     years: Optional[ColumnOrName] = None,
@@ -10969,7 +10972,7 @@ def interval_year_month_from_parts(
         if isinstance(col._expr1, Literal):
             return str(col._expr1.value)
         else:
-            return str(col._expr1)
+            return col._expression.name
 
     alias_name = f"interval_year_month_from_parts({get_col_name(years_col)}, {get_col_name(months_col)})"
 
