@@ -1322,7 +1322,7 @@ class DataFrameReader:
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
-        Reads data from a database table or query into a DataFrame using a DBAPI connection,
+        Reads data from a database table or query into a DataFrame using a JDBC connection string,
         with support for optional partitioning, parallel processing, and query customization.
 
         There are multiple methods to partition data and accelerate ingestion.
@@ -1394,6 +1394,33 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
+        Example::
+            .. code-block:: python
+                udtf_configs={
+                        "external_access_integration": ...,
+                        "secret": ...,
+                        "imports": [...],
+                    }
+                df = session.read.jdbc(
+                    url=...,
+                    udtf_configs=udtf_configs,
+                    query=...,
+                )
+
+        Example::
+            .. code-block:: python
+                udtf_configs={
+                    "external_access_integration": ...,
+                    "secret": ...,
+                    "imports": [...],
+                }
+                df = (
+                    session.read.format("jdbc")
+                    .option("url", ...)
+                    .option("udtf_configs", udtf_configs)
+                    .option("query", ...)
+                    .load()
+                )
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(

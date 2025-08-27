@@ -397,10 +397,11 @@ class JDBC:
             public Stream<OutputRow> process(String query) {{
                 List<OutputRow> list = new ArrayList<>();
                  try {{
-                    PreparedStatement stmt = this.conn.prepareStatement(query);
+                    Statement stmt = this.conn.createStatement();
                     stmt.setQueryTimeout({str(self.query_timeout)});
                     stmt.setFetchSize({str(self.fetch_size)});
-                    try (ResultSet rs = stmt.executeQuery()) {{
+                    {self.generate_session_init_statement()}
+                    try (ResultSet rs = stmt.executeQuery(query)) {{
                         ResultSetMetaData meta = rs.getMetaData();
                         int columnCount = meta.getColumnCount();
                         while (rs.next()) {{
@@ -559,6 +560,14 @@ class JDBC:
         self.url = re.sub(
             r"(?<=://)([^:/]+)(:[^@]+)?@", "", self.url  # Matches user[:password]@
         )
+
+    def generate_session_init_statement(self):
+        if self.session_init_statement is not None:
+            return "\n".join(
+                [f'stmt.execute("{query}");' for query in self.session_init_statement]
+            )
+        else:
+            return ""
 
     @staticmethod
     def to_result_snowpark_df(

@@ -314,10 +314,24 @@ def test_empty_query(session, udtf_configs):
     assert df.collect() == []
 
 
-def test_connect_postgres(session, postgres_udtf_configs, postgres_jar_path):
+def test_connect_postgres(session, postgres_udtf_configs):
     df = session.read.jdbc(
         url=POSTGRES_URL,
         udtf_configs=postgres_udtf_configs,
         query=POSTGRES_SELECT_QUERY,
     ).order_by("BIGSERIAL_COL")
     assert df.collect() == postgres_expected_data
+
+
+def test_postgres_session_init_statement(session, postgres_udtf_configs):
+    with pytest.raises(
+        SnowparkSQLException,
+        match="canceling statement due to user request",
+    ):
+        session.read.jdbc(
+            url=POSTGRES_URL,
+            udtf_configs=postgres_udtf_configs,
+            query=POSTGRES_SELECT_QUERY,
+            query_timeout=1,
+            session_init_statement=["SELECT pg_sleep(5)"],
+        ).collect()
