@@ -2349,7 +2349,8 @@ def test_snowpark_python_bugfix_version_warning(
                 plus1,
                 return_type=IntegerType(),
                 input_types=[IntegerType()],
-                packages=["snowflake-snowpark-python==1.27.0"],
+                # pin cloudpickle as 1.27.0 snowpark upper bounds it to <=3.0.0
+                packages=["snowflake-snowpark-python==1.27.0", "cloudpickle==3.0.0"],
             )
             assert plus1_sp(lit(6)) == 7
 
