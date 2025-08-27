@@ -725,3 +725,285 @@ def test_dataframe_ai_similarity_with_nulls(session):
     # Rows without NULLs should have valid scores
     assert results[0]["SIMILARITY"] is not None
     assert results[3]["SIMILARITY"] is not None
+
+
+def test_dataframe_ai_sentiment_basic(session):
+    """Test DataFrame.ai.sentiment with basic usage."""
+    # Create a DataFrame with review data
+    df = session.create_dataframe(
+        [
+            ["The movie had amazing visual effects but the plot was terrible."],
+            ["The food was delicious but the service was slow."],
+            ["Everything about this experience was perfect!"],
+            ["This product is okay, nothing special."],
+        ],
+        schema=["review"],
+    )
+
+    # Test overall sentiment analysis
+    result_df = df.ai.sentiment(
+        input_column="review",
+        output_column="sentiment",
+    )
+
+    # Check schema
+    assert result_df.columns == ["REVIEW", "SENTIMENT"]
+
+    # Collect and verify results
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 4
+
+    # Parse sentiment results
+    for row in results:
+        sentiment_data = json.loads(row["SENTIMENT"])
+        assert "categories" in sentiment_data
+        assert len(sentiment_data["categories"]) >= 1
+
+        # Find overall sentiment
+        overall = [c for c in sentiment_data["categories"] if c["name"] == "overall"][0]
+        assert overall["sentiment"] in [
+            "positive",
+            "negative",
+            "neutral",
+            "mixed",
+            "unknown",
+        ]
+
+    # Third review should be positive
+    third_sentiment = json.loads(results[2]["SENTIMENT"])["categories"][0]
+    assert third_sentiment["name"] == "overall"
+    assert third_sentiment["sentiment"] == "positive"
+
+
+def test_dataframe_ai_sentiment_with_categories(session):
+    """Test DataFrame.ai.sentiment with specific categories."""
+    # Create a DataFrame with hotel reviews
+    df = session.create_dataframe(
+        [
+            [
+                "The hotel room was spacious and clean, but the wifi was terrible and the breakfast was mediocre."
+            ],
+            ["Great location and friendly staff, though the parking was expensive."],
+            ["Room was dirty, staff was rude, but the location was perfect."],
+        ],
+        schema=["review"],
+    )
+
+    # Test sentiment with specific categories
+    result_df = df.ai.sentiment(
+        input_column=col("review"),
+        categories=["room", "wifi", "breakfast", "location", "staff", "parking"],
+        output_column="detailed_sentiment",
+    )
+
+    # Check schema
+    assert result_df.columns == ["REVIEW", "DETAILED_SENTIMENT"]
+
+    # Collect and verify results
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 3
+
+    # Check first review sentiments
+    first_sentiment = json.loads(results[0]["DETAILED_SENTIMENT"])
+    categories = first_sentiment["categories"]
+
+    # Should have overall plus the specified categories
+    assert len(categories) > 1
+
+    category_names = [c["name"] for c in categories]
+    assert "overall" in category_names
+    assert "room" in category_names
+    assert "wifi" in category_names
+
+    # Room should be positive (spacious and clean)
+    room_sentiment = [c for c in categories if c["name"] == "room"][0]
+    assert room_sentiment["sentiment"] in ["positive", "neutral"]
+
+    # Wifi should be negative (terrible)
+    wifi_sentiment = [c for c in categories if c["name"] == "wifi"][0]
+    assert wifi_sentiment["sentiment"] == "negative"
+
+
+def test_dataframe_ai_sentiment_default_output_column(session):
+    """Test DataFrame.ai.sentiment with default output column name."""
+    df = session.create_dataframe(
+        [["Great product!"], ["Terrible experience"]], schema=["feedback"]
+    )
+
+    # Don't specify output_column, should use default
+    result_df = df.ai.sentiment(input_column="feedback")
+
+    # Check that default column name is used
+    assert "AI_SENTIMENT_OUTPUT" in result_df.columns
+
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 2
+    for row in results:
+        assert row["AI_SENTIMENT_OUTPUT"] is not None
+
+
+def test_dataframe_ai_sentiment_error_handling(session):
+    """Test error handling in DataFrame.ai.sentiment."""
+    df = session.create_dataframe([["test"]], schema=["text"])
+
+    # Test invalid input_column type
+    with pytest.raises(TypeError, match="expected Column or str"):
+        df.ai.sentiment(
+            input_column=123,  # Invalid type
+        )
+
+
+def test_dataframe_ai_embed_text(session):
+    """Test DataFrame.ai.embed with text embeddings."""
+    # Create a DataFrame with text data
+    df = session.create_dataframe(
+        [
+            ["Machine learning is fascinating"],
+            ["Snowflake provides cloud data platform"],
+            ["Python is a versatile programming language"],
+        ],
+        schema=["text"],
+    )
+
+    # Generate text embeddings
+    result_df = df.ai.embed(
+        input_column="text",
+        model="snowflake-arctic-embed-l-v2.0",
+        output_column="text_vector",
+    )
+
+    # Check schema
+    assert result_df.columns == ["TEXT", "TEXT_VECTOR"]
+
+    # Collect and verify results
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 3
+
+    # Verify embeddings are generated
+    for row in results:
+        assert row["TEXT_VECTOR"] is not None
+        assert len(row["TEXT_VECTOR"]) > 0
+
+
+def test_dataframe_ai_embed_multilingual(session):
+    """Test DataFrame.ai.embed with multilingual text."""
+    # Create a DataFrame with multilingual greetings
+    df = session.create_dataframe(
+        [
+            ["Hello world"],
+            ["Bonjour le monde"],
+            ["Hola mundo"],
+            ["你好世界"],
+        ],
+        schema=["greeting"],
+    )
+
+    # Generate embeddings with multilingual model
+    result_df = df.ai.embed(
+        input_column=col("greeting"),
+        model="multilingual-e5-large",
+        output_column="multilingual_vector",
+    )
+
+    # Check schema
+    assert result_df.columns == ["GREETING", "MULTILINGUAL_VECTOR"]
+
+    # Collect and verify results
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 4
+
+    # All greetings should have embeddings
+    for row in results:
+        assert row["MULTILINGUAL_VECTOR"] is not None
+        assert len(row["MULTILINGUAL_VECTOR"]) > 0
+
+
+def test_dataframe_ai_embed_default_output_column(session):
+    """Test DataFrame.ai.embed with default output column name."""
+    df = session.create_dataframe([["Sample text"]], schema=["content"])
+
+    # Don't specify output_column, should use default
+    result_df = df.ai.embed(
+        input_column="content", model="snowflake-arctic-embed-l-v2.0"
+    )
+
+    # Check that default column name is used
+    assert "AI_EMBED_OUTPUT" in result_df.columns
+
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 1
+    assert results[0]["AI_EMBED_OUTPUT"] is not None
+
+
+def test_dataframe_ai_embed_error_handling(session):
+    """Test error handling in DataFrame.ai.embed."""
+    df = session.create_dataframe([["test"]], schema=["text"])
+
+    # Test invalid input_column type
+    with pytest.raises(TypeError, match="expected Column or str"):
+        df.ai.embed(
+            input_column=123, model="snowflake-arctic-embed-l-v2.0"  # Invalid type
+        )
+
+
+def test_dataframe_ai_summarize_agg_basic(session):
+    """Test DataFrame.ai.summarize_agg with basic usage."""
+    # Create a DataFrame with review data
+    df = session.create_dataframe(
+        [
+            ["The product quality is excellent and shipping was fast."],
+            ["Great value for money, highly recommend!"],
+            ["Customer service was very helpful and responsive."],
+            ["The packaging could be better, but the product itself is good."],
+            ["Easy to use and works as advertised."],
+        ],
+        schema=["review"],
+    )
+
+    # Summarize the reviews
+    summary_df = df.ai.summarize_agg(
+        input_column="review",
+        output_column="reviews_summary",
+    )
+
+    # Check schema and results
+    assert summary_df.columns == ["REVIEWS_SUMMARY"]
+    assert summary_df.count(_emit_ast=False) == 1
+
+    results = summary_df.collect(_emit_ast=False)
+    assert len(results) == 1
+    assert results[0]["REVIEWS_SUMMARY"] is not None
+    assert len(results[0]["REVIEWS_SUMMARY"]) > 10  # Should have meaningful content
+
+
+def test_dataframe_ai_summarize_agg_default_output_column(session):
+    """Test DataFrame.ai.summarize_agg with default output column name."""
+    df = session.create_dataframe(
+        [
+            ["First feedback item"],
+            ["Second feedback item"],
+            ["Third feedback item"],
+        ],
+        schema=["feedback"],
+    )
+
+    # Don't specify output_column, should use default
+    summary_df = df.ai.summarize_agg(input_column="feedback")
+
+    # Check that default column name is used
+    assert "AI_SUMMARIZE_AGG_OUTPUT" in summary_df.columns
+    assert summary_df.count(_emit_ast=False) == 1
+
+    results = summary_df.collect(_emit_ast=False)
+    assert results[0]["AI_SUMMARIZE_AGG_OUTPUT"] is not None
+
+
+def test_dataframe_ai_summarize_agg_error_handling(session):
+    """Test error handling in DataFrame.ai.summarize_agg."""
+    df = session.create_dataframe([["test"]], schema=["text"])
+
+    # Test invalid input_column type
+    with pytest.raises(TypeError, match="expected Column or str"):
+        df.ai.summarize_agg(
+            input_column=123,  # Invalid type
+        )
