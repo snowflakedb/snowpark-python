@@ -979,23 +979,23 @@ def test_directory(session):
 
         # Test directory() method on main stage
         directory_df = session.directory(f"@{temp_stage}")
-        directory_rows = directory_df.collect()
-        assert directory_df.schema == EXPECTED_SCHEMA
-        # Verify we got the expected number of files
-        assert len(directory_rows) == 2, f"Expected 2 files, got {len(directory_rows)}"
         assert (
-            len(directory_df.where(col("RELATIVE_PATH").startswith("file1")).collect())
-            == 1
+            len(directory_df.collect()) == 2 and directory_df.schema == EXPECTED_SCHEMA
+        )
+        df_filtered = directory_df.where(
+            col("RELATIVE_PATH").startswith("file1")
+        ).select(col("SIZE"))
+        assert len(df_filtered.collect()) == 1 and df_filtered.schema == StructType(
+            [StructField("SIZE", LongType(), nullable=True)]
         )
 
         # Test directory() method on special stage name (with quotes)
         directory_df_special = session.directory(temp_stage_special)
-        directory_rows_special = directory_df_special.collect()
         assert directory_df_special.schema == EXPECTED_SCHEMA
         assert (
-            len(directory_rows_special) == 1
-        ), f"Expected 1 file in special stage, got {len(directory_rows_special)}"
-        assert len(directory_df_special.limit(0).collect()) == 0
+            len(directory_df_special.collect()) == 1
+            and len(directory_df_special.limit(0).collect()) == 0
+        )
 
     finally:
         # Clean up - drop the temp stages
