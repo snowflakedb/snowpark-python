@@ -55,9 +55,16 @@ def str_to_sql(value: str) -> str:
 def str_to_sql_for_year_month_interval(
     value: str, datatype: YearMonthIntervalType
 ) -> str:
-    # Extract interval value from strings like "INTERVAL 1-7 YEAR TO MONTH"
-    # Examples: "1-7" -> INTERVAL '1-7' YEAR TO MONTH, "1" -> INTERVAL '1' YEAR
-    # "1-7" -> INTERVAL '7' MONTH
+    """
+    Converts "INTERVAL YY-MM [YEAR TO MONTH | YEAR | MONTH]" to quoted format, optimizing based on datatype:
+    - Same start/end field: extracts specific value (YEAR or MONTH only)
+    - Different fields: uses full "YEAR TO MONTH" format
+
+    Examples:
+        "INTERVAL 1-2 YEAR TO MONTH" -> "INTERVAL '1-2' YEAR TO MONTH"
+        "INTERVAL 5-0 YEAR TO MONTH" + YearMonthIntervalType(0,0) -> "INTERVAL '5' YEAR"
+        "INTERVAL 0-3 YEAR TO MONTH" + YearMonthIntervalType(1,1) -> "INTERVAL '3' MONTH"
+    """
     parts = value.split(" ")
     if len(parts) < 2:
         raise ValueError(f"Invalid interval format: {value}")
