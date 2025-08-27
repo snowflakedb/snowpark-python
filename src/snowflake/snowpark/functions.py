@@ -217,6 +217,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
+    private_preview,
 )
 from snowflake.snowpark._functions.scalar_functions import *  # noqa: F403,F401
 from snowflake.snowpark.column import (
@@ -10912,8 +10913,9 @@ def make_interval(
     return res
 
 
+@private_preview(version="1.38.0")
 @publicapi
-def make_ym_interval(
+def interval_year_month_from_parts(
     years: Optional[ColumnOrName] = None,
     months: Optional[ColumnOrName] = None,
     _emit_ast: bool = True,
@@ -10933,10 +10935,10 @@ def make_ym_interval(
 
     Example::
 
-        >>> from snowflake.snowpark.functions import make_ym_interval
+        >>> from snowflake.snowpark.functions import interval_year_month_from_parts
         >>>
         >>> df = session.create_dataframe([[1, 2]], ["years", "months"])
-        >>> df.select(make_ym_interval(col("years"), col("months")).alias("interval")).show()
+        >>> df.select(interval_year_month_from_parts(col("years"), col("months")).alias("interval")).show()
         --------------
         |"INTERVAL"  |
         --------------
@@ -10945,37 +10947,23 @@ def make_ym_interval(
         <BLANKLINE>
 
     """
-    years_col = lit(0) if years is None else _to_col_if_str(years, "make_ym_interval")
+    years_col = (
+        lit(0)
+        if years is None
+        else _to_col_if_str(years, "interval_year_month_from_parts")
+    )
     months_col = (
-        lit(0) if months is None else _to_col_if_str(months, "make_ym_interval")
+        lit(0)
+        if months is None
+        else _to_col_if_str(months, "interval_year_month_from_parts")
     )
 
     total_months = years_col * lit(12) + months_col
 
-    normalized_years = iff(
-        total_months >= lit(0),
-        cast(floor(total_months / lit(12)), "int"),
-        cast(floor((total_months * lit(-1)) / lit(12)), "int"),
-    )
-
-    normalized_months = iff(
-        total_months >= lit(0),
-        cast(total_months % lit(12), "int"),
-        cast((lit(12) * normalized_years + total_months) * lit(-1), "int"),
-    )
-
+    normalized_years = cast(cast(floor(abs(total_months) / lit(12)), "int"), "str")
+    normalized_months = cast(cast(floor(abs(total_months) % lit(12)), "int"), "str")
     sign_prefix = iff(total_months < lit(0), lit("-"), lit(""))
-
-    interval_string = concat(
-        sign_prefix,
-        cast(normalized_years, "str"),
-        lit("-"),
-        iff(
-            normalized_months < lit(10),
-            concat(lit("0"), cast(normalized_months, "str")),
-            cast(normalized_months, "str"),
-        ),
-    )
+    interval_string = concat(sign_prefix, normalized_years, lit("-"), normalized_months)
 
     def get_col_name(col):
         if isinstance(col._expr1, Literal):
@@ -10983,9 +10971,7 @@ def make_ym_interval(
         else:
             return str(col._expr1)
 
-    alias_name = (
-        f"make_ym_interval({get_col_name(years_col)}, {get_col_name(months_col)})"
-    )
+    alias_name = f"interval_year_month_from_parts({get_col_name(years_col)}, {get_col_name(months_col)})"
 
     return cast(interval_string, "INTERVAL YEAR TO MONTH").alias(alias_name)
 
