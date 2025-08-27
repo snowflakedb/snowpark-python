@@ -4707,3 +4707,58 @@ class Session:
             set_api_call_source(df, "Session.call")
             # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
             return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
+
+    def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
+        """
+        Returns a DataFrame representing the results of a directory table query on the specified stage.
+
+        A directory table query retrieves file-level metadata about the data files in a Snowflake stage.
+        This includes information like relative path, file size, last modified timestamp, file URL, and checksums.
+
+        Note:
+            The stage must have a directory table enabled for this method to work. The query is
+            executed lazily, which means the SQL is not executed until methods like
+            :func:`DataFrame.collect` or :func:`DataFrame.to_pandas` evaluate the DataFrame.
+
+        Args:
+            stage_name: The name of the stage to query. The stage name should not include the '@' prefix
+                as it will be added automatically.
+
+        Returns:
+            A DataFrame containing metadata about files in the stage with the following columns:
+
+            - ``RELATIVE_PATH``: Path to the files to access using the file URL
+            - ``SIZE``: Size of the file in bytes
+            - ``LAST_MODIFIED``: Timestamp when the file was last updated in the stage
+            - ``MD5``: MD5 checksum for the file
+            - ``ETAG``: ETag header for the file
+            - ``FILE_URL``: Snowflake file URL to access the file
+
+        Examples::
+            >>> session.sql("create or replace temp stage test_stage")
+
+            >>> # Get all file metadata from a stage named 'mystage'
+            >>> df = session.directory('test_stage')
+            >>> df.show()
+
+            >>> # Get file URLs for CSV files only
+            >>> csv_files = session.directory('test_stage').filter(
+            ...     col('RELATIVE_PATH').like('%.csv%')
+            ... ).select('FILE_URL')
+            >>> csv_files.show()
+
+        For details, see the Snowflake documentation on
+        `Snowflake Directory Tables Documentation <https://docs.snowflake.com/en/user-guide/data-load-dirtables-query>`_
+        """
+        stage_name = (
+            stage_name
+            if stage_name.startswith(STAGE_PREFIX)
+            else f"{STAGE_PREFIX}{stage_name}"
+        )
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.directory, stmt)
+            ast.stage_name = stage_name
+
+        return self.sql(f"SELECT * FROM DIRECTORY({stage_name})", ast_stmt=stmt)

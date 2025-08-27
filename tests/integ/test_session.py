@@ -5,6 +5,7 @@
 
 import os
 import copy
+import io
 from functools import partial
 from unittest.mock import patch
 
@@ -13,6 +14,15 @@ import pytest
 import snowflake.connector
 from snowflake.connector.errors import ProgrammingError
 from snowflake.snowpark import Row, Session
+from snowflake.snowpark.functions import col
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    LongType,
+    TimestampType,
+    TimestampTimeZone,
+    StringType,
+)
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     get_version,
@@ -919,3 +929,82 @@ def test_session_atexit(db_parameters):
     assert len(exit_funcs) == 2
     assert exit_funcs[0].__module__.startswith("snowflake.connector")
     assert exit_funcs[1].__module__.startswith("snowflake.snowpark")
+
+
+def test_directory(session):
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    temp_stage_special = f'"{Utils.random_name_for_temp_object(TempObjectType.STAGE)}_special.name-with.dots"'
+
+    try:
+        # Create temp stages with directory table enabled
+        session.sql(
+            f"CREATE TEMP STAGE {temp_stage} DIRECTORY = (ENABLE = TRUE)"
+        ).collect()
+        session.sql(
+            f"CREATE TEMP STAGE {temp_stage_special} DIRECTORY = (ENABLE = TRUE)"
+        ).collect()
+
+        # File 1: Simple text file
+        file1_stream = io.BytesIO(b"Hello, World!\nThis is file 1 content.")
+        session.file.put_stream(file1_stream, f"@{temp_stage}/file1.txt")
+
+        # File 2: JSON-like content
+        file2_stream = io.BytesIO(
+            b'{"key": "value", "number": 123, "array": [1, 2, 3]}'
+        )
+        session.file.put_stream(file2_stream, f"@{temp_stage}/data.json")
+
+        # Upload to special stage name
+        file3_stream = io.BytesIO(b"File in special named stage with dots and hyphens")
+        session.file.put_stream(file3_stream, f"@{temp_stage_special}/special_file.txt")
+
+        # Refresh the stages to ensure metadata is up-to-date
+        session.sql(f"ALTER STAGE {temp_stage} REFRESH").collect()
+        session.sql(f"ALTER STAGE {temp_stage_special} REFRESH").collect()
+
+        EXPECTED_SCHEMA = StructType(
+            [
+                StructField("RELATIVE_PATH", StringType(), nullable=True),
+                StructField("SIZE", LongType(), nullable=True),
+                StructField(
+                    "LAST_MODIFIED",
+                    TimestampType(timezone=TimestampTimeZone.TZ),
+                    nullable=True,
+                ),
+                StructField("MD5", StringType(), nullable=True),
+                StructField("ETAG", StringType(), nullable=True),
+                StructField("FILE_URL", StringType(), nullable=True),
+            ]
+        )
+
+        # Test directory() method on main stage
+        directory_df = session.directory(f"@{temp_stage}")
+        directory_rows = directory_df.collect()
+        assert directory_df.schema == EXPECTED_SCHEMA
+        # Verify we got the expected number of files
+        assert len(directory_rows) == 2, f"Expected 2 files, got {len(directory_rows)}"
+        assert (
+            len(directory_df.where(col("RELATIVE_PATH").startswith("file1")).collect())
+            == 1
+        )
+
+        # Test directory() method on special stage name (with quotes)
+        directory_df_special = session.directory(temp_stage_special)
+        directory_rows_special = directory_df_special.collect()
+        assert directory_df_special.schema == EXPECTED_SCHEMA
+        assert (
+            len(directory_rows_special) == 1
+        ), f"Expected 1 file in special stage, got {len(directory_rows_special)}"
+        assert len(directory_df_special.limit(0).collect()) == 0
+
+    finally:
+        # Clean up - drop the temp stages
+        try:
+            session.sql(f"DROP STAGE IF EXISTS {temp_stage}").collect()
+        except Exception:
+            pass  # Ignore errors during cleanup
+
+        try:
+            session.sql(f"DROP STAGE IF EXISTS {temp_stage_special}").collect()
+        except Exception:
+            pass  # Ignore errors during cleanup
