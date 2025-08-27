@@ -19,6 +19,8 @@ from snowflake.snowpark.functions import (
     ai_sentiment,
     ai_embed,
     ai_summarize_agg,
+    ai_transcribe,
+    ai_parse_document,
 )
 from snowflake.snowpark._internal.telemetry import add_api_call
 
@@ -922,5 +924,174 @@ class DataFrameAIFunctions:
         add_api_call(
             df,
             "DataFrame.ai.summarize_agg",
+        )
+        return df
+
+    @experimental(version="1.37.0")
+    def transcribe(
+        self,
+        input_column: ColumnOrName,
+        *,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+        **kwargs,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Transcribe text from an audio file with optional timestamps and speaker labels.
+
+        Args:
+            input_column: The column (Column object or column name as string) containing FILE references
+                to audio files. Use ``to_file`` to convert staged paths to FILE type.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_TRANSCRIBE_OUTPUT`` is appended.
+            **kwargs: Additional options forwarded to the underlying function, e.g. ``timestamp_granularity``.
+
+        Examples::
+
+            >>> import json
+            >>> # Basic transcription without timestamps
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+            >>> _ = session.file.put("tests/resources/audio.ogg", "@mystage", auto_compress=False)
+            >>> from snowflake.snowpark.functions import col, to_file
+            >>> df = session.create_dataframe([["@mystage/audio.ogg"]], schema=["audio_path"])  # staged file path
+            >>> result_df = df.ai.transcribe(
+            ...     input_column=to_file(col("audio_path")),
+            ...     output_column="transcript",
+            ... )
+            >>> result_df.columns
+            ['AUDIO_PATH', 'TRANSCRIPT']
+            >>> result = json.loads(result_df.collect()[0]["TRANSCRIPT"])
+            >>> result['audio_duration'] > 120
+            True
+            >>> "glad to see things are going well" in result['text'].lower()
+            True
+
+            >>> # Transcription with word-level timestamps
+            >>> result_df = df.ai.transcribe(
+            ...     input_column=to_file(col("audio_path")),
+            ...     output_column="transcript",
+            ...     timestamp_granularity='word',
+            ... )
+            >>> result = json.loads(result_df.collect()[0]["TRANSCRIPT"])
+            >>> len(result["segments"]) > 0
+            True
+            >>> result["segments"][0]["text"].lower()
+            'glad'
+            >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
+            True
+
+            >>> # Transcription with speaker diarization (requires a multi-speaker audio file)
+            >>> _ = session.file.put("tests/resources/conversation.ogg", "@mystage", auto_compress=False)
+            >>> df = session.create_dataframe([["@mystage/conversation.ogg"]], schema=["audio_path"])
+            >>> result_df = df.ai.transcribe(
+            ...     input_column=to_file(col("audio_path")),
+            ...     output_column="transcript",
+            ...     timestamp_granularity='speaker',
+            ... )
+            >>> result = json.loads(result_df.collect()[0]["TRANSCRIPT"])
+            >>> result["audio_duration"] > 100 and len(result["segments"]) > 0
+            True
+            >>> result["segments"][0]["speaker_label"]
+            'SPEAKER_00'
+            >>> 'jenny' in result["segments"][0]["text"].lower()
+            True
+            >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
+            True
+        """
+
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.transcribe")
+
+        result_col = ai_transcribe(
+            input_col,
+            _emit_ast=False,
+            **kwargs,
+        )
+
+        output_column_name = output_column or "AI_TRANSCRIBE_OUTPUT"
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            "DataFrame.ai.transcribe",
+        )
+        return df
+
+    @experimental(version="1.37.0")
+    def parse_document(
+        self,
+        input_column: ColumnOrName,
+        *,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+        **kwargs,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Extract content from a document (OCR or layout parsing) as JSON text.
+
+        Args:
+            input_column: The column (Column object or column name as string) containing FILE references
+                to documents or images on a stage. Use ``to_file`` to convert staged paths to FILE type.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_PARSE_DOCUMENT_OUTPUT`` is appended.
+            **kwargs: Additional options forwarded to the underlying function, such as ``mode`` and ``page_split``.
+
+        Examples::
+
+            >>> import json
+            >>> # Parse a PDF document with default OCR mode
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+            >>> _ = session.file.put("tests/resources/doc.pdf", "@mystage", auto_compress=False)
+            >>> from snowflake.snowpark.functions import col, to_file
+            >>> df = session.create_dataframe([["@mystage/doc.pdf"]], schema=["file_path"])  # staged file path
+            >>> result_df = df.ai.parse_document(
+            ...     input_column=to_file(col("file_path")),
+            ...     output_column="parsed",
+            ... )
+            >>> result_df.columns
+            ['FILE_PATH', 'PARSED']
+            >>> result = json.loads(result_df.collect()[0]["PARSED"])
+            >>> "Sample PDF" in result["content"] and result["metadata"]["pageCount"] == 3
+            True
+
+            >>> # Parse with LAYOUT mode to extract tables and structure
+            >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
+            >>> df = session.create_dataframe([["@mystage/invoice.pdf"]], schema=["file_path"])
+            >>> result_df = df.ai.parse_document(
+            ...     input_column=to_file(col("file_path")),
+            ...     output_column="parsed",
+            ...     mode='LAYOUT',
+            ... )
+            >>> result = json.loads(result_df.collect()[0]["PARSED"])
+            >>> "| Customer Name |" in result["content"] and "| Country |" in result["content"]
+            True
+
+            >>> # Parse with page splitting for long documents (PDF only)
+            >>> df = session.create_dataframe([["@mystage/doc.pdf"]], schema=["file_path"])
+            >>> result_df = df.ai.parse_document(
+            ...     input_column=to_file(col("file_path")),
+            ...     output_column="parsed",
+            ...     page_split=True,
+            ... )
+            >>> result = json.loads(result_df.collect()[0]["PARSED"])
+            >>> len(result["pages"]) == 3 and result["pages"][0]["index"] == 0
+            True
+        """
+
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.parse_document")
+
+        result_col = ai_parse_document(
+            input_col,
+            _emit_ast=False,
+            **kwargs,
+        )
+
+        output_column_name = output_column or "AI_PARSE_DOCUMENT_OUTPUT"
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            "DataFrame.ai.parse_document",
         )
         return df
