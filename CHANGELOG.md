@@ -33,6 +33,7 @@
 #### Improvements
 
 - Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
+- Bumped cloudpickle dependency to also support `cloudpickle==3.1.1` in addition to previous versions.
 
 ### Snowpark pandas API Updates
 
