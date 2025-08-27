@@ -931,6 +931,10 @@ def test_session_atexit(db_parameters):
     assert exit_funcs[1].__module__.startswith("snowflake.snowpark")
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="running sql query is not supported in local testing",
+)
 def test_directory(session):
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     temp_stage_special = f'"{Utils.random_name_for_temp_object(TempObjectType.STAGE)}_special.name-with.dots"'

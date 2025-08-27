@@ -4735,17 +4735,15 @@ class Session:
             - ``FILE_URL``: Snowflake file URL to access the file
 
         Examples::
-            >>> session.sql("create or replace temp stage test_stage")
-
             >>> # Get all file metadata from a stage named 'mystage'
-            >>> df = session.directory('test_stage')
-            >>> df.show()
+            >>> df = session.directory('test_stage') # doctest: +SKIP
+            >>> df.show() # doctest: +SKIP
 
             >>> # Get file URLs for CSV files only
-            >>> csv_files = session.directory('test_stage').filter(
+            >>> csv_files = session.directory('test_stage').filter( # doctest: +SKIP
             ...     col('RELATIVE_PATH').like('%.csv%')
             ... ).select('FILE_URL')
-            >>> csv_files.show()
+            >>> csv_files.show() # doctest: +SKIP
 
         For details, see the Snowflake documentation on
         `Snowflake Directory Tables Documentation <https://docs.snowflake.com/en/user-guide/data-load-dirtables-query>`_
