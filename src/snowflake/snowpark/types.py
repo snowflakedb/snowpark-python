@@ -20,7 +20,6 @@ from snowflake.snowpark._internal.utils import (
     installed_pandas,
     pandas,
     quote_name,
-    private_preview,
 )
 
 # TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
@@ -241,10 +240,6 @@ class _AnsiIntervalType(_AtomicType):
     pass
 
 
-@private_preview(
-    version="1.38.0",
-    extra_doc_string="The YearMonthIntervalType is currently in PrPr and needs to be enabled by setting this parameter to `enabled` feature_interval_types.",
-)
 class YearMonthIntervalType(_AnsiIntervalType):
     """YearMonthIntervalType data type. This maps to the INTERVAL YEAR TO MONTH data type in Snowflake.
 
@@ -253,6 +248,8 @@ class YearMonthIntervalType(_AnsiIntervalType):
         end_field: The end field of the interval (0=YEAR, 1=MONTH)
 
     Notes:
+        YearMonthIntervalType is currently in private preview since 1.38.0. The YearMonthIntervalType is currently in PrPr and needs to be enabled by setting this parameter to `enabled` feature_interval_types.
+
         YearMonthIntervalType is currently not supported in UDFs and Stored Procedures.
     """
 
