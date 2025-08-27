@@ -5,6 +5,11 @@
 ### Snowpark Python API Updates
 
 #### New Features
+
+- Added support for the following AI-powered functions in `functions.py`:
+  - `ai_extract`
+  - `ai_parse_document`
+  - `ai_transcribe`
 - Added time travel support for querying historical data:
   - `Session.table()` now supports time travel parameters: `time_travel_mode`, `statement`, `offset`, `timestamp`, `timestamp_type`, and `stream`.
   - `DataFrameReader.table()` supports the same time travel parameters as direct arguments.
@@ -28,6 +33,7 @@
 #### Improvements
 
 - Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
+- Bumped cloudpickle dependency to also support `cloudpickle==3.1.1` in addition to previous versions.
 
 ### Snowpark pandas API Updates
 

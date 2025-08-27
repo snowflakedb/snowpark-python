@@ -923,7 +923,11 @@ def test_add_requirements_with_empty_stage_as_cache_path(
     # error as cloudpickle 3.0 is specified in udf creation but unsupported in snowpark 1.8
     # the solution is to downgrade to cloudpickle 2.2.1 in the env
     # TODO: SNOW-1951792, improve error experience
-    @udf(name=udf_name, packages=["snowflake-snowpark-python==1.27.0"])
+    # pin cloudpickle as 1.27.0 snowpark upper bounds it to <=3.0.0
+    @udf(
+        name=udf_name,
+        packages=["snowflake-snowpark-python==1.27.0", "cloudpickle==3.0.0"],
+    )
     def get_numpy_pandas_version() -> str:
         import snowflake.snowpark as snowpark
 

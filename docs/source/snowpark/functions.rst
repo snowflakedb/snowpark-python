@@ -23,13 +23,16 @@ Functions
     acosh
     add_months
     ai_agg
-    ai_embed
     ai_classify
     ai_complete
+    ai_embed
+    ai_extract
     ai_filter
+    ai_parse_document
     ai_sentiment
     ai_similarity
     ai_summarize_agg
+    ai_transcribe
     any_value
     approx_count_distinct
     approx_percentile
