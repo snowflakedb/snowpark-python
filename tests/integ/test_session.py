@@ -1001,6 +1001,10 @@ def test_directory(session):
             and len(directory_df_special.limit(0).collect()) == 0
         )
 
+        # Test aliased method
+        assert len(session.read.directory(f"@{temp_stage}").collect()) == 2
+        assert len(session.read.directory(temp_stage_special).collect()) == 1
+
     finally:
         # Clean up - drop the temp stages
         try:

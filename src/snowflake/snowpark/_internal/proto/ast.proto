@@ -308,7 +308,7 @@ message PythonTimeZone {
   int64 offset_seconds = 2;
 }
 
-// dataframe-io.ir:49
+// dataframe-io.ir:54
 message SaveMode {
   oneof variant {
     bool save_mode_append = 1;
@@ -835,7 +835,7 @@ message DataframeCollect {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe-io.ir:152
+// dataframe-io.ir:157
 message DataframeCopyIntoTable {
   repeated Tuple_String_Expr copy_options = 1;
   Expr df = 2;
@@ -859,7 +859,7 @@ message DataframeCount {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe-io.ir:136
+// dataframe-io.ir:141
 message DataframeCreateOrReplaceDynamicTable {
   repeated Expr clustering_keys = 1;
   google.protobuf.StringValue comment = 2;
@@ -877,7 +877,7 @@ message DataframeCreateOrReplaceDynamicTable {
   string warehouse = 14;
 }
 
-// dataframe-io.ir:128
+// dataframe-io.ir:133
 message DataframeCreateOrReplaceView {
   google.protobuf.StringValue comment = 1;
   Expr df = 2;
@@ -1261,7 +1261,7 @@ message DataframeWithColumns {
   repeated Expr values = 4;
 }
 
-// dataframe-io.ir:62
+// dataframe-io.ir:67
 message DataframeWriter {
   Expr df = 1;
   google.protobuf.StringValue format = 2;
@@ -1481,48 +1481,49 @@ message Expr {
     Range range = 139;
     ReadAvro read_avro = 140;
     ReadCsv read_csv = 141;
-    ReadJson read_json = 142;
-    ReadLoad read_load = 143;
-    ReadOrc read_orc = 144;
-    ReadParquet read_parquet = 145;
-    ReadTable read_table = 146;
-    ReadXml read_xml = 147;
-    RedactedConst redacted_const = 148;
-    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 149;
-    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 150;
-    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 151;
-    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 152;
-    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 153;
-    Row row = 154;
-    SeqMapVal seq_map_val = 155;
-    SessionTableFunction session_table_function = 156;
-    Sql sql = 157;
-    SqlExpr sql_expr = 158;
-    StoredProcedure stored_procedure = 159;
-    StringVal string_val = 160;
-    Sub sub = 161;
-    Table table = 162;
-    TableDelete table_delete = 163;
-    TableDropTable table_drop_table = 164;
-    TableFnCallAlias table_fn_call_alias = 165;
-    TableFnCallOver table_fn_call_over = 166;
-    TableMerge table_merge = 167;
-    TableSample table_sample = 168;
-    TableUpdate table_update = 169;
-    ToSnowparkPandas to_snowpark_pandas = 170;
-    TruncatedExpr truncated_expr = 171;
-    TupleVal tuple_val = 172;
-    Udaf udaf = 173;
-    Udf udf = 174;
-    Udtf udtf = 175;
-    WriteCopyIntoLocation write_copy_into_location = 176;
-    WriteCsv write_csv = 177;
-    WriteInsertInto write_insert_into = 178;
-    WriteJson write_json = 179;
-    WritePandas write_pandas = 180;
-    WriteParquet write_parquet = 181;
-    WriteSave write_save = 182;
-    WriteTable write_table = 183;
+    ReadDirectory read_directory = 142;
+    ReadJson read_json = 143;
+    ReadLoad read_load = 144;
+    ReadOrc read_orc = 145;
+    ReadParquet read_parquet = 146;
+    ReadTable read_table = 147;
+    ReadXml read_xml = 148;
+    RedactedConst redacted_const = 149;
+    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 150;
+    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 151;
+    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 152;
+    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 153;
+    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 154;
+    Row row = 155;
+    SeqMapVal seq_map_val = 156;
+    SessionTableFunction session_table_function = 157;
+    Sql sql = 158;
+    SqlExpr sql_expr = 159;
+    StoredProcedure stored_procedure = 160;
+    StringVal string_val = 161;
+    Sub sub = 162;
+    Table table = 163;
+    TableDelete table_delete = 164;
+    TableDropTable table_drop_table = 165;
+    TableFnCallAlias table_fn_call_alias = 166;
+    TableFnCallOver table_fn_call_over = 167;
+    TableMerge table_merge = 168;
+    TableSample table_sample = 169;
+    TableUpdate table_update = 170;
+    ToSnowparkPandas to_snowpark_pandas = 171;
+    TruncatedExpr truncated_expr = 172;
+    TupleVal tuple_val = 173;
+    Udaf udaf = 174;
+    Udf udf = 175;
+    Udtf udtf = 176;
+    WriteCopyIntoLocation write_copy_into_location = 177;
+    WriteCsv write_csv = 178;
+    WriteInsertInto write_insert_into = 179;
+    WriteJson write_json = 180;
+    WritePandas write_pandas = 181;
+    WriteParquet write_parquet = 182;
+    WriteSave write_save = 183;
+    WriteTable write_table = 184;
   }
 }
 
@@ -1774,53 +1775,54 @@ message HasSrcPosition {
     Range range = 143;
     ReadAvro read_avro = 144;
     ReadCsv read_csv = 145;
-    ReadJson read_json = 146;
-    ReadLoad read_load = 147;
-    ReadOrc read_orc = 148;
-    ReadParquet read_parquet = 149;
-    ReadTable read_table = 150;
-    ReadXml read_xml = 151;
-    RedactedConst redacted_const = 152;
-    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 153;
-    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 154;
-    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 155;
-    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 156;
-    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 157;
-    Row row = 158;
-    SeqMapVal seq_map_val = 159;
-    SessionTableFunction session_table_function = 160;
-    Sql sql = 161;
-    SqlExpr sql_expr = 162;
-    StoredProcedure stored_procedure = 163;
-    StringVal string_val = 164;
-    Sub sub = 165;
-    Table table = 166;
-    TableDelete table_delete = 167;
-    TableDropTable table_drop_table = 168;
-    TableFnCallAlias table_fn_call_alias = 169;
-    TableFnCallOver table_fn_call_over = 170;
-    TableMerge table_merge = 171;
-    TableSample table_sample = 172;
-    TableUpdate table_update = 173;
-    ToSnowparkPandas to_snowpark_pandas = 174;
-    TruncatedExpr truncated_expr = 175;
-    TupleVal tuple_val = 176;
-    Udaf udaf = 177;
-    Udf udf = 178;
-    Udtf udtf = 179;
-    WindowSpecEmpty window_spec_empty = 180;
-    WindowSpecOrderBy window_spec_order_by = 181;
-    WindowSpecPartitionBy window_spec_partition_by = 182;
-    WindowSpecRangeBetween window_spec_range_between = 183;
-    WindowSpecRowsBetween window_spec_rows_between = 184;
-    WriteCopyIntoLocation write_copy_into_location = 185;
-    WriteCsv write_csv = 186;
-    WriteInsertInto write_insert_into = 187;
-    WriteJson write_json = 188;
-    WritePandas write_pandas = 189;
-    WriteParquet write_parquet = 190;
-    WriteSave write_save = 191;
-    WriteTable write_table = 192;
+    ReadDirectory read_directory = 146;
+    ReadJson read_json = 147;
+    ReadLoad read_load = 148;
+    ReadOrc read_orc = 149;
+    ReadParquet read_parquet = 150;
+    ReadTable read_table = 151;
+    ReadXml read_xml = 152;
+    RedactedConst redacted_const = 153;
+    RelationalGroupedDataframeAgg relational_grouped_dataframe_agg = 154;
+    RelationalGroupedDataframeApplyInPandas relational_grouped_dataframe_apply_in_pandas = 155;
+    RelationalGroupedDataframeBuiltin relational_grouped_dataframe_builtin = 156;
+    RelationalGroupedDataframePivot relational_grouped_dataframe_pivot = 157;
+    RelationalGroupedDataframeRef relational_grouped_dataframe_ref = 158;
+    Row row = 159;
+    SeqMapVal seq_map_val = 160;
+    SessionTableFunction session_table_function = 161;
+    Sql sql = 162;
+    SqlExpr sql_expr = 163;
+    StoredProcedure stored_procedure = 164;
+    StringVal string_val = 165;
+    Sub sub = 166;
+    Table table = 167;
+    TableDelete table_delete = 168;
+    TableDropTable table_drop_table = 169;
+    TableFnCallAlias table_fn_call_alias = 170;
+    TableFnCallOver table_fn_call_over = 171;
+    TableMerge table_merge = 172;
+    TableSample table_sample = 173;
+    TableUpdate table_update = 174;
+    ToSnowparkPandas to_snowpark_pandas = 175;
+    TruncatedExpr truncated_expr = 176;
+    TupleVal tuple_val = 177;
+    Udaf udaf = 178;
+    Udf udf = 179;
+    Udtf udtf = 180;
+    WindowSpecEmpty window_spec_empty = 181;
+    WindowSpecOrderBy window_spec_order_by = 182;
+    WindowSpecPartitionBy window_spec_partition_by = 183;
+    WindowSpecRangeBetween window_spec_range_between = 184;
+    WindowSpecRowsBetween window_spec_rows_between = 185;
+    WriteCopyIntoLocation write_copy_into_location = 186;
+    WriteCsv write_csv = 187;
+    WriteInsertInto write_insert_into = 188;
+    WriteJson write_json = 189;
+    WritePandas write_pandas = 190;
+    WriteParquet write_parquet = 191;
+    WriteSave write_save = 192;
+    WriteTable write_table = 193;
   }
 }
 
@@ -1987,18 +1989,25 @@ message Range {
   google.protobuf.Int64Value step = 4;
 }
 
-// dataframe-io.ir:37
+// dataframe-io.ir:42
 message ReadAvro {
   string path = 1;
   Expr reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:33
+// dataframe-io.ir:38
 message ReadCsv {
   string path = 1;
   Expr reader = 2;
   SrcPosition src = 3;
+}
+
+// dataframe-io.ir:25
+message ReadDirectory {
+  Expr reader = 1;
+  SrcPosition src = 2;
+  string stage_name = 3;
 }
 
 message ReadFile {
@@ -2013,28 +2022,28 @@ message ReadFile {
   }
 }
 
-// dataframe-io.ir:35
+// dataframe-io.ir:40
 message ReadJson {
   string path = 1;
   Expr reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:31
+// dataframe-io.ir:36
 message ReadLoad {
   string path = 1;
   Expr reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:39
+// dataframe-io.ir:44
 message ReadOrc {
   string path = 1;
   Expr reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:41
+// dataframe-io.ir:46
 message ReadParquet {
   string path = 1;
   Expr reader = 2;
@@ -2048,7 +2057,7 @@ message ReadTable {
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:43
+// dataframe-io.ir:48
 message ReadXml {
   string path = 1;
   Expr reader = 2;
@@ -2449,7 +2458,7 @@ message WindowSpecRowsBetween {
   WindowSpecExpr wnd = 4;
 }
 
-// dataframe-io.ir:105
+// dataframe-io.ir:110
 message WriteCopyIntoLocation {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2468,7 +2477,7 @@ message WriteCopyIntoLocation {
   Expr writer = 15;
 }
 
-// dataframe-io.ir:112
+// dataframe-io.ir:117
 message WriteCsv {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2495,7 +2504,7 @@ message WriteFile {
   }
 }
 
-// dataframe-io.ir:118
+// dataframe-io.ir:123
 message WriteInsertInto {
   bool overwrite = 1;
   SrcPosition src = 2;
@@ -2503,7 +2512,7 @@ message WriteInsertInto {
   Expr writer = 4;
 }
 
-// dataframe-io.ir:114
+// dataframe-io.ir:119
 message WriteJson {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2537,7 +2546,7 @@ message WritePandas {
   string table_type = 13;
 }
 
-// dataframe-io.ir:116
+// dataframe-io.ir:121
 message WriteParquet {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2554,7 +2563,7 @@ message WriteParquet {
   Expr writer = 13;
 }
 
-// dataframe-io.ir:110
+// dataframe-io.ir:115
 message WriteSave {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2571,7 +2580,7 @@ message WriteSave {
   Expr writer = 13;
 }
 
-// dataframe-io.ir:70
+// dataframe-io.ir:75
 message WriteTable {
   bool block = 1;
   google.protobuf.BoolValue change_tracking = 2;

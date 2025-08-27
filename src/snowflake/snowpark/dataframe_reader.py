@@ -1738,3 +1738,39 @@ class DataFrameReader:
 
         set_api_call_source(df, "DataFrameReader.file")
         return df
+
+    def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
+        """
+        Returns a DataFrame representing the results of a directory table query on the specified stage.
+
+        This method is an alias of :meth:`~snowflake.snowpark.session.Session.directory`.
+
+        Args:
+            stage_name: The name of the stage to query. The stage name should not include the '@' prefix
+                as it will be added automatically.
+
+        Returns:
+            A DataFrame containing metadata about files in the stage with the following columns:
+
+            - ``RELATIVE_PATH``: Path to the files to access using the file URL
+            - ``SIZE``: Size of the file in bytes
+            - ``LAST_MODIFIED``: Timestamp when the file was last updated in the stage
+            - ``MD5``: MD5 checksum for the file
+            - ``ETAG``: ETag header for the file
+            - ``FILE_URL``: Snowflake file URL to access the file
+
+        """
+        # AST.
+        stmt = None
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_directory, stmt)
+            ast.reader.CopyFrom(self._ast)
+            ast.stage_name = stage_name
+
+        dataframe = self._session.directory(stage_name, _emit_ast=False)
+
+        if _emit_ast and stmt is not None:
+            dataframe._ast_id = stmt.uid
+
+        return dataframe
