@@ -5,6 +5,11 @@
 ### Snowpark Python API Updates
 
 #### New Features
+
+- Added support for the following AI-powered functions in `functions.py`:
+  - `ai_extract`
+  - `ai_parse_document`
+  - `ai_transcribe`
 - Added time travel support for querying historical data:
   - `Session.table()` now supports time travel parameters: `time_travel_mode`, `statement`, `offset`, `timestamp`, `timestamp_type`, and `stream`.
   - `DataFrameReader.table()` supports the same time travel parameters as direct arguments.
