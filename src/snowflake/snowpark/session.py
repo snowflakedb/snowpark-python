@@ -4744,7 +4744,7 @@ class Session:
             >>> # List all files in the stage
             >>> df = session.directory('test_stage')
             >>> df.count()
-            3
+            2
 
             >>> # Get file URLs for CSV files only
             >>> csv_files = session.directory('test_stage').filter(
