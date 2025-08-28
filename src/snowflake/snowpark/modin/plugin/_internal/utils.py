@@ -1913,7 +1913,7 @@ def get_object_metadata_row_count(object_name: str) -> Optional[int]:
     This function uses "SHOW OBJECTS" to avoid running a COUNT query on the table.
 
     Args:
-        table_name: The name of the table, which can be fully qualified.
+        object_name: The name of the object, which can be fully qualified.
 
     Returns:
         The number of rows in the table or None, if no object was found or if the
