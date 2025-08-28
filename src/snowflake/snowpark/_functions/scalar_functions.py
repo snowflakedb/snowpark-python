@@ -106,7 +106,8 @@ def current_organization_user(_emit_ast: bool = True) -> Column:
     Returns the name of the organization user currently logged into the system.
 
     Example:
-        >>> result = session.create_dataframe([1]).select(current_organization_user()).collect()
+        >>> result = session.create_dataframe([1]).select(current_organization_user().alias('RESULT')).collect()
+        >>> assert result[0]['RESULT'] == None
     """
     return builtin("current_organization_user", _emit_ast=_emit_ast)()
 
