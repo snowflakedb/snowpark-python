@@ -130,6 +130,7 @@ def test_warning_if_quoted_identifiers_ignore_case_is_set(new_session):
     assert new_session is pd.session
     pd.session.sql("ALTER SESSION SET QUOTED_IDENTIFIERS_IGNORE_CASE = True").collect()
     warning_msg = "Snowflake parameter 'QUOTED_IDENTIFIERS_IGNORE_CASE' is set to True"
+    pd._reset_checked_casing()
     with warnings.catch_warnings(record=True) as w:
         warnings.filterwarnings("always")
         pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
