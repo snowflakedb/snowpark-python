@@ -336,11 +336,11 @@ def test_read_snowflake_data_types(
     expected_to_pandas,
 ):
     expected_query_count = (
-        10
+        9
         if isinstance(samples, list) and len(samples) > 1
-        else 6
-        if "timestamp_tz" in col_name_type
         else 5
+        if "timestamp_tz" in col_name_type
+        else 4
     )
     with SqlCounter(
         query_count=expected_query_count,
@@ -403,7 +403,7 @@ def test_read_snowflake_data_types_negative(
     # However, in the future Snowpark's behavior may change to address this large-scale floating point number case
     # in a different way and we should refresh with their current behavior.
 
-    expected_query_count = 9 if isinstance(samples, list) and len(samples) > 1 else 5
+    expected_query_count = 9 if isinstance(samples, list) and len(samples) > 1 else 4
     with SqlCounter(query_count=expected_query_count):
         Utils.create_table(session, test_table_name, col_name_type, is_temporary=True)
         if not isinstance(samples, list):
@@ -486,7 +486,7 @@ def test_read_snowflake_data_types_array_undefined_negative(
     expected_to_pandas_dtype,
     expected_to_pandas,
 ):
-    expected_query_count = 8 if isinstance(samples, list) and len(samples) > 1 else 4
+    expected_query_count = 7 if isinstance(samples, list) and len(samples) > 1 else 3
     with SqlCounter(query_count=expected_query_count):
         Utils.create_table(session, test_table_name, col_name_type, is_temporary=True)
         if not isinstance(samples, list):

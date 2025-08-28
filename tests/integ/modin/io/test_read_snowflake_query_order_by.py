@@ -24,7 +24,7 @@ from tests.utils import Utils
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_select_star_with_order_by(session, caplog, enforce_ordering):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # This test ensures that the presence of an ORDER BY causes us not to take the fastpath
         # of select * from table, where we just do `pd.read_snowflake("table")` instead.
@@ -55,7 +55,7 @@ def test_select_star_with_order_by(session, caplog, enforce_ordering):
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_no_order_by_but_column_name_shadows(session, caplog, enforce_ordering):
-    expected_query_count = 5 if enforce_ordering else 2
+    expected_query_count = 3 if enforce_ordering else 1
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe(
@@ -81,7 +81,7 @@ def test_no_order_by_but_column_name_shadows(session, caplog, enforce_ordering):
 def test_order_by_and_column_name_shadows(
     session, caplog, order_by_col, enforce_ordering
 ):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         # Want random permutation, but need to make sure that there are no duplicates in the sorting column
@@ -112,7 +112,7 @@ def test_order_by_and_column_name_shadows(
 def test_order_by_as_column_name_should_not_warn_negative(
     session, caplog, enforce_ordering
 ):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe(
@@ -138,7 +138,7 @@ def test_order_by_as_column_name_should_not_warn_negative(
 def test_inner_order_by_should_be_ignored_and_no_outer_order_by_negative(
     session, caplog, enforce_ordering
 ):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe(
@@ -166,7 +166,7 @@ def test_inner_order_by_should_be_ignored_and_no_outer_order_by_negative(
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_order_by_with_no_limit_but_colname_shadows(session, caplog, enforce_ordering):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         native_df = native_pd.DataFrame(
@@ -191,7 +191,7 @@ def test_order_by_with_no_limit_but_colname_shadows(session, caplog, enforce_ord
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_order_by_with_limit_and_name_shadows(session, caplog, enforce_ordering):
-    expected_query_count = 5 if enforce_ordering else 2
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         native_df = native_pd.DataFrame(
@@ -214,9 +214,8 @@ def test_order_by_with_limit_and_name_shadows(session, caplog, enforce_ordering)
 def test_read_snowflake_query_complex_query_with_join_and_order_by(
     session, caplog, enforce_ordering
 ):
-    expected_query_count = 7 if enforce_ordering else 4
-    expected_join_count = 1 if enforce_ordering else 2
-    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
+    expected_query_count = 5 if enforce_ordering else 3
+    with SqlCounter(query_count=expected_query_count, join_count=1):
         # create table
         table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe(
@@ -252,7 +251,7 @@ def test_read_snowflake_query_complex_query_with_join_and_order_by(
 @pytest.mark.parametrize("ordinal", [1, 2, 28])
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_order_by_with_position_key(session, ordinal, caplog, enforce_ordering):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         column_order = [
             "col12",
