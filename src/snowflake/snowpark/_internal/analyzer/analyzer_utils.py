@@ -172,6 +172,7 @@ MODE = " MODE "
 LATERAL = " LATERAL "
 PUT = " PUT "
 GET = " GET "
+COPY_FILES = " COPY FILES "
 GROUPING_SETS = " GROUPING SETS "
 QUESTION_MARK = "?"
 PERCENT_S = r"%s"
@@ -1231,6 +1232,12 @@ def file_operation_statement(
         return f"{PUT}{file_name}{SPACE}{stage_location}{SPACE}{get_options_statement(options)}"
     if command.lower() == "get":
         return f"{GET}{stage_location}{SPACE}{file_name}{SPACE}{get_options_statement(options)}"
+    if command.lower() == "copy_files":
+        # For COPY FILES, file_name is source location and stage_location is target location
+        return f"{COPY_FILES}{INTO}{stage_location}{FROM}{file_name}{get_options_statement(options)}"
+    if command.lower() == "copy_files_from_query":
+        # TODO
+        raise NotImplementedError
     raise ValueError(f"Unsupported file operation type {command}")
 
 

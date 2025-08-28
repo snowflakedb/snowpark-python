@@ -6,7 +6,7 @@ import gzip
 import os
 import sys
 import tempfile
-from typing import IO, Dict, List, NamedTuple, Optional
+from typing import IO, Dict, List, NamedTuple, Optional, Union
 
 import snowflake.snowpark
 from snowflake.connector import OperationalError, ProgrammingError
@@ -351,3 +351,55 @@ class FileOperation:
                 if decompress
                 else open(local_file_name, "rb")
             )
+
+    def copy_files(
+        self,
+        source_stage_location: str,
+        target_stage_location: str,
+        *,
+        files: Optional[List[str]] = None,
+        pattern: Optional[str] = None,
+        detailed_output: bool = True,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Union[List[str], int]:
+        """Copies files from one stage location to another.
+
+        References: `Snowflake COPY FILES command <https://docs.snowflake.com/en/sql-reference/sql/copy-files.html>`_.
+
+        Args:
+            source_stage_location: The source stage and path from which to copy files.
+            target_stage_location: The target stage and path where files will be copied.
+            files: Optional list of specific file names to copy.
+            pattern: Optional regular expression pattern for filtering files to copy.
+            detailed_output: If True, returns details for each file. If False, returns summary.
+                Defaults to True.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Returns:
+            list of string or integer
+        """
+        options = {"detailed_output": detailed_output}
+        if files is not None:
+            options["files"] = files
+        if pattern is not None:
+            if not is_single_quoted(pattern):
+                pattern_escape_single_quote = pattern.replace("'", "\\'")
+                pattern = f"'{pattern_escape_single_quote}'"  # snowflake pattern is a string with single quote
+            options["pattern"] = pattern
+
+        plan = self._session._analyzer.plan_builder.file_operation_plan(
+            "copy_files",
+            normalize_remote_file_or_dir(source_stage_location),
+            normalize_remote_file_or_dir(target_stage_location),
+            options,
+        )
+        copy_result = snowflake.snowpark.dataframe.DataFrame(
+            self._session, plan
+        )._internal_collect_with_tag(statement_params=statement_params)
+
+        if detailed_output:
+            # raw data is [Row(file=<file1>), Row(file=<file2>), ...]
+            return [file_result["file"] for file_result in copy_result]
+        else:
+            # raw data is [Row(numOfFilesCopied=<result>)]
+            return copy_result[0][0]
