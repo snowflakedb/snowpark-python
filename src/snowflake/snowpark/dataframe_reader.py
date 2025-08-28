@@ -1356,7 +1356,7 @@ class DataFrameReader:
                     Please include Jar file of jdbc driver to establish connection to external data source.
 
                 - java_version (int, optional): A integer that indicate the java runtime version of udtf.
-                    By default we use java 11.
+                    By default, we use java 17.
 
             properties: A dictionary containing key-value pair that is needed during establishing connection with external data source.
                 Please do not include any secrets in this parameter.

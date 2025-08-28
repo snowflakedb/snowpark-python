@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import copy
 import logging
 import re
 from collections import defaultdict
@@ -42,6 +43,7 @@ logger = logging.getLogger(__name__)
 # https://docs.snowflake.com/en/developer-guide/udf-stored-procedure-data-type-mapping
 
 
+# TODO: SNOW-2303890: support unsupported types for jdbc
 class JDBCType(Enum):
     # ARRAY = "ARRAY"  # not supported in snowflake
     BIGINT = "BIGINT"
@@ -168,7 +170,7 @@ class JDBC:
         self.packages = packages
         self.java_version = java_version
         self.secret = secret
-        self.properties = properties
+        self.properties = copy.deepcopy(properties)
 
         self.is_query = is_query
         self.column = column
@@ -216,6 +218,8 @@ class JDBC:
             import java.util.stream.Stream;
             import java.util.ArrayList;
             import java.util.List;
+            import java.util.Objects;
+            import java.util.concurrent.atomic.AtomicInteger;
             import com.snowflake.snowpark_java.types.*;
             import com.snowflake.snowpark_java.types.SnowflakeSecrets;
             import com.snowflake.snowpark_java.types.UsernamePassword;
@@ -251,34 +255,44 @@ class JDBC:
                 }}
 
                 public Stream<OutputRow> process(String query) {{
-                    List<OutputRow> list = new ArrayList<>();
-                     try {{
-                        PreparedStatement stmt = this.conn.prepareStatement(query);
-                        try (ResultSet rs = stmt.executeQuery()) {{
-                            ResultSetMetaData meta = rs.getMetaData();
-                            int columnCount = meta.getColumnCount();
-
-                            for (int i = 1; i <= columnCount; i++) {{
-                                OutputRow row = new OutputRow();
-
-                                row.field_name = meta.getColumnName(i);
-                                row.java_type = meta.getColumnClassName(i);
-                                try{{
-                                    row.jdbc_type = JDBCType.valueOf(meta.getColumnType(i)).toString();
-                                }} catch(Exception e){{
-                                    row.jdbc_type = null;
+                    try {{
+                        Statement stmt = this.conn.createStatement();
+                        ResultSet rs = stmt.executeQuery(query);
+                        ResultSetMetaData meta = rs.getMetaData();
+                        int columnCount = meta.getColumnCount();
+                        final AtomicInteger counter = new AtomicInteger(1);
+                        Stream<OutputRow> resultStream = Stream.generate(() -> {{
+                            try {{
+                                int currentColumnIndex = counter.getAndIncrement();
+                                if (currentColumnIndex <= columnCount) {{
+                                    OutputRow row = new OutputRow();
+                                    row.field_name = meta.getColumnName(currentColumnIndex);
+                                    row.java_type = meta.getColumnClassName(currentColumnIndex);
+                                    try{{
+                                        row.jdbc_type = JDBCType.valueOf(meta.getColumnType(currentColumnIndex)).toString();
+                                    }} catch(Exception e){{
+                                        row.jdbc_type = null;
+                                    }}
+                                    row.precision = meta.getPrecision(currentColumnIndex);
+                                    row.scale = meta.getScale(currentColumnIndex);
+                                    row.nullable = meta.isNullable(currentColumnIndex) == ResultSetMetaData.columnNullable;
+                                    return row;
+                                }} else {{
+                                    rs.close();
+                                    stmt.close();
+                                    this.conn.close();
+                                    return null;
                                 }}
-                                row.precision = meta.getPrecision(i);
-                                row.scale = meta.getScale(i);
-                                row.nullable = meta.isNullable(i) == ResultSetMetaData.columnNullable;
-                                list.add(row);
+                            }} catch (SQLException e) {{
+                                e.printStackTrace();
+                                return null;
                             }}
-                        }}
-                    }} catch (SQLException e) {{
-                        throw new RuntimeException("SQL error: " + e.getMessage(), e);
+                        }}).takeWhile(Objects::nonNull);
+                        return resultStream;
+                    }} catch (Exception e) {{
+                        throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                     }}
 
-                    return list.stream();
                 }}
 
                 public Stream<OutputRow> endPartition() {{
@@ -363,6 +377,7 @@ class JDBC:
             import java.sql.*;
             import java.util.stream.Stream;
             import java.util.ArrayList;
+            import java.util.Objects;
             import java.util.List;
             import java.util.Map;
             import java.util.LinkedHashMap;
@@ -395,26 +410,35 @@ class JDBC:
             }}
 
             public Stream<OutputRow> process(String query) {{
-                List<OutputRow> list = new ArrayList<>();
-                 try {{
+                try {{
                     Statement stmt = this.conn.createStatement();
                     stmt.setQueryTimeout({str(self.query_timeout)});
                     stmt.setFetchSize({str(self.fetch_size)});
                     {self.generate_session_init_statement()}
-                    try (ResultSet rs = stmt.executeQuery(query)) {{
-                        ResultSetMetaData meta = rs.getMetaData();
-                        int columnCount = meta.getColumnCount();
-                        while (rs.next()) {{
-                            OutputRow row = new OutputRow();
-                            {self.create_output_row_java_code()}
-                            list.add(row);
+                    ResultSet rs = stmt.executeQuery(query);
+                    ResultSetMetaData meta = rs.getMetaData();
+                    int columnCount = meta.getColumnCount();
+                    Stream<OutputRow> resultStream = Stream.generate(() -> {{
+                        try {{
+                            if (rs.next()) {{
+                                OutputRow row = new OutputRow();
+                                {self.create_output_row_java_code()}
+                                return row;
+                            }} else {{
+                                rs.close();
+                                stmt.close();
+                                this.conn.close();
+                                return null;
+                            }}
+                        }} catch (SQLException e) {{
+                            e.printStackTrace();
+                            return null;
                         }}
-                    }}
-                }} catch (SQLException e) {{
-                    throw new RuntimeException("SQL error: " + e.getMessage(), e);
+                    }}).takeWhile(Objects::nonNull);
+                    return resultStream;
+                }} catch (Exception e) {{
+                    throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                 }}
-
-                return list.stream();
             }}
 
             public Stream<OutputRow> endPartition() {{
