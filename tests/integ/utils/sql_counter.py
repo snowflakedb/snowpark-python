@@ -12,6 +12,7 @@ import traceback
 from typing import Dict, List, Optional, Union
 
 import pytest
+from modin.config import AutoSwitchBackend
 
 from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from snowflake.snowpark.session import Session
@@ -148,7 +149,12 @@ class SqlCounter(QueryListener):
         # Bypassing sql counter since
         #   1. it is an unnecessary metric for tests running in stored procedures
         #   2. pytest-assume package is not available in conda
-        self._no_check = no_check or IS_IN_STORED_PROC or SKIP_SQL_COUNT_CHECK
+        self._no_check = (
+            no_check
+            or IS_IN_STORED_PROC
+            or SKIP_SQL_COUNT_CHECK
+            or AutoSwitchBackend.get()
+        )
 
         # Save any expected sql counts initialized at start up.
         self._expected_sql_counts = {}
