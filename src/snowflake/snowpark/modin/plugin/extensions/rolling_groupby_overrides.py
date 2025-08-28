@@ -27,7 +27,6 @@
 from typing import Any, Union
 
 import modin.pandas as pd
-import pandas.core.groupby
 
 
 from snowflake.snowpark.modin.plugin._internal.telemetry import TelemetryMeta
@@ -36,17 +35,9 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
     series_not_implemented,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
-from snowflake.snowpark.modin.utils import (
-    _inherit_docstrings,
-    doc_replace_dataframe_with_link,
-)
 from .series_overrides import register_series_accessor
 
 
-@_inherit_docstrings(
-    pandas.core.groupby.DataFrameGroupBy.rolling,
-    modify_doc=doc_replace_dataframe_with_link,
-)
 class RollingGroupby(metaclass=TelemetryMeta):
     def __init__(
         self,
