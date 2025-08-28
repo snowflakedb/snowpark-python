@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
     create_initial_ordered_dataframe,
+    get_object_metadata_row_count,
 )
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
@@ -163,3 +164,46 @@ def test_ensure_index(data):
         data = pd.Series(data)
         qc = 7
     ensure_index_test_helper(data, qc)
+
+
+@sql_count_checker(query_count=5)
+def test_get_object_metadata_row_count(session):
+    # 1. Test with a table that exists and has rows.
+    table_name_with_rows = random_name_for_temp_object(TempObjectType.TABLE)
+    num_rows = 5
+    # Use temporary table to ensure it's cleaned up after session.
+    session.create_dataframe(
+        [[i] for i in range(num_rows)], schema=["a"]
+    ).write.save_as_table(
+        table_name_with_rows, mode="overwrite", table_type="temporary"
+    )
+
+    # Test with different qualifications
+    current_db = session.get_current_database()
+    current_schema = session.get_current_schema()
+
+    assert get_object_metadata_row_count(table_name_with_rows) == num_rows
+    assert (
+        get_object_metadata_row_count(f"{current_schema}.{table_name_with_rows}")
+        == num_rows
+    )
+    assert (
+        get_object_metadata_row_count(
+            f"{current_db}.{current_schema}.{table_name_with_rows}"
+        )
+        == num_rows
+    )
+
+    # 2. Test with an empty table. Should return None because row count is not > 0.
+    empty_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe([], schema=["a"]).write.save_as_table(
+        empty_table_name, mode="overwrite", table_type="temporary"
+    )
+    assert get_object_metadata_row_count(empty_table_name) is None
+
+    # 3. Test with a non-existent table.
+    non_existent_table = random_name_for_temp_object(TempObjectType.TABLE)
+    assert get_object_metadata_row_count(non_existent_table) is None
+
+    # 4. Test with an invalid name.
+    assert get_object_metadata_row_count("a.b.c.d.e") is None

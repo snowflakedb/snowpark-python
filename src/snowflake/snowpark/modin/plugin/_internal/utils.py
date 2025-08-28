@@ -31,7 +31,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.expression import Literal
-from snowflake.snowpark._internal.type_utils import LiteralType as SnowparkLiteralType
+from snowflake.snowpark._internal.type_utils import LiteralType
 from snowflake.snowpark._internal.utils import (
     SNOWFLAKE_OBJECT_RE_PATTERN,
     TempObjectType,
@@ -1946,8 +1946,9 @@ def get_object_metadata_row_count(table_name: str) -> Optional[int]:
     # quote db and schema to handle special characters.
     quoted_db = quote_name_without_upper_casing(db)
     quoted_schema = quote_name_without_upper_casing(schema)
-
-    res = session.sql(f"SHOW OBJECTS LIKE '{table}' IN SCHEMA {quoted_db}.{quoted_schema} LIMIT 1").collect(
+    query = f"SHOW OBJECTS LIKE '{table}' IN SCHEMA {db}.{schema} LIMIT 1"
+    #breakpoint()
+    res = session.sql(query).collect(
         statement_params=get_default_snowpark_pandas_statement_params()
     )
     if len(res) != 1:
