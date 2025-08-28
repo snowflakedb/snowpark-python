@@ -217,7 +217,7 @@ def test_get_object_metadata_row_count(session):
     try:
         materialized_view_name = f"{table_name_with_rows}_MV"
         session.sql(
-            f"CREATE MATERIALIZED VIEW {table_name_with_rows} AS SELECT * FROM {table_name_with_rows}"
+            f"CREATE MATERIALIZED VIEW {materialized_view_name} AS SELECT * FROM {table_name_with_rows}"
         )
         assert get_object_metadata_row_count(materialized_view_name) is None
         assert (
