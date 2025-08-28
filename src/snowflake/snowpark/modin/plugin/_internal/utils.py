@@ -8,7 +8,7 @@ import re
 import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional, Union, TypeAlias
+from typing import TYPE_CHECKING, Any, Optional, Union
 from packaging import version  # noqa: E402,F401
 
 import modin.pandas as pd
@@ -1907,20 +1907,25 @@ def count_rows(df: OrderedDataFrame) -> int:
     return row_count
 
 
-def get_object_metadata_row_count(table_name: str) -> Optional[int]:
+def get_object_metadata_row_count(object_name: str) -> Optional[int]:
     """
-    Get the row count of a table from Snowflake's metadata.
+    Get the row count of a table or materialized view from Snowflake's metadata.
     This function uses "SHOW OBJECTS" to avoid running a COUNT query on the table.
 
     Args:
         table_name: The name of the table, which can be fully qualified.
 
     Returns:
-        The number of rows in the table or None, if no object was found.
+        The number of rows in the table or None, if no object was found or if the
+        object name is invalid.
     """
     session = pd.session
 
-    parts = parse_table_name(table_name)
+    try:
+        parts = parse_table_name(object_name)
+    except Exception:
+        # If the object name is invalid, return None rather than propagate the exception
+        return None
 
     db, schema, table = None, None, None
     current_db = session.get_current_database()
@@ -1943,20 +1948,18 @@ def get_object_metadata_row_count(table_name: str) -> Optional[int]:
     if not schema:
         return None
 
-    # quote db and schema to handle special characters.
-    quoted_db = quote_name_without_upper_casing(db)
-    quoted_schema = quote_name_without_upper_casing(schema)
     query = f"SHOW OBJECTS LIKE '{table}' IN SCHEMA {db}.{schema} LIMIT 1"
-    #breakpoint()
+
     res = session.sql(query).collect(
         statement_params=get_default_snowpark_pandas_statement_params()
     )
     if len(res) != 1:
         return None
-    
+
     rows = res[0]["rows"]
-    if rows > 0:
+    if rows > 0 or res[0]["kind"] == "TABLE":
         return rows
+    # Will return None for materialized views
     return None
 
 

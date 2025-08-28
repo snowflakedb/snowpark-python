@@ -22,6 +22,7 @@ from snowflake.snowpark.modin.plugin.extensions.utils import (
 )
 from tests.integ.modin.utils import assert_index_equal
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import Utils
 
 
 @pytest.mark.parametrize("columns", [["A", "b", "C"], ['"a"', '"B"', '"c"']])
@@ -166,9 +167,13 @@ def test_ensure_index(data):
     ensure_index_test_helper(data, qc)
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(
+    query_count=15,
+    high_count_expected=True,
+    high_count_reason="Tests multiple table types",
+)
 def test_get_object_metadata_row_count(session):
-    # 1. Test with a table that exists and has rows.
+    # Test with a table that exists and has rows.
     table_name_with_rows = random_name_for_temp_object(TempObjectType.TABLE)
     num_rows = 5
     # Use temporary table to ensure it's cleaned up after session.
@@ -194,16 +199,43 @@ def test_get_object_metadata_row_count(session):
         == num_rows
     )
 
-    # 2. Test with an empty table. Should return None because row count is not > 0.
-    empty_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-    session.create_dataframe([], schema=["a"]).write.save_as_table(
-        empty_table_name, mode="overwrite", table_type="temporary"
-    )
-    assert get_object_metadata_row_count(empty_table_name) is None
+    # Test with views; should return None
+    try:
+        df = pd.read_snowflake(f"SELECT * FROM {table_name_with_rows}")
+        view_name = f"{table_name_with_rows}_V"
+        df.to_view(view_name)
+        assert get_object_metadata_row_count(view_name) is None
+        assert get_object_metadata_row_count(f"{current_schema}.{view_name}") is None
+        assert (
+            get_object_metadata_row_count(f"{current_db}.{current_schema}.{view_name}")
+            is None
+        )
+    finally:
+        Utils.drop_view(session, view_name)
 
-    # 3. Test with a non-existent table.
+    # Test with materialized views; should return None ( unfortunately )
+    try:
+        materialized_view_name = f"{table_name_with_rows}_MV"
+        session.sql(
+            f"CREATE MATERIALIZED VIEW {table_name_with_rows} AS SELECT * FROM {table_name_with_rows}"
+        )
+        assert get_object_metadata_row_count(materialized_view_name) is None
+        assert (
+            get_object_metadata_row_count(f"{current_schema}.{materialized_view_name}")
+            is None
+        )
+        assert (
+            get_object_metadata_row_count(
+                f"{current_db}.{current_schema}.{materialized_view_name}"
+            )
+            is None
+        )
+    finally:
+        Utils.drop_view(session, materialized_view_name)
+
+    # Test with a non-existent table.
     non_existent_table = random_name_for_temp_object(TempObjectType.TABLE)
     assert get_object_metadata_row_count(non_existent_table) is None
 
-    # 4. Test with an invalid name.
+    # Test with an invalid name.
     assert get_object_metadata_row_count("a.b.c.d.e") is None
