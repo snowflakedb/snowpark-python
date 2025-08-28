@@ -8,7 +8,7 @@ import re
 import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union, TypeAlias
 from packaging import version  # noqa: E402,F401
 
 import modin.pandas as pd
@@ -31,12 +31,13 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
 from snowflake.snowpark._internal.analyzer.expression import Literal
-from snowflake.snowpark._internal.type_utils import LiteralType
+from snowflake.snowpark._internal.type_utils import LiteralType as SnowparkLiteralType
 from snowflake.snowpark._internal.utils import (
     SNOWFLAKE_OBJECT_RE_PATTERN,
     TempObjectType,
     generate_random_alphanumeric,
     get_temp_type_for_object,
+    parse_table_name,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import Column
@@ -1904,6 +1905,58 @@ def count_rows(df: OrderedDataFrame) -> int:
     df.row_count = row_count
     df.row_count_upper_bound = row_count
     return row_count
+
+
+def get_object_metadata_row_count(table_name: str) -> Optional[int]:
+    """
+    Get the row count of a table from Snowflake's metadata.
+    This function uses "SHOW OBJECTS" to avoid running a COUNT query on the table.
+
+    Args:
+        table_name: The name of the table, which can be fully qualified.
+
+    Returns:
+        The number of rows in the table or None, if no object was found.
+    """
+    session = pd.session
+
+    parts = parse_table_name(table_name)
+
+    db, schema, table = None, None, None
+    current_db = session.get_current_database()
+    current_schema = session.get_current_schema()
+
+    if len(parts) == 1:
+        table = parts[0]
+        schema = current_schema
+        db = current_db
+    elif len(parts) == 2:
+        schema, table = parts[0], parts[1]
+        db = current_db
+    elif len(parts) == 3:
+        db, schema, table = parts[0], parts[1], parts[2]
+    else:
+        return None
+
+    if not db:
+        return None
+    if not schema:
+        return None
+
+    # quote db and schema to handle special characters.
+    quoted_db = quote_name_without_upper_casing(db)
+    quoted_schema = quote_name_without_upper_casing(schema)
+
+    res = session.sql(f"SHOW OBJECTS LIKE '{table}' IN SCHEMA {quoted_db}.{quoted_schema} LIMIT 1").collect(
+        statement_params=get_default_snowpark_pandas_statement_params()
+    )
+    if len(res) != 1:
+        return None
+    
+    rows = res[0]["rows"]
+    if rows > 0:
+        return rows
+    return None
 
 
 def append_columns(
