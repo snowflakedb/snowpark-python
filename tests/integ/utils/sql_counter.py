@@ -12,7 +12,6 @@ import traceback
 from typing import Dict, List, Optional, Union
 
 import pytest
-from modin.config import AutoSwitchBackend
 
 from snowflake.snowpark.query_history import QueryListener, QueryRecord
 from snowflake.snowpark.session import Session
@@ -140,6 +139,7 @@ class SqlCounter(QueryListener):
         **kwargs,
     ) -> "SqlCounter":
         from tests.conftest import SKIP_SQL_COUNT_CHECK
+        from tests.integ.modin.conftest import MODIN_HYBRID_TEST_MODE_ENABLED
 
         self._queries: list[QueryRecord] = []
 
@@ -153,7 +153,7 @@ class SqlCounter(QueryListener):
             no_check
             or IS_IN_STORED_PROC
             or SKIP_SQL_COUNT_CHECK
-            or AutoSwitchBackend.get()
+            or MODIN_HYBRID_TEST_MODE_ENABLED
         )
 
         # Save any expected sql counts initialized at start up.
