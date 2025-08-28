@@ -2569,6 +2569,12 @@ class Session:
             build_table_name(ast.name, name)
             ast.variant.session_table = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
+            ast.time_travel_mode = time_travel_mode
+            ast.statement = statement
+            ast.offset = offset
+            ast.timestamp = timestamp
+            ast.timestamp_type = str(timestamp_type) if timestamp_type else None
+            ast.stream = stream
         else:
             stmt = None
 

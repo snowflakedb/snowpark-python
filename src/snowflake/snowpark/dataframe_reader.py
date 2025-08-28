@@ -597,6 +597,12 @@ class DataFrameReader:
             ast = with_src_position(stmt.expr.read_table, stmt)
             ast.reader.CopyFrom(self._ast)
             build_table_name(ast.name, name)
+            ast.time_travel_mode = time_travel_mode
+            ast.statement = statement
+            ast.offset = offset
+            ast.timestamp = timestamp
+            ast.timestamp_type = str(timestamp_type) if timestamp_type else None
+            ast.stream = stream
 
         if time_travel_mode is not None:
             time_travel_params = {
