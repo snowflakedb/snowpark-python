@@ -23,7 +23,7 @@
 # existing code originally distributed by the pandas project, under the BSD 3-Clause License
 
 
-"""Implement ResamplerGroupby public API."""
+"""Implement RollingGroupby public API."""
 from typing import Any, Union
 
 import modin.pandas as pd
@@ -44,7 +44,7 @@ from .series_overrides import register_series_accessor
 
 
 @_inherit_docstrings(
-    pandas.core.groupby.DataFrameGroupBy.resample,
+    pandas.core.groupby.DataFrameGroupBy.rolling,
     modify_doc=doc_replace_dataframe_with_link,
 )
 class RollingGroupby(metaclass=TelemetryMeta):
@@ -62,7 +62,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         method: str = "single",
         dropna: bool = True,
     ) -> None:
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._dataframe = dataframe
         self._query_compiler = dataframe._query_compiler
         self.by = by
@@ -83,9 +83,9 @@ class RollingGroupby(metaclass=TelemetryMeta):
         self._series_not_implemented()
 
     def _method_not_implemented(self, method: str):  # pragma: no cover
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         raise ErrorMessage.not_implemented(
-            f"Method {method} is not implemented for GroupbyResampler!"
+            f"Method {method} is not implemented for RollingGroupby!"
         )
 
     def _series_not_implemented(self):
@@ -96,7 +96,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         Raises:
             NotImplementedError if the above condition is encountered.
         """
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         if self._dataframe.ndim == 1:
             raise ErrorMessage.not_implemented(
                 "Snowpark pandas does not yet support the method GroupBy.rolling for Series"
@@ -113,7 +113,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("resample_max", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_max", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
@@ -135,9 +135,9 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("resample_mean", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_mean", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only)
         is_series = not self._dataframe._is_dataframe
@@ -159,9 +159,9 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("resample_median", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_median", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only)
         is_series = not self._dataframe._is_dataframe
@@ -184,9 +184,9 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("resample_min", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
@@ -209,9 +209,9 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("resample_sum", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_sum", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
@@ -234,9 +234,9 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("resample_min", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
@@ -259,9 +259,9 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("resample_min", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
@@ -284,9 +284,9 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("resample_min", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
@@ -309,9 +309,9 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063368: Modin upgrade - modin.pandas.resample.Resample
+        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("resample_min", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
