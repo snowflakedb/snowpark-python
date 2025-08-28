@@ -6,6 +6,14 @@
 
 #### New Features
 
+- Added support for the following AI-powered functions in `functions.py`:
+  - `ai_extract`
+  - `ai_parse_document`
+  - `ai_transcribe`
+- Added time travel support for querying historical data:
+  - `Session.table()` now supports time travel parameters: `time_travel_mode`, `statement`, `offset`, `timestamp`, `timestamp_type`, and `stream`.
+  - `DataFrameReader.table()` supports the same time travel parameters as direct arguments.
+  - `DataFrameReader` supports time travel via option chaining (e.g., `session.read.option("time_travel_mode", "at").option("offset", -60).table("my_table")`).
 - Added support for specifying the following parameters to `DataFrameWriter.copy_into_location` for validation and writing data to external locations:
     - `validation_mode`
     - `storage_integration`
@@ -25,6 +33,7 @@
 #### Improvements
 
 - Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
+- Bumped cloudpickle dependency to also support `cloudpickle==3.1.1` in addition to previous versions.
 
 ### Snowpark pandas API Updates
 
@@ -41,7 +50,9 @@
 #### Improvements
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
 - Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
+- Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
 - Only perform row count estimation when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
+
 
 #### Dependency Updates
 
