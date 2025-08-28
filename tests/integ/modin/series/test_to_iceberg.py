@@ -34,7 +34,7 @@ def to_iceberg(request):
     return request.param
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=5)
 def test_to_iceberg(session, native_pandas_ser_basic, to_iceberg):
     if not iceberg_supported(session, local_testing_mode=False):
         pytest.skip("Test requires iceberg support.")
