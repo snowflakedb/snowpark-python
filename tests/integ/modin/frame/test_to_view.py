@@ -54,7 +54,7 @@ def test_to_view_basic(session, native_pandas_df_basic, to_view) -> None:
         Utils.drop_view(session, view_name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=5)
 def test_to_view_multiple_sessions_enforce_ordering_raises(
     session,
     db_parameters,
@@ -97,7 +97,7 @@ def test_to_view_multiple_sessions_enforce_ordering_raises(
         pd.session = session
 
 
-@sql_count_checker(query_count=5)
+@sql_count_checker(query_count=4)
 def test_to_view_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
@@ -146,7 +146,7 @@ def test_to_view_multiple_sessions_no_enforce_ordering(
         (False, ["my_index"], []),
     ],
 )
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_to_view_index(session, index, index_labels, expected_index_columns, to_view):
     try:
         # create table
@@ -191,7 +191,7 @@ def test_to_view_index(session, index, index_labels, expected_index_columns, to_
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_to_view_multiindex(session, to_view):
     try:
         # create table
@@ -228,7 +228,7 @@ def test_to_view_multiindex(session, to_view):
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_to_view_multiindex_length_mismatch_raises(session, to_view):
     try:
         # create table
