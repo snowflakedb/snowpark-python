@@ -139,3 +139,6 @@ def col(
             _emit_ast=_emit_ast,
             _caller_name="col",
         )
+
+
+builtin = function
