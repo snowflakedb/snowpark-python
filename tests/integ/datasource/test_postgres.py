@@ -175,8 +175,8 @@ def test_udtf_ingestion_postgres(session, input_type, input_value, caplog):
     assert df.collect() == EXPECTED_TEST_DATA
     # assert UDTF creation and UDTF call
     assert (
-        "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
-        and "table(data_source_udtf" in caplog.text
+        "TEMPORARY  FUNCTION  SNOWPARK_TEMP_FUNCTION" "" in caplog.text
+        and "table(SNOWPARK_TEMP_FUNCTION" in caplog.text
     )
 
 
