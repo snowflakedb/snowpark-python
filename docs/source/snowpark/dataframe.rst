@@ -126,9 +126,11 @@ DataFrame
     DataFrameAIFunctions.complete
     DataFrameAIFunctions.embed
     DataFrameAIFunctions.filter
+    DataFrameAIFunctions.parse_document
     DataFrameAIFunctions.sentiment
     DataFrameAIFunctions.similarity
     DataFrameAIFunctions.summarize_agg
+    DataFrameAIFunctions.transcribe
     dataframe.map
     dataframe.map_in_pandas
 
