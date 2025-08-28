@@ -41,7 +41,7 @@ class SnowpandasSessionHolder(ModuleType):
     value to a module property, e.g. `pd.session = session1`.
     """
     _checked_casing = False
-    
+
     def _warn_if_possible_when_quoted_identifiers_ignore_case_is_set(
         self, session: Session
     ) -> None:
@@ -70,7 +70,7 @@ class SnowpandasSessionHolder(ModuleType):
             pass
         self._checked_casing = True
 
-    def _reset_checked_casing(self) -> bool:
+    def _reset_checked_casing(self) -> None:
         """
         Used for testing to reset the flag for the casing check
         """
