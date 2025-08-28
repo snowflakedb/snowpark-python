@@ -26,7 +26,7 @@ from tests.utils import Utils
 
 
 @pytest.mark.parametrize("columns", [["A", "b", "C"], ['"a"', '"B"', '"c"']])
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_create_snowpark_dataframe_with_readonly_temp_table(session, columns):
     num_rows = 10
     data = [[0] * len(columns) for _ in range(num_rows)]
@@ -49,7 +49,7 @@ def test_create_snowpark_dataframe_with_readonly_temp_table(session, columns):
 
 
 @pytest.mark.parametrize("columns", [["A", "b", "C"], ['"a"', '"B"', '"c"']])
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_create_snowpark_dataframe_with_no_readonly_temp_table(session, columns):
     num_rows = 10
     data = [[0] * len(columns) for _ in range(num_rows)]
