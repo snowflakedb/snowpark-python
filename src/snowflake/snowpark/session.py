@@ -4751,7 +4751,12 @@ class Session:
             ...     col('RELATIVE_PATH').like('%.csv%')
             ... ).select('RELATIVE_PATH')
             >>> csv_files.show()
-            [ROW(RELATIVE_PATH='tests/resources/testCSV.csv')]
+            -------------------
+            |"RELATIVE_PATH"  |
+            -------------------
+            |testCSV.csv      |
+            -------------------
+            <BLANKLINE>
 
         For details, see the Snowflake documentation on
         `Snowflake Directory Tables Documentation <https://docs.snowflake.com/en/user-guide/data-load-dirtables-query>`_
