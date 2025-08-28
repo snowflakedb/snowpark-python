@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import uuid
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -168,7 +169,7 @@ def test_ensure_index(data):
 
 
 @sql_count_checker(
-    query_count=15,
+    query_count=20,
     high_count_expected=True,
     high_count_reason="Tests multiple table types",
 )
@@ -239,3 +240,24 @@ def test_get_object_metadata_row_count(session):
 
     # Test with an invalid name.
     assert get_object_metadata_row_count("a.b.c.d.e") is None
+
+    # Test with a cross-schema lookup
+    try:
+        ALTERNATIVE_TEST_SCHEMA = "SNOWPANDAS_JOB_{}".format(
+            str(uuid.uuid4()).replace("-", "_")
+        )
+        TABLE_IN_ALT_SCHEMA = random_name_for_temp_object(TempObjectType.TABLE)
+        FQTABLE_NAME = f"{ALTERNATIVE_TEST_SCHEMA}.{TABLE_IN_ALT_SCHEMA}"
+        FQTABLE_NAME_NO_TABLE = f"{ALTERNATIVE_TEST_SCHEMA}.DOES_NOT_EXIST"
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {ALTERNATIVE_TEST_SCHEMA}").collect()
+        session.sql(
+            f"GRANT ALL PRIVILEGES ON SCHEMA {ALTERNATIVE_TEST_SCHEMA} TO ROLE PUBLIC"
+        ).collect()
+        session.create_dataframe(
+            [[i] for i in range(num_rows)], schema=["a"]
+        ).write.save_as_table(FQTABLE_NAME, mode="overwrite", table_type="temporary")
+        assert get_object_metadata_row_count(FQTABLE_NAME) == 5
+        assert get_object_metadata_row_count(FQTABLE_NAME_NO_TABLE) is None
+
+    finally:
+        session.sql(f"DROP SCHEMA IF EXISTS {ALTERNATIVE_TEST_SCHEMA}").collect()
