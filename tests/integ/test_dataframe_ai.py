@@ -4,7 +4,8 @@
 
 import json
 import pytest
-from snowflake.snowpark.functions import col, lit
+from snowflake.snowpark.functions import col, lit, to_file
+from tests.utils import TestFiles, Utils
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
 
@@ -1007,3 +1008,120 @@ def test_dataframe_ai_summarize_agg_error_handling(session):
         df.ai.summarize_agg(
             input_column=123,  # Invalid type
         )
+
+
+def test_dataframe_ai_transcribe_basic(session, resources_path):
+    """Test DataFrame.ai.transcribe with basic usage."""
+    stage_name = Utils.random_stage_name()
+    _ = session.sql(
+        f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    test_files = TestFiles(resources_path)
+    audio_local = test_files.test_audio_ogg
+    _ = session.file.put(audio_local, f"@{stage_name}", auto_compress=False)
+
+    df = session.create_dataframe([[f"@{stage_name}/audio.ogg"]], schema=["audio_path"])
+
+    result_df = df.ai.transcribe(
+        input_column=to_file(col("audio_path")),
+        output_column="transcript",
+    )
+
+    assert result_df.columns == ["AUDIO_PATH", "TRANSCRIPT"]
+
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 1
+    data = json.loads(results[0]["TRANSCRIPT"]) if results[0]["TRANSCRIPT"] else {}
+    assert isinstance(data, dict)
+    assert data.get("audio_duration", 0) > 100
+    assert (data.get("text") or "").lower().find(
+        "glad to see things are going well"
+    ) >= 0
+
+
+def test_dataframe_ai_transcribe_default_output_column(session, resources_path):
+    """Test DataFrame.ai.transcribe with default output and word timestamps."""
+    stage_name = Utils.random_stage_name()
+    _ = session.sql(
+        f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    audio_local = TestFiles(resources_path).test_audio_ogg
+    _ = session.file.put(audio_local, f"@{stage_name}", auto_compress=False)
+
+    df = session.create_dataframe([[f"@{stage_name}/audio.ogg"]], schema=["audio_path"])
+
+    result_df = df.ai.transcribe(
+        input_column=to_file(col("audio_path")),
+        timestamp_granularity="word",
+    )
+
+    assert "AI_TRANSCRIBE_OUTPUT" in result_df.columns
+    results = result_df.collect(_emit_ast=False)
+    data = (
+        json.loads(results[0]["AI_TRANSCRIBE_OUTPUT"])
+        if results[0]["AI_TRANSCRIBE_OUTPUT"]
+        else {}
+    )
+    assert data.get("audio_duration", 0) > 0
+    assert isinstance(data.get("segments", []), list) and len(data["segments"]) > 0
+    assert all("start" in s and "end" in s for s in data["segments"])
+
+
+def test_dataframe_ai_parse_document_basic(session, resources_path):
+    """Test DataFrame.ai.parse_document OCR on a PDF document."""
+    stage_name = Utils.random_stage_name()
+    _ = session.sql(
+        f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    file_local = TestFiles(resources_path).test_doc_pdf
+    _ = session.file.put(file_local, f"@{stage_name}", auto_compress=False)
+
+    df = session.create_dataframe([[f"@{stage_name}/doc.pdf"]], schema=["file_path"])
+
+    result_df = df.ai.parse_document(
+        input_column=to_file(col("file_path")),
+        output_column="parsed",
+        mode="OCR",
+    )
+
+    assert result_df.columns == ["FILE_PATH", "PARSED"]
+
+    results = result_df.collect(_emit_ast=False)
+    data = json.loads(results[0]["PARSED"]) if results[0]["PARSED"] else {}
+    assert isinstance(data, dict)
+    assert "content" in data and isinstance(data["content"], str)
+    assert isinstance(data.get("metadata", {}), dict)
+    assert data["metadata"].get("pageCount", 0) >= 3
+
+
+def test_dataframe_ai_parse_document_default_output_column(session, resources_path):
+    """Test DataFrame.ai.parse_document default output with page splitting."""
+    stage_name = Utils.random_stage_name()
+    _ = session.sql(
+        f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    file_local = TestFiles(resources_path).test_doc_pdf
+    _ = session.file.put(file_local, f"@{stage_name}", auto_compress=False)
+
+    df = session.create_dataframe([[f"@{stage_name}/doc.pdf"]], schema=["file_path"])
+
+    result_df = df.ai.parse_document(
+        input_column=to_file(col("file_path")),
+        page_split=True,
+    )
+
+    assert "AI_PARSE_DOCUMENT_OUTPUT" in result_df.columns
+    results = result_df.collect(_emit_ast=False)
+    data = (
+        json.loads(results[0]["AI_PARSE_DOCUMENT_OUTPUT"])
+        if results[0]["AI_PARSE_DOCUMENT_OUTPUT"]
+        else {}
+    )
+    assert isinstance(data, dict)
+    assert isinstance(data.get("pages", []), list) and len(data["pages"]) >= 1
+    first_page = data["pages"][0]
+    assert (
+        isinstance(first_page, dict)
+        and "index" in first_page
+        and "content" in first_page
+    )
