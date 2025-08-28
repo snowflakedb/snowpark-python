@@ -787,7 +787,11 @@ def test_copy_files(session, path1, path2, path3):
             == 1
         )
 
-        file_name_1, file_name_2 = os.path.basename(path1), os.path.basename(path2)
+        file_name_1, file_name_2, file_name_3 = (
+            os.path.basename(path1),
+            os.path.basename(path2),
+            os.path.basename(path3),
+        )
         # two files in prefix1 but only copy one of them
         assert session.file.copy_files(
             f"@{source_stage}/prefix1/",
@@ -801,6 +805,40 @@ def test_copy_files(session, path1, path2, path3):
             f"@{target_stage}/copied4/",
             pattern="'.*file_2.*'",
         ) == [f"copied4/{file_name_2}"]
+
+        # cope files with dataframe
+        df = session.create_dataframe(
+            [[f"@{source_stage}/prefix1/{file_name_1}", "new_file_1"]],
+            schema=["existing_url", "new_file_name"],
+        )
+        current_database = session.get_current_database().replace('"', "")
+        current_schema = session.get_current_schema().replace('"', "")
+        assert session.file.copy_files(df, f"@{target_stage}/copied5/") == [
+            f"{current_database}.{current_schema}.{target_stage}/copied5/new_file_1"
+        ]
+
+        # cope files with dataframe of 1 column
+        df = session.create_dataframe(
+            [
+                f"@{source_stage}/prefix1/{file_name_1}",
+                f"@{source_stage}/prefix2/{file_name_3}",
+            ],
+            schema=["existing_url"],
+        )
+        assert session.file.copy_files(df, f"@{target_stage}/copied6/") == [
+            f"{current_database}.{current_schema}.{target_stage}/copied6/prefix1/{file_name_1}",
+            f"{current_database}.{current_schema}.{target_stage}/copied6/prefix2/{file_name_3}",
+        ]
+
+        # negative test: dataframe with 3 columns
+        df = session.create_dataframe(
+            [[f"@{source_stage}/prefix1/{file_name_1}", "new_file_1", "extra_column"]],
+            schema=["existing_url", "new_file_name", "extra_column"],
+        )
+        with pytest.raises(
+            SnowparkSQLException, match="exceeds maximum allowable number of columns"
+        ):
+            session.file.copy_files(df, f"@{target_stage}/copied7/")
 
     finally:
         session.sql(f"drop stage if exists {source_stage}").collect()

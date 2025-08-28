@@ -1233,11 +1233,8 @@ def file_operation_statement(
     if command.lower() == "get":
         return f"{GET}{stage_location}{SPACE}{file_name}{SPACE}{get_options_statement(options)}"
     if command.lower() == "copy_files":
-        # For COPY FILES, file_name is source location and stage_location is target location
+        # For COPY FILES, file_name stores the value of the source stage location or subquery (from a DataFrame)
         return f"{COPY_FILES}{INTO}{stage_location}{FROM}{file_name}{get_options_statement(options)}"
-    if command.lower() == "copy_files_from_query":
-        # TODO
-        raise NotImplementedError
     raise ValueError(f"Unsupported file operation type {command}")
 
 
