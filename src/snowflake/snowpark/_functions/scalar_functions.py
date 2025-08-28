@@ -2,10 +2,8 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import publicapi
 from snowflake.snowpark.column import (
-    _to_col_if_str,
     Column,
 )
 from snowflake.snowpark._functions.general_functions import (
@@ -26,27 +24,6 @@ def all_user_names(_emit_ast: bool = True) -> Column:
         >>> assert isinstance(result[0]['ALL_USER_NAMES()'], str)
     """
     return builtin("all_user_names", _emit_ast=_emit_ast)()
-
-
-@publicapi
-def application_json(message: ColumnOrName, _emit_ast: bool = True) -> Column:
-    """
-    Wraps a message string in an application/json content type format for notification purposes.
-
-    Args:
-        message: A column or column name containing the message to be wrapped in JSON format.
-
-    Returns:
-        A Column containing the message wrapped in application/json format.
-
-    Example::
-
-        >>> df = session.create_dataframe([['{"data": "hello world"}']], schema=["message"])
-        >>> df.select(application_json(df["message"]).alias("result")).collect()
-        [Row(RESULT='{"application/json":"{\\\\"data\\\\": \\\\"hello world\\\\"}"}')]
-    """
-    c = _to_col_if_str(message, "application_json")
-    return builtin("snowflake.notification.application_json", _emit_ast=_emit_ast)(c)
 
 
 @publicapi
