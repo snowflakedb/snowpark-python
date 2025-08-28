@@ -33,7 +33,7 @@ from tests.utils import Utils
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_basic_query_with_weird_formatting(session, enforce_ordering):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -70,7 +70,7 @@ def test_read_snowflake_basic_query_with_weird_formatting(session, enforce_order
 def test_read_snowflake_basic_query_with_comment_preceding_sql_inline_string(
     session, enforce_ordering
 ):
-    expected_query_count = 7 if enforce_ordering else 3
+    expected_query_count = 5 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -120,7 +120,7 @@ def test_read_snowflake_basic_query_with_comment_preceding_sql_inline_string(
 def test_read_snowflake_basic_query_with_comment_preceding_sql_multiline_string(
     session, enforce_ordering
 ):
-    expected_query_count = 7 if enforce_ordering else 2
+    expected_query_count = 5 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -160,7 +160,7 @@ def test_read_snowflake_basic_query_with_comment_preceding_sql_multiline_string(
 @pytest.mark.parametrize("only_nulls", [True, False])
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_none_nan_condition(session, only_nulls, enforce_ordering):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -191,7 +191,7 @@ def test_read_snowflake_query_none_nan_condition(session, only_nulls, enforce_or
 def test_read_snowflake_query_aliased_columns(
     session, col_name_and_alias_tuple, enforce_ordering
 ):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         col_name, alias = col_name_and_alias_tuple
@@ -217,7 +217,7 @@ def test_read_snowflake_query_aliased_columns(
 def test_read_snowflake_query_aliased_columns_and_columns_kwarg_specified(
     session, col_name_and_alias_tuple, enforce_ordering
 ):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         col_name, alias = col_name_and_alias_tuple
@@ -241,7 +241,7 @@ def test_read_snowflake_query_aliased_columns_and_columns_kwarg_specified(
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_with_columns(session, enforce_ordering):
-    expected_query_count = 4 if enforce_ordering else 3
+    expected_query_count = 3 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -263,7 +263,7 @@ def test_read_snowflake_query_with_columns(session, enforce_ordering):
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_with_index_col_and_columns(session, enforce_ordering):
-    expected_query_count = 4 if enforce_ordering else 3
+    expected_query_count = 3 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -292,7 +292,7 @@ def test_read_snowflake_query_with_index_col_and_columns(session, enforce_orderi
 def test_read_snowflake_query_with_index_col_and_columns_overlap(
     session, enforce_ordering
 ):
-    expected_query_count = 4 if enforce_ordering else 3
+    expected_query_count = 3 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -318,7 +318,7 @@ def test_read_snowflake_query_with_index_col_and_columns_overlap(
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_additional_derived_column(session, enforce_ordering):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -361,7 +361,7 @@ def test_read_snowflake_query_non_existing(
     non_existing_index_col,
     enforce_ordering,
 ):
-    expected_query_count = 3 if enforce_ordering else 2
+    expected_query_count = 2 if enforce_ordering else 1
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -379,7 +379,7 @@ def test_read_snowflake_query_non_existing(
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_duplicate_columns(session, enforce_ordering):
-    expected_query_count = 7 if enforce_ordering else 5
+    expected_query_count = 5 if enforce_ordering else 3
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -446,9 +446,8 @@ def test_read_snowflake_query_table_bad_sql_negative(bad_sql, enforce_ordering) 
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_complex_query_with_join(session, enforce_ordering):
-    expected_query_count = 7 if enforce_ordering else 4
-    expected_join_count = 1 if enforce_ordering else 2
-    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
+    expected_query_count = 5 if enforce_ordering else 3
+    with SqlCounter(query_count=expected_query_count, join_count=1):
         # create table
         table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe(
@@ -486,7 +485,7 @@ def test_read_snowflake_query_complex_query_with_join(session, enforce_ordering)
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_query_connect_by(session, enforce_ordering):
-    expected_query_count = 8 if enforce_ordering else 5
+    expected_query_count = 6 if enforce_ordering else 4
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
