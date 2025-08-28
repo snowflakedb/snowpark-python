@@ -35,7 +35,6 @@ Functions
     ai_transcribe
     any_value
     all_user_names
-    application_json
     approx_count_distinct
     approx_percentile
     approx_percentile_accumulate
