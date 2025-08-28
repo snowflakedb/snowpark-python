@@ -30,9 +30,13 @@ from tests.utils import Utils, running_on_jenkins
 
 from modin.config import AutoSwitchBackend
 
-# Disable automatic backend selection for hybrid execution by default.
-AutoSwitchBackend.disable()
-
+@pytest.fixture(scope="session", autouse=True)
+def setup_modin_hybrid_mode(pytestconfig):
+    hybrid_mode = pytestconfig.getoption("enable_modin_hybrid_mode")
+    if hybrid_mode:
+        AutoSwitchBackend.enable()
+    else:
+        AutoSwitchBackend.disable()
 
 @pytest.fixture(scope="module", autouse=True)
 def f(session):
@@ -115,6 +119,7 @@ def check_sql_counter_invoked(request):
         # on Jenkins.
         and not running_on_jenkins()
         and not SKIP_SQL_COUNT_CHECK
+        and not AutoSwitchBackend.get() # disable sql_counter for hybrid mode tests
     )
 
     if do_check:

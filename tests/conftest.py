@@ -77,6 +77,7 @@ def pytest_addoption(parser, pluginmanager):
         help="Path to the Unparser JAR built in the monorepo.",
     )
     parser.addoption("--join_alias_fix", action="store_true", default=False)
+    parser.addoption("--enable_modin_hybrid_mode", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
