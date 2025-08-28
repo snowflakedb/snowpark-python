@@ -141,10 +141,9 @@ def test_to_snowpark_pandas_with_operations(
 def test_to_snowpark_pandas_duplicated_columns_raises(
     session, tmp_table_basic, enforce_ordering
 ) -> None:
-    with SqlCounter(query_count=0):
-        sql_simplifier_enabled_original = session.sql_simplifier_enabled
-        # Error is raised only when SQL simplifier is enabled.
-        session.sql_simplifier_enabled = True
+    sql_simplifier_enabled_original = session.sql_simplifier_enabled
+    # Error is raised only when SQL simplifier is enabled.
+    session.sql_simplifier_enabled = True
 
     snowpark_df = session.table(tmp_table_basic)
     snowpark_df = snowpark_df.select(

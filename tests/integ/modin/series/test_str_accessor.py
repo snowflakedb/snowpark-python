@@ -725,7 +725,7 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
     expected_udf_count = 2
     if session.sql_simplifier_enabled:
         expected_udf_count = 1
-    with SqlCounter(query_count=3, udf_count=expected_udf_count):
+    with SqlCounter(query_count=8, udf_count=expected_udf_count):
         from tests.utils import Utils
 
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)

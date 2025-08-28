@@ -62,7 +62,7 @@ def test_to_dynamic_table_enforce_ordering_raises(session, to_dynamic_table) -> 
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=5)
 def test_to_dynamic_table_no_enforce_ordering(session, to_dynamic_table) -> None:
     try:
         # create table

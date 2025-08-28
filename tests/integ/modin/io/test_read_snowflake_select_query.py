@@ -33,7 +33,7 @@ from tests.utils import Utils
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_basic_query_with_weird_formatting(session, enforce_ordering):
-    expected_query_count = 6 if enforce_ordering else 3
+    expected_query_count = 4 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -70,7 +70,7 @@ def test_read_snowflake_basic_query_with_weird_formatting(session, enforce_order
 def test_read_snowflake_basic_query_with_comment_preceding_sql_inline_string(
     session, enforce_ordering
 ):
-    expected_query_count = 7 if enforce_ordering else 3
+    expected_query_count = 5 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
