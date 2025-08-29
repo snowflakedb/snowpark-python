@@ -395,6 +395,23 @@ class FileOperation:
                 number of files copied. Defaults to True.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
+        Examples:
+            >>> # Create a temp stage.
+            >>> _ = session.sql("create or replace temp stage source_stage").collect()
+            >>> _ = session.sql("create or replace temp stage target_stage").collect()
+            >>> # Upload a file to a stage.
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@source_stage")
+            >>> # Copy files from source stage to target stage.
+            >>> session.file.copy_files("@source_stage", "@target_stage")
+            ['testCSV.csv']
+            >>> # Copy files from source stage to target stage using a DataFrame.
+            >>> df = session.create_dataframe(
+            >>>     [["@source_stage/testCSV.csv", "new_file_1"]],
+            >>>     schema=["existing_url", "new_file_name"],
+            >>> )
+            >>> session.file.copy_files(df, "@target_stage", detailed_output=False)
+            1
+
         Returns:
             If ``detailed_output`` is True, a ``list[str]`` of copied file paths. Otherwise, an ``int``
             indicating the number of files copied.
