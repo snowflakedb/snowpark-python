@@ -139,7 +139,6 @@ class SqlCounter(QueryListener):
         **kwargs,
     ) -> "SqlCounter":
         from tests.conftest import SKIP_SQL_COUNT_CHECK
-        from tests.integ.modin.conftest import MODIN_HYBRID_TEST_MODE_ENABLED
 
         self._queries: list[QueryRecord] = []
 
@@ -149,12 +148,7 @@ class SqlCounter(QueryListener):
         # Bypassing sql counter since
         #   1. it is an unnecessary metric for tests running in stored procedures
         #   2. pytest-assume package is not available in conda
-        self._no_check = (
-            no_check
-            or IS_IN_STORED_PROC
-            or SKIP_SQL_COUNT_CHECK
-            or MODIN_HYBRID_TEST_MODE_ENABLED
-        )
+        self._no_check = no_check or IS_IN_STORED_PROC or SKIP_SQL_COUNT_CHECK
 
         # Save any expected sql counts initialized at start up.
         self._expected_sql_counts = {}

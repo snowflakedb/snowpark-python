@@ -195,6 +195,11 @@ def pytest_sessionstart(session):
 SKIP_SQL_COUNT_CHECK = False
 
 
+def set_skip_sql_count_check(value: bool):
+    global SKIP_SQL_COUNT_CHECK
+    SKIP_SQL_COUNT_CHECK = value
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_skip_sql_count_check(pytestconfig):
     skip = pytestconfig.getoption("skip_sql_count_check")
