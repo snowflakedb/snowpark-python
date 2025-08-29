@@ -85,11 +85,11 @@
 - Added support for `Index.get_level_values()`.
 
 #### Improvements
+- Hybrid execution mode (PuPr) is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
 - Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
 - Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
 - Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
-- Add a new test parameter for integration tests to enable hybrid execution
 
 #### Dependency Updates
 
