@@ -19,6 +19,7 @@
     - `storage_integration`
     - `credentials`
     - `encryption`
+- Added support for `FileOperation.copy_files` to copy files from a source location to an output stage.
 
 #### Bug Fixes
 
