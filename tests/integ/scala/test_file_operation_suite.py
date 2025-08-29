@@ -803,7 +803,7 @@ def test_copy_files(session, path1, path2, path3):
         assert session.file.copy_files(
             f"@{source_stage}/prefix1/",
             f"@{target_stage}/copied4/",
-            pattern="'.*file_2.*'",
+            pattern=".*file_2.*",
         ) == [f"copied4/{file_name_2}"]
 
         # cope files with dataframe
@@ -839,6 +839,11 @@ def test_copy_files(session, path1, path2, path3):
             SnowparkSQLException, match="exceeds maximum allowable number of columns"
         ):
             session.file.copy_files(df, f"@{target_stage}/copied7/")
+
+        with pytest.raises(ValueError, match="files and pattern are not supported"):
+            session.file.copy_files(
+                df, f"@{target_stage}/copied7/", pattern="'.*file_2.*'"
+            )
 
     finally:
         session.sql(f"drop stage if exists {source_stage}").collect()
