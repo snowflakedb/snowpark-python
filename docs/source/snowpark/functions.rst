@@ -34,6 +34,7 @@ Functions
     ai_summarize_agg
     ai_transcribe
     any_value
+    all_user_names
     approx_count_distinct
     approx_percentile
     approx_percentile_accumulate
@@ -138,17 +139,25 @@ Functions
     create_map
     cume_dist
     current_account
+    current_account_name
     current_available_roles
+    current_client
     current_database
     current_date
+    current_ip_address
+    current_organization_name
+    current_organization_user
     current_region
     current_role
+    current_role_type
     current_schema
     current_schemas
+    current_secondary_roles
     current_session
     current_statement
     current_time
     current_timestamp
+    current_transaction
     current_user
     current_version
     current_warehouse
