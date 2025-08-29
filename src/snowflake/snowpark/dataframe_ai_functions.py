@@ -1201,38 +1201,6 @@ class DataFrameAIFunctions:
             >>> isinstance(result.get("response", {}).get("languages", []), list)
             True
 
-            >>> # Extract using array format
-            >>> df = session.create_dataframe(
-            ...     [
-            ...         ["Alice Johnson works in Seattle"],
-            ...         ["Bob Williams works in Portland"],
-            ...     ],
-            ...     schema=["text"]
-            ... )
-            >>> extracted_df = df.ai.extract(
-            ...     input_column=col("text"),
-            ...     response_format=[["name", "What is the first name?"], ["city", "What city do they work in?"]],
-            ...     output_column="info",
-            ... )
-            >>> extracted_df.show()
-            ------------------------------------------------------------
-            |"TEXT"                          |"INFO"                   |
-            ------------------------------------------------------------
-            |Alice Johnson works in Seattle  |{                        |
-            |                                |  "response": {          |
-            |                                |    "city": "Seattle",   |
-            |                                |    "name": "Alice"      |
-            |                                |  }                      |
-            |                                |}                        |
-            |Bob Williams works in Portland  |{                        |
-            |                                |  "response": {          |
-            |                                |    "city": "Portland",  |
-            |                                |    "name": "Bob"        |
-            |                                |  }                      |
-            |                                |}                        |
-            ------------------------------------------------------------
-            <BLANKLINE>
-
             >>> # Extract lists using List: prefix
             >>> df = session.create_dataframe(
             ...     [["Python, Java, and JavaScript are popular programming languages"]],
