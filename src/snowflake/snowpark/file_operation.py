@@ -406,9 +406,9 @@ class FileOperation:
             ['testCSV.csv.gz']
             >>> # Copy files from source stage to target stage using a DataFrame.
             >>> df = session.create_dataframe(
-            >>>     [["@source_stage/testCSV.csv", "new_file_1"]],
-            >>>     schema=["existing_url", "new_file_name"],
-            >>> )
+            ...     [["@source_stage/testCSV.csv", "new_file_1"]],
+            ...     schema=["existing_url", "new_file_name"],
+            ... )
             >>> session.file.copy_files(df, "@target_stage", detailed_output=False)
             1
 
