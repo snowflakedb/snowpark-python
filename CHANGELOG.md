@@ -19,10 +19,10 @@
     - `storage_integration`
     - `credentials`
     - `encryption`
-  
+- Added support for `Session.directory` and `Session.read.directory` to retrieve the list of all files on a stage with metadata.
+
 - Added support for the following scalar functions in `functions.py`:
   - `all_user_names`
-  - `application_json`
   - `current_account_name`
   - `current_ip_address`
   - `current_role_type`

@@ -1,0 +1,106 @@
+## TEST CASE
+
+r = session.directory("abcd")
+
+r = session.directory("@abcd")
+
+r = session.directory('""dk!@#xc126"')
+
+## EXPECTED UNPARSER OUTPUT
+
+r = session.directory("@abcd")
+
+r = session.directory("@abcd")
+
+r = session.directory("@\"\"dk!@#xc126\"")
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      directory {
+        src {
+          end_column: 37
+          end_line: 25
+          file: 2
+          start_column: 12
+          start_line: 25
+        }
+        stage_name: "@abcd"
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "r"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      directory {
+        src {
+          end_column: 38
+          end_line: 27
+          file: 2
+          start_column: 12
+          start_line: 27
+        }
+        stage_name: "@abcd"
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "r"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      directory {
+        src {
+          end_column: 46
+          end_line: 29
+          file: 2
+          start_column: 12
+          start_line: 29
+        }
+        stage_name: "@\"\"dk!@#xc126\""
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "r"
+    }
+    uid: 3
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 37
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
