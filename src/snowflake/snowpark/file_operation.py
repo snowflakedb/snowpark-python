@@ -403,7 +403,7 @@ class FileOperation:
             >>> _ = session.file.put("tests/resources/testCSV.csv", "@source_stage")
             >>> # Copy files from source stage to target stage.
             >>> session.file.copy_files("@source_stage", "@target_stage")
-            ['testCSV.csv']
+            ['testCSV.csv.gz']
             >>> # Copy files from source stage to target stage using a DataFrame.
             >>> df = session.create_dataframe(
             >>>     [["@source_stage/testCSV.csv", "new_file_1"]],
