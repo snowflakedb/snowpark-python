@@ -35,14 +35,19 @@ MODIN_HYBRID_TEST_MODE_ENABLED = False
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_modin_hybrid_mode(pytestconfig):
+    from tests.conftest import SKIP_SQL_COUNT_CHECK
+
     global MODIN_HYBRID_TEST_MODE_ENABLED
+    global SKIP_SQL_COUNT_CHECK
     hybrid_mode = pytestconfig.getoption("enable_modin_hybrid_mode")
     if hybrid_mode:
         AutoSwitchBackend.enable()
         MODIN_HYBRID_TEST_MODE_ENABLED = True
+        SKIP_SQL_COUNT_CHECK = True
     else:
         AutoSwitchBackend.disable()
         MODIN_HYBRID_TEST_MODE_ENABLED = False
+        SKIP_SQL_COUNT_CHECK = True
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -115,7 +120,6 @@ def auto_annotate_sql_counter(request):
 @pytest.fixture(autouse=True)
 def check_sql_counter_invoked(request):
     from tests.conftest import SKIP_SQL_COUNT_CHECK
-    from tests.integ.modin.conftest import MODIN_HYBRID_TEST_MODE_ENABLED
 
     do_check = (
         INTEG_PANDAS_SUBPATH in request.node.location[0]
@@ -127,7 +131,6 @@ def check_sql_counter_invoked(request):
         # on Jenkins.
         and not running_on_jenkins()
         and not SKIP_SQL_COUNT_CHECK
-        and not MODIN_HYBRID_TEST_MODE_ENABLED
     )
 
     if do_check:
