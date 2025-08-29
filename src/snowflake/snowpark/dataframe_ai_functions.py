@@ -1187,21 +1187,6 @@ class DataFrameAIFunctions:
             <BLANKLINE>
 
             >>> # Extract lists using List: prefix
-            >>> import json
-            >>> df = session.create_dataframe(
-            ...     [["Python, Java, and JavaScript are popular programming languages"]],
-            ...     schema=["text"]
-            ... )
-            >>> result_df = df.ai.extract(
-            ...     input_column="text",
-            ...     response_format=[["languages", "List: What programming languages are mentioned?"]],
-            ...     output_column="extracted",
-            ... )
-            >>> result = json.loads(result_df.collect()[0]["EXTRACTED"]) if result_df.collect()[0]["EXTRACTED"] else {}
-            >>> isinstance(result.get("response", {}).get("languages", []), list)
-            True
-
-            >>> # Extract lists using List: prefix
             >>> df = session.create_dataframe(
             ...     [["Python, Java, and JavaScript are popular programming languages"]],
             ...     schema=["text"]
