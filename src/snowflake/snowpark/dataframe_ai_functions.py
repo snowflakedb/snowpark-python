@@ -1114,13 +1114,13 @@ class DataFrameAIFunctions:
             response_format: The schema describing information to extract. Supports:
 
                 - Simple object schema (dict) mapping feature names to extraction prompts:
-                ``{'name': 'What is the last name of the employee?', 'address': 'What is the address of the employee?'}``
+                  ``{'name': 'What is the last name of the employee?', 'address': 'What is the address of the employee?'}``
                 - Array of strings containing the information to be extracted:
-                ``['What is the last name of the employee?', 'What is the address of the employee?']``
+                  ``['What is the last name of the employee?', 'What is the address of the employee?']``
                 - Array of arrays containing two strings (feature name and extraction prompt):
-                ``[['name', 'What is the last name of the employee?'], ['address', 'What is the address of the employee?']]``
+                  ``[['name', 'What is the last name of the employee?'], ['address', 'What is the address of the employee?']]``
                 - Array of strings with colon-separated feature names and extraction prompts:
-                ``['name: What is the last name of the employee?', 'address: What is the address of the employee?']``
+                  ``['name: What is the last name of the employee?', 'address: What is the address of the employee?']``
 
             output_column: The name of the output column to be appended.
                 If not provided, a column named ``AI_EXTRACT_OUTPUT`` is appended.
