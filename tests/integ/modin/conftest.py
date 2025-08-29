@@ -45,7 +45,6 @@ def setup_modin_hybrid_mode(pytestconfig):
     else:
         AutoSwitchBackend.disable()
         MODIN_HYBRID_TEST_MODE_ENABLED = False
-        set_skip_sql_count_check(True)
 
 
 @pytest.fixture(scope="module", autouse=True)
