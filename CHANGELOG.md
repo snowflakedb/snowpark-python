@@ -19,7 +19,6 @@
     - `storage_integration`
     - `credentials`
     - `encryption`
-- Added support for `Session.directory` and `Session.read.directory` to retrieve the list of all files on a stage with metadata.
 
 #### Bug Fixes
 
