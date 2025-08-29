@@ -189,6 +189,12 @@ class JDBC:
             if self.imports is not None
             else ""
         )
+        if (
+            self.packages is not None
+            and "com.snowflake:snowpark:latest" not in self.packages
+            and "com.snowflake:snowpark" not in self.packages
+        ):
+            self.packages.append("com.snowflake:snowpark:latest")
         self.packages_sql = (
             f"""PACKAGES=({','.join([f"'{pack}'" for pack in self.packages])})"""
             if self.packages is not None
@@ -284,8 +290,7 @@ class JDBC:
                                     return null;
                                 }}
                             }} catch (SQLException e) {{
-                                e.printStackTrace();
-                                return null;
+                                throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                             }}
                         }}).takeWhile(Objects::nonNull);
                         return resultStream;
@@ -431,8 +436,7 @@ class JDBC:
                                 return null;
                             }}
                         }} catch (SQLException e) {{
-                            e.printStackTrace();
-                            return null;
+                            throw new RuntimeException("Ingestion error: " + e.getMessage(), e);
                         }}
                     }}).takeWhile(Objects::nonNull);
                     return resultStream;
