@@ -31,6 +31,13 @@
   - `current_organization_name`
   - `current_organization_user`
   - `current_transaction`
+  - `bitand_agg`
+  - `bitor_agg` 
+  - `bitxor_agg` 
+  - `bitand` 
+  - `bitor` 
+  - `bitxor`
+  - `getbit`
 
 #### Bug Fixes
 
