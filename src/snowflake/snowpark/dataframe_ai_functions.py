@@ -15,6 +15,7 @@ from snowflake.snowpark.functions import (
     ai_filter,
     ai_agg,
     ai_classify,
+    ai_extract,
     ai_similarity,
     ai_sentiment,
     ai_embed,
@@ -1093,5 +1094,211 @@ class DataFrameAIFunctions:
         add_api_call(
             df,
             "DataFrame.ai.parse_document",
+        )
+        return df
+
+    @experimental(version="1.37.0")
+    def extract(
+        self,
+        input_column: ColumnOrName,
+        *,
+        response_format: Optional[Union[Dict[str, str], List]] = None,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Extract structured information from text or files using a response schema.
+
+        Args:
+            input_column: The column (Column object or column name as string) containing the text
+                or FILE data to extract information from. Use ``to_file`` for staged file paths.
+            response_format: The schema describing information to extract. Supports:
+
+                - Simple object schema (dict) mapping feature names to extraction prompts:
+                ``{'name': 'What is the last name of the employee?', 'address': 'What is the address of the employee?'}``
+                - Array of strings containing the information to be extracted:
+                ``['What is the last name of the employee?', 'What is the address of the employee?']``
+                - Array of arrays containing two strings (feature name and extraction prompt):
+                ``[['name', 'What is the last name of the employee?'], ['address', 'What is the address of the employee?']]``
+                - Array of strings with colon-separated feature names and extraction prompts:
+                ``['name: What is the last name of the employee?', 'address: What is the address of the employee?']``
+
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``AI_EXTRACT_OUTPUT`` is appended.
+
+        Returns:
+            A new DataFrame with an appended JSON object containing the extracted fields
+            under ``response``.
+
+        Examples::
+
+            >>> # Extract from text string
+            >>> from snowflake.snowpark.functions import col
+            >>> df = session.create_dataframe([
+            ...     ["John Smith lives in San Francisco and works for Snowflake"],
+            ... ], schema=["text"])
+            >>> result_df = df.ai.extract(
+            ...     input_column="text",
+            ...     response_format={'name': 'What is the first name of the employee?', 'city': 'What is the address of the employee?'},
+            ...     output_column="extracted",
+            ... )
+            >>> result_df.select("EXTRACTED").show()
+            --------------------------------
+            |"EXTRACTED"                   |
+            --------------------------------
+            |{                             |
+            |  "response": {               |
+            |    "city": "San Francisco",  |
+            |    "name": "John"            |
+            |  }                           |
+            |}                             |
+            --------------------------------
+            <BLANKLINE>
+
+            >>> # Extract using array format
+            >>> df = session.create_dataframe(
+            ...     [
+            ...         ["Alice Johnson works in Seattle"],
+            ...         ["Bob Williams works in Portland"],
+            ...     ],
+            ...     schema=["text"]
+            ... )
+            >>> result_df = df.ai.extract(
+            ...     input_column=col("text"),
+            ...     response_format=[["name", "What is the first name?"], ["city", "What city do they work in?"]],
+            ...     output_column="info",
+            ... )
+            >>> result_df.show()
+            ------------------------------------------------------------
+            |"TEXT"                          |"INFO"                   |
+            ------------------------------------------------------------
+            |Alice Johnson works in Seattle  |{                        |
+            |                                |  "response": {          |
+            |                                |    "city": "Seattle",   |
+            |                                |    "name": "Alice"      |
+            |                                |  }                      |
+            |                                |}                        |
+            |Bob Williams works in Portland  |{                        |
+            |                                |  "response": {          |
+            |                                |    "city": "Portland",  |
+            |                                |    "name": "Bob"        |
+            |                                |  }                      |
+            |                                |}                        |
+            ------------------------------------------------------------
+            <BLANKLINE>
+
+            >>> # Extract lists using List: prefix
+            >>> import json
+            >>> df = session.create_dataframe(
+            ...     [["Python, Java, and JavaScript are popular programming languages"]],
+            ...     schema=["text"]
+            ... )
+            >>> result_df = df.ai.extract(
+            ...     input_column="text",
+            ...     response_format=[["languages", "List: What programming languages are mentioned?"]],
+            ...     output_column="extracted",
+            ... )
+            >>> result = json.loads(result_df.collect()[0]["EXTRACTED"]) if result_df.collect()[0]["EXTRACTED"] else {}
+            >>> isinstance(result.get("response", {}).get("languages", []), list)
+            True
+
+            >>> # Extract using array format
+            >>> df = session.create_dataframe(
+            ...     [
+            ...         ["Alice Johnson works in Seattle"],
+            ...         ["Bob Williams works in Portland"],
+            ...     ],
+            ...     schema=["text"]
+            ... )
+            >>> extracted_df = df.ai.extract(
+            ...     input_column=col("text"),
+            ...     response_format=[["name", "What is the first name?"], ["city", "What city do they work in?"]],
+            ...     output_column="info",
+            ... )
+            >>> extracted_df.show()
+            ------------------------------------------------------------
+            |"TEXT"                          |"INFO"                   |
+            ------------------------------------------------------------
+            |Alice Johnson works in Seattle  |{                        |
+            |                                |  "response": {          |
+            |                                |    "city": "Seattle",   |
+            |                                |    "name": "Alice"      |
+            |                                |  }                      |
+            |                                |}                        |
+            |Bob Williams works in Portland  |{                        |
+            |                                |  "response": {          |
+            |                                |    "city": "Portland",  |
+            |                                |    "name": "Bob"        |
+            |                                |  }                      |
+            |                                |}                        |
+            ------------------------------------------------------------
+            <BLANKLINE>
+
+            >>> # Extract lists using List: prefix
+            >>> df = session.create_dataframe(
+            ...     [["Python, Java, and JavaScript are popular programming languages"]],
+            ...     schema=["text"]
+            ... )
+            >>> result_df = df.ai.extract(
+            ...     input_column="text",
+            ...     response_format=[["languages", "List: What programming languages are mentioned?"]],
+            ...     output_column="extracted",
+            ... )
+            >>> result_df.select("EXTRACTED").show()
+            ----------------------
+            |"EXTRACTED"         |
+            ----------------------
+            |{                   |
+            |  "response": {     |
+            |    "languages": [  |
+            |      "Python",     |
+            |      "Java",       |
+            |      "JavaScript"  |
+            |    ]               |
+            |  }                 |
+            |}                   |
+            ----------------------
+            <BLANKLINE>
+
+            >>> # Extract from file
+            >>> from snowflake.snowpark.functions import to_file
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+            >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
+            >>> df = session.create_dataframe([["@mystage/invoice.pdf"]], schema=["file_path"])
+            >>> result_df = df.ai.extract(
+            ...     input_column=to_file(col("file_path")),
+            ...     response_format=[["date", "What is the invoice date?"], ["amount", "What is the amount?"]],
+            ...     output_column="info",
+            ... )
+            >>> result_df.select("INFO").show()
+            --------------------------------
+            |"INFO"                        |
+            --------------------------------
+            |{                             |
+            |  "response": {               |
+            |    "amount": "USD $950.00",  |
+            |    "date": "Nov 26, 2016"    |
+            |  }                           |
+            |}                             |
+            --------------------------------
+            <BLANKLINE>
+
+        """
+
+        input_col = _to_col_if_str(input_column, "DataFrame.ai.extract")
+
+        result_col = ai_extract(
+            input=input_col,
+            response_format=response_format,
+            _emit_ast=False,
+        )
+
+        output_column_name = output_column or "AI_EXTRACT_OUTPUT"
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            "DataFrame.ai.extract",
         )
         return df

@@ -124,6 +124,7 @@ DataFrame
     DataFrameAIFunctions.classify
     DataFrameAIFunctions.complete
     DataFrameAIFunctions.embed
+    DataFrameAIFunctions.extract
     DataFrameAIFunctions.filter
     DataFrameAIFunctions.parse_document
     DataFrameAIFunctions.sentiment
