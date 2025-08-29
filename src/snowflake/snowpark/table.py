@@ -22,6 +22,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
 from snowflake.snowpark._internal.ast.utils import (
+    build_expr_from_python_val,
     build_expr_from_dict_str_str,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_python_val,
@@ -307,12 +308,18 @@ class Table(DataFrame):
             build_table_name(ast.name, table_name)
             ast.variant.table_init = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
-            ast.time_travel_mode = time_travel_mode
-            ast.statement = statement
-            ast.offset = offset
-            ast.timestamp = timestamp
-            ast.timestamp_type = str(timestamp_type) if timestamp_type else None
-            ast.stream = stream
+            if time_travel_mode is not None:
+                ast.time_travel_mode.value = time_travel_mode
+            if statement is not None:
+                ast.statement.value = statement
+            if offset is not None:
+                ast.offset.value = offset
+            if timestamp is not None:
+                build_expr_from_python_val(ast.timestamp, timestamp)
+            if timestamp_type is not None:
+                ast.timestamp_type.value = str(timestamp_type)
+            if stream is not None:
+                ast.stream.value = stream
 
         time_travel_config = TimeTravelConfig.validate_and_normalize_params(
             time_travel_mode=time_travel_mode,
