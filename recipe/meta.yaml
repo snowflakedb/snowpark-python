@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.34.0" %}
+{% set version = "1.37.0" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 {% set build_number = os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) %}
 
@@ -53,7 +53,7 @@ requirements:
     {% else %}
     - python
     {% endif %}
-    - cloudpickle >=1.6.0,<=3.0.0,!=2.1.0,!=2.2.0
+    - cloudpickle >=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0
     - snowflake-connector-python >=3.12.0,<4.0.0
     - typing-extensions >=4.1.0,<5.0.0
     # need to pin libffi because of problems in cryptography.
@@ -61,12 +61,12 @@ requirements:
     - libffi <=3.4.4
     - pyyaml
     # Snowpark IR
-    - protobuf >=3.20,<6
+    - protobuf >=3.20,<6.32
     - python-dateutil
     - tzlocal
   run_constrained:
     # Snowpark pandas
-    - modin >=0.33.0,<0.35.0
+    - modin >=0.34.0,<0.36.0
 {% endif %}
 
 test:

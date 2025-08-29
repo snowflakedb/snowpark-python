@@ -1,19 +1,24 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import json
 import multiprocessing as mp
 import os
+import re
 import sys
 import time
 import queue
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 import threading
+from datetime import datetime
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    convert_value_to_sql_option,
     create_file_format_statement,
     drop_file_format_if_exists_statement,
     infer_schema_statement,
@@ -71,6 +76,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     random_name_for_temp_object,
     warning,
+    experimental,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
 from snowflake.snowpark.dataframe import DataFrame
@@ -78,11 +84,12 @@ from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
     SnowparkDataframeReaderException,
 )
-from snowflake.snowpark.functions import sql_expr
+from snowflake.snowpark.functions import sql_expr, col, concat, lit, to_file
 from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     StructType,
+    TimestampTimeZone,
     VariantType,
     StructField,
 )
@@ -98,6 +105,16 @@ else:
 logger = getLogger(__name__)
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
+
+_TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
+    "TIME_TRAVEL_MODE": "time_travel_mode",
+    "STATEMENT": "statement",
+    "OFFSET": "offset",
+    "TIMESTAMP": "timestamp",
+    "TIMESTAMP_TYPE": "timestamp_type",
+    "STREAM": "stream",
+}
+
 READER_OPTIONS_ALIAS_MAP = {
     "DELIMITER": "FIELD_DELIMITER",
     "HEADER": "PARSE_HEADER",
@@ -122,6 +139,42 @@ def _validate_stage_path(path: str) -> str:
             f"'{path}' is an invalid Snowflake stage location. DataFrameReader can only read files from stage locations."
         )
     return path
+
+
+def _extract_time_travel_from_options(options: dict) -> dict:
+    """
+    Extract time travel options from DataFrameReader options.
+
+    Special handling for 'AS-OF-TIMESTAMP' (PySpark compatibility):
+    - Automatically sets time_travel_mode to 'at'
+    - Cannot be used with time_travel_mode='before' (raises error)
+    - Cannot be mixed with regular 'timestamp' option (raises error)
+    """
+    result = {}
+    excluded_keys = set()
+
+    # Handle PySpark as-of-timestamp special case
+    if "AS-OF-TIMESTAMP" in options:
+        if (
+            "TIME_TRAVEL_MODE" in options
+            and options["TIME_TRAVEL_MODE"].lower() == "before"
+        ):
+            raise ValueError(
+                "Cannot use 'as-of-timestamp' option with time_travel_mode='before'"
+            )
+        if "TIMESTAMP" in options:
+            raise ValueError(
+                "Cannot use both 'as-of-timestamp' and 'timestamp' options."
+            )
+        result["time_travel_mode"] = "at"
+        result["timestamp"] = options["AS-OF-TIMESTAMP"]
+        excluded_keys.add("TIMESTAMP")
+
+    for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items():
+        if option_key in options and option_key not in excluded_keys:
+            result[param_name] = options[option_key]
+
+    return result
 
 
 class DataFrameReader:
@@ -471,13 +524,72 @@ class DataFrameReader:
         return metadata_project, metadata_schema
 
     @publicapi
-    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
+    def table(
+        self,
+        name: Union[str, Iterable[str]],
+        _emit_ast: bool = True,
+        *,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
+        timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
+        stream: Optional[str] = None,
+    ) -> Table:
         """Returns a Table that points to the specified table.
 
-        This method is an alias of :meth:`~snowflake.snowpark.session.Session.table`.
+        This method is an alias of :meth:`~snowflake.snowpark.session.Session.table` with
+        additional support for setting time travel options via the :meth:`option` method.
 
         Args:
             name: Name of the table to use.
+            time_travel_mode: Time travel mode, either 'at' or 'before'. Can also be set via
+                ``option("time_travel_mode", "at")``.
+            statement: Query ID for time travel. Can also be set via ``option("statement", "query_id")``.
+            offset: Negative integer representing seconds in the past for time travel.
+                Can also be set via ``option("offset", -60)``.
+            timestamp: Timestamp string or datetime object for time travel.
+                Can also be set via ``option("timestamp", "2023-01-01 12:00:00")`` or
+                ``option("as-of-timestamp", "2023-01-01 12:00:00")``.
+            timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+                Can also be set via ``option("timestamp_type", "LTZ")``.
+            stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
+
+        Note:
+            Time travel options can be set either as direct parameters or via the
+            :meth:`option` method, but NOT both. If any direct time travel parameter
+            is provided, all time travel options will be ignored to avoid conflicts.
+
+            PySpark Compatibility: The ``as-of-timestamp`` option automatically sets
+            ``time_travel_mode="at"`` and cannot be used with ``time_travel_mode="before"``.
+
+        Examples::
+
+            # Using direct parameters
+            >>> table = session.read.table("my_table", time_travel_mode="at", offset=-3600)  # doctest: +SKIP
+
+            # Using options (recommended for chaining)
+            >>> table = (session.read  # doctest: +SKIP
+            ...     .option("time_travel_mode", "at")
+            ...     .option("offset", -3600)
+            ...     .table("my_table"))
+
+            # PySpark-style as-of-timestamp (automatically sets mode to "at")
+            >>> table = session.read.option("as-of-timestamp", "2023-01-01 12:00:00").table("my_table")  # doctest: +SKIP
+
+            # timestamp_type automatically set to "TZ" due to timezone info
+            >>> import datetime, pytz  # doctest: +SKIP
+            >>> tz_aware = datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=pytz.UTC)  # doctest: +SKIP
+            >>> table1 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware)  # doctest: +SKIP
+
+            # timestamp_type remains "NTZ" (user's explicit choice respected)
+            >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
+
+            # Mixing options and parameters (direct parameters completely override options)
+            >>> table = (session.read  # doctest: +SKIP
+            ...     .option("time_travel_mode", "before")  # This will be IGNORED
+            ...     .option("offset", -60)                 # This will be IGNORED
+            ...     .table("my_table", time_travel_mode="at", offset=-3600))  # Only this is used
         """
 
         # AST.
@@ -488,7 +600,20 @@ class DataFrameReader:
             ast.reader.CopyFrom(self._ast)
             build_table_name(ast.name, name)
 
-        table = self._session.table(name, _emit_ast=False)
+        if time_travel_mode is not None:
+            time_travel_params = {
+                "time_travel_mode": time_travel_mode,
+                "statement": statement,
+                "offset": offset,
+                "timestamp": timestamp,
+                "timestamp_type": timestamp_type,
+                "stream": stream,
+            }
+        else:
+            # if time_travel_mode is not provided, extract time travel config from options
+            time_travel_params = _extract_time_travel_from_options(self._cur_options)
+
+        table = self._session.table(name, _emit_ast=False, **time_travel_params)
 
         if _emit_ast and stmt is not None:
             table._ast_id = stmt.uid
@@ -936,14 +1061,26 @@ class DataFrameReader:
         """Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
-        `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
-        and
-        `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
+        `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_,
+        `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_,
+        and `time travel options <https://docs.snowflake.com/en/sql-reference/constructs/at-before>`_.
         (Note that although specifying copy options can make error handling more robust during the
         reading process, it may have an effect on performance.)
 
+        Time travel options can be used with ``table()`` method:
+            - ``time_travel_mode``: Either "at" or "before"
+            - ``statement``: Query ID for statement-based time travel
+            - ``offset``: Seconds to go back in time (negative integer)
+            - ``timestamp``: Specific timestamp for time travel
+            - ``timestamp_type``: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+            - ``stream``: Stream name for time travel.
+
+        Special PySpark compatibility option:
+            - ``as-of-timestamp``: Automatically sets ``time_travel_mode`` to "at" and uses the
+              provided timestamp. Cannot be used with ``time_travel_mode="before"``.
+
         Args:
-            key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
+            key: Name of the option (e.g. ``compression``, ``skip_header``, ``time_travel_mode``, etc.).
             value: Value of the option.
         """
 
@@ -1018,25 +1155,62 @@ class DataFrameReader:
         ):
             # matches has schema (name, size, md5, last_modified)
             # Name is fully qualified with stage path
+            # Use proper SQL escaping to prevent SQL injection
+            escaped_pattern = convert_value_to_sql_option(pattern)
             matches = self._session._conn.run_query(
-                f"list {path} pattern = '{pattern}'"
+                f"list {path} pattern = {escaped_pattern}"
             )["data"]
 
             if len(matches):
-                should_fallback = True
-                files = []
-                # Construct a list of file prefixes not including the stage
-                for match in matches:
-                    # Try to remove any protocol
-                    (pre, _, post) = match[0].partition("://")
-                    match = post if post else pre
-                    files.append(match.partition("/")[2])
+                try:
+                    # Use fully qualified stage name to describe if available
+                    stage, _ = get_stage_parts(path)
+                    fully_qualified_stage, _ = get_stage_parts(
+                        path, return_full_stage_name=True
+                    )
 
-                infer_schema_options["FILES"] = files
+                    stage_description = self._session._conn.run_query(
+                        f"describe stage {fully_qualified_stage}"
+                    )["data"]
 
-                # Reconstruct path using just stage and any qualifiers
-                stage, _ = get_stage_parts(path)
-                infer_path = path.partition(stage)[0] + stage
+                    stage_locations_json = [
+                        x for x in stage_description if x[0] == "STAGE_LOCATION"
+                    ][0][3]
+
+                    # If stage locations is available then the stage is external
+                    # and stage prefixes will include CSP specific prefix information.
+                    stage_locations = (
+                        json.loads(stage_locations_json)
+                        if stage_locations_json
+                        else [stage]
+                    )
+
+                    # Compile prefixes are case insensitive regexes because
+                    # casing is not consistent in bucket describe query.
+                    regexes = [
+                        re.compile(f"^{re.escape(location)}", re.IGNORECASE)
+                        for location in stage_locations
+                    ]
+
+                    files = []
+                    # Construct a list of file prefixes not including the stage
+                    for match in matches:
+                        prefix = match[0]
+                        for regex in regexes:
+                            prefix = regex.sub("", prefix)
+                        files.append(prefix)
+                    infer_schema_options["FILES"] = files
+
+                    # Reconstruct path using just stage and any qualifiers
+                    infer_path = (
+                        path.partition(fully_qualified_stage)[0] + fully_qualified_stage
+                    )
+                    should_fallback = True
+                except Exception as e:
+                    warning(
+                        "infer_schema_pattern_matching",
+                        f"Failed to infer schema for provided pattern {pattern} with error:\n{e}",
+                    )
 
         infer_schema_query = infer_schema_statement(
             infer_path, file_format_name, infer_schema_options or None
@@ -1081,14 +1255,15 @@ class DataFrameReader:
             transformations: List["snowflake.snowpark.column.Column"] = []
             read_file_transformations = None
             for r in results:
-                # Columns for r [column_name, type, nullable, expression, filenames]
-                name = quote_name_without_upper_casing(r[0])
+                # Columns for r [column_name, type, nullable, expression, filenames, order_id]
+                column_name, type, nullable, expression = r[0], r[1], r[2], r[3]
+                name = quote_name_without_upper_casing(column_name)
                 # Parse the type returned by infer_schema command to
                 # pass to determine datatype for schema
-                data_type_parts = r[1].split("(")
+                data_type_parts = type.split("(")
                 parts_length = len(data_type_parts)
                 if parts_length == 1:
-                    data_type = r[1]
+                    data_type = type
                     precision = 0
                     scale = 0
                 else:
@@ -1104,19 +1279,23 @@ class DataFrameReader:
                     Attribute(
                         name,
                         datatype,
-                        r[2],
+                        nullable=nullable,
                     )
                 )
 
                 if try_cast:
-                    id = r[3].split(":")[0]
+                    id = expression.split(":")[0]
                     identifier = f"TRY_CAST({id} AS {convert_sp_to_sf_type(datatype)})"
                 elif format == "CSV":
-                    identifier = r[3]
+                    identifier = expression
+                elif format == "PARQUET" and expression.upper().startswith(
+                    "GET_IGNORE_CASE"
+                ):
+                    identifier = expression
                 else:
-                    identifier = f"$1:{name}::{r[1]}"
+                    identifier = f"$1:{name}::{type}"
 
-                schema_to_cast.append((identifier, r[0]))
+                schema_to_cast.append((identifier, column_name))
                 transformations.append(sql_expr(identifier))
             self._user_schema = StructType._from_attributes(new_schema)
             # If the user sets transformations, we should not override this
@@ -1600,10 +1779,18 @@ class DataFrameReader:
             raise SnowparkDataframeReaderException(
                 "Either 'table' or 'query' must be provided, but not both."
             )
+
+        telemetry_json_string = defaultdict()
+        telemetry_json_string["function_name"] = DATA_SOURCE_DBAPI_SIGNATURE
+        telemetry_json_string["ingestion_mode"] = (
+            "udtf_ingestion" if udtf_configs is not None else "local_ingestion"
+        )
+
         table_or_query = table or query
         is_query = True if table is None else False
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
         start_time = time.perf_counter()
+        logger.debug(f"ingestion start at: {start_time}")
         if session_init_statement and isinstance(session_init_statement, str):
             session_init_statement = [session_init_statement]
         partitioner = DataSourcePartitioner(
@@ -1623,6 +1810,8 @@ class DataFrameReader:
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
+        telemetry_json_string["dbms_type"] = partitioner.dbms_type.value
+        telemetry_json_string["driver_type"] = partitioner.driver_type.value
 
         # udtf ingestion
         if udtf_configs is not None:
@@ -1643,6 +1832,15 @@ class DataFrameReader:
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
                 _emit_ast=_emit_ast,
+            )
+            end_time = time.perf_counter()
+            telemetry_json_string["end_to_end_duration"] = end_time - start_time
+            logger.debug(
+                f"ingestion end at: {end_time}, total time: {end_time - start_time}"
+            )
+
+            self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+                telemetry_json_string
             )
             set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df
@@ -1695,6 +1893,9 @@ class DataFrameReader:
                 f"Starting {max_workers} worker processes to fetch data from the data source."
             )
 
+            fetch_to_local_start_time = time.perf_counter()
+            logger.debug(f"fetch to local start at: {fetch_to_local_start_time}")
+
             if fetch_with_process:
                 for _worker_id in range(max_workers):
                     process = mp.Process(
@@ -1726,7 +1927,11 @@ class DataFrameReader:
                 ]
 
             # Process BytesIO objects from queue and upload them using utility method
-            process_parquet_queue_with_threads(
+            (
+                fetch_to_local_end_time,
+                upload_to_sf_start_time,
+                upload_to_sf_end_time,
+            ) = process_parquet_queue_with_threads(
                 session=self._session,
                 parquet_queue=parquet_queue,
                 process_or_thread_error_indicator=process_or_thread_error_indicator,
@@ -1738,6 +1943,17 @@ class DataFrameReader:
                 statements_params=statements_params_for_telemetry,
                 on_error="abort_statement",
                 fetch_with_process=fetch_with_process,
+            )
+            logger.debug(f"upload and copy into start at: {upload_to_sf_start_time}")
+            logger.debug(
+                f"fetch to local total time: {fetch_to_local_end_time - fetch_to_local_start_time}"
+            )
+
+            telemetry_json_string["fetch_to_local_duration"] = (
+                fetch_to_local_end_time - fetch_to_local_start_time
+            )
+            telemetry_json_string["upload_and_copy_into_sf_table_duration"] = (
+                upload_to_sf_end_time - upload_to_sf_start_time
             )
 
         except BaseException as exc:
@@ -1768,9 +1984,9 @@ class DataFrameReader:
                 data_fetching_thread_pool_executor.shutdown(wait=True)
 
         logger.debug("All data has been successfully loaded into the Snowflake table.")
-        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
-            DATA_SOURCE_DBAPI_SIGNATURE, time.perf_counter() - start_time
-        )
+        end_time = time.perf_counter()
+        telemetry_json_string["end_to_end_duration"] = end_time - start_time
+
         # Knowingly generating AST for `session.read.dbapi` calls as simply `session.read.table` calls
         # with the new name for the temporary table into which the external db data was ingressed.
         # Leaving this functionality as client-side only means capturing an AST specifically for
@@ -1778,5 +1994,104 @@ class DataFrameReader:
         res_df = partitioner.driver.to_result_snowpark_df(
             self, snowflake_table_name, struct_schema, _emit_ast=_emit_ast
         )
+        telemetry_json_string["schema"] = res_df.schema.simple_string()
+        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+            telemetry_json_string
+        )
+        logger.debug(
+            f"ingestion end at: {end_time}, total time: {end_time - start_time}"
+        )
+        logger.debug(f"recorded telemetry: {json.dumps(telemetry_json_string)}")
         set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
         return res_df
+
+    @publicapi
+    @experimental(version="1.37.0")
+    def file(self, path: str, _emit_ast: bool = True) -> DataFrame:
+        """
+        Returns a DataFrame with a single column ``FILE`` containing a list of files
+        in the specified Snowflake stage location (either internal or external).
+
+        Args:
+            path: The stage location to list files from (e.g., "@mystage", "@mystage/path/").
+
+        Example::
+
+            >>> # Create a temp stage and upload some test files
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage").collect()
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@mystage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/testCSVheader.csv", "@mystage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/testJson.json", "@mystage", auto_compress=False)
+
+            >>> # List all files in the stage
+            >>> df = session.read.file("@mystage")
+            >>> df.count()
+            3
+
+            >>> # List files matching a pattern (only CSV files)
+            >>> df = session.read.option("pattern", ".*\\.csv").file("@mystage")
+            >>> df.count()
+            2
+
+            >>> # List files with a more specific pattern
+            >>> df = session.read.option("pattern", ".*header.*").file("@mystage")
+            >>> df.count()
+            1
+        """
+        path = _validate_stage_path(path)
+
+        # Build the LIST command
+        list_query = f"LIST {path}"
+
+        # Add pattern option if specified
+        if "PATTERN" in self._cur_options:
+            pattern = self._cur_options["PATTERN"]
+            # Use proper SQL escaping to prevent SQL injection
+            escaped_pattern = convert_value_to_sql_option(pattern)
+            list_query += f" PATTERN = {escaped_pattern}"
+
+        # Execute the LIST command and create DataFrame
+        # LIST returns columns: name, size, md5, last_modified
+        # We only want the 'name' column renamed to 'FILE'
+        df = self._session.sql(list_query, _emit_ast=_emit_ast).select(
+            to_file(concat(lit("@"), col('"name"'))).alias("file")
+        )
+
+        set_api_call_source(df, "DataFrameReader.file")
+        return df
+
+    def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
+        """
+        Returns a DataFrame representing the results of a directory table query on the specified stage.
+
+        This method is an alias of :meth:`~snowflake.snowpark.session.Session.directory`.
+
+        Args:
+            stage_name: The name of the stage to query. The stage name should not include the '@' prefix
+                as it will be added automatically.
+
+        Returns:
+            A DataFrame containing metadata about files in the stage with the following columns:
+
+            - ``RELATIVE_PATH``: Path to the files to access using the file URL
+            - ``SIZE``: Size of the file in bytes
+            - ``LAST_MODIFIED``: Timestamp when the file was last updated in the stage
+            - ``MD5``: MD5 checksum for the file
+            - ``ETAG``: ETag header for the file
+            - ``FILE_URL``: Snowflake file URL to access the file
+
+        """
+        # AST.
+        stmt = None
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_directory, stmt)
+            ast.reader.CopyFrom(self._ast)
+            ast.stage_name = stage_name
+
+        dataframe = self._session.directory(stage_name, _emit_ast=False)
+
+        if _emit_ast and stmt is not None:
+            dataframe._ast_id = stmt.uid
+
+        return dataframe

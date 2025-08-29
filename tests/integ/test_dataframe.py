@@ -2,6 +2,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import os
 import copy
 import datetime
 import decimal
@@ -9,6 +10,7 @@ import json
 import logging
 import math
 import sys
+import time
 from array import array
 from collections import namedtuple
 from decimal import Decimal
@@ -16,6 +18,7 @@ from itertools import product
 from textwrap import dedent
 from typing import Tuple
 from unittest import mock
+from zoneinfo import ZoneInfo
 
 import snowflake.snowpark.context as context
 from snowflake.snowpark.dataframe import map
@@ -69,6 +72,7 @@ from snowflake.snowpark.functions import (
     uniform,
     when,
     cast,
+    to_timestamp_ntz,
 )
 from snowflake.snowpark.types import (
     FileType,
@@ -96,6 +100,7 @@ from snowflake.snowpark.types import (
 from tests.utils import (
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
+    IS_NOT_ON_GITHUB,
     TestData,
     TestFiles,
     Utils,
@@ -2026,6 +2031,7 @@ def test_show_dataframe_spark(session):
         {"Street": "123 Elm St", "ZipCode": 12345},
         [1, 2, 3],
         {"a": "foo"},
+        {"foo": {1: "bar"}},
     ]
 
     with structured_types_enabled_session(session) as session:
@@ -2057,6 +2063,9 @@ def test_show_dataframe_spark(session):
                 ),
                 StructField("col_17", ArrayType()),
                 StructField("col_18", StructType()),
+                StructField(
+                    "col_19", MapType(StringType(), MapType(LongType(), StringType()))
+                ),
             ]
         )
         df = session.create_dataframe([data], schema=schema)
@@ -2079,11 +2088,11 @@ def test_show_dataframe_spark(session):
             df._show_string_spark().strip(),
             dedent(
                 """
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
-            |"COL_1"|"COL_2"|"COL_3"|             "COL_4"| "COL_5"|   "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|            "COL_11"|"COL_12"| "COL_13"|            "COL_14"|  "COL_15"|           "COL_16"|            "COL_17"|          "COL_18"|
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
-            |      1|    one|    1.1|2017-02-24 12:00:...|20:57:06|2017-02-25|   true|  false|   NULL|    [61]|[FF FE 61 00 62 0...|       1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|
-            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
+            |"COL_1"|"COL_2"|"COL_3"|             "COL_4"| "COL_5"|   "COL_6"|"COL_7"|"COL_8"|"COL_9"|"COL_10"|            "COL_11"|"COL_12"| "COL_13"|            "COL_14"|  "COL_15"|           "COL_16"|            "COL_17"|          "COL_18"|           "COL_19"|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
+            |      1|    one|    1.1|2017-02-24 12:00:...|20:57:06|2017-02-25|   true|  false|   NULL|    [61]|[FF FE 61 00 62 0...|       1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|{foo -> {1 -> bar}}|
+            +-------+-------+-------+--------------------+--------+----------+-------+-------+-------+--------+--------------------+--------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
             """
             ),
         )
@@ -2091,11 +2100,11 @@ def test_show_dataframe_spark(session):
             df._show_string_spark(_spark_column_names=spark_col_names),
             dedent(
                 """
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
-            |col_1|col_2|col_3|               col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|              col_11|col_12|   col_13|              col_14|    col_15|             col_16|              col_17|            col_18|
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
-            |    1|  one|  1.1|2017-02-24 12:00:...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE 61 00 62 0...|     1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|
-            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
+            |col_1|col_2|col_3|               col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|              col_11|col_12|   col_13|              col_14|    col_15|             col_16|              col_17|            col_18|             col_19|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
+            |    1|  one|  1.1|2017-02-24 12:00:...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE 61 00 62 0...|     1|[1, 2, 3]|[[61 62 63], [FF ...|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  ...|{\\n  "a": "foo"\\n}|{foo -> {1 -> bar}}|
+            +-----+-----+-----+--------------------+--------+----------+-----+-----+-----+------+--------------------+------+---------+--------------------+----------+-------------------+--------------------+------------------+-------------------+
             """
             ),
         )
@@ -2125,6 +2134,7 @@ def test_show_dataframe_spark(session):
              col_16 | {123 Elm St, 12345}
              col_17 | [\\n  1,\\n  2,\\n  ...
              col_18 | {\\n  "a": "foo"\\n}
+             col_19 | {foo -> {1 -> bar}}
             """
             ),
         )
@@ -2140,7 +2150,7 @@ def test_show_dataframe_spark(session):
             col_1  | 1
             col_2  | one
             col_3  | 1.1
-            col_4  | 2017-02-24 12:00:05.456000
+            col_4  | 2017-02-24 12:00:05.456
             col_5  | 20:57:06
             col_6  | 2017-02-25
             col_7  | true
@@ -2155,6 +2165,7 @@ def test_show_dataframe_spark(session):
             col_16 | {123 Elm St, 12345}
             col_17 | [\\n  1,\\n  2,\\n  3\\n]
             col_18 | {\\n  "a": "foo"\\n}
+            col_19 | {foo -> {1 -> bar}}
             """
             ),
         )
@@ -2165,11 +2176,11 @@ def test_show_dataframe_spark(session):
             ),
             dedent(
                 """
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+
-            |col_1|col_2|col_3|col_4                     |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11                   |col_12|col_13   |col_14                     |col_15    |col_16             |col_17               |col_18            |
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+
-            |1    |one  |1.1  |2017-02-24 12:00:05.456000|20:57:06|2017-02-25|true |false|NULL |[61]  |[FF FE 61 00 62 00 63 00]|1     |[1, 2, 3]|[[61 62 63], [FF FE 61 00]]|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  3\\n]|{\\n  "a": "foo"\\n}|
-            +-----+-----+-----+--------------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+
+            +-----+-----+-----+-----------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
+            |col_1|col_2|col_3|col_4                  |col_5   |col_6     |col_7|col_8|col_9|col_10|col_11                   |col_12|col_13   |col_14                     |col_15    |col_16             |col_17               |col_18            |col_19             |
+            +-----+-----+-----+-----------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
+            |1    |one  |1.1  |2017-02-24 12:00:05.456|20:57:06|2017-02-25|true |false|NULL |[61]  |[FF FE 61 00 62 00 63 00]|1     |[1, 2, 3]|[[61 62 63], [FF FE 61 00]]|{a -> foo}|{123 Elm St, 12345}|[\\n  1,\\n  2,\\n  3\\n]|{\\n  "a": "foo"\\n}|{foo -> {1 -> bar}}|
+            +-----+-----+-----+-----------------------+--------+----------+-----+-----+-----+------+-------------------------+------+---------+---------------------------+----------+-------------------+---------------------+------------------+-------------------+
             """
             ),
         )
@@ -2180,11 +2191,11 @@ def test_show_dataframe_spark(session):
             ),
             dedent(
                 """
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+
-            |col_1|col_2|col_3|     col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|    col_14|    col_15|    col_16|    col_17|    col_18|
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+
-            |    1|  one|  1.1|2017-02...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE ...|     1|[1, 2, 3]|[[61 62...|{a -> foo}|{123 El...|[\\n  1,...|{\\n  "a...|
-            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+----------+
+            |col_1|col_2|col_3|     col_4|   col_5|     col_6|col_7|col_8|col_9|col_10|    col_11|col_12|   col_13|    col_14|    col_15|    col_16|    col_17|    col_18|    col_19|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+----------+
+            |    1|  one|  1.1|2017-02...|20:57:06|2017-02-25| true|false| NULL|  [61]|[FF FE ...|     1|[1, 2, 3]|[[61 62...|{a -> foo}|{123 El...|[\\n  1,...|{\\n  "a...|{foo ->...|
+            +-----+-----+-----+----------+--------+----------+-----+-----+-----+------+----------+------+---------+----------+----------+----------+----------+----------+----------+
             """
             ),
         )
@@ -2215,6 +2226,95 @@ def test_show_dataframe_spark(session):
             |1.000005E17 |
             |1.000005E-17|
             +------------+
+            """
+            ),
+        )
+
+        df3_col_names = ["col1", "col2"]
+        df3 = session.create_dataframe(
+            [
+                (
+                    datetime.datetime(
+                        2023,
+                        1,
+                        1,
+                        0,
+                        0,
+                        0,
+                        microsecond=10100,
+                        tzinfo=ZoneInfo("Asia/Tokyo"),
+                    ),
+                    datetime.datetime(2023, 1, 1, 0, 0, 1, microsecond=10100),
+                ),
+                (
+                    datetime.datetime(2023, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
+                    datetime.datetime(2023, 1, 1, 0, 0, 1),
+                ),
+            ],
+            schema=StructType(
+                [
+                    StructField("col1", TimestampType(TimestampTimeZone.LTZ)),
+                    StructField("col2", TimestampType(TimestampTimeZone.NTZ)),
+                ]
+            ),
+        )
+
+        assert_show_string_equals(
+            df3._show_string_spark(truncate=False, _spark_column_names=df3_col_names),
+            dedent(
+                """
+            +------------------------+------------------------+
+            |col1                    |col2                    |
+            +------------------------+------------------------+
+            |2022-12-31 07:00:00.0101|2023-01-01 00:00:01.0101|
+            |2022-12-31 16:00:00     |2023-01-01 00:00:01     |
+            +------------------------+------------------------+
+            """
+            ),
+        )
+        assert_show_string_equals(
+            df3._show_string_spark(
+                truncate=False,
+                _spark_column_names=df3_col_names,
+                _spark_session_tz="Turkey",
+            ),
+            dedent(
+                """
+            +------------------------+------------------------+
+            |col1                    |col2                    |
+            +------------------------+------------------------+
+            |2022-12-31 18:00:00.0101|2023-01-01 00:00:01.0101|
+            |2023-01-01 03:00:00     |2023-01-01 00:00:01     |
+            +------------------------+------------------------+
+            """
+            ),
+        )
+
+        assert_show_string_equals(
+            session.create_dataframe(
+                [
+                    ("0001-01-01 00:00:00",),
+                    ("554-01-01 00:00:00.120000",),
+                    ("554-01-01 00:00:00.12345678",),
+                    ("554-01-01 00:00:00.12000009",),
+                ],
+                schema=["ts_str"],
+            )
+            .select(to_timestamp_ntz(col("ts_str")))
+            ._show_string_spark(
+                truncate=False,
+                _spark_session_tz="Turkey",
+            ),
+            dedent(
+                """
+           +------------------------------+
+           |"TO_TIMESTAMP_NTZ(""TS_STR"")"|
+           +------------------------------+
+           |0001-01-01 00:00:00           |
+           |0554-01-01 00:00:00.12        |
+           |0554-01-01 00:00:00.123456    |
+           |0554-01-01 00:00:00.12        |
+           +------------------------------+
             """
             ),
         )
@@ -3883,7 +3983,8 @@ def test_write_copy_into_location_basic(session):
             [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
             schema=["FIRST_NAME", "LAST_NAME"],
         )
-        df.write.copy_into_location(temp_stage)
+        ret = df.write.copy_into_location(temp_stage)
+        assert len(ret) == 1 and ret[0].rows_unloaded == 3
         copied_files = session.sql(f"list @{temp_stage}").collect()
         assert len(copied_files) == 1
         assert ".csv" in copied_files[0][0]
@@ -3924,6 +4025,67 @@ def test_write_copy_into_location_csv(session, partition_by):
         assert len(copied_files) == 2
         assert ".csv.gz" in copied_files[0][0]
         assert ".csv.gz" in copied_files[1][0]
+    finally:
+        Utils.drop_stage(session, temp_stage)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+@pytest.mark.skipif(
+    IS_NOT_ON_GITHUB,
+    reason="The test resource is only available on GitHub",
+)
+def test_write_copy_into_location_storage_integration(session):
+    if any(
+        platform in session.connection.host.split(".") for platform in ["gcp", "azure"]
+    ):
+        pytest.skip(
+            reason="Skipping test for Azure and GCP deployment as test resources are not available"
+        )
+    # set up in github repo Actions secrets and variables
+    storage_integration = os.getenv("SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION")
+    s3_test_bucket_path = os.getenv("SNOWPARK_PYTHON_API_TEST_BUCKET_PATH")
+    assert (
+        storage_integration and s3_test_bucket_path
+    ), "AWS test resources are not available"
+    df = session.create_dataframe(
+        [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+        schema=["FIRST_NAME", "LAST_NAME"],
+    )
+    ret = df.write.copy_into_location(
+        f"{s3_test_bucket_path}/ci_test/test.csv",
+        storage_integration=storage_integration,
+        encryption={"type": None},
+        overwrite=True,
+    )
+    assert len(ret) == 1 and ret[0].rows_unloaded == 3
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.copy_into_location is not supported in Local Testing",
+)
+def test_write_copy_into_location_options(session):
+    temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    Utils.create_stage(session, temp_stage, is_temporary=True)
+    try:
+        df = session.create_dataframe(
+            [["John", "Berry"], ["Rick", "Berry"], ["Anthony", "Davis"]],
+            schema=["FIRST_NAME", "LAST_NAME"],
+        )
+        ret = df.write.copy_into_location(temp_stage, validation_mode="RETURN_ROWS")
+        Utils.check_answer(
+            ret,
+            [
+                Row(FIRST_NAME="John", LAST_NAME="Berry"),
+                Row(FIRST_NAME="Rick", LAST_NAME="Berry"),
+                Row(FIRST_NAME="Anthony", LAST_NAME="Davis"),
+            ],
+        )
+        copied_files = session.sql(f"list @{temp_stage}").collect()
+        assert len(copied_files) == 0
     finally:
         Utils.drop_stage(session, temp_stage)
 
@@ -4860,6 +5022,161 @@ def test_select_star_and_more_columns(session):
     Utils.check_answer(df3, [Row(1, 2, 3)])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ILIKE not supported in Local Testing",
+)
+def test_col_ilike(session):
+    """Test col_ilike functionality for selecting columns by pattern."""
+    df = session.create_dataframe(
+        [
+            [1, "A", 101, "HR"],
+            [2, "B", 102, "Fin"],
+            [3, "C", 103, "Eng"],
+            [4, "D", 104, "Prod"],
+        ],
+        schema=["USER_ID", "name", "dept_id", "DEPARTMENT"],
+    )
+
+    # Test 1: Select columns containing 'id' (case-insensitive)
+    df_id = df.col_ilike("%Id%").limit(1)
+    assert df_id.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(df_id, [Row(1, 101)])
+
+    # Test 2: Test error case when no columns match the pattern (with SQL simplifier enabled)
+    df_no_match = df.col_ilike("%xyz%")  # Pattern that doesn't match any column
+    with pytest.raises(SnowparkSQLException, match="SELECT with no columns"):
+        df_no_match.collect()
+
+    # Test 3: Test select a subset of columns and then using col_ilike
+    res_subset = df.select("USER_ID", "name").col_ilike("%id%")
+    assert res_subset.columns == ["USER_ID"]
+    Utils.check_answer(res_subset, [Row(1), Row(2), Row(3), Row(4)])
+
+    # Test 4: Test select star explicitly and then using col_ilike
+    expected_id_rows = [Row(1, 101), Row(2, 102), Row(3, 103), Row(4, 104)]
+
+    res = df.select("*").col_ilike("%id%")
+    assert res.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(res, expected_id_rows)
+
+    res_df_star_col = df.select(df["*"]).col_ilike("%id%")
+    assert res_df_star_col.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(res_df_star_col, expected_id_rows)
+
+    res_df_star_list = df.select(["*"]).col_ilike("%id%")
+    assert res_df_star_list.columns == ["USER_ID", "DEPT_ID"]
+    Utils.check_answer(res_df_star_list, expected_id_rows)
+
+    # Case 5: Save as a table and use session.table with col_ilike
+    table_name = Utils.random_table_name()
+    try:
+        df.write.save_as_table(table_name, table_type="temp")
+        res_tbl = session.table(table_name).col_ilike("%id%")
+        # Should keep USER_ID and DEPT_ID columns
+        assert res_tbl.columns == ["USER_ID", "DEPT_ID"]
+        Utils.check_answer(res_tbl, expected_id_rows)
+
+        # Case 6: Use session.sql to read and then apply col_ilike
+        res_sql = session.sql(f"select * from {table_name}").col_ilike("user%")
+        # Should keep only USER_ID column
+        assert res_sql.columns == ["USER_ID"]
+        Utils.check_answer(res_sql, [Row(1), Row(2), Row(3), Row(4)])
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ILIKE not supported in Local Testing",
+)
+def test_col_ilike_chained_combinations(session):
+    """Comprehensive chained cases combining col_ilike with select/sort/filter/limit and join/agg."""
+    base = session.create_dataframe(
+        [
+            [1, "A", 101, "HR", 50000],
+            [2, "B", 102, "Fin", 60000],
+            [3, "C", 103, "Eng", 55000],
+            [4, "D", 104, "Prod", 65000],
+        ],
+        schema=["USER_ID", "name", "dept_id", "DEPARTMENT", "salary_amount"],
+    )
+
+    # Case 1: select -> col_ilike -> sort -> select -> col_ilike -> sort -> filter -> limit
+    df_chain = (
+        base.select("*", (col("salary_amount") + 1000).as_("salary_plus"))
+        .col_ilike("%id%")  # keep USER_ID, dept_id
+        .sort(col("USER_ID").desc())  # sort by USER_ID
+        .select("*")  # keep all columns
+        .col_ilike("user%")  # keep USER_ID only
+        .sort(col("USER_ID"))  # sort by USER_ID
+        .filter(col("USER_ID") >= 2)  # filter by USER_ID >= 2
+        .limit(2)  # limit to 2 rows
+    )
+    # Expect two rows, column set narrowed to USER_ID only
+    assert df_chain.columns == ["USER_ID"]
+    Utils.check_answer(df_chain, [Row(2), Row(3)])
+
+    with pytest.raises(SnowparkSQLException, match="SELECT with no columns"):
+        df_chain.col_ilike("%dept%").collect()
+
+    # Case 2: apply col_ilike on the join child df, then join
+    tiny = session.create_dataframe([[1], [2], [3], [4]], schema=["some_key"]).select(
+        "some_key"
+    )
+    left_filtered = base.col_ilike("%id%")  # keep only id-like columns before join
+    joined = left_filtered.join(tiny, col("USER_ID") == col("some_key"))
+    df_join_chain = joined.select("*").sort(col("DEPT_ID")).limit(3)
+    # Ensure only id-like columns remain and values are correct and ordered by DEPT_ID
+    assert df_join_chain.columns == ["USER_ID", "DEPT_ID", "SOME_KEY"]
+    Utils.check_answer(
+        df_join_chain,
+        [Row(1, 101, 1), Row(2, 102, 2), Row(3, 103, 3)],
+    )
+
+    # Case 3: aggregation combined with select and col_ilike
+    from snowflake.snowpark import functions as F
+
+    agg_df = base.group_by(col("DEPARTMENT")).agg(
+        F.max(col("USER_ID")).as_("max_id"), F.count("*").as_("cnt")
+    )
+    res3_df = (
+        agg_df.col_ilike("%id%")  # keep only columns containing 'id' -> MAX_ID
+        .sort(col("MAX_ID").desc())
+        .limit(1)
+    )
+    assert res3_df.columns == ["MAX_ID"]
+    Utils.check_answer(res3_df, [Row(4)])
+
+    # Case 4: rename, add/replace/drop columns then col_ilike checks
+    # Start by renaming and augmenting columns, then drop a non-id column and select id-like columns
+    df_case4 = (
+        base.with_column_renamed("dept_id", "department_id")
+        .with_column_renamed("name", "employee_name")
+        .with_column("project_id", col("USER_ID") + 1000)
+        .drop("DEPARTMENT")
+    )
+    res4 = df_case4.col_ilike("%id%").collect()
+    assert len(res4) == 4 and set(df_case4.col_ilike("%id%").columns) == {
+        "USER_ID",
+        "DEPARTMENT_ID",
+        "PROJECT_ID",
+    }
+
+    # Then add a new id-like column, replace an existing id column, drop another id column, and check again
+    df_case4b = (
+        df_case4.with_column("emp_id", col("USER_ID") + 200)
+        .with_column("user_id", col("USER_ID") + 300)  # replace existing USER_ID
+        .drop("DEPARTMENT_ID")
+    )
+    res4b = df_case4b.col_ilike("%id%").collect()
+    assert len(res4b) == 4 and set(df_case4b.col_ilike("%id%").columns) == {
+        "USER_ID",
+        "PROJECT_ID",
+        "EMP_ID",
+    }
+
+
 def test_drop_columns_special_names(session):
     """Test whether columns with newlines can be dropped."""
     table_name = Utils.random_table_name()
@@ -5594,3 +5911,404 @@ def test_order_by_col(session, sql_simplifier_enabled, local_testing_mode):
 
     df = session.create_dataframe([(1, 2.0, "foo"), (2, None, "bar")], ["a", "b", "c"])
     Utils.check_answer(df.select("c").orderBy("b"), df.select("c").orderBy(col("b")))
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Time travel is not supported in Local Testing",
+)
+def test_time_travel_core_functionality(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    data = [(1, "product_a", 100), (2, "product_b", 200), (3, "product_c", 300)]
+    df = session.create_dataframe(data, schema=["id", "name", "price"])
+    df.write.save_as_table(table_name, table_type="temporary")
+
+    # Sleep to ensure stable time travel window to prevent flaky offset calculation
+    time.sleep(2)
+
+    ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
+    with session.query_history() as query_history:
+        session.sql(
+            f"UPDATE {table_name} SET price = price + 50 WHERE id <= 2"
+        ).collect()
+    update_qid = query_history.queries[-1].query_id
+
+    expected_before_update = [
+        Row(1, "product_a", 100),
+        Row(2, "product_b", 200),
+        Row(3, "product_c", 300),
+    ]
+    expected_after_update = [
+        Row(1, "product_a", 150),
+        Row(2, "product_b", 250),
+        Row(3, "product_c", 300),
+    ]
+    try:
+        # ==============Test 1: BEFORE/AT with statement ==============
+        df_before_stmt = session.table(
+            table_name, time_travel_mode="before", statement=update_qid
+        )
+        Utils.check_answer(df_before_stmt, expected_before_update)
+
+        df_at_stmt = session.table(
+            table_name, time_travel_mode="at", statement=update_qid
+        )
+        Utils.check_answer(df_at_stmt, expected_after_update)
+
+        df_reader_before_stmt = session.read.table(
+            table_name, time_travel_mode="before", statement=update_qid
+        )
+        Utils.check_answer(df_reader_before_stmt, df_before_stmt)
+
+        df_reader_at_stmt = session.read.table(
+            table_name, time_travel_mode="at", statement=update_qid
+        )
+        Utils.check_answer(df_reader_at_stmt, df_at_stmt)
+
+        # ==============Test 2: BEFORE/AT with offset ==============
+        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
+            0
+        ]
+        offset_seconds = (
+            int((ts_after_update - ts_before_update).total_seconds()) + 1
+        )  # round up
+        df_at_offset = session.table(
+            table_name, time_travel_mode="at", offset=-offset_seconds
+        )
+        Utils.check_answer(df_at_offset, expected_before_update)
+
+        # ==============Test 3: BEFORE/AT with timestamp ==============
+        # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
+        # in current session's timezone context, preventing timezone mismatches that could
+        # cause time travel to resolve to a future point or before table creation (which would fail).
+        df_before_ts = session.table(
+            table_name,
+            time_travel_mode="before",
+            timestamp=ts_before_update,
+            timestamp_type=TimestampTimeZone.LTZ,
+        )
+        Utils.check_answer(df_before_ts, expected_before_update)
+
+        df_at_ts = session.table(
+            table_name,
+            time_travel_mode="at",
+            timestamp=ts_before_update,
+            timestamp_type="LTZ",
+        )
+        Utils.check_answer(df_at_ts, expected_before_update)
+
+        df_reader_before_ts = session.read.table(
+            table_name,
+            time_travel_mode="before",
+            timestamp=ts_before_update,
+            timestamp_type="LTZ",
+        )
+        Utils.check_answer(df_before_ts, df_reader_before_ts)
+
+        # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
+        df_before_ts_after_update = session.table(
+            table_name,
+            time_travel_mode="before",
+            timestamp=ts_after_update,
+            timestamp_type="LTZ",
+        )
+        Utils.check_answer(df_before_ts_after_update, expected_after_update)
+
+        df_at_ts_after_update = session.table(
+            table_name,
+            time_travel_mode="at",
+            timestamp=ts_after_update,
+            timestamp_type="LTZ",
+        )
+        Utils.check_answer(df_at_ts_after_update, expected_after_update)
+
+        # ==============Test 5: PySpark as-of-timestamp compatibility ==============
+        df_as_of = (
+            session.read.option("as-of-timestamp", ts_before_update)
+            .option("timestamp_type", TimestampTimeZone.LTZ)
+            .table(table_name)
+        )
+        Utils.check_answer(df_as_of, expected_before_update)
+
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Time travel is not supported in Local Testing",
+)
+def test_time_travel_comprehensive_coverage(session):
+    # ============== Test Setup ==============
+    table1_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table2_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    data_1 = [
+        (1, "product_a", 100.50, True),
+        (2, "product_b", 200.75, False),
+        (3, "product_c", 300.25, True),
+    ]
+    df_1 = session.create_dataframe(data_1, schema=["id", "name", "price", "active"])
+    df_1.write.save_as_table(table1_name, table_type="temporary")
+
+    data_2 = [(1, "electronics"), (2, "clothing"), (3, "automotive")]
+    df_2 = session.create_dataframe(data_2, schema=["id", "category"])
+    df_2.write.save_as_table(table2_name, table_type="temporary")
+
+    # Sleep to ensure stable time travel window
+    time.sleep(2)
+
+    ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
+
+    with session.query_history() as query_history:
+        session.sql(
+            f"UPDATE {table1_name} SET price = price * 1.1 WHERE id <= 2"
+        ).collect()
+    update_query_id = query_history.queries[-1].query_id
+
+    with session.query_history() as query_history:
+        session.sql(
+            f"INSERT INTO {table1_name} VALUES (4, 'product_d', 400.0, false)"
+        ).collect()
+    insert_query_id = query_history.queries[-1].query_id
+
+    try:
+        # ==============Test 1: session.table() with time travel and basic data validation ==============
+        df_before = (
+            session.table(
+                table1_name, time_travel_mode="before", statement=update_query_id
+            )
+            .select("id", "price", "active")
+            .sort("id")
+        )
+        expected_initial = [
+            Row(1, 100.50, True),
+            Row(2, 200.75, False),
+            Row(3, 300.25, True),
+        ]
+        Utils.check_answer(df_before, expected_initial)
+
+        df_at = (
+            session.table(table1_name, time_travel_mode="at", statement=update_query_id)
+            .select("id", "name", "price", "active")
+            .sort("id")
+        )
+        expected_after_update = [
+            Row(1, "product_a", 110.55, True),
+            Row(2, "product_b", 220.825, False),
+            Row(3, "product_c", 300.25, True),
+        ]
+        Utils.check_answer(df_at, expected_after_update)
+
+        # Test session.read.table() and option-based equivalence
+        df_reader_at = session.read.table(
+            table1_name, time_travel_mode="at", statement=update_query_id
+        )
+        Utils.check_answer(df_at.sort("id"), df_reader_at.sort("id"))
+
+        df_option_at = (
+            session.read.option("time_travel_mode", "at")
+            .option("statement", update_query_id)
+            .table(table1_name)
+            .select("id", "name", "price", "active")
+        )
+        Utils.check_answer(df_at.sort("id"), df_option_at.sort("id"))
+
+        df_before_insert = (
+            session.table(
+                table1_name, time_travel_mode="before", statement=insert_query_id
+            )
+            .select("id", "name", "price", "active")
+            .sort("id")
+        )
+        Utils.check_answer(df_before_insert, expected_after_update)
+
+        df_at_insert = (
+            session.table(table1_name, time_travel_mode="at", statement=insert_query_id)
+            .select("id", "name", "price", "active")
+            .sort("id")
+        )
+        expected_after_insert = [
+            Row(1, "product_a", 110.55, True),
+            Row(2, "product_b", 220.825, False),
+            Row(3, "product_c", 300.25, True),
+            Row(4, "product_d", 400.0, False),
+        ]
+        Utils.check_answer(df_at_insert, expected_after_insert)
+
+        # ==============Test 2: session.table() with time travel, joins and timestamp ==============
+        # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
+        # in current session's timezone context, preventing timezone mismatches that could
+        # cause time travel to resolve to a future point or before table creation (which would fail).
+        df_join_before = (
+            session.table(
+                table1_name,
+                time_travel_mode="before",
+                timestamp=ts_before_update,
+                timestamp_type="LTZ",
+            )
+            .join(session.table(table2_name), "id")
+            .select("id", "name", "category", "price")
+            .sort("id")
+        )
+        expected_join_before = [
+            Row(1, "product_a", "electronics", 100.50),
+            Row(2, "product_b", "clothing", 200.75),
+            Row(3, "product_c", "automotive", 300.25),
+        ]
+        Utils.check_answer(df_join_before, expected_join_before)
+
+        # Test session.read.option().table() with timestamp and timezone options
+        df_reader_join_before = (
+            session.read.option("time_travel_mode", "before")
+            .option("timestamp", ts_before_update)
+            .option("timestamp_type", "LTZ")
+            .table(table1_name)
+            .join(session.table(table2_name), "id")
+            .select("id", "name", "category", "price")
+            .sort("id")
+        )
+        Utils.check_answer(df_join_before, df_reader_join_before)
+
+        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
+            0
+        ]
+        df_join_after = (
+            session.table(
+                table1_name,
+                time_travel_mode="at",
+                timestamp=ts_after_update,
+                timestamp_type=TimestampTimeZone.LTZ,
+            )
+            .join(session.table(table2_name), "id")
+            .select("id", "name", "category", "price")
+            .sort("id")
+        )
+        expected_join_after = [
+            Row(1, "product_a", "electronics", 110.55),
+            Row(2, "product_b", "clothing", 220.825),
+            Row(3, "product_c", "automotive", 300.25),
+        ]
+        Utils.check_answer(df_join_after, expected_join_after)
+
+        # ==============Test 3: DataFrame chained operations with time travel ==============
+        df_chained_before = (
+            session.table(
+                table1_name, time_travel_mode="before", statement=update_query_id
+            )
+            .select("id", "name", "price", "active")
+            .filter(col("price") > 150)
+            .with_column("discounted_price", col("price") * 0.9)
+            .sort("id")
+        )
+        expected_chained_before = [
+            Row(2, "product_b", 200.75, False, 180.675),
+            Row(3, "product_c", 300.25, True, 270.225),
+        ]
+        Utils.check_answer(df_chained_before, expected_chained_before)
+
+        df_chained_after = (
+            session.table(table1_name, time_travel_mode="at", statement=update_query_id)
+            .select("id", "name", "price", "active")
+            .filter(col("price") > 150)
+            .with_column("discounted_price", col("price") * 0.9)
+            .sort("id")
+        )
+        expected_chained_after = [
+            Row(2, "product_b", 220.825, False, 198.7425),
+            Row(3, "product_c", 300.25, True, 270.225),
+        ]
+        Utils.check_answer(df_chained_after, expected_chained_after)
+
+        # Test session.read.table() equivalence for chained operations
+        df_reader_chained = (
+            session.read.table(
+                table1_name, time_travel_mode="before", statement=update_query_id
+            )
+            .select("id", "name", "price", "active")
+            .filter(col("price") > 150)
+            .with_column("discounted_price", col("price") * 0.9)
+            .sort("id")
+        )
+        Utils.check_answer(df_chained_before, df_reader_chained)
+
+        # ==============Test 4: session.table() vs session.read.table() vs session.read.option().table() equivalence ==============
+        table_before = session.table(
+            table1_name, time_travel_mode="before", statement=update_query_id
+        )
+        read_table_before = session.read.table(
+            table1_name, time_travel_mode="before", statement=update_query_id
+        )
+        Utils.check_answer(table_before.sort("id"), read_table_before.sort("id"))
+
+        table_at = session.table(
+            table1_name, time_travel_mode="at", statement=update_query_id
+        )
+        read_table_at = session.read.table(
+            table1_name, time_travel_mode="at", statement=update_query_id
+        )
+        Utils.check_answer(table_at.sort("id"), read_table_at.sort("id"))
+
+        option_table = (
+            session.read.option("time_travel_mode", "before")
+            .option("statement", update_query_id)
+            .table(table1_name)
+        )
+        Utils.check_answer(table_before.sort("id"), option_table.sort("id"))
+
+        # as-of-timestamp equivalence test
+        as_of_table = (
+            session.read.option("as-of-timestamp", ts_before_update)
+            .option("timestamp_type", "LTZ")
+            .table(table1_name)
+        )
+        Utils.check_answer(table_before.sort("id"), as_of_table.sort("id"))
+
+        # ==============Test 5: Table copy operations with time travel ==============
+        time_travel_table = session.table(
+            table1_name, time_travel_mode="before", statement=update_query_id
+        )
+
+        copied_via_select = time_travel_table.select("id", "price", "active")
+        Utils.check_answer(copied_via_select.sort("id"), expected_initial)
+
+        copied_via_filter = time_travel_table.filter(col("id") > 0).select(
+            "id", "price", "active"
+        )
+        Utils.check_answer(copied_via_filter.sort("id"), expected_initial)
+
+        import copy
+
+        manual_copy = copy.copy(time_travel_table)
+        Utils.check_answer(
+            manual_copy.select("id", "price", "active").sort("id"), expected_initial
+        )
+
+        # Verify time travel config is preserved in copies
+        copied_with_ops = (
+            time_travel_table.select("id", "name", "price")
+            .filter(col("price") > 150)
+            .sort("id")
+        )
+        expected_copied = [
+            Row(2, "product_b", 200.75),
+            Row(3, "product_c", 300.25),
+        ]
+        Utils.check_answer(copied_with_ops, expected_copied)
+
+        # Test as-of-timestamp with chained operations and string format
+        ts_string = ts_before_update.strftime("%Y-%m-%d %H:%M:%S")
+        as_of_chained = (
+            session.read.option("as-of-timestamp", ts_string)
+            .option("timestamp_type", "LTZ")
+            .table(table1_name)
+            .select("id", "name", "price")
+            .filter(col("price") > 150)
+            .sort("id")
+        )
+        Utils.check_answer(as_of_chained, expected_copied)
+
+        time_travel_table.show()
+
+    finally:
+        Utils.drop_table(session, table1_name)
+        Utils.drop_table(session, table2_name)

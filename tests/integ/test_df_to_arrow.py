@@ -6,6 +6,7 @@
 import os
 import pytest
 import re
+import math
 
 from datetime import date, datetime
 from decimal import Decimal
@@ -19,6 +20,7 @@ from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.functions import col
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import DecimalType
+from snowflake.snowpark.session import WRITE_ARROW_CHUNK_SIZE
 
 from tests.utils import TestData, Utils, TestFiles
 
@@ -217,21 +219,62 @@ def test_write_arrow_table_type(session, arrow_table, table_type):
 def test_write_arrow_chunk_size(session):
     table_name = Utils.random_table_name()
     try:
-        # create medium sized df that can be chunked
-        df = session.range(101)
+        chunk_size, expected_num_rows = 25, 101
+        # create medium-sized df that can be chunked
+        df = session.range(expected_num_rows)
         table = df.to_arrow()
         success, num_chunks, num_rows, _ = write_arrow(
             session._conn._conn.cursor(),
             table,
             table_name,
             auto_create_table=True,
-            chunk_size=25,
+            chunk_size=chunk_size,
         )
-        assert success
         # 25 rows per chunk = 5 chunks
-        assert num_chunks == 5
-        # All rows should have been inserted
-        assert num_rows == 101
+        assert (
+            success
+            and num_chunks == math.ceil(expected_num_rows / chunk_size)
+            and num_rows == expected_num_rows
+        )
+
+        # Import the original write_arrow to create a wrapper
+        from snowflake.snowpark.session import write_arrow as original_write_arrow
+
+        expected_chunk_size = 10
+
+        # Create a wrapper that intercepts calls but lets the real function execute
+        def write_arrow_wrapper(*args, **kwargs):
+            input_chunk_size = kwargs.get("chunk_size")
+            assert input_chunk_size == expected_chunk_size
+            expected_num_chunks = (
+                math.ceil(expected_num_rows / expected_chunk_size)
+                if input_chunk_size != WRITE_ARROW_CHUNK_SIZE
+                else 1
+            )
+            # Call the real function and return its actual result
+            ret = original_write_arrow(*args, **kwargs)
+            success, num_chunks, num_rows, _ = ret
+            assert (
+                success
+                and num_chunks == expected_num_chunks
+                and num_rows == expected_num_rows
+            )
+            return ret
+
+        with mock.patch(
+            "snowflake.snowpark.session.write_arrow", side_effect=write_arrow_wrapper
+        ) as mock_write_arrow:
+            session.create_dataframe(table, chunk_size=10)
+            # Verify that write_arrow was called once
+            mock_write_arrow.assert_called_once()
+
+        expected_chunk_size = WRITE_ARROW_CHUNK_SIZE
+        with mock.patch(
+            "snowflake.snowpark.session.write_arrow", side_effect=write_arrow_wrapper
+        ) as mock_write_arrow:
+            session.create_dataframe(table)
+            # Verify that write_arrow was called once
+            mock_write_arrow.assert_called_once()
     finally:
         Utils.drop_table(session, table_name)
 
@@ -269,15 +312,21 @@ def test_write_arrow_alternate_schema(session, basic_arrow_table, quote_identifi
 
 
 @pytest.mark.parametrize(
-    "compression,parallel,use_logical_type,on_error",
+    "compression,parallel,use_logical_type,on_error, use_vectorized_scanner",
     [
-        ("gzip", 2, None, "SKIP_FILE"),
-        ("snappy", 3, True, "CONTINUE"),
-        ("gzip", 4, False, "ABORT_STATEMENT"),
+        ("gzip", 2, None, "SKIP_FILE", True),
+        ("snappy", 3, True, "CONTINUE", False),
+        ("gzip", 4, False, "ABORT_STATEMENT", True),
     ],
 )
 def test_misc_settings(
-    session, arrow_table, compression, parallel, use_logical_type, on_error
+    session,
+    arrow_table,
+    compression,
+    parallel,
+    use_logical_type,
+    on_error,
+    use_vectorized_scanner,
 ):
     copy_compression = {"gzip": "auto", "snappy": "snappy"}[compression]
     sql_use_logical_type = (
@@ -286,7 +335,7 @@ def test_misc_settings(
     queries = [
         f"^CREATE .*TEMP.* STAGE .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={compression}\\)",
         f"PUT.*PARALLEL={parallel}",
-        f'COPY INTO "SNOWPARK_PYTHON_MOCKED_ARROW_TABLE" .* FILE_FORMAT=\\(TYPE=PARQUET COMPRESSION={copy_compression}{sql_use_logical_type.upper()}\\) PURGE=TRUE ON_ERROR={on_error}',
+        f'COPY INTO "SNOWPARK_PYTHON_MOCKED_ARROW_TABLE" .* FILE_FORMAT=\\(TYPE=PARQUET USE_VECTORIZED_SCANNER={use_vectorized_scanner} COMPRESSION={copy_compression}{sql_use_logical_type.upper()}\\) PURGE=TRUE ON_ERROR={on_error}',
     ]
 
     with mock.patch("snowflake.connector.cursor.SnowflakeCursor.execute") as execute:
@@ -297,6 +346,7 @@ def test_misc_settings(
             parallel=parallel,
             use_logical_type=use_logical_type,
             on_error=on_error,
+            use_vectorized_scanner=use_vectorized_scanner,
         )
         for query in queries:
             assert any(

@@ -9,7 +9,7 @@ import traceback
 from collections.abc import Hashable, Iterable, Sequence
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Optional, Union
-from packaging import version
+from packaging import version  # noqa: E402,F401
 
 import modin.pandas as pd
 import numpy as np
@@ -121,7 +121,7 @@ _logger = logging.getLogger(__name__)
 # Flag guarding certain features available only in newer modin versions.
 # Snowpark pandas supports the newest two released versions of modin; update this flag and remove legacy
 # code as needed when we bump dependency versions.
-MODIN_IS_AT_LEAST_0_34_0 = version.parse(pd.__version__) >= version.parse("0.34.0")
+MODIN_IS_AT_LEAST_0_35_0 = version.parse(pd.__version__) >= version.parse("0.35.0")
 
 
 # This is the default statement parameters for queries from Snowpark pandas API. It provides the fine grain metric for
@@ -498,12 +498,20 @@ def create_initial_ordered_dataframe(
         row_position_snowflake_quoted_identifier = (
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
-    # Set the materialized row count
-    materialized_row_count = ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
-        statement_params=get_default_snowpark_pandas_statement_params(), _emit_ast=False
-    )
-    ordered_dataframe.row_count = materialized_row_count
-    ordered_dataframe.row_count_upper_bound = materialized_row_count
+
+    from modin.config import AutoSwitchBackend
+
+    if AutoSwitchBackend.get():
+        # Set the materialized row count
+        materialized_row_count = (
+            initial_ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
+                statement_params=get_default_snowpark_pandas_statement_params(),
+                _emit_ast=False,
+            )
+        )
+        ordered_dataframe.row_count = materialized_row_count
+        ordered_dataframe.row_count_upper_bound = materialized_row_count
+
     return ordered_dataframe, row_position_snowflake_quoted_identifier
 
 

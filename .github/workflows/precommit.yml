@@ -27,12 +27,16 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
+        run: uv pip install -U setuptools pip --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
@@ -48,12 +52,16 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; import os; print(\"\n\".join(os.environ[\"PATH\"].split(os.pathsep))); print(sys.version); print(sys.executable);"
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
+        run: uv pip install -U setuptools pip --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
@@ -71,11 +79,15 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3.9
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Generate wheel
         run: python -m pip wheel -v -w dist --no-deps .
       - name: Show wheels generated
@@ -127,6 +139,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -151,9 +167,9 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       # we only run doctest on macos
       - if: ${{ matrix.os == 'macos-latest' }}
         name: Run doctests
@@ -175,6 +191,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       # SNOW-2213578 : Remove the test below and run udf tests for 3.13
       # for 3.13, skip udf, doctest
@@ -185,6 +203,8 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Run data source tests
@@ -228,6 +248,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -252,9 +276,9 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Run tests
         run: python -m tox -e "py${PYTHON_VERSION/\./}-local"
         env:
@@ -297,6 +321,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -317,11 +345,11 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install protobuf
-        run: python -m pip install protobuf==${{ matrix.protobuf-version }}
+        run: uv pip install protobuf==${{ matrix.protobuf-version }} --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Set up Windows environment
         if: runner.os == 'Windows'
         # windows timezone management is broken, that's why we need a special fix here
@@ -370,6 +398,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -390,9 +422,9 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Run doctests for AST (I/II)
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -419,6 +451,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -439,9 +475,9 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Run tests for AST (II/II)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
         env:
@@ -449,6 +485,8 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --enable_ast
           TOX_PARALLEL_NO_SPINNER: 1
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -498,6 +536,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -522,9 +564,9 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
         # only run doctest for macos on aws
       - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
         name: Run Snowpark pandas API doctests
@@ -579,6 +621,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Decrypt parameters.py
@@ -596,12 +642,12 @@ jobs:
         run: ls -lh dist
         shell: bash
       - name: Upgrade setuptools, pip and wheel
-        run: python -m pip install -U setuptools pip wheel
+        run: uv pip install -U setuptools pip wheel --system
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Run all tests
         run: python -m tox -e "modin_extra_without_pandas_extra"
         env:
@@ -643,15 +689,19 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
+        run: uv pip install -U setuptools pip --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Collect all coverages to one dir
         run: |
           python -c '
@@ -685,7 +735,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Show coverage diff
         run: |
-          pip install diff_cover
+          uv pip install diff_cover --system
           git log -n 5 --pretty=oneline
           git fetch -f origin main:main || true
           diff-cover .tox/coverage.xml --compare-branch=main --fail-under=95
@@ -701,10 +751,14 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
       - name: Upgrade setuptools and pip
-        run: python -m pip install -U setuptools pip
+        run: uv pip install -U setuptools pip --system
       - name: Install tox
-        run: python -m pip install tox
+        run: uv pip install tox --system
       - name: Install protoc
         shell: bash
         run: .github/scripts/install_protoc.sh

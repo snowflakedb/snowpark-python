@@ -387,6 +387,27 @@ def test_partition_unsupported_type(session):
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
+def test_telemetry(session, fetch_with_process):
+    with patch(
+        "snowflake.snowpark._internal.telemetry.TelemetryClient.send_data_source_perf_telemetry"
+    ) as mock_telemetry:
+        df = session.read.dbapi(
+            sql_server_create_connection,
+            table=SQL_SERVER_TABLE_NAME,
+            fetch_with_process=fetch_with_process,
+        )
+    telemetry_json = mock_telemetry.call_args[0][0]
+    assert telemetry_json["function_name"] == "DataFrameReader.dbapi"
+    assert telemetry_json["ingestion_mode"] == "local_ingestion"
+    assert telemetry_json["dbms_type"] == DBMS_TYPE.SQL_SERVER_DB.value
+    assert telemetry_json["driver_type"] == DRIVER_TYPE.PYODBC.value
+    assert telemetry_json["schema"] == df.schema.simple_string()
+    assert "fetch_to_local_duration" in telemetry_json
+    assert "upload_and_copy_into_sf_table_duration" in telemetry_json
+    assert "end_to_end_duration" in telemetry_json
+
+
+@pytest.mark.parametrize("fetch_with_process", [True, False])
 def test_telemetry_tracking(caplog, session, fetch_with_process):
     original_func = session._conn.run_query
     called, comment_showed = 0, 0
@@ -1323,50 +1344,35 @@ def test_case_sensitive_copy_into(session):
 )
 def test_threading_error_handling_with_stop_event(session):
     """Test that when one thread fails, it properly sets stop event and cancels other threads."""
+
+    # Helper function to drain a queue into a list
+    def drain_queue(q):
+        """Convert a queue to a list by draining all items."""
+        items = []
+        while not q.empty():
+            try:
+                items.append(q.get_nowait())
+            except queue.Empty:
+                break
+        return items
+
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, _, _, _ = sqlite3_db(dbpath)
 
         # Track which partitions have been processed to simulate error on specific partition
-        processed_partitions = set()
+        processed_partitions = queue.Queue()
         original_task_fetch = _task_fetch_data_from_source_with_retry
 
         def mock_task_fetch_with_selective_error(
             worker, partition, partition_idx, parquet_queue, stop_event=None
         ):
             assert stop_event
-            processed_partitions.add(partition_idx)
-
+            processed_partitions.put(partition_idx)
             # Simulate error on the second partition (partition_idx=1)
             if partition_idx == 1:
                 assert not stop_event.is_set()
-                # Add a small delay to ensure other threads have started
-                import time
-
-                time.sleep(0.05)
-                # Raise an error that should trigger the stop event mechanism
                 raise RuntimeError("Simulated thread error in partition 1")
-
-            # For other partitions, add delay to simulate longer-running work
-            # This ensures they will still be running when partition 1 fails
-            if partition_idx in [0, 2]:
-                import time
-
-                time.sleep(
-                    0.1
-                )  # Longer delay to ensure they're still running when error occurs
-
-            # For other partitions, check stop event and exit gracefully if set
-            if stop_event and stop_event.is_set():
-                parquet_queue.put(
-                    (
-                        PARTITION_TASK_ERROR_SIGNAL,
-                        SnowparkDataframeReaderException(
-                            "Data fetching stopped by thread failure"
-                        ),
-                    )
-                )
-                return
 
             # Otherwise proceed normally
             return original_task_fetch(
@@ -1374,8 +1380,8 @@ def test_threading_error_handling_with_stop_event(session):
             )
 
         # Track futures and their cancel calls to verify cancellation behavior
-        created_futures = []
-        cancelled_futures = []
+        created_futures = queue.Queue()
+        cancelled_futures = queue.Queue()
         original_submit = ThreadPoolExecutor.submit
 
         def track_submit(self, fn, *args, **kwargs):
@@ -1385,12 +1391,12 @@ def test_threading_error_handling_with_stop_event(session):
             original_cancel = future.cancel
 
             def track_cancel():
-                cancelled_futures.append(future)
+                cancelled_futures.put(future)
                 return original_cancel()
 
             future.cancel = track_cancel
 
-            created_futures.append(future)
+            created_futures.put(future)
             return future
 
         with mock.patch(
@@ -1408,42 +1414,28 @@ def test_threading_error_handling_with_stop_event(session):
                     column="id",
                     upper_bound=10,
                     lower_bound=0,
-                    num_partitions=3,  # Create 3 partitions to test multi-threading
-                    max_workers=3,
+                    num_partitions=9,  # Create 9 partitions to test multi-threading
+                    max_workers=2,
                     custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
                     fetch_with_process=False,  # Use threading mode
                 )
-            # Verify that futures were created (confirming threading mode was used)
-            assert len(created_futures) == 3, "Should have created 3 thread futures"
+            # Convert queues to lists for assertion checks using helper function
+            processed_list = drain_queue(processed_partitions)
+            cancelled_list = drain_queue(cancelled_futures)
+            created_list = drain_queue(created_futures)
 
-            # Give threads a moment to be cancelled/complete
-            import time
-
-            time.sleep(0.2)
-
-            # Verify that at least one partition was processed before error
+            # Verify threading behavior: 3 futures created, partition 1 failed, some (but not all) futures cancelled
             assert (
-                len(processed_partitions) >= 1
-            ), "At least one partition should have been processed"
-
-            # Verify that partition 1 was the one that caused the error
-            assert (
-                1 in processed_partitions
-            ), "Partition 1 should have been processed and caused error"
-
-            # Verify that cancel() was called on some futures
-            # Due to timing, at least some futures should have been cancelled
-            assert (
-                len(cancelled_futures) > 0
-            ), f"Expected some futures to be cancelled, but got {len(cancelled_futures)}"
-
-            # Verify that not all futures were cancelled (the one that errored should complete, not be cancelled)
-            assert len(cancelled_futures) < len(
-                created_futures
-            ), "Not all futures should be cancelled"
+                9
+                > len(created_list)
+                > 1  # at least 0 and 1 must be created in order to process
+                and len(processed_list) >= 1
+                and 1 in processed_list
+                and 9 > len(cancelled_list) > 0
+            ), f"Threading verification failed: created={len(created_list)}, processed={processed_list}, cancelled={len(cancelled_list)}"
 
             # Additional verification: check that cancelled futures were indeed not done when cancelled
-            for future in cancelled_futures:
+            for future in cancelled_list:
                 # The future should either be cancelled or done by now
                 assert (
                     future.cancelled() or future.done()

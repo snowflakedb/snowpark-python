@@ -35,7 +35,9 @@ from typing import (
 )
 
 import cloudpickle
-import pkg_resources
+import importlib.metadata
+from packaging.requirements import Requirement
+from packaging.version import parse as parse_version
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
@@ -106,6 +108,8 @@ from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
+    XPATH_HANDLERS_FILE_PATH,
+    XPATH_HANDLER_MAP,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
@@ -143,7 +147,7 @@ from snowflake.snowpark._internal.utils import (
     AstFlagSource,
     AstMode,
 )
-from snowflake.snowpark.async_job import AsyncJob
+from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.context import (
     _is_execution_environment_sandboxed_for_client,
@@ -192,6 +196,7 @@ from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
+from snowflake.snowpark.dataframe_profiler import DataframeProfiler
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -199,8 +204,10 @@ from snowflake.snowpark.table_function import (
 )
 from snowflake.snowpark.types import (
     ArrayType,
+    BooleanType,
     DateType,
     DecimalType,
+    FloatType,
     GeographyType,
     GeometryType,
     IntegerType,
@@ -222,6 +229,7 @@ from snowflake.snowpark.udtf import UDTFRegistration
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
+    from snowflake.snowpark.udf import UserDefinedFunction  # pragma: no cover
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -290,6 +298,7 @@ _PYTHON_SNOWPARK_CLIENT_MIN_VERSION_FOR_AST = (
 _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES = (
     "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES"
 )
+_PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED = "ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY"
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -667,6 +676,12 @@ class Session:
         else:
             self._disable_multiline_queries()
 
+        self._internal_telemetry_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED, False
+            )
+        )
+
         self._large_query_breakdown_enabled: bool = self.is_feature_enabled_for_version(
             _PYTHON_SNOWPARK_USE_LARGE_QUERY_BREAKDOWN_OPTIMIZATION_VERSION
         )
@@ -742,7 +757,17 @@ class Session:
         # of SnowflakePlan or Selectable objects
         self._plan_lock = create_rlock(self._conn._thread_safe_session_enabled)
 
+        # this lock is used to protect XPath UDF cache to avoid race conditions during
+        # UDF registration and retrieval
+        self._xpath_udf_cache_lock = create_rlock(
+            self._conn._thread_safe_session_enabled
+        )
+
         self._custom_package_usage_config: Dict = {}
+
+        # Cache for XPath UDFs (thread-safe)
+        self._xpath_udf_cache: Dict[str, Any] = {}
+
         self._collect_snowflake_plan_telemetry_at_critical_path: bool = (
             self.is_feature_enabled_for_version(
                 _PYTHON_SNOWPARK_COLLECT_TELEMETRY_AT_CRITICAL_PATH_VERSION
@@ -752,6 +777,7 @@ class Session:
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+        self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
 
         self._ast_batch = AstBatch(self)
@@ -810,8 +836,7 @@ class Session:
         return (
             isinstance(version, str)
             and version != ""
-            and pkg_resources.parse_version(self.version)
-            >= pkg_resources.parse_version(version)
+            and parse_version(self.version) >= parse_version(version)
         )
 
     def _generate_new_action_id(self) -> int:
@@ -1517,7 +1542,7 @@ class Session:
             >>> # and pandas with the version "2.1.*"
             >>> # and dateutil with the local version in your environment
             >>> session.custom_package_usage_config = {"enabled": True}  # This is added because latest dateutil is not in snowflake yet
-            >>> session.add_packages("numpy", "pandas==2.1.*", dateutil)
+            >>> session.add_packages("numpy", "pandas==2.2.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -1568,7 +1593,7 @@ class Session:
             >>> session.clear_packages()
             >>> len(session.get_packages())
             0
-            >>> session.add_packages("numpy", "pandas==2.1.4")
+            >>> session.add_packages("numpy", "pandas==2.2.*")
             >>> len(session.get_packages())
             2
             >>> session.remove_package("numpy")
@@ -1578,7 +1603,7 @@ class Session:
             >>> len(session.get_packages())
             0
         """
-        package_name = pkg_resources.Requirement.parse(package).key
+        package_name = Requirement(package).name
         with self._package_lock:
             if (
                 artifact_repository is not None
@@ -1722,49 +1747,53 @@ class Session:
         ignore_packages = {} if ignore_packages is None else ignore_packages
 
         packages = []
-        for package in pkg_resources.working_set:
-            if package.key in ignore_packages:
-                _logger.info(f"{package.key} found in environment, ignoring...")
+        for package in importlib.metadata.distributions():
+            if package.metadata["Name"].lower() in ignore_packages:
+                _logger.info(
+                    f"{package.metadata['Name'].lower()} found in environment, ignoring..."
+                )
                 continue
-            if package.key in DEFAULT_PACKAGES:
-                _logger.info(f"{package.key} is available by default, ignoring...")
+            if package.metadata["Name"].lower() in DEFAULT_PACKAGES:
+                _logger.info(
+                    f"{package.metadata['Name'].lower()} is available by default, ignoring..."
+                )
                 continue
             version_text = (
-                "==" + package.version if package.has_version() and not relax else ""
+                "==" + package.version if package.version and not relax else ""
             )
-            packages.append(f"{package.key}{version_text}")
+            packages.append(f"{package.metadata['Name'].lower()}{version_text}")
 
         self.add_packages(packages)
 
     @staticmethod
     def _parse_packages(
         packages: List[Union[str, ModuleType]]
-    ) -> Dict[str, Tuple[str, bool, pkg_resources.Requirement]]:
+    ) -> Dict[str, Tuple[str, bool, Requirement]]:
         package_dict = dict()
         for package in packages:
             if isinstance(package, ModuleType):
                 package_name = MODULE_NAME_TO_PACKAGE_NAME_MAP.get(
                     package.__name__, package.__name__
                 )
-                package = f"{package_name}=={pkg_resources.get_distribution(package_name).version}"
+                package = f"{package_name}=={importlib.metadata.version(package_name)}"
                 use_local_version = True
             else:
                 package = package.strip().lower()
                 if package.startswith("#"):
                     continue
                 use_local_version = False
-            package_req = pkg_resources.Requirement.parse(package)
+            package_req = Requirement(package)
             # get the standard package name if there is no underscore
             # underscores are discouraged in package names, but are still used in Anaconda channel
-            # pkg_resources.Requirement.parse will convert all underscores to dashes
+            # packaging.requirements.Requirement will convert all underscores to dashes
             # the regexp is to deal with case that "_" is in the package requirement as well as version restrictions
             # we only extract the valid package name from the string by following:
             # https://packaging.python.org/en/latest/specifications/name-normalization/
             # A valid name consists only of ASCII letters and numbers, period, underscore and hyphen.
             # It must start and end with a letter or number.
-            # however, we don't validate the pkg name as this is done by pkg_resources.Requirement.parse
+            # however, we don't validate the pkg name as this is done by packaging.requirements.Requirement
             # find the index of the first char which is not an valid package name character
-            package_name = package_req.key
+            package_name = package_req.name.lower()
             if not use_local_version and "_" in package:
                 reg_match = re.search(r"[^0-9a-zA-Z\-_.]", package)
                 package_name = package[: reg_match.start()] if reg_match else package
@@ -1774,12 +1803,12 @@ class Session:
 
     def _get_dependency_packages(
         self,
-        package_dict: Dict[str, Tuple[str, bool, pkg_resources.Requirement]],
+        package_dict: Dict[str, Tuple[str, bool, Requirement]],
         validate_package: bool,
         package_table: str,
         current_packages: Dict[str, str],
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         # Keep track of any package errors
         errors = []
 
@@ -1796,16 +1825,21 @@ class Session:
         unsupported_packages: List[str] = []
         for package, package_info in package_dict.items():
             package_name, use_local_version, package_req = package_info
-            package_version_req = package_req.specs[0][1] if package_req.specs else None
+            # The `packaging.requirements.Requirement` object exposes a `packaging.requirements.SpecifierSet` object
+            # that handles a set of version specifiers.
+            package_specifier = package_req.specifier if package_req.specifier else None
 
             if validate_package:
                 if package_name not in valid_packages or (
-                    package_version_req
-                    and not any(v in package_req for v in valid_packages[package_name])
+                    package_specifier
+                    and not any(
+                        package_specifier.contains(v)
+                        for v in valid_packages[package_name]
+                    )
                 ):
                     version_text = (
-                        f"(version {package_version_req})"
-                        if package_version_req is not None
+                        f"(version {package_specifier})"
+                        if package_specifier is not None
                         else ""
                     )
                     if is_in_stored_procedure():  # pragma: no cover
@@ -1845,9 +1879,9 @@ class Session:
                     continue
                 elif not use_local_version:
                     try:
-                        package_client_version = pkg_resources.get_distribution(
+                        package_client_version = importlib.metadata.version(
                             package_name
-                        ).version
+                        )
 
                         def is_valid_version(
                             package_name, package_client_version, valid_packages
@@ -1875,7 +1909,7 @@ class Session:
                                 f"requirement '{package}'. Your UDF might not work when the package version "
                                 f"is different between the server and your local environment."
                             )
-                    except pkg_resources.DistributionNotFound:
+                    except importlib.metadata.PackageNotFoundError:
                         _logger.warning(
                             f"Package '{package_name}' is not installed in the local environment. "
                             f"Your UDF might not work when the package is installed on the server "
@@ -1905,7 +1939,7 @@ class Session:
         elif len(errors) > 0:
             raise RuntimeError(errors)
 
-        dependency_packages: List[pkg_resources.Requirement] = []
+        dependency_packages: List[Requirement] = []
         if len(unsupported_packages) != 0:
             _logger.warning(
                 f"The following packages are not available in Snowflake: {unsupported_packages}."
@@ -2049,7 +2083,10 @@ class Session:
             # Add dependency packages
             for package in dependency_packages:
                 name = package.name
-                version = package.specs[0][1] if package.specs else None
+                package_specs = [
+                    (spec.operator, spec.version) for spec in package.specifier
+                ]
+                version = package_specs[0][1] if package_specs else None
 
                 if name in result_dict:
                     if version is not None:
@@ -2075,7 +2112,7 @@ class Session:
         package_table: str,
         package_dict: Dict[str, str],
         custom_package_usage_config: Dict[str, Any],
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         """
         Uploads a list of Pypi packages, which are unavailable in Snowflake, to session stage.
 
@@ -2086,7 +2123,7 @@ class Session:
                 been added explicitly so far using add_packages() or other such methods.
 
         Returns:
-            List[pkg_resources.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
+            List[packaging.requirements.Requirement]: List of package dependencies (present in Snowflake) that would need to be added
             to the package dictionary.
 
         Raises:
@@ -2234,7 +2271,7 @@ class Session:
 
     def _load_unsupported_packages_from_stage(
         self, environment_signature: str, cache_path: str
-    ) -> List[pkg_resources.Requirement]:
+    ) -> List[Requirement]:
         """
         Uses specified stage path to auto-import a group of unsupported packages, along with its dependencies. This
         saves time spent on pip install, native package detection and zip upload to stage.
@@ -2255,7 +2292,7 @@ class Session:
             environment_signature (str): Unique hash signature for a set of unsupported packages, computed by hashing
             a sorted tuple of unsupported package requirements (package versioning included).
         Returns:
-            Optional[List[pkg_resources.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
+            Optional[List[packaging.requirements.Requirement]]: A list of package dependencies for the set of unsupported packages requested.
         """
         # Ensure that metadata file exists
         metadata_file = f"{ENVIRONMENT_METADATA_FILE_NAME}.txt"
@@ -2289,8 +2326,7 @@ class Session:
         }
 
         dependency_packages = [
-            pkg_resources.Requirement.parse(package)
-            for package in metadata[environment_signature]
+            Requirement(package) for package in metadata[environment_signature]
         ]
         _logger.info(
             f"Loading dependency packages list - {metadata[environment_signature]}."
@@ -2473,6 +2509,13 @@ class Session:
         name: Union[str, Iterable[str]],
         is_temp_table_for_cleanup: bool = False,
         _emit_ast: bool = True,
+        *,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime.datetime]] = None,
+        timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
+        stream: Optional[str] = None,
     ) -> Table:
         """
         Returns a Table that points the specified table.
@@ -2482,6 +2525,14 @@ class Session:
                 fully-qualified object identifier (database name, schema name, and table name).
 
             _emit_ast: Whether to emit AST statements.
+
+            time_travel_mode: Time travel mode, either 'at' or 'before'.
+                Exactly one of statement, offset, timestamp, or stream must be provided when time_travel_mode is set.
+            statement: Query ID for time travel.
+            offset: Negative integer representing seconds in the past for time travel.
+            timestamp: Timestamp string or datetime object.
+            timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+            stream: Stream name for time travel.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -2498,6 +2549,19 @@ class Session:
             >>> current_schema = session.get_current_schema()
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
+
+            >>> df_at_time = session.table("my_table", time_travel_mode="at", timestamp="2023-01-01 12:00:00", timestamp_type="LTZ") # doctest: +SKIP
+            >>> df_before = session.table("my_table", time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012") # doctest: +SKIP
+            >>> df_offset = session.table("my_table", time_travel_mode="at", offset=-3600) # doctest: +SKIP
+            >>> df_stream = session.table("my_table", time_travel_mode="at", stream="my_stream") # doctest: +SKIP
+
+            # timestamp_type automatically set to "TZ" due to timezone info
+            >>> import datetime, pytz  # doctest: +SKIP
+            >>> tz_aware = datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=pytz.UTC)  # doctest: +SKIP
+            >>> table1 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware)  # doctest: +SKIP
+
+            # timestamp_type remains "NTZ" (user's explicit choice respected)
+            >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
         """
         if _emit_ast:
             stmt = self._ast_batch.bind()
@@ -2517,6 +2581,12 @@ class Session:
             is_temp_table_for_cleanup=is_temp_table_for_cleanup,
             _ast_stmt=stmt,
             _emit_ast=_emit_ast,
+            time_travel_mode=time_travel_mode,
+            statement=statement,
+            offset=offset,
+            timestamp=timestamp,
+            timestamp_type=timestamp_type,
+            stream=stream,
         )
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
@@ -2916,6 +2986,7 @@ class Session:
         chunk_size: Optional[int] = WRITE_ARROW_CHUNK_SIZE,
         compression: str = "gzip",
         on_error: str = "abort_statement",
+        use_vectorized_scanner: bool = False,
         parallel: int = 4,
         quote_identifiers: bool = True,
         auto_create_table: bool = False,
@@ -2938,13 +3009,18 @@ class Session:
             table_name: Table name where we want to insert into.
             database: Database schema and table is in, if not provided the default one will be used (Default value = None).
             schema: Schema table is in, if not provided the default one will be used (Default value = None).
-            chunk_size: Number of elements to be inserted in each batch, if not provided all elements will be dumped
-                (Default value = None).
+            chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
+                Default to None normally, 100,000 if inside a stored procedure.
+                Note: If auto_create_table or overwrite is set to True, the chunk size may affect schema
+                inference because different chunks might contain varying data types,
+                especially when None values are present. This can lead to inconsistencies in inferred types.
             compression: The compression used on the Parquet files, can only be gzip, or snappy. Gzip gives a
                 better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
             on_error: Action to take when COPY INTO statements fail, default follows documentation at:
                 https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
                 (Default value = 'abort_statement').
+            use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
+                `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
             parallel: Number of threads to be used when uploading chunks, default follows documentation at:
                 https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
             quote_identifiers: By default, identifiers, specifically database, schema, table and column names
@@ -2983,6 +3059,7 @@ class Session:
             chunk_size=chunk_size,
             compression=compression,
             on_error=on_error,
+            use_vectorized_scanner=use_vectorized_scanner,
             parallel=parallel,
             quote_identifiers=quote_identifiers,
             auto_create_table=auto_create_table,
@@ -3114,6 +3191,9 @@ class Session:
             schema: Schema that the table is in. If not provided, the default one will be used.
             chunk_size: Number of rows to be inserted once. If not provided, all rows will be dumped once.
                 Default to None normally, 100,000 if inside a stored procedure.
+                Note: If auto_create_table or overwrite is set to True, the chunk size may affect schema
+                inference because different chunks might contain varying data types,
+                especially when None values are present. This can lead to inconsistencies in inferred types.
             compression: The compression used on the Parquet files: gzip or snappy. Gzip gives supposedly a
                 better compression, while snappy is faster. Use whichever is more appropriate.
             on_error: Action to take when COPY INTO statements fail. See details at
@@ -3351,14 +3431,18 @@ class Session:
         data: Union[List, Tuple, "pandas.DataFrame", "pyarrow.Table"],
         schema: Optional[Union[StructType, Iterable[str], str]] = None,
         _emit_ast: bool = True,
+        **kwargs: Dict[str, Any],
     ) -> DataFrame:
         """Creates a new DataFrame containing the specified values from the local data.
 
-        If creating a new DataFrame from a pandas Dataframe, we will store the pandas
-        DataFrame in a temporary table and return a DataFrame pointing to that temporary
+        If creating a new DataFrame from a pandas Dataframe or a PyArrow Table, we will store
+        the data in a temporary table and return a DataFrame pointing to that temporary
         table for you to then do further transformations on. This temporary table will be
-        dropped at the end of your session. If you would like to save the pandas DataFrame,
-        use the :meth:`write_pandas` method instead.
+        dropped at the end of your session. If you would like to save the pandas DataFrame or PyArrow Table,
+        use the :meth:`write_pandas` or :meth:`write_arrow` method instead.
+        Note: When ``data`` is a pandas DataFrame or pyarrow Table, schema inference may be affected by chunk size.
+        You can control it by passing the ``chunk_size`` keyword argument. For details, see :meth:`write_pandas`
+        or :meth:`write_arrow`, which are used internally by this function.
 
         Args:
             data: The local data for building a :class:`DataFrame`. ``data`` can only
@@ -3376,6 +3460,9 @@ class Session:
 
                 To improve performance, provide a schema. This avoids the need to infer data types
                 with large data sets.
+            **kwargs: Additional keyword arguments passed to :meth:`write_pandas` or :meth:`write_arrow`
+                when ``data`` is a pandas DataFrame or pyarrow Table, respectively. These can include
+                options such as chunk_size or compression.
 
         Examples::
 
@@ -3471,6 +3558,7 @@ class Session:
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
                         _emit_ast=False,
+                        **kwargs,
                     )
                     set_api_call_source(table, "Session.create_dataframe[arrow]")
                 else:
@@ -3484,6 +3572,7 @@ class Session:
                         table_type="temporary",
                         use_logical_type=self._use_logical_type_for_create_df,
                         _emit_ast=False,
+                        **kwargs,
                     )
                     set_api_call_source(table, "Session.create_dataframe[pandas]")
 
@@ -4035,17 +4124,21 @@ class Session:
             >>> session.telemetry_enabled
             True
         """
-        return self._conn._conn.telemetry_enabled
+        return self._conn._telemetry_client._enabled
 
     @telemetry_enabled.setter
     def telemetry_enabled(self, value):
         # Set both in-band and out-of-band telemetry to True/False
         if value:
-            self._conn._conn.telemetry_enabled = True
-            self._conn._telemetry_client.telemetry._enabled = True
+            self._conn._telemetry_client._enabled = True
+            if is_in_stored_procedure() and not self._stored_proc_telemetry_enabled:
+                _logger.debug(
+                    "Client side parameter ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY is set to False, telemetry could not be enabled"
+                )
+                self._conn._telemetry_client._enabled = False
+
         else:
-            self._conn._conn.telemetry_enabled = False
-            self._conn._telemetry_client.telemetry._enabled = False
+            self._conn._telemetry_client._enabled = False
 
     @property
     def file(self) -> FileOperation:
@@ -4104,6 +4197,14 @@ class Session:
         """
         return self._sp_profiler
 
+    @property
+    def dataframe_profiler(self) -> DataframeProfiler:
+        """
+        Returns a :class:`dataframe_profiler.DataframeProfiler` object that you can use to profile dataframe operations.
+        See details of how to use this object in :class:`dataframe_profiler.DataframeProfiler`.
+        """
+        return self._dataframe_profiler
+
     def _infer_is_return_table(
         self, sproc_name: str, *args: Any, log_on_exception: bool = False
     ) -> bool:
@@ -4146,20 +4247,27 @@ class Session:
         sproc_name: str,
         *args: Any,
         statement_params: Optional[Dict[str, Any]] = None,
+        block: bool = True,
         log_on_exception: bool = False,
         return_dataframe: Optional[bool] = None,
         _emit_ast: bool = True,
-    ) -> Any:
+    ) -> Union[Any, AsyncJob]:
         """Calls a stored procedure by name.
 
         Args:
             sproc_name: The name of stored procedure in Snowflake.
             args: Arguments should be basic Python types.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+            block: Whether to block until the result is available. When it is ``False``, this function
+                executes the stored procedure asynchronously and returns an :class:`AsyncJob`.
             log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
                 as a table return type.
             return_dataframe: When set to True, the return value of this function is a DataFrame object.
                 This is useful when the given stored procedure's return type is a table.
+
+        Returns:
+            When block=True: The stored procedure result (scalar value or DataFrame)
+            When block=False: An AsyncJob object for retrieving results later
 
         Example::
 
@@ -4198,8 +4306,68 @@ class Session:
             sproc_name,
             *args,
             statement_params=statement_params,
+            block=block,
             log_on_exception=log_on_exception,
             is_return_table=return_dataframe,
+            _emit_ast=_emit_ast,
+        )
+
+    @publicapi
+    def call_nowait(
+        self,
+        sproc_name: str,
+        *args: Any,
+        statement_params: Optional[Dict[str, Any]] = None,
+        log_on_exception: bool = False,
+        return_dataframe: Optional[bool] = None,
+        _emit_ast: bool = True,
+    ) -> AsyncJob:
+        """Calls a stored procedure by name asynchronously and returns an AsyncJob.
+        It is equivalent to ``call(block=False)``.
+
+        Args:
+            sproc_name: The name of stored procedure in Snowflake.
+            args: Arguments should be basic Python types.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+            log_on_exception: Log warnings if they arise when trying to determine if the stored procedure
+                as a table return type.
+            return_dataframe: When set to True, the return value of this function is a DataFrame object.
+                This is useful when the given stored procedure's return type is a table.
+
+        Returns:
+            An AsyncJob object that can be used to retrieve results or check status.
+
+        Example::
+
+            >>> import snowflake.snowpark
+            >>> from snowflake.snowpark.functions import sproc
+            >>> import time
+            >>>
+            >>> session.add_packages('snowflake-snowpark-python')
+            >>>
+            >>> @sproc(name="simple_add_sp", replace=True)
+            ... def simple_add(session: snowflake.snowpark.Session, a: int, b: int) -> int:
+            ...     return a + b
+            >>> async_job = session.call_nowait("simple_add_sp", 1, 2)
+            >>> while not async_job.is_done():
+            ...     time.sleep(1.0)
+            >>> async_job.is_done()
+            True
+            >>> async_job.is_failed()
+            False
+            >>> async_job.status()
+            'SUCCESS'
+            >>> result = async_job.result()
+            >>> print(result)
+            3
+        """
+        return self.call(
+            sproc_name,
+            *args,
+            statement_params=statement_params,
+            block=False,
+            log_on_exception=log_on_exception,
+            return_dataframe=return_dataframe,
             _emit_ast=_emit_ast,
         )
 
@@ -4211,7 +4379,8 @@ class Session:
         is_return_table: Optional[bool] = None,
         log_on_exception: bool = False,
         _emit_ast: bool = True,
-    ) -> Any:
+        block: bool = True,
+    ) -> Union[Any, AsyncJob]:
         """Private implementation of session.call
 
         Args:
@@ -4254,20 +4423,15 @@ class Session:
             is_return_table = self._infer_is_return_table(
                 sproc_name, *args, log_on_exception=log_on_exception
             )
-        if is_return_table:
-            qid = self._conn.execute_and_get_sfqid(
-                query, statement_params=statement_params
-            )
-            df = self.sql(result_scan_statement(qid), _ast_stmt=stmt)
-            set_api_call_source(df, "Session.call")
-            return df
 
-        # TODO SNOW-1672561: This here needs to emit an eval as well.
-        df = self.sql(query, _ast_stmt=stmt)
-        set_api_call_source(df, "Session.call")
-
-        # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
-        return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
+        return self._execute_sproc_internal(
+            query=query,
+            is_return_table=is_return_table,
+            block=block,
+            statement_params=statement_params,
+            ast_stmt=stmt,
+            log_on_exception=log_on_exception,
+        )
 
     @deprecated(
         version="0.7.0",
@@ -4385,6 +4549,7 @@ class Session:
         include_describe: bool = False,
         include_thread_id: bool = False,
         include_error: bool = False,
+        include_dataframe_profiling: bool = False,
     ) -> QueryHistory:
         """Create an instance of :class:`QueryHistory` as a context manager to record queries that are pushed down to the Snowflake database.
 
@@ -4402,7 +4567,11 @@ class Session:
         >>> assert not query_history.queries[1].is_describe
         """
         query_listener = QueryHistory(
-            self, include_describe, include_thread_id, include_error
+            self,
+            include_describe,
+            include_thread_id,
+            include_error,
+            include_dataframe_profiling,
         )
         self._conn.add_query_listener(query_listener)
         return query_listener
@@ -4470,4 +4639,176 @@ class Session:
             _logger.warning("query `%s` cannot be explained", query)
             return None
 
+    def _get_or_register_xpath_udf(
+        self, return_type: Literal["array", "string", "boolean", "int", "float"]
+    ) -> "UserDefinedFunction":
+        """
+        Get or register an XPath UDF for the specified return type.
+
+        This function manages UDF registration for XPath evaluation. It uses session-level
+        caching to avoid re-registering the same UDF multiple times. The cache is stored
+        in the session object for thread safety.
+        """
+        # Use session's xpath UDF cache with thread safety
+        with self._xpath_udf_cache_lock:
+            cache_key = return_type
+
+            if cache_key not in self._xpath_udf_cache:
+                # Determine Snowpark return type
+                return_type_map = {
+                    "array": ArrayType(StringType()),
+                    "string": StringType(),
+                    "boolean": BooleanType(),
+                    "int": IntegerType(),
+                    "float": FloatType(),
+                }
+
+                # Get the handler function name for this return type
+                handler_name = XPATH_HANDLER_MAP[return_type]
+
+                # Handle stored procedure case
+                if is_in_stored_procedure():  # pragma: no cover
+                    # create a temp stage for UDF import files
+                    # we have to use "temp" object instead of "scoped temp" object in stored procedure
+                    # so we need to upload the file to the temp stage first to use register_from_file
+                    temp_stage = random_name_for_temp_object(TempObjectType.STAGE)
+                    sql_create_temp_stage = (
+                        f"create temp stage if not exists {temp_stage}"
+                    )
+                    self.sql(sql_create_temp_stage, _emit_ast=False).collect(
+                        _emit_ast=False
+                    )
+                    self._conn.upload_file(
+                        XPATH_HANDLERS_FILE_PATH,
+                        temp_stage,
+                        compress_data=False,
+                        overwrite=True,
+                        skip_upload_on_content_match=True,
+                    )
+                    python_file_path = f"{STAGE_PREFIX}{temp_stage}/{os.path.basename(XPATH_HANDLERS_FILE_PATH)}"
+                else:
+                    python_file_path = XPATH_HANDLERS_FILE_PATH
+
+                # Register UDF from file
+                xpath_udf = self.udf.register_from_file(
+                    python_file_path,
+                    handler_name,
+                    return_type=return_type_map[return_type],
+                    input_types=[StringType(), StringType()],
+                    packages=["snowflake-snowpark-python", "lxml<6"],
+                    replace=True,
+                    _emit_ast=False,
+                )
+
+                self._xpath_udf_cache[cache_key] = xpath_udf
+
+            return self._xpath_udf_cache[cache_key]
+
     createDataFrame = create_dataframe
+
+    def _execute_sproc_internal(
+        self,
+        query: str,
+        is_return_table: bool,
+        block: bool,
+        statement_params: Optional[Dict[str, Any]] = None,
+        ast_stmt=None,
+        log_on_exception: bool = False,
+    ) -> Union[Any, AsyncJob]:
+        """Unified internal executor for sync/async, table/scalar SPROCs."""
+        if not block:
+            results_cursor = self._conn.execute_async_and_notify_query_listener(
+                query, _statement_params=statement_params
+            )
+            return AsyncJob(
+                results_cursor["queryId"],
+                query,
+                self,
+                _AsyncResultType.ROW if is_return_table else _AsyncResultType.COUNT,
+                log_on_exception=log_on_exception,
+            )
+
+        if is_return_table:
+            qid = self._conn.execute_and_get_sfqid(
+                query, statement_params=statement_params
+            )
+            df = self.sql(result_scan_statement(qid), _ast_stmt=ast_stmt)
+            set_api_call_source(df, "Session.call")
+            return df
+        else:
+            # TODO SNOW-1672561: This here needs to emit an eval as well.
+            df = self.sql(query, _ast_stmt=ast_stmt)
+            set_api_call_source(df, "Session.call")
+            # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
+            return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
+
+    def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
+        """
+        Returns a DataFrame representing the results of a directory table query on the specified stage.
+
+        A directory table query retrieves file-level metadata about the data files in a Snowflake stage.
+        This includes information like relative path, file size, last modified timestamp, file URL, and checksums.
+
+        Note:
+            The stage must have a directory table enabled for this method to work. The query is
+            executed lazily, which means the SQL is not executed until methods like
+            :func:`DataFrame.collect` or :func:`DataFrame.to_pandas` evaluate the DataFrame.
+
+        Args:
+            stage_name: The name of the stage to query. The stage name should not include the '@' prefix
+                as it will be added automatically.
+
+        Returns:
+            A DataFrame containing metadata about files in the stage with the following columns:
+
+            - ``RELATIVE_PATH``: Path to the files to access using the file URL
+            - ``SIZE``: Size of the file in bytes
+            - ``LAST_MODIFIED``: Timestamp when the file was last updated in the stage
+            - ``MD5``: MD5 checksum for the file
+            - ``ETAG``: ETag header for the file
+            - ``FILE_URL``: Snowflake file URL to access the file
+
+        Examples::
+            >>> # Get all file metadata from a stage named 'test_stage'
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE test_stage DIRECTORY = (ENABLE = TRUE)").collect()
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@test_stage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/testJson.json", "@test_stage", auto_compress=False)
+            >>> _ = session.sql("ALTER STAGE test_stage REFRESH").collect()
+
+            >>> # List all files in the stage
+            >>> df = session.directory('test_stage')
+            >>> df.count()
+            2
+
+            >>> # Get file URLs for CSV files only
+            >>> csv_files = session.directory('test_stage').filter(
+            ...     col('RELATIVE_PATH').like('%.csv%')
+            ... ).select('RELATIVE_PATH')
+            >>> csv_files.show()
+            -------------------
+            |"RELATIVE_PATH"  |
+            -------------------
+            |testCSV.csv      |
+            -------------------
+            <BLANKLINE>
+
+        For details, see the Snowflake documentation on
+        `Snowflake Directory Tables Documentation <https://docs.snowflake.com/en/user-guide/data-load-dirtables-query>`_
+        """
+        stage_name = (
+            stage_name
+            if stage_name.startswith(STAGE_PREFIX)
+            else f"{STAGE_PREFIX}{stage_name}"
+        )
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.directory, stmt)
+            ast.stage_name = stage_name
+
+        # string "@<stage_name>" does not work with parameter binding
+        return self.sql(
+            f"SELECT * FROM DIRECTORY({stage_name})",
+            _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
+        )

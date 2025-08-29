@@ -56,6 +56,24 @@ df.write.insert_into("saved_table", overwrite=True)
 
 df.write.insert_into("saved_table", overwrite=False)
 
+df = session.table(tables.table2)
+
+df.write.copy_into_location("s3://testbucket", storage_integration="test_integration")
+
+df.write.copy_into_location("azure://testcontainer", validation_mode="RETURN_ROWS", storage_integration="test_integration")
+
+df.write.copy_into_location("gcp://teststorage", credentials={}, encryption={})
+
+df.write.copy_into_location("gcp://teststorage", credentials={"AWS_KEY_ID": "awsid", "AWS_SECRET_KEY": "!23@"}, encryption={"TYPE": None, "MASTER_KEY": "master key"})
+
+df.write.parquet("azure://testcontainer", validation_mode="RETURN_3_ROWS", storage_integration="test_integration")
+
+df.write.json("s3://testbucket", credentials={"AWS_KEY_ID": "awsid", "AWS_SECRET_KEY": "!23@"}, encryption={"TYPE": None, "MASTER_KEY": "master key"})
+
+df.write.csv("azure://testcontainer", validation_mode="RETURN_3_ROWS", storage_integration="test_integration", credentials={}, encryption={})
+
+df.write.format("json").save("gcp://teststorage", partition_by="value", storage_integration="test_integration", credentials={"AWS_KEY_ID": "awsid", "AWS_SECRET_KEY": "!23@"}, encryption={"TYPE": None, "MASTER_KEY": "master key"})
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -145,6 +163,38 @@ df.write.mode("overwrite").partition_by(col("value")).options({"COPY_INTO_LOCATI
 df = session.table("table1")
 
 df.write.mode("overwrite").partition_by(col("value")).options({"COPY_INTO_LOCATION": "abcd", "COPY_INTO_LOCATION": "abcd", "COPY_INTO_LOCATION": "pqrs", "OVERWRITE": True, "MODE": "append", "HEADER": True}).format("parquet").insert_into("saved_table", overwrite=False)
+
+df = session.table("table2")
+
+df.write.copy_into_location("s3://testbucket", storage_integration="test_integration")
+
+df = session.table("table2")
+
+df.write.copy_into_location("azure://testcontainer", validation_mode="RETURN_ROWS", storage_integration="test_integration")
+
+df = session.table("table2")
+
+df.write.copy_into_location("gcp://teststorage")
+
+df = session.table("table2")
+
+df.write.copy_into_location("gcp://teststorage", credentials={"AWS_KEY_ID": "awsid", "AWS_SECRET_KEY": "!23@"}, encryption={"TYPE": None, "MASTER_KEY": "master key"})
+
+df = session.table("table2")
+
+df.write.parquet("azure://testcontainer", validation_mode="RETURN_3_ROWS", storage_integration="test_integration")
+
+df = session.table("table2")
+
+df.write.json("s3://testbucket", credentials={"AWS_KEY_ID": "awsid", "AWS_SECRET_KEY": "!23@"}, encryption={"TYPE": None, "MASTER_KEY": "master key"})
+
+df = session.table("table2")
+
+df.write.csv("azure://testcontainer", validation_mode="RETURN_3_ROWS", storage_integration="test_integration")
+
+df = session.table("table2")
+
+df.write.format("json").save("gcp://teststorage", partition_by="value", storage_integration="test_integration", credentials={"AWS_KEY_ID": "awsid", "AWS_SECRET_KEY": "!23@"}, encryption={"TYPE": None, "MASTER_KEY": "master key"})
 
 ## EXPECTED ENCODED AST
 
@@ -3872,6 +3922,798 @@ body {
     bind_id: 24
   }
 }
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 81
+          file: 2
+          start_column: 13
+          start_line: 81
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 25
+  }
+}
+body {
+  bind {
+    expr {
+      write_copy_into_location {
+        block: true
+        location: "s3://testbucket"
+        src {
+          end_column: 94
+          end_line: 83
+          file: 2
+          start_column: 8
+          start_line: 83
+        }
+        storage_integration {
+          value: "test_integration"
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 25
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 83
+              file: 2
+              start_column: 8
+              start_line: 83
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 26
+  }
+}
+body {
+  eval {
+    bind_id: 26
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 81
+          file: 2
+          start_column: 13
+          start_line: 81
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 25
+  }
+}
+body {
+  bind {
+    expr {
+      write_copy_into_location {
+        block: true
+        location: "azure://testcontainer"
+        src {
+          end_column: 131
+          end_line: 85
+          file: 2
+          start_column: 8
+          start_line: 85
+        }
+        storage_integration {
+          value: "test_integration"
+        }
+        validation_mode {
+          value: "RETURN_ROWS"
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 25
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 83
+              file: 2
+              start_column: 8
+              start_line: 83
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 27
+  }
+}
+body {
+  eval {
+    bind_id: 27
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 81
+          file: 2
+          start_column: 13
+          start_line: 81
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 25
+  }
+}
+body {
+  bind {
+    expr {
+      write_copy_into_location {
+        block: true
+        location: "gcp://teststorage"
+        src {
+          end_column: 87
+          end_line: 87
+          file: 2
+          start_column: 8
+          start_line: 87
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 25
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 83
+              file: 2
+              start_column: 8
+              start_line: 83
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 28
+  }
+}
+body {
+  eval {
+    bind_id: 28
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 81
+          file: 2
+          start_column: 13
+          start_line: 81
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 25
+  }
+}
+body {
+  bind {
+    expr {
+      write_copy_into_location {
+        block: true
+        credentials {
+          _1: "AWS_KEY_ID"
+          _2 {
+            string_val {
+              src {
+                end_column: 174
+                end_line: 89
+                file: 2
+                start_column: 8
+                start_line: 89
+              }
+              v: "awsid"
+            }
+          }
+        }
+        credentials {
+          _1: "AWS_SECRET_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 174
+                end_line: 89
+                file: 2
+                start_column: 8
+                start_line: 89
+              }
+              v: "!23@"
+            }
+          }
+        }
+        encryption {
+          _1: "TYPE"
+          _2 {
+            null_val {
+              src {
+                end_column: 174
+                end_line: 89
+                file: 2
+                start_column: 8
+                start_line: 89
+              }
+            }
+          }
+        }
+        encryption {
+          _1: "MASTER_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 174
+                end_line: 89
+                file: 2
+                start_column: 8
+                start_line: 89
+              }
+              v: "master key"
+            }
+          }
+        }
+        location: "gcp://teststorage"
+        src {
+          end_column: 174
+          end_line: 89
+          file: 2
+          start_column: 8
+          start_line: 89
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 25
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 83
+              file: 2
+              start_column: 8
+              start_line: 83
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 29
+  }
+}
+body {
+  eval {
+    bind_id: 29
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 81
+          file: 2
+          start_column: 13
+          start_line: 81
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 25
+  }
+}
+body {
+  bind {
+    expr {
+      write_parquet {
+        block: true
+        location: "azure://testcontainer"
+        src {
+          end_column: 122
+          end_line: 91
+          file: 2
+          start_column: 8
+          start_line: 91
+        }
+        storage_integration {
+          value: "test_integration"
+        }
+        validation_mode {
+          value: "RETURN_3_ROWS"
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 25
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 83
+              file: 2
+              start_column: 8
+              start_line: 83
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 30
+  }
+}
+body {
+  eval {
+    bind_id: 30
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 81
+          file: 2
+          start_column: 13
+          start_line: 81
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 25
+  }
+}
+body {
+  bind {
+    expr {
+      write_json {
+        block: true
+        credentials {
+          _1: "AWS_KEY_ID"
+          _2 {
+            string_val {
+              src {
+                end_column: 158
+                end_line: 93
+                file: 2
+                start_column: 8
+                start_line: 93
+              }
+              v: "awsid"
+            }
+          }
+        }
+        credentials {
+          _1: "AWS_SECRET_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 158
+                end_line: 93
+                file: 2
+                start_column: 8
+                start_line: 93
+              }
+              v: "!23@"
+            }
+          }
+        }
+        encryption {
+          _1: "TYPE"
+          _2 {
+            null_val {
+              src {
+                end_column: 158
+                end_line: 93
+                file: 2
+                start_column: 8
+                start_line: 93
+              }
+            }
+          }
+        }
+        encryption {
+          _1: "MASTER_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 158
+                end_line: 93
+                file: 2
+                start_column: 8
+                start_line: 93
+              }
+              v: "master key"
+            }
+          }
+        }
+        location: "s3://testbucket"
+        src {
+          end_column: 158
+          end_line: 93
+          file: 2
+          start_column: 8
+          start_line: 93
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 25
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 83
+              file: 2
+              start_column: 8
+              start_line: 83
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 31
+  }
+}
+body {
+  eval {
+    bind_id: 31
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 81
+          file: 2
+          start_column: 13
+          start_line: 81
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 25
+  }
+}
+body {
+  bind {
+    expr {
+      write_csv {
+        block: true
+        location: "azure://testcontainer"
+        src {
+          end_column: 149
+          end_line: 95
+          file: 2
+          start_column: 8
+          start_line: 95
+        }
+        storage_integration {
+          value: "test_integration"
+        }
+        validation_mode {
+          value: "RETURN_3_ROWS"
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 25
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 83
+              file: 2
+              start_column: 8
+              start_line: 83
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 32
+  }
+}
+body {
+  eval {
+    bind_id: 32
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 81
+          file: 2
+          start_column: 13
+          start_line: 81
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 25
+  }
+}
+body {
+  bind {
+    expr {
+      write_save {
+        block: true
+        credentials {
+          _1: "AWS_KEY_ID"
+          _2 {
+            string_val {
+              src {
+                end_column: 237
+                end_line: 97
+                file: 2
+                start_column: 8
+                start_line: 97
+              }
+              v: "awsid"
+            }
+          }
+        }
+        credentials {
+          _1: "AWS_SECRET_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 237
+                end_line: 97
+                file: 2
+                start_column: 8
+                start_line: 97
+              }
+              v: "!23@"
+            }
+          }
+        }
+        encryption {
+          _1: "TYPE"
+          _2 {
+            null_val {
+              src {
+                end_column: 237
+                end_line: 97
+                file: 2
+                start_column: 8
+                start_line: 97
+              }
+            }
+          }
+        }
+        encryption {
+          _1: "MASTER_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 237
+                end_line: 97
+                file: 2
+                start_column: 8
+                start_line: 97
+              }
+              v: "master key"
+            }
+          }
+        }
+        location: "gcp://teststorage"
+        partition_by {
+          sql_expr {
+            sql: "value"
+            src {
+              end_column: 237
+              end_line: 97
+              file: 2
+              start_column: 8
+              start_line: 97
+            }
+          }
+        }
+        src {
+          end_column: 237
+          end_line: 97
+          file: 2
+          start_column: 8
+          start_line: 97
+        }
+        storage_integration {
+          value: "test_integration"
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 25
+              }
+            }
+            format {
+              value: "json"
+            }
+            src {
+              end_column: 16
+              end_line: 83
+              file: 2
+              start_column: 8
+              start_line: 83
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 33
+  }
+}
+body {
+  eval {
+    bind_id: 33
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -3885,6 +4727,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 34
+  minor: 37
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

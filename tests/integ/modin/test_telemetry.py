@@ -5,8 +5,8 @@
 
 import json
 import sys
-from typing import Any, Optional
-from unittest.mock import ANY, patch
+from typing import Any, List, Optional
+from unittest.mock import ANY, MagicMock, patch
 
 import modin.pandas as pd
 import numpy as np
@@ -14,11 +14,14 @@ import pandas
 import pytest
 from modin.pandas.dataframe import DataFrame
 from pandas._libs.lib import NoDefault, no_default
+from modin.config import context as config_context
+from snowflake.snowpark.modin.config import SnowflakeModinTelemetryFlushInterval
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 import snowflake.snowpark.session
 from snowflake.snowpark._internal.telemetry import TelemetryClient, TelemetryField
 from snowflake.snowpark.modin.plugin._internal.telemetry import (
+    ModinTelemetrySender,
     _not_equal_to_default,
     _send_modin_api_telemetry,
     _send_snowpark_pandas_telemetry_helper,
@@ -28,43 +31,10 @@ from tests.integ.modin.utils import BASIC_TYPE_DATA1, BASIC_TYPE_DATA2
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
-def _extract_snowpark_pandas_telemetry_log_data(
-    *,
-    expected_func_name: str,
-    session: snowflake.snowpark.session.Session,
-) -> dict:
-    """
-    Extracts Snowpark pandas telemetry log data for a specific function name.
-
-    Args:
-        expected_func_name: The expected name of the function.
-        session: Session instance.
-
-    Returns:
-        A dictionary containing the extracted telemetry log data.
-
-    """
-    for i in range(len(session._conn._telemetry_client.telemetry._log_batch)):
-        try:
-            if (
-                session._conn._telemetry_client.telemetry._log_batch[i].to_dict()[
-                    "message"
-                ][TelemetryField.KEY_DATA.value]["func_name"]
-                == expected_func_name
-            ):
-                return session._conn._telemetry_client.telemetry._log_batch[
-                    i
-                ].to_dict()["message"][TelemetryField.KEY_DATA.value]
-        except Exception:
-            # Exception usually means this message does not have attribute we want and we don't really care
-            pass
-    return dict()
-
-
 @patch(
     "snowflake.snowpark.modin.plugin._internal.telemetry._send_snowpark_pandas_telemetry_helper"
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_snowpark_pandas_telemetry_standalone_function_decorator(
     send_telemetry_mock,
     session,
@@ -99,7 +69,8 @@ def test_standalone_api_telemetry():
     ]
 
 
-def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
+@patch.object(TelemetryClient, "send")
+def test_snowpark_pandas_telemetry_method_decorator(send_mock, test_table_name):
     """
     Test one of two telemetry decorators: snowpark_pandas_telemetry_method_decorator
     """
@@ -127,19 +98,15 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
         },
     ]
     assert df2._query_compiler.snowpark_pandas_api_calls == df2_expected_api_calls
-    # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
-    df1._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
+
     with SqlCounter(query_count=1):
         df1.to_snowflake(test_table_name, index=False, if_exists="replace")
 
     # eager api should not be collected in api_calls
     assert df1._query_compiler.snowpark_pandas_api_calls == df1_expected_api_calls
     # eager api should be sent as telemetry
-    data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name="DataFrame.to_snowflake",
-        session=df1._query_compiler._modin_frame.ordered_dataframe.session,
-    )
-    assert set(data.keys()) == {
+    data = _extract_calls_from_send_mock(send_mock, "DataFrame.to_snowflake")
+    assert set(data[0].keys()) == {
         "category",
         "api_calls",
         "sfqids",
@@ -147,8 +114,8 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
         "error_msg",
         "call_count",
     }
-    assert data["category"] == "snowpark_pandas"
-    assert data["api_calls"] == df1_expected_api_calls + [
+    assert data[0]["category"] == "snowpark_pandas"
+    assert data[0]["api_calls"] == df1_expected_api_calls + [
         {
             "name": "DataFrame.to_snowflake",
             "argument": [
@@ -157,8 +124,8 @@ def test_snowpark_pandas_telemetry_method_decorator(test_table_name):
             ],
         }
     ]
-    assert len(data["sfqids"]) > 0
-    assert data["func_name"] == "DataFrame.to_snowflake"
+    assert len(data[0]["sfqids"]) > 0
+    assert data[0]["func_name"] == "DataFrame.to_snowflake"
     # Test telemetry in python connector satisfy json format
     telemetry_client = (
         df1._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry
@@ -200,7 +167,7 @@ def test_send_snowpark_pandas_telemetry_helper(send_mock):
     )
 
 
-@patch.object(TelemetryClient, "send")
+@patch.object(ModinTelemetrySender, "_send_telemetry")
 @sql_count_checker(query_count=0)
 def test_send_modin_api_telemetry(send_mock):
     session = snowflake.snowpark.session._get_active_session()
@@ -211,6 +178,7 @@ def test_send_modin_api_telemetry(send_mock):
         aggregatable=True,
     )
     send_mock.assert_called_with(
+        ANY,
         {
             "data": {
                 "modin_event": "test_event",
@@ -224,21 +192,55 @@ def test_send_modin_api_telemetry(send_mock):
             "python_version": ANY,
             "operating_system": ANY,
             "interactive": ANY,
-        }
+        },
     )
 
 
 @patch("snowflake.snowpark.modin.plugin._internal.telemetry._send_modin_api_telemetry")
-@sql_count_checker(query_count=2, union_count=8)
-def test_modin_telemetry(send_telemetry_mock, session):
+@sql_count_checker(query_count=4, union_count=16)
+def test_modin_telemetry_send_immediately(send_telemetry_mock, session):
     """
     Tests that a call to a pandas-api method triggers a call to _send_modin_api_telemetry
     """
+    with config_context(SnowflakeModinTelemetryFlushInterval=0):
+        assert SnowflakeModinTelemetryFlushInterval.get() == 0
+        df = pd.DataFrame(BASIC_TYPE_DATA1)
+        # to_string is an eager API that will trigger telemetry immediately
+        df.describe().to_string()
+        df.describe().to_string()
+        send_telemetry_mock.assert_called()
+        found_metric = False
+        for call in send_telemetry_mock.mock_calls:
+            if "snowflakequerycompiler.describe.stat.count" in call.kwargs["event"]:
+                assert call.kwargs["value"] == 1.0
+                found_metric = True
+                break
+        assert found_metric
+
+
+@patch("snowflake.snowpark.modin.plugin._internal.telemetry._send_modin_api_telemetry")
+@patch(
+    "snowflake.snowpark.modin.plugin._internal.telemetry._check_and_reset_metric_flush_time"
+)
+@sql_count_checker(query_count=4, union_count=16)
+def test_modin_telemetry_time_passed(check_flush_mock, send_telemetry_mock, session):
+    check_flush_mock.return_value = False
     df = pd.DataFrame(BASIC_TYPE_DATA1)
     # to_string is an eager API that will trigger telemetry immediately
     df.describe().to_string()
-
-    send_telemetry_mock.assert_called()
+    df.describe().to_string()
+    check_flush_mock.return_value = True
+    df = df + df
+    found_metric = 0
+    for call in send_telemetry_mock.mock_calls:
+        if "snowflakequerycompiler.describe.stat.count" in call.kwargs["event"]:
+            assert call.kwargs["value"] == 2.0
+            assert call.kwargs["aggregatable"] is True
+            found_metric += 1
+            break
+        if "snowflakequerycompiler.describe.stat.mean" in call.kwargs["event"]:
+            assert call.kwargs["aggregatable"] is False
+    assert found_metric
 
 
 @sql_count_checker(query_count=0)
@@ -432,8 +434,9 @@ def test_telemetry_with_rolling():
     )
 
 
+@patch.object(TelemetryClient, "send")
 @sql_count_checker(query_count=2, join_count=2)
-def test_telemetry_getitem_setitem():
+def test_telemetry_getitem_setitem(send_mock):
     # Telemetry name changed between versions due to different applications of overrides.
     df_getitem_name = "DataFrame.BasePandasDataset.__getitem__"
     series_getitem_name = "Series.BasePandasDataset.__getitem__"
@@ -447,21 +450,15 @@ def test_telemetry_getitem_setitem():
         {"name": "DataFrame.__setitem__"},
         {"name": "DataFrame.__setitem__"},
     ]
-    # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
-    s._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
-    # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
-    # the telemetry log from the connector to validate
     _ = s[0]
-    data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name=series_getitem_name,
-        session=s._query_compiler._modin_frame.ordered_dataframe.session,
-    )
-    assert data["api_calls"] == [
+    data = _extract_calls_from_send_mock(send_mock, series_getitem_name)
+    assert data[0]["api_calls"] == [
         {"name": df_getitem_name},
         {"name": series_getitem_name},
     ]
 
 
+@patch.object(TelemetryClient, "send")
 @pytest.mark.parametrize(
     "name, expected_func_name, method, expected_query_count",
     [
@@ -480,39 +477,30 @@ def test_telemetry_getitem_setitem():
     ],
 )
 def test_telemetry_private_method(
+    send_mock,
     name,
     expected_func_name,
     method,
     expected_query_count,
 ):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-    # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
-    df._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
     with SqlCounter(query_count=expected_query_count):
         method(df)
     # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
     # the telemetry log from the connector to validate
-    data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name=expected_func_name,
-        session=df._query_compiler._modin_frame.ordered_dataframe.session,
-    )
-    assert data["api_calls"] == [{"name": expected_func_name}]
+    data = _extract_calls_from_send_mock(send_mock, expected_func_name)
+    assert data[0]["api_calls"] == [{"name": expected_func_name}]
 
 
+@patch.object(TelemetryClient, "send")
 @sql_count_checker(query_count=0)
-def test_telemetry_property_index():
+def test_telemetry_property_index(send_mock):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-    df._query_compiler.snowpark_pandas_api_calls.clear()
-    # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
-    df._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
     # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
     # the telemetry log from the connector to validate
     idx = df.index
-    data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name="DataFrame.property.index_get",
-        session=df._query_compiler._modin_frame.ordered_dataframe.session,
-    )
-    assert data["api_calls"] == [
+    data = _extract_calls_from_send_mock(send_mock, "DataFrame.property.index_get")
+    assert data[0]["api_calls"] == [
         {"name": "DataFrame.property.index_get"},
     ]
 
@@ -522,7 +510,24 @@ def test_telemetry_property_index():
     ]
 
 
+def _extract_calls_from_send_mock(send_mock: MagicMock, func_name: str) -> List:
+    """
+    Extract telemetry data from a MagicMock object on the
+    TelemetryClient
+    """
+    telemetry_data = []
+    for call in send_mock.call_args_list:
+        message = call.args[0]
+        if message.get("source") != "SnowparkPandas":
+            continue
+        data = message.get("data", {})
+        if data["func_name"] == func_name:
+            telemetry_data.append(data)
+    return telemetry_data
+
+
 # TODO SNOW-996140: add telemetry for iloc/loc set
+@patch.object(TelemetryClient, "send")
 @pytest.mark.parametrize(
     "name, method, expected_query_count, expected_join_count",
     [
@@ -531,23 +536,21 @@ def test_telemetry_property_index():
     ],
 )
 def test_telemetry_property_iloc(
-    name, method, expected_query_count, expected_join_count
+    send_mock, name, method, expected_query_count, expected_join_count
 ):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
-    df._query_compiler.snowpark_pandas_api_calls.clear()
-    # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
-    df._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
     # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
     # the telemetry log from the connector to validate
     with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
         _ = method(df)
-    data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name=f"DataFrame.property.{name}_get",
-        session=df._query_compiler._modin_frame.ordered_dataframe.session,
+
+    telemetry_data = _extract_calls_from_send_mock(
+        send_mock, f"DataFrame.property.{name}_get"
     )
-    assert data["api_calls"] == [
-        {"name": f"DataFrame.property.{name}_get"},
-    ]
+
+    assert len(telemetry_data) == 1
+    assert telemetry_data[0]["func_name"] == f"DataFrame.property.{name}_get"
+    assert telemetry_data[0]["api_calls"][0]["name"] == f"DataFrame.property.{name}_get"
 
 
 def _set_iloc(df: pd.DataFrame) -> None:
@@ -558,16 +561,17 @@ def _del_iloc(df: pd.DataFrame) -> None:
     del df.iloc
 
 
+@patch.object(TelemetryClient, "send")
 @pytest.mark.parametrize(
     "method_verb, name, method, method_noun",
     [("set", "iloc", _set_iloc, "setter"), ("delete", "iloc", _del_iloc, "deleter")],
 )
-def test_telemetry_property_missing_methods(method_verb, name, method, method_noun):
+def test_telemetry_property_missing_methods(
+    send_mock, method_verb, name, method, method_noun
+):
     """Test telemetry for property methods that don't exist, e.g. users can't assign a value to the `iloc` property."""
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     df._query_compiler.snowpark_pandas_api_calls.clear()
-    # Clear connector telemetry client buffer to avoid flush triggered by the next API call, ensuring log extraction.
-    df._query_compiler._modin_frame.ordered_dataframe.session._conn._telemetry_client.telemetry.send_batch()
     # This trigger eager evaluation and the messages should have been flushed to the connector, so we have to extract
     # the telemetry log from the connector to validate
     with SqlCounter(query_count=0), pytest.raises(
@@ -578,26 +582,21 @@ def test_telemetry_property_missing_methods(method_verb, name, method, method_no
     ):
         method(df)
     expected_func_name = f"DataFrame.property.{name}_{method_verb}"
-    data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name=expected_func_name,
-        session=df._query_compiler._modin_frame.ordered_dataframe.session,
-    )
-    assert data["api_calls"] == [
+    data = _extract_calls_from_send_mock(send_mock, expected_func_name)
+    assert data[0]["api_calls"] == [
         {
             "name": expected_func_name,
         }
     ]
 
 
+@patch.object(TelemetryClient, "send")
 @sql_count_checker(query_count=1)
-def test_telemetry_repr():
+def test_telemetry_repr(send_mock):
     s = pd.Series([1, 2, 3, 4])
     s.__repr__()
-    data = _extract_snowpark_pandas_telemetry_log_data(
-        expected_func_name="Series.__repr__",
-        session=s._query_compiler._modin_frame.ordered_dataframe.session,
-    )
-    assert data["api_calls"] == [
+    data = _extract_calls_from_send_mock(send_mock, "Series.__repr__")
+    assert data[0]["api_calls"] == [
         {"name": "Series.property.name_set"},
         {"name": "Series.__repr__"},
     ]
@@ -642,7 +641,8 @@ def test_telemetry_interchange_call_count(send_mock):
     assert telemetry_data[5]["call_count"] == 2
 
 
-def test_telemetry_func_call_count(session):
+@patch.object(TelemetryClient, "send")
+def test_telemetry_func_call_count(send_mock, session):
     # TODO (SNOW-1893699): test failing on github with sql simplifier disabled.
     #   Turn this back on once fixed.
     if session.sql_simplifier_enabled is False:
@@ -664,13 +664,8 @@ def test_telemetry_func_call_count(session):
             except Exception:
                 return None
 
-        telemetry_data = [
-            _get_data(call)
-            for call in pd.session._conn._telemetry_client.telemetry._log_batch
-            if _get_data(call) is not None
-            and "func_name" in _get_data(call)
-            and _get_data(call)["func_name"] == "DataFrame.__repr__"
-        ]
+        telemetry_data = _extract_calls_from_send_mock(send_mock, "DataFrame.__repr__")
+        assert len(telemetry_data) == 4
 
         # second to last call from telemetry data
         # s called __repr__() 3 times.
@@ -681,42 +676,34 @@ def test_telemetry_func_call_count(session):
         assert telemetry_data[-1]["call_count"] == 1
 
 
-@sql_count_checker(query_count=3)
-def test_telemetry_multiple_func_call_count():
-    s = pd.DataFrame([1, 2, np.nan, 4])
+@patch.object(TelemetryClient, "send")
+def test_telemetry_multiple_func_call_count(send_mock, session):
+    # TODO (SNOW-1893699): test failing on github with sql simplifier disabled.
+    #   Turn this back on once fixed.
+    if session.sql_simplifier_enabled is False:
+        return
 
-    s.__repr__()
-    s.__repr__()
-    s.__dataframe__()
+    with SqlCounter(query_count=3):
+        s = pd.DataFrame([1, 2, np.nan, 4])
 
-    def _get_data(call):
-        try:
-            return call.to_dict()["message"][TelemetryField.KEY_DATA.value]
-        except Exception:
-            return None
+        s.__repr__()
+        s.__repr__()
+        s.__dataframe__()
 
-    repr_telemetry_data = [
-        _get_data(call)
-        for call in pd.session._conn._telemetry_client.telemetry._log_batch
-        if _get_data(call) is not None
-        and "func_name" in _get_data(call)
-        and _get_data(call)["func_name"] == "DataFrame.__repr__"
-    ]
-    dataframe_telemetry_data = [
-        _get_data(call)
-        for call in pd.session._conn._telemetry_client.telemetry._log_batch
-        if _get_data(call) is not None
-        and "func_name" in _get_data(call)
-        and _get_data(call)["func_name"] == "DataFrame.__dataframe__"
-    ]
+        repr_telemetry_data = _extract_calls_from_send_mock(
+            send_mock, "DataFrame.__repr__"
+        )
+        dataframe_telemetry_data = _extract_calls_from_send_mock(
+            send_mock, "DataFrame.__dataframe__"
+        )
 
-    # last call from telemetry data
-    # s called __repr__() 2 times.
-    assert repr_telemetry_data[-1]["call_count"] == 2
+        # last call from telemetry data
+        # s called __repr__() 2 times.
+        assert repr_telemetry_data[-1]["call_count"] == 2
 
-    # last call from telemetry data
-    # s called __dataframe__() 2 times.
-    assert dataframe_telemetry_data[-1]["call_count"] == 1
+        # last call from telemetry data
+        # s called __dataframe__() 1 time.
+        assert dataframe_telemetry_data[-1]["call_count"] == 1
 
 
 @sql_count_checker(query_count=0)
@@ -798,7 +785,7 @@ def test_telemetry_cache_result():
     ]
 
 
-@sql_count_checker(query_count=9)
+@sql_count_checker(query_count=8)
 def test_telemetry_read_json(tmp_path):
     # read_json is overridden in io_overrides.py
     with open(tmp_path / "file.json", "w") as f:
@@ -813,27 +800,80 @@ def test_telemetry_read_json(tmp_path):
     ]
 
 
-@patch.object(TelemetryClient, "send")
-@sql_count_checker(query_count=2)
-def test_modin_e2e_telemetry(send_mock, session):
+@sql_count_checker(query_count=1)
+@patch.object(ModinTelemetrySender, "_send_telemetry")
+def test_modin_e2e_telemetry_remote(send_mock):
     """
-    Tests that a DataFrame operation triggers a call to TelemetryClient.send with the correct modin telemetry.
+    Tests that a DataFrame operation triggers a call to telemetry with the correct modin telemetry.
     """
-    df = pd.DataFrame(BASIC_TYPE_DATA1)
-    df.value_counts().to_string()
+    with config_context(SnowflakeModinTelemetryFlushInterval=0):
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        assert df.get_backend() == "Snowflake"
+        print(df.sum())
+        found_modin_telemetry = False
+        for call in send_mock.call_args_list:
+            message = call.args[1]
+            if message.get("source") != "modin":
+                continue
+            data = message.get("data", {})
+            assert data.get("category") == "modin"
+            if (
+                data.get("modin_event")
+                == "modin.query-compiler.snowflakequerycompiler.agg.stat.median"
+            ):
+                found_modin_telemetry = True
+        assert found_modin_telemetry, "Modin API telemetry for was not sent."
 
-    found_modin_telemetry = False
-    for call in send_mock.call_args_list:
-        message = call.args[0]
 
-        if message.get("source") != "modin":
-            continue
-        data = message.get("data", {})
-        assert data.get("category") == "modin"
-        assert data.get("modin_event_aggregatable") is False
-        if (
-            data.get("modin_event")
-            == "modin.query-compiler.snowflakequerycompiler.value_counts"
-        ):
-            found_modin_telemetry = True
-    assert found_modin_telemetry, "Modin API telemetry for was not sent."
+@sql_count_checker(query_count=0)
+@patch.object(ModinTelemetrySender, "_send_telemetry")
+def test_modin_e2e_telemetry_local(send_mock):
+    """
+    Tests that a DataFrame operation triggers a call to telemetry with the correct modin telemetry.
+    """
+
+    with config_context(SnowflakeModinTelemetryFlushInterval=0, Backend="Pandas"):
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        assert df.get_backend() == "Pandas"
+        print(df.sum())
+        found_modin_telemetry = False
+        for call in send_mock.call_args_list:
+            message = call.args[1]
+            if message.get("source") != "modin":
+                continue
+            data = message.get("data", {})
+            assert data.get("category") == "modin"
+            # this telemetry is on the basequerycompiler, rather than the
+            # nativequery compiler
+            if (
+                data.get("modin_event")
+                == "modin.query-compiler.basequerycompiler.sum.stat.count"
+            ):
+                found_modin_telemetry = True
+        assert found_modin_telemetry, "Modin API telemetry for was not sent."
+
+
+@sql_count_checker(query_count=0)
+@patch.object(ModinTelemetrySender, "_send_telemetry")
+def test_modin_e2e_telemetry_auto_switch(send_mock):
+    """
+    Tests that a DataFrame operation triggers a call to telemetry with the correct modin telemetry.
+    """
+
+    with config_context(SnowflakeModinTelemetryFlushInterval=0, AutoSwitchBackend=True):
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        assert df.get_backend() == "Pandas"
+        print(df.sum())
+        found_modin_telemetry = False
+        for call in send_mock.call_args_list:
+            message = call.args[1]
+            if message.get("source") != "modin":
+                continue
+            data = message.get("data", {})
+            assert data.get("category") == "modin"
+            if (
+                data.get("modin_event")
+                == "modin.hybrid.auto.decision.Pandas.stat.count"
+            ):
+                found_modin_telemetry = True
+        assert found_modin_telemetry, "Modin API telemetry for was not sent."

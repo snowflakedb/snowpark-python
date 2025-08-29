@@ -14,7 +14,9 @@ from setuptools.command.build_py import build_py as _build_py
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 SRC_DIR = os.path.join(THIS_DIR, "src")
 SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
-MODIN_DEPENDENCY_VERSION = ">=0.33.0, <0.35.0"  # Snowpark pandas requires modin 0.33.x or 0.34.x, which are compatible with pandas 2.2.x
+# Snowpark pandas requires modin 0.34.x, which is compatible with pandas 2.2.x;
+# or modin 0.35.x, which is compatible with pandas 2.2.x or 2.3.x
+MODIN_DEPENDENCY_VERSION = ">=0.34.0, <0.36.0"
 CONNECTOR_DEPENDENCY_VERSION = ">=3.14.0, <4.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
@@ -24,9 +26,9 @@ INSTALL_REQ_LIST = [
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
-    "cloudpickle>=1.6.0,<=3.0.0,!=2.1.0,!=2.2.0",
+    "cloudpickle>=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
-    "protobuf>=3.20, <6",  # Snowpark IR
+    "protobuf>=3.20, <6.32",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
     "tzlocal",  # Snowpark IR
 ]
@@ -41,6 +43,7 @@ PANDAS_REQUIREMENTS = [
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     f"modin{MODIN_DEPENDENCY_VERSION}",
+    "pandas<=2.3.1",
     "tqdm",  # For progress bars during backend switching
     "ipywidgets",  # For enhanced progress bars in Jupyter notebooks
 ]
@@ -59,11 +62,22 @@ DEVELOPMENT_REQUIREMENTS = [
     "graphviz",  # used in plot tests
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
-    "lxml",  # used in read_xml tests
     "tox",  # used for setting up testing environments
     "snowflake.core>=1.0.0, <2",  # Catalog
     "psutil",  # testing for telemetry
     "lxml",  # used in XML reader unit tests
+]
+MODIN_DEVELOPMENT_REQUIREMENTS = [
+    "scipy",  # Snowpark pandas 3rd party library testing
+    "statsmodels",  # Snowpark pandas 3rd party library testing
+    "scikit-learn",  # Snowpark pandas 3rd party library testing
+    # plotly version restricted due to foreseen change in query counts in version 6.0.0+
+    "plotly<6.0.0",  # Snowpark pandas 3rd party library testing
+    # TODO(SNOW-1938831): Test snowflake-ml-python on python 3.12 once
+    # snowflake-ml-python is available on python 3.12.
+    "snowflake-ml-python>=1.8.0; python_version<'3.12'",
+    "s3fs",  # Used in tests that read CSV files from s3
+    "ray",  # Used in data movement tests
 ]
 
 # read the version
@@ -168,6 +182,7 @@ setup(
     # When a new package (directory) is added, we should also add it here
     packages=[
         "snowflake.snowpark",
+        "snowflake.snowpark._functions",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark._internal.ast",
@@ -204,15 +219,7 @@ setup(
         "modin-development": [
             *MODIN_REQUIREMENTS,
             *DEVELOPMENT_REQUIREMENTS,
-            "scipy",  # Snowpark pandas 3rd party library testing
-            "statsmodels",  # Snowpark pandas 3rd party library testing
-            "scikit-learn",  # Snowpark pandas 3rd party library testing
-            # plotly version restricted due to foreseen change in query counts in version 6.0.0+
-            "plotly<6.0.0",  # Snowpark pandas 3rd party library testing
-            # TODO(SNOW-1938831): Test snowflake-ml-python on python 3.12 once
-            # snowflake-ml-python is available on python 3.12.
-            "snowflake-ml-python>=1.8.0; python_version<'3.12'",
-            "s3fs",  # Used in tests that read CSV files from s3
+            *MODIN_DEVELOPMENT_REQUIREMENTS,
         ],
         "localtest": [
             "pandas",

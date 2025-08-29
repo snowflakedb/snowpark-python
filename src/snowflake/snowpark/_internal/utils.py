@@ -29,6 +29,7 @@ from enum import Enum, IntEnum, auto, unique
 from functools import lru_cache, wraps
 from itertools import count
 from json import JSONEncoder
+from time import perf_counter
 from random import Random
 from typing import (
     IO,
@@ -40,6 +41,7 @@ from typing import (
     Iterator,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -64,6 +66,7 @@ if TYPE_CHECKING:
         QueryLineInterval,
     )
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+    from snowflake.snowpark.types import TimestampTimeZone
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2
@@ -209,6 +212,16 @@ XML_ROW_DATA_COLUMN_NAME = "ROW_DATA"
 XML_READER_FILE_PATH = os.path.join(os.path.dirname(__file__), "xml_reader.py")
 XML_READER_API_SIGNATURE = "DataFrameReader.xml[rowTag]"
 XML_READER_SQL_COMMENT = f"/* Python:snowflake.snowpark.{XML_READER_API_SIGNATURE} */"
+
+# Map of XPath return types to handler function names
+XPATH_HANDLER_MAP = {
+    "array": "xpath_array_handler",
+    "string": "xpath_string_handler",
+    "boolean": "xpath_boolean_handler",
+    "int": "xpath_int_handler",
+    "float": "xpath_float_handler",
+}
+XPATH_HANDLERS_FILE_PATH = os.path.join(os.path.dirname(__file__), "xpath_handlers.py")
 
 QUERY_TAG_STRING = "QUERY_TAG"
 SKIP_LEVELS_TWO = (
@@ -415,6 +428,16 @@ def normalize_path(path: str, is_local: bool) -> str:
     if not any(path.startswith(prefix) for prefix in prefixes):
         path = f"{prefixes[0]}{path}"
     return f"'{path}'"
+
+
+def is_cloud_path(path: str) -> bool:
+    return (
+        path.startswith("s3://")
+        or path.startswith("s3china://")
+        or path.startswith("s3gov://")
+        or path.startswith("azure://")
+        or path.startswith("gcs://")
+    )
 
 
 def warn_session_config_update_in_multithreaded_mode(config: str) -> None:
@@ -678,7 +701,9 @@ def create_or_update_statement_params_with_query_tag(
     return ret
 
 
-def get_stage_parts(stage_location: str) -> tuple[str, str]:
+def get_stage_parts(
+    stage_location: str, *, return_full_stage_name: bool = False
+) -> tuple[str, str]:
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
@@ -696,6 +721,9 @@ def get_stage_parts(stage_location: str) -> tuple[str, str]:
             # the path is after it
             full_stage_name = normalized[:i]
             path = normalized[i + 1 :]
+            if return_full_stage_name:
+                return full_stage_name.removeprefix("@"), path
+
             # Find the last match of the first group, which should be the stage name.
             # If not found, the stage name should be invalid
             res = re.findall(SNOWFLAKE_STAGE_NAME_PATTERN, full_stage_name)
@@ -1844,6 +1872,7 @@ def get_sorted_key_for_version(version_str):
 def ttl_cache(ttl_seconds: float):
     """
     A decorator that caches function results with a time-to-live (TTL) expiration.
+    The decorator expects the first argument to be the ttl_key which should be hashable.
 
     Args:
         ttl_seconds (float): Time-to-live in seconds for cached items
@@ -1853,16 +1882,6 @@ def ttl_cache(ttl_seconds: float):
         cache = {}
         expiry_heap = []  # heap of (expiry_time, cache_key)
         cache_lock = threading.RLock()
-
-        def _make_cache_key(*args, **kwargs) -> int:
-            """Create a hashable cache key from function arguments."""
-            key = (args, tuple(sorted(kwargs.items())))
-            try:
-                # Try to create a simple tuple key
-                return hash(key)
-            except TypeError:
-                # If args contain unhashable types, convert to string representation
-                return hash(str(key))
 
         def _cleanup_expired(current_time: float):
             """Remove expired entries from cache and heap."""
@@ -1881,8 +1900,8 @@ def ttl_cache(ttl_seconds: float):
                 expiry_heap.clear()
 
         @wraps(func)
-        def wrapper(*args, **kwargs):
-            cache_key = _make_cache_key(*args, **kwargs)
+        def wrapper(hashable_ttl_key, *args, **kwargs):
+            cache_key = hash(hashable_ttl_key)
             current_time = time.time()
 
             with cache_lock:
@@ -1891,7 +1910,7 @@ def ttl_cache(ttl_seconds: float):
                 if cache_key in cache:
                     return cache[cache_key]
 
-                result = func(*args, **kwargs)
+                result = func(hashable_ttl_key, *args, **kwargs)
 
                 cache[cache_key] = result
                 expiry_time = current_time + ttl_seconds
@@ -1920,6 +1939,136 @@ def remove_comments(sql_query: str, uuids: List[str]) -> str:
         for line in sql_query.split("\n")
         if line not in comment_placeholders and line != ""
     )
+
+
+class TimeTravelConfig(NamedTuple):
+    """Configuration for time travel operations."""
+
+    time_travel_mode: str  # 'at' or 'before'
+    statement: Optional[str] = None
+    offset: Optional[int] = None
+    timestamp: Optional[str] = None
+    timestamp_type: Optional[str] = None
+    stream: Optional[str] = None
+
+    @staticmethod
+    def validate_and_normalize_params(
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime.datetime]] = None,
+        timestamp_type: Optional[Union[str, "TimestampTimeZone"]] = None,
+        stream: Optional[str] = None,
+    ) -> Optional["TimeTravelConfig"]:
+        """
+        Validates and normalizes time travel parameters.
+
+        timestamp_type handling:
+            - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
+            - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
+            - datetime without timezone (naive) + timestamp_type NOT provided → no casting, raw string (timestamp_type=None)
+            - datetime without timezone (naive) + timestamp_type explicitly provided → uses provided timestamp_type
+            - string timestamps + timestamp_type NOT provided → no casting, raw string (timestamp_type=None, Snowflake native handling)
+            - string timestamps + timestamp_type explicitly provided → uses TO_TIMESTAMP_XXX casting
+
+        This behavior preserves timezone information for datetime objects, provides sensible defaults
+        for naive datetime objects, and lets Snowflake handle string timestamp formats natively unless
+        explicit casting is requested.
+
+        Returns:
+            TimeTravelConfig if time travel is specified, None otherwise.
+        Raises:
+            ValueError: If parameters are invalid.
+        """
+        time_travel_arg_count = sum(
+            arg is not None for arg in (statement, offset, timestamp, stream)
+        )
+
+        # Validate mode
+        if time_travel_mode is None:
+            if time_travel_arg_count == 0:
+                return None
+            else:
+                raise ValueError(
+                    "Must specify time travel mode 'at' or 'before' if any other time travel parameter is provided."
+                )
+
+        if time_travel_mode.lower() not in ["at", "before"]:
+            raise ValueError(
+                f"Invalid time travel mode: {time_travel_mode}. Must be 'at' or 'before'."
+            )
+
+        # Validate exactly one parameter is provided
+        if time_travel_arg_count != 1:
+            raise ValueError(
+                "Exactly one of 'statement', 'offset', 'timestamp', or 'stream' must be provided."
+            )
+
+        # Normalize timestamp
+        normalized_timestamp = None
+        if timestamp is not None:
+            normalized_timestamp = str(timestamp).strip()
+            if isinstance(timestamp, datetime.datetime):
+                if timestamp.tzinfo is not None and timestamp_type is None:
+                    timestamp_type = "TZ"
+
+        # Normalize timestamp_type
+        if timestamp_type is not None:
+            if hasattr(timestamp_type, "value"):
+                timestamp_type = (
+                    timestamp_type.value.upper()
+                    if timestamp_type.value != "default"
+                    else "NTZ"
+                )
+            else:
+                timestamp_type = timestamp_type.upper()
+
+            if timestamp_type not in ["NTZ", "LTZ", "TZ"]:
+                raise ValueError(
+                    f"'timestamp_type' value {timestamp_type} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
+                )
+
+        return TimeTravelConfig(
+            time_travel_mode=time_travel_mode,
+            statement=statement,
+            offset=offset,
+            timestamp=normalized_timestamp,
+            timestamp_type=timestamp_type,
+            stream=stream,
+        )
+
+    def generate_sql_clause(self) -> str:
+        """
+        Generates the time travel SQL clause.
+        Args:
+            config: Time travel configuration.
+        Returns:
+            SQL clause like " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('...'))"
+        """
+        clause = f" {self.time_travel_mode.upper()} "
+
+        if self.statement is not None:
+            clause += f"(STATEMENT => '{self.statement}')"
+        elif self.offset is not None:
+            clause += f"(OFFSET => {self.offset})"
+        elif self.stream is not None:
+            clause += f"(STREAM => '{self.stream}')"
+        elif self.timestamp is not None:
+            if self.timestamp_type is not None:
+                timestamp_type = self.timestamp_type.upper()
+                if timestamp_type == "NTZ":
+                    func_name = "TO_TIMESTAMP_NTZ"
+                elif timestamp_type == "LTZ":
+                    func_name = "TO_TIMESTAMP_LTZ"
+                elif timestamp_type == "TZ":
+                    func_name = "TO_TIMESTAMP_TZ"
+                else:
+                    func_name = "TO_TIMESTAMP"
+                clause += f"(TIMESTAMP => {func_name}('{self.timestamp}'))"
+            else:
+                clause += f"(TIMESTAMP => '{self.timestamp}')"
+
+        return clause
 
 
 def get_line_numbers(
@@ -2029,16 +2178,19 @@ def get_plan_from_line_numbers(
         return -1
 
     # traverse the plan tree to find the plan that contains the line number
-    stack = [(plan_node, line_number)]
+    stack = [(plan_node, line_number, None)]
     while stack:
-        node, line_number = stack.pop()
+        node, line_number, df_ast_ids = stack.pop()
         if isinstance(node, Selectable):
             node = node.get_snowflake_plan(skip_schema_query=False)
+        if node.df_ast_ids is not None:
+            df_ast_ids = node.df_ast_ids
         query_line_intervals = node.queries[-1].query_line_intervals
         idx = find_interval_containing_line(query_line_intervals, line_number)
         if idx >= 0:
             uuid = query_line_intervals[idx].uuid
             if node.uuid == uuid:
+                node.df_ast_ids = df_ast_ids
                 return node
             else:
                 for child in node.children_plan_nodes:
@@ -2047,6 +2199,7 @@ def get_plan_from_line_numbers(
                             (
                                 child,
                                 line_number - query_line_intervals[idx].start,
+                                df_ast_ids,
                             )
                         )
                         break
@@ -2056,3 +2209,13 @@ def get_plan_from_line_numbers(
             )
 
     raise ValueError(f"Line number {line_number} does not fall within any interval")
+
+
+@contextlib.contextmanager
+def measure_time() -> Callable[[], float]:
+    """
+    A simple context manager that measures the time taken to execute a code block
+    """
+    start_time = end_time = perf_counter()
+    yield lambda: end_time - start_time
+    end_time = perf_counter()

@@ -6,6 +6,7 @@
 import functools
 import inspect
 import re
+import time
 from contextlib import nullcontext
 from enum import Enum, unique
 from typing import Any, Callable, Optional, TypeVar, Union, cast
@@ -15,6 +16,10 @@ from modin.logging.metrics import add_metric_handler
 from modin.config import MetricsMode
 from typing_extensions import ParamSpec
 
+from snowflake.snowpark.modin.config.envvars import (
+    SnowflakeModinTelemetryEnabled,
+    SnowflakeModinTelemetryFlushInterval,
+)
 import snowflake.snowpark.session
 from snowflake.connector.telemetry import TelemetryField as PCTelemetryField
 from snowflake.snowpark._internal.telemetry import TelemetryField, safe_telemetry
@@ -62,6 +67,19 @@ class PropertyMethodType(Enum):
     FDEL = "delete"
 
 
+class ModinTelemetrySender:
+    """
+    Class designed to allow for easier testing of telemetry
+    """
+
+    @classmethod
+    def _send_telemetry(cls, session: Session, message: dict) -> None:
+        """
+        Internal method to allow for easier testing
+        """
+        return session._conn._telemetry_client.send(message)
+
+
 @safe_telemetry
 def _send_modin_api_telemetry(
     session: Session, event: str, value: Union[int, float], aggregatable: bool
@@ -94,7 +112,7 @@ def _send_modin_api_telemetry(
         TelemetryField.KEY_DATA.value: data,
         PCTelemetryField.KEY_SOURCE.value: "modin",
     }
-    session._conn._telemetry_client.send(message)
+    ModinTelemetrySender()._send_telemetry(session, message)
 
 
 @safe_telemetry
@@ -146,7 +164,7 @@ def _send_snowpark_pandas_telemetry_helper(
         TelemetryField.KEY_DATA.value: data,
         PCTelemetryField.KEY_SOURCE.value: "SnowparkPandas",
     }
-    session._conn._telemetry_client.send(message)
+    ModinTelemetrySender()._send_telemetry(session, message)
 
 
 def _not_equal_to_default(arg_val: Any, default_val: Any) -> bool:
@@ -420,6 +438,7 @@ def _telemetry_helper(
     elif (
         result is None
         and func.__name__ not in ["to_snowflake", "to_iceberg"]
+        and len(args) > 0
         and is_snowpark_pandas_dataframe_or_series_type(args[0])
     ):
         args[0]._query_compiler.snowpark_pandas_api_calls = (
@@ -643,28 +662,101 @@ class TelemetryMeta(type):
         return type.__new__(cls, name, bases, attrs)
 
 
+_modin_event_log: list = [[]]
+_last_modin_metric_flush: float = 0
+_modin_metric_flush_interval = 0
+
+MODIN_SWITCH_DECISION_METRIC_PREFIXES = (
+    "modin.hybrid.merge.decision",
+    "modin.hybrid.auto.decision",
+)
+MODIN_PERFORMANCE_METRIC_PREFIXES = ("modin.query-compiler",)
+
+
+def _check_and_reset_metric_flush_time() -> bool:
+    """
+    Return False if we still need to aggregate more metrics
+    Return True if we should flush the metrics, and reset the clock
+
+    """
+    global _last_modin_metric_flush
+    global _modin_metric_flush_interval
+
+    # Support a changing flush interval
+    current_flush_interval = SnowflakeModinTelemetryFlushInterval.get()
+    current_time = time.time()
+    if current_time > _last_modin_metric_flush + current_flush_interval:
+        _last_modin_metric_flush = current_time
+        return True
+
+    return False
+
+
+def _flush_modin_metrics() -> None:
+    """
+    Flush the collected modin metrics through the normal telemetry channel.
+    Aggregate all metrics with the same name into simple statistics. Set
+    the aggregatable field to True only for the count statistic.
+
+    This will output metrics of the form:
+      modin.query-compiler.snowflakequerycompiler.value_counts.stat.mean
+      modin.query-compiler.snowflakequerycompiler.value_counts.stat.median
+      modin.query-compiler.snowflakequerycompiler.value_counts.stat.count
+      modin.hybrid.auto.decision.Pandas.count
+      modin.hybrid.auto.decision.Snowflake.mean
+      ...
+    """
+    global _modin_event_log
+    try:
+        summary_stat_names = ["count", "median", "mean"]
+        processing_df = native_pd.DataFrame(
+            _modin_event_log, columns=["metric", "value"]
+        )
+        summary_stats = processing_df.groupby("metric").agg(summary_stat_names)
+        session = snowflake.snowpark.session._get_active_session()
+        for row in summary_stats.iterrows():
+            for stat in summary_stats:
+                stat_specific_metric = f"{row[0]}.stat.{stat[1]}"
+
+                _send_modin_api_telemetry(
+                    session=session,
+                    event=stat_specific_metric,
+                    value=row[1][stat],
+                    aggregatable=stat == ("value", "count"),
+                )
+    except Exception:
+        pass
+    _modin_event_log = []
+
+
 def modin_telemetry_watcher(metric_name: str, metric_value: Union[int, float]) -> None:
     """
     Telemetry hook that collects modin telemetry events of interest for
     transmission to Snowflake.
     """
-    useful_metrics = (
-        "modin.hybrid.merge.decision",
-        "modin.pandas-api",
-        "modin.query-compiler",
-        "modin.hybrid.auto.decision",
-    )
-    if metric_name.startswith(useful_metrics):
-        try:
-            session = snowflake.snowpark.session._get_active_session()
-            _send_modin_api_telemetry(
-                session=session,
-                event=metric_name,
-                value=metric_value,
-                aggregatable=False,
-            )
-        except Exception:
-            pass
+    simplified_metric = metric_name
+
+    metric_valid = False
+    # ignore telemetry from dunder and internal metrics
+    if metric_name.startswith(MODIN_PERFORMANCE_METRIC_PREFIXES):
+        parts = metric_name.split(".")
+        if parts[3].startswith("_"):
+            return
+        metric_valid = True
+
+    if metric_name.startswith(MODIN_SWITCH_DECISION_METRIC_PREFIXES):
+        # strip off the groups
+        simplified_metric = ".".join(metric_name.split(".")[0:5])
+        metric_valid = True
+
+    if not metric_valid:
+        return
+
+    _modin_event_log.append([simplified_metric, metric_value])
+    # We will lose telemetry at the tail end of the process, but
+    # that's OK - this telemetry is meant to be lossy
+    if _check_and_reset_metric_flush_time():
+        _flush_modin_metrics()
 
 
 hybrid_switch_log = native_pd.DataFrame({})
@@ -735,5 +827,6 @@ def hybrid_describe_telemetry_watcher(
 
 def connect_modin_telemetry() -> None:
     MetricsMode.enable()
-    add_metric_handler(modin_telemetry_watcher)
+    if SnowflakeModinTelemetryEnabled.get():
+        add_metric_handler(modin_telemetry_watcher)
     add_metric_handler(hybrid_describe_telemetry_watcher)

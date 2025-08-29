@@ -149,6 +149,21 @@ class AsyncJob:
             >>> df.select(col("A").as_("D"), "B").collect()
             [Row(D=1, B=2)]
 
+    Example 10
+        Checking the status of a failed query (division by zero) using the new status APIs::
+
+            >>> import time
+            >>> failing_query = session.sql("select 1/0 as result")
+            >>> async_job = failing_query.collect_nowait()
+            >>> while not async_job.is_done():
+            ...     time.sleep(1.0)
+            >>> async_job.is_done()
+            True
+            >>> async_job.is_failed()
+            True
+            >>> async_job.status()
+            'FAILED_WITH_ERROR'
+
     Note:
         - If a dataframe is associated with multiple queries:
 
@@ -239,6 +254,22 @@ class AsyncJob:
         status = self._session._conn._conn.get_query_status(self.query_id)
         is_running = self._session._conn._conn.is_still_running(status)
         return not is_running
+
+    def is_failed(self) -> bool:
+        """
+        Checks the status of the query associated with this instance and returns a bool value
+        indicating whether the query has failed.
+        """
+        status = self._session._conn._conn.get_query_status(self.query_id)
+        return self._session._conn._conn.is_an_error(status)
+
+    def status(self) -> str:
+        """
+        Returns a string representing the current status of the query.
+        (e.g., "RUNNING", "SUCCESS", "FAILED_WITH_ERROR", "ABORTING", etc.)
+        """
+        status = self._session._conn._conn.get_query_status(self.query_id)
+        return status.name
 
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""

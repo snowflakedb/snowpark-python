@@ -1503,33 +1503,47 @@ def test_read_parquet_all_data_types_with_no_schema(session, mode):
     reason="SNOW-645154 Need to enable ENABLE_SCHEMA_DETECTION_COLUMN_ORDER",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
-def test_read_parquet_with_special_characters_in_column_names(session, mode):
+@pytest.mark.parametrize("ignore_case", [True, False])
+def test_read_parquet_with_special_characters_in_column_names(
+    session, mode, ignore_case
+):
     path = f"@{tmp_stage_name1}/{test_file_with_special_characters_parquet}"
-    df1 = get_reader(session, mode).parquet(path)
+    reader = get_reader(session, mode)
+    df1 = reader.option("INFER_SCHEMA_OPTIONS", {"IGNORE_CASE": ignore_case}).parquet(
+        path
+    )
     res = df1.collect()
     assert len(res) == 500
 
+    # Define expected schema data for both ignore_case scenarios
+    schema_data = [
+        # (original_name, ignore_case_name, data_type)
+        ('"Ema!l"', '"EMA!L"', StringType()),
+        ('"Address"', "ADDRESS", StringType()),
+        ('"Av@t@r"', '"AV@T@R"', StringType()),
+        ('"Avg. $ession Length"', '"AVG. $ESSION LENGTH"', DoubleType()),
+        ('"T!me on App"', '"T!ME ON APP"', DoubleType()),
+        ('"T!me on Website"', '"T!ME ON WEBSITE"', DoubleType()),
+        ('"Length of Membership"', '"LENGTH OF MEMBERSHIP"', DoubleType()),
+        ('"Ye@rly Amount $pent"', '"YE@RLY AMOUNT $PENT"', DoubleType()),
+    ]
+
+    # Generate expected names and fields based on ignore_case parameter
+    expected_names = [
+        ignore_case_name if ignore_case else original_name
+        for original_name, ignore_case_name, _ in schema_data
+    ]
+    expected_fields = [
+        StructField(
+            ignore_case_name if ignore_case else original_name, data_type, nullable=True
+        )
+        for original_name, ignore_case_name, data_type in schema_data
+    ]
+
+    # Validate schema
     schema = df1.schema
-    assert schema.names == [
-        '"Ema!l"',
-        '"Address"',
-        '"Av@t@r"',
-        '"Avg. $ession Length"',
-        '"T!me on App"',
-        '"T!me on Website"',
-        '"Length of Membership"',
-        '"Ye@rly Amount $pent"',
-    ]
-    assert schema.fields == [
-        StructField('"Ema!l"', StringType(), nullable=True),
-        StructField('"Address"', StringType(), nullable=True),
-        StructField('"Av@t@r"', StringType(), nullable=True),
-        StructField('"Avg. $ession Length"', DoubleType(), nullable=True),
-        StructField('"T!me on App"', DoubleType(), nullable=True),
-        StructField('"T!me on Website"', DoubleType(), nullable=True),
-        StructField('"Length of Membership"', DoubleType(), nullable=True),
-        StructField('"Ye@rly Amount $pent"', DoubleType(), nullable=True),
-    ]
+    assert schema.names == expected_names
+    assert schema.fields == expected_fields
 
 
 @pytest.mark.skipif(
@@ -1782,15 +1796,21 @@ def test_pattern(session, mode):
     reason="Local testing does not support file.put",
 )
 @pytest.mark.parametrize("mode", ["select", "copy"])
-@pytest.mark.parametrize("extern", [True, False])
-def test_pattern_with_infer(session, mode, extern):
-    stage_name = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+@pytest.mark.parametrize(
+    "stage_template",
+    [
+        None,
+        "TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage/{}",
+        "TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage_via_integration/{}",
+    ],
+)
+def test_pattern_with_infer(session, mode, stage_template):
+    stage_name = (stage_template or "{}").format(
+        Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    )
 
     if current_account(session) != "SFCTEST0_AWS_US_WEST_2":
         pytest.skip("Test requires resources in sfctest0 test account")
-
-    if extern:
-        stage_name = f"TESTDB_SNOWPARK_PYTHON.PUBLIC.extern_test_stage/{stage_name}"
 
     expected_schema = StructType(
         [
@@ -1807,7 +1827,7 @@ def test_pattern_with_infer(session, mode, extern):
     ]
 
     try:
-        if not extern:
+        if not stage_template:
             Utils.create_stage(session, stage_name, is_temporary=True)
         with tempfile.TemporaryDirectory() as temp_dir:
             for i in range(3):
@@ -1845,7 +1865,7 @@ def test_pattern_with_infer(session, mode, extern):
         single_file_with_pattern_df = reader.csv(f"@{stage_name}/path/good1.csv")
         Utils.check_answer(single_file_with_pattern_df, expected_rows)
 
-        # Test loading a directory while including patter and FILES
+        # Test loading a directory while including pattern and FILES
         reader = base_reader().option(
             "INFER_SCHEMA_OPTIONS", {"FILES": ["good1.csv.gz"]}
         )
@@ -1858,7 +1878,7 @@ def test_pattern_with_infer(session, mode, extern):
         assert df.schema == expected_schema
         Utils.check_answer(df, expected_rows * 3)
 
-        if not extern:
+        if stage_template is None:
             # Test using fully qualified stage name
             reader = base_reader()
             df = reader.csv(
@@ -1868,7 +1888,7 @@ def test_pattern_with_infer(session, mode, extern):
             Utils.check_answer(df, expected_rows * 3)
 
     finally:
-        if extern:
+        if stage_template:
             session.sql(f"rm @{stage_name}").collect()
         else:
             Utils.drop_stage(session, stage_name)

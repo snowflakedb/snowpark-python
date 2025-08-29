@@ -54,6 +54,9 @@ from snowflake.snowpark.modin.config.envvars import (
     RayRedisAddress,
     RayRedisPassword,
     ReadSqlEngine,
+    SnowflakePandasTransferThreshold,
+    SnowflakeModinTelemetryFlushInterval,
+    SnowflakeModinTelemetryEnabled,
     StorageFormat,
     TestDatasetSize,
     TestReadFromPostgres,
@@ -116,4 +119,7 @@ __all__ = [
     "LogFileSize",
     # Plugin settings
     "DocModule",
+    "SnowflakePandasTransferThreshold",
+    "SnowflakeModinTelemetryFlushInterval",
+    "SnowflakeModinTelemetryEnabled",
 ]
