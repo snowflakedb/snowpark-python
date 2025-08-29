@@ -1125,3 +1125,105 @@ def test_dataframe_ai_parse_document_default_output_column(session, resources_pa
         and "index" in first_page
         and "content" in first_page
     )
+
+
+def test_dataframe_ai_extract_text_basic(session):
+    """Test DataFrame.ai.extract with text input and dict response format."""
+    df = session.create_dataframe(
+        [
+            ["John Smith lives in San Francisco"],
+            ["Alice Johnson works in Seattle"],
+        ],
+        schema=["text"],
+    )
+
+    result_df = df.ai.extract(
+        input_column="text",
+        response_format={
+            "name": "What is the first name?",
+            "city": "What city is mentioned?",
+        },
+        output_column="extracted",
+    )
+
+    assert result_df.columns == ["TEXT", "EXTRACTED"]
+
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 2
+    text_to_response = {}
+    for row in results:
+        assert row["EXTRACTED"] is not None
+        data = json.loads(row["EXTRACTED"]) if row["EXTRACTED"] else {}
+        assert isinstance(data, dict) and "response" in data
+        text_to_response[row["TEXT"]] = data["response"]
+
+    assert text_to_response["John Smith lives in San Francisco"]["name"] == "John"
+    assert (
+        text_to_response["John Smith lives in San Francisco"]["city"] == "San Francisco"
+    )
+    assert text_to_response["Alice Johnson works in Seattle"]["name"] == "Alice"
+    assert text_to_response["Alice Johnson works in Seattle"]["city"] == "Seattle"
+
+
+def test_dataframe_ai_extract_default_output_column(session):
+    """Test DataFrame.ai.extract uses default output column name."""
+    df = session.create_dataframe([["Bob lives in Denver"]], schema=["text"])
+
+    result_df = df.ai.extract(
+        input_column="text",
+        response_format=[
+            ["person", "What is the first name?"],
+            ["location", "What city is mentioned?"],
+        ],
+    )
+
+    assert "AI_EXTRACT_OUTPUT" in result_df.columns
+    results = result_df.collect(_emit_ast=False)
+    data = (
+        json.loads(results[0]["AI_EXTRACT_OUTPUT"])
+        if results[0]["AI_EXTRACT_OUTPUT"]
+        else {}
+    )
+    assert isinstance(data, dict) and isinstance(data.get("response", {}), dict)
+    assert data["response"]["person"] == "Bob"
+    assert data["response"]["location"] == "Denver"
+
+
+def test_dataframe_ai_extract_file(session, resources_path):
+    """Test DataFrame.ai.extract on a staged PDF file."""
+    stage_name = Utils.random_stage_name()
+    _ = session.sql(
+        f"CREATE OR REPLACE TEMP STAGE {stage_name} ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')"
+    ).collect()
+    file_local = TestFiles(resources_path).test_invoice_pdf
+    _ = session.file.put(file_local, f"@{stage_name}", auto_compress=False)
+
+    df = session.create_dataframe(
+        [[f"@{stage_name}/invoice.pdf"]], schema=["file_path"]
+    )
+
+    result_df = df.ai.extract(
+        input_column=to_file(col("file_path")),
+        response_format=[
+            ["date", "What is the invoice date?"],
+            ["amount", "What is the amount?"],
+        ],
+        output_column="info",
+    )
+
+    assert result_df.columns == ["FILE_PATH", "INFO"]
+    results = result_df.collect(_emit_ast=False)
+    data = json.loads(results[0]["INFO"]) if results[0]["INFO"] else {}
+    assert isinstance(data, dict) and isinstance(data.get("response", {}), dict)
+    assert data["response"]["date"] == "Nov 26, 2016"
+    assert data["response"]["amount"] == "USD $950.00"
+
+
+def test_dataframe_ai_extract_error_handling(session):
+    """Test error handling in DataFrame.ai.extract."""
+    df = session.create_dataframe([["text"]], schema=["col"])
+    with pytest.raises(TypeError, match="expected Column or str"):
+        df.ai.extract(
+            input_column=123,  # Invalid type
+            response_format={"a": "What is a?"},
+        )
