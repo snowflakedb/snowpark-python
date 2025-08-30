@@ -37,6 +37,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     generate_random_alphanumeric,
     get_temp_type_for_object,
+    parse_table_name,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import Column
@@ -1912,6 +1913,62 @@ def count_rows(df: OrderedDataFrame) -> int:
     df.row_count = row_count
     df.row_count_upper_bound = row_count
     return row_count
+
+
+def get_object_metadata_row_count(object_name: str) -> Optional[int]:
+    """
+    Get the row count of a table or materialized view from Snowflake's metadata.
+    This function uses "SHOW OBJECTS" to avoid running a COUNT query on the table.
+
+    Args:
+        object_name: The name of the object, which can be fully qualified.
+
+    Returns:
+        The number of rows in the table or None, if no object was found or if the
+        object name is invalid.
+    """
+    session = pd.session
+
+    try:
+        parts = parse_table_name(object_name)
+    except Exception:
+        # If the object name is invalid, return None rather than propagate the exception
+        return None
+
+    db, schema, table = None, None, None
+    current_db = session.get_current_database()
+    current_schema = session.get_current_schema()
+
+    if len(parts) == 1:
+        table = parts[0]
+        schema = current_schema
+        db = current_db
+    elif len(parts) == 2:
+        schema, table = parts[0], parts[1]
+        db = current_db
+    elif len(parts) == 3:
+        db, schema, table = parts[0], parts[1], parts[2]
+    else:
+        return None
+
+    if not db:
+        return None
+    if not schema:
+        return None
+
+    query = f"SHOW OBJECTS LIKE '{table}' IN SCHEMA {db}.{schema} LIMIT 1"
+
+    res = session.sql(query).collect(
+        statement_params=get_default_snowpark_pandas_statement_params()
+    )
+    if len(res) != 1:
+        return None
+
+    rows = res[0]["rows"]
+    if rows > 0 or res[0]["kind"] == "TABLE":
+        return rows
+    # Will return None for materialized views
+    return None
 
 
 def append_columns(
