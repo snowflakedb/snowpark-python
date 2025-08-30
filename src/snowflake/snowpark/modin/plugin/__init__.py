@@ -5,6 +5,7 @@
 import inspect
 import sys
 from typing import Union, Callable, Any
+import warnings
 
 from packaging import version
 
@@ -183,8 +184,20 @@ from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: 
 )
 from modin.config import AutoSwitchBackend  # isort: skip  # noqa: E402
 
+HYBRID_PUPR_WARNING = (
+    "Snowpark pandas now runs with hybrid execution (PuPr) enabled by default, and will perform certain operations "
+    + "on smaller data using local pandas. To disable this and force all computations to occur in "
+    + "Snowflake, run this line:\nfrom modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()\n"
+    + "For more details, see https://docs.snowflake.com/LIMITEDACCESS/pandas-on-snowflake-hybrid-execution"
+)
+
+warnings.filterwarnings("once", message=HYBRID_PUPR_WARNING)
+
 if AutoSwitchBackend.get_value_source() is ValueSource.DEFAULT:
-    AutoSwitchBackend.disable()
+    AutoSwitchBackend.enable()
+
+if AutoSwitchBackend.get():
+    warnings.warn(HYBRID_PUPR_WARNING, stacklevel=1)
 
 # Hybrid Mode Registration
 # In hybrid execution mode, the client will automatically switch backends when a
