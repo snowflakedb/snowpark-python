@@ -400,10 +400,10 @@ class FileOperation:
             >>> _ = session.sql("create or replace temp stage source_stage").collect()
             >>> _ = session.sql("create or replace temp stage target_stage").collect()
             >>> # Upload a file to a stage.
-            >>> _ = session.file.put("tests/resources/testCSV.csv", "@source_stage")
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@source_stage", auto_compress=False)
             >>> # Copy files from source stage to target stage.
             >>> session.file.copy_files("@source_stage", "@target_stage")
-            ['testCSV.csv.gz']
+            ['testCSV.csv']
             >>> # Copy files from source stage to target stage using a DataFrame.
             >>> df = session.create_dataframe(
             ...     [["@source_stage/testCSV.csv", "new_file_1"]],
