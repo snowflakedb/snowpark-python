@@ -97,12 +97,18 @@ Functions
     base64_decode_string
     base64_encode
     bit_length
+    bitand
+    bitand_agg
+    bitor
+    bitor_agg
     bitmap_bit_position
     bitmap_bucket_number
     bitmap_construct_agg
     bitnot
     bitshiftleft
     bitshiftright
+    bitxor
+    bitxor_agg
     build_stage_file_url
     builtin
     bround
@@ -211,6 +217,7 @@ Functions
     from_utc_timestamp
     function
     get
+    getbit
     get_ignore_case
     get_path
     greatest
