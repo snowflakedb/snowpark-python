@@ -218,6 +218,7 @@ from snowflake.snowpark._internal.utils import (
     check_create_map_parameter,
     deprecated,
 )
+from snowflake.snowpark._functions.scalar_functions import *  # noqa: F403,F401
 from snowflake.snowpark.column import (
     CaseExpr,
     Column,
