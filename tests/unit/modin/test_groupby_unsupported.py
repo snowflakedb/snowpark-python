@@ -64,7 +64,6 @@ def test_series_groupby_unsupported_methods_raises(
         (lambda df: df.groupby("A").nth(5), "nth"),
         (lambda df: df.groupby("A").ohlc(), "ohlc"),
         (lambda df: df.groupby("A").prod(), "prod"),
-        (lambda df: df.groupby("A").rolling(2), "rolling"),
         (lambda df: df.groupby("A").sample(n=1, random_state=1), "sample"),
         (lambda df: df.groupby("A").sem(), "sem"),
         (lambda df: df.groupby("A").skew(), "skew"),
