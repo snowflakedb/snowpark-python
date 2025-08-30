@@ -6,7 +6,7 @@ import gzip
 import os
 import sys
 import tempfile
-from typing import IO, Dict, List, NamedTuple, Optional
+from typing import IO, Dict, List, NamedTuple, Optional, Union
 
 import snowflake.snowpark
 from snowflake.connector import OperationalError, ProgrammingError
@@ -351,3 +351,105 @@ class FileOperation:
                 if decompress
                 else open(local_file_name, "rb")
             )
+
+    def copy_files(
+        self,
+        source: Union[str, "snowflake.snowpark.dataframe.DataFrame"],
+        target_stage_location: str,
+        *,
+        files: Optional[List[str]] = None,
+        pattern: Optional[str] = None,
+        detailed_output: bool = True,
+        statement_params: Optional[Dict[str, str]] = None,
+    ) -> Union[List[str], int]:
+        """Copy files from a source location to an output stage.
+
+        You can use either a stage location (``str``) or a DataFrame as the source:
+
+        - DataFrame source: The DataFrame must have exactly one or two columns of string type.
+          Column names are not significant; Snowflake interprets columns by position:
+
+              - First column (required): The existing url of the source file location (scoped URL, stage name, or stage URL).
+              - Second column (optional): Then new file name which is the relative output path from the ``target`` stage. The file is
+                copied to ``@[<namespace>.]<stage_name>[/<path>]<new_filename>``.
+
+          If the second column is not provided, Snowflake uses the relative path of the first column's value.
+          Invalid input (for example, missing the first column, non-string values, or extra columns) is
+          rejected by Snowflake and results in a server-side error.
+
+        - Stage location source: Provide a stage location string for ``source``. You can optionally
+          use ``files`` or ``pattern`` to restrict which files are copied.
+
+        References: `Snowflake COPY FILES command <https://docs.snowflake.com/en/sql-reference/sql/copy-files.html>`_.
+
+        Args:
+            source: The source to copy from. Either a stage location string, or a DataFrame with
+                1–2 string columns where the first column is required (existing url) and the
+                second column is optional (new file name).
+            target: The target stage and path where files will be copied.
+            files: Optional list of specific file names to copy; only applicable when ``source``
+                is a stage location string.
+            pattern: Optional regular expression pattern for filtering files to copy; only
+                applicable when ``source`` is a stage location string.
+            detailed_output: If True, returns details for each file; if False, returns only the
+                number of files copied. Defaults to True.
+            statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Examples:
+            >>> # Create a temp stage.
+            >>> _ = session.sql("create or replace temp stage source_stage").collect()
+            >>> _ = session.sql("create or replace temp stage target_stage").collect()
+            >>> # Upload a file to a stage.
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@source_stage", auto_compress=False)
+            >>> # Copy files from source stage to target stage.
+            >>> session.file.copy_files("@source_stage", "@target_stage")
+            ['testCSV.csv']
+            >>> # Copy files from source stage to target stage using a DataFrame.
+            >>> df = session.create_dataframe(
+            ...     [["@source_stage/testCSV.csv", "new_file_1"]],
+            ...     schema=["existing_url", "new_file_name"],
+            ... )
+            >>> session.file.copy_files(df, "@target_stage", detailed_output=False)
+            1
+
+        Returns:
+            If ``detailed_output`` is True, a ``list[str]`` of copied file paths. Otherwise, an ``int``
+            indicating the number of files copied.
+        """
+        options = {"detailed_output": detailed_output}
+        if files is not None:
+            options["files"] = files
+        if pattern is not None:
+            if not is_single_quoted(pattern):
+                pattern_escape_single_quote = pattern.replace("'", "\\'")
+                pattern = f"'{pattern_escape_single_quote}'"  # snowflake pattern is a string with single quote
+            options["pattern"] = pattern
+
+        if isinstance(source, snowflake.snowpark.dataframe.DataFrame):
+            if files is not None or pattern is not None:
+                raise ValueError(
+                    "files and pattern are not supported when source is a dataframe"
+                )
+
+        source = (
+            normalize_remote_file_or_dir(source)
+            if isinstance(source, str)
+            else f"({source._plan.queries[-1].sql.strip()})"  # create a subquery from the dataframe
+        )
+
+        plan = self._session._analyzer.plan_builder.file_operation_plan(
+            "copy_files",
+            source,
+            normalize_remote_file_or_dir(target_stage_location),
+            options,
+        )
+        copy_result = snowflake.snowpark.dataframe.DataFrame(
+            self._session, plan
+        )._internal_collect_with_tag(statement_params=statement_params)
+
+        if detailed_output:
+            # raw data is [Row(file=<file1>), Row(file=<file2>), ...]
+            return [file_result[0] for file_result in copy_result]
+        else:
+            # raw data is [Row(numOfFilesCopied=<result>)]
+            return copy_result[0][0]
