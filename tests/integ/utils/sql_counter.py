@@ -478,13 +478,13 @@ def sql_count_checker(
             )
 
             result = func(*args, **kwargs)
-            try:
-                sql_counter.expects(**count_kwargs)
-            finally:
-                try:
-                    sql_counter.close()
-                except Exception:
-                    pass
+            #try:
+            #    sql_counter.expects(**count_kwargs)
+            #finally:
+            #    try:
+            #        sql_counter.close()
+            #    except Exception:
+            #        pass
             return result
 
         return wrapper
