@@ -26,6 +26,13 @@ from snowflake.snowpark.functions import (
     when_matched,
     to_timestamp,
 )
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    IntegerType,
+    StringType,
+    TimestampType,
+)
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
@@ -271,6 +278,55 @@ def test_join_with_alias_dataframe(session):
             last_query = df_res.queries["queries"][-1]
             assert last_query.startswith(WITH)
             assert last_query.count(WITH) == 1
+
+
+def test_join_with_alias_dataframe_2(session):
+    # Reproduced from issue SNOW-2257191
+    schema1 = StructType(
+        [
+            StructField("DST_Year", IntegerType(), True),
+            StructField("DST_Start", TimestampType(), True),
+            StructField("DST_End", TimestampType(), True),
+        ]
+    )
+
+    schema2 = StructType(
+        [
+            StructField("MATTRANSID", StringType(), True),
+            StructField("LOADSTARTTIME", TimestampType(), True),
+            StructField("LOADENDTIME", TimestampType(), True),
+            StructField("DUMPENDTIME", TimestampType(), True),
+            StructField("__CURRENT", StringType(), True),
+            StructField("__DELETED", StringType(), True),
+        ]
+    )
+
+    schema3 = StructType(
+        [
+            StructField("MATTRANSID", StringType(), True),
+            StructField("DUMPENDTIME", TimestampType(), True),
+            StructField("LOADENDTIME", TimestampType(), True),
+            StructField("__CURRENT", StringType(), True),
+            StructField("__DELETED", StringType(), True),
+        ]
+    )
+
+    df1 = session.create_dataframe([], schema=schema1).cache_result()
+    df2 = session.create_dataframe([], schema=schema2).cache_result()
+    df3 = session.create_dataframe([], schema=schema3).cache_result()
+
+    df4 = df2.alias("d2").join(
+        df1, col("d2", "LoadStartTime").between(df1.DST_Start, df1.DST_End), "left"
+    )
+
+    df5 = df3.alias("d3").join(
+        df1, col("d3", "LoadEndTime").between(df1.DST_Start, df1.DST_End), "left"
+    )
+
+    df6 = df5.join(df4, (df5.MatTransId == df4.MatTransId), "left")
+
+    # Assert that the generated sql compiles
+    df6.collect()
 
 
 def test_join_with_set_operation(session):
