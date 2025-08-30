@@ -40,10 +40,13 @@ class SnowpandasSessionHolder(ModuleType):
     You can assign a value to this session as you would normally assign a
     value to a module property, e.g. `pd.session = session1`.
     """
+    _checked_casing = False
 
     def _warn_if_possible_when_quoted_identifiers_ignore_case_is_set(
         self, session: Session
     ) -> None:
+        if self._checked_casing:
+            return
         try:
             quoted_identifiers_ignore_case = (
                 session.sql(
@@ -65,6 +68,13 @@ class SnowpandasSessionHolder(ModuleType):
             # It's possible that the above statement fails, for example inside a stored proc.
             # In that case, we will just skip the warning.
             pass
+        self._checked_casing = True
+
+    def _reset_checked_casing(self) -> None:
+        """
+        Used for testing to reset the flag for the casing check
+        """
+        self._checked_casing = False
 
     def _get_active_session(self) -> Session:
         if self._session is not None and self._session in _active_sessions:
