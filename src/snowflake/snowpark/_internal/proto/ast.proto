@@ -237,7 +237,7 @@ message FlattenMode {
   }
 }
 
-// dataframe.ir:237
+// dataframe.ir:243
 message JoinType {
   oneof variant {
     bool join_type__asof = 1;
@@ -308,7 +308,7 @@ message PythonTimeZone {
   int64 offset_seconds = 2;
 }
 
-// dataframe-io.ir:54
+// dataframe-io.ir:60
 message SaveMode {
   oneof variant {
     bool save_mode_append = 1;
@@ -732,14 +732,14 @@ message CreateDataframe {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:169
+// dataframe.ir:175
 message DataframeAgg {
   Expr df = 1;
   ExprArgList exprs = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:174
+// dataframe.ir:180
 message DataframeAlias {
   Expr df = 1;
   string name = 2;
@@ -802,7 +802,7 @@ message DataframeAnalyticsTimeSeriesAgg {
   repeated string windows = 8;
 }
 
-// dataframe.ir:353
+// dataframe.ir:359
 message DataframeCacheResult {
   Expr df = 1;
   NameRef object_name = 2;
@@ -817,7 +817,7 @@ message DataframeCol {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:360
+// dataframe.ir:366
 message DataframeColIlike {
   Expr df = 1;
   string pattern = 2;
@@ -835,7 +835,7 @@ message DataframeCollect {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe-io.ir:157
+// dataframe-io.ir:163
 message DataframeCopyIntoTable {
   repeated Tuple_String_Expr copy_options = 1;
   Expr df = 2;
@@ -859,7 +859,7 @@ message DataframeCount {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe-io.ir:141
+// dataframe-io.ir:147
 message DataframeCreateOrReplaceDynamicTable {
   repeated Expr clustering_keys = 1;
   google.protobuf.StringValue comment = 2;
@@ -877,7 +877,7 @@ message DataframeCreateOrReplaceDynamicTable {
   string warehouse = 14;
 }
 
-// dataframe-io.ir:133
+// dataframe-io.ir:139
 message DataframeCreateOrReplaceView {
   google.protobuf.StringValue comment = 1;
   Expr df = 2;
@@ -887,7 +887,7 @@ message DataframeCreateOrReplaceView {
   repeated Tuple_String_String statement_params = 6;
 }
 
-// dataframe.ir:179
+// dataframe.ir:185
 message DataframeCrossJoin {
   Expr lhs = 1;
   google.protobuf.StringValue lsuffix = 2;
@@ -903,7 +903,7 @@ message DataframeCube {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:186
+// dataframe.ir:192
 message DataframeDescribe {
   ExprArgList cols = 1;
   Expr df = 2;
@@ -911,41 +911,41 @@ message DataframeDescribe {
   bool strings_include_math_stats = 4;
 }
 
-// dataframe.ir:192
+// dataframe.ir:198
 message DataframeDistinct {
   Expr df = 1;
   SrcPosition src = 2;
 }
 
-// dataframe.ir:196
+// dataframe.ir:202
 message DataframeDrop {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:201
+// dataframe.ir:207
 message DataframeDropDuplicates {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:206
+// dataframe.ir:212
 message DataframeExcept {
   Expr df = 1;
   Expr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:211
+// dataframe.ir:217
 message DataframeFilter {
   Expr condition = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:225
+// dataframe.ir:231
 message DataframeFirst {
   bool block = 1;
   Expr df = 2;
@@ -954,7 +954,7 @@ message DataframeFirst {
   repeated Tuple_String_String statement_params = 5;
 }
 
-// dataframe.ir:216
+// dataframe.ir:222
 message DataframeFlatten {
   Expr df = 1;
   Expr input = 2;
@@ -979,14 +979,14 @@ message DataframeGroupByGroupingSets {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:232
+// dataframe.ir:238
 message DataframeIntersect {
   Expr df = 1;
   Expr other = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:248
+// dataframe.ir:254
 message DataframeJoin {
   Expr join_expr = 1;
   JoinType join_type = 2;
@@ -998,14 +998,14 @@ message DataframeJoin {
   SrcPosition src = 8;
 }
 
-// dataframe.ir:258
+// dataframe.ir:264
 message DataframeJoinTableFunction {
   Expr fn = 1;
   Expr lhs = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:263
+// dataframe.ir:269
 message DataframeLimit {
   Expr df = 1;
   int64 n = 2;
@@ -1013,7 +1013,7 @@ message DataframeLimit {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:139
+// dataframe.ir:145
 message DataframeNaDrop_Python {
   Expr df = 1;
   string how = 2;
@@ -1022,7 +1022,7 @@ message DataframeNaDrop_Python {
   google.protobuf.Int64Value thresh = 5;
 }
 
-// dataframe.ir:133
+// dataframe.ir:139
 message DataframeNaDrop_Scala {
   repeated string cols = 1;
   Expr df = 2;
@@ -1030,7 +1030,7 @@ message DataframeNaDrop_Scala {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:146
+// dataframe.ir:152
 message DataframeNaFill {
   Expr df = 1;
   bool include_decimal = 2;
@@ -1040,7 +1040,7 @@ message DataframeNaFill {
   repeated Tuple_String_Expr value_map = 6;
 }
 
-// dataframe.ir:154
+// dataframe.ir:160
 message DataframeNaReplace {
   Expr df = 1;
   bool include_decimal = 2;
@@ -1053,7 +1053,7 @@ message DataframeNaReplace {
   repeated Expr values = 9;
 }
 
-// dataframe.ir:269
+// dataframe.ir:275
 message DataframeNaturalJoin {
   JoinType join_type = 1;
   Expr lhs = 2;
@@ -1070,7 +1070,7 @@ message DataframePivot {
   Expr values = 5;
 }
 
-// dataframe.ir:283
+// dataframe.ir:289
 message DataframeRandomSplit {
   Expr df = 1;
   google.protobuf.Int64Value seed = 2;
@@ -1094,7 +1094,7 @@ message DataframeRef {
   SrcPosition src = 2;
 }
 
-// dataframe.ir:290
+// dataframe.ir:296
 message DataframeRename {
   Expr col_or_mapper = 1;
   Expr df = 2;
@@ -1109,7 +1109,7 @@ message DataframeRollup {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:296
+// dataframe.ir:302
 message DataframeSample {
   Expr df = 1;
   google.protobuf.Int64Value num = 2;
@@ -1118,7 +1118,7 @@ message DataframeSample {
   SrcPosition src = 5;
 }
 
-// dataframe.ir:303
+// dataframe.ir:309
 message DataframeSelect {
   ExprArgList cols = 1;
   Expr df = 2;
@@ -1133,7 +1133,7 @@ message DataframeShow {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:310
+// dataframe.ir:316
 message DataframeSort {
   Expr ascending = 1;
   ExprArgList cols = 2;
@@ -1185,7 +1185,7 @@ message DataframeStatSampleBy {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:124
+// dataframe.ir:130
 message DataframeToDf {
   ExprArgList col_names = 1;
   Expr df = 2;
@@ -1201,7 +1201,7 @@ message DataframeToLocalIterator {
   repeated Tuple_String_String statement_params = 5;
 }
 
-// dataframe.ir:112
+// dataframe.ir:118
 message DataframeToPandas {
   bool block = 1;
   Expr df = 2;
@@ -1209,7 +1209,7 @@ message DataframeToPandas {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe.ir:118
+// dataframe.ir:124
 message DataframeToPandasBatches {
   bool block = 1;
   Expr df = 2;
@@ -1217,7 +1217,7 @@ message DataframeToPandasBatches {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe.ir:316
+// dataframe.ir:322
 message DataframeUnion {
   bool all = 1;
   bool allow_missing_columns = 2;
@@ -1227,7 +1227,7 @@ message DataframeUnion {
   SrcPosition src = 6;
 }
 
-// dataframe.ir:275
+// dataframe.ir:281
 message DataframeUnpivot {
   repeated Expr column_list = 1;
   Expr df = 2;
@@ -1237,7 +1237,7 @@ message DataframeUnpivot {
   string value_column = 6;
 }
 
-// dataframe.ir:324
+// dataframe.ir:330
 message DataframeWithColumn {
   Expr col = 1;
   string col_name = 2;
@@ -1245,7 +1245,7 @@ message DataframeWithColumn {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:330
+// dataframe.ir:336
 message DataframeWithColumnRenamed {
   Expr col = 1;
   Expr df = 2;
@@ -1253,7 +1253,7 @@ message DataframeWithColumnRenamed {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:336
+// dataframe.ir:342
 message DataframeWithColumns {
   repeated string col_names = 1;
   Expr df = 2;
@@ -1261,7 +1261,7 @@ message DataframeWithColumns {
   repeated Expr values = 4;
 }
 
-// dataframe-io.ir:67
+// dataframe-io.ir:73
 message DataframeWriter {
   Expr df = 1;
   google.protobuf.StringValue format = 2;
@@ -1615,7 +1615,7 @@ message Geq {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:342
+// dataframe.ir:348
 message GroupingSets {
   ExprArgList sets = 1;
   SrcPosition src = 2;
@@ -1989,21 +1989,21 @@ message Range {
   google.protobuf.Int64Value step = 4;
 }
 
-// dataframe-io.ir:42
+// dataframe-io.ir:48
 message ReadAvro {
   string path = 1;
   Expr reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:38
+// dataframe-io.ir:44
 message ReadCsv {
   string path = 1;
   Expr reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:25
+// dataframe-io.ir:31
 message ReadDirectory {
   Expr reader = 1;
   SrcPosition src = 2;
@@ -2022,28 +2022,28 @@ message ReadFile {
   }
 }
 
-// dataframe-io.ir:40
+// dataframe-io.ir:46
 message ReadJson {
   string path = 1;
   Expr reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:36
+// dataframe-io.ir:42
 message ReadLoad {
   string path = 1;
   Expr reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:44
+// dataframe-io.ir:50
 message ReadOrc {
   string path = 1;
   Expr reader = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-io.ir:46
+// dataframe-io.ir:52
 message ReadParquet {
   string path = 1;
   Expr reader = 2;
@@ -2053,11 +2053,17 @@ message ReadParquet {
 // dataframe-io.ir:20
 message ReadTable {
   NameRef name = 1;
-  Expr reader = 2;
-  SrcPosition src = 3;
+  google.protobuf.Int64Value offset = 2;
+  Expr reader = 3;
+  SrcPosition src = 4;
+  google.protobuf.StringValue statement = 5;
+  google.protobuf.StringValue stream = 6;
+  google.protobuf.StringValue time_travel_mode = 7;
+  Expr timestamp = 8;
+  google.protobuf.StringValue timestamp_type = 9;
 }
 
-// dataframe-io.ir:48
+// dataframe-io.ir:54
 message ReadXml {
   string path = 1;
   Expr reader = 2;
@@ -2153,7 +2159,7 @@ message SessionResetRequiredError {
   int64 uid = 2;
 }
 
-// dataframe.ir:108
+// dataframe.ir:114
 message SessionTableFunction {
   Expr fn = 1;
   SrcPosition src = 2;
@@ -2235,8 +2241,14 @@ message Sub {
 message Table {
   bool is_temp_table_for_cleanup = 1;
   NameRef name = 2;
-  SrcPosition src = 3;
-  TableVariant variant = 4;
+  google.protobuf.Int64Value offset = 3;
+  SrcPosition src = 4;
+  google.protobuf.StringValue statement = 5;
+  google.protobuf.StringValue stream = 6;
+  google.protobuf.StringValue time_travel_mode = 7;
+  Expr timestamp = 8;
+  google.protobuf.StringValue timestamp_type = 9;
+  TableVariant variant = 10;
 }
 
 // table.ir:1
@@ -2302,7 +2314,7 @@ message TableUpdate {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe.ir:346
+// dataframe.ir:352
 message ToSnowparkPandas {
   repeated string columns = 1;
   Expr df = 2;
@@ -2458,7 +2470,7 @@ message WindowSpecRowsBetween {
   WindowSpecExpr wnd = 4;
 }
 
-// dataframe-io.ir:110
+// dataframe-io.ir:116
 message WriteCopyIntoLocation {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2477,7 +2489,7 @@ message WriteCopyIntoLocation {
   Expr writer = 15;
 }
 
-// dataframe-io.ir:117
+// dataframe-io.ir:123
 message WriteCsv {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2504,7 +2516,7 @@ message WriteFile {
   }
 }
 
-// dataframe-io.ir:123
+// dataframe-io.ir:129
 message WriteInsertInto {
   bool overwrite = 1;
   SrcPosition src = 2;
@@ -2512,7 +2524,7 @@ message WriteInsertInto {
   Expr writer = 4;
 }
 
-// dataframe-io.ir:119
+// dataframe-io.ir:125
 message WriteJson {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2546,7 +2558,7 @@ message WritePandas {
   string table_type = 13;
 }
 
-// dataframe-io.ir:121
+// dataframe-io.ir:127
 message WriteParquet {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2563,7 +2575,7 @@ message WriteParquet {
   Expr writer = 13;
 }
 
-// dataframe-io.ir:115
+// dataframe-io.ir:121
 message WriteSave {
   bool block = 1;
   repeated Tuple_String_Expr copy_options = 2;
@@ -2580,7 +2592,7 @@ message WriteSave {
   Expr writer = 13;
 }
 
-// dataframe-io.ir:75
+// dataframe-io.ir:81
 message WriteTable {
   bool block = 1;
   google.protobuf.BoolValue change_tracking = 2;
