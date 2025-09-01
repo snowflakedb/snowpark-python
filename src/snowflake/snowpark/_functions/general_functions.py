@@ -5,6 +5,8 @@
 
 from typing import Callable, Optional, Union, Iterable
 
+import snowflake
+
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.expression import (
     FunctionExpression,
@@ -27,7 +29,6 @@ from snowflake.snowpark.column import (
 from snowflake.snowpark.types import (
     DataType,
 )
-from snowflake.snowpark import table_function
 
 
 # check function to allow test_dataframe_alias_negative to pass in AST mode.
@@ -148,7 +149,9 @@ def call_table_function(
     *args: ColumnOrLiteral,
     _emit_ast: bool = True,
     **kwargs: ColumnOrLiteral,
-) -> "table_function.TableFunctionCall":
+) -> "snowflake.snowpark.table_function.TableFunctionCall":
+    from snowflake.snowpark import table_function
+
     ast = None
     if _emit_ast:
         ast = proto.Expr()
