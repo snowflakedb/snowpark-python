@@ -195,7 +195,6 @@ from snowflake.snowpark._internal.analyzer.window_expression import (
 )
 from snowflake.snowpark._internal.ast.utils import (
     build_builtin_fn_apply,
-    build_call_table_function_apply,
     build_expr_from_snowpark_column_or_python_val,
     build_expr_from_snowpark_column_or_sql_str,
     with_src_position,
@@ -10318,16 +10317,9 @@ def call_table_function(
         [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
     """
     # AST.
-    ast = None
-    if _emit_ast:
-        ast = proto.Expr()
-        build_call_table_function_apply(ast, function_name, *args, **kwargs)
-
-    func_call = snowflake.snowpark.table_function.TableFunctionCall(
-        function_name, *args, _ast=ast, _emit_ast=_emit_ast, **kwargs
+    return general_functions.call_table_function(
+        function_name, *args, _emit_ast=_emit_ast, **kwargs
     )
-
-    return func_call
 
 
 @publicapi
