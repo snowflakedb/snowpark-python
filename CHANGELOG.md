@@ -20,6 +20,7 @@
     - `credentials`
     - `encryption`
 - Added support for `Session.directory` and `Session.read.directory` to retrieve the list of all files on a stage with metadata.
+- Added support for `DataFrameReader.jdbc`(PrPr) that allows ingesting external data source with jdbc driver.
 
 - Added support for the following scalar functions in `functions.py`:
   - `all_user_names`

@@ -33,6 +33,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_table_name,
     with_src_position,
 )
+from snowflake.snowpark._internal.data_source import JDBC
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
     DataSourcePartitioner,
 )
@@ -474,6 +475,7 @@ class DataFrameReader:
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
         self.__format: Optional[str] = None
+        self._data_source_format = ["jdbc", "dbapi"]
 
         self._ast = None
         if _emit_ast:
@@ -597,6 +599,18 @@ class DataFrameReader:
             ast = with_src_position(stmt.expr.read_table, stmt)
             ast.reader.CopyFrom(self._ast)
             build_table_name(ast.name, name)
+            if time_travel_mode is not None:
+                ast.time_travel_mode.value = time_travel_mode
+            if statement is not None:
+                ast.statement.value = statement
+            if offset is not None:
+                ast.offset.value = offset
+            if timestamp is not None:
+                build_expr_from_python_val(ast.timestamp, timestamp)
+            if timestamp_type is not None:
+                ast.timestamp_type.value = str(timestamp_type)
+            if stream is not None:
+                ast.stream.value = stream
 
         if time_travel_mode is not None:
             time_travel_params = {
@@ -678,7 +692,15 @@ class DataFrameReader:
     @_format.setter
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
-        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
+        allowed_formats = [
+            "csv",
+            "json",
+            "avro",
+            "parquet",
+            "orc",
+            "xml",
+        ]
+        allowed_formats.extend(self._data_source_format)
         if canon_format not in allowed_formats:
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
@@ -688,13 +710,16 @@ class DataFrameReader:
     @publicapi
     def format(
         self,
-        format: Literal["csv", "json", "avro", "parquet", "orc", "xml"],
+        format: Literal[
+            "csv", "json", "avro", "parquet", "orc", "xml", "dbapi", "jdbc"
+        ],
         _emit_ast: bool = True,
     ) -> "DataFrameReader":
         """Specify the format of the file(s) to load.
 
         Args:
             format: The format of the file(s) to load. Supported formats are csv, json, avro, parquet, orc, and xml.
+                Snowpark data source type is also supported, currently support dbapi and jdbc.
 
         Returns:
             a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
@@ -722,16 +747,18 @@ class DataFrameReader:
             )
 
         format_str = self._format.lower()
-        if format_str == "dbapi" and path is not None:
+        if format_str in self._data_source_format and path is not None:
             raise ValueError(
-                "The 'path' parameter is not supported for the dbapi format. Please omit this parameter when calling."
+                f"The 'path' parameter is not supported for the {format_str} format. Please omit this parameter when calling."
             )
-        if format_str != "dbapi" and path is None:
+        if format_str not in self._data_source_format and path is None:
             raise TypeError(
                 "DataFrameReader.load() missing 1 required positional argument: 'path'"
             )
         if format_str == "dbapi":
             return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
+        if format_str == "jdbc":
+            return self.jdbc(**{k.lower(): v for k, v in self._cur_options.items()})
 
         loader = getattr(self, self._format, None)
         if loader is not None:
@@ -1463,6 +1490,180 @@ class DataFrameReader:
         else:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
+
+    @private_preview(version="1.38.0")
+    @publicapi
+    def jdbc(
+        self,
+        url: str,
+        udtf_configs: dict,
+        *,
+        properties: Optional[dict] = None,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        query_timeout: Optional[int] = 0,
+        fetch_size: Optional[int] = 0,
+        custom_schema: Optional[Union[str, StructType]] = None,
+        predicates: Optional[List[str]] = None,
+        session_init_statement: Optional[List[str]] = None,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """
+        Reads data from a database table or query into a DataFrame using a JDBC connection string,
+        with support for optional partitioning, parallel processing, and query customization.
+
+        There are multiple methods to partition data and accelerate ingestion.
+        These methods can be combined to achieve optimal performance:
+
+        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
+        These must all be specified together, otherwise error will be raised.
+        2.Set max_workers to a proper positive integer.
+        This defines the maximum number of processes and threads used for parallel execution.
+        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
+        4.Use predicates to defining WHERE conditions for partitions,
+        predicates will be ignored if column is specified to generate partition.
+        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
+        column name with table in external data source.
+
+        Args:
+            url: A connection string used to establish connections to external data source with JDBC driver.
+                Please do not include any secrets in this parameter. Secret in connection string will be removed and ignored.
+            udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
+                This parameter is required for jdbc.
+
+                The dictionary may include the following keys:
+
+                - external_access_integration (str, required): The name of the external access integration,
+                    which allows the UDTF to access external endpoints.
+
+                - secret (str, required): The name of the snowflake secret that contain username and password of
+                    external data source.
+
+                - imports (List[str], required): A list of stage file names to import into the UDTF.
+                    Please include Jar file of jdbc driver to establish connection to external data source.
+
+                - java_version (int, optional): A integer that indicate the java runtime version of udtf.
+                    By default, we use java 17.
+
+            properties: A dictionary containing key-value pair that is needed during establishing connection with external data source.
+                Please do not include any secrets in this parameter.
+
+            table: The name of the table in the external data source.
+                This parameter cannot be used together with the `query` parameter.
+            query: A valid SQL query to be used as the data source in the FROM clause.
+                This parameter cannot be used together with the `table` parameter.
+            column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
+                The column must be of a numeric type (e.g., int or float) or a date type.
+                When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
+            lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            upper_bound: upper bound of partition, decide the stride of partition along with `lower_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
+                It must be provided when `column` is specified.
+            query_timeout: The timeout (in seconds) for each query execution. A default value of `0` means
+                the query will never time out. The timeout behavior can also be configured within
+                the `create_connection` method when establishing the database connection, depending on the capabilities
+                of the DBMS and its driver.
+            fetch_size: The number of rows to fetch per batch from the external data source.
+                This determines how many rows are retrieved in each round trip,
+                which can improve performance for drivers with a low default fetch size.
+            custom_schema: a custom snowflake table schema to read data from external data source,
+                the column names should be identical to corresponded column names external data source.
+                This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING",
+                or StructType, for example: StructType([StructField("ID", IntegerType(), False), StructField("INT_COL", IntegerType(), False), StructField("TEXT_COL", StringType(), False)])
+            predicates: A list of expressions suitable for inclusion in WHERE clauses, where each expression defines a partition.
+                Partitions will be retrieved in parallel.
+                If both `column` and `predicates` are specified, `column` takes precedence.
+            session_init_statement: One or more SQL statements executed before fetching data from
+                the external data source.
+                This can be used for session initialization tasks such as setting configurations.
+                For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
+                to avoid row locks and improve read performance.
+                The `session_init_statement` is executed only once at the beginning of each partition read.
+        Example::
+            .. code-block:: python
+                udtf_configs={
+                        "external_access_integration": ...,
+                        "secret": ...,
+                        "imports": [...],
+                    }
+                df = session.read.jdbc(
+                    url=...,
+                    udtf_configs=udtf_configs,
+                    query=...,
+                )
+
+        Example::
+            .. code-block:: python
+                udtf_configs={
+                    "external_access_integration": ...,
+                    "secret": ...,
+                    "imports": [...],
+                }
+                df = (
+                    session.read.format("jdbc")
+                    .option("url", ...)
+                    .option("udtf_configs", udtf_configs)
+                    .option("query", ...)
+                    .load()
+                )
+        """
+        if (not table and not query) or (table and query):
+            raise SnowparkDataframeReaderException(
+                "Either 'table' or 'query' must be provided, but not both."
+            )
+        external_access_integration = udtf_configs.get(
+            "external_access_integration", None
+        )
+        imports = udtf_configs.get("imports", None)
+        packages = udtf_configs.get("packages", ["com.snowflake:snowpark:latest"])
+        java_version = udtf_configs.get("java_version", 17)
+        secret = udtf_configs.get("secret", None)
+
+        if external_access_integration is None or imports is None or secret is None:
+            raise ValueError(
+                "external_access_integration, secret and imports must be specified in udtf configs"
+            )
+
+        jdbc_client = JDBC(
+            session=self._session,
+            url=url,
+            external_access_integration=external_access_integration,
+            properties=properties,
+            imports=imports,
+            packages=packages,
+            java_version=java_version,
+            table_or_query=table or query,
+            is_query=True if query is not None else False,
+            secret=secret,
+            column=column,
+            lower_bound=lower_bound,
+            upper_bound=upper_bound,
+            num_partitions=num_partitions,
+            query_timeout=query_timeout,
+            fetch_size=fetch_size,
+            custom_schema=custom_schema,
+            predicates=predicates,
+            session_init_statement=session_init_statement,
+            _emit_ast=_emit_ast,
+        )
+
+        partitions = jdbc_client.partitions
+
+        partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+        self._session.create_dataframe(
+            [[query] for query in partitions], schema=["partition"]
+        ).write.save_as_table(partitions_table, table_type="temp")
+
+        df = jdbc_client.read(partitions_table)
+        return jdbc_client.to_result_snowpark_df(
+            df, jdbc_client.schema, _emit_ast=_emit_ast
+        )
 
     @private_preview(version="1.29.0")
     @publicapi
