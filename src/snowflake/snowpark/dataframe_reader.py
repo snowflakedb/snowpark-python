@@ -1100,7 +1100,9 @@ class DataFrameReader:
         if _emit_ast and self._ast is not None:
             t = self._ast.dataframe_reader.options.add()
             t._1 = key
-            build_expr_from_python_val(t._2, value)
+            build_expr_from_python_val(
+                t._2, str(value) if isinstance(value, TimestampTimeZone) else value
+            )
 
         aliased_key = get_aliased_option_name(key, READER_OPTIONS_ALIAS_MAP)
         self._cur_options[aliased_key] = value
