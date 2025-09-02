@@ -85,6 +85,7 @@ def read_snowflake_and_verify_snapshot_creation_if_any(
         query
         for query in query_history.queries
         if "SHOW PARAMETERS LIKE" not in query.sql_text
+        and "SHOW OBJECTS LIKE" not in query.sql_text
     ]
 
     if not enforce_ordering:
