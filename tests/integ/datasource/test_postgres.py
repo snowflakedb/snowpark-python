@@ -468,7 +468,7 @@ def test_unit_generate_select_query():
 
 def test_server_side_cursor(session):
     conn = create_postgres_connection()
-    driver = Psycopg2Driver(create_postgres_connection, DBMS_TYPE.MYSQL_DB)
+    driver = Psycopg2Driver(create_postgres_connection, DBMS_TYPE.POSTGRES_DB)
     cursor = driver.get_server_cursor_if_supported(conn)
     assert cursor.name is not None  # Server-side cursor should have a name
     cursor.close()
