@@ -83,6 +83,7 @@ class PyodbcDriver(BaseDriver):
         self, fetch_size: int = 1000, schema: StructType = None
     ) -> type:
         create_connection = self.create_connection
+        create_cursor = self.get_server_cursor_if_supported
 
         def binary_converter(value):
             return value.hex() if value is not None else None
@@ -102,7 +103,7 @@ class PyodbcDriver(BaseDriver):
                     conn.add_output_converter(
                         pyodbc.SQL_LONGVARBINARY, binary_converter
                     )
-                cursor = self.get_server_cursor_if_supported(conn)
+                cursor = create_cursor(conn)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

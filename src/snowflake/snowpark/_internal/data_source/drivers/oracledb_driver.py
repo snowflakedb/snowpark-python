@@ -117,6 +117,7 @@ class OracledbDriver(BaseDriver):
         self, fetch_size: int = 1000, schema: StructType = None
     ) -> type:
         create_connection = self.create_connection
+        create_cursor = self.get_server_cursor_if_supported
 
         def oracledb_output_type_handler(cursor, metadata):
             from oracledb import (
@@ -143,7 +144,7 @@ class OracledbDriver(BaseDriver):
                 conn = create_connection()
                 if conn.outputtypehandler is None:
                     conn.outputtypehandler = oracledb_output_type_handler
-                cursor = self.get_server_cursor_if_supported(conn)
+                cursor = create_cursor(conn)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

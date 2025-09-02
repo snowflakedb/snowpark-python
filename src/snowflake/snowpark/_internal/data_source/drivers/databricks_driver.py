@@ -68,11 +68,12 @@ class DatabricksDriver(BaseDriver):
         self, fetch_size: int = 1000, schema: StructType = None
     ) -> type:
         create_connection = self.create_connection
+        create_cursor = self.get_server_cursor_if_supported
 
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
-                cursor = self.get_server_cursor_if_supported(conn)
+                cursor = create_cursor(conn)
 
                 # First get schema information
                 describe_query = f"DESCRIBE QUERY SELECT * FROM ({query})"
