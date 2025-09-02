@@ -182,6 +182,11 @@ def test_to_sql():
         == "INTERVAL '3' MONTH :: INTERVAL MONTH"
     )
 
+    assert (
+        to_sql("INTERVAL '3-11' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '3-11' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+
 
 def test_to_sql_system_function():
     # Test nulls
@@ -298,6 +303,11 @@ def test_to_sql_system_function():
     assert (
         to_sql_no_cast("INTERVAL 0-3 YEAR TO MONTH", YearMonthIntervalType(1, 1))
         == "INTERVAL '3' MONTH"
+    )
+
+    assert (
+        to_sql_no_cast("INTERVAL '3-11' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '3-11' YEAR TO MONTH"
     )
 
 
