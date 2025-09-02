@@ -259,6 +259,6 @@ class PymysqlDriver(BaseDriver):
         return res_df.select(cols, _emit_ast=_emit_ast)
 
     def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
-        from pymysql.cursors import SSCursor
+        import pymysql
 
-        return conn.cursor(SSCursor)
+        return pymysql.cursors.SSCursor(conn)
