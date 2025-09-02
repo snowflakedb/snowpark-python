@@ -326,6 +326,7 @@ def _create_read_only_table(
 def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
     enforce_ordering: bool,
+    dummy_row_pos_mode: bool = False,
 ) -> tuple[OrderedDataFrame, str]:
     """
     create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
@@ -435,7 +436,12 @@ def create_initial_ordered_dataframe(
         if enforce_ordering:
             row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
         else:
-            row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
+            if dummy_row_pos_mode:
+                row_position_column_str = (
+                    f"0 as {row_position_snowflake_quoted_identifier}"
+                )
+            else:
+                row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
 
         columns_to_select = ", ".join(
             [row_position_column_str] + snowflake_quoted_identifiers
@@ -512,6 +518,7 @@ def create_initial_ordered_dataframe(
         ordered_dataframe.row_count = materialized_row_count
         ordered_dataframe.row_count_upper_bound = materialized_row_count
 
+    ordered_dataframe._dummy_row_pos_mode = dummy_row_pos_mode
     return ordered_dataframe, row_position_snowflake_quoted_identifier
 
 

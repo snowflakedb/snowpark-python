@@ -10,6 +10,7 @@ import inspect
 import itertools
 import json
 import logging
+import os
 import re
 from collections import Counter, defaultdict
 import typing
@@ -1440,6 +1441,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
         src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
+        dummy_row_pos_optimization_enabled = (
+            os.environ.get(
+                "SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED", "true"
+            ).lower()
+            == "true"
+        )
+        dummy_row_pos_mode = False
+        if dummy_row_pos_optimization_enabled and not enforce_ordering:
+            dummy_row_pos_mode = True
+
         if columns is not None and not isinstance(columns, list):
             raise ValueError("columns must be provided as list, i.e ['A'].")
 
@@ -1450,6 +1461,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ) = create_initial_ordered_dataframe(
             table_name_or_query=name_or_query,
             enforce_ordering=enforce_ordering,
+            dummy_row_pos_mode=dummy_row_pos_mode,
         )
         pandas_labels_to_snowflake_quoted_identifiers_map = {
             # pandas labels of resulting Snowpark pandas dataframe will be snowflake identifier
@@ -3639,7 +3651,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )[0]
             )
             # duplicate the row position column as the new index column
-            ordered_dataframe = ordered_dataframe.ensure_row_position_column()
+            ordered_dataframe = ordered_dataframe.ensure_row_position_column(
+                dummy_row_pos_mode=True
+            )
             ordered_dataframe = append_columns(
                 ordered_dataframe,
                 index_column_snowflake_quoted_identifier,
@@ -8198,6 +8212,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             SnowflakeQueryCompiler instance with merged result.
         """
+        dummy_row_pos_mode = False
+        if how not in ["asof", "cross"]:
+            dummy_row_pos_mode = True
+
         if validate:
             ErrorMessage.not_implemented(
                 "Snowpark pandas merge API doesn't yet support 'validate' parameter"
@@ -8276,7 +8294,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # columns-to-columns or columns-to-index. So we have different code path to
             # handle this.
             merged_frame, _ = join_utils.join_on_index_columns(
-                left_frame, right_frame, how=how, sort=sort
+                left_frame,
+                right_frame,
+                how=how,
+                sort=sort,
+                dummy_row_pos_mode=dummy_row_pos_mode,
             )
             return SnowflakeQueryCompiler(merged_frame)
 
@@ -8316,6 +8338,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             right_on=right_on_identifiers,
             sort=sort,
             join_key_coalesce_config=coalesce_config,
+            dummy_row_pos_mode=dummy_row_pos_mode,
         ).result_frame
 
         # Add indicator column
@@ -10381,6 +10404,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         get_frame_by_row_pos_frame(
                             internal_frame=self._modin_frame,
                             key=index._query_compiler._modin_frame,
+                            dummy_row_pos_mode=True,
                         ),
                         columns,
                     )
@@ -10394,6 +10418,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     key=index._modin_frame
                     if isinstance(index, SnowflakeQueryCompiler)
                     else index,
+                    dummy_row_pos_mode=True,
                 ),
                 columns,
             )
@@ -13621,7 +13646,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # 2. retrieve all columns
         # 3. filter on rows with recursive count
 
-        frame = self._modin_frame.ensure_row_position_column()
+        frame = self._modin_frame.ensure_row_position_column(dummy_row_pos_mode=True)
         use_cached_row_count = frame.ordered_dataframe.row_count is not None
 
         # If the row count is already cached, there's no need to include it in the query.
@@ -13657,21 +13682,92 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             frame.row_position_snowflake_quoted_identifier
         )
 
-        # filter frame based on num_rows.
-        # always return all columns as this may also result in a query.
-        # in the future could analyze plan to see whether retrieving column count would trigger a query, if not
-        # simply filter out based on static schema
-        num_rows_for_head_and_tail = num_rows_to_display // 2 + 1
-        new_frame = frame.filter(
-            (
-                col(row_position_snowflake_quoted_identifier)
-                <= num_rows_for_head_and_tail
+        if not self._modin_frame.ordered_dataframe._dummy_row_pos_mode:
+            # filter frame based on num_rows.
+            # always return all columns as this may also result in a query.
+            # in the future could analyze plan to see whether retrieving column count would trigger a query, if not
+            # simply filter out based on static schema
+            num_rows_for_head_and_tail = num_rows_to_display // 2 + 1
+            new_frame = frame.filter(
+                (
+                    col(row_position_snowflake_quoted_identifier)
+                    <= num_rows_for_head_and_tail
+                )
+                | (
+                    col(row_position_snowflake_quoted_identifier)
+                    >= row_count_expr - num_rows_for_head_and_tail
+                )
             )
-            | (
-                col(row_position_snowflake_quoted_identifier)
-                >= row_count_expr - num_rows_for_head_and_tail
+        else:
+            # filter frame using a limit clause.
+            # always return all columns as this may also result in a query.
+            # in the future could analyze plan to see whether retrieving column count would trigger a query, if not
+            # simply filter out based on static schema
+            new_frame = InternalFrame.create(
+                ordered_dataframe=frame.ordered_dataframe.limit(
+                    n=num_rows_to_display + 1, sort=False
+                ),
+                data_column_pandas_index_names=frame.data_column_pandas_index_names,
+                data_column_pandas_labels=frame.data_column_pandas_labels,
+                data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
+                index_column_pandas_labels=frame.index_column_pandas_labels,
+                index_column_snowflake_quoted_identifiers=frame.index_column_snowflake_quoted_identifiers,
+                data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                index_column_types=frame.cached_index_column_snowpark_pandas_types,
             )
-        )
+
+            # If the index column will display the row positions, then adjust the values such that
+            # the first half of the selected rows using the limit clause get the row positions of the top rows,
+            # while the second half get the positions of the bottom rows.
+            if len(new_frame.index_column_snowflake_quoted_identifiers) == 1 and (
+                ROW_POSITION_COLUMN_LABEL
+                in new_frame.index_column_snowflake_quoted_identifiers[0]
+                or INDEX_LABEL in new_frame.index_column_snowflake_quoted_identifiers[0]
+            ):
+                new_col = (
+                    row_number().over(
+                        Window.order_by(
+                            new_frame.ordered_dataframe._ordering_snowpark_columns()
+                        )
+                    )
+                    - 1
+                )
+                new_col = new_col + iff(
+                    new_col < num_rows_to_display // 2,
+                    0,
+                    row_count_expr - num_rows_to_display - 1,
+                )
+                new_identifier = new_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                    pandas_labels=[
+                        ROW_POSITION_COLUMN_LABEL
+                        if new_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
+                        is None
+                        else extract_pandas_label_from_snowflake_quoted_identifier(
+                            new_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
+                        )
+                    ],
+                    wrap_double_underscore=True,
+                )[
+                    0
+                ]
+                new_col = new_col.as_(new_identifier)
+                new_ordered_dataframe = new_frame.ordered_dataframe.select("*", new_col)
+                new_ordered_dataframe.row_position_snowflake_quoted_identifier = (
+                    new_identifier
+                )
+                new_ordered_dataframe = new_ordered_dataframe.sort(
+                    OrderingColumn(new_identifier)
+                )
+                new_frame = InternalFrame.create(
+                    ordered_dataframe=new_ordered_dataframe,
+                    data_column_pandas_index_names=new_frame.data_column_pandas_index_names,
+                    data_column_pandas_labels=new_frame.data_column_pandas_labels,
+                    data_column_snowflake_quoted_identifiers=new_frame.data_column_snowflake_quoted_identifiers,
+                    index_column_pandas_labels=new_frame.index_column_pandas_labels,
+                    index_column_snowflake_quoted_identifiers=[new_identifier],
+                    data_column_types=new_frame.cached_data_column_snowpark_pandas_types,
+                    index_column_types=new_frame.cached_index_column_snowpark_pandas_types,
+                )
 
         # retrieve frame as pandas object
         new_qc = SnowflakeQueryCompiler(new_frame)
