@@ -189,13 +189,13 @@ class PymysqlDriver(BaseDriver):
         self, fetch_size: int = 1000, schema: StructType = None
     ) -> type:
         create_connection = self.create_connection
-        create_cursor = self.get_server_cursor_if_supported
 
         class UDTFIngestion:
             def process(self, query: str):
+                import pymysql
 
                 conn = create_connection()
-                cursor = create_cursor(conn)
+                cursor = pymysql.cursors.SSCursor(conn)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

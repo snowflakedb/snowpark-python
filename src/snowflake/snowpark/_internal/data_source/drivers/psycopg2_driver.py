@@ -261,7 +261,6 @@ class Psycopg2Driver(BaseDriver):
         self, fetch_size: int = 1000, schema: StructType = None
     ) -> type:
         create_connection = self.create_connection
-        create_cursor = self.get_server_cursor_if_supported
 
         # TODO: SNOW-2101485 use class method to prepare connection
         # ideally we should use the same function as prepare_connection
@@ -282,7 +281,9 @@ class Psycopg2Driver(BaseDriver):
         class UDTFIngestion:
             def process(self, query: str):
                 conn = prepare_connection_in_udtf(create_connection())
-                cursor = create_cursor(conn)
+                cursor = conn.cursor(
+                    f"SNOWPARK_CURSOR_{generate_random_alphanumeric(5)}"
+                )
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
