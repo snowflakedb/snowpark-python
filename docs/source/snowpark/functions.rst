@@ -33,8 +33,8 @@ Functions
     ai_similarity
     ai_summarize_agg
     ai_transcribe
-    any_value
     all_user_names
+    any_value
     approx_count_distinct
     approx_percentile
     approx_percentile_accumulate
@@ -90,8 +90,8 @@ Functions
     asin
     asinh
     atan
-    atanh
     atan2
+    atanh
     avg
     base64
     base64_decode_string
@@ -103,9 +103,9 @@ Functions
     bitnot
     bitshiftleft
     bitshiftright
+    bround
     build_stage_file_url
     builtin
-    bround
     call_builtin
     call_function
     call_table_function
@@ -161,14 +161,14 @@ Functions
     current_user
     current_version
     current_warehouse
+    date_add
     date_format
     date_from_parts
     date_part
+    date_sub
     date_trunc
     dateadd
     datediff
-    date_add
-    date_sub
     daydiff
     dayname
     dayofmonth
@@ -191,8 +191,6 @@ Functions
     expr
     factorial
     first_value
-    flatten
-    floor
     fl_get_content_type
     fl_get_etag
     fl_get_file_type
@@ -207,12 +205,16 @@ Functions
     fl_is_document
     fl_is_image
     fl_is_video
+    flatten
+    floor
     from_unixtime
     from_utc_timestamp
     function
     get
     get_ignore_case
     get_path
+    getdate
+    getvariable
     greatest
     grouping
     grouping_id
@@ -226,19 +228,25 @@ Functions
     initcap
     insert
     instr
+    invoker_role
+    invoker_share
+    is_application_role_in_session
     is_array
     is_binary
     is_boolean
     is_char
+    is_database_role_in_session
     is_date
     is_date_value
     is_decimal
     is_double
+    is_granted_to_invoker_role
     is_integer
     is_null
     is_null_value
     is_object
     is_real
+    is_role_in_session
     is_time
     is_timestamp_ltz
     is_timestamp_ntz
@@ -257,11 +265,12 @@ Functions
     lit
     ln
     locate
+    localtime
     localtimestamp
     log
     log1p
-    log2
     log10
+    log2
     lower
     lpad
     ltrim
@@ -367,6 +376,7 @@ Functions
     sum
     sum_distinct
     sysdate
+    systimestamp
     system_reference
     table_function
     tan
