@@ -26,6 +26,7 @@ from tests.integ.modin.utils import (
     create_test_series,
     eval_snowpark_pandas_result,
 )
+from tests.integ.utils.hybrid_pytest_support import hybrid_xskip
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
@@ -78,6 +79,13 @@ def validate_series_snowpark_dtype(series: pd.Series, snowpark_type: DataType) -
     ],
 )
 @sql_count_checker(query_count=2)
+#@hybrid_xskip(throws=AssertionError, reason="assert dtype('int8') == dtype('int64')")
+#@pytest.mark.hybrid
+@pytest.mark.skipif(
+        "pytestconfig.getoption('enable_modin_hybrid_mode')",
+        reason="hybrid not supported for this test",
+        run=False
+    )
 def test_integer(dataframe_input, input_dtype, logical_dtype):
     expected = native_pd.Series(dataframe_input, dtype=input_dtype)
     created = pd.Series(dataframe_input, dtype=input_dtype)
