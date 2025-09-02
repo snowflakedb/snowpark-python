@@ -500,16 +500,9 @@ def create_initial_ordered_dataframe(
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
 
-    from modin.config import AutoSwitchBackend
-
-    if AutoSwitchBackend.get():
-        # Set the materialized row count
-        materialized_row_count = (
-            initial_ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
-                statement_params=get_default_snowpark_pandas_statement_params(),
-                _emit_ast=False,
-            )
-        )
+    materialized_row_count = None
+    if not is_query:
+        materialized_row_count = get_object_metadata_row_count(table_name_or_query)
         ordered_dataframe.row_count = materialized_row_count
         ordered_dataframe.row_count_upper_bound = materialized_row_count
 
