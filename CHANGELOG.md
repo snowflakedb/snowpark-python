@@ -21,6 +21,7 @@
     - `encryption`
 - Added support for `Session.directory` and `Session.read.directory` to retrieve the list of all files on a stage with metadata.
 - Added support for `DataFrameReader.jdbc`(PrPr) that allows ingesting external data source with jdbc driver.
+- Added support for `FileOperation.copy_files` to copy files from a source location to an output stage.
 
 - Added support for the following scalar functions in `functions.py`:
   - `all_user_names`
@@ -66,6 +67,7 @@
 - Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
 - Add internal functionality for retrieving object metadata through SHOW OBJECTS 
 - Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
+- Add a new test parameter for integration tests to enable hybrid execution
 
 
 #### Dependency Updates
