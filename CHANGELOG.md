@@ -25,20 +25,20 @@
 
 - Added support for the following scalar functions in `functions.py`:
   - `all_user_names`
+  - `bitand`
+  - `bitand_agg`
+  - `bitor`
+  - `bitor_agg`
+  - `bitxor`
+  - `bitxor_agg`
   - `current_account_name`
+  - `current_client`
   - `current_ip_address`
   - `current_role_type`
-  - `current_secondary_roles`
-  - `current_client`
   - `current_organization_name`
   - `current_organization_user`
+  - `current_secondary_roles`
   - `current_transaction`
-  - `bitand_agg`
-  - `bitor_agg` 
-  - `bitxor_agg` 
-  - `bitand` 
-  - `bitor` 
-  - `bitxor`
   - `getbit`
 
 #### Bug Fixes

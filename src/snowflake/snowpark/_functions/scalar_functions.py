@@ -195,6 +195,15 @@ def bitand(
         >>> df = session.create_dataframe([[1, 1], [2, 4], [16, 24]], schema=["a", "b"])
         >>> df.select(bitand("a", "b").alias("result")).collect()
         [Row(RESULT=1), Row(RESULT=0), Row(RESULT=16)]
+
+    Additional Example with padside parameter::
+        >>> from snowflake.snowpark.functions import to_binary
+        >>> df = session.create_dataframe([['1010', '1011']], schema=["a", "b"])
+        >>> result = df.select(bitand(to_binary("a"), to_binary("b"), padside="LEFT").alias("RESULT")).collect()
+        >>> expected = b'\x10\x10'
+        >>> actual = result[0]["RESULT"]
+        >>> assert  isinstance(actual, bytearray)
+        >>> assert actual == expected
     """
     c1 = _to_col_if_str(expr1, "bitand")
     c2 = _to_col_if_str(expr2, "bitand")
@@ -225,6 +234,15 @@ def bitor(
         >>> df = session.create_dataframe([[1, 1], [2, 4], [16, 24]], schema=["a", "b"])
         >>> df.select(bitor("a", "b")).collect()
         [Row(BITOR("A", "B")=1), Row(BITOR("A", "B")=6), Row(BITOR("A", "B")=24)]
+
+    Additional Example with padside parameter::
+        >>> from snowflake.snowpark.functions import to_binary
+        >>> df = session.create_dataframe([['1010', '1011']], schema=["a", "b"])
+        >>> result = df.select(bitor(to_binary("a"), to_binary("b"), padside="LEFT").alias("RESULT")).collect()
+        >>> expected = b'\x10\x11'
+        >>> actual = result[0]["RESULT"]
+        >>> assert  isinstance(actual, bytearray)
+        >>> assert actual == expected
     """
     c1 = _to_col_if_str(expr1, "bitor")
     c2 = _to_col_if_str(expr2, "bitor")
@@ -254,6 +272,14 @@ def bitxor(
         >>> df = session.create_dataframe([[1, 1], [2, 4], [4, 2], [16, 24]], schema=["bit1", "bit2"])
         >>> df.select(bitxor("bit1", "bit2")).collect()
         [Row(BITXOR("BIT1", "BIT2")=0), Row(BITXOR("BIT1", "BIT2")=6), Row(BITXOR("BIT1", "BIT2")=6), Row(BITXOR("BIT1", "BIT2")=8)]
+
+    Additional Example with padside parameter::
+        >>> from snowflake.snowpark.functions import to_binary
+        >>> df = session.create_dataframe([['1110', '1011']], schema=["a", "b"])
+        >>> result = df.select(bitxor(to_binary("a"), to_binary("b"), padside="LEFT").alias("RESULT")).collect()
+        >>> expected = b'\x01\x01'
+        >>> actual = result[0]["RESULT"]
+        >>> assert  isinstance(actual, bytearray)
     """
     c1 = _to_col_if_str(expr1, "bitxor")
     c2 = _to_col_if_str(expr2, "bitxor")
