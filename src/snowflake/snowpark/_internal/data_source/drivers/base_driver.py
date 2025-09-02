@@ -173,7 +173,6 @@ class BaseDriver:
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
-                # TODO: when newer snowpark is available in backend, we can use self.get_server_cursor_if_supported
                 cursor = conn.cursor()
                 cursor.execute(query)
                 while True:

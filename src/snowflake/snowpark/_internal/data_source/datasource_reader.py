@@ -63,6 +63,7 @@ class DataSourceReader:
                             f"Failed to execute session init statement: '{statement}' due to exception '{exc!r}'"
                         )
             # use server side cursor to fetch data if supported by the driver
+            # some drivers do not support execute twice on server side cursor (e.g. psycopg2)
             cursor = self.driver.get_server_cursor_if_supported(conn)
             if self.fetch_size == 0:
                 cursor.execute(partition)
