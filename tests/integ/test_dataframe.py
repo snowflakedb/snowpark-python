@@ -4932,6 +4932,17 @@ def test_dataframe_result_cache_changing_schema(session):
     old_cached_df.show()
 
 
+def test_let_it_snow(session, capfd):
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10]]).to_df(
+        ["a", "b"]
+    )
+    df.snow(n=3)
+    result_out, err = capfd.readouterr()
+    df.show(n=3)
+    expected_out, err = capfd.readouterr()
+    assert result_out == expected_out
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="functions.seq2 is not supported in Local Testing",
