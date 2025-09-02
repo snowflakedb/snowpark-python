@@ -7,6 +7,7 @@ from typing import Callable, List, Any, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
+from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.functions import to_variant, parse_json, column
 from snowflake.snowpark.types import (
     StructType,
@@ -28,6 +29,9 @@ from snowflake.snowpark.types import (
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
     from snowflake.snowpark.dataframe import DataFrame  # pragma: no cover
+    from snowflake.snowpark._internal.data_source.datasource_typing import (
+        Cursor,
+    )  # pragma: no cover
 
 
 logger = logging.getLogger(__name__)
@@ -277,7 +281,7 @@ class Psycopg2Driver(BaseDriver):
         class UDTFIngestion:
             def process(self, query: str):
                 conn = prepare_connection_in_udtf(create_connection())
-                cursor = conn.cursor()
+                cursor = self.get_server_cursor_if_supported(conn)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
@@ -286,3 +290,6 @@ class Psycopg2Driver(BaseDriver):
                     yield from rows
 
         return UDTFIngestion
+
+    def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
+        return conn.cursor(f"SNOWPARK_CURSOR_{generate_random_alphanumeric(5)}")

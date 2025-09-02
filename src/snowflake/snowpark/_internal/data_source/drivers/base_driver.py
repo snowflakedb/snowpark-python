@@ -173,7 +173,7 @@ class BaseDriver:
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
-                cursor = conn.cursor()
+                cursor = self.get_server_cursor_if_supported(conn)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
@@ -260,3 +260,20 @@ class BaseDriver:
             for field in schema.fields
         ]
         return res_df.select(cols, _emit_ast=_emit_ast)
+
+    def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
+        """
+        This method is used to get a server cursor if the driver and the DBMS supports it.
+        It can be overridden by the driver to return a server cursor if supported.
+        Otherwise, it will return the default cursor supported by the driver and the DBMS.
+
+        - databricks-sql-connector: no concept of client/server cursor, no need to override
+        - python-oracledb: default to the server cursor, no need to override
+        - psycopg2: default to the client cursor which needs to be overridden to return the server cursor
+        - pymysql: default to the client cursor which needs to be overridden to return the server cursor
+
+        TODO:
+        - pyodbc: This is a Python wrapper on top of ODBC drivers, the ODBC driver and the DBMS may or may not support server cursor
+         and if they do support, the way to get the server cursor may vary across different DBMS. we need to document pyodbc.
+        """
+        return conn.cursor()

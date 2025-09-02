@@ -194,7 +194,7 @@ class PymysqlDriver(BaseDriver):
             def process(self, query: str):
 
                 conn = create_connection()
-                cursor = conn.cursor()
+                cursor = self.get_server_cursor_if_supported(conn)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
@@ -256,3 +256,8 @@ class PymysqlDriver(BaseDriver):
             else:
                 cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
         return res_df.select(cols, _emit_ast=_emit_ast)
+
+    def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
+        from pymysql.cursors import SSCursor
+
+        return conn.cursor(SSCursor)
