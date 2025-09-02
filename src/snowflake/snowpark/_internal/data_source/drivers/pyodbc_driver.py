@@ -102,7 +102,6 @@ class PyodbcDriver(BaseDriver):
                     conn.add_output_converter(
                         pyodbc.SQL_LONGVARBINARY, binary_converter
                     )
-                # TODO: when newer snowpark is available in backend, we can use self.get_server_cursor_if_supported
                 cursor = conn.cursor()
                 cursor.execute(query)
                 while True:
