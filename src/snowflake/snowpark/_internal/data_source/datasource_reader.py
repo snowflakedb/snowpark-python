@@ -52,8 +52,8 @@ class DataSourceReader:
         conn = self.driver.prepare_connection(
             self.driver.create_connection(), self.query_timeout
         )
-        cursor = self.driver.get_server_cursor_if_supported(conn)
         try:
+            cursor = conn.cursor()
             if self.session_init_statement:
                 for statement in self.session_init_statement:
                     try:
@@ -62,6 +62,8 @@ class DataSourceReader:
                         raise SnowparkDataframeReaderException(
                             f"Failed to execute session init statement: '{statement}' due to exception '{exc!r}'"
                         )
+            # use server side cursor to fetch data if supported by the driver
+            cursor = self.driver.get_server_cursor_if_supported(conn)
             if self.fetch_size == 0:
                 cursor.execute(partition)
                 result = cursor.fetchall()
