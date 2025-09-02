@@ -806,7 +806,7 @@ def test_copy_files(session, path1, path2, path3):
             pattern=".*file_2.*",
         ) == [f"copied4/{file_name_2}"]
 
-        # cope files with dataframe
+        # copy files with dataframe
         df = session.create_dataframe(
             [[f"@{source_stage}/prefix1/{file_name_1}", "new_file_1"]],
             schema=["existing_url", "new_file_name"],
@@ -817,7 +817,7 @@ def test_copy_files(session, path1, path2, path3):
             f"{current_database}.{current_schema}.{target_stage}/copied5/new_file_1"
         ]
 
-        # cope files with dataframe of 1 column
+        # copy files with dataframe of 1 column
         df = session.create_dataframe(
             [
                 f"@{source_stage}/prefix1/{file_name_1}",
