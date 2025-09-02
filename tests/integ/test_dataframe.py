@@ -5966,16 +5966,26 @@ def test_time_travel_core_functionality(session):
         Utils.check_answer(df_reader_at_stmt, df_at_stmt)
 
         # ==============Test 2: BEFORE/AT with offset ==============
-        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
-            0
-        ]
-        offset_seconds = (
-            int((ts_after_update - ts_before_update).total_seconds()) + 1
-        )  # round up
-        df_at_offset = session.table(
-            table_name, time_travel_mode="at", offset=-offset_seconds
+        # Test offset validation: use -3600 seconds (1 hour ago) to trigger expected error
+        # since table was created moments ago, avoiding timestamp capture flakiness
+        with pytest.raises(
+            SnowparkSQLException, match="Time travel data is not available"
+        ):
+            session.table(table_name, time_travel_mode="at", offset=-3600).collect()
+
+        time.sleep(1)
+        df_before_offset = session.table(
+            table_name, time_travel_mode="before", offset=-1
+        ).collect()
+        Utils.check_answer(df_before_offset, expected_after_update)
+
+        df_at_offset = (
+            session.read.option("time_travel_mode", "at")
+            .option("offset", -1)
+            .table(table_name)
+            .collect()
         )
-        Utils.check_answer(df_at_offset, expected_before_update)
+        Utils.check_answer(df_at_offset, expected_after_update)
 
         # ==============Test 3: BEFORE/AT with timestamp ==============
         # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
@@ -6006,6 +6016,9 @@ def test_time_travel_core_functionality(session):
         Utils.check_answer(df_before_ts, df_reader_before_ts)
 
         # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
+        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
+            0
+        ]
         df_before_ts_after_update = session.table(
             table_name,
             time_travel_mode="before",
