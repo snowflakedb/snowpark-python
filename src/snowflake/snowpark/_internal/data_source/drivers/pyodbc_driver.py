@@ -102,7 +102,7 @@ class PyodbcDriver(BaseDriver):
                     conn.add_output_converter(
                         pyodbc.SQL_LONGVARBINARY, binary_converter
                     )
-                cursor = conn.cursor()
+                cursor = self.get_server_cursor_if_supported(conn)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

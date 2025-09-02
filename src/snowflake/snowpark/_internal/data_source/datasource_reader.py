@@ -52,7 +52,7 @@ class DataSourceReader:
         conn = self.driver.prepare_connection(
             self.driver.create_connection(), self.query_timeout
         )
-        cursor = conn.cursor()
+        cursor = self.driver.get_server_cursor_if_supported(conn)
         try:
             if self.session_init_statement:
                 for statement in self.session_init_statement:

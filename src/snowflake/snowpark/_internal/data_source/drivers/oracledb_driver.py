@@ -143,7 +143,7 @@ class OracledbDriver(BaseDriver):
                 conn = create_connection()
                 if conn.outputtypehandler is None:
                     conn.outputtypehandler = oracledb_output_type_handler
-                cursor = conn.cursor()
+                cursor = self.get_server_cursor_if_supported(conn)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

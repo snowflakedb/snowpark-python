@@ -72,7 +72,7 @@ class DatabricksDriver(BaseDriver):
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
-                cursor = conn.cursor()
+                cursor = self.get_server_cursor_if_supported(conn)
 
                 # First get schema information
                 describe_query = f"DESCRIBE QUERY SELECT * FROM ({query})"
