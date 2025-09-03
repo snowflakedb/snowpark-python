@@ -72,7 +72,7 @@ def str_to_sql_for_year_month_interval(
         raise ValueError(f"Invalid interval format: {value}")
 
     if parts[1].startswith("'") and parts[1].endswith("'"):
-        return value
+        return value  # passthrough
 
     extracted_values = parts[1]
     start_field = datatype.start_field if datatype.start_field is not None else 0
