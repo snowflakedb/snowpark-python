@@ -2743,11 +2743,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             not isinstance(other, (Series, DataFrame))
             or other._query_compiler._relaxed_query_compiler is not None
         ):
-            relaxed_other = other
             if isinstance(other, (Series, DataFrame)):
+                relaxed_other = copy.copy(other)
                 relaxed_other._query_compiler = copy.copy(
-                    relaxed_other._query_compiler._relaxed_query_compiler
+                    other._query_compiler._relaxed_query_compiler
                 )
+            else:
+                relaxed_other = other
             relaxed_query_compiler = self._relaxed_query_compiler.binary_op(
                 op=op,
                 other=relaxed_other,
