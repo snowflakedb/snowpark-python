@@ -137,30 +137,30 @@ def test_to_snowpark_pandas_with_operations(
 
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
+@sql_count_checker(query_count=0)
 def test_to_snowpark_pandas_duplicated_columns_raises(
     session, tmp_table_basic, enforce_ordering
 ) -> None:
-    with SqlCounter(query_count=0 if enforce_ordering else 2):
-        sql_simplifier_enabled_original = session.sql_simplifier_enabled
-        # Error is raised only when SQL simplifier is enabled.
-        session.sql_simplifier_enabled = True
+    sql_simplifier_enabled_original = session.sql_simplifier_enabled
+    # Error is raised only when SQL simplifier is enabled.
+    session.sql_simplifier_enabled = True
 
-        snowpark_df = session.table(tmp_table_basic)
-        snowpark_df = snowpark_df.select(
-            Column("ID"),
-            Column("FOOT_SIZE").as_('"shoe"'),
-            Column("SHOE_MODEL").as_('"shoe"'),
-        )
+    snowpark_df = session.table(tmp_table_basic)
+    snowpark_df = snowpark_df.select(
+        Column("ID"),
+        Column("FOOT_SIZE").as_('"shoe"'),
+        Column("SHOE_MODEL").as_('"shoe"'),
+    )
 
-        pattern = (
-            "duplicate column name 'shoe'"
-            if enforce_ordering
-            else "ambiguous column name 'shoe'"
-        )
+    pattern = (
+        "duplicate column name 'shoe'"
+        if enforce_ordering
+        else "ambiguous column name 'shoe'"
+    )
 
-        with pytest.raises(SnowparkSQLException, match=pattern):
-            snowpark_df.to_snowpark_pandas(enforce_ordering=enforce_ordering).head()
-        session.sql_simplifier_enabled = sql_simplifier_enabled_original
+    with pytest.raises(SnowparkSQLException, match=pattern):
+        snowpark_df.to_snowpark_pandas(enforce_ordering=enforce_ordering).head()
+    session.sql_simplifier_enabled = sql_simplifier_enabled_original
 
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])

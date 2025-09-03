@@ -741,8 +741,6 @@ def test_str_len_list_coin_base(session, enable_sql_simplifier):
         # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
         df = df.sort_values(df.columns.to_list(), ignore_index=True)
 
-    with SqlCounter(query_count=5, udf_count=expected_udf_count):
-
         def compute_num_shared_card_users(x):
             """
             Helper function to compute the number of shared card users

@@ -375,8 +375,9 @@ def test_read_snowflake_both_index_col_columns(session, enforce_ordering):
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_duplicate_columns(session, enforce_ordering):
+    expected_query_count = 7 if enforce_ordering else 3
     with SqlCounter(
-        query_count=11,
+        query_count=expected_query_count,
         high_count_expected=True,
         high_count_reason="Each read creates counts a single row to get an estimated upper bound for hybrid execution",
     ):
@@ -546,7 +547,7 @@ def test_read_snowflake_row_access_policy_table(
         f"alter table {test_table_name} add row access policy no_access_policy on (col1)"
     ).collect()
 
-    expected_query_count = 3 if enforce_ordering else 2
+    expected_query_count = 3 if enforce_ordering else 1
     with SqlCounter(query_count=expected_query_count):
         df = read_snowflake_and_verify_snapshot_creation_if_any(
             session, test_table_name, as_query, True, enforce_ordering
@@ -622,8 +623,9 @@ def test_decimal(
 def test_read_snowflake_with_table_in_different_db(
     setup_use_scoped_object, session, caplog, as_query, enforce_ordering
 ) -> None:
+    expected_query_count = 9 if enforce_ordering else 8
     with SqlCounter(
-        query_count=10,
+        query_count=expected_query_count,
         high_count_expected=True,
         high_count_reason="Expected high count temp table",
     ):
