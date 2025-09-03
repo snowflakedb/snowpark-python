@@ -166,7 +166,6 @@ def systimestamp(_emit_ast: bool = True) -> Column:
         >>> result = df.select(systimestamp()).collect()
         >>> import datetime
         >>> assert isinstance(result[0]["SYSTIMESTAMP()"], datetime.datetime)
-        True
     """
     return builtin("systimestamp", _emit_ast=_emit_ast)()
 
@@ -259,8 +258,9 @@ def is_granted_to_invoker_role(
         Column: A Snowflake `Column` object representing the result of the check.
 
     Example:
+        >>> from snowflake.snowpark.functions import lit
         >>> df = session.create_dataframe([1])
-        >>> result = df.select(is_granted_to_invoker_role('ANALYST').alias('RESULT')).collect()
+        >>> result = df.select(is_granted_to_invoker_role(lit('ANALYST')).alias('RESULT')).collect()
         >>> assert len(result) == 1
         >>> assert isinstance(result[0]["RESULT"], bool)
     """
