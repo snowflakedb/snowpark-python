@@ -5926,9 +5926,9 @@ def test_time_travel_core_functionality(session):
     # Sleep to ensure stable time travel window to prevent flaky offset calculation
     time.sleep(2)
 
-    ts_before_update = session.sql(
-        "select current_timestamp()::string as CT"
-    ).collect()[0][0]
+    ts_before_update = datetime.datetime.fromtimestamp(time.time()).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
     assert isinstance(ts_before_update, str)
     with session.query_history() as query_history:
         session.sql(
@@ -6019,9 +6019,9 @@ def test_time_travel_core_functionality(session):
         Utils.check_answer(df_before_ts, df_reader_before_ts)
 
         # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
-        ts_after_update = session.sql(
-            "select current_timestamp()::string as CT"
-        ).collect()[0][0]
+        ts_after_update = datetime.datetime.fromtimestamp(time.time()).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         df_before_ts_after_update = session.table(
             table_name,
             time_travel_mode="before",
@@ -6073,9 +6073,9 @@ def test_time_travel_comprehensive_coverage(session):
     # Sleep to ensure stable time travel window
     time.sleep(2)
 
-    ts_before_update = session.sql(
-        "select current_timestamp()::string as CT"
-    ).collect()[0][0]
+    ts_before_update = datetime.datetime.fromtimestamp(time.time()).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
     assert isinstance(ts_before_update, str)
     with session.query_history() as query_history:
         session.sql(
@@ -6187,9 +6187,9 @@ def test_time_travel_comprehensive_coverage(session):
         )
         Utils.check_answer(df_join_before, df_reader_join_before)
 
-        ts_after_update = session.sql(
-            "select current_timestamp()::string as CT"
-        ).collect()[0][0]
+        ts_after_update = datetime.datetime.fromtimestamp(time.time()).strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
         df_join_after = (
             session.table(
                 table1_name,
