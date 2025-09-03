@@ -879,28 +879,23 @@ def test_remove(session, path1, path2, path3):
 
         # Remove a specific file with a pattern (remove files with "file_2" in name)
         file_name_2 = os.path.basename(path2)
-        session.file.remove(
-            f"@{source_stage}/prefix1/", pattern=f".*{file_name_2.split('_')[1]}.*"
-        )
+        session.file.remove(f"@{source_stage}/prefix1/", pattern=f".*{file_name_2}.*")
 
         # Verify one file was removed
-        remaining_files = session.file.list(f"@{source_stage}/")
-        assert len(remaining_files) == 2
+        assert len(session.file.list(f"@{source_stage}/")) == 2
 
         # Remove all files from prefix1
         session.file.remove(f"@{source_stage}/prefix1/")
 
         # Verify only files from prefix2 remain
         remaining_files = session.file.list(f"@{source_stage}/")
-        assert len(remaining_files) == 1
-        assert "prefix2" in remaining_files[0].name  # file name should contain prefix2
+        assert len(remaining_files) == 1 and "prefix2" in remaining_files[0].name
 
         # Remove all remaining files
         session.file.remove(f"@{source_stage}/")
 
         # Verify no files remain
-        final_files = session.file.list(f"@{source_stage}/")
-        assert len(final_files) == 0
+        assert not session.file.list(f"@{source_stage}/")
 
     finally:
         session.sql(f"drop stage if exists {source_stage}").collect()

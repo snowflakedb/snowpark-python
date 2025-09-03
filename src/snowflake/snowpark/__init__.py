@@ -17,6 +17,7 @@ __all__ = [
     "FileOperation",
     "PutResult",
     "GetResult",
+    "ListResult",
     "DataFrame",
     "DataFrameStatFunctions",
     "DataFrameAnalyticsFunctions",
