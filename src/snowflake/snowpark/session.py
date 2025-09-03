@@ -4852,7 +4852,7 @@ class Session:
                 ast.name.value = name
 
         query = f"BEGIN TRANSACTION {('NAME ' + name) if name else ''}"
-        self.sql(query, _ast_stmt=stmt, _emit_ast=_emit_ast).collect()
+        self.sql(query, _ast_stmt=stmt, _emit_ast=_emit_ast).collect(_emit_ast=False)
 
     @publicapi
     def commit(self, _emit_ast: bool = True) -> None:
@@ -4869,7 +4869,7 @@ class Session:
             stmt = self._ast_batch.bind()
             with_src_position(stmt.expr.commit, stmt)
 
-        self.sql("COMMIT", _ast_stmt=stmt, _emit_ast=_emit_ast).collect()
+        self.sql("COMMIT", _ast_stmt=stmt, _emit_ast=_emit_ast).collect(_emit_ast=False)
 
     @publicapi
     def rollback(self, _emit_ast: bool = True) -> None:
@@ -4886,4 +4886,6 @@ class Session:
             stmt = self._ast_batch.bind()
             with_src_position(stmt.expr.rollback, stmt)
 
-        self.sql("ROLLBACK", _ast_stmt=stmt, _emit_ast=_emit_ast).collect()
+        self.sql("ROLLBACK", _ast_stmt=stmt, _emit_ast=_emit_ast).collect(
+            _emit_ast=False
+        )
