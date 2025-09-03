@@ -1,0 +1,361 @@
+#
+# Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
+#
+
+import datetime
+import functools
+import logging
+import os
+import tempfile
+
+import pytest
+
+from tests.integ.conftest import RUNNING_ON_GH
+from tests.resources.test_data_source_dir.test_data_source_data import (
+    sqlite3_db,
+    create_connection_to_sqlite3_db,
+    SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+)
+
+
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('local_testing_mode', default=False)",
+        reason="feature not available in local testing",
+    ),
+    pytest.mark.skipif(
+        RUNNING_ON_GH,
+        reason="tests only suppose to run on snowfort",
+    ),
+]
+
+
+@pytest.mark.parametrize("fetch_with_process", [True, False])
+def test_dbapi_local(session, caplog, fetch_with_process):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, _, _, assert_data = sqlite3_db(dbpath)
+        with caplog.at_level(logging.DEBUG):
+            df = session.read.dbapi(
+                functools.partial(create_connection_to_sqlite3_db, dbpath),
+                table=table_name,
+                custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                fetch_size=2,
+                fetch_merge_count=2,
+                fetch_with_process=fetch_with_process,
+            )
+            assert df.order_by("ID").collect() == assert_data
+            # 2 batch + 2 fetch size = 2 parquet file
+            assert caplog.text.count("Retrieved BytesIO parquet from queue") == 2
+
+
+def test_dbapi_udtf(session, caplog):
+    udtf_configs = {
+        "external_access_integration": "snowpark_dbapi_oracledb_test_integration"
+    }
+    test_datetime = datetime.datetime(2021, 1, 2, 12, 34, 56)
+    test_date = test_datetime.date()
+    test_time = test_datetime.time()
+    table_name = "PrimitiveTypes"
+    example_data = [
+        (
+            1,
+            42,
+            3.14,
+            "Hello, world!",
+            b"\x00\x01\x02\x03".hex(),
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "1",
+        ),
+        (
+            2,
+            -10,
+            2.718,
+            "SQLite",
+            b"\x04\x05\x06\x07".hex(),
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "2",
+        ),
+        (
+            3,
+            9999,
+            -0.99,
+            "Python",
+            b"\x08\x09\x0A\x0B".hex(),
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "3",
+        ),
+        (
+            4,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F".hex(),
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "4",
+        ),
+        (
+            5,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F".hex(),
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "5",
+        ),
+        (
+            6,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F".hex(),
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "6",
+        ),
+        (
+            7,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F".hex(),
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "7",
+        ),
+    ]
+    expected_data = [
+        (
+            1,
+            42,
+            3.14,
+            "Hello, world!",
+            b"\x00\x01\x02\x03",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"1"',
+        ),
+        (
+            2,
+            -10,
+            2.718,
+            "SQLite",
+            b"\x04\x05\x06\x07",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"2"',
+        ),
+        (
+            3,
+            9999,
+            -0.99,
+            "Python",
+            b"\x08\x09\x0A\x0B",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"3"',
+        ),
+        (
+            4,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"4"',
+        ),
+        (
+            5,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"5"',
+        ),
+        (
+            6,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"6"',
+        ),
+        (
+            7,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"7"',
+        ),
+    ]
+
+    def create_connection_sqlite3():
+        import sqlite3
+
+        conn = sqlite3.connect(":memory:")
+        cursor = conn.cursor()
+        # Create a table with different primitive types
+        # sqlite3 only supports 5 types: NULL, INTEGER, REAL, TEXT, BLOB
+        cursor.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id INTEGER PRIMARY KEY,   -- Auto-incrementing primary key
+                int_col INTEGER,          -- Integer column
+                real_col REAL,            -- Floating point column
+                text_col TEXT,            -- String column
+                blob_col BLOB,            -- Binary data column
+                null_col NULL,            -- Explicit NULL type (for testing purposes)
+                ts_col TEXT,              -- Timestamp column in TEXT format
+                date_col TEXT,            -- Date column in TEXT format
+                time_col TEXT,            -- Time column in TEXT format
+                short_col INTEGER,        -- Short integer column
+                long_col INTEGER,         -- Long integer column
+                double_col REAL,          -- Double column
+                decimal_col REAL,         -- Decimal column
+                map_col TEXT,             -- Map column in TEXT format
+                array_col TEXT,           -- Array column in TEXT format
+                var_col TEXT              -- Variant column in TEXT format
+            )
+            """
+        )
+
+        cursor.executemany(
+            f"INSERT INTO {table_name} VALUES ({','.join('?' * 16)})", example_data
+        )
+        conn.commit()
+        return conn
+
+    with caplog.at_level(logging.DEBUG):
+        df = session.read.dbapi(
+            create_connection_sqlite3,
+            table=table_name,
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+            fetch_size=2,
+            udtf_configs=udtf_configs,
+        )
+        assert df.order_by("ID").collect() == expected_data
