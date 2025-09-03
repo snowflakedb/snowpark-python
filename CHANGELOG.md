@@ -25,14 +25,21 @@
 
 - Added support for the following scalar functions in `functions.py`:
   - `all_user_names`
+  - `bitand`
+  - `bitand_agg`
+  - `bitor`
+  - `bitor_agg`
+  - `bitxor`
+  - `bitxor_agg`
   - `current_account_name`
+  - `current_client`
   - `current_ip_address`
   - `current_role_type`
-  - `current_secondary_roles`
-  - `current_client`
   - `current_organization_name`
   - `current_organization_user`
+  - `current_secondary_roles`
   - `current_transaction`
+  - `getbit`
 
 #### Bug Fixes
 
@@ -48,6 +55,7 @@
 
 - Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
 - Bumped cloudpickle dependency to also support `cloudpickle==3.1.1` in addition to previous versions.
+- Improved `DataFrameReader.dbapi` (PuPr) ingestion performance for PostgreSQL and MySQL by using server side cursor to fetch data.
 
 ### Snowpark pandas API Updates
 
