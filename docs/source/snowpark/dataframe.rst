@@ -123,12 +123,15 @@ DataFrame
     DataFrameAIFunctions.agg
     DataFrameAIFunctions.classify
     DataFrameAIFunctions.complete
+    DataFrameAIFunctions.count_tokens
     DataFrameAIFunctions.embed
     DataFrameAIFunctions.extract
     DataFrameAIFunctions.filter
     DataFrameAIFunctions.parse_document
     DataFrameAIFunctions.sentiment
     DataFrameAIFunctions.similarity
+    DataFrameAIFunctions.split_text_markdown_header
+    DataFrameAIFunctions.split_text_recursive_character
     DataFrameAIFunctions.summarize_agg
     DataFrameAIFunctions.transcribe
     dataframe.map
