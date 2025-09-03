@@ -218,11 +218,7 @@ def server_side_max_string(structured_type_session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function to_geography not supported",
 )
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
-)
 def test_verify_datatypes_reference(session):
-    session.sql("alter session set feature_interval_types=enabled;").collect()
     schema = StructType(
         [
             StructField("var", VariantType()),
@@ -298,7 +294,6 @@ def test_verify_datatypes_reference(session):
         ]
     )
     Utils.is_schema_same(df.schema, expected_schema, case_sensitive=False)
-    session.sql("alter session set feature_interval_types=disabled;").collect()
 
 
 def test_verify_datatypes_reference2(session):
@@ -350,11 +345,7 @@ def test_verify_datatypes_reference_vector(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: function to_geography not supported",
 )
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
-)
 def test_dtypes(session):
-    session.sql("alter session set feature_interval_types=enabled;").collect()
     schema = StructType(
         [
             StructField("var", VariantType()),
@@ -427,7 +418,6 @@ def test_dtypes(session):
         ("ARRAY", "array<string>"),
         ("MAP", "map<string,string>"),
     ]
-    session.sql("alter session set feature_interval_types=disabled;").collect()
 
 
 @pytest.mark.skipif(

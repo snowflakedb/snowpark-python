@@ -3230,17 +3230,7 @@ def test_limit(session):
     )
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: Alter Session not supported in local testing",
-)
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
-)
 def test_year_month_interval_type_dataframe(session):
-    session.sql("alter session set feature_interval_types=enabled;").collect()
-    session.sql("alter session set enable_interval_subtypes=true;").collect()
-
     schema = StructType(
         [
             StructField("ID", LongType(), nullable=False),
@@ -3315,6 +3305,3 @@ def test_year_month_interval_type_dataframe(session):
     assert df.schema.fields[1].datatype.end_field == 1
     assert df.schema.fields[2].datatype.start_field == 1
     assert df.schema.fields[2].datatype.end_field == 1
-
-    session.sql("alter session set feature_interval_types=disabled;").collect()
-    session.sql("alter session set enable_interval_subtypes=false;").collect()
