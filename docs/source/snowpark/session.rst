@@ -36,6 +36,7 @@ Snowpark Session
       Session.add_packages
       Session.add_requirements
       Session.append_query_tag
+      Session.begin_transaction
       Session.call
       Session.call_nowait
       Session.cancel_all
@@ -43,6 +44,7 @@ Snowpark Session
       Session.clear_imports
       Session.clear_packages
       Session.close
+      Session.commit
       Session.createDataFrame
       Session.create_async_job
       Session.create_dataframe
@@ -67,6 +69,7 @@ Snowpark Session
       Session.remove_import
       Session.remove_package
       Session.replicate_local_environment
+      Session.rollback
       Session.sql
       Session.table
       Session.table_function
