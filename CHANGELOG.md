@@ -21,17 +21,25 @@
     - `encryption`
 - Added support for `Session.directory` and `Session.read.directory` to retrieve the list of all files on a stage with metadata.
 - Added support for `DataFrameReader.jdbc`(PrPr) that allows ingesting external data source with jdbc driver.
+- Added support for `FileOperation.copy_files` to copy files from a source location to an output stage.
 
 - Added support for the following scalar functions in `functions.py`:
   - `all_user_names`
+  - `bitand`
+  - `bitand_agg`
+  - `bitor`
+  - `bitor_agg`
+  - `bitxor`
+  - `bitxor_agg`
   - `current_account_name`
+  - `current_client`
   - `current_ip_address`
   - `current_role_type`
-  - `current_secondary_roles`
-  - `current_client`
   - `current_organization_name`
   - `current_organization_user`
+  - `current_secondary_roles`
   - `current_transaction`
+  - `getbit`
 
 #### Bug Fixes
 
@@ -47,6 +55,7 @@
 
 - Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
 - Bumped cloudpickle dependency to also support `cloudpickle==3.1.1` in addition to previous versions.
+- Improved `DataFrameReader.dbapi` (PuPr) ingestion performance for PostgreSQL and MySQL by using server side cursor to fetch data.
 
 ### Snowpark pandas API Updates
 
@@ -66,6 +75,7 @@
 - Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
 - Add internal functionality for retrieving object metadata through SHOW OBJECTS 
 - Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
+- Add a new test parameter for integration tests to enable hybrid execution
 
 
 #### Dependency Updates

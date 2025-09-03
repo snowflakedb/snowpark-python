@@ -15,7 +15,10 @@ from snowflake.snowpark.types import (
     DoubleType,
 )
 
-from ...parameters import ORACLEDB_CONNECTION_PARAMETERS, POSTGRES_CONNECTION_PARAMETERS
+from tests.parameters import (
+    ORACLEDB_CONNECTION_PARAMETERS,
+    POSTGRES_CONNECTION_PARAMETERS,
+)
 
 host = ORACLEDB_CONNECTION_PARAMETERS["host"]
 port = ORACLEDB_CONNECTION_PARAMETERS["port"]
