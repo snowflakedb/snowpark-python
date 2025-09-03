@@ -464,3 +464,12 @@ def test_unit_generate_select_query():
         'SELECT TO_JSON("jsonb_col")::TEXT AS jsonb_col FROM test_table'
     )
     assert jsonb_query == expected_jsonb_query
+
+
+def test_server_side_cursor(session):
+    conn = create_postgres_connection()
+    driver = Psycopg2Driver(create_postgres_connection, DBMS_TYPE.POSTGRES_DB)
+    cursor = driver.get_server_cursor_if_supported(conn)
+    assert cursor.name is not None  # Server-side cursor should have a name
+    cursor.close()
+    conn.close()

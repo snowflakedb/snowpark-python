@@ -58,6 +58,7 @@
 
 - Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
 - Bumped cloudpickle dependency to also support `cloudpickle==3.1.1` in addition to previous versions.
+- Improved `DataFrameReader.dbapi` (PuPr) ingestion performance for PostgreSQL and MySQL by using server side cursor to fetch data.
 
 ### Snowpark pandas API Updates
 
