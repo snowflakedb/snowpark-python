@@ -426,7 +426,7 @@ def test_to_datetime():
 
 
 @sql_count_checker(
-    query_count=12,
+    query_count=13,
     join_count=6,
     udtf_count=2,
     high_count_expected=True,
