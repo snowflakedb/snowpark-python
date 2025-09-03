@@ -1511,7 +1511,7 @@ class DataFrameReader:
         fetch_size: Optional[int] = 0,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
-        session_init_statement: Optional[List[str]] = None,
+        session_init_statement: Optional[Union[str, List[str]]] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1631,6 +1631,9 @@ class DataFrameReader:
             raise ValueError(
                 "external_access_integration, secret and imports must be specified in udtf configs"
             )
+
+        if session_init_statement and isinstance(session_init_statement, str):
+            session_init_statement = [session_init_statement]
 
         jdbc_client = JDBC(
             session=self._session,
