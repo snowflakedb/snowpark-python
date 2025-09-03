@@ -165,7 +165,7 @@ def systimestamp(_emit_ast: bool = True) -> Column:
         >>> df = session.create_dataframe([1], schema=["a"])
         >>> result = df.select(systimestamp()).collect()
         >>> import datetime
-        >>> isinstance(result[0]["SYSTIMESTAMP()"], datetime.datetime)
+        >>> assert isinstance(result[0]["SYSTIMESTAMP()"], datetime.datetime)
         True
     """
     return builtin("systimestamp", _emit_ast=_emit_ast)()
