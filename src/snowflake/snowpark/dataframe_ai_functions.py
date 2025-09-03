@@ -2,14 +2,14 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 
 from snowflake.snowpark._internal.utils import (
     create_prompt_column_from_template,
     experimental,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
-from snowflake.snowpark.column import Column, _to_col_if_str
+from snowflake.snowpark.column import Column, _to_col_if_str, _to_col_if_lit
 from snowflake.snowpark.functions import (
     ai_complete,
     ai_filter,
@@ -22,6 +22,7 @@ from snowflake.snowpark.functions import (
     ai_summarize_agg,
     ai_transcribe,
     ai_parse_document,
+    function,
 )
 from snowflake.snowpark._internal.telemetry import add_api_call
 
@@ -1253,5 +1254,373 @@ class DataFrameAIFunctions:
         add_api_call(
             df,
             "DataFrame.ai.extract",
+        )
+        return df
+
+    @experimental(version="1.37.0")
+    def count_tokens(
+        self,
+        model: str,
+        prompt: ColumnOrName,
+        *,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Count the number of tokens in text for a specified language model.
+
+        This method returns the number of tokens that would be consumed by the specified
+        model when processing the input text. This is useful for estimating costs and
+        ensuring inputs fit within model token limits.
+
+        Args:
+            model: The model to base the token count on. Required. Supported models include:
+
+                - ``deepseek-r1``, ``e5-base-v2``, ``e5-large-v2``
+                - ``gemma-7b``, ``jamba-1.5-large``, ``jamba-1.5-mini``, ``jamba-instruct``
+                - ``llama2-70b-chat``, ``llama3-70b``, ``llama3-8b``
+                - ``llama3.1-405b``, ``llama3.1-70b``, ``llama3.1-8b``
+                - ``llama3.2-1b``, ``llama3.2-3b``, ``llama3.3-70b``
+                - ``llama4-maverick``, ``llama4-scout``
+                - ``mistral-7b``, ``mistral-large``, ``mistral-large2``, ``mixtral-8x7b``
+                - ``nv-embed-qa-4``, ``reka-core``, ``reka-flash``
+                - ``snowflake-arctic-embed-l-v2.0``, ``snowflake-arctic-embed-m-v1.5``
+                - ``snowflake-arctic-embed-m``, ``snowflake-arctic``
+                - ``snowflake-llama-3.1-405b``, ``snowflake-llama-3.3-70b``
+                - ``voyage-multilingual-2``
+            prompt: The column (Column object or column name as string) containing the text
+                to count tokens for.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``COUNT_TOKENS_OUTPUT`` is appended.
+
+        Returns:
+            A new DataFrame with an appended output column containing the token count as an integer.
+
+        Examples::
+
+            >>> # Count tokens for a simple text
+            >>> df = session.create_dataframe([
+            ...     ["What is a large language model?"],
+            ...     ["Explain quantum computing in simple terms."],
+            ... ], schema=["text"])
+            >>> result_df = df.ai.count_tokens(
+            ...     model="llama3.1-70b",
+            ...     prompt="text",
+            ...     output_column="token_count"
+            ... )
+            >>> result_df.show()
+            --------------------------------------------------------------
+            |"TEXT"                                      |"TOKEN_COUNT"  |
+            --------------------------------------------------------------
+            |What is a large language model?             |8              |
+            |Explain quantum computing in simple terms.  |9              |
+            --------------------------------------------------------------
+            <BLANKLINE>
+
+        Note:
+            The token count does not account for any managed system prompt that may be
+            automatically added when using other Cortex AI functions. The actual token
+            usage may be higher when using those functions.
+        """
+        # Convert string input to Column object
+        prompt_col = _to_col_if_str(prompt, "DataFrame.ai.count_tokens")
+
+        # Call SNOWFLAKE.CORTEX.COUNT_TOKENS function
+        count_tokens_func = function("SNOWFLAKE.CORTEX.COUNT_TOKENS", _emit_ast=False)
+        result_col = count_tokens_func(model, prompt_col)
+
+        # Add the output column to the DataFrame
+        output_column_name = output_column or "COUNT_TOKENS_OUTPUT"
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            "DataFrame.ai.count_tokens",
+        )
+        return df
+
+    @experimental(version="1.37.0")
+    def split_text_markdown_header(
+        self,
+        text_to_split: ColumnOrName,
+        headers_to_split_on: Union[Dict[str, str], Column],
+        chunk_size: Union[int, Column],
+        *,
+        overlap: Union[int, Column] = 0,
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Split Markdown-formatted text into structured chunks based on header levels.
+
+        This method segments text using specified Markdown headers and recursively splits
+        each segment to produce chunks of the desired size. It preserves document structure
+        by tracking which headers each chunk falls under.
+
+        Args:
+            text_to_split: The column (Column object or column name as string) containing
+                the Markdown-formatted text to split.
+            headers_to_split_on: A dictionary mapping Markdown header syntax to metadata field names,
+                or a Column containing such a mapping. For example:
+                ``{"#": "header_1", "##": "header_2"}`` will split on # and ## headers.
+            chunk_size: The maximum number of characters in each chunk. Must be greater than zero.
+                Can be an integer or a Column containing integer values.
+            overlap: Optional number of characters to overlap between consecutive chunks.
+                Defaults to 0 if not provided. Can be an integer or a Column.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT`` is appended.
+
+        Returns:
+            A new DataFrame with an appended output column containing an array of objects.
+            Each object has:
+
+                - ``chunk``: A string containing the extracted text
+                - ``headers``: A dictionary containing the Markdown header values under which the chunk is nested
+
+        Examples::
+
+            >>> # Split a simple Markdown document
+            >>> df = session.create_dataframe([
+            ...     ["# Introduction\\nThis is the intro.\\n## Background\\nSome background info."],
+            ... ], schema=["document"])
+            >>> result_df = df.ai.split_text_markdown_header(
+            ...     text_to_split="document",
+            ...     headers_to_split_on={"#": "section", "##": "subsection"},
+            ...     chunk_size=20,
+            ...     overlap=5,
+            ...     output_column="chunks"
+            ... )
+            >>> result_df.show()
+            --------------------------------------------------------------
+            |"DOCUMENT"             |"CHUNKS"                            |
+            --------------------------------------------------------------
+            |# Introduction         |[                                   |
+            |This is the intro.     |  {                                 |
+            |## Background          |    "chunk": "This is the intro.",  |
+            |Some background info.  |    "headers": {                    |
+            |                       |      "section": "Introduction"     |
+            |                       |    }                               |
+            |                       |  },                                |
+            |                       |  {                                 |
+            |                       |    "chunk": "Some background",     |
+            |                       |    "headers": {                    |
+            |                       |      "section": "Introduction",    |
+            |                       |      "subsection": "Background"    |
+            |                       |    }                               |
+            |                       |  },                                |
+            |                       |  {                                 |
+            |                       |    "chunk": "info.",               |
+            |                       |    "headers": {                    |
+            |                       |      "section": "Introduction",    |
+            |                       |      "subsection": "Background"    |
+            |                       |    }                               |
+            |                       |  }                                 |
+            |                       |]                                   |
+            --------------------------------------------------------------
+            <BLANKLINE>
+
+        Note:
+            - The function preserves document hierarchy by including parent headers for each chunk
+            - Chunks are created using recursive character splitting after initial header segmentation
+            - Overlap helps maintain context across chunk boundaries
+        """
+        method_name = "DataFrame.ai.split_text_markdown_header"
+
+        # Convert inputs to Column objects
+        text_col = _to_col_if_str(text_to_split, method_name)
+        headers_col = _to_col_if_lit(headers_to_split_on, method_name)
+        chunk_size_col = _to_col_if_lit(chunk_size, method_name)
+        overlap_col = _to_col_if_lit(overlap, method_name)
+
+        # Call SNOWFLAKE.CORTEX.SPLIT_TEXT_MARKDOWN_HEADER function
+        split_func = function(
+            "SNOWFLAKE.CORTEX.SPLIT_TEXT_MARKDOWN_HEADER", _emit_ast=False
+        )
+        result_col = split_func(text_col, headers_col, chunk_size_col, overlap_col)
+
+        # Add the output column to the DataFrame
+        output_column_name = output_column or "SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT"
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            method_name,
+        )
+        return df
+
+    @experimental(version="1.37.0")
+    def split_text_recursive_character(
+        self,
+        text_to_split: ColumnOrName,
+        format: Literal["none", "markdown"],
+        chunk_size: Union[int, Column],
+        *,
+        overlap: Union[int, Column] = 0,
+        separators: Union[List[str], Column] = ("\n\n", "\n", " ", ""),
+        output_column: Optional[str] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        """Split text into chunks using recursive character-based splitting.
+
+        This method splits text by recursively trying a list of separators in order,
+        creating chunks that fit within the specified size limit. It's useful for
+        breaking down large documents for embedding, RAG, or search indexing.
+
+        Args:
+            text_to_split: The column (Column object or column name as string) containing
+                the text to split.
+            format: The format of your input text, which determines the default separators in the splitting algorithm. Must be one of the following:
+
+                - ``none``: No format-specific separators. Only the separators in the separators field are used for splitting.
+                - ``markdown``: Separates on headers, code blocks, and tables, in addition to any separators in the separators field.
+
+            chunk_size: The maximum number of characters in each chunk. Must be greater than zero.
+                Can be an integer or a Column containing integer values.
+            overlap: Optional number of characters to overlap between consecutive chunks.
+                Defaults to 0 if not provided. Can be an integer or a Column.
+            separators: A list of separator strings to use for splitting, or a Column
+                containing an array of separators. The function tries separators in order
+                until it finds one that produces appropriately sized chunks.
+                Defaults to ``["\\n\\n", "\\n", " ", ""]``.
+            output_column: The name of the output column to be appended.
+                If not provided, a column named ``SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT`` is appended.
+
+        Returns:
+            A new DataFrame with an appended output column containing an array of text chunks.
+
+        Examples::
+
+            >>> # Basic text splitting without format
+            >>> df = session.create_dataframe([
+            ...     ["This is a long document. It has multiple sentences.\\n\\nAnd multiple paragraphs."],
+            ... ], schema=["text"])
+            >>> result_df = df.ai.split_text_recursive_character(
+            ...     text_to_split="text",
+            ...     format="none",
+            ...     chunk_size=30,
+            ...     overlap=5,
+            ...     output_column="chunks"
+            ... )
+            >>> result_df.show()
+            -----------------------------------------------------------------------------------------
+            |"TEXT"                                              |"CHUNKS"                          |
+            -----------------------------------------------------------------------------------------
+            |This is a long document. It has multiple senten...  |[                                 |
+            |                                                    |  "This is a long document. It",  |
+            |And multiple paragraphs.                            |  "It has multiple sentences.",   |
+            |                                                    |  "And multiple paragraphs."      |
+            |                                                    |]                                 |
+            -----------------------------------------------------------------------------------------
+            <BLANKLINE>
+
+            >>> # Split markdown formatted text
+            >>> from snowflake.snowpark.functions import col
+            >>> markdown_text = "# Title\\n\\n## Subtitle\\n\\nMore content."
+            >>> df = session.create_dataframe([
+            ...     [markdown_text],
+            ... ], schema=["text"])
+            >>> result_df = df.ai.split_text_recursive_character(
+            ...     text_to_split=col("text"),
+            ...     format="markdown",
+            ...     chunk_size=25,
+            ...     overlap=3,
+            ...     output_column="md_chunks"
+            ... )
+            >>> result_df.show()
+            -------------------------------------
+            |"TEXT"         |"MD_CHUNKS"        |
+            -------------------------------------
+            |# Title        |[                  |
+            |               |  "# Title",       |
+            |## Subtitle    |  "## Subtitle",   |
+            |               |  "More content."  |
+            |More content.  |]                  |
+            -------------------------------------
+            <BLANKLINE>
+
+            >>> # Custom separators with code
+            >>> df = session.create_dataframe([
+            ...     ["def hello():\\n    print('Hello')\\n\\ndef world():\\n    print('World')"],
+            ... ], schema=["code"])
+            >>> result_df = df.ai.split_text_recursive_character(
+            ...     text_to_split="code",
+            ...     format="none",
+            ...     chunk_size=30,
+            ...     separators=["\\n\\n", "\\n", "    ", " ", ""],
+            ...     output_column="code_chunks"
+            ... )
+            >>> result_df.show()
+            --------------------------------------------
+            |"CODE"              |"CODE_CHUNKS"        |
+            --------------------------------------------
+            |def hello():        |[                    |
+            |    print('Hello')  |  "def hello():",    |
+            |                    |  "print('Hello')",  |
+            |def world():        |  "def world():",    |
+            |    print('World')  |  "print('World')"   |
+            |                    |]                    |
+            --------------------------------------------
+            <BLANKLINE>
+
+            >>> # Custom separators
+            >>> df = session.create_dataframe([
+            ...     ["First sentence. Second sentence. Third sentence.", "none", 15, 3],
+            ... ], schema=["text", "fmt", "max_size", "overlap_size"])
+            >>> result_df = df.ai.split_text_recursive_character(
+            ...     text_to_split=col("text"),
+            ...     format=col("fmt"),
+            ...     chunk_size=col("max_size"),
+            ...     overlap=col("overlap_size"),
+            ...     separators=[". ", " ", ""],
+            ...     output_column="split_text"
+            ... )
+            >>> result_df.select("text", "split_text").show()
+            --------------------------------------------------------------------------
+            |"TEXT"                                            |"SPLIT_TEXT"         |
+            --------------------------------------------------------------------------
+            |First sentence. Second sentence. Third sentence.  |[                    |
+            |                                                  |  "First sentence",  |
+            |                                                  |  ". Second",        |
+            |                                                  |  "sentence",        |
+            |                                                  |  ". Third",         |
+            |                                                  |  "sentence."        |
+            |                                                  |]                    |
+            --------------------------------------------------------------------------
+            <BLANKLINE>
+
+        Note:
+            - The function tries separators in the order provided
+            - If no separator produces small enough chunks, it splits by individual characters
+            - Overlap helps maintain context between chunks, useful for embedding and retrieval
+            - Choose separators appropriate for your content type (e.g., paragraphs for prose,
+              functions for code)
+        """
+        method_name = "DataFrame.ai.split_text_recursive_character"
+
+        # Convert input to Column object
+        text_col = _to_col_if_str(text_to_split, method_name)
+        chunk_size_col = _to_col_if_lit(chunk_size, method_name)
+        separators_col = _to_col_if_lit(separators, method_name)
+        overlap_col = _to_col_if_lit(overlap, method_name)
+
+        # Call the function
+        split_func = function(
+            "SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER", _emit_ast=False
+        )
+        result_col = split_func(
+            text_col, format, chunk_size_col, overlap_col, separators_col
+        )
+
+        # Add the output column to the DataFrame
+        output_column_name = output_column or "SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT"
+        df = self._dataframe.with_column(
+            output_column_name, result_col, _emit_ast=False
+        )
+
+        add_api_call(
+            df,
+            method_name,
         )
         return df

@@ -5,6 +5,7 @@
 import json
 import pytest
 from snowflake.snowpark.functions import col, lit, to_file
+from snowflake.snowpark.row import Row
 from tests.utils import TestFiles, Utils
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
@@ -1226,4 +1227,340 @@ def test_dataframe_ai_extract_error_handling(session):
         df.ai.extract(
             input_column=123,  # Invalid type
             response_format={"a": "What is a?"},
+        )
+
+
+def test_dataframe_ai_count_tokens_basic(session):
+    """Test DataFrame.ai.count_tokens with basic usage."""
+    # Create a DataFrame with text data
+    df = session.create_dataframe(
+        [
+            ["What is a large language model?"],
+            ["Explain quantum computing in simple terms."],
+            [
+                "This is a much longer text with many more words to demonstrate token counting accurately."
+            ],
+        ],
+        schema=["text"],
+    )
+
+    # Count tokens using llama3.1-70b model
+    result_df = df.ai.count_tokens(
+        model="llama3.1-70b",
+        prompt="text",
+        output_column="token_count",
+    )
+
+    # Verify results
+    Utils.check_answer(
+        result_df.select("token_count"),
+        [Row(TOKEN_COUNT=8), Row(TOKEN_COUNT=9), Row(TOKEN_COUNT=17)],
+    )
+
+
+def test_dataframe_ai_count_tokens_default_output_column(session):
+    """Test DataFrame.ai.count_tokens with default output column name."""
+    df = session.create_dataframe([["Sample text for counting"]], schema=["text"])
+
+    # Don't specify output_column, should use default
+    result_df = df.ai.count_tokens(
+        model="llama3.1-8b",
+        prompt="text",
+    )
+
+    results = result_df.collect(_emit_ast=False)
+    assert len(results) == 1
+    assert results[0]["COUNT_TOKENS_OUTPUT"] == 5
+
+
+def test_dataframe_ai_count_tokens_error_handling(session):
+    """Test error handling in DataFrame.ai.count_tokens."""
+    df = session.create_dataframe([["test"]], schema=["text"])
+
+    # Test invalid prompt type
+    with pytest.raises(TypeError, match="expected Column or str"):
+        df.ai.count_tokens(
+            model="llama3.1-70b",
+            prompt=123,  # Invalid type
+        )
+
+
+def test_dataframe_ai_split_text_markdown_header_basic(session):
+    """Test DataFrame.ai.split_text_markdown_header with basic usage."""
+    # Create a DataFrame with Markdown text
+    markdown_text = """# Introduction
+This is the introduction section with some general information about the topic.
+
+## Background
+Here we provide background context about the topic. This section contains important details.
+
+### Details
+Some detailed information goes here with specific examples.
+
+## Methods
+Description of methods used in the analysis.
+
+# Conclusion
+Final thoughts and summary of the findings."""
+
+    df = session.create_dataframe(
+        [[markdown_text]],
+        schema=["document"],
+    )
+
+    # Split the markdown document
+    result_df = df.ai.split_text_markdown_header(
+        text_to_split="document",
+        headers_to_split_on={"#": "h1", "##": "h2", "###": "h3"},
+        chunk_size=50,
+        overlap=10,
+        output_column="chunks",
+    )
+
+    # Verify results
+    results = result_df.select("chunks").collect(_emit_ast=False)
+    chunks = json.loads(results[0][0])
+    assert chunks == [
+        {
+            "chunk": "This is the introduction section with some general",
+            "headers": {"h1": "Introduction"},
+        },
+        {
+            "chunk": "general information about the topic.",
+            "headers": {"h1": "Introduction"},
+        },
+        {
+            "chunk": "Here we provide background context about the",
+            "headers": {"h1": "Introduction", "h2": "Background"},
+        },
+        {
+            "chunk": "about the topic. This section contains important",
+            "headers": {"h1": "Introduction", "h2": "Background"},
+        },
+        {
+            "chunk": "important details.",
+            "headers": {"h1": "Introduction", "h2": "Background"},
+        },
+        {
+            "chunk": "Some detailed information goes here with specific",
+            "headers": {"h1": "Introduction", "h2": "Background", "h3": "Details"},
+        },
+        {
+            "chunk": "specific examples.",
+            "headers": {"h1": "Introduction", "h2": "Background", "h3": "Details"},
+        },
+        {
+            "chunk": "Description of methods used in the analysis.",
+            "headers": {"h1": "Introduction", "h2": "Methods"},
+        },
+        {
+            "chunk": "Final thoughts and summary of the findings.",
+            "headers": {"h1": "Conclusion"},
+        },
+    ]
+
+
+def test_dataframe_ai_split_text_markdown_header_default_output(session):
+    """Test DataFrame.ai.split_text_markdown_header with default output column."""
+    df = session.create_dataframe(
+        [["# Header\nContent"]],
+        schema=["doc"],
+    )
+
+    # Don't specify output_column, should use default
+    result_df = df.ai.split_text_markdown_header(
+        text_to_split="doc",
+        headers_to_split_on={"#": "h1"},
+        chunk_size=20,
+    )
+
+    results = result_df.select("SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT").collect(
+        _emit_ast=False
+    )
+    chunks = json.loads(results[0][0])
+    assert chunks == [{"chunk": "Content", "headers": {"h1": "Header"}}]
+
+
+def test_dataframe_ai_split_text_markdown_header_error_handling(session):
+    """Test error handling in DataFrame.ai.split_text_markdown_header."""
+    df = session.create_dataframe([["test"]], schema=["text"])
+
+    # Test invalid text_to_split type
+    with pytest.raises(TypeError, match="expected Column or str"):
+        df.ai.split_text_markdown_header(
+            text_to_split=123,  # Invalid type
+            headers_to_split_on={"#": "h1"},
+            chunk_size=20,
+        )
+
+
+def test_dataframe_ai_split_text_recursive_character_basic(session):
+    """Test DataFrame.ai.split_text_recursive_character with basic usage."""
+    long_text = """This is a long document with multiple sentences. It contains various information
+that needs to be split into smaller chunks for processing.
+
+Another paragraph here with more content. The recursive splitter will try different
+separators to create appropriately sized chunks.
+
+Final paragraph with concluding remarks."""
+
+    df = session.create_dataframe(
+        [[long_text]],
+        schema=["text"],
+    )
+
+    # Split the text recursively
+    result_df = df.ai.split_text_recursive_character(
+        text_to_split="text",
+        format="none",
+        chunk_size=50,
+        overlap=10,
+        output_column="chunks",
+    )
+
+    # Verify results
+    results = result_df.select("chunks").collect(_emit_ast=False)
+    chunks = json.loads(results[0][0])
+    assert chunks == [
+        "This is a long document with multiple sentences.",
+        "It contains various information",
+        "that needs to be split into smaller chunks for",
+        "for processing.",
+        "Another paragraph here with more content. The",
+        "The recursive splitter will try different",
+        "separators to create appropriately sized chunks.",
+        "Final paragraph with concluding remarks.",
+    ]
+
+
+def test_dataframe_ai_split_text_recursive_character_markdown_format(session):
+    """Test DataFrame.ai.split_text_recursive_character with markdown format."""
+    markdown_text = """# Main Title
+
+This is the introduction paragraph with some text.
+
+## Section 1
+
+Content for section 1 goes here.
+
+```python
+def hello():
+    print("Hello, World!")
+```
+
+## Section 2
+
+More content in section 2.
+
+| Column 1 | Column 2 |
+|----------|----------|
+| Data 1   | Data 2   |"""
+
+    df = session.create_dataframe(
+        [[markdown_text]],
+        schema=["content"],
+    )
+
+    # Split with markdown format
+    result_df = df.ai.split_text_recursive_character(
+        text_to_split=col("content"),
+        format="markdown",
+        chunk_size=40,
+        overlap=5,
+        output_column="md_chunks",
+    )
+
+    # Verify results
+    results = result_df.select("md_chunks").collect(_emit_ast=False)
+    chunks = json.loads(results[0][0])
+    assert chunks == [
+        "# Main Title",
+        "This is the introduction paragraph with",
+        "with some text.",
+        "## Section 1",
+        "Content for section 1 goes here.",
+        "```python\ndef hello():",
+        'print("Hello, World!")',
+        "```",
+        "## Section 2",
+        "More content in section 2.",
+        "| Column 1 | Column 2 |",
+        "|----------|----------|",
+        "| Data 1   | Data 2   |",
+    ]
+
+
+def test_dataframe_ai_split_text_recursive_character_custom_separators(session):
+    """Test DataFrame.ai.split_text_recursive_character with custom separators."""
+    code_text = """def function_one():
+    # First function
+    return 1
+
+def function_two():
+    # Second function
+    return 2
+
+def function_three():
+    # Third function
+    return 3"""
+
+    df = session.create_dataframe(
+        [[code_text]],
+        schema=["code"],
+    )
+
+    # Split with custom separators for code
+    result_df = df.ai.split_text_recursive_character(
+        text_to_split="code",
+        format="none",
+        chunk_size=35,
+        separators=["\n\n", "\n", "    ", " ", ""],
+        output_column="code_chunks",
+    )
+
+    # Verify results
+    results = result_df.select("code_chunks").collect(_emit_ast=False)
+    chunks = json.loads(results[0][0])
+    assert chunks == [
+        "def function_one():",
+        "# First function\n    return 1",
+        "def function_two():",
+        "# Second function\n    return 2",
+        "def function_three():",
+        "# Third function\n    return 3",
+    ]
+
+
+def test_dataframe_ai_split_text_recursive_character_default_output(session):
+    """Test DataFrame.ai.split_text_recursive_character with default output column."""
+    df = session.create_dataframe(
+        [["Short text to split"]],
+        schema=["text"],
+    )
+
+    # Don't specify output_column, should use default
+    result_df = df.ai.split_text_recursive_character(
+        text_to_split="text",
+        format="none",
+        chunk_size=10,
+    )
+
+    # Verify results
+    results = result_df.select("SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT").collect(
+        _emit_ast=False
+    )
+    chunks = json.loads(results[0][0])
+    assert chunks == ["Short text", "to split"]
+
+
+def test_dataframe_ai_split_text_recursive_character_error_handling(session):
+    """Test error handling in DataFrame.ai.split_text_recursive_character."""
+    df = session.create_dataframe([["test"]], schema=["text"])
+
+    # Test invalid text_to_split type
+    with pytest.raises(TypeError, match="expected Column or str"):
+        df.ai.split_text_recursive_character(
+            text_to_split=123,  # Invalid type
+            format="none",
+            chunk_size=10,
         )
