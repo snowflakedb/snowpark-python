@@ -257,8 +257,8 @@ def test_udtf_ingestion_mysql(session, caplog):
 
     # check that udtf is used
     assert (
-        "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
-        and "table(data_source_udtf" in caplog.text
+        "TEMPORARY  FUNCTION  SNOWPARK_TEMP_FUNCTION" "" in caplog.text
+        and "table(SNOWPARK_TEMP_FUNCTION" in caplog.text
     )
 
 
@@ -287,3 +287,12 @@ def test_pymysql_driver_udtf_class_builder():
     # Verify we got data with the right structure (2 columns)
     assert len(column_result_rows) > 0
     assert len(column_result_rows[0]) == 2  # Two columns
+
+
+def test_server_side_cursor():
+    conn = create_connection_mysql()
+    driver = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB)
+    cursor = driver.get_server_cursor_if_supported(conn)
+    assert isinstance(cursor, pymysql.cursors.SSCursor)
+    cursor.close()
+    conn.close()
