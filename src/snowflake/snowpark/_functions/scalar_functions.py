@@ -130,7 +130,13 @@ def current_transaction(_emit_ast: bool = True) -> Column:
 @publicapi
 def getdate(_emit_ast: bool = True) -> Column:
     """
-    Returns the current date and time for the system.
+    Returns the current timestamp for the system in the local time zone.
+
+    Args:
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        A :class:`~snowflake.snowpark.Column` with the current date and time.
 
     Example::
 
@@ -144,7 +150,14 @@ def getdate(_emit_ast: bool = True) -> Column:
 
 @publicapi
 def localtime(_emit_ast: bool = True) -> Column:
-    """Returns the current local time for the system.
+    """
+    Returns the current time for the system.
+
+    Args:
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        A :class:`~snowflake.snowpark.Column` with the current local time.
 
     Example::
 
@@ -160,6 +173,12 @@ def systimestamp(_emit_ast: bool = True) -> Column:
     """
     Returns the current timestamp for the system.
 
+    Args:
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        A :class:`~snowflake.snowpark.Column` with the current system timestamp.
+
     Example::
 
         >>> df = session.create_dataframe([1], schema=["a"])
@@ -172,7 +191,14 @@ def systimestamp(_emit_ast: bool = True) -> Column:
 
 @publicapi
 def invoker_role(_emit_ast: bool = True) -> Column:
-    """Returns the name of the role that was active when the current stored procedure or user-defined function was called.
+    """
+    Returns the name of the role that was active when the current stored procedure or user-defined function was called.
+
+    Args:
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        Column: A Snowflake `Column` object representing the name of the active role.
 
     Example::
 
@@ -186,7 +212,7 @@ def invoker_role(_emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def invoker_share(_emit_ast=True):
+def invoker_share(_emit_ast: bool = True) -> Column:
     """
     Returns the name of the share that directly accessed the table or view where the INVOKER_SHARE
     function is invoked, otherwise the function returns None.
@@ -207,8 +233,15 @@ def invoker_share(_emit_ast=True):
 
 
 @publicapi
-def is_application_role_in_session(role_name: str, _emit_ast=True):
-    """Verifies whether the application role is activated in the consumer’s current session.
+def is_application_role_in_session(role_name: str, _emit_ast: bool = True) -> Column:
+    """
+    Verifies whether the application role is activated in the consumer’s current session.
+
+    Args:
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        A :class:`~snowflake.snowpark.Column` indicating whether the specified application role is active in the current session.
 
     Example::
 
@@ -220,9 +253,11 @@ def is_application_role_in_session(role_name: str, _emit_ast=True):
     return builtin("is_application_role_in_session", _emit_ast=_emit_ast)(role_name)
 
 
-def is_database_role_in_session(role_name: ColumnOrName, _emit_ast=True):
+def is_database_role_in_session(
+    role_name: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """
-    Returns TRUE if the specified database role is granted to the current user and is currently in use; otherwise, returns FALSE.
+    Returns True if the specified database role is granted to the current user and is currently in use; otherwise, returns False.
 
     Args:
         role_name (ColumnOrName): The name of the database role to check. Can be a string or a Column.
@@ -247,7 +282,7 @@ def is_granted_to_invoker_role(
     role_name: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
     """
-    Returns TRUE if the role returned by the INVOKER_ROLE function inherits the privileges of the specified
+    Returns True if the role returned by the INVOKER_ROLE function inherits the privileges of the specified
     role in the argument based on the context in which the function is called.
 
     Args:
@@ -271,7 +306,7 @@ def is_granted_to_invoker_role(
 @publicapi
 def is_role_in_session(role: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns TRUE if the specified role is granted to the current user and is currently in use; otherwise, returns FALSE.
+    Returns True if the specified role is granted to the current user and is currently in use; otherwise, returns False.
 
     Args:
         role (ColumnOrName): A Column or column name containing the role name to check.
