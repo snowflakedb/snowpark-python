@@ -280,6 +280,7 @@ def bitxor(
         >>> expected = b'\x01\x01'
         >>> actual = result[0]["RESULT"]
         >>> assert  isinstance(actual, bytearray)
+        >>> assert actual == expected
     """
     c1 = _to_col_if_str(expr1, "bitxor")
     c2 = _to_col_if_str(expr2, "bitxor")
