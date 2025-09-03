@@ -10915,7 +10915,7 @@ def make_interval(
 
 @private_preview(
     version="1.38.0",
-    extra_doc_string="The interval_year_month_from_parts function creates a column of type YearMonthIntervalType. This type is currently in PrPr and needs to be enabled by setting this parameter to `enabled` feature_interval_types.",
+    extra_doc_string="The interval_year_month_from_parts function creates a column of type YearMonthIntervalType. This type is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `enabled`.",
 )
 @publicapi
 def interval_year_month_from_parts(
