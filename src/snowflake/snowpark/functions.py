@@ -11043,7 +11043,7 @@ def interval_year_month_from_parts(
 
 
 @publicapi
-def make_dt_interval(
+def interval_day_time_from_parts(
     days: Optional[ColumnOrName] = None,
     hours: Optional[ColumnOrName] = None,
     mins: Optional[ColumnOrName] = None,
@@ -11067,10 +11067,10 @@ def make_dt_interval(
 
     Example::
 
-        >>> from snowflake.snowpark.functions import make_dt_interval
+        >>> from snowflake.snowpark.functions import interval_day_time_from_parts
         >>>
         >>> df = session.create_dataframe([[1, 12, 30, 01.001001]], ['day', 'hour', 'min', 'sec'])
-        >>> df.select(make_dt_interval(col("day"), col("hour"), col("min"), col("sec")).alias("interval")).show()
+        >>> df.select(interval_day_time_from_parts(col("day"), col("hour"), col("min"), col("sec")).alias("interval")).show()
         ------------------
         |"INTERVAL"      |
         ------------------
@@ -11079,10 +11079,20 @@ def make_dt_interval(
         <BLANKLINE>
 
     """
-    days_col = lit(0) if days is None else _to_col_if_str(days, "make_dt_interval")
-    hours_col = lit(0) if hours is None else _to_col_if_str(hours, "make_dt_interval")
-    mins_col = lit(0) if mins is None else _to_col_if_str(mins, "make_dt_interval")
-    secs_col = lit(0) if secs is None else _to_col_if_str(secs, "make_dt_interval")
+    days_col = (
+        lit(0) if days is None else _to_col_if_str(days, "interval_day_time_from_parts")
+    )
+    hours_col = (
+        lit(0)
+        if hours is None
+        else _to_col_if_str(hours, "interval_day_time_from_parts")
+    )
+    mins_col = (
+        lit(0) if mins is None else _to_col_if_str(mins, "interval_day_time_from_parts")
+    )
+    secs_col = (
+        lit(0) if secs is None else _to_col_if_str(secs, "interval_day_time_from_parts")
+    )
 
     total_seconds = (
         days_col * lit(86400) + hours_col * lit(3600) + mins_col * lit(60) + secs_col
@@ -11151,7 +11161,7 @@ def make_dt_interval(
         else:
             return str(col._expr1)
 
-    alias_name = f"make_dt_interval({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
+    alias_name = f"interval_day_time_from_parts({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
 
     return cast(interval_value, "INTERVAL DAY TO SECOND").alias(alias_name)
 
