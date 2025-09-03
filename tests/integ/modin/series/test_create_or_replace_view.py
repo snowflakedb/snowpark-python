@@ -34,7 +34,7 @@ def test_create_or_replace_view_basic(session, native_pandas_ser_basic) -> None:
         Utils.drop_view(session, view_name)
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=6)
 def test_create_or_replace_view_multiple_sessions_enforce_ordering_raises(
     session,
     db_parameters,
@@ -76,7 +76,7 @@ def test_create_or_replace_view_multiple_sessions_enforce_ordering_raises(
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_create_or_replace_view_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
@@ -118,7 +118,7 @@ def test_create_or_replace_view_multiple_sessions_no_enforce_ordering(
 
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=4)
 def test_create_or_replace_view_index(session, index, index_labels):
     try:
         # create table
@@ -158,7 +158,7 @@ def test_create_or_replace_view_index(session, index, index_labels):
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=4)
 def test_create_or_replace_view_multiindex(session):
     try:
         # create table

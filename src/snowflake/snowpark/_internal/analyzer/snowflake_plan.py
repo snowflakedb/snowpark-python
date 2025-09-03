@@ -113,6 +113,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SelectFromFileNode,
     SelectWithCopyIntoTableNode,
+    SnowflakeTable,
     TableCreationSource,
     WithQueryBlock,
 )
@@ -1052,7 +1053,11 @@ class SnowflakePlanBuilder:
         return new_plan
 
     def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
-        return self.query(project_statement([], table_name), source_plan)
+        table_reference = table_name
+        if isinstance(source_plan, SnowflakeTable) and source_plan.time_travel_config:
+            table_reference += source_plan.time_travel_config.generate_sql_clause()
+
+        return self.query(project_statement([], table_reference), source_plan)
 
     def file_operation_plan(
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
@@ -2152,6 +2157,10 @@ class SnowflakePlanBuilder:
         file_format_type: Optional[str] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
         header: bool = False,
+        validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         **copy_options: Optional[Any],
     ) -> SnowflakePlan:
         return self.build(
@@ -2163,6 +2172,10 @@ class SnowflakePlanBuilder:
                 file_format_type=file_format_type,
                 format_type_options=format_type_options,
                 header=header,
+                validation_mode=validation_mode,
+                storage_integration=storage_integration,
+                credentials=credentials,
+                encryption=encryption,
                 **copy_options,
             ),
             query,

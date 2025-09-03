@@ -33,6 +33,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderingColumn,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
+    count_rows,
     unquote_name_if_quoted,
     create_initial_ordered_dataframe,
 )
@@ -1133,6 +1134,12 @@ def test_ordered_dataframe_row_count(session, columns):
         ordered_df2,
         row_position_quoted_identifier,
     ) = create_initial_ordered_dataframe(test_table_name, enforce_ordering=True)
+
+    # Manualy initialize row_count and row_count_upper_bound
+    ordered_df1.row_count = count_rows(ordered_df1)
+    ordered_df1.row_count_upper_bound = count_rows(ordered_df1)
+    ordered_df2.row_count = count_rows(ordered_df2)
+    ordered_df2.row_count_upper_bound = count_rows(ordered_df2)
 
     # Ensure that the row_count and row_count_upper_bound are being set correctly
     assert ordered_df1.row_count == 10

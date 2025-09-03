@@ -76,7 +76,7 @@ class RowCountEstimator:
         elif operation == DataFrameOperation.UNION_ALL:
             other: OrderedDataFrame = args["other"]
             other_bound = other.row_count_upper_bound or other.row_count
-            if other_bound is None:
+            if other_bound is None or current is None:
                 # Cannot estimate row count: other DataFrame has no row count information
                 return None
             return current + other_bound

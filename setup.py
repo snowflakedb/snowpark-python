@@ -26,7 +26,7 @@ INSTALL_REQ_LIST = [
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
-    "cloudpickle>=1.6.0,<=3.0.0,!=2.1.0,!=2.2.0",
+    "cloudpickle>=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6.32",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
@@ -182,6 +182,7 @@ setup(
     # When a new package (directory) is added, we should also add it here
     packages=[
         "snowflake.snowpark",
+        "snowflake.snowpark._functions",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark._internal.ast",

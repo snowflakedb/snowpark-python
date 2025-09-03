@@ -14,7 +14,7 @@ from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=5)
 def test_create_or_replace_dynamic_table_enforce_ordering_raises(session) -> None:
     try:
         # create table
@@ -48,7 +48,7 @@ def test_create_or_replace_dynamic_table_enforce_ordering_raises(session) -> Non
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=5)
 def test_create_or_replace_dynamic_table_no_enforce_ordering(session) -> None:
     try:
         # create table
@@ -84,7 +84,7 @@ def test_create_or_replace_dynamic_table_no_enforce_ordering(session) -> None:
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_create_or_replace_dynamic_table_multiple_sessions_no_enforce_ordering(
     session,
     db_parameters,
@@ -131,7 +131,7 @@ def test_create_or_replace_dynamic_table_multiple_sessions_no_enforce_ordering(
 
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("index_labels", [None, ["my_index"]])
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=4)
 def test_create_or_replace_dynamic_table_index(session, index, index_labels):
     try:
         # create table
@@ -177,7 +177,7 @@ def test_create_or_replace_dynamic_table_index(session, index, index_labels):
         Utils.drop_table(session, table_name)
 
 
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=4)
 def test_create_or_replace_dynamic_table_multiindex(session):
     try:
         # create table

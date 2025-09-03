@@ -505,15 +505,20 @@ def create_initial_ordered_dataframe(
         row_position_snowflake_quoted_identifier = (
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
-    # Set the materialized row count
-    materialized_row_count = (
-        initial_ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
-            statement_params=get_default_snowpark_pandas_statement_params(),
-            _emit_ast=False,
+
+    from modin.config import AutoSwitchBackend
+
+    if AutoSwitchBackend.get():
+        # Set the materialized row count
+        materialized_row_count = (
+            initial_ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
+                statement_params=get_default_snowpark_pandas_statement_params(),
+                _emit_ast=False,
+            )
         )
-    )
-    ordered_dataframe.row_count = materialized_row_count
-    ordered_dataframe.row_count_upper_bound = materialized_row_count
+        ordered_dataframe.row_count = materialized_row_count
+        ordered_dataframe.row_count_upper_bound = materialized_row_count
+
     return ordered_dataframe, row_position_snowflake_quoted_identifier
 
 

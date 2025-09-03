@@ -4,6 +4,7 @@
 import json
 import multiprocessing as mp
 import os
+import re
 import sys
 import time
 import queue
@@ -12,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
 import threading
+from datetime import datetime
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -31,6 +33,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_table_name,
     with_src_position,
 )
+from snowflake.snowpark._internal.data_source import JDBC
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
     DataSourcePartitioner,
 )
@@ -86,6 +89,7 @@ from snowflake.snowpark.mock._connection import MockServerConnection
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.types import (
     StructType,
+    TimestampTimeZone,
     VariantType,
     StructField,
 )
@@ -101,6 +105,16 @@ else:
 logger = getLogger(__name__)
 
 LOCAL_TESTING_SUPPORTED_FILE_FORMAT = ("JSON",)
+
+_TIME_TRAVEL_OPTIONS_PARAMS_MAP = {
+    "TIME_TRAVEL_MODE": "time_travel_mode",
+    "STATEMENT": "statement",
+    "OFFSET": "offset",
+    "TIMESTAMP": "timestamp",
+    "TIMESTAMP_TYPE": "timestamp_type",
+    "STREAM": "stream",
+}
+
 READER_OPTIONS_ALIAS_MAP = {
     "DELIMITER": "FIELD_DELIMITER",
     "HEADER": "PARSE_HEADER",
@@ -125,6 +139,42 @@ def _validate_stage_path(path: str) -> str:
             f"'{path}' is an invalid Snowflake stage location. DataFrameReader can only read files from stage locations."
         )
     return path
+
+
+def _extract_time_travel_from_options(options: dict) -> dict:
+    """
+    Extract time travel options from DataFrameReader options.
+
+    Special handling for 'AS-OF-TIMESTAMP' (PySpark compatibility):
+    - Automatically sets time_travel_mode to 'at'
+    - Cannot be used with time_travel_mode='before' (raises error)
+    - Cannot be mixed with regular 'timestamp' option (raises error)
+    """
+    result = {}
+    excluded_keys = set()
+
+    # Handle PySpark as-of-timestamp special case
+    if "AS-OF-TIMESTAMP" in options:
+        if (
+            "TIME_TRAVEL_MODE" in options
+            and options["TIME_TRAVEL_MODE"].lower() == "before"
+        ):
+            raise ValueError(
+                "Cannot use 'as-of-timestamp' option with time_travel_mode='before'"
+            )
+        if "TIMESTAMP" in options:
+            raise ValueError(
+                "Cannot use both 'as-of-timestamp' and 'timestamp' options."
+            )
+        result["time_travel_mode"] = "at"
+        result["timestamp"] = options["AS-OF-TIMESTAMP"]
+        excluded_keys.add("TIMESTAMP")
+
+    for option_key, param_name in _TIME_TRAVEL_OPTIONS_PARAMS_MAP.items():
+        if option_key in options and option_key not in excluded_keys:
+            result[param_name] = options[option_key]
+
+    return result
 
 
 class DataFrameReader:
@@ -425,6 +475,7 @@ class DataFrameReader:
         ] = None
         self._infer_schema_target_columns: Optional[List[str]] = None
         self.__format: Optional[str] = None
+        self._data_source_format = ["jdbc", "dbapi"]
 
         self._ast = None
         if _emit_ast:
@@ -473,13 +524,72 @@ class DataFrameReader:
         return metadata_project, metadata_schema
 
     @publicapi
-    def table(self, name: Union[str, Iterable[str]], _emit_ast: bool = True) -> Table:
+    def table(
+        self,
+        name: Union[str, Iterable[str]],
+        _emit_ast: bool = True,
+        *,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime]] = None,
+        timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
+        stream: Optional[str] = None,
+    ) -> Table:
         """Returns a Table that points to the specified table.
 
-        This method is an alias of :meth:`~snowflake.snowpark.session.Session.table`.
+        This method is an alias of :meth:`~snowflake.snowpark.session.Session.table` with
+        additional support for setting time travel options via the :meth:`option` method.
 
         Args:
             name: Name of the table to use.
+            time_travel_mode: Time travel mode, either 'at' or 'before'. Can also be set via
+                ``option("time_travel_mode", "at")``.
+            statement: Query ID for time travel. Can also be set via ``option("statement", "query_id")``.
+            offset: Negative integer representing seconds in the past for time travel.
+                Can also be set via ``option("offset", -60)``.
+            timestamp: Timestamp string or datetime object for time travel.
+                Can also be set via ``option("timestamp", "2023-01-01 12:00:00")`` or
+                ``option("as-of-timestamp", "2023-01-01 12:00:00")``.
+            timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+                Can also be set via ``option("timestamp_type", "LTZ")``.
+            stream: Stream name for time travel. Can also be set via ``option("stream", "stream_name")``.
+
+        Note:
+            Time travel options can be set either as direct parameters or via the
+            :meth:`option` method, but NOT both. If any direct time travel parameter
+            is provided, all time travel options will be ignored to avoid conflicts.
+
+            PySpark Compatibility: The ``as-of-timestamp`` option automatically sets
+            ``time_travel_mode="at"`` and cannot be used with ``time_travel_mode="before"``.
+
+        Examples::
+
+            # Using direct parameters
+            >>> table = session.read.table("my_table", time_travel_mode="at", offset=-3600)  # doctest: +SKIP
+
+            # Using options (recommended for chaining)
+            >>> table = (session.read  # doctest: +SKIP
+            ...     .option("time_travel_mode", "at")
+            ...     .option("offset", -3600)
+            ...     .table("my_table"))
+
+            # PySpark-style as-of-timestamp (automatically sets mode to "at")
+            >>> table = session.read.option("as-of-timestamp", "2023-01-01 12:00:00").table("my_table")  # doctest: +SKIP
+
+            # timestamp_type automatically set to "TZ" due to timezone info
+            >>> import datetime, pytz  # doctest: +SKIP
+            >>> tz_aware = datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=pytz.UTC)  # doctest: +SKIP
+            >>> table1 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware)  # doctest: +SKIP
+
+            # timestamp_type remains "NTZ" (user's explicit choice respected)
+            >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
+
+            # Mixing options and parameters (direct parameters completely override options)
+            >>> table = (session.read  # doctest: +SKIP
+            ...     .option("time_travel_mode", "before")  # This will be IGNORED
+            ...     .option("offset", -60)                 # This will be IGNORED
+            ...     .table("my_table", time_travel_mode="at", offset=-3600))  # Only this is used
         """
 
         # AST.
@@ -489,8 +599,33 @@ class DataFrameReader:
             ast = with_src_position(stmt.expr.read_table, stmt)
             ast.reader.CopyFrom(self._ast)
             build_table_name(ast.name, name)
+            if time_travel_mode is not None:
+                ast.time_travel_mode.value = time_travel_mode
+            if statement is not None:
+                ast.statement.value = statement
+            if offset is not None:
+                ast.offset.value = offset
+            if timestamp is not None:
+                build_expr_from_python_val(ast.timestamp, timestamp)
+            if timestamp_type is not None:
+                ast.timestamp_type.value = str(timestamp_type)
+            if stream is not None:
+                ast.stream.value = stream
 
-        table = self._session.table(name, _emit_ast=False)
+        if time_travel_mode is not None:
+            time_travel_params = {
+                "time_travel_mode": time_travel_mode,
+                "statement": statement,
+                "offset": offset,
+                "timestamp": timestamp,
+                "timestamp_type": timestamp_type,
+                "stream": stream,
+            }
+        else:
+            # if time_travel_mode is not provided, extract time travel config from options
+            time_travel_params = _extract_time_travel_from_options(self._cur_options)
+
+        table = self._session.table(name, _emit_ast=False, **time_travel_params)
 
         if _emit_ast and stmt is not None:
             table._ast_id = stmt.uid
@@ -557,7 +692,15 @@ class DataFrameReader:
     @_format.setter
     def _format(self, value: str) -> None:
         canon_format = value.strip().lower()
-        allowed_formats = ["csv", "json", "avro", "parquet", "orc", "xml", "dbapi"]
+        allowed_formats = [
+            "csv",
+            "json",
+            "avro",
+            "parquet",
+            "orc",
+            "xml",
+        ]
+        allowed_formats.extend(self._data_source_format)
         if canon_format not in allowed_formats:
             raise ValueError(
                 f"Invalid format '{value}'. Supported formats are {allowed_formats}."
@@ -567,13 +710,16 @@ class DataFrameReader:
     @publicapi
     def format(
         self,
-        format: Literal["csv", "json", "avro", "parquet", "orc", "xml"],
+        format: Literal[
+            "csv", "json", "avro", "parquet", "orc", "xml", "dbapi", "jdbc"
+        ],
         _emit_ast: bool = True,
     ) -> "DataFrameReader":
         """Specify the format of the file(s) to load.
 
         Args:
             format: The format of the file(s) to load. Supported formats are csv, json, avro, parquet, orc, and xml.
+                Snowpark data source type is also supported, currently support dbapi and jdbc.
 
         Returns:
             a :class:`DataFrameReader` instance that is set up to load data from the specified file format in a Snowflake stage.
@@ -601,16 +747,18 @@ class DataFrameReader:
             )
 
         format_str = self._format.lower()
-        if format_str == "dbapi" and path is not None:
+        if format_str in self._data_source_format and path is not None:
             raise ValueError(
-                "The 'path' parameter is not supported for the dbapi format. Please omit this parameter when calling."
+                f"The 'path' parameter is not supported for the {format_str} format. Please omit this parameter when calling."
             )
-        if format_str != "dbapi" and path is None:
+        if format_str not in self._data_source_format and path is None:
             raise TypeError(
                 "DataFrameReader.load() missing 1 required positional argument: 'path'"
             )
         if format_str == "dbapi":
             return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
+        if format_str == "jdbc":
+            return self.jdbc(**{k.lower(): v for k, v in self._cur_options.items()})
 
         loader = getattr(self, self._format, None)
         if loader is not None:
@@ -925,14 +1073,26 @@ class DataFrameReader:
         """Sets the specified option in the DataFrameReader.
 
         Use this method to configure any
-        `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_
-        and
-        `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
+        `format-specific options <https://docs.snowflake.com/en/sql-reference/sql/create-file-format.html#format-type-options-formattypeoptions>`_,
+        `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_,
+        and `time travel options <https://docs.snowflake.com/en/sql-reference/constructs/at-before>`_.
         (Note that although specifying copy options can make error handling more robust during the
         reading process, it may have an effect on performance.)
 
+        Time travel options can be used with ``table()`` method:
+            - ``time_travel_mode``: Either "at" or "before"
+            - ``statement``: Query ID for statement-based time travel
+            - ``offset``: Seconds to go back in time (negative integer)
+            - ``timestamp``: Specific timestamp for time travel
+            - ``timestamp_type``: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+            - ``stream``: Stream name for time travel.
+
+        Special PySpark compatibility option:
+            - ``as-of-timestamp``: Automatically sets ``time_travel_mode`` to "at" and uses the
+              provided timestamp. Cannot be used with ``time_travel_mode="before"``.
+
         Args:
-            key: Name of the option (e.g. ``compression``, ``skip_header``, etc.).
+            key: Name of the option (e.g. ``compression``, ``skip_header``, ``time_travel_mode``, etc.).
             value: Value of the option.
         """
 
@@ -940,7 +1100,9 @@ class DataFrameReader:
         if _emit_ast and self._ast is not None:
             t = self._ast.dataframe_reader.options.add()
             t._1 = key
-            build_expr_from_python_val(t._2, value)
+            build_expr_from_python_val(
+                t._2, str(value) if isinstance(value, TimestampTimeZone) else value
+            )
 
         aliased_key = get_aliased_option_name(key, READER_OPTIONS_ALIAS_MAP)
         self._cur_options[aliased_key] = value
@@ -1014,20 +1176,55 @@ class DataFrameReader:
             )["data"]
 
             if len(matches):
-                should_fallback = True
-                files = []
-                # Construct a list of file prefixes not including the stage
-                for match in matches:
-                    # Try to remove any protocol
-                    (pre, _, post) = match[0].partition("://")
-                    match = post if post else pre
-                    files.append(match.partition("/")[2])
+                try:
+                    # Use fully qualified stage name to describe if available
+                    stage, _ = get_stage_parts(path)
+                    fully_qualified_stage, _ = get_stage_parts(
+                        path, return_full_stage_name=True
+                    )
 
-                infer_schema_options["FILES"] = files
+                    stage_description = self._session._conn.run_query(
+                        f"describe stage {fully_qualified_stage}"
+                    )["data"]
 
-                # Reconstruct path using just stage and any qualifiers
-                stage, _ = get_stage_parts(path)
-                infer_path = path.partition(stage)[0] + stage
+                    stage_locations_json = [
+                        x for x in stage_description if x[0] == "STAGE_LOCATION"
+                    ][0][3]
+
+                    # If stage locations is available then the stage is external
+                    # and stage prefixes will include CSP specific prefix information.
+                    stage_locations = (
+                        json.loads(stage_locations_json)
+                        if stage_locations_json
+                        else [stage]
+                    )
+
+                    # Compile prefixes are case insensitive regexes because
+                    # casing is not consistent in bucket describe query.
+                    regexes = [
+                        re.compile(f"^{re.escape(location)}", re.IGNORECASE)
+                        for location in stage_locations
+                    ]
+
+                    files = []
+                    # Construct a list of file prefixes not including the stage
+                    for match in matches:
+                        prefix = match[0]
+                        for regex in regexes:
+                            prefix = regex.sub("", prefix)
+                        files.append(prefix)
+                    infer_schema_options["FILES"] = files
+
+                    # Reconstruct path using just stage and any qualifiers
+                    infer_path = (
+                        path.partition(fully_qualified_stage)[0] + fully_qualified_stage
+                    )
+                    should_fallback = True
+                except Exception as e:
+                    warning(
+                        "infer_schema_pattern_matching",
+                        f"Failed to infer schema for provided pattern {pattern} with error:\n{e}",
+                    )
 
         infer_schema_query = infer_schema_statement(
             infer_path, file_format_name, infer_schema_options or None
@@ -1295,6 +1492,180 @@ class DataFrameReader:
         else:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
+
+    @private_preview(version="1.38.0")
+    @publicapi
+    def jdbc(
+        self,
+        url: str,
+        udtf_configs: dict,
+        *,
+        properties: Optional[dict] = None,
+        table: Optional[str] = None,
+        query: Optional[str] = None,
+        column: Optional[str] = None,
+        lower_bound: Optional[Union[str, int]] = None,
+        upper_bound: Optional[Union[str, int]] = None,
+        num_partitions: Optional[int] = None,
+        query_timeout: Optional[int] = 0,
+        fetch_size: Optional[int] = 0,
+        custom_schema: Optional[Union[str, StructType]] = None,
+        predicates: Optional[List[str]] = None,
+        session_init_statement: Optional[List[str]] = None,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+        """
+        Reads data from a database table or query into a DataFrame using a JDBC connection string,
+        with support for optional partitioning, parallel processing, and query customization.
+
+        There are multiple methods to partition data and accelerate ingestion.
+        These methods can be combined to achieve optimal performance:
+
+        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
+        These must all be specified together, otherwise error will be raised.
+        2.Set max_workers to a proper positive integer.
+        This defines the maximum number of processes and threads used for parallel execution.
+        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
+        4.Use predicates to defining WHERE conditions for partitions,
+        predicates will be ignored if column is specified to generate partition.
+        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
+        column name with table in external data source.
+
+        Args:
+            url: A connection string used to establish connections to external data source with JDBC driver.
+                Please do not include any secrets in this parameter. Secret in connection string will be removed and ignored.
+            udtf_configs: A dictionary containing configuration parameters for ingesting external data using a Snowflake UDTF.
+                This parameter is required for jdbc.
+
+                The dictionary may include the following keys:
+
+                - external_access_integration (str, required): The name of the external access integration,
+                    which allows the UDTF to access external endpoints.
+
+                - secret (str, required): The name of the snowflake secret that contain username and password of
+                    external data source.
+
+                - imports (List[str], required): A list of stage file names to import into the UDTF.
+                    Please include Jar file of jdbc driver to establish connection to external data source.
+
+                - java_version (int, optional): A integer that indicate the java runtime version of udtf.
+                    By default, we use java 17.
+
+            properties: A dictionary containing key-value pair that is needed during establishing connection with external data source.
+                Please do not include any secrets in this parameter.
+
+            table: The name of the table in the external data source.
+                This parameter cannot be used together with the `query` parameter.
+            query: A valid SQL query to be used as the data source in the FROM clause.
+                This parameter cannot be used together with the `table` parameter.
+            column: The column name used for partitioning the table. Partitions will be retrieved in parallel.
+                The column must be of a numeric type (e.g., int or float) or a date type.
+                When specifying `column`, `lower_bound`, `upper_bound`, and `num_partitions` must also be provided.
+            lower_bound: lower bound of partition, decide the stride of partition along with `upper_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            upper_bound: upper bound of partition, decide the stride of partition along with `lower_bound`.
+                This parameter does not filter out data. It must be provided when `column` is specified.
+            num_partitions: number of partitions to create when reading in parallel from multiple processes and threads.
+                It must be provided when `column` is specified.
+            query_timeout: The timeout (in seconds) for each query execution. A default value of `0` means
+                the query will never time out. The timeout behavior can also be configured within
+                the `create_connection` method when establishing the database connection, depending on the capabilities
+                of the DBMS and its driver.
+            fetch_size: The number of rows to fetch per batch from the external data source.
+                This determines how many rows are retrieved in each round trip,
+                which can improve performance for drivers with a low default fetch size.
+            custom_schema: a custom snowflake table schema to read data from external data source,
+                the column names should be identical to corresponded column names external data source.
+                This can be a schema string, for example: "id INTEGER, int_col INTEGER, text_col STRING",
+                or StructType, for example: StructType([StructField("ID", IntegerType(), False), StructField("INT_COL", IntegerType(), False), StructField("TEXT_COL", StringType(), False)])
+            predicates: A list of expressions suitable for inclusion in WHERE clauses, where each expression defines a partition.
+                Partitions will be retrieved in parallel.
+                If both `column` and `predicates` are specified, `column` takes precedence.
+            session_init_statement: One or more SQL statements executed before fetching data from
+                the external data source.
+                This can be used for session initialization tasks such as setting configurations.
+                For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
+                to avoid row locks and improve read performance.
+                The `session_init_statement` is executed only once at the beginning of each partition read.
+        Example::
+            .. code-block:: python
+                udtf_configs={
+                        "external_access_integration": ...,
+                        "secret": ...,
+                        "imports": [...],
+                    }
+                df = session.read.jdbc(
+                    url=...,
+                    udtf_configs=udtf_configs,
+                    query=...,
+                )
+
+        Example::
+            .. code-block:: python
+                udtf_configs={
+                    "external_access_integration": ...,
+                    "secret": ...,
+                    "imports": [...],
+                }
+                df = (
+                    session.read.format("jdbc")
+                    .option("url", ...)
+                    .option("udtf_configs", udtf_configs)
+                    .option("query", ...)
+                    .load()
+                )
+        """
+        if (not table and not query) or (table and query):
+            raise SnowparkDataframeReaderException(
+                "Either 'table' or 'query' must be provided, but not both."
+            )
+        external_access_integration = udtf_configs.get(
+            "external_access_integration", None
+        )
+        imports = udtf_configs.get("imports", None)
+        packages = udtf_configs.get("packages", ["com.snowflake:snowpark:latest"])
+        java_version = udtf_configs.get("java_version", 17)
+        secret = udtf_configs.get("secret", None)
+
+        if external_access_integration is None or imports is None or secret is None:
+            raise ValueError(
+                "external_access_integration, secret and imports must be specified in udtf configs"
+            )
+
+        jdbc_client = JDBC(
+            session=self._session,
+            url=url,
+            external_access_integration=external_access_integration,
+            properties=properties,
+            imports=imports,
+            packages=packages,
+            java_version=java_version,
+            table_or_query=table or query,
+            is_query=True if query is not None else False,
+            secret=secret,
+            column=column,
+            lower_bound=lower_bound,
+            upper_bound=upper_bound,
+            num_partitions=num_partitions,
+            query_timeout=query_timeout,
+            fetch_size=fetch_size,
+            custom_schema=custom_schema,
+            predicates=predicates,
+            session_init_statement=session_init_statement,
+            _emit_ast=_emit_ast,
+        )
+
+        partitions = jdbc_client.partitions
+
+        partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+        self._session.create_dataframe(
+            [[query] for query in partitions], schema=["partition"]
+        ).write.save_as_table(partitions_table, table_type="temp")
+
+        df = jdbc_client.read(partitions_table)
+        return jdbc_client.to_result_snowpark_df(
+            df, jdbc_client.schema, _emit_ast=_emit_ast
+        )
 
     @private_preview(version="1.29.0")
     @publicapi
@@ -1702,3 +2073,39 @@ class DataFrameReader:
 
         set_api_call_source(df, "DataFrameReader.file")
         return df
+
+    def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
+        """
+        Returns a DataFrame representing the results of a directory table query on the specified stage.
+
+        This method is an alias of :meth:`~snowflake.snowpark.session.Session.directory`.
+
+        Args:
+            stage_name: The name of the stage to query. The stage name should not include the '@' prefix
+                as it will be added automatically.
+
+        Returns:
+            A DataFrame containing metadata about files in the stage with the following columns:
+
+            - ``RELATIVE_PATH``: Path to the files to access using the file URL
+            - ``SIZE``: Size of the file in bytes
+            - ``LAST_MODIFIED``: Timestamp when the file was last updated in the stage
+            - ``MD5``: MD5 checksum for the file
+            - ``ETAG``: ETag header for the file
+            - ``FILE_URL``: Snowflake file URL to access the file
+
+        """
+        # AST.
+        stmt = None
+        if _emit_ast and self._ast is not None:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.read_directory, stmt)
+            ast.reader.CopyFrom(self._ast)
+            ast.stage_name = stage_name
+
+        dataframe = self._session.directory(stage_name, _emit_ast=False)
+
+        if _emit_ast and stmt is not None:
+            dataframe._ast_id = stmt.uid
+
+        return dataframe

@@ -88,19 +88,19 @@ def read_snowflake_and_verify_snapshot_creation_if_any(
     ]
 
     if not enforce_ordering:
-        assert len(filtered_query_history) == 2
+        assert len(filtered_query_history) == 0
     else:
         if materialization_expected:
             # when materialization happens, two queries are executed during read_snowflake:
             # 1) temp table creation out of the current table or query
             # 2) read only temp table creation
-            assert len(filtered_query_history) == 3
-        else:
             assert len(filtered_query_history) == 2
+        else:
+            assert len(filtered_query_history) == 1
 
         # test if the scoped snapshot is created
         scoped_pattern = " SCOPED " if session._use_scoped_temp_read_only_table else " "
-        table_create_sql = query_history.queries[-2].sql_text
+        table_create_sql = filtered_query_history[-1].sql_text
         table_create_pattern = f"CREATE OR REPLACE{scoped_pattern}TEMPORARY READ ONLY TABLE SNOWPARK_TEMP_TABLE_[0-9A-Z]+.*{READ_ONLY_TABLE_SUFFIX}.*"
         assert re.match(table_create_pattern, table_create_sql) is not None
 
@@ -116,7 +116,8 @@ def read_snowflake_and_verify_snapshot_creation_if_any(
 def test_read_snowflake_basic(
     setup_use_scoped_object, session, as_query, enforce_ordering
 ):
-    with SqlCounter(query_count=7):
+    expected_query_count = 5 if enforce_ordering else 3
+    with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         fully_qualified_name = [
@@ -149,7 +150,8 @@ def test_read_snowflake_basic(
 def test_read_snowflake_semi_structured_types(
     setup_use_scoped_object, session, as_query, enforce_ordering
 ):
-    with SqlCounter(query_count=4):
+    expected_query_count = 3 if enforce_ordering else 2
+    with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe([SEMI_STRUCTURED_TYPE_DATA]).write.save_as_table(
@@ -171,7 +173,8 @@ def test_read_snowflake_semi_structured_types(
 )
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_none_nan(session, as_query, enforce_ordering):
-    with SqlCounter(query_count=4):
+    expected_query_count = 3 if enforce_ordering else 2
+    with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe([None, float("nan")]).write.save_as_table(
@@ -194,7 +197,8 @@ def test_read_snowflake_none_nan(session, as_query, enforce_ordering):
 )
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_column_names(session, col_name, as_query, enforce_ordering):
-    with SqlCounter(query_count=4):
+    expected_query_count = 3 if enforce_ordering else 2
+    with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         Utils.create_table(session, table_name, f"{col_name} int", is_temporary=True)
@@ -222,7 +226,8 @@ def test_read_snowflake_column_names(session, col_name, as_query, enforce_orderi
 def test_read_snowflake_index_col(
     session, col_name1, col_name2, as_query, enforce_ordering
 ):
-    with SqlCounter(query_count=4):
+    expected_query_count = 3 if enforce_ordering else 2
+    with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         Utils.create_table(
@@ -252,7 +257,8 @@ def test_read_snowflake_index_col(
 )
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_index_col_multiindex(session, as_query, enforce_ordering):
-    with SqlCounter(query_count=5):
+    expected_query_count = 4 if enforce_ordering else 3
+    with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         Utils.create_table(
@@ -299,7 +305,7 @@ def test_read_snowflake_index_col_multiindex(session, as_query, enforce_ordering
 def test_read_snowflake_non_existing(
     session, col_name, non_existing_index_col, index_col_or_columns, enforce_ordering
 ):
-    expected_query_count = 3 if enforce_ordering else 2
+    expected_query_count = 2 if enforce_ordering else 1
     with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -325,7 +331,8 @@ def test_read_snowflake_non_existing(
 @pytest.mark.parametrize("col_name", VALID_SNOWFLAKE_COLUMN_NAMES)
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_columns(session, col_name, enforce_ordering):
-    with SqlCounter(query_count=4):
+    expected_query_count = 3 if enforce_ordering else 2
+    with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         Utils.create_table(
@@ -347,7 +354,8 @@ def test_read_snowflake_columns(session, col_name, enforce_ordering):
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_read_snowflake_both_index_col_columns(session, enforce_ordering):
-    with SqlCounter(query_count=4):
+    expected_query_count = 3 if enforce_ordering else 2
+    with SqlCounter(query_count=expected_query_count):
         # create table
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         Utils.create_table(
@@ -464,11 +472,11 @@ def test_read_snowflake_with_views(
     enforce_ordering,
 ) -> None:
     # create a temporary test table
-    expected_query_count = 7 if enforce_ordering else 6
+    expected_query_count = 6 if enforce_ordering else 4
     original_table_type = "temporary"
     if table_type in ["", "temporary", "transient"]:
         original_table_type = table_type
-        expected_query_count = 4
+        expected_query_count = 3 if enforce_ordering else 2
     elif table_type == "MATERIALIZED VIEW":
         original_table_type = ""
     with SqlCounter(query_count=expected_query_count):
@@ -584,7 +592,8 @@ def test_decimal(
     as_query,
     enforce_ordering,
 ) -> None:
-    with SqlCounter(query_count=6):
+    expected_query_count = 5 if enforce_ordering else 4
+    with SqlCounter(query_count=expected_query_count):
         colname = "D"
         values_string = ",".join(f"({i})" for i in input_data)
         Utils.create_table(
