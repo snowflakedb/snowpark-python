@@ -33,8 +33,8 @@ Functions
     ai_similarity
     ai_summarize_agg
     ai_transcribe
-    all_user_names
     any_value
+    all_user_names
     approx_count_distinct
     approx_percentile
     approx_percentile_accumulate
@@ -90,22 +90,28 @@ Functions
     asin
     asinh
     atan
-    atan2
     atanh
+    atan2
     avg
     base64
     base64_decode_string
     base64_encode
     bit_length
+    bitand
+    bitand_agg
+    bitor
+    bitor_agg
     bitmap_bit_position
     bitmap_bucket_number
     bitmap_construct_agg
     bitnot
     bitshiftleft
     bitshiftright
-    bround
+    bitxor
+    bitxor_agg
     build_stage_file_url
     builtin
+    bround
     call_builtin
     call_function
     call_table_function
@@ -161,14 +167,14 @@ Functions
     current_user
     current_version
     current_warehouse
-    date_add
     date_format
     date_from_parts
     date_part
-    date_sub
     date_trunc
     dateadd
     datediff
+    date_add
+    date_sub
     daydiff
     dayname
     dayofmonth
@@ -191,6 +197,8 @@ Functions
     expr
     factorial
     first_value
+    flatten
+    floor
     fl_get_content_type
     fl_get_etag
     fl_get_file_type
@@ -205,12 +213,11 @@ Functions
     fl_is_document
     fl_is_image
     fl_is_video
-    flatten
-    floor
     from_unixtime
     from_utc_timestamp
     function
     get
+    getbit
     get_ignore_case
     get_path
     getdate
@@ -269,8 +276,8 @@ Functions
     localtimestamp
     log
     log1p
-    log10
     log2
+    log10
     lower
     lpad
     ltrim
