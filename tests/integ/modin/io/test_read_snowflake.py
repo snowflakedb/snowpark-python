@@ -555,7 +555,11 @@ def test_read_snowflake_row_access_policy_table(
         )
 
         assert df.columns.tolist() == ["COL1", "S"]
-        assert len(df) == 0
+        # We fetch the row size using metadata, which we have access to, but
+        # we cannot actually query the rows themselves due to access control
+        # restrictions. This results in a disagreement about the row counts.
+        assert len(df) == 1
+        assert len(df.to_pandas()) == 0
 
 
 @pytest.mark.parametrize(

@@ -169,9 +169,7 @@ def test_ensure_index(data):
 
 
 @sql_count_checker(
-    query_count=20,
-    high_count_expected=True,
-    high_count_reason="Tests multiple table types",
+    query_count=8,
 )
 def test_get_object_metadata_row_count(session):
     # Test with a table that exists and has rows.
