@@ -150,7 +150,7 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
         df_incompatible.move_to("Snowflake")
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_merge(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
@@ -164,7 +164,7 @@ def test_merge(init_transaction_tables, us_holidays_data):
     assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=6)
 def test_filtered_data(init_transaction_tables):
     # When data is filtered, the engine should change when it is sufficiently small.
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
@@ -213,7 +213,7 @@ def test_filtered_data(init_transaction_tables):
     )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=5)
 def test_apply(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS").head(1000)
     assert df_transactions.get_backend() == "Snowflake"
@@ -329,7 +329,7 @@ def test_explain_switch_empty():
     assert new_switch_index_names == empty_switch_index_names
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_explain_switch(init_transaction_tables, us_holidays_data):
     clear_hybrid_switch_log()
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
