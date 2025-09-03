@@ -93,12 +93,24 @@ def str_to_sql_for_year_month_interval(
 
 
 def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) -> str:
-    # Extract interval value from strings like "INTERVAL 1 01:01:01.7878 DAY TO SECOND"
-    # Examples: "1 01:01:01.7878" -> INTERVAL '1 01:01:01.7878' DAY TO SECOND, "1" -> INTERVAL '1' DAY
-    # "01.7878" -> INTERVAL '7' SECOND
+    """
+    Converts "INTERVAL DD HH:MM:SS.ffffff [DAY TO SECOND | DAY | HOUR | MINUTE | SECOND]" to quoted format:
+    - Same start/end field: extracts specific value (DAY, HOUR, MINUTE, or SECOND only)
+    - Different fields: uses full range format (e.g., "DAY TO SECOND", "HOUR TO MINUTE")
+    - Supports passthrough for already-quoted intervals
+
+    Examples:
+        "INTERVAL 1 01:01:01.7878 DAY TO SECOND", DayTimeIntervalType(0,3) -> "INTERVAL '1 01:01:01.7878' DAY TO SECOND"
+        "INTERVAL 5 00:00:00 DAY TO SECOND", DayTimeIntervalType(0,0) -> "INTERVAL '5' DAY"
+        "INTERVAL 0 03:30:00 DAY TO SECOND", DayTimeIntervalType(1,1) -> "INTERVAL '03' HOUR"
+        "INTERVAL 0 00:45:00 DAY TO SECOND", DayTimeIntervalType(2,2) -> "INTERVAL '45' MINUTE"
+        "INTERVAL 0 00:00:30.5 DAY TO SECOND", DayTimeIntervalType(3,3) -> "INTERVAL '30.5' SECOND"
+    """
     start_field = datatype.start_field if datatype.start_field is not None else 0
     end_field = datatype.end_field if datatype.end_field is not None else 1
     if datatype.start_field == datatype.end_field:
+        # When the start_field equals the end_field, it implies our DayTimeIntervalType is only
+        # using a single field. This can be 1 of 4 choices. DAY for 0, HOUR for 1, MINUTE for 2, and SECOND for 3.
         extracted_value = value.split(" ")[1]
         return (
             f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()}"
