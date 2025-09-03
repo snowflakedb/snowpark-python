@@ -253,6 +253,7 @@ def is_application_role_in_session(role_name: str, _emit_ast: bool = True) -> Co
     return builtin("is_application_role_in_session", _emit_ast=_emit_ast)(role_name)
 
 
+@publicapi
 def is_database_role_in_session(
     role_name: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
