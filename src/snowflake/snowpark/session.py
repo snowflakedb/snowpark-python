@@ -4824,3 +4824,66 @@ class Session:
             _ast_stmt=stmt,
             _emit_ast=_emit_ast,
         )
+
+    @publicapi
+    def begin_transaction(
+        self, name: Optional[str] = None, _emit_ast: bool = True
+    ) -> None:
+        """
+        Begins a new transaction in the current session.
+
+        Args:
+            name: Optional string that assigns a name to the transaction. A name helps
+                identify a transaction, but is not required and does not need to be unique.
+
+        Example::
+            >>> # Begin an anonymous transaction
+            >>> session.begin_transaction()
+
+            >>> # Begin a named transaction
+            >>> session.begin_transaction("my_transaction")
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.begin_transaction, stmt)
+            if name is not None:
+                ast.name.value = name
+
+        query = f"BEGIN TRANSACTION {('NAME ' + name) if name else ''}"
+        self.sql(query, _ast_stmt=stmt, _emit_ast=_emit_ast).collect()
+
+    @publicapi
+    def commit(self, _emit_ast: bool = True) -> None:
+        """
+        Commits an open transaction in the current session.
+
+        Example::
+            >>> session.begin_transaction()
+            >>> session.commit()
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            with_src_position(stmt.expr.commit, stmt)
+
+        self.sql("COMMIT", _ast_stmt=stmt, _emit_ast=_emit_ast).collect()
+
+    @publicapi
+    def rollback(self, _emit_ast: bool = True) -> None:
+        """
+        Rolls back an open transaction in the current session.
+
+        Example::
+            >>> session.begin_transaction()
+            >>> session.rollback()
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            with_src_position(stmt.expr.rollback, stmt)
+
+        self.sql("ROLLBACK", _ast_stmt=stmt, _emit_ast=_emit_ast).collect()

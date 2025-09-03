@@ -1016,3 +1016,53 @@ def test_directory(session):
             session.sql(f"DROP STAGE IF EXISTS {temp_stage_special}").collect()
         except Exception:
             pass  # Ignore errors during cleanup
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="transactions not supported by local testing.",
+    run=False,
+)
+def test_transaction(session):
+    """Test transaction methods: begin_transaction, commit, rollback"""
+    temp_table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+
+    try:
+        session.sql(
+            f"""
+            CREATE TEMP TABLE {temp_table_name} (
+                id INTEGER,
+                value STRING
+            )
+        """
+        ).collect()
+
+        session.begin_transaction()
+        session.sql(f"INSERT INTO {temp_table_name} VALUES (1, 'test1')").collect()
+
+        Utils.check_answer(session.table(temp_table_name), [Row(ID=1, VALUE="test1")])
+
+        session.commit()
+        Utils.check_answer(session.table(temp_table_name), [Row(ID=1, VALUE="test1")])
+
+        session.begin_transaction("test_transaction")
+        session.sql(f"INSERT INTO {temp_table_name} VALUES (2, 'test2')").collect()
+        session.sql(f"INSERT INTO {temp_table_name} VALUES (3, 'test3')").collect()
+
+        Utils.check_answer(
+            session.table(temp_table_name),
+            [
+                Row(ID=1, VALUE="test1"),
+                Row(ID=2, VALUE="test2"),
+                Row(ID=3, VALUE="test3"),
+            ],
+        )
+
+        session.rollback()
+        Utils.check_answer(session.table(temp_table_name), [Row(ID=1, VALUE="test1")])
+
+    finally:
+        try:
+            session.sql(f"DROP TABLE IF EXISTS {temp_table_name}").collect()
+        except Exception:
+            pass
