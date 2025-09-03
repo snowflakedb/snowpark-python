@@ -10915,7 +10915,7 @@ def make_interval(
 
 @private_preview(
     version="1.38.0",
-    extra_doc_string="The interval_year_month_from_parts function creates a column of type YearMonthIntervalType. This type is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `enabled`.",
+    extra_doc_string="Type YearMonthIntervalType is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED`.",
 )
 @publicapi
 def interval_year_month_from_parts(
@@ -10950,23 +10950,42 @@ def interval_year_month_from_parts(
         <BLANKLINE>
 
     """
+    ast = None
+    if _emit_ast:
+        args = []
+        if years is not None:
+            args.append(years)
+        if months is not None:
+            args.append(months)
+        ast = build_function_expr("interval_year_month_from_parts", args)
+
     years_col = (
-        lit(0)
+        lit(0, _emit_ast=False)
         if years is None
         else _to_col_if_str(years, "interval_year_month_from_parts")
     )
     months_col = (
-        lit(0)
+        lit(0, _emit_ast=False)
         if months is None
         else _to_col_if_str(months, "interval_year_month_from_parts")
     )
 
-    total_months = years_col * lit(12) + months_col
+    total_months = years_col * lit(12, _emit_ast=False) + months_col
 
-    normalized_years = cast(cast(floor(abs(total_months) / lit(12)), "int"), "str")
-    normalized_months = cast(cast(floor(abs(total_months) % lit(12)), "int"), "str")
-    sign_prefix = iff(total_months < lit(0), lit("-"), lit(""))
-    interval_string = concat(sign_prefix, normalized_years, lit("-"), normalized_months)
+    normalized_years = cast(
+        cast(floor(abs(total_months) / lit(12, _emit_ast=False)), "int"), "str"
+    )
+    normalized_months = cast(
+        cast(floor(abs(total_months) % lit(12, _emit_ast=False)), "int"), "str"
+    )
+    sign_prefix = iff(
+        total_months < lit(0, _emit_ast=False),
+        lit("-", _emit_ast=False),
+        lit("", _emit_ast=False),
+    )
+    interval_string = concat(
+        sign_prefix, normalized_years, lit("-", _emit_ast=False), normalized_months
+    )
 
     def get_col_name(col):
         if isinstance(col._expr1, Literal):
@@ -10976,7 +10995,9 @@ def interval_year_month_from_parts(
 
     alias_name = f"interval_year_month_from_parts({get_col_name(years_col)}, {get_col_name(months_col)})"
 
-    return cast(interval_string, "INTERVAL YEAR TO MONTH").alias(alias_name)
+    res = cast(interval_string, "INTERVAL YEAR TO MONTH").alias(alias_name)
+    res._ast = ast
+    return res
 
 
 @publicapi
