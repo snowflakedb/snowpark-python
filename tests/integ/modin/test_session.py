@@ -136,6 +136,9 @@ def test_warning_if_quoted_identifiers_ignore_case_is_set(new_session):
         pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
         assert len(w) == 1
         assert warning_msg in str(w[-1].message)
+        assert pd._checked_casing
+        pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
+        assert len(w) == 1
 
 
 @pytest.mark.skipif(
