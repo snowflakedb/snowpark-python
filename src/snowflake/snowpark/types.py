@@ -307,6 +307,11 @@ class DayTimeIntervalType(_AnsiIntervalType):
     Args:
         start_field: The start field of the interval (0=DAY, 1=HOUR, 2=MINUTE, 3=SECOND)
         end_field: The end field of the interval (0=DAY, 1=HOUR, 2=MINUTE, 3=SECOND)
+
+    Notes:
+        DayTimeIntervalType is currently in private preview since 1.38.0. It needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED`.
+
+        DayTimeIntervalType is currently not supported in UDFs and Stored Procedures.
     """
 
     DAY = 0  #: Constant representing the DAY field for interval start/end positions
@@ -1178,7 +1183,7 @@ File = TypeVar("File")
 #: The type hint for annotating YearMonthInterval data when registering UDFs.
 YearMonthInterval = TypeVar("YearMonthInterval")
 
-#: The type hint for annotating YearMonthInterval data when registering UDFs.
+#: The type hint for annotating DayTimeInterval data when registering UDFs.
 DayTimeInterval = TypeVar("DayTimeInterval")
 
 # TODO(SNOW-969479): Add a type hint that can be used to annotate Vector data. Python does not
