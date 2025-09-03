@@ -413,7 +413,7 @@ def invoker_share(_emit_ast: bool = True) -> Column:
     Returns:
         Column: A Snowflake `Column` object representing the name of the active share.
 
-    Example:
+    Example::
         >>> df = session.create_dataframe([1])
         >>> result = df.select(invoker_share().alias("INVOKER_SHARE")).collect()
         >>> assert result[0]["INVOKER_SHARE"] is None
@@ -457,7 +457,7 @@ def is_database_role_in_session(
     Returns:
         Column: A Snowflake `Column` object representing the result of the check.
 
-    Example:
+    Example::
         >>> from snowflake.snowpark.functions import lit
         >>> df = session.create_dataframe([1])
         >>> result = df.select(is_database_role_in_session(lit("PUBLIC")).alias("is_db_role_active")).collect()
@@ -483,7 +483,7 @@ def is_granted_to_invoker_role(
     Returns:
         Column: A Snowflake `Column` object representing the result of the check.
 
-    Example:
+    Example::
         >>> from snowflake.snowpark.functions import lit
         >>> df = session.create_dataframe([1])
         >>> result = df.select(is_granted_to_invoker_role(lit('ANALYST')).alias('RESULT')).collect()
@@ -529,7 +529,7 @@ def getvariable(name: str, _emit_ast: bool = True) -> Column:
     Returns:
         Column: A Snowflake `Column` object representing the value of the specified session variable.
 
-    Example:
+    Example::
         >>> result = session.create_dataframe([1]).select(getvariable("MY_VARIABLE").alias("RESULT")).collect()
         >>> assert result[0]["RESULT"] is None
     """
