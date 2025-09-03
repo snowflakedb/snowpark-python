@@ -935,6 +935,9 @@ def test_session_atexit(db_parameters):
     "config.getoption('local_testing_mode', default=False)",
     reason="running sql query is not supported in local testing",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Temp stage creation is not supported in Stored Procedure"
+)
 def test_directory(session):
     temp_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
     temp_stage_special = f'"{Utils.random_name_for_temp_object(TempObjectType.STAGE)}_special.name-with.dots"'

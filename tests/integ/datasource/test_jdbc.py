@@ -12,7 +12,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.types import StructType, StructField, FloatType, DoubleType
-from tests.resources.test_data_source_dir.test_jdbc import (
+from tests.resources.test_data_source_dir.test_jdbc_data import (
     URL,
     EXTERNAL_ACCESS_INTEGRATION,
     SECRET,
