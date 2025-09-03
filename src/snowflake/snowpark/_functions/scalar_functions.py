@@ -238,6 +238,7 @@ def is_application_role_in_session(role_name: str, _emit_ast: bool = True) -> Co
     Verifies whether the application role is activated in the consumer’s current session.
 
     Args:
+        role_name (str): The name of the application role to check.
         _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
@@ -312,6 +313,9 @@ def is_role_in_session(role: ColumnOrName, _emit_ast: bool = True) -> Column:
     Args:
         role (ColumnOrName): A Column or column name containing the role name to check.
         _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        Column: A Snowflake `Column` object representing the result of the check.
 
     Example::
 
