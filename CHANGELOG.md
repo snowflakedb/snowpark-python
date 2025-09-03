@@ -73,6 +73,7 @@
 - Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
 - Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
 - Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
+- Add a new test parameter for integration tests to enable hybrid execution
 
 
 #### Dependency Updates
