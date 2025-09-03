@@ -1794,17 +1794,7 @@ def test_create_dataframe_with_year_month_interval_type(session):
     assert interval_sql_result[0][2] == "-1-06"
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: session.sql is not supported in local testing",
-)
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC,
-    reason="FEAT: session.sql is not supported in stored procedure",
-)
 def test_create_dataframe_with_day_time_interval_type(session):
-    session.sql("alter session set feature_interval_types=enabled;").collect()
-
     schema = StructType([StructField("interval_col", DayTimeIntervalType())])
     data = [["1 12:30:45"], ["-2 08:15:30"]]
     df = session.create_dataframe(data, schema=schema)
@@ -1909,8 +1899,6 @@ def test_create_dataframe_with_day_time_interval_type(session):
     assert interval_sql_result[0][0] == datetime.timedelta(days=3, seconds=67575)
     assert interval_sql_result[0][1] == datetime.timedelta(days=1, seconds=41400)
     assert interval_sql_result[0][2] == datetime.timedelta(days=-2, seconds=63870)
-
-    session.sql("alter session set feature_interval_types=disabled;").collect()
 
 
 def test_create_dataframe_with_semi_structured_data_types(session):
