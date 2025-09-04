@@ -1690,6 +1690,10 @@ def test_create_dataframe_with_basic_data_types(session):
     assert df.select(expected_names).collect() == expected_rows
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
 def test_create_dataframe_with_year_month_interval_type(session):
     schema = StructType([StructField("interval_col", YearMonthIntervalType())])
     data = [["1-2"], ["-2-3"]]
