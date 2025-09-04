@@ -610,6 +610,7 @@
 - Added support for list values in `Series.str.slice`.
 - Added support for applying Snowflake Cortex functions `ClassifyText`, `Translate`, and `ExtractAnswer`.
 - Added support for `Series.hist`.
+- Added support for applying Snowflake Cortex functions `Complete`.
 
 #### Improvements
 
