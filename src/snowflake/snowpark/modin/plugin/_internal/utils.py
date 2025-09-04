@@ -1942,12 +1942,14 @@ def get_object_metadata_row_count(object_name: str) -> Optional[int]:
     elif len(parts) == 3:
         db, schema, table = parts[0], parts[1], parts[2]
     else:
-        return None
+        return None  # pragma: no cover
 
+    # These returns should never be hit; they should be covered by the parse_table_name
+    # function. Leaving them in just to be safe.
     if not db:
-        return None
+        return None  # pragma: no cover
     if not schema:
-        return None
+        return None  # pragma: no cover
 
     query = f"SHOW OBJECTS LIKE '{table}' IN SCHEMA {db}.{schema} LIMIT 1"
 
