@@ -71,7 +71,7 @@ def str_to_sql_for_year_month_interval(
     if len(parts) < 2:
         raise ValueError(f"Invalid interval format: {value}")
 
-    if parts[1].startswith("'") and parts[1].endswith("'"):
+    if len(parts[1]) > 1 and parts[1].startswith("'") and parts[1].endswith("'"):
         return value  # passthrough
 
     extracted_values = parts[1]
