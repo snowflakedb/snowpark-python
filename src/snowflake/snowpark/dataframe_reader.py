@@ -1587,8 +1587,10 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
+
         Example::
             .. code-block:: python
+
                 udtf_configs={
                         "external_access_integration": ...,
                         "secret": ...,
@@ -1602,6 +1604,7 @@ class DataFrameReader:
 
         Example::
             .. code-block:: python
+
                 udtf_configs={
                     "external_access_integration": ...,
                     "secret": ...,
