@@ -149,6 +149,7 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
     with pytest.raises(NotImplementedError):
         df_incompatible.move_to("Snowflake")
 
+
 # There is no query count because the Snowflake->Pandas migration
 # of the small dataset is not counted and there is no actual materialization
 # of the merge
