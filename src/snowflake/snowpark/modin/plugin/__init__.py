@@ -187,17 +187,16 @@ from modin.config import AutoSwitchBackend  # isort: skip  # noqa: E402
 HYBRID_WARNING = (
     "Snowpark pandas now runs with hybrid execution enabled by default, and will perform certain operations "
     + "on smaller data using local, in-memory pandas. To disable this behavior and force all computations to occur in "
-    + "Snowflake, run this line:\nfrom modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()\n"
-    + "For more details, see https://docs.snowflake.com/LIMITEDACCESS/pandas-on-snowflake-hybrid-execution"
+    + "Snowflake, run this line:\nfrom modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()"
 )
 
-warnings.filterwarnings("once", message=HYBRID_PUPR_WARNING)
+warnings.filterwarnings("once", message=HYBRID_WARNING)
 
 if AutoSwitchBackend.get_value_source() is ValueSource.DEFAULT:
     AutoSwitchBackend.enable()
 
 if AutoSwitchBackend.get():
-    warnings.warn(HYBRID_PUPR_WARNING, stacklevel=1)
+    warnings.warn(HYBRID_WARNING, stacklevel=1)
 
 # Hybrid Mode Registration
 # In hybrid execution mode, the client will automatically switch backends when a
