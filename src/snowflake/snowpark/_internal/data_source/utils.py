@@ -195,7 +195,9 @@ def _task_fetch_data_from_source_with_retry(
     partition_idx: int,
     parquet_queue: Union[mp.Queue, queue.Queue],
     stop_event: threading.Event = None,
-):
+) -> Dict:
+    start = time.perf_counter()
+    logger.debug(f"Partition {partition_idx} fetch start")
     _retry_run(
         _task_fetch_data_from_source,
         worker,
@@ -204,6 +206,14 @@ def _task_fetch_data_from_source_with_retry(
         parquet_queue,
         stop_event,
     )
+    end = time.perf_counter()
+    logger.debug(f"Partition {partition_idx} fetch finished")
+    telemetry_dict = {
+        "duration": end - start,
+        "partition_query": partition,
+        "partition_idx": partition_idx,
+    }
+    return telemetry_dict
 
 
 def _upload_and_copy_into_table(
@@ -307,21 +317,23 @@ def worker_process(
     stop_event: threading.Event = None,
 ):
     """Worker process that fetches data from multiple partitions"""
+    telemetry_set = set()
     while True:
         try:
             # Get item from queue with timeout
             partition_idx, query = partition_queue.get(timeout=1.0)
 
-            _task_fetch_data_from_source_with_retry(
+            telemetry_dict = _task_fetch_data_from_source_with_retry(
                 reader,
                 query,
                 partition_idx,
                 parquet_queue,
                 stop_event,
             )
+            telemetry_set.add(telemetry_dict)
         except queue.Empty:
             # indicate whether a process is exit gracefully
-            process_or_thread_error_indicator.put(os.getpid())
+            process_or_thread_error_indicator.put((os.getpid(), telemetry_set))
             # No more work available, exit gracefully
             break
         except Exception as e:
@@ -357,14 +369,17 @@ def process_completed_futures(thread_futures) -> float:
 
 def _drain_process_status_queue(
     process_or_thread_error_indicator: Union[mp.Queue, queue.Queue],
-) -> Set:
-    result = set()
+) -> Tuple[Set, Set]:
+    process_id = set()
+    telemetry = set()
     while True:
         try:
-            result.add(process_or_thread_error_indicator.get(block=False))
+            result_indicator = process_or_thread_error_indicator.get(block=False)
+            process_id.add(result_indicator[0])
+            telemetry = telemetry.union(result_indicator[1])
         except queue.Empty:
             break
-    return result
+    return process_id, telemetry
 
 
 def process_parquet_queue_with_threads(
@@ -410,6 +425,7 @@ def process_parquet_queue_with_threads(
 
     completed_partitions = set()
     gracefully_exited_processes = set()
+    telemetries = set()
     # process parquet_queue may produce more data than the threads can handle,
     # so we use semaphore to limit the number of threads
     backpressure_semaphore = BoundedSemaphore(value=_MAX_WORKER_SCALE * max_workers)
@@ -470,13 +486,13 @@ def process_parquet_queue_with_threads(
                     # Check if any processes have failed
                     for i, process in enumerate(workers):
                         if not process.is_alive():
-                            gracefully_exited_processes = (
-                                gracefully_exited_processes.union(
-                                    _drain_process_status_queue(
-                                        process_or_thread_error_indicator
-                                    )
-                                )
+                            ids, telemetry = _drain_process_status_queue(
+                                process_or_thread_error_indicator
                             )
+                            gracefully_exited_processes = (
+                                gracefully_exited_processes.union(ids)
+                            )
+                            telemetries = telemetries.union(telemetry)
                             if process.pid not in gracefully_exited_processes:
                                 raise SnowparkDataframeReaderException(
                                     f"Partition {i} data fetching process failed with exit code {process.exitcode} or failed silently"
@@ -501,9 +517,9 @@ def process_parquet_queue_with_threads(
         for process in workers:
             process.join()
         # empty parquet queue to get all signals after each process ends
-        gracefully_exited_processes = gracefully_exited_processes.union(
-            _drain_process_status_queue(process_or_thread_error_indicator)
-        )
+        ids, telemetry = _drain_process_status_queue(process_or_thread_error_indicator)
+        gracefully_exited_processes = gracefully_exited_processes.union(ids)
+        telemetries = telemetries.union(telemetry)
 
         # check if any process fails
         for idx, process in enumerate(workers):
