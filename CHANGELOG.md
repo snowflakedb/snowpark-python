@@ -13,7 +13,7 @@
 #### Dependency Updates
 #### Improvements
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
-
+- Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
 
 ## 1.38.0 (YYYY-MM-DD)
 
@@ -88,7 +88,6 @@
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
 - Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
 - Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
-- Add internal functionality for retrieving object metadata through SHOW OBJECTS 
 - Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
 - Add a new test parameter for integration tests to enable hybrid execution
 

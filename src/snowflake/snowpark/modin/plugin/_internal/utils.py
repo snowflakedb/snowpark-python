@@ -1956,7 +1956,7 @@ def get_object_metadata_row_count(object_name: str) -> Optional[int]:
         res = session.sql(query).collect(
             statement_params=get_default_snowpark_pandas_statement_params()
         )
-    except Exception:
+    except SnowparkSQLException:
         # If we cannot access the metadata ( for some unusual permissions issue )
         # just return None
         return None  # pragma: no cover
