@@ -1026,7 +1026,6 @@ _atomic_types: List[Type[DataType]] = [
     IntegerType,
     LongType,
     DateType,
-    YearMonthIntervalType,
     NullType,
 ]
 
@@ -1037,16 +1036,10 @@ _timestamp_types: List[DataType] = [
     TimestampType(timezone=TimestampTimeZone.TZ),
 ]
 
-_interval_types: List[DataType] = [
-    YearMonthIntervalType(),
-    # TODO: Add DayToSecondIntervalType when implemented
-]
-
 _all_atomic_types: Dict[str, Type[DataType]] = {t.typeName(): t for t in _atomic_types}
 _all_timestamp_types: Dict[str, DataType] = {
     t.json_value(): t for t in _timestamp_types
 }
-_all_interval_types: Dict[str, DataType] = {t.json_value(): t for t in _interval_types}
 
 _complex_types: List[Type[Union[ArrayType, MapType, StructType]]] = [
     ArrayType,
@@ -1069,8 +1062,6 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
             return _all_atomic_types[json_value]()
         if json_value in _all_timestamp_types:
             return TimestampType(timezone=_all_timestamp_types[json_value].tz)
-        elif json_value in _all_interval_types:
-            return _all_interval_types[json_value]
         elif json_value == "decimal":
             return DecimalType()
         elif json_value == "variant":
