@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import os
 import pathlib
 import re
 from datetime import datetime
@@ -45,6 +46,60 @@ def setup_modin_hybrid_mode(pytestconfig):
     else:
         AutoSwitchBackend.disable()
         MODIN_HYBRID_TEST_MODE_ENABLED = False
+
+
+def read_hybrid_known_failures():
+    """
+    Read the modin_hybrid_integ_results.csv file and create a pandas
+    dataframe filtered down to only the failed tests. You can regenerate
+    this file with:
+        pytest tests/integ/modin -n 10
+               --enable_modin_hybrid_mode
+               --csv tests/integ/modin/modin_hybrid_integ_results.csv
+    """
+    HYBRID_RESULTS_PATH = os.path.normpath(
+        os.path.join(
+            os.path.dirname(__file__), "../modin/modin_hybrid_integ_results.csv"
+        )
+    )
+    df = pandas.read_csv(HYBRID_RESULTS_PATH)
+    return df[["module", "name", "message", "status"]][
+        df["status"].isin(["failed", "xfailed", "error"])
+    ]
+
+
+HYBRID_KNOWN_FAILURES = read_hybrid_known_failures()
+
+
+def is_hybrid_known_failure(module_name, test_name) -> dict[bool, str]:
+    """
+    Determine whether the module/test is a known hybrid mode failure
+    and return the result along with the error message if applicable.
+    """
+    module_mask = HYBRID_KNOWN_FAILURES.module == module_name
+    testname_mask = HYBRID_KNOWN_FAILURES.name == test_name
+    test_data = HYBRID_KNOWN_FAILURES[module_mask & testname_mask]
+    failed = len(test_data) >= 1
+    msg = None
+    if failed:
+        msg = test_data["message"].iloc[0]
+    return (failed, msg)
+
+
+def pytest_runtest_setup(item):
+    """
+    pytest hook to filter out tests when running under hybrid mode
+    """
+    config = item.config
+    if not config.option.enable_modin_hybrid_mode:
+        return
+    # When a test is annotated with @pytest.mark.no_hybrid it will be skipped
+    if len(list(item.iter_markers(name="no_hybrid"))) > 0:
+        pytest.skip("Skipped for Hybrid: pytest.mark.no_hybrid")
+    # Check the known failure list as of 2025-09-04 and skip those with a message
+    (failed, msg) = is_hybrid_known_failure(item.module.__name__, item.name)
+    if failed:
+        pytest.skip(f"Skipped for Hybrid: {msg}")
 
 
 @pytest.fixture(scope="module", autouse=True)
