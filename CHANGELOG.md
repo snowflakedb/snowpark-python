@@ -31,6 +31,8 @@
 
 #### Improvements
 
+- Added a new option `cacheResult` to `DataFrameReader.xml` that allows users to cache the result of the XML reader to a temporary table after calling `xml`. It helps improve performance when subsequent operations are performed on the same DataFrame.
+
 ### Snowpark pandas API Updates
 
 #### New Features

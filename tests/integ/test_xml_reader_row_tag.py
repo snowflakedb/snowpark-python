@@ -200,17 +200,28 @@ def test_read_malformed_xml(session, file):
     assert len(result[0]) == 3
 
     # failfast mode
-    df = (
-        session.read.option("rowTag", row_tag).option("mode", "failfast").xml(file_path)
-    )
     with pytest.raises(SnowparkSQLException, match="Malformed XML record at bytes"):
-        df.collect()
+        df = (
+            session.read.option("rowTag", row_tag)
+            .option("mode", "failfast")
+            .xml(file_path)
+        )
 
 
 def test_read_xml_row_tag_not_found(session):
     row_tag = "non-existing-tag"
-    df = session.read.option("rowTag", row_tag).xml(
-        f"@{tmp_stage_name}/{test_file_books_xml}"
+
+    with pytest.raises(
+        SnowparkDataframeReaderException, match="Cannot find the row tag"
+    ):
+        _ = session.read.option("rowTag", row_tag).xml(
+            f"@{tmp_stage_name}/{test_file_books_xml}"
+        )
+
+    df = (
+        session.read.option("cacheResult", False)
+        .option("rowTag", row_tag)
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
 
     with pytest.raises(
@@ -218,7 +229,6 @@ def test_read_xml_row_tag_not_found(session):
     ):
         df.collect()
 
-    # also works for nested query plan
     with pytest.raises(
         SnowparkDataframeReaderException, match="Cannot find the row tag"
     ):
