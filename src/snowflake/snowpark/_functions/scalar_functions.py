@@ -469,15 +469,13 @@ def is_database_role_in_session(
 
 
 @publicapi
-def is_granted_to_invoker_role(
-    role_name: ColumnOrName, _emit_ast: bool = True
-) -> Column:
+def is_granted_to_invoker_role(role_name: str, _emit_ast: bool = True) -> Column:
     """
     Returns True if the role returned by the INVOKER_ROLE function inherits the privileges of the specified
     role in the argument based on the context in which the function is called.
 
     Args:
-        role_name (ColumnOrName): The name of the role to check. Can be a string or a Column.
+        role_name (str): The name of the role to check. Can be a string or a Column.
         _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
@@ -490,8 +488,7 @@ def is_granted_to_invoker_role(
         >>> assert len(result) == 1
         >>> assert isinstance(result[0]["RESULT"], bool)
     """
-    c = _to_col_if_str(role_name, "is_granted_to_invoker_role")
-    return builtin("is_granted_to_invoker_role", _emit_ast=_emit_ast)(c)
+    return builtin("is_granted_to_invoker_role", _emit_ast=_emit_ast)(role_name)
 
 
 @publicapi
