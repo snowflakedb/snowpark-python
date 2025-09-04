@@ -106,19 +106,26 @@ def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) 
         "INTERVAL 0 00:45:00 DAY TO SECOND", DayTimeIntervalType(2,2) -> "INTERVAL '45' MINUTE"
         "INTERVAL 0 00:00:30.5 DAY TO SECOND", DayTimeIntervalType(3,3) -> "INTERVAL '30.5' SECOND"
     """
+    parts = value.split(" ")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid interval format: {value}")
+
+    if len(parts[1]) > 1 and parts[1].startswith("'") and parts[1].endswith("'"):
+        return value  # passthrough
+
     start_field = datatype.start_field if datatype.start_field is not None else 0
     end_field = datatype.end_field if datatype.end_field is not None else 1
     if datatype.start_field == datatype.end_field:
         # When the start_field equals the end_field, it implies our DayTimeIntervalType is only
         # using a single field. This can be 1 of 4 choices. DAY for 0, HOUR for 1, MINUTE for 2, and SECOND for 3.
-        extracted_value = value.split(" ")[1]
+        extracted_value = parts[1]
         return (
             f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()}"
         )
     else:
-        extracted_value = value.split(" ")[1]
+        extracted_value = parts[1]
         if datatype.start_field == 0:
-            second_value = value.split(" ")[2]
+            second_value = parts[2]
             return f"INTERVAL '{extracted_value} {second_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
         else:
             return f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
