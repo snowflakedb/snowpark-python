@@ -3230,6 +3230,10 @@ def test_limit(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
 def test_year_month_interval_type_dataframe(session):
     schema = StructType(
         [
