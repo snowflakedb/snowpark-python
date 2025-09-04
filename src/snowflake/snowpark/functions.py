@@ -217,6 +217,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
+    private_preview,
 )
 from snowflake.snowpark._functions.scalar_functions import *  # noqa: F403,F401
 from snowflake.snowpark.column import (
@@ -10908,6 +10909,165 @@ def make_interval(
         _emit_ast=False,
     )
 
+    res._ast = ast
+    return res
+
+
+@private_preview(
+    version="1.38.0",
+    extra_doc_string="Type DayTimeIntervalType is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED`.",
+)
+@publicapi
+def interval_day_time_from_parts(
+    days: Optional[ColumnOrName] = None,
+    hours: Optional[ColumnOrName] = None,
+    mins: Optional[ColumnOrName] = None,
+    secs: Optional[ColumnOrName] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates a day-time interval expression using with specified days, hours, mins and seconds.
+
+    This DayTime is not to be confused with the interval created by make_interval.
+    You can define a table column to be of data type DayTimeIntervalType.
+
+    Args:
+        days: The number of days, positive or negative
+        hours: The number of hours, positive or negative
+        mins: The number of minutes, positive or negative
+        secs: The number of seconds, positive or negative
+
+    Returns:
+        A Column representing a day-time interval
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import interval_day_time_from_parts
+        >>>
+        >>> df = session.create_dataframe([[1, 12, 30, 01.001001]], ['day', 'hour', 'min', 'sec'])
+        >>> df.select(interval_day_time_from_parts(col("day"), col("hour"), col("min"), col("sec")).alias("interval")).show()
+        ------------------
+        |"INTERVAL"      |
+        ------------------
+        |1 12:30:01.001  |
+        ------------------
+        <BLANKLINE>
+
+    """
+    # Handle AST emission
+    ast = None
+    if _emit_ast:
+        # Create AST for this custom function using build_function_expr
+        # Filter out None parameters to only include provided arguments
+        args = []
+        if days is not None:
+            args.append(days)
+        if hours is not None:
+            args.append(hours)
+        if mins is not None:
+            args.append(mins)
+        if secs is not None:
+            args.append(secs)
+        ast = build_function_expr("interval_day_time_from_parts", args)
+
+    days_col = (
+        lit(0, _emit_ast=False)
+        if days is None
+        else _to_col_if_str(days, "interval_day_time_from_parts")
+    )
+    hours_col = (
+        lit(0, _emit_ast=False)
+        if hours is None
+        else _to_col_if_str(hours, "interval_day_time_from_parts")
+    )
+    mins_col = (
+        lit(0, _emit_ast=False)
+        if mins is None
+        else _to_col_if_str(mins, "interval_day_time_from_parts")
+    )
+    secs_col = (
+        lit(0, _emit_ast=False)
+        if secs is None
+        else _to_col_if_str(secs, "interval_day_time_from_parts")
+    )
+
+    total_seconds = (
+        days_col * lit(86400, _emit_ast=False)
+        + hours_col * lit(3600, _emit_ast=False)
+        + mins_col * lit(60, _emit_ast=False)
+        + secs_col
+    )
+
+    is_negative = total_seconds < lit(0, _emit_ast=False)
+    abs_total_seconds = abs(total_seconds)
+
+    days_part = cast(floor(abs_total_seconds / lit(86400, _emit_ast=False)), "int")
+    remaining_after_days = abs_total_seconds % lit(86400, _emit_ast=False)
+
+    hours_part = cast(floor(remaining_after_days / lit(3600, _emit_ast=False)), "int")
+    remaining_after_hours = remaining_after_days % lit(3600, _emit_ast=False)
+
+    mins_part = cast(floor(remaining_after_hours / lit(60, _emit_ast=False)), "int")
+    secs_part = remaining_after_hours % lit(60, _emit_ast=False)
+
+    hours_str = iff(
+        hours_part < lit(10, _emit_ast=False),
+        concat(lit("0", _emit_ast=False), cast(hours_part, "str")),
+        cast(hours_part, "str"),
+    )
+
+    mins_str = iff(
+        mins_part < lit(10, _emit_ast=False),
+        concat(lit("0", _emit_ast=False), cast(mins_part, "str")),
+        cast(mins_part, "str"),
+    )
+
+    secs_int = cast(floor(secs_part), "int")
+    secs_str = iff(
+        secs_int < lit(10, _emit_ast=False),
+        concat(lit("0", _emit_ast=False), cast(secs_int, "str")),
+        cast(secs_int, "str"),
+    )
+
+    has_fraction = secs_part != cast(secs_int, "double")
+    fractional_part = secs_part - cast(secs_int, "double")
+
+    fraction_str = iff(
+        has_fraction,
+        concat(
+            lit(".", _emit_ast=False),
+            lpad(
+                cast(round(fractional_part * lit(1000, _emit_ast=False)), "str"),
+                3,
+                lit("0", _emit_ast=False),
+            ),
+        ),
+        lit("", _emit_ast=False),
+    )
+
+    secs_formatted = concat(secs_str, fraction_str)
+
+    sign_prefix = iff(is_negative, lit("-", _emit_ast=False), lit("", _emit_ast=False))
+    interval_value = concat(
+        sign_prefix,
+        cast(days_part, "str"),
+        lit(" ", _emit_ast=False),
+        hours_str,
+        lit(":", _emit_ast=False),
+        mins_str,
+        lit(":", _emit_ast=False),
+        secs_formatted,
+    )
+
+    def get_col_name(col):
+        if isinstance(col._expr1, Literal):
+            return str(col._expr1.value)
+        else:
+            return str(col._expr1)
+
+    alias_name = f"interval_day_time_from_parts({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
+
+    res = cast(interval_value, "INTERVAL DAY TO SECOND").alias(alias_name)
     res._ast = ast
     return res
 

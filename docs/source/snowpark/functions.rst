@@ -273,6 +273,7 @@ Functions
     lpad
     ltrim
     make_interval
+    interval_day_time_from_parts
     map_cat
     map_concat
     map_contains_key
