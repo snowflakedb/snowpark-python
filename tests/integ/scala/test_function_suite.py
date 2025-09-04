@@ -5641,6 +5641,8 @@ def test_interval_year_month_from_parts(session):
             (-999, -999, "-1082-03"),
             (0, 999, "+83-03"),
             (0, -999, "-83-03"),
+            (999999999, 11, "+999999999-11"),
+            (-999999999, 11, "-999999998-01"),
         ],
         schema=["years", "months", "expected"],
     )
@@ -5655,7 +5657,7 @@ def test_interval_year_month_from_parts(session):
         col("expected"),
     ).collect()
 
-    assert len(result) == 21
+    assert len(result) == 23
     for row in result:
         assert (
             row['interval_year_month_from_parts("YEARS", "MONTHS")'] == row["EXPECTED"]
