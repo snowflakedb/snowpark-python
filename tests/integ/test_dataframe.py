@@ -6034,6 +6034,8 @@ def test_time_travel_core_functionality(session):
         "%Y-%m-%d %H:%M:%S"
     )
     assert isinstance(ts_before_update, str)
+
+    time.sleep(1)
     with session.query_history() as query_history:
         session.sql(
             f"UPDATE {table_name} SET price = price + 50 WHERE id <= 2"
@@ -6181,6 +6183,8 @@ def test_time_travel_comprehensive_coverage(session):
         "%Y-%m-%d %H:%M:%S"
     )
     assert isinstance(ts_before_update, str)
+
+    time.sleep(1)
     with session.query_history() as query_history:
         session.sql(
             f"UPDATE {table1_name} SET price = price * 1.1 WHERE id <= 2"
