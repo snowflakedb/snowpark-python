@@ -184,16 +184,23 @@ class PymysqlDriver(BaseDriver):
         return StructType(fields)
 
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
+        prepare_connection = self.prepare_connection
 
         class UDTFIngestion:
             def process(self, query: str):
                 import pymysql
 
-                conn = create_connection()
+                conn = prepare_connection(create_connection())
                 cursor = pymysql.cursors.SSCursor(conn)
+                for statement in session_init_statement:
+                    cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
@@ -208,7 +215,9 @@ class PymysqlDriver(BaseDriver):
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":
-        conn.read_timeout = query_timeout if query_timeout != 0 else None
+        if query_timeout > 0:
+            cursor = conn.cursor()
+            cursor.execute(f"SET SESSION MAX_EXECUTION_TIME={1000 * query_timeout}")
         return conn
 
     @staticmethod

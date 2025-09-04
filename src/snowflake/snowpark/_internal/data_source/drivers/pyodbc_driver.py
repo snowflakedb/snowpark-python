@@ -78,9 +78,14 @@ class PyodbcDriver(BaseDriver):
         return StructType(fields)
 
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
+        prepare_connection = self.prepare_connection
 
         def binary_converter(value):
             return value.hex() if value is not None else None
@@ -89,7 +94,7 @@ class PyodbcDriver(BaseDriver):
             def process(self, query: str):
                 import pyodbc
 
-                conn = create_connection()
+                conn = prepare_connection(create_connection(), query_timeout)
                 if (
                     conn.get_output_converter(pyodbc.SQL_BINARY) is None
                     and conn.get_output_converter(pyodbc.SQL_VARBINARY) is None
@@ -101,6 +106,8 @@ class PyodbcDriver(BaseDriver):
                         pyodbc.SQL_LONGVARBINARY, binary_converter
                     )
                 cursor = conn.cursor()
+                for statement in session_init_statement:
+                    cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

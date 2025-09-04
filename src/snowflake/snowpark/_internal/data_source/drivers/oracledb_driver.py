@@ -111,9 +111,14 @@ class OracledbDriver(BaseDriver):
         return conn
 
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
+        prepare_connection = self.prepare_connection
 
         def oracledb_output_type_handler(cursor, metadata):
             from oracledb import (
@@ -137,10 +142,12 @@ class OracledbDriver(BaseDriver):
 
         class UDTFIngestion:
             def process(self, query: str):
-                conn = create_connection()
+                conn = prepare_connection(create_connection(), query_timeout)
                 if conn.outputtypehandler is None:
                     conn.outputtypehandler = oracledb_output_type_handler
                 cursor = conn.cursor()
+                for statement in session_init_statement:
+                    cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

@@ -20,6 +20,10 @@ from snowflake.snowpark._internal.data_source.utils import (
     DBMS_TYPE,
 )
 from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkSQLException,
+)
 from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 from tests.resources.test_data_source_dir.test_data_source_data import (
     OracleDBType,
@@ -248,3 +252,56 @@ def test_unsupported_type():
         create_connection_oracledb, DBMS_TYPE.ORACLE_DB
     ).to_snow_type([MockDescription("test_col", invalid_type, 0, 0, True)])
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_query_timeout_and_session_init(session):
+    statement = """
+    BEGIN
+        DBMS_LOCK.SLEEP(5);
+    END;
+"""
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="socket timed out while recovering from previous socket timeout",
+    ):
+        session.read.dbapi(
+            create_connection_oracledb,
+            table=ORACLEDB_TABLE_NAME,
+            query_timeout=1,
+            session_init_statement=[statement],
+        )
+
+
+def test_query_timeout_and_session_init_udtf(session):
+    udtf_configs = {
+        "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION
+    }
+    statement = """
+        BEGIN
+            DBMS_LOCK.SLEEP(5);
+        END;
+    """
+
+    def create_connection_udtf_oracledb():
+        import oracledb
+
+        host = ORACLEDB_CONNECTION_PARAMETERS["host"]
+        port = ORACLEDB_CONNECTION_PARAMETERS["port"]
+        service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
+        username = ORACLEDB_CONNECTION_PARAMETERS["username"]
+        password = ORACLEDB_CONNECTION_PARAMETERS["password"]
+        dsn = f"{host}:{port}/{service_name}"
+        connection = oracledb.connect(user=username, password=password, dsn=dsn)
+        return connection
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="call timeout of 1000 ms exceeded",
+    ):
+        session.read.dbapi(
+            create_connection_udtf_oracledb,
+            table=ORACLEDB_TABLE_NAME,
+            query_timeout=1,
+            session_init_statement=[statement],
+            udtf_configs=udtf_configs,
+        ).collect()

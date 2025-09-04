@@ -12,6 +12,8 @@
 - Added support for `FileOperation.remove` to remove files in a stage.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 
+- Added support for parameter `session_init_statement` in udtf ingestion of `DataFrameReader.jdbc`(PrPr).
+
 #### Bug Fixes
 
 #### Deprecations

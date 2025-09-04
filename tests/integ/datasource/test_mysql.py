@@ -15,6 +15,10 @@ from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import (
 )
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
 from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkSQLException,
+)
 from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_real_data,
     MysqlType,
@@ -297,3 +301,59 @@ def test_unsupported_type():
         [("test_col", "unsupported_type", None, None, 0, 0, True)]
     )
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_query_timeout(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="Query execution was interrupted, maximum statement execution time exceeded",
+    ):
+        session.read.dbapi(
+            create_connection_mysql,
+            query="SELECT COUNT(*) AS a FROM (SELECT SLEEP(2) AS x) AS t",
+            query_timeout=1,
+        )
+
+
+def test_session_init(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="Mock error to test init_statement",
+    ):
+        session.read.dbapi(
+            create_connection_mysql,
+            table=TEST_TABLE_NAME,
+            session_init_statement=[
+                "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Mock error to test init_statement'"
+            ],
+        )
+
+
+def test_session_init_udtf(session):
+    udtf_configs = {
+        "external_access_integration": MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION
+    }
+
+    def create_connection_udtf_oracledb():
+        import pymysql  # noqa: F811
+
+        conn = pymysql.connect(
+            user=MYSQL_CONNECTION_PARAMETERS["username"],
+            password=MYSQL_CONNECTION_PARAMETERS["password"],
+            host=MYSQL_CONNECTION_PARAMETERS["host"],
+            database=MYSQL_CONNECTION_PARAMETERS["database"],
+        )
+        return conn
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="Mock error to test init_statement",
+    ):
+        session.read.dbapi(
+            create_connection_udtf_oracledb,
+            table=TEST_TABLE_NAME,
+            session_init_statement=[
+                "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Mock error to test init_statement'"
+            ],
+            udtf_configs=udtf_configs,
+        ).collect()

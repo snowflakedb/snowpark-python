@@ -253,7 +253,11 @@ class Psycopg2Driver(BaseDriver):
         return conn
 
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
 
@@ -275,10 +279,13 @@ class Psycopg2Driver(BaseDriver):
 
         class UDTFIngestion:
             def process(self, query: str):
-                conn = prepare_connection_in_udtf(create_connection())
+                conn = prepare_connection_in_udtf(create_connection(), query_timeout)
                 cursor = conn.cursor(
                     f"SNOWPARK_CURSOR_{generate_random_alphanumeric(5)}"
                 )
+                for statement in session_init_statement:
+                    cursor.execute(statement)
+                    cursor.fetchall()
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
