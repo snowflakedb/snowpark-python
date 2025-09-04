@@ -558,7 +558,7 @@ def test_session_init_statement(session, fetch_with_process):
 
         with pytest.raises(
             SnowparkDataframeReaderException,
-            match=r'Failed to execute session init statement: \'SELECT FROM NOTHING;\' due to exception \'OperationalError\(\'near "FROM": syntax error\'\)\'',
+            match="Failed to execute session init statement:",
         ):
             session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),

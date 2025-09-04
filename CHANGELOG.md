@@ -23,6 +23,8 @@
 
 #### New Features
 
+- Added support for parameter `session_init_statement` in udtf ingestion of `DataFrameReader.jdbc`(PrPr).
+
 #### Bug Fixes
 
 #### Deprecations
