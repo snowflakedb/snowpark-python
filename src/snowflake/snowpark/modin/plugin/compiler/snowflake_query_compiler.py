@@ -9429,8 +9429,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     else:
                         # Missing required param (non-keyword-only)
                         ErrorMessage.not_implemented(
-                            f"Unspecified Argument: {arg_name} - when using apply with kwargs"
-                            "all function arguments should be specified except the single column reference (if applicable)."
+                            f"Unspecified Argument: {arg_name} - when using apply with kwargs, "
+                            f"all function arguments should be specified except the single column reference (if applicable)."
                         )
 
             if unprocessed_keys:
