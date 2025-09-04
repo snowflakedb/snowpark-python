@@ -24,8 +24,10 @@ Input/Output
     DataFrameReader.avro
     DataFrameReader.csv
     DataFrameReader.dbapi
+    DataFrameReader.directory
     DataFrameReader.file
     DataFrameReader.format
+    DataFrameReader.jdbc
     DataFrameReader.json
     DataFrameReader.load
     DataFrameReader.option
@@ -49,6 +51,7 @@ Input/Output
     DataFrameWriter.save_as_table
     DataFrameWriter.insertInto
     DataFrameWriter.insert_into
+    FileOperation.copy_files
     FileOperation.get
     FileOperation.get_stream
     FileOperation.put
