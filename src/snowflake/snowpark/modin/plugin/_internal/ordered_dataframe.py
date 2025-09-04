@@ -680,9 +680,6 @@ class OrderedDataFrame:
             dataframe_ref.cached_snowflake_quoted_identifiers_tuple = tuple(
                 new_column_identifiers
             )
-            _logger.debug(
-                f"The Snowpark DataFrame in DataFrameReference with id={dataframe_ref._id} is updated"
-            )
 
         new_df = OrderedDataFrame(
             dataframe_ref,
