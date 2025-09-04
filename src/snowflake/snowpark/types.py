@@ -248,7 +248,7 @@ class YearMonthIntervalType(_AnsiIntervalType):
         end_field: The end field of the interval (0=YEAR, 1=MONTH)
 
     Notes:
-        YearMonthIntervalType is currently in private preview since 1.38.0. The YearMonthIntervalType is currently in PrPr and needs to be enabled by setting this parameter to `enabled` feature_interval_types.
+        YearMonthIntervalType is currently in private preview since 1.38.0. It needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED`.
 
         YearMonthIntervalType is currently not supported in UDFs and Stored Procedures.
     """
