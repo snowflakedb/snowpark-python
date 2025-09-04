@@ -1794,6 +1794,10 @@ def test_create_dataframe_with_year_month_interval_type(session):
     assert interval_sql_result[0][2] == "-1-06"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
 def test_create_dataframe_with_day_time_interval_type(session):
     schema = StructType([StructField("interval_col", DayTimeIntervalType())])
     data = [["1 12:30:45"], ["-2 08:15:30"]]
