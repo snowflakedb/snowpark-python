@@ -1951,11 +1951,16 @@ def get_object_metadata_row_count(object_name: str) -> Optional[int]:
     if not schema:
         return None  # pragma: no cover
 
-    query = f"SHOW OBJECTS LIKE '{table}' IN SCHEMA {db}.{schema} LIMIT 1"
+    try:
+        query = f"SHOW OBJECTS LIKE '{table}' IN SCHEMA {db}.{schema} LIMIT 1"
+        res = session.sql(query).collect(
+            statement_params=get_default_snowpark_pandas_statement_params()
+        )
+    except Exception:
+        # If we cannot access the metadata ( for some unusual permissions issue )
+        # just return None
+        return None  # pragma: no cover
 
-    res = session.sql(query).collect(
-        statement_params=get_default_snowpark_pandas_statement_params()
-    )
     if len(res) != 1:
         return None
 
