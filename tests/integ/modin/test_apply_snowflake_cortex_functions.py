@@ -194,16 +194,6 @@ def test_apply_snowflake_cortex_extract_answer(
     [
         param(
             True,
-            (lambda s: s.apply(Complete, model="mistral-large2")),
-            id="series_cortex_unsupported_function_complete",
-        ),
-        param(
-            False,
-            (lambda df: df.apply(Complete, model="mistral-large2")),
-            id="df_cortex_unsupported_function_complete",
-        ),
-        param(
-            True,
             (lambda s: s.apply(Sentiment, args=("hello",))),
             id="series_cortex_unsupported_args",
         ),
@@ -244,3 +234,136 @@ def test_apply_snowflake_cortex_negative(session, is_series, operation):
     modin_input = (pd.Series if is_series else pd.DataFrame)([content])
     with pytest.raises(NotImplementedError):
         operation(modin_input)
+
+
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.complete SSL error",
+)
+@pytest.mark.parametrize(
+    "is_series, test_case, kwargs, query_count",
+    [
+        param(
+            True,
+            "basic",
+            {"model": "mistral-large2"},
+            1,
+            id="series_basic",
+        ),
+        param(
+            False,
+            "basic",
+            {"model": "mistral-large2"},
+            2,
+            id="dataframe_basic",
+        ),
+        param(
+            True,
+            "with_timeout",
+            {"model": "mistral-large2", "timeout": 30.0},
+            1,
+            id="series_partial_params_timeout",
+        ),
+        param(
+            False,
+            "with_timeout",
+            {"model": "mistral-large2", "timeout": 30.0},
+            2,
+            id="dataframe_partial_params_timeout",
+        ),
+        param(
+            True,
+            "all_params",
+            {
+                "model": "mistral-large2",
+                "options": None,
+                "session": None,
+                "stream": False,
+                "timeout": 30.0,
+                "deadline": None,
+            },
+            1,
+            id="series_all_params",
+        ),
+        param(
+            False,
+            "all_params",
+            {
+                "model": "mistral-large2",
+                "options": None,
+                "session": None,
+                "stream": False,
+                "timeout": 30.0,
+                "deadline": None,
+            },
+            2,
+            id="dataframe_all_params",
+        ),
+    ],
+)
+def test_apply_snowflake_cortex_complete_success_cases(
+    session, is_series, test_case, kwargs, query_count
+):
+    content = "When was Snowflake founded?"
+    modin_input = (pd.Series if is_series else pd.DataFrame)([content])
+
+    with SqlCounter(query_count=query_count):
+        result = modin_input.apply(Complete, **kwargs)
+        if is_series:
+            response = result.iloc[0]
+        else:
+            response = result[0][0]
+
+        print("response: ", response)
+
+        assert isinstance(response, str)
+        assert "2012" in response
+
+
+@pytest.mark.skipif(
+    running_on_jenkins(),
+    reason="TODO: SNOW-1859087 snowflake.cortex.complete SSL error",
+)
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "is_series, test_case, kwargs, expected_error",
+    [
+        param(
+            True,
+            "missing_positional",
+            {"timeout": 30.0},
+            "Unspecified Argument",
+            id="series_missing_positional",
+        ),
+        param(
+            False,
+            "missing_positional",
+            {"timeout": 30.0},
+            "Unspecified Argument",
+            id="dataframe_missing_positional",
+        ),
+        param(
+            True,
+            "invalid_param",
+            {"model": "mistral-large2", "invalid_param": "fail"},
+            "Unspecified kwargs",
+            id="series_invalid_param",
+        ),
+        param(
+            False,
+            "invalid_param",
+            {"model": "mistral-large2", "invalid_param": "fail"},
+            "Unspecified kwargs",
+            id="dataframe_invalid_param",
+        ),
+    ],
+)
+def test_apply_snowflake_cortex_complete_error_cases(
+    session, is_series, test_case, kwargs, expected_error
+):
+    content = "When was Snowflake founded?"
+    modin_input = (pd.Series if is_series else pd.DataFrame)([content])
+
+    with pytest.raises((NotImplementedError, ValueError, TypeError)) as exc_info:
+        modin_input.apply(Complete, **kwargs)
+    assert expected_error in str(exc_info.value)
