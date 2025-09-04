@@ -3,6 +3,7 @@
 ### Snowpark Python API Updates
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
+- Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
 
 #### New Features
 #### Bug Fixes
@@ -16,33 +17,6 @@
 #### Dependency Updates
 #### Improvements
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
-
-## 1.39.0 (YYYY-MM-DD)
-
-### Snowpark Python API Updates
-
-- Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
-- Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
-
-#### New Features
-
-#### Bug Fixes
-
-#### Deprecations
-
-#### Dependency Updates
-
-#### Improvements
-
-### Snowpark pandas API Updates
-
-#### New Features
-
-#### Improvements
-
-#### Dependency Updates
-
-#### Bug Fixes
 
 ## 1.38.0 (YYYY-MM-DD)
 
