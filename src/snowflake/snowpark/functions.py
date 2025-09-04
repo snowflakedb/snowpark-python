@@ -11083,53 +11083,78 @@ def interval_day_time_from_parts(
         <BLANKLINE>
 
     """
+    # Handle AST emission
+    ast = None
+    if _emit_ast:
+        # Create AST for this custom function using build_function_expr
+        # Filter out None parameters to only include provided arguments
+        args = []
+        if days is not None:
+            args.append(days)
+        if hours is not None:
+            args.append(hours)
+        if mins is not None:
+            args.append(mins)
+        if secs is not None:
+            args.append(secs)
+        ast = build_function_expr("interval_day_time_from_parts", args)
+
     days_col = (
-        lit(0) if days is None else _to_col_if_str(days, "interval_day_time_from_parts")
+        lit(0, _emit_ast=False)
+        if days is None
+        else _to_col_if_str(days, "interval_day_time_from_parts")
     )
     hours_col = (
-        lit(0)
+        lit(0, _emit_ast=False)
         if hours is None
         else _to_col_if_str(hours, "interval_day_time_from_parts")
     )
     mins_col = (
-        lit(0) if mins is None else _to_col_if_str(mins, "interval_day_time_from_parts")
+        lit(0, _emit_ast=False)
+        if mins is None
+        else _to_col_if_str(mins, "interval_day_time_from_parts")
     )
     secs_col = (
-        lit(0) if secs is None else _to_col_if_str(secs, "interval_day_time_from_parts")
+        lit(0, _emit_ast=False)
+        if secs is None
+        else _to_col_if_str(secs, "interval_day_time_from_parts")
     )
 
     total_seconds = (
-        days_col * lit(86400) + hours_col * lit(3600) + mins_col * lit(60) + secs_col
+        days_col * lit(86400, _emit_ast=False)
+        + hours_col * lit(3600, _emit_ast=False)
+        + mins_col * lit(60, _emit_ast=False)
+        + secs_col
     )
 
-    is_negative = total_seconds < lit(0)
+    is_negative = total_seconds < lit(0, _emit_ast=False)
     abs_total_seconds = abs(total_seconds)
 
-    days_part = cast(floor(abs_total_seconds / lit(86400)), "int")
-    remaining_after_days = abs_total_seconds % lit(86400)
+    days_part = cast(floor(abs_total_seconds / lit(86400, _emit_ast=False)), "int")
+    remaining_after_days = abs_total_seconds % lit(86400, _emit_ast=False)
 
-    hours_part = cast(floor(remaining_after_days / lit(3600)), "int")
-    remaining_after_hours = remaining_after_days % lit(3600)
+    hours_part = cast(floor(remaining_after_days / lit(3600, _emit_ast=False)), "int")
+    remaining_after_hours = remaining_after_days % lit(3600, _emit_ast=False)
 
-    mins_part = cast(floor(remaining_after_hours / lit(60)), "int")
-    secs_part = remaining_after_hours % lit(60)
+    mins_part = cast(floor(remaining_after_hours / lit(60, _emit_ast=False)), "int")
+    secs_part = remaining_after_hours % lit(60, _emit_ast=False)
 
     hours_str = iff(
-        hours_part < lit(10),
-        concat(lit("0"), cast(hours_part, "str")),
+        hours_part < lit(10, _emit_ast=False),
+        concat(lit("0", _emit_ast=False), cast(hours_part, "str")),
         cast(hours_part, "str"),
     )
 
     mins_str = iff(
-        mins_part < lit(10),
-        concat(lit("0"), cast(mins_part, "str")),
+        mins_part < lit(10, _emit_ast=False),
+        concat(lit("0", _emit_ast=False), cast(mins_part, "str")),
         cast(mins_part, "str"),
     )
 
     secs_int = cast(floor(secs_part), "int")
     secs_str = iff(
-        secs_int < lit(10),
-        concat(lit("0"), cast(secs_int, "str")),
+        secs_int < lit(10, _emit_ast=False),
+        concat(lit("0", _emit_ast=False), cast(secs_int, "str")),
         cast(secs_int, "str"),
     )
 
@@ -11139,23 +11164,27 @@ def interval_day_time_from_parts(
     fraction_str = iff(
         has_fraction,
         concat(
-            lit("."),
-            lpad(cast(round(fractional_part * lit(1000)), "str"), 3, lit("0")),
+            lit(".", _emit_ast=False),
+            lpad(
+                cast(round(fractional_part * lit(1000, _emit_ast=False)), "str"),
+                3,
+                lit("0", _emit_ast=False),
+            ),
         ),
-        lit(""),
+        lit("", _emit_ast=False),
     )
 
     secs_formatted = concat(secs_str, fraction_str)
 
-    sign_prefix = iff(is_negative, lit("-"), lit(""))
+    sign_prefix = iff(is_negative, lit("-", _emit_ast=False), lit("", _emit_ast=False))
     interval_value = concat(
         sign_prefix,
         cast(days_part, "str"),
-        lit(" "),
+        lit(" ", _emit_ast=False),
         hours_str,
-        lit(":"),
+        lit(":", _emit_ast=False),
         mins_str,
-        lit(":"),
+        lit(":", _emit_ast=False),
         secs_formatted,
     )
 
@@ -11167,7 +11196,9 @@ def interval_day_time_from_parts(
 
     alias_name = f"interval_day_time_from_parts({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
 
-    return cast(interval_value, "INTERVAL DAY TO SECOND").alias(alias_name)
+    res = cast(interval_value, "INTERVAL DAY TO SECOND").alias(alias_name)
+    res._ast = ast
+    return res
 
 
 @publicapi
