@@ -10944,6 +10944,8 @@ def interval_year_month_from_parts(
         >>> session.sql("ALTER SESSION SET ENABLE_INTERVAL_SUBTYPES=TRUE;").collect()
         >>> df = session.create_dataframe([[1, 2]], ["years", "months"])
         >>> df.select(interval_year_month_from_parts(col("years"), col("months")).alias("interval")).show()
+        [Row(status='Statement executed successfully.')]
+        [Row(status='Statement executed successfully.')]
         --------------
         |"INTERVAL"  |
         --------------
