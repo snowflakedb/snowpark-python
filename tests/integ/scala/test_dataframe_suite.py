@@ -3312,6 +3312,10 @@ def test_year_month_interval_type_dataframe(session):
     assert df.schema.fields[2].datatype.end_field == 1
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
 def test_day_time_interval_type_dataframe(session):
     schema = StructType(
         [
