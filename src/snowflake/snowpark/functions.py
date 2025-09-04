@@ -217,6 +217,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
+    private_preview,
 )
 from snowflake.snowpark._functions.scalar_functions import *  # noqa: F403,F401
 from snowflake.snowpark.column import (
@@ -10912,6 +10913,10 @@ def make_interval(
     return res
 
 
+@private_preview(
+    version="1.38.0",
+    extra_doc_string="Type DayTimeIntervalType is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED`.",
+)
 @publicapi
 def interval_day_time_from_parts(
     days: Optional[ColumnOrName] = None,
