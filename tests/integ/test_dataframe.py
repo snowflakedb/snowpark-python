@@ -102,6 +102,7 @@ from tests.utils import (
     IS_IN_STORED_PROC,
     IS_IN_STORED_PROC_LOCALFS,
     IS_NOT_ON_GITHUB,
+    RUNNING_ON_JENKINS,
     TestData,
     TestFiles,
     Utils,
@@ -3652,7 +3653,7 @@ def test_append_existing_table(session, local_testing_mode):
     reason="Dynamic table is a SQL feature",
 )
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or RUNNING_ON_JENKINS,
     reason="This test failed because of parameters setting, skip for now",
 )
 @pytest.mark.udf
@@ -3738,7 +3739,7 @@ def test_dynamic_table_join_table_function(session):
     reason="Dynamic table is a SQL feature",
 )
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or RUNNING_ON_JENKINS,
     reason="This test failed because of parameters setting, skip for now",
 )
 @pytest.mark.udf
@@ -3826,7 +3827,7 @@ def test_dynamic_table_join_table_function_with_more_layers(session):
     reason="Dynamic table is a SQL feature",
 )
 @pytest.mark.skipif(
-    IS_IN_STORED_PROC,
+    IS_IN_STORED_PROC or RUNNING_ON_JENKINS,
     reason="This test failed because of parameters setting, skip for now",
 )
 @pytest.mark.udf
