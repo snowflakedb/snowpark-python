@@ -24,6 +24,7 @@ DataFrame
     DataFrame.approx_quantile
     DataFrame.cache_result
     DataFrame.col
+    DataFrame.col_ilike
     DataFrame.collect
     DataFrame.collect_nowait
     DataFrame.copy_into_table
