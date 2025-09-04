@@ -48,6 +48,7 @@ Snowpark Session
       Session.createDataFrame
       Session.create_async_job
       Session.create_dataframe
+      Session.directory
       Session.flatten
       Session.generator
       Session.getActiveSession
