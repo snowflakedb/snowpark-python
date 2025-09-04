@@ -10941,6 +10941,7 @@ def interval_year_month_from_parts(
         >>> from snowflake.snowpark.functions import interval_year_month_from_parts
         >>>
         >>> session.sql("ALTER SESSION SET FEATURE_INTERVAL_TYPES=ENABLED;").collect()
+        >>> session.sql("ALTER SESSION SET ENABLE_INTERVAL_SUBTYPES=TRUE;").collect()
         >>> df = session.create_dataframe([[1, 2]], ["years", "months"])
         >>> df.select(interval_year_month_from_parts(col("years"), col("months")).alias("interval")).show()
         --------------
