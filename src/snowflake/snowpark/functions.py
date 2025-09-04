@@ -10964,32 +10964,26 @@ def interval_year_month_from_parts(
         ast = build_function_expr("interval_year_month_from_parts", args)
 
     years_col = (
-        lit(0, _emit_ast=False)
+        lit(0)
         if years is None
         else _to_col_if_str(years, "interval_year_month_from_parts")
     )
     months_col = (
-        lit(0, _emit_ast=False)
+        lit(0)
         if months is None
         else _to_col_if_str(months, "interval_year_month_from_parts")
     )
 
-    total_months = years_col * lit(12, _emit_ast=False) + months_col
+    total_months = years_col * lit(12) + months_col
 
-    normalized_years = cast(
-        cast(floor(abs(total_months) / lit(12, _emit_ast=False)), "int"), "str"
-    )
-    normalized_months = cast(
-        cast(floor(abs(total_months) % lit(12, _emit_ast=False)), "int"), "str"
-    )
+    normalized_years = cast(cast(floor(abs(total_months) / lit(12)), "int"), "str")
+    normalized_months = cast(cast(floor(abs(total_months) % lit(12)), "int"), "str")
     sign_prefix = iff(
-        total_months < lit(0, _emit_ast=False),
-        lit("-", _emit_ast=False),
-        lit("", _emit_ast=False),
+        total_months < lit(0),
+        lit("-"),
+        lit(""),
     )
-    interval_string = concat(
-        sign_prefix, normalized_years, lit("-", _emit_ast=False), normalized_months
-    )
+    interval_string = concat(sign_prefix, normalized_years, lit("-"), normalized_months)
 
     def get_col_name(col):
         if isinstance(col._expr1, Literal):
