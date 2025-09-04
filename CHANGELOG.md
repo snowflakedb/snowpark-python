@@ -36,8 +36,9 @@
 #### New Features
 
 #### Improvements
-- Removed the logging.DEBUG message saying that the Snowpark `DataFrame`
-  reference of an internal `DataFrameReference` object has changed.
+- Downgraded to level `logging.DEBUG - 1` the log message saying that the
+  Snowpark `DataFrame` reference of an internal `DataFrameReference` object
+  has changed.
 
 #### Dependency Updates
 
