@@ -46,10 +46,6 @@
 - Fixed a bug in `DataFrameReader.dbapi` that udtf ingestion does not work in stored procedure.
 - Fixed a bug in schema inference that caused incorrect stage prefixes to be used.
 
-#### Deprecations
-
-#### Dependency Updates
-
 #### Improvements
 
 - Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
@@ -73,9 +69,7 @@
 - Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
 - Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
 - Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
-- Add a new test parameter for integration tests to enable hybrid execution
-
-#### Dependency Updates
+- Add a new test parameter for integration tests to enable hybrid execution.
 
 #### Bug Fixes
 - Raised `NotImplementedError` instead of `AttributeError` on attempting to call
