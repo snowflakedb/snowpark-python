@@ -11042,6 +11042,10 @@ def interval_year_month_from_parts(
     return res
 
 
+@private_preview(
+    version="1.38.0",
+    extra_doc_string="Type DayTimeIntervalType is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED`.",
+)
 @publicapi
 def interval_day_time_from_parts(
     days: Optional[ColumnOrName] = None,
