@@ -22,6 +22,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     DataType,
     DateType,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FileType,
@@ -91,6 +92,45 @@ def str_to_sql_for_year_month_interval(
     return f"INTERVAL '{extracted_values}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
 
 
+def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) -> str:
+    """
+    Converts "INTERVAL DD HH:MM:SS.ffffff [DAY TO SECOND | DAY | HOUR | MINUTE | SECOND]" to quoted format:
+    - Same start/end field: extracts specific value (DAY, HOUR, MINUTE, or SECOND only)
+    - Different fields: uses full range format (e.g., "DAY TO SECOND", "HOUR TO MINUTE")
+    - Supports passthrough for already-quoted intervals
+
+    Examples:
+        "INTERVAL 1 01:01:01.7878 DAY TO SECOND", DayTimeIntervalType(0,3) -> "INTERVAL '1 01:01:01.7878' DAY TO SECOND"
+        "INTERVAL 5 00:00:00 DAY TO SECOND", DayTimeIntervalType(0,0) -> "INTERVAL '5' DAY"
+        "INTERVAL 0 03:30:00 DAY TO SECOND", DayTimeIntervalType(1,1) -> "INTERVAL '03' HOUR"
+        "INTERVAL 0 00:45:00 DAY TO SECOND", DayTimeIntervalType(2,2) -> "INTERVAL '45' MINUTE"
+        "INTERVAL 0 00:00:30.5 DAY TO SECOND", DayTimeIntervalType(3,3) -> "INTERVAL '30.5' SECOND"
+    """
+    parts = value.split(" ")
+    if len(parts) < 2:
+        raise ValueError(f"Invalid interval format: {value}")
+
+    if len(parts[1]) > 1 and parts[1].startswith("'") and parts[1].endswith("'"):
+        return value  # passthrough
+
+    start_field = datatype.start_field if datatype.start_field is not None else 0
+    end_field = datatype.end_field if datatype.end_field is not None else 1
+    if datatype.start_field == datatype.end_field:
+        # When the start_field equals the end_field, it implies our DayTimeIntervalType is only
+        # using a single field. This can be 1 of 4 choices. DAY for 0, HOUR for 1, MINUTE for 2, and SECOND for 3.
+        extracted_value = parts[1]
+        return (
+            f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()}"
+        )
+    else:
+        extracted_value = parts[1]
+        if datatype.start_field == 0:
+            second_value = parts[2]
+            return f"INTERVAL '{extracted_value} {second_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
+        else:
+            return f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
+
+
 def float_nan_inf_to_sql(value: float) -> str:
     """
     convert the float nan and inf value to a snowflake compatible sql.
@@ -124,6 +164,8 @@ def to_sql_no_cast(
             return f"TO_GEOMETRY({str_to_sql(value)})"
         if isinstance(datatype, YearMonthIntervalType):
             return str_to_sql_for_year_month_interval(value, datatype)
+        if isinstance(datatype, DayTimeIntervalType):
+            return str_to_sql_for_day_time_interval(value, datatype)
         return str_to_sql(value)
     if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
         cast_value = float_nan_inf_to_sql(value)
@@ -203,6 +245,9 @@ def to_sql(
     if isinstance(datatype, YearMonthIntervalType):
         if value is None:
             return "NULL :: INTERVAL YEAR TO MONTH"
+    if isinstance(datatype, DayTimeIntervalType):
+        if value is None:
+            return "NULL :: INTERVAL DAY TO SECOND"
     if value is None:
         return "NULL"
 
@@ -295,6 +340,9 @@ def to_sql(
     if isinstance(value, str) and isinstance(datatype, YearMonthIntervalType):
         return f"{str_to_sql_for_year_month_interval(value, datatype)} :: {convert_sp_to_sf_type(datatype)}"
 
+    if isinstance(value, str) and isinstance(datatype, DayTimeIntervalType):
+        return f"{str_to_sql_for_day_time_interval(value, datatype)} :: {convert_sp_to_sf_type(datatype)}"
+
     raise TypeError(f"Unsupported datatype {datatype}, value {value} by to_sql()")
 
 
@@ -384,6 +432,8 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
         )
     if isinstance(data_type, YearMonthIntervalType):
         return "INTERVAL '1-0' YEAR TO MONTH"
+    if isinstance(data_type, DayTimeIntervalType):
+        return "INTERVAL '1 01:01:01.0001' DAY TO SECOND"
     raise Exception(f"Unsupported data type: {data_type.__class__.__name__}")
 
 
