@@ -1,4 +1,19 @@
 # Release History
+## 1.39.0 (YYYY-MM-DD)
+### Snowpark Python API Updates
+#### New Features
+#### Bug Fixes
+#### Deprecations
+#### Dependency Updates
+#### Improvements
+### Snowpark pandas API Updates
+#### New Features
+#### Bug Fixes
+#### Deprecations
+#### Dependency Updates
+#### Improvements
+- Eliminate duplicate parameter check queries for casing status when retrieving the session.
+
 
 ## 1.38.0 (YYYY-MM-DD)
 
@@ -76,7 +91,6 @@
 - Add internal functionality for retrieving object metadata through SHOW OBJECTS 
 - Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
 - Add a new test parameter for integration tests to enable hybrid execution
-
 
 #### Dependency Updates
 
