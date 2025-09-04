@@ -9,13 +9,328 @@ import os
 import tempfile
 
 import pytest
+import sqlite3
 
-from tests.integ.conftest import RUNNING_ON_GH
-from tests.resources.test_data_source_dir.test_data_source_data import (
-    sqlite3_db,
-    create_connection_to_sqlite3_db,
-    SQLITE3_DB_CUSTOM_SCHEMA_STRING,
-)
+from tests.utils import RUNNING_ON_GH
+
+SQLITE3_DB_CUSTOM_SCHEMA_STRING = "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT"
+
+
+def create_connection_to_sqlite3_db(db_path):
+    return sqlite3.connect(db_path)
+
+
+def sqlite3_db(db_path):
+    conn = create_connection_to_sqlite3_db(db_path)
+    cursor = conn.cursor()
+    table_name = "PrimitiveTypes"
+    columns = [
+        "id",
+        "int_col",
+        "real_col",
+        "text_col",
+        "blob_col",
+        "null_col",
+        "ts_col",
+        "date_col",
+        "time_col",
+        "short_col",
+        "long_col",
+        "double_col",
+        "decimal_col",
+        "map_col",
+        "array_col",
+        "var_col",
+    ]
+    # Create a table with different primitive types
+    # sqlite3 only supports 5 types: NULL, INTEGER, REAL, TEXT, BLOB
+    cursor.execute(
+        f"""
+    CREATE TABLE IF NOT EXISTS {table_name} (
+        id INTEGER PRIMARY KEY,   -- Auto-incrementing primary key
+        int_col INTEGER,          -- Integer column
+        real_col REAL,            -- Floating point column
+        text_col TEXT,            -- String column
+        blob_col BLOB,            -- Binary data column
+        null_col NULL,            -- Explicit NULL type (for testing purposes)
+        ts_col TEXT,              -- Timestamp column in TEXT format
+        date_col TEXT,            -- Date column in TEXT format
+        time_col TEXT,            -- Time column in TEXT format
+        short_col INTEGER,        -- Short integer column
+        long_col INTEGER,         -- Long integer column
+        double_col REAL,          -- Double column
+        decimal_col REAL,         -- Decimal column
+        map_col TEXT,             -- Map column in TEXT format
+        array_col TEXT,           -- Array column in TEXT format
+        var_col TEXT              -- Variant column in TEXT format
+    )
+    """
+    )
+    test_datetime = datetime.datetime(2021, 1, 2, 12, 34, 56)
+    test_date = test_datetime.date()
+    test_time = test_datetime.time()
+    example_data = [
+        (
+            1,
+            42,
+            3.14,
+            "Hello, world!",
+            b"\x00\x01\x02\x03",
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "1",
+        ),
+        (
+            2,
+            -10,
+            2.718,
+            "SQLite",
+            b"\x04\x05\x06\x07",
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "2",
+        ),
+        (
+            3,
+            9999,
+            -0.99,
+            "Python",
+            b"\x08\x09\x0A\x0B",
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "3",
+        ),
+        (
+            4,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "4",
+        ),
+        (
+            5,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "5",
+        ),
+        (
+            6,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "6",
+        ),
+        (
+            7,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime.isoformat(),
+            test_date.isoformat(),
+            test_time.isoformat(),
+            1,
+            2,
+            3.0,
+            4.0,
+            '{"a": 1, "b": 2}',
+            "[1, 2, 3]",
+            "7",
+        ),
+    ]
+    assert_data = [
+        (
+            1,
+            42,
+            3.14,
+            "Hello, world!",
+            b"\x00\x01\x02\x03",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"1"',
+        ),
+        (
+            2,
+            -10,
+            2.718,
+            "SQLite",
+            b"\x04\x05\x06\x07",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"2"',
+        ),
+        (
+            3,
+            9999,
+            -0.99,
+            "Python",
+            b"\x08\x09\x0A\x0B",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"3"',
+        ),
+        (
+            4,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"4"',
+        ),
+        (
+            5,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"5"',
+        ),
+        (
+            6,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"6"',
+        ),
+        (
+            7,
+            0,
+            123.456,
+            "Data",
+            b"\x0C\x0D\x0E\x0F",
+            None,
+            test_datetime,
+            test_date,
+            test_time,
+            1,
+            2,
+            3.0,
+            4.0,
+            '{\n  "a": 1,\n  "b": 2\n}',
+            '[\n  "[1, 2, 3]"\n]',
+            '"7"',
+        ),
+    ]
+    cursor.executemany(
+        f"INSERT INTO {table_name} VALUES ({','.join('?' * 16)})", example_data
+    )
+    conn.commit()
+    conn.close()
+    return table_name, columns, example_data, assert_data
 
 
 pytestmark = [
