@@ -5736,8 +5736,6 @@ def test_interval_year_month_from_parts(session):
     IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
 )
 def test_interval_day_time_from_parts(session):
-    session.sql("alter session set feature_interval_types=enabled;").collect()
-
     df = session.create_dataframe(
         [
             (0, 0, 0, 0.0),
@@ -5924,5 +5922,3 @@ def test_interval_day_time_from_parts(session):
     assert result_nulls[2]["INTERVAL_RESULT"] is None
     assert result_nulls[3]["INTERVAL_RESULT"] is None
     assert result_nulls[4]["INTERVAL_RESULT"] is None
-
-    session.sql("alter session set feature_interval_types=disabled;").collect()
