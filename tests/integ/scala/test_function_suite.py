@@ -5617,6 +5617,10 @@ def test_any_value(session):
     ] or non_deterministic_result_2 == [Row(1, 1), Row(2, 2)]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: function floor not supported",
+)
 def test_interval_year_month_from_parts(session):
     df = session.create_dataframe(
         [
