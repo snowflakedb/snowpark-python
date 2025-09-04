@@ -5617,16 +5617,7 @@ def test_any_value(session):
     ] or non_deterministic_result_2 == [Row(1, 1), Row(2, 2)]
 
 
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="FEAT: Alter Session not supported in local testing",
-)
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
-)
 def test_interval_year_month_from_parts(session):
-    session.sql("alter session set feature_interval_types=enabled;").collect()
-
     df = session.create_dataframe(
         [
             (0, 0, "+0-00"),
@@ -5727,5 +5718,3 @@ def test_interval_year_month_from_parts(session):
     assert result_nulls[0]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
     assert result_nulls[1]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
     assert result_nulls[2]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
-
-    session.sql("alter session set feature_interval_types=disabled;").collect()
