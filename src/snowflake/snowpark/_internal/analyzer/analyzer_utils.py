@@ -1370,7 +1370,12 @@ def order_expression(name: str, direction: str, null_ordering: str) -> str:
 
 
 def create_or_replace_view_statement(
-    name: str, child: str, is_temp: bool, comment: Optional[str], replace: bool
+    name: str,
+    child: str,
+    is_temp: bool,
+    comment: Optional[str],
+    replace: bool,
+    copy_grants: bool,
 ) -> str:
     comment_sql = get_comment_sql(comment)
     return (
@@ -1380,6 +1385,7 @@ def create_or_replace_view_statement(
         + VIEW
         + name
         + comment_sql
+        + (COPY_GRANTS if copy_grants else EMPTY_STRING)
         + AS
         + project_statement([], child)
     )
@@ -1400,6 +1406,7 @@ def create_or_replace_dynamic_table_statement(
     max_data_extension_time: Optional[int],
     child: str,
     iceberg_config: Optional[dict] = None,
+    copy_grants: bool = False,
 ) -> str:
     cluster_by_sql = (
         f"{CLUSTER_BY}{LEFT_PARENTHESIS}{COMMA.join(clustering_keys)}{RIGHT_PARENTHESIS}"
@@ -1430,7 +1437,7 @@ def create_or_replace_dynamic_table_statement(
         f"{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}{LAG}{EQUALS}"
         f"{convert_value_to_sql_option(lag)}{WAREHOUSE}{EQUALS}{warehouse}"
         f"{refresh_and_initialize_options}{cluster_by_sql}{data_retention_options}{iceberg_options}"
-        f"{comment_sql}{AS}{project_statement([], child)}"
+        f"{comment_sql}{COPY_GRANTS if copy_grants else EMPTY_STRING}{AS}{project_statement([], child)}"
     )
 
 
