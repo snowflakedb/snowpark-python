@@ -9402,9 +9402,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             for arg_name, param in params.items():
                 # Skip special internal Snowpark params always
                 if arg_name in ("_emit_ast", "_ast"):
-                    # If it’s in kwargs, remove it from unprocessed_keys and ignore
-                    if arg_name in kwargs:
-                        unprocessed_keys.discard(arg_name)
+                    # Always remove internal params from unprocessed_keys (safe even if not present)
+                    unprocessed_keys.discard(arg_name)
                     continue
 
                 is_kw_only = param.kind == inspect.Parameter.KEYWORD_ONLY
@@ -9430,7 +9429,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     else:
                         # Missing required param (non-keyword-only)
                         ErrorMessage.not_implemented(
-                            f"Unspecified Argument: {arg_name} - "
+                            f"Unspecified Argument: {arg_name} - when using apply with kwargs"
                             "all function arguments should be specified except the single column reference (if applicable)."
                         )
 
