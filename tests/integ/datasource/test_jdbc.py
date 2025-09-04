@@ -12,7 +12,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.exceptions import SnowparkSQLException
 from snowflake.snowpark.types import StructType, StructField, FloatType, DoubleType
-from tests.resources.test_data_source_dir.test_jdbc import (
+from tests.resources.test_data_source_dir.test_jdbc_data import (
     URL,
     EXTERNAL_ACCESS_INTEGRATION,
     SECRET,
@@ -323,7 +323,12 @@ def test_connect_postgres(session, postgres_udtf_configs):
     assert df.collect() == postgres_expected_data
 
 
-def test_postgres_session_init_statement(session, postgres_udtf_configs):
+@pytest.mark.parametrize(
+    "session_init_statement", ["SELECT pg_sleep(5)", ["SELECT pg_sleep(5)"]]
+)
+def test_postgres_session_init_statement(
+    session, postgres_udtf_configs, session_init_statement
+):
     with pytest.raises(
         SnowparkSQLException,
         match="canceling statement due to user request",
@@ -333,5 +338,5 @@ def test_postgres_session_init_statement(session, postgres_udtf_configs):
             udtf_configs=postgres_udtf_configs,
             query=POSTGRES_SELECT_QUERY,
             query_timeout=1,
-            session_init_statement=["SELECT pg_sleep(5)"],
+            session_init_statement=session_init_statement,
         ).collect()

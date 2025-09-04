@@ -81,6 +81,7 @@ def test_datasource_reader_close_error_handling(cursor_fails, conn_fails):
     mock_driver.prepare_connection.return_value = mock_conn
     mock_driver.create_connection.return_value = mock_conn
     mock_conn.cursor.return_value = mock_cursor
+    mock_driver.get_server_cursor_if_supported.return_value = mock_cursor
     mock_cursor.fetchall.return_value = [("test_data",)]
 
     # Configure failures
