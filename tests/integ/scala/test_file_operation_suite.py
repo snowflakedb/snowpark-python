@@ -877,25 +877,34 @@ def test_remove(session, path1, path2, path3):
         all_files = session.file.list(f"@{source_stage}/")
         assert len(all_files) == 3
 
+        file_name_1, file_name_2, file_name_3 = (
+            os.path.basename(path1),
+            os.path.basename(path2),
+            os.path.basename(path3),
+        )
         # Remove a specific file with a pattern (remove files with "file_2" in name)
-        file_name_2 = os.path.basename(path2)
-        session.file.remove(f"@{source_stage}/prefix1/", pattern=f".*{file_name_2}.*")
+        removed_files = session.file.remove(
+            f"@{source_stage}/prefix1/", pattern=f".*{file_name_2}.*"
+        )
+        assert len(removed_files) == 1 and file_name_2 in removed_files[0]
 
         # Verify one file was removed
         assert len(session.file.list(f"@{source_stage}/")) == 2
 
         # Remove all files from prefix1
-        session.file.remove(f"@{source_stage}/prefix1/")
+        removed_files = session.file.remove(f"@{source_stage}/prefix1/")
+        assert len(removed_files) == 1 and file_name_1 in removed_files[0]
 
         # Verify only files from prefix2 remain
         remaining_files = session.file.list(f"@{source_stage}/")
         assert len(remaining_files) == 1 and "prefix2" in remaining_files[0].name
 
         # Remove all remaining files
-        session.file.remove(f"@{source_stage}/")
+        removed_files = session.file.remove(f"@{source_stage}/")
+        assert len(removed_files) == 1 and file_name_3 in removed_files[0]
 
-        # Verify no files remain
-        assert not session.file.list(f"@{source_stage}/")
+        assert not session.file.remove(f"@{source_stage}/")  # No files to remove
+        assert not session.file.list(f"@{source_stage}/")  # Verify no files remain
 
     finally:
         session.sql(f"drop stage if exists {source_stage}").collect()

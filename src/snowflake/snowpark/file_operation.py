@@ -474,7 +474,7 @@ class FileOperation:
         *,
         pattern: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
-    ) -> None:
+    ) -> List[str]:
         """Removes files from a stage.
 
         References: `Snowflake REMOVE command <https://docs.snowflake.com/en/sql-reference/sql/remove>`_.
@@ -483,11 +483,14 @@ class FileOperation:
 
             >>> # Create a temp stage and upload files.
             >>> _ = session.sql("create or replace temp stage mystage").collect()
-            >>> _ = session.file.put("tests/resources/t*.csv", "@mystage/prefix1")
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@mystage/prefix1")
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@mystage/prefix2")
             >>> # Remove all files from the stage.
             >>> session.file.remove("@mystage/prefix1")
+            ['mystage/prefix1/testCSV.csv.gz']
             >>> # Remove files matching a pattern.
-            >>> session.file.remove("@mystage/prefix1", pattern=".*test.*")
+            >>> session.file.remove("@mystage/prefix2", pattern=".*test.*")
+            ['mystage/prefix2/testCSV.csv.gz']
 
         Args:
             stage_location: The stage and path where you want to remove files.
@@ -495,6 +498,9 @@ class FileOperation:
                 The command lists all files in the specified path and applies the regular expression pattern on each of the files found.
                 Default: ``None`` (all files in the specified stage path are removed).
             statement_params: Dictionary of statement level parameters to be set while executing this action.
+
+        Returns:
+            A ``list`` of removed file paths.
         """
         options = {}
         self._process_pattern(pattern, options)
@@ -505,9 +511,11 @@ class FileOperation:
             normalize_remote_file_or_dir(stage_location),
             options,
         )
-        snowflake.snowpark.dataframe.DataFrame(
+        remove_result = snowflake.snowpark.dataframe.DataFrame(
             self._session, plan
         )._internal_collect_with_tag(statement_params=statement_params)
+
+        return [file_result[0] for file_result in remove_result]
 
     def list(
         self,
