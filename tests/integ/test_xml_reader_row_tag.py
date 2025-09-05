@@ -214,7 +214,7 @@ def test_read_xml_row_tag_not_found(session):
     with pytest.raises(
         SnowparkDataframeReaderException, match="Cannot find the row tag"
     ):
-        _ = session.read.option("rowTag", row_tag).xml(
+        session.read.option("rowTag", row_tag).xml(
             f"@{tmp_stage_name}/{test_file_books_xml}"
         )
 
