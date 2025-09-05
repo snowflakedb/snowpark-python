@@ -157,9 +157,7 @@ class PymysqlDriver(BaseDriver):
                 scale,
                 null_ok,
             ) = col
-            snow_type = BASE_PYMYSQL_TYPE_TO_SNOW_TYPE.get(type_code, None)
-            if snow_type is None:
-                raise NotImplementedError(f"mysql type not supported: {type_code}")
+            snow_type = BASE_PYMYSQL_TYPE_TO_SNOW_TYPE.get(type_code, StringType)
             if type_code in (PymysqlTypeCode.DECIMAL, PymysqlTypeCode.NEWDECIMAL):
                 # we did -2 here because what driver returned is precision + 2, mysql store + 2 precision internally
                 precision -= 2

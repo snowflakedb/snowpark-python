@@ -706,12 +706,13 @@ def test_database_detector():
         assert result == (DBMS_TYPE.UNKNOWN, DRIVER_TYPE.PYODBC)
 
 
-def test_type_conversion():
+def test_unsupported_type():
     invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
-    with pytest.raises(NotImplementedError, match="sql server type not supported"):
-        PyodbcDriver(
-            sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB
-        ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
+
+    schema = PyodbcDriver(
+        sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB
+    ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])

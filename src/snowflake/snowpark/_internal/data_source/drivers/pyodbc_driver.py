@@ -59,9 +59,7 @@ class PyodbcDriver(BaseDriver):
                 scale,
                 null_ok,
             ) = column
-            snow_type = BASE_PYODBC_TYPE_TO_SNOW_TYPE.get(type_code, None)
-            if snow_type is None:
-                raise NotImplementedError(f"sql server type not supported: {type_code}")
+            snow_type = BASE_PYODBC_TYPE_TO_SNOW_TYPE.get(type_code, StringType)
             if type_code in (int, decimal.Decimal):
                 if not self.validate_numeric_precision_scale(precision, scale):
                     logger.debug(

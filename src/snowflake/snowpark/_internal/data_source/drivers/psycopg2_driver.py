@@ -118,6 +118,7 @@ class Psycopg2TypeCode(Enum):
     TSQUERY = 3615  # Not listed in the pgtypes.h
     JSONB = 3802  # Not listed in the pgtypes.h
     PG_SNAPSHOT = 5038  # Not listed in the pgtypes.h
+    NONE = None
 
 
 # https://other-docs.snowflake.com/en/connectors/postgres6/view-data#postgresql-to-snowflake-data-type-mapping
@@ -189,15 +190,10 @@ class Psycopg2Driver(BaseDriver):
             try:
                 type_code = Psycopg2TypeCode(type_code)
             except ValueError:
-                raise NotImplementedError(
-                    f"Postgres type not supported: {type_code} for column: {name}"
-                )
-            snow_type = BASE_POSTGRES_TYPE_TO_SNOW_TYPE.get(type_code)
-            if snow_type is None:
-                raise NotImplementedError(
-                    f"Postgres type not supported: {type_code} for column: {name}"
-                )
-            if Psycopg2TypeCode(type_code) == Psycopg2TypeCode.NUMERICOID:
+                # not supported type is now handled as string type in below code
+                type_code = Psycopg2TypeCode.NONE
+            snow_type = BASE_POSTGRES_TYPE_TO_SNOW_TYPE.get(type_code, StringType)
+            if type_code == Psycopg2TypeCode.NUMERICOID:
                 if not self.validate_numeric_precision_scale(precision, scale):
                     logger.debug(
                         f"Snowpark does not support column"
