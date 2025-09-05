@@ -93,6 +93,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ListAgg,
     Literal,
     MultipleExpression,
+    NamedFunctionExpression,
     RegExp,
     ScalarSubquery,
     SnowflakeUDF,
@@ -520,7 +521,7 @@ def handle_range_frame_indexing(
 
 
 def handle_function_expression(
-    exp: FunctionExpression,
+    exp: Union[FunctionExpression, NamedFunctionExpression],
     input_data: Union[TableEmulator, ColumnEmulator],
     analyzer: "MockAnalyzer",
     expr_to_alias: Dict[str, str],
@@ -574,60 +575,90 @@ def handle_function_expression(
         to_mock_func = to_mock_func.__wrapped__
     signatures = inspect.signature(to_mock_func)
     spec = inspect.getfullargspec(to_mock_func)
-    to_pass_args = []
     type_hints = typing.get_type_hints(to_mock_func)
     parameters_except_ast = list(signatures.parameters)
     for clean_up_parameter in ["_emit_ast", "_ast"]:
         if clean_up_parameter in parameters_except_ast:
             parameters_except_ast.remove(clean_up_parameter)
             del type_hints[clean_up_parameter]
-    for idx, key in enumerate(parameters_except_ast):
-        type_hint = str(type_hints[key])
-        keep_literal = "Column" not in type_hint
-        if key == spec.varargs:
-            # SNOW-1441602: Move Star logic to calculate_expression once it can handle table returns
-            args = []
-            for c in exp.children[idx:]:
-                if isinstance(c, Star):
-                    args.extend(
-                        [
+
+    # Process parameters based on expression type
+    if isinstance(exp, NamedFunctionExpression):
+        # Handle named arguments
+        to_pass_kwargs = {}
+        for param_name in parameters_except_ast:
+            if param_name in exp.named_arguments:
+                type_hint = str(type_hints.get(param_name, ""))
+                keep_literal = "Column" not in type_hint
+                if type_hint == "typing.Optional[dict]":
+                    to_pass_kwargs[param_name] = json.loads(
+                        exp.named_arguments[param_name].sql.replace("'", '"')
+                    )
+                else:
+                    to_pass_kwargs[param_name] = calculate_expression(
+                        exp.named_arguments[param_name],
+                        input_data,
+                        analyzer,
+                        expr_to_alias,
+                        keep_literal=keep_literal,
+                    )
+        call_args = (to_pass_kwargs,)
+        call_method = "kwargs"
+    else:
+        # Handle positional arguments
+        to_pass_args = []
+        for idx, key in enumerate(parameters_except_ast):
+            type_hint = str(type_hints[key])
+            keep_literal = "Column" not in type_hint
+            if key == spec.varargs:
+                # SNOW-1441602: Move Star logic to calculate_expression once it can handle table returns
+                args = []
+                for c in exp.children[idx:]:
+                    if isinstance(c, Star):
+                        args.extend(
+                            [
+                                calculate_expression(
+                                    cc,
+                                    input_data,
+                                    analyzer,
+                                    expr_to_alias,
+                                    keep_literal=keep_literal,
+                                )
+                                for cc in c.expressions
+                            ]
+                        )
+                    else:
+                        args.append(
                             calculate_expression(
-                                cc,
+                                c,
                                 input_data,
                                 analyzer,
                                 expr_to_alias,
                                 keep_literal=keep_literal,
                             )
-                            for cc in c.expressions
-                        ]
-                    )
-                else:
-                    args.append(
+                        )
+                to_pass_args.extend(args)
+            else:
+                try:
+                    to_pass_args.append(
                         calculate_expression(
-                            c,
+                            exp.children[idx],
                             input_data,
                             analyzer,
                             expr_to_alias,
                             keep_literal=keep_literal,
                         )
                     )
-            to_pass_args.extend(args)
-        else:
-            try:
-                to_pass_args.append(
-                    calculate_expression(
-                        exp.children[idx],
-                        input_data,
-                        analyzer,
-                        expr_to_alias,
-                        keep_literal=keep_literal,
-                    )
-                )
-            except IndexError:
-                to_pass_args.append(None)
+                except IndexError:
+                    to_pass_args.append(None)
+        call_args = (to_pass_args,)
+        call_method = "args"
 
     try:
-        result = func(*to_pass_args, row_number=current_row, input_data=input_data)
+        if call_method == "kwargs":
+            result = func(**call_args[0], row_number=current_row, input_data=input_data)
+        else:
+            result = func(*call_args[0], row_number=current_row, input_data=input_data)
     except Exception as err:
         extra_err_info = (
             (
@@ -1354,7 +1385,7 @@ def execute_mock_plan(
                     by_column_expression.append(child_rf[col_name])
                 else:
                     column_name = plan.session._analyzer.analyze(exp)
-                    if isinstance(exp, FunctionExpression):
+                    if isinstance(exp, (FunctionExpression, NamedFunctionExpression)):
                         materialized_column = calculate_expression(
                             exp, child_rf, plan.session._analyzer, expr_to_alias
                         )
@@ -2228,7 +2259,7 @@ def calculate_expression(
                 raise SnowparkLocalTestingException(f"invalid identifier {exp.name}")
     if isinstance(exp, (UnresolvedAlias, Alias)):
         return calculate_expression(exp.child, input_data, analyzer, expr_to_alias)
-    if isinstance(exp, FunctionExpression):
+    if isinstance(exp, (FunctionExpression, NamedFunctionExpression)):
         return handle_function_expression(exp, input_data, analyzer, expr_to_alias)
     if isinstance(exp, ListAgg):
         lhs = calculate_expression(exp.col, input_data, analyzer, expr_to_alias)

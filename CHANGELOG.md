@@ -1,45 +1,4 @@
 # Release History
-## 1.39.0 (YYYY-MM-DD)
-### Snowpark Python API Updates
-#### New Features
-#### Bug Fixes
-#### Deprecations
-#### Dependency Updates
-#### Improvements
-### Snowpark pandas API Updates
-#### New Features
-#### Bug Fixes
-#### Deprecations
-#### Dependency Updates
-#### Improvements
-- Eliminate duplicate parameter check queries for casing status when retrieving the session.
-- Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
-
-## 1.39.0 (YYYY-MM-DD)
-
-### Snowpark Python API Updates
-
-- Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
-
-#### New Features
-
-#### Bug Fixes
-
-#### Deprecations
-
-#### Dependency Updates
-
-#### Improvements
-
-### Snowpark pandas API Updates
-
-#### New Features
-
-#### Improvements
-
-#### Dependency Updates
-
-#### Bug Fixes
 
 ## 1.39.0 (YYYY-MM-DD)
 
@@ -64,9 +23,18 @@
 
 #### Improvements
 
+- Eliminate duplicate parameter check queries for casing status when retrieving the session.
+- Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
+
 #### Dependency Updates
 
 #### Bug Fixes
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support to allow patching `functions.ai_complete`.
 
 ## 1.38.0 (2025-09-04)
 
