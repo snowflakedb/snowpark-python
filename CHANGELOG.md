@@ -37,7 +37,7 @@
 
 #### Improvements
 
-- Added support for applying Snowflake Cortex functions `Complete`.
+- Added support for applying Snowflake Cortex function `Complete`.
 
 #### Dependency Updates
 
