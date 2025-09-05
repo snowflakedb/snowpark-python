@@ -67,6 +67,7 @@ class OracledbDriver(BaseDriver):
             oracledb.DB_TYPE_XMLTYPE: StringType,
             oracledb.DB_TYPE_OBJECT: VariantType,
             oracledb.DB_TYPE_VECTOR: VectorType,
+            # oracledb.DB_TYPE_CURSOR: None,  # NOT SUPPORTED
         }
 
         fields = []

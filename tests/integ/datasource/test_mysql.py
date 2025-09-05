@@ -141,14 +141,6 @@ def test_dbapi_batch_fetch(
         assert df.order_by("ID").collect() == expected_result
 
 
-def test_type_conversion():
-    invalid_type = MysqlType("ID", "UNKNOWN", None, None, None, None, False)
-    with pytest.raises(NotImplementedError, match="mysql type not supported"):
-        PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB).to_snow_type(
-            [invalid_type]
-        )
-
-
 def test_pymysql_driver_coverage(caplog):
     mysql_driver = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB)
     mysql_driver.to_snow_type(
@@ -301,7 +293,7 @@ def test_server_side_cursor():
 
 def test_unsupported_type():
 
-    schema = PymysqlDriver(
-        create_connection_mysql, DBMS_TYPE.SQL_SERVER_DB
-    ).to_snow_type([("test_col", "unsupported_type", None, None, 0, 0, True)])
+    schema = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB).to_snow_type(
+        [("test_col", "unsupported_type", None, None, 0, 0, True)]
+    )
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])

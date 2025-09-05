@@ -137,14 +137,6 @@ def test_dbapi_batch_fetch(
         assert df.order_by("ID").collect() == expected_result
 
 
-def test_type_conversion():
-    invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
-    with pytest.raises(NotImplementedError, match="oracledb type not supported"):
-        OracledbDriver(create_connection_oracledb, DBMS_TYPE.ORACLE_DB).to_snow_type(
-            [invalid_type]
-        )
-
-
 def test_oracledb_driver_coverage(caplog):
     oracledb_driver = OracledbDriver(create_connection_oracledb, DBMS_TYPE.ORACLE_DB)
     conn = oracledb_driver.prepare_connection(oracledb_driver.create_connection(), 0)
