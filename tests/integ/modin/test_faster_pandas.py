@@ -33,6 +33,17 @@ def test_read_filter_join(session):
         df2[df2["D"] == 22], left_on="A", right_on="C"
     )
 
+    # verify that the input dataframes have a populated relaxed query compiler
+    assert df1._query_compiler._relaxed_query_compiler is not None
+    assert df1._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    assert df2._query_compiler._relaxed_query_compiler is not None
+    assert df2._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
     # create pandas dataframes
     native_df1 = df1.to_pandas()
     native_df2 = df2.to_pandas()
@@ -57,6 +68,14 @@ def test_read_filter_groupby_agg(session):
     # create snow dataframes
     df = pd.read_snowflake(table_name)
     snow_result = df[df["B"] > 11].groupby("A").min()
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe has an empty relaxed query compiler
+    # because groupby() and min() are not supported in faster pandas yet
+    assert snow_result._query_compiler._relaxed_query_compiler is None
+    assert snow_result._query_compiler._dummy_row_pos_mode is False
 
     # create pandas dataframes
     native_df = df.to_pandas()
