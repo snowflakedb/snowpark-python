@@ -189,11 +189,10 @@ class Psycopg2Driver(BaseDriver):
             try:
                 type_code = Psycopg2TypeCode(type_code)
             except ValueError:
-                raise NotImplementedError(
-                    f"Postgres type not supported: {type_code} for column: {name}"
-                )
+                # not supported type is now handled as string type in below code
+                pass
             snow_type = BASE_POSTGRES_TYPE_TO_SNOW_TYPE.get(type_code, StringType)
-            if Psycopg2TypeCode(type_code) == Psycopg2TypeCode.NUMERICOID:
+            if type_code == Psycopg2TypeCode.NUMERICOID:
                 if not self.validate_numeric_precision_scale(precision, scale):
                     logger.debug(
                         f"Snowpark does not support column"

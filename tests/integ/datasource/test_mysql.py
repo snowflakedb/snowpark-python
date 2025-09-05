@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import (
     PymysqlTypeCode,
 )
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
+from snowflake.snowpark.types import StructType, StructField, StringType
 from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_real_data,
     MysqlType,
@@ -296,3 +297,11 @@ def test_server_side_cursor():
     assert isinstance(cursor, pymysql.cursors.SSCursor)
     cursor.close()
     conn.close()
+
+
+def test_unsupported_type():
+
+    schema = PymysqlDriver(
+        create_connection_mysql, DBMS_TYPE.SQL_SERVER_DB
+    ).to_snow_type([("test_col", "unsupported_type", None, None, 0, 0, True)])
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])

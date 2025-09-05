@@ -61,7 +61,7 @@ class DatabricksDriver(BaseDriver):
             try:
                 data_type = type_string_to_type_object(column_type)
             except ValueError:
-                data_type = StringType
+                data_type = StringType()
             if column_type.lower() == "timestamp":
                 # by default https://docs.databricks.com/aws/en/sql/language-manual/data-types/timestamp-type
                 data_type = TimestampType(TimestampTimeZone.LTZ)

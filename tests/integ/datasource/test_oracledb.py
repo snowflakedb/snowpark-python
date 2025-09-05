@@ -253,6 +253,6 @@ def test_unsupported_type():
     )
 
     schema = OracledbDriver(
-        create_connection_oracledb, DBMS_TYPE.SQL_SERVER_DB
+        create_connection_oracledb, DBMS_TYPE.ORACLE_DB
     ).to_snow_type([MockDescription("test_col", invalid_type, 0, 0, True)])
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
