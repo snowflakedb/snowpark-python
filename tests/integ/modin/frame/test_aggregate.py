@@ -812,7 +812,7 @@ def test_sum_min_count(min_count, axis):
     )
 
 
-@sql_count_checker(query_count=3, union_count=4)
+@sql_count_checker(query_count=2, union_count=4)
 def test_agg_valid_variant_col(session, test_table_name):
     pandas_df = native_pd.DataFrame(
         {

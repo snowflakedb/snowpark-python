@@ -1116,7 +1116,7 @@ def test_snowpark_pandas_statement_params(session, df1):
         assert "efg" == mocked_collect.call_args.kwargs["statement_params"]["abc"]
 
 
-@sql_count_checker(query_count=7)
+@sql_count_checker(query_count=5)
 @pytest.mark.parametrize("columns", [["A", "b", "C"]])
 def test_ordered_dataframe_row_count(session, columns):
     num_rows = 10

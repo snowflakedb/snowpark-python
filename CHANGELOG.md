@@ -1,4 +1,45 @@
 # Release History
+## 1.39.0 (YYYY-MM-DD)
+### Snowpark Python API Updates
+#### New Features
+#### Bug Fixes
+#### Deprecations
+#### Dependency Updates
+#### Improvements
+### Snowpark pandas API Updates
+#### New Features
+#### Bug Fixes
+#### Deprecations
+#### Dependency Updates
+#### Improvements
+- Eliminate duplicate parameter check queries for casing status when retrieving the session.
+- Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
+
+## 1.39.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+- Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
+
+#### New Features
+
+#### Bug Fixes
+
+#### Deprecations
+
+#### Dependency Updates
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+
+#### Dependency Updates
+
+#### Bug Fixes
 
 ## 1.38.0 (YYYY-MM-DD)
 
@@ -6,15 +47,45 @@
 
 #### New Features
 
+- Added support for the following AI-powered functions in `functions.py`:
+  - `ai_extract`
+  - `ai_parse_document`
+  - `ai_transcribe`
+- Added time travel support for querying historical data:
+  - `Session.table()` now supports time travel parameters: `time_travel_mode`, `statement`, `offset`, `timestamp`, `timestamp_type`, and `stream`.
+  - `DataFrameReader.table()` supports the same time travel parameters as direct arguments.
+  - `DataFrameReader` supports time travel via option chaining (e.g., `session.read.option("time_travel_mode", "at").option("offset", -60).table("my_table")`).
 - Added support for specifying the following parameters to `DataFrameWriter.copy_into_location` for validation and writing data to external locations:
     - `validation_mode`
     - `storage_integration`
     - `credentials`
     - `encryption`
+- Added support for `Session.directory` and `Session.read.directory` to retrieve the list of all files on a stage with metadata.
+- Added support for `DataFrameReader.jdbc`(PrPr) that allows ingesting external data source with jdbc driver.
+- Added support for `FileOperation.copy_files` to copy files from a source location to an output stage.
+
+- Added support for the following scalar functions in `functions.py`:
+  - `all_user_names`
+  - `bitand`
+  - `bitand_agg`
+  - `bitor`
+  - `bitor_agg`
+  - `bitxor`
+  - `bitxor_agg`
+  - `current_account_name`
+  - `current_client`
+  - `current_ip_address`
+  - `current_role_type`
+  - `current_organization_name`
+  - `current_organization_user`
+  - `current_secondary_roles`
+  - `current_transaction`
+  - `getbit`
 
 #### Bug Fixes
 
 - Fixed the repr of TimestampType to match the actual subtype it represents.
+- Fixed a bug in `DataFrameReader.dbapi` that udtf ingestion does not work in stored procedure.
 - Fixed a bug in schema inference that caused incorrect stage prefixes to be used.
 
 #### Deprecations
@@ -24,10 +95,13 @@
 #### Improvements
 
 - Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
+- Bumped cloudpickle dependency to also support `cloudpickle==3.1.1` in addition to previous versions.
+- Improved `DataFrameReader.dbapi` (PuPr) ingestion performance for PostgreSQL and MySQL by using server side cursor to fetch data.
 
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Completed support for `pd.read_snowflake()`, `pd.to_iceberg()`,
   `pd.to_pandas()`, `pd.to_snowpark()`, `pd.to_snowflake()`,
   `DataFrame.to_iceberg()`, `DataFrame.to_pandas()`, `DataFrame.to_snowpark()`,
@@ -38,8 +112,12 @@
 - Added support for `Index.get_level_values()`.
 
 #### Improvements
+
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
 - Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
+- Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
+- Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
+- Add a new test parameter for integration tests to enable hybrid execution
 
 #### Dependency Updates
 

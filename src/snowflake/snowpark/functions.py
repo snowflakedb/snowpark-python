@@ -168,6 +168,11 @@ from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark._functions import general_functions
+from snowflake.snowpark._functions.general_functions import (
+    _call_function,
+    _check_column_parameters,
+)
 import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
@@ -213,6 +218,7 @@ from snowflake.snowpark._internal.utils import (
     check_create_map_parameter,
     deprecated,
 )
+from snowflake.snowpark._functions.scalar_functions import *  # noqa: F403,F401
 from snowflake.snowpark.column import (
     CaseExpr,
     Column,
@@ -246,19 +252,6 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
-
-
-# check function to allow test_dataframe_alias_negative to pass in AST mode.
-def _check_column_parameters(name1: str, name2: Optional[str]) -> None:
-    if not isinstance(name1, str):
-        raise ValueError(
-            f"Expects first argument to be of type str, got {type(name1)}."
-        )
-
-    if name2 is not None and not isinstance(name2, str):
-        raise ValueError(
-            f"Expects second argument to be of type str or None, got {type(name1)}."
-        )
 
 
 @overload
@@ -306,24 +299,9 @@ def col(
     *,
     _is_qualified_name: bool = False,
 ) -> Column:
-
-    _check_column_parameters(name1, name2)
-
-    if name2 is None:
-        return Column(
-            name1,
-            _is_qualified_name=_is_qualified_name,
-            _emit_ast=_emit_ast,
-            _caller_name="col",
-        )
-    else:
-        return Column(
-            name1,
-            name2,
-            _is_qualified_name=_is_qualified_name,
-            _emit_ast=_emit_ast,
-            _caller_name="col",
-        )
+    return general_functions.col(
+        name1, name2, _emit_ast, _is_qualified_name=_is_qualified_name
+    )
 
 
 @overload
@@ -419,27 +397,7 @@ def lit(
         ---------------------------------------------------------------------------------------------
         <BLANKLINE>
     """
-
-    if _emit_ast:
-        ast = proto.Expr()
-        if datatype is None:
-            build_builtin_fn_apply(ast, "lit", literal)
-        else:
-            build_builtin_fn_apply(ast, "lit", literal, datatype)
-
-        if isinstance(literal, Column):
-            # Create new Column, and assign expression of current Column object.
-            # This will encode AST correctly.
-            c = Column("", _emit_ast=False)
-            c._expression = literal._expression
-            c._ast = ast
-            return c
-        return Column(Literal(literal, datatype=datatype), _ast=ast, _emit_ast=True)
-
-    if isinstance(literal, Column):
-        return literal
-
-    return Column(Literal(literal, datatype=datatype), _ast=None, _emit_ast=False)
+    return general_functions.lit(literal, datatype, _emit_ast)
 
 
 @publicapi
@@ -10423,12 +10381,7 @@ def call_function(
         <BLANKLINE>
 
     """
-    ast = (
-        build_function_expr("call_function", [function_name, *args])
-        if _emit_ast
-        else None
-    )
-    return _call_function(function_name, *args, _ast=ast, _emit_ast=_emit_ast)
+    return general_functions.call_function(function_name, *args, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -10461,35 +10414,7 @@ def function(function_name: str, _emit_ast: bool = True) -> Callable:
         ----------------
         <BLANKLINE>
     """
-    return lambda *args: call_function(function_name, *args, _emit_ast=_emit_ast)
-
-
-def _call_function(
-    name: str,
-    *args: ColumnOrLiteral,
-    is_distinct: bool = False,
-    api_call_source: Optional[str] = None,
-    is_data_generator: bool = False,
-    _ast: proto.Expr = None,
-    _emit_ast: bool = True,
-) -> Column:
-
-    if _emit_ast and _ast is None:
-        _ast = build_function_expr(name, args)
-
-    args_list = parse_positional_args_to_list(*args)
-    expressions = [Column._to_expr(arg) for arg in args_list]
-    return Column(
-        FunctionExpression(
-            name,
-            expressions,
-            is_distinct=is_distinct,
-            api_call_source=api_call_source,
-            is_data_generator=is_data_generator,
-        ),
-        _ast=_ast,
-        _emit_ast=_emit_ast,
-    )
+    return general_functions.function(function_name, _emit_ast=_emit_ast)
 
 
 def _call_named_arguments_function(
@@ -11245,7 +11170,7 @@ def max_by(
         ...     [2020, 20, 8000]
         ... ], schema=["employee_id", "department_id", "salary"])
         >>> df.select(max_by("employee_id", "salary", 3)).collect()
-        [Row(MAX_BY("EMPLOYEE_ID", "SALARY", 3)='[\\n  900,\\n  2010,\\n  1001\\n]')]
+        [Row(MAX_BY("EMPLOYEE_ID", "SALARY", 3)='[\\n  2010,\\n  900,\\n  1001\\n]')]
     """
     c1 = _to_col_if_str(col_to_return, "max_by")
     c2 = _to_col_if_str(col_containing_maximum, "max_by")
@@ -11289,7 +11214,7 @@ def min_by(
         ...     [2020, 20, 8000]
         ... ], schema=["employee_id", "department_id", "salary"])
         >>> df.select(min_by("employee_id", "salary", 3).alias("min_by")).collect()
-        [Row(MIN_BY='[\\n  1030,\\n  2020,\\n  1020\\n]')]
+        [Row(MIN_BY='[\\n  2020,\\n  1030,\\n  1020\\n]')]
 
     """
     c1 = _to_col_if_str(col_to_return, "min_by")
@@ -12361,6 +12286,170 @@ def prompt(
 
 
 @publicapi
+def ai_extract(
+    input: Union[ColumnOrLiteralStr, Column],
+    response_format: Union[dict, list],
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Extracts information from an input string or file based on the specified response format.
+
+    Args:
+        input: Either:
+            - A string or Column containing text to extract information from
+            - A FILE type Column representing a document to extract from
+
+        response_format: Information to be extracted in one of the following formats:
+
+            - Simple object schema (dict) mapping feature names to extraction prompts:
+              ``{'name': 'What is the last name of the employee?', 'address': 'What is the address of the employee?'}``
+            - Array of strings containing the information to be extracted:
+              ``['What is the last name of the employee?', 'What is the address of the employee?']``
+            - Array of arrays containing two strings (feature name and extraction prompt):
+              ``[['name', 'What is the last name of the employee?'], ['address', 'What is the address of the employee?']]``
+            - Array of strings with colon-separated feature names and extraction prompts:
+              ``['name: What is the last name of the employee?', 'address: What is the address of the employee?']``
+
+    Returns:
+        A Column containing a JSON object with the extracted information.
+
+    Note:
+        - You can either ask questions in natural language or describe information to be extracted
+          (e.g., 'City, street, ZIP' instead of 'What is the address?')
+        - To extract a list, add 'List:' at the beginning of each question
+        - Maximum of 100 features can be extracted
+        - Documents must be no more than 125 pages long
+        - Maximum output length is 512 tokens per question
+
+        Supported file formats: PDF, PNG, PPTX, EML, DOC, DOCX, JPEG, JPG, HTM, HTML, TEXT, TXT, TIF, TIFF
+        Files must be less than 100 MB in size.
+
+    Examples::
+
+        >>> # Extract from text string
+        >>> df = session.range(1).select(
+        ...     ai_extract(
+        ...         'John Smith lives in San Francisco and works for Snowflake',
+        ...         {'name': 'What is the first name of the employee?', 'city': 'What is the address of the employee?'}
+        ...     ).alias("extracted")
+        ... )
+        >>> df.show()
+        --------------------------------
+        |"EXTRACTED"                   |
+        --------------------------------
+        |{                             |
+        |  "response": {               |
+        |    "city": "San Francisco",  |
+        |    "name": "John"            |
+        |  }                           |
+        |}                             |
+        --------------------------------
+        <BLANKLINE>
+
+        >>> # Extract using array format
+        >>> df = session.create_dataframe(
+        ...     ["Alice Johnson works in Seattle", "Bob Williams works in Portland"],
+        ...     schema=["text"]
+        ... )
+        >>> extracted_df = df.select(
+        ...     col("text"),
+        ...     ai_extract(col("text"), [['name', 'What is the first name?'], ['city', 'What city do they work in?']]).alias("info")
+        ... )
+        >>> extracted_df.show()
+        ------------------------------------------------------------
+        |"TEXT"                          |"INFO"                   |
+        ------------------------------------------------------------
+        |Alice Johnson works in Seattle  |{                        |
+        |                                |  "response": {          |
+        |                                |    "city": "Seattle",   |
+        |                                |    "name": "Alice"      |
+        |                                |  }                      |
+        |                                |}                        |
+        |Bob Williams works in Portland  |{                        |
+        |                                |  "response": {          |
+        |                                |    "city": "Portland",  |
+        |                                |    "name": "Bob"        |
+        |                                |  }                      |
+        |                                |}                        |
+        ------------------------------------------------------------
+        <BLANKLINE>
+
+        >>> # Extract lists using List: prefix
+        >>> df = session.range(1).select(
+        ...     ai_extract(
+        ...         'Python, Java, and JavaScript are popular programming languages',
+        ...         [['languages', 'List: What programming languages are mentioned?']]
+        ...     ).alias("extracted")
+        ... )
+        >>> df.show()
+        ----------------------
+        |"EXTRACTED"         |
+        ----------------------
+        |{                   |
+        |  "response": {     |
+        |    "languages": [  |
+        |      "Python",     |
+        |      "Java",       |
+        |      "JavaScript"  |
+        |    ]               |
+        |  }                 |
+        |}                   |
+        ----------------------
+        <BLANKLINE>
+
+
+        >>> # Extract from file
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_extract(
+        ...         to_file('@mystage/invoice.pdf'),
+        ...         [['date', 'What is the date of the invoice?'], ['amount', 'What is the amount of the invoice?']]
+        ...     ).alias("extracted")
+        ... )
+        >>> df.show()
+        --------------------------------
+        |"EXTRACTED"                   |
+        --------------------------------
+        |{                             |
+        |  "response": {               |
+        |    "amount": "USD $950.00",  |
+        |    "date": "Nov 26, 2016"    |
+        |  }                           |
+        |}                             |
+        --------------------------------
+        <BLANKLINE>
+    """
+    sql_func_name = "ai_extract"
+
+    # Convert input to column if it's a string literal
+    if isinstance(input, str):
+        input_col = lit(input)
+    else:
+        input_col = input
+
+    # Convert response_format to SQL expression
+    # We use json.dumps and replace double quotes with single quotes as per SQL requirements
+    response_format_col = sql_expr(json.dumps(response_format).replace('"', "'"))
+
+    # Build AST if needed
+    ast = (
+        build_function_expr(sql_func_name, [input, response_format])
+        if _emit_ast
+        else None
+    )
+
+    # Call the function with positional arguments
+    return _call_function(
+        sql_func_name,
+        input_col,
+        response_format_col,
+        _ast=ast,
+        _emit_ast=_emit_ast,
+    )
+
+
+@publicapi
 def ai_filter(
     predicate: ColumnOrLiteralStr,
     file: Optional[Column] = None,
@@ -12774,6 +12863,230 @@ def ai_similarity(
         return _call_function(
             sql_func_name, input1_col, input2_col, _ast=ast, _emit_ast=_emit_ast
         )
+
+
+@publicapi
+def ai_parse_document(
+    file: Column,
+    _emit_ast: bool = True,
+    **kwargs,
+) -> Column:
+    """
+    Returns the extracted content from a document as a JSON-formatted string.
+    This function supports two types of extraction: Optical Character Recognition (OCR), and layout.
+
+    Args:
+        file: A FILE type column containing the document to parse. The document must be on a
+            Snowflake stage that uses server-side encryption and is accessible to the user.
+        **kwargs: Configuration settings specified as key/value pairs. Supported keys:
+
+            - mode: Specifies the parsing mode. Supported modes are:
+                - 'OCR': The function extracts text only. This is the default mode.
+                - 'LAYOUT': The function extracts layout as well as text, including structural
+                  content such as tables.
+
+            - page_split: If set to True, the function splits the document into pages and
+              processes each page separately. This feature supports only PDF, PowerPoint (.pptx),
+              and Word (.docx) documents. Documents in other formats return an error.
+              The default is False.
+              Tip: To process long documents that exceed the token limit, set this option to True.
+
+    Returns:
+        A JSON object (as a string) that contains the extracted data and associated metadata.
+        The options argument determines the structure of the returned object.
+
+        If ``page_split`` is set, the output contains:
+            - pages: An array of JSON objects, each containing text extracted from the document.
+            - metadata: Contains metadata about the document, such as page count.
+            - errorInformation: Contains error information if document can't be parsed (only on error).
+
+        If ``page_split`` is False or not present, the output contains:
+            - content: Plain text (in OCR mode) or Markdown-formatted text (in LAYOUT mode).
+            - metadata: Contains metadata about the document, such as page count.
+            - errorInformation: Contains error information if document can't be parsed (only on error).
+
+    Examples::
+
+        >>> import json
+        >>> # Parse a PDF document with default OCR mode
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/doc.pdf", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_parse_document(to_file("@mystage/doc.pdf")).alias("parsed_content")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> "Sample PDF" in result["content"]
+        True
+        >>> result["metadata"]["pageCount"]
+        3
+
+        >>> # Parse with LAYOUT mode to extract tables and structure
+        >>> _ = session.file.put("tests/resources/invoice.pdf", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_parse_document(
+        ...         to_file("@mystage/invoice.pdf"),
+        ...         mode='LAYOUT'
+        ...     ).alias("parsed_content")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> "| Customer Name |" in result["content"] and "| Country |" in result["content"]  # Markdown format
+        True
+
+        >>> # Parse with page splitting for documents
+        >>> df = session.range(1).select(
+        ...     ai_parse_document(
+        ...         to_file("@mystage/doc.pdf"),
+        ...         page_split=True
+        ...     ).alias("parsed_content")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> len(result["pages"])
+        3
+        >>> 'Sample PDF' in result["pages"][0]["content"]
+        True
+        >>> result["pages"][0]["index"]
+        0
+    """
+    sql_func_name = "ai_parse_document"
+    config_dict = dict(kwargs)
+
+    if config_dict:
+        ast = (
+            build_function_expr(sql_func_name, [file, config_dict])
+            if _emit_ast
+            else None
+        )
+        # only object constant is supported for now
+        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        return _call_function(
+            sql_func_name, file, config_col, _ast=ast, _emit_ast=_emit_ast
+        )
+    else:
+        ast = build_function_expr(sql_func_name, [file]) if _emit_ast else None
+        return _call_function(sql_func_name, file, _ast=ast, _emit_ast=_emit_ast)
+
+
+@publicapi
+def ai_transcribe(
+    audio_file: Column,
+    _emit_ast: bool = True,
+    **kwargs,
+) -> Column:
+    """
+    Transcribes text from an audio file with optional timestamps and speaker labels.
+
+    AI_TRANSCRIBE supports numerous languages (automatically detected), and audio can contain
+    more than one language. Timestamps and speaker labels are extracted based on the specified
+    timestamp granularity.
+
+    Args:
+        audio_file: A FILE type column representing an audio file. The audio file must be on a
+            Snowflake stage that uses server-side encryption and is accessible to the user.
+            Use the to_file() function to create a reference to your staged file.
+        **kwargs: Configuration settings specified as key/value pairs. Supported keys:
+
+            - timestamp_granularity: A string specifying the desired timestamp granularity.
+              Possible values are:
+
+              - 'word': The file is transcribed as a series of words, each with its own timestamp.
+              - 'speaker': The file is transcribed as a series of conversational "turns", each with its own timestamp and speaker label.
+
+              If this field is not specified, the entire file is transcribed as a single
+              segment without timestamps by default.
+
+    Returns:
+        A string containing a JSON representation of the transcription result. The JSON object
+        contains the following fields:
+
+            - audio_duration: The total duration of the audio file in seconds.
+            - text: The transcription of the complete audio file (when timestamp_granularity
+              is not specified).
+            - segments: An array of segments (when timestamp_granularity is set to 'word' or 'speaker').
+              Each segment contains:
+
+              - start: The start time of the segment in seconds.
+              - end: The end time of the segment in seconds.
+              - text: The transcription text for the segment.
+              - speaker_label: The label of the speaker for the segment (only when
+                timestamp_granularity is 'speaker'). Labels are of the form "SPEAKER_00",
+                "SPEAKER_01", etc.
+
+    Note:
+        - Supports languages: Arabic, Bulgarian, Cantonese, Catalan, Chinese, Czech, Dutch,
+          English, French, German, Greek, Hungarian, Indonesian, Italian, Japanese, Korean,
+          Latvian, Polish, Portuguese, Romanian, Russian, Serbian, Slovenian, Spanish,
+          Swedish, Thai, Turkish, Ukrainian.
+        - Supported audio formats: FLAC, MP3, Ogg, WAV, WebM
+        - Maximum file size: 700 MB
+        - Maximum duration: 60 minutes with timestamps, 120 minutes without
+
+    Examples::
+
+        >>> import json
+        >>> # Basic transcription without timestamps
+        >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE mystage ENCRYPTION = (TYPE = 'SNOWFLAKE_SSE')").collect()
+        >>> _ = session.file.put("tests/resources/audio.ogg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_transcribe(to_file("@mystage/audio.ogg")).alias("transcript")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> result['audio_duration'] > 120  # more than 2 minutes
+        True
+        >>> "glad to see things are going well" in result['text'].lower()
+        True
+
+        >>> # Transcription with word-level timestamps
+        >>> df = session.range(1).select(
+        ...     ai_transcribe(
+        ...         to_file("@mystage/audio.ogg"),
+        ...         timestamp_granularity='word'
+        ...     ).alias("transcript")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> len(result["segments"]) > 0
+        True
+        >>> result["segments"][0]["text"].lower()
+        'glad'
+        >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
+        True
+
+        >>> # Transcription with speaker diarization
+        >>> _ = session.file.put("tests/resources/conversation.ogg", "@mystage", auto_compress=False)
+        >>> df = session.range(1).select(
+        ...     ai_transcribe(
+        ...         to_file("@mystage/conversation.ogg"),
+        ...         timestamp_granularity='speaker'
+        ...     ).alias("transcript")
+        ... )
+        >>> result = json.loads(df.collect()[0][0])
+        >>> result["audio_duration"] > 100  # more than 100 seconds
+        True
+        >>> len(result["segments"]) > 0
+        True
+        >>> result["segments"][0]["speaker_label"]
+        'SPEAKER_00'
+        >>> 'jenny' in result["segments"][0]["text"].lower()
+        True
+        >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
+        True
+    """
+    sql_func_name = "ai_transcribe"
+    config_dict = dict(kwargs)
+
+    if config_dict:
+        ast = (
+            build_function_expr(sql_func_name, [audio_file, config_dict])
+            if _emit_ast
+            else None
+        )
+        # only object constant is supported for now
+        config_col = sql_expr(json.dumps(config_dict).replace('"', "'"))
+        return _call_function(
+            sql_func_name, audio_file, config_col, _ast=ast, _emit_ast=_emit_ast
+        )
+    else:
+        ast = build_function_expr(sql_func_name, [audio_file]) if _emit_ast else None
+        return _call_function(sql_func_name, audio_file, _ast=ast, _emit_ast=_emit_ast)
 
 
 @overload

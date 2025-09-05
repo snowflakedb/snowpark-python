@@ -9,7 +9,7 @@ import string
 
 import pytest
 
-from snowflake.snowpark._internal.utils import is_in_stored_procedure
+from snowflake.snowpark._internal.utils import is_in_stored_procedure, TempObjectType
 from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkUploadFileException,
@@ -741,3 +741,110 @@ def test_path_with_special_chars(session, tmp_path_factory, local_testing_mode):
             Utils.drop_stage(session, temp_stage)
         if not is_in_stored_procedure():
             shutil.rmtree(special_directory)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="running sql query is not supported in local testing",
+)
+def test_copy_files(session, path1, path2, path3):
+    """Test basic COPY FILES functionality from one stage to another."""
+    source_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+    target_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+
+    try:
+        # Create stages
+        session.sql(f"create or replace temp stage {source_stage}").collect()
+        session.sql(f"create or replace temp stage {target_stage}").collect()
+
+        # Upload files to source stage
+        session.file.put(
+            f"file://{path1}", f"@{source_stage}/prefix1/", auto_compress=False
+        )
+        session.file.put(
+            f"file://{path2}", f"@{source_stage}/prefix1/", auto_compress=False
+        )
+        session.file.put(
+            f"file://{path3}", f"@{source_stage}/prefix2/", auto_compress=False
+        )
+
+        # Copy all files from prefix1 to target stage
+        copy_result = session.file.copy_files(
+            f"@{source_stage}/prefix1/", f"@{target_stage}/copied/"
+        )
+        assert (
+            all(s.startswith("copied/file_") for s in copy_result)
+            and len(copy_result) == 2
+        )
+
+        # Copy all files from prefix2 to target stage with detailed_output=False
+        assert (
+            session.file.copy_files(
+                f"@{source_stage}/prefix2/",
+                f"@{target_stage}/copied2/",
+                detailed_output=False,
+            )
+            == 1
+        )
+
+        file_name_1, file_name_2, file_name_3 = (
+            os.path.basename(path1),
+            os.path.basename(path2),
+            os.path.basename(path3),
+        )
+        # two files in prefix1 but only copy one of them
+        assert session.file.copy_files(
+            f"@{source_stage}/prefix1/",
+            f"@{target_stage}/copied3/",
+            files=[file_name_1],
+        ) == [f"copied3/{file_name_1}"]
+
+        # two files in prefix1 but only copy one of them with a pattern
+        assert session.file.copy_files(
+            f"@{source_stage}/prefix1/",
+            f"@{target_stage}/copied4/",
+            pattern=".*file_2.*",
+        ) == [f"copied4/{file_name_2}"]
+
+        # copy files with dataframe
+        df = session.create_dataframe(
+            [[f"@{source_stage}/prefix1/{file_name_1}", "new_file_1"]],
+            schema=["existing_url", "new_file_name"],
+        )
+        current_database = session.get_current_database().replace('"', "")
+        current_schema = session.get_current_schema().replace('"', "")
+        assert session.file.copy_files(df, f"@{target_stage}/copied5/") == [
+            f"{current_database}.{current_schema}.{target_stage}/copied5/new_file_1"
+        ]
+
+        # copy files with dataframe of 1 column
+        df = session.create_dataframe(
+            [
+                f"@{source_stage}/prefix1/{file_name_1}",
+                f"@{source_stage}/prefix2/{file_name_3}",
+            ],
+            schema=["existing_url"],
+        )
+        assert session.file.copy_files(df, f"@{target_stage}/copied6/") == [
+            f"{current_database}.{current_schema}.{target_stage}/copied6/prefix1/{file_name_1}",
+            f"{current_database}.{current_schema}.{target_stage}/copied6/prefix2/{file_name_3}",
+        ]
+
+        # negative test: dataframe with 3 columns
+        df = session.create_dataframe(
+            [[f"@{source_stage}/prefix1/{file_name_1}", "new_file_1", "extra_column"]],
+            schema=["existing_url", "new_file_name", "extra_column"],
+        )
+        with pytest.raises(
+            SnowparkSQLException, match="exceeds maximum allowable number of columns"
+        ):
+            session.file.copy_files(df, f"@{target_stage}/copied7/")
+
+        with pytest.raises(ValueError, match="files and pattern are not supported"):
+            session.file.copy_files(
+                df, f"@{target_stage}/copied7/", pattern="'.*file_2.*'"
+            )
+
+    finally:
+        session.sql(f"drop stage if exists {source_stage}").collect()
+        session.sql(f"drop stage if exists {target_stage}").collect()
