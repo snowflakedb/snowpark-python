@@ -236,10 +236,6 @@ def test_apply_snowflake_cortex_negative(session, is_series, operation):
         operation(modin_input)
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.complete SSL error",
-)
 @pytest.mark.parametrize(
     "is_series, test_case, kwargs",
     [
@@ -314,10 +310,6 @@ def test_apply_snowflake_cortex_complete_success_cases(
         assert "2012" in response
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.complete SSL error",
-)
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize(
     "is_series, test_case, kwargs, expected_error, expected_error_type",
