@@ -217,6 +217,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
+    private_preview,
 )
 from snowflake.snowpark._functions.scalar_functions import *  # noqa: F403,F401
 from snowflake.snowpark.column import (
@@ -10908,6 +10909,89 @@ def make_interval(
         _emit_ast=False,
     )
 
+    res._ast = ast
+    return res
+
+
+@private_preview(
+    version="1.38.0",
+    extra_doc_string="Type YearMonthIntervalType is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED` and `ENABLE_INTERVAL_SUBTYPES` to `TRUE`.",
+)
+@publicapi
+def interval_year_month_from_parts(
+    years: Optional[ColumnOrName] = None,
+    months: Optional[ColumnOrName] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates a year-month interval expression using with specified years and months.
+
+    This YearMonthInterval is not to be confused with the interval created by make_interval.
+    You can define a table column to be of data type YearMonthIntervalType.
+
+    Args:
+        years: The number of years, positive or negative
+        months: The number of months, positive or negative
+
+    Returns:
+        A Column representing a year-month interval
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import interval_year_month_from_parts
+        >>>
+        >>> _ = session.sql("ALTER SESSION SET FEATURE_INTERVAL_TYPES=ENABLED;").collect()
+        >>> _ = session.sql("ALTER SESSION SET ENABLE_INTERVAL_SUBTYPES=TRUE;").collect()
+        >>> df = session.create_dataframe([[1, 2]], ["years", "months"])
+        >>> df.select(interval_year_month_from_parts(col("years"), col("months")).alias("interval")).show()
+        --------------
+        |"INTERVAL"  |
+        --------------
+        |+1-02       |
+        --------------
+        <BLANKLINE>
+
+    """
+    ast = None
+    if _emit_ast:
+        args = []
+        if years is not None:
+            args.append(years)
+        if months is not None:
+            args.append(months)
+        ast = build_function_expr("interval_year_month_from_parts", args)
+
+    years_col = (
+        lit(0)
+        if years is None
+        else _to_col_if_str(years, "interval_year_month_from_parts")
+    )
+    months_col = (
+        lit(0)
+        if months is None
+        else _to_col_if_str(months, "interval_year_month_from_parts")
+    )
+
+    total_months = years_col * lit(12) + months_col
+
+    normalized_years = cast(cast(floor(abs(total_months) / lit(12)), "int"), "str")
+    normalized_months = cast(cast(floor(abs(total_months) % lit(12)), "int"), "str")
+    sign_prefix = iff(
+        total_months < lit(0),
+        lit("-"),
+        lit(""),
+    )
+    interval_string = concat(sign_prefix, normalized_years, lit("-"), normalized_months)
+
+    def get_col_name(col):
+        if isinstance(col._expr1, Literal):
+            return str(col._expr1.value)
+        else:
+            return col._expression.name
+
+    alias_name = f"interval_year_month_from_parts({get_col_name(years_col)}, {get_col_name(months_col)})"
+
+    res = cast(interval_string, "INTERVAL YEAR TO MONTH").alias(alias_name)
     res._ast = ast
     return res
 
