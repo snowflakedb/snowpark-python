@@ -13,6 +13,7 @@
 #### Dependency Updates
 #### Improvements
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
+- Provide a mechanism for skipping snowpark pandas integration tests when running in hybrid mode
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
 
 ## 1.39.0 (YYYY-MM-DD)
