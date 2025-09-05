@@ -19,6 +19,8 @@
 
 #### Improvements
 
+- Improved error message to list available columns when dataframe cannot resolve given column name.
+
 ### Snowpark pandas API Updates
 
 #### New Features
