@@ -91,7 +91,7 @@ def test_read_filter_join_on_index(session):
     native_result = native_df1.merge(native_df2, left_index=True, right_index=True)
 
     # compare results
-    # first ensire that indexes are the same
+    # first ensure that indexes are the same
     assert_index_equal(snow_result.index, native_result.index)
     # then compare the data columns exclduing the index column
     # (because row position assignement is not necessarily idential)
