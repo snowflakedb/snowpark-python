@@ -698,7 +698,8 @@ class DataFrame:
         log_on_exception: bool = False,
         case_sensitive: bool = True,
         _emit_ast: bool = True,
-    ) -> List[Row]: ...  # pragma: no cover
+    ) -> List[Row]:
+        ...  # pragma: no cover
 
     @publicapi
     @overload
@@ -710,7 +711,8 @@ class DataFrame:
         log_on_exception: bool = False,
         case_sensitive: bool = True,
         _emit_ast: bool = True,
-    ) -> AsyncJob: ...  # pragma: no cover
+    ) -> AsyncJob:
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     @publicapi
@@ -875,7 +877,8 @@ class DataFrame:
         block: bool = True,
         case_sensitive: bool = True,
         _emit_ast: bool = True,
-    ) -> Iterator[Row]: ...  # pragma: no cover
+    ) -> Iterator[Row]:
+        ...  # pragma: no cover
 
     @overload
     @publicapi
@@ -886,7 +889,8 @@ class DataFrame:
         block: bool = False,
         case_sensitive: bool = True,
         _emit_ast: bool = True,
-    ) -> AsyncJob: ...  # pragma: no cover
+    ) -> AsyncJob:
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     @publicapi
@@ -997,7 +1001,8 @@ class DataFrame:
             block: bool = True,
             _emit_ast: bool = True,
             **kwargs: Dict[str, Any],
-        ) -> pandas.DataFrame: ...  # pragma: no cover
+        ) -> pandas.DataFrame:
+            ...  # pragma: no cover
 
     @publicapi
     @overload
@@ -1008,7 +1013,8 @@ class DataFrame:
         block: bool = False,
         _emit_ast: bool = True,
         **kwargs: Dict[str, Any],
-    ) -> AsyncJob: ...  # pragma: no cover
+    ) -> AsyncJob:
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     @publicapi
@@ -1109,7 +1115,8 @@ class DataFrame:
             block: bool = True,
             _emit_ast: bool = True,
             **kwargs: Dict[str, Any],
-        ) -> Iterator[pandas.DataFrame]: ...  # pragma: no cover
+        ) -> Iterator[pandas.DataFrame]:
+            ...  # pragma: no cover
 
     @publicapi
     @overload
@@ -1120,7 +1127,8 @@ class DataFrame:
         block: bool = False,
         _emit_ast: bool = True,
         **kwargs: Dict[str, Any],
-    ) -> AsyncJob: ...  # pragma: no cover
+    ) -> AsyncJob:
+        ...  # pragma: no cover
 
     @df_collect_api_telemetry
     @publicapi
@@ -4410,7 +4418,8 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         _emit_ast: bool = True,
-    ) -> int: ...  # pragma: no cover
+    ) -> int:
+        ...  # pragma: no cover
 
     @overload
     @publicapi
@@ -4420,7 +4429,8 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
         _emit_ast: bool = True,
-    ) -> AsyncJob: ...  # pragma: no cover
+    ) -> AsyncJob:
+        ...  # pragma: no cover
 
     @publicapi
     def count(
@@ -5635,7 +5645,8 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = True,
         _emit_ast: bool = True,
-    ) -> Union[Optional[Row], List[Row]]: ...  # pragma: no cover
+    ) -> Union[Optional[Row], List[Row]]:
+        ...  # pragma: no cover
 
     @overload
     @publicapi
@@ -5646,7 +5657,8 @@ class DataFrame:
         statement_params: Optional[Dict[str, str]] = None,
         block: bool = False,
         _emit_ast: bool = True,
-    ) -> AsyncJob: ...  # pragma: no cover
+    ) -> AsyncJob:
+        ...  # pragma: no cover
 
     @publicapi
     def first(
