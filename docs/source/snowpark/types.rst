@@ -48,3 +48,4 @@ This package contains all Snowpark logical types.
     Variant
     VariantType
     VectorType
+    YearMonthIntervalType

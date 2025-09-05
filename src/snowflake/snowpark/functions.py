@@ -168,6 +168,11 @@ from typing import Callable, Dict, List, Optional, Tuple, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
+from snowflake.snowpark._functions import general_functions
+from snowflake.snowpark._functions.general_functions import (
+    _call_function,
+    _check_column_parameters,
+)
 import snowflake.snowpark.table_function
 from snowflake.snowpark._internal.analyzer.expression import (
     CaseWhen,
@@ -212,7 +217,9 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     check_create_map_parameter,
     deprecated,
+    private_preview,
 )
+from snowflake.snowpark._functions.scalar_functions import *  # noqa: F403,F401
 from snowflake.snowpark.column import (
     CaseExpr,
     Column,
@@ -246,19 +253,6 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
-
-
-# check function to allow test_dataframe_alias_negative to pass in AST mode.
-def _check_column_parameters(name1: str, name2: Optional[str]) -> None:
-    if not isinstance(name1, str):
-        raise ValueError(
-            f"Expects first argument to be of type str, got {type(name1)}."
-        )
-
-    if name2 is not None and not isinstance(name2, str):
-        raise ValueError(
-            f"Expects second argument to be of type str or None, got {type(name1)}."
-        )
 
 
 @overload
@@ -306,24 +300,9 @@ def col(
     *,
     _is_qualified_name: bool = False,
 ) -> Column:
-
-    _check_column_parameters(name1, name2)
-
-    if name2 is None:
-        return Column(
-            name1,
-            _is_qualified_name=_is_qualified_name,
-            _emit_ast=_emit_ast,
-            _caller_name="col",
-        )
-    else:
-        return Column(
-            name1,
-            name2,
-            _is_qualified_name=_is_qualified_name,
-            _emit_ast=_emit_ast,
-            _caller_name="col",
-        )
+    return general_functions.col(
+        name1, name2, _emit_ast, _is_qualified_name=_is_qualified_name
+    )
 
 
 @overload
@@ -419,27 +398,7 @@ def lit(
         ---------------------------------------------------------------------------------------------
         <BLANKLINE>
     """
-
-    if _emit_ast:
-        ast = proto.Expr()
-        if datatype is None:
-            build_builtin_fn_apply(ast, "lit", literal)
-        else:
-            build_builtin_fn_apply(ast, "lit", literal, datatype)
-
-        if isinstance(literal, Column):
-            # Create new Column, and assign expression of current Column object.
-            # This will encode AST correctly.
-            c = Column("", _emit_ast=False)
-            c._expression = literal._expression
-            c._ast = ast
-            return c
-        return Column(Literal(literal, datatype=datatype), _ast=ast, _emit_ast=True)
-
-    if isinstance(literal, Column):
-        return literal
-
-    return Column(Literal(literal, datatype=datatype), _ast=None, _emit_ast=False)
+    return general_functions.lit(literal, datatype, _emit_ast)
 
 
 @publicapi
@@ -10423,12 +10382,7 @@ def call_function(
         <BLANKLINE>
 
     """
-    ast = (
-        build_function_expr("call_function", [function_name, *args])
-        if _emit_ast
-        else None
-    )
-    return _call_function(function_name, *args, _ast=ast, _emit_ast=_emit_ast)
+    return general_functions.call_function(function_name, *args, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -10461,35 +10415,7 @@ def function(function_name: str, _emit_ast: bool = True) -> Callable:
         ----------------
         <BLANKLINE>
     """
-    return lambda *args: call_function(function_name, *args, _emit_ast=_emit_ast)
-
-
-def _call_function(
-    name: str,
-    *args: ColumnOrLiteral,
-    is_distinct: bool = False,
-    api_call_source: Optional[str] = None,
-    is_data_generator: bool = False,
-    _ast: proto.Expr = None,
-    _emit_ast: bool = True,
-) -> Column:
-
-    if _emit_ast and _ast is None:
-        _ast = build_function_expr(name, args)
-
-    args_list = parse_positional_args_to_list(*args)
-    expressions = [Column._to_expr(arg) for arg in args_list]
-    return Column(
-        FunctionExpression(
-            name,
-            expressions,
-            is_distinct=is_distinct,
-            api_call_source=api_call_source,
-            is_data_generator=is_data_generator,
-        ),
-        _ast=_ast,
-        _emit_ast=_emit_ast,
-    )
+    return general_functions.function(function_name, _emit_ast=_emit_ast)
 
 
 def _call_named_arguments_function(
@@ -10983,6 +10909,89 @@ def make_interval(
         _emit_ast=False,
     )
 
+    res._ast = ast
+    return res
+
+
+@private_preview(
+    version="1.38.0",
+    extra_doc_string="Type YearMonthIntervalType is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED` and `ENABLE_INTERVAL_SUBTYPES` to `TRUE`.",
+)
+@publicapi
+def interval_year_month_from_parts(
+    years: Optional[ColumnOrName] = None,
+    months: Optional[ColumnOrName] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates a year-month interval expression using with specified years and months.
+
+    This YearMonthInterval is not to be confused with the interval created by make_interval.
+    You can define a table column to be of data type YearMonthIntervalType.
+
+    Args:
+        years: The number of years, positive or negative
+        months: The number of months, positive or negative
+
+    Returns:
+        A Column representing a year-month interval
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import interval_year_month_from_parts
+        >>>
+        >>> _ = session.sql("ALTER SESSION SET FEATURE_INTERVAL_TYPES=ENABLED;").collect()
+        >>> _ = session.sql("ALTER SESSION SET ENABLE_INTERVAL_SUBTYPES=TRUE;").collect()
+        >>> df = session.create_dataframe([[1, 2]], ["years", "months"])
+        >>> df.select(interval_year_month_from_parts(col("years"), col("months")).alias("interval")).show()
+        --------------
+        |"INTERVAL"  |
+        --------------
+        |+1-02       |
+        --------------
+        <BLANKLINE>
+
+    """
+    ast = None
+    if _emit_ast:
+        args = []
+        if years is not None:
+            args.append(years)
+        if months is not None:
+            args.append(months)
+        ast = build_function_expr("interval_year_month_from_parts", args)
+
+    years_col = (
+        lit(0)
+        if years is None
+        else _to_col_if_str(years, "interval_year_month_from_parts")
+    )
+    months_col = (
+        lit(0)
+        if months is None
+        else _to_col_if_str(months, "interval_year_month_from_parts")
+    )
+
+    total_months = years_col * lit(12) + months_col
+
+    normalized_years = cast(cast(floor(abs(total_months) / lit(12)), "int"), "str")
+    normalized_months = cast(cast(floor(abs(total_months) % lit(12)), "int"), "str")
+    sign_prefix = iff(
+        total_months < lit(0),
+        lit("-"),
+        lit(""),
+    )
+    interval_string = concat(sign_prefix, normalized_years, lit("-"), normalized_months)
+
+    def get_col_name(col):
+        if isinstance(col._expr1, Literal):
+            return str(col._expr1.value)
+        else:
+            return col._expression.name
+
+    alias_name = f"interval_year_month_from_parts({get_col_name(years_col)}, {get_col_name(months_col)})"
+
+    res = cast(interval_string, "INTERVAL YEAR TO MONTH").alias(alias_name)
     res._ast = ast
     return res
 

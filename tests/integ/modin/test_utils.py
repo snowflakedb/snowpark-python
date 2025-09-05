@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import uuid
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -14,6 +15,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
     create_initial_ordered_dataframe,
+    get_object_metadata_row_count,
 )
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
@@ -21,10 +23,11 @@ from snowflake.snowpark.modin.plugin.extensions.utils import (
 )
 from tests.integ.modin.utils import assert_index_equal
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import Utils
 
 
 @pytest.mark.parametrize("columns", [["A", "b", "C"], ['"a"', '"B"', '"c"']])
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_create_snowpark_dataframe_with_readonly_temp_table(session, columns):
     num_rows = 10
     data = [[0] * len(columns) for _ in range(num_rows)]
@@ -47,7 +50,7 @@ def test_create_snowpark_dataframe_with_readonly_temp_table(session, columns):
 
 
 @pytest.mark.parametrize("columns", [["A", "b", "C"], ['"a"', '"B"', '"c"']])
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_create_snowpark_dataframe_with_no_readonly_temp_table(session, columns):
     num_rows = 10
     data = [[0] * len(columns) for _ in range(num_rows)]
@@ -163,3 +166,96 @@ def test_ensure_index(data):
         data = pd.Series(data)
         qc = 7
     ensure_index_test_helper(data, qc)
+
+
+@sql_count_checker(
+    query_count=8,
+)
+def test_get_object_metadata_row_count(session):
+    # Test with a table that exists and has rows.
+    table_name_with_rows = random_name_for_temp_object(TempObjectType.TABLE)
+    num_rows = 5
+    # Use temporary table to ensure it's cleaned up after session.
+    session.create_dataframe(
+        [[i] for i in range(num_rows)], schema=["a"]
+    ).write.save_as_table(
+        table_name_with_rows, mode="overwrite", table_type="temporary"
+    )
+
+    # Test with different qualifications
+    current_db = session.get_current_database()
+    current_schema = session.get_current_schema()
+
+    assert get_object_metadata_row_count(table_name_with_rows) == num_rows
+    assert (
+        get_object_metadata_row_count(f"{current_schema}.{table_name_with_rows}")
+        == num_rows
+    )
+    assert (
+        get_object_metadata_row_count(
+            f"{current_db}.{current_schema}.{table_name_with_rows}"
+        )
+        == num_rows
+    )
+
+    # Test with views; should return None
+    try:
+        df = pd.read_snowflake(f"SELECT * FROM {table_name_with_rows}")
+        view_name = f"{table_name_with_rows}_V"
+        df.to_view(view_name)
+        assert get_object_metadata_row_count(view_name) is None
+        assert get_object_metadata_row_count(f"{current_schema}.{view_name}") is None
+        assert (
+            get_object_metadata_row_count(f"{current_db}.{current_schema}.{view_name}")
+            is None
+        )
+    finally:
+        Utils.drop_view(session, view_name)
+
+    # Test with materialized views; should return None ( unfortunately )
+    try:
+        materialized_view_name = f"{table_name_with_rows}_MV"
+        session.sql(
+            f"CREATE MATERIALIZED VIEW {materialized_view_name} AS SELECT * FROM {table_name_with_rows}"
+        )
+        assert get_object_metadata_row_count(materialized_view_name) is None
+        assert (
+            get_object_metadata_row_count(f"{current_schema}.{materialized_view_name}")
+            is None
+        )
+        assert (
+            get_object_metadata_row_count(
+                f"{current_db}.{current_schema}.{materialized_view_name}"
+            )
+            is None
+        )
+    finally:
+        Utils.drop_view(session, materialized_view_name)
+
+    # Test with a non-existent table.
+    non_existent_table = random_name_for_temp_object(TempObjectType.TABLE)
+    assert get_object_metadata_row_count(non_existent_table) is None
+
+    # Test with an invalid name.
+    assert get_object_metadata_row_count("a.b.c.d.e") is None
+
+    # Test with a cross-schema lookup
+    try:
+        ALTERNATIVE_TEST_SCHEMA = "SNOWPANDAS_JOB_{}".format(
+            str(uuid.uuid4()).replace("-", "_")
+        )
+        TABLE_IN_ALT_SCHEMA = random_name_for_temp_object(TempObjectType.TABLE)
+        FQTABLE_NAME = f"{ALTERNATIVE_TEST_SCHEMA}.{TABLE_IN_ALT_SCHEMA}"
+        FQTABLE_NAME_NO_TABLE = f"{ALTERNATIVE_TEST_SCHEMA}.DOES_NOT_EXIST"
+        session.sql(f"CREATE SCHEMA IF NOT EXISTS {ALTERNATIVE_TEST_SCHEMA}").collect()
+        session.sql(
+            f"GRANT ALL PRIVILEGES ON SCHEMA {ALTERNATIVE_TEST_SCHEMA} TO ROLE PUBLIC"
+        ).collect()
+        session.create_dataframe(
+            [[i] for i in range(num_rows)], schema=["a"]
+        ).write.save_as_table(FQTABLE_NAME, mode="overwrite", table_type="temporary")
+        assert get_object_metadata_row_count(FQTABLE_NAME) == 5
+        assert get_object_metadata_row_count(FQTABLE_NAME_NO_TABLE) is None
+
+    finally:
+        session.sql(f"DROP SCHEMA IF EXISTS {ALTERNATIVE_TEST_SCHEMA}").collect()

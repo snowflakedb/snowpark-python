@@ -50,7 +50,7 @@ def native_pandas_df_basic():
 
 
 @pytest.mark.parametrize("index", [True, False])
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_to_snowpark_with_read_snowflake(tmp_table_basic, index) -> None:
     snow_dataframe = pd.read_snowflake(tmp_table_basic)
     # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
@@ -149,7 +149,7 @@ def test_to_snowpark_with_multiindex(tmp_table_basic, index, index_labels) -> No
     assert snowpark_df.schema[start + 1].column_identifier.quoted_name == '"b"'
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_to_snowpark_with_operations(session, tmp_table_basic) -> None:
     snowpandas_df = pd.read_snowflake(tmp_table_basic)
     # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.
@@ -189,7 +189,7 @@ def test_to_snowpark_with_duplicated_columns_raise(native_pandas_df_basic) -> No
         snow_dataframe.to_snowpark()
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_to_snowpark_with_none_index_label(tmp_table_basic) -> None:
     snowpandas_df = pd.read_snowflake(tmp_table_basic)
     # Follow read_snowflake with a sort operation to ensure that ordering is stable and tests are not flaky.

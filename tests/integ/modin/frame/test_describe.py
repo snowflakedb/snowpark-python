@@ -349,7 +349,7 @@ def test_describe_duplicate_columns_mixed():
 
 
 @sql_count_checker(
-    query_count=4,
+    query_count=3,
     union_count=8,
 )
 # SNOW-1320296 - pd.concat SQL Compilation ambigious __row_position__ issue
