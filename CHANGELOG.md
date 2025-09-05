@@ -4,10 +4,12 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
-
-#### New Features
+- Added support for `FileOperation.list` to list files in a stage with metadata.
+- Added support for `FileOperation.remove` to remove files in a stage.
 
 #### Bug Fixes
 
@@ -75,8 +77,6 @@
   - `current_secondary_roles`
   - `current_transaction`
   - `getbit`
-- Added support for `FileOperation.list` to list files in a stage with metadata.
-- Added support for `FileOperation.remove` to remove files in a stage.
 
 #### Bug Fixes
 
