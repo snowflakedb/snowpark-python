@@ -1056,6 +1056,11 @@ class DataFrameReader:
               + ``rowValidationXSDPath``: The Snowflake stage path to the XSD file used for row validation.
                 Rows that do not match the XSD schema will be considered corrupt records and handled according to
                 the specified ``mode`` option.
+
+              + ``cacheResult``: Whether to cache the result DataFrame of the XML reader to a temporary table after calling :meth:`xml`.
+                When set to ``True`` (default), the result is cached and all subsequent operations on the DataFrame are performed on the cached data.
+                This means the actual computation occurs before :meth:`DataFrame.collect` is called.
+                When set to ``False``, the DataFrame is computed lazily and the actual computation occurs when :meth:`DataFrame.collect` is called.
         """
         df = self._read_semi_structured_file(path, "XML")
         # AST.
@@ -1489,6 +1494,9 @@ class DataFrameReader:
         df._reader = self
         if xml_reader_udtf:
             set_api_call_source(df, XML_READER_API_SIGNATURE)
+            if self._cur_options.get("CACHERESULT", True):
+                df = df.cache_result()
+                df._all_variant_cols = True
         else:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
