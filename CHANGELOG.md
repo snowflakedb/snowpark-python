@@ -30,6 +30,12 @@
 
 #### Bug Fixes
 
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support to allow patching `functions.ai_complete`.
+
 ## 1.38.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates

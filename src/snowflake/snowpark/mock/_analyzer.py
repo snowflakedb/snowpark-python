@@ -62,6 +62,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     Literal,
     MultipleExpression,
     NamedExpression,
+    NamedFunctionExpression,
     RegExp,
     ScalarSubquery,
     SnowflakeUDF,
@@ -397,6 +398,22 @@ class MockAnalyzer:
                 func_name,
                 children,
                 expr.is_distinct,
+            )
+
+        if isinstance(expr, NamedFunctionExpression):
+            if expr.api_call_source is not None:
+                self.session._conn._telemetry_client.send_function_usage_telemetry(
+                    expr.api_call_source, TelemetryField.FUNC_CAT_USAGE.value
+                )
+            func_name = expr.name.upper() if parse_local_name else expr.name
+            return named_arguments_function(
+                func_name,
+                {
+                    key: self.to_sql_try_avoid_cast(
+                        value, df_aliased_col_name_to_real_col_name
+                    )
+                    for key, value in expr.named_arguments.items()
+                },
             )
 
         if isinstance(expr, Star):
