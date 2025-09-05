@@ -31,6 +31,8 @@
 
 #### Improvements
 
+- Unsupported types in `DataFrameReader.dbapi`(PuPr) are ingested as `StringType` now.
+
 ### Snowpark pandas API Updates
 
 #### New Features
