@@ -150,7 +150,10 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
         df_incompatible.move_to("Snowflake")
 
 
-@sql_count_checker(query_count=1)
+# There is no query count because the Snowflake->Pandas migration
+# of the small dataset is not counted and there is no actual materialization
+# of the merge
+@sql_count_checker(query_count=0)
 def test_merge(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
@@ -164,7 +167,7 @@ def test_merge(init_transaction_tables, us_holidays_data):
     assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
 def test_filtered_data(init_transaction_tables):
     # When data is filtered, the engine should change when it is sufficiently small.
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
@@ -191,11 +194,15 @@ def test_filtered_data(init_transaction_tables):
     # We still operate in Snowflake because we cannot properly estimate the rows
     assert df_transactions_filter1.get_backend() == "Snowflake"
 
-    # Filter 2 will immediately move to pandas because we know the size of the
-    # resultset. The SQL here is functionatly the same as above.
+    # The SQL here is functionatly the same as above
+    # Unlike in previous iterations of hybrid this does *not* move the data immediately
     df_transactions_filter2 = pd.read_snowflake(
         "SELECT Date, SUM(Revenue) AS REVENUE FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09' GROUP BY DATE"
     )
+    # We do not know the size of this data yet, because the query is entirely lazy
+    assert df_transactions_filter2.get_backend() == "Snowflake"
+    # Move to pandas backend
+    df_transactions_filter2.move_to("Pandas", inplace=True)
     assert df_transactions_filter2.get_backend() == "Pandas"
 
     # Sort and compare the results.
@@ -213,7 +220,7 @@ def test_filtered_data(init_transaction_tables):
     )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_apply(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS").head(1000)
     assert df_transactions.get_backend() == "Snowflake"
@@ -329,7 +336,7 @@ def test_explain_switch_empty():
     assert new_switch_index_names == empty_switch_index_names
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_explain_switch(init_transaction_tables, us_holidays_data):
     clear_hybrid_switch_log()
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
@@ -426,7 +433,7 @@ def test_to_datetime():
 
 
 @sql_count_checker(
-    query_count=12,
+    query_count=11,
     join_count=6,
     udtf_count=2,
     high_count_expected=True,
