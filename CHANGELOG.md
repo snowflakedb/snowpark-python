@@ -22,7 +22,7 @@
 #### New Features
 
 #### Improvements
-- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
+- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
 
