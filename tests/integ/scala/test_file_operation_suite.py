@@ -848,3 +848,131 @@ def test_copy_files(session, path1, path2, path3):
     finally:
         session.sql(f"drop stage if exists {source_stage}").collect()
         session.sql(f"drop stage if exists {target_stage}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="running sql query is not supported in local testing",
+)
+def test_remove(session, path1, path2, path3):
+    """Test REMOVE functionality for deleting files from stages."""
+    source_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+
+    try:
+        # Create stage
+        session.sql(f"create or replace temp stage {source_stage}").collect()
+
+        # Upload files to source stage
+        session.file.put(
+            f"file://{path1}", f"@{source_stage}/prefix1/", auto_compress=False
+        )
+        session.file.put(
+            f"file://{path2}", f"@{source_stage}/prefix1/", auto_compress=False
+        )
+        session.file.put(
+            f"file://{path3}", f"@{source_stage}/prefix2/", auto_compress=False
+        )
+
+        # Verify files are uploaded by listing them
+        all_files = session.file.list(f"@{source_stage}/")
+        assert len(all_files) == 3
+
+        file_name_1, file_name_2, file_name_3 = (
+            os.path.basename(path1),
+            os.path.basename(path2),
+            os.path.basename(path3),
+        )
+        # Remove a specific file with a pattern (remove files with "file_2" in name)
+        removed_files = session.file.remove(
+            f"@{source_stage}/prefix1/", pattern=f".*{file_name_2}.*"
+        )
+        assert len(removed_files) == 1 and file_name_2 in removed_files[0]
+
+        # Verify one file was removed
+        assert len(session.file.list(f"@{source_stage}/")) == 2
+
+        # Remove all files from prefix1
+        removed_files = session.file.remove(f"@{source_stage}/prefix1/")
+        assert len(removed_files) == 1 and file_name_1 in removed_files[0]
+
+        # Verify only files from prefix2 remain
+        remaining_files = session.file.list(f"@{source_stage}/")
+        assert len(remaining_files) == 1 and "prefix2" in remaining_files[0].name
+
+        # Remove all remaining files
+        removed_files = session.file.remove(f"@{source_stage}/")
+        assert len(removed_files) == 1 and file_name_3 in removed_files[0]
+
+        assert not session.file.remove(f"@{source_stage}/")  # No files to remove
+        assert not session.file.list(f"@{source_stage}/")  # Verify no files remain
+
+    finally:
+        session.sql(f"drop stage if exists {source_stage}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="running sql query is not supported in local testing",
+)
+def test_list(session, path1, path2, path3):
+    """Test LIST functionality for listing files from stages."""
+    source_stage = Utils.random_name_for_temp_object(TempObjectType.STAGE)
+
+    try:
+        # Create stage
+        session.sql(f"create or replace temp stage {source_stage}").collect()
+
+        # Upload files to source stage
+        session.file.put(
+            f"file://{path1}", f"@{source_stage}/prefix1/", auto_compress=False
+        )
+        session.file.put(
+            f"file://{path2}", f"@{source_stage}/prefix1/", auto_compress=False
+        )
+        session.file.put(
+            f"file://{path3}", f"@{source_stage}/prefix2/", auto_compress=False
+        )
+
+        # List all files in the stage
+        all_files_result = session.file.list(f"@{source_stage}/")
+        assert len(all_files_result) == 3
+
+        # Verify ListResult objects have expected attributes
+        for file_result in all_files_result:
+            assert (
+                file_result.name.endswith(".csv")
+                and file_result.size > 0
+                and file_result.md5
+                and file_result.sha1 is None
+                and file_result.last_modified
+            )
+
+        # List files from specific prefix
+        prefix1_files = session.file.list(f"@{source_stage}/prefix1/")
+        assert len(prefix1_files) == 2
+        for file_result in prefix1_files:
+            assert "prefix1" in file_result.name
+
+        prefix2_files = session.file.list(f"@{source_stage}/prefix2/")
+        assert len(prefix2_files) == 1
+        assert "prefix2" in prefix2_files[0].name
+
+        # List files with pattern - find files containing "file_2"
+        file_name_2 = os.path.basename(path2)
+        pattern_files = session.file.list(f"@{source_stage}/", pattern=".*file_2.*")
+        assert len(pattern_files) == 1 and file_name_2 in pattern_files[0].name
+
+        # List files with a pattern that matches multiple files
+        pattern_files_multi = session.file.list(
+            f"@{source_stage}/", pattern=".*file_.*"
+        )
+        assert len(pattern_files_multi) == 3  # Should match all files
+
+        # List files with a pattern that matches no files
+        no_match_files = session.file.list(
+            f"@{source_stage}/", pattern=".*nonexistent.*"
+        )
+        assert not no_match_files
+
+    finally:
+        session.sql(f"drop stage if exists {source_stage}").collect()
