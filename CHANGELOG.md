@@ -1,9 +1,11 @@
 # Release History
+
 ## 1.39.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 
 #### New Features
 
@@ -22,10 +24,17 @@
 #### Improvements
 - Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
+- Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
 
 #### Dependency Updates
 
 #### Bug Fixes
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support to allow patching `functions.ai_complete`.
 
 ## 1.38.0 (YYYY-MM-DD)
 

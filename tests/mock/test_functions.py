@@ -11,6 +11,7 @@ import pytest
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import (
     abs,
+    ai_complete,
     array_agg,
     array_construct,
     asc,
@@ -619,3 +620,48 @@ def test_concat_ws_indexing(session):
     filtered = df.where(df.A > 1)
     final = filtered.with_column("concat", concat_ws(lit("-"), "A", "B"))
     Utils.check_answer(final, [Row(2, "B", "2-B"), Row(3, "C", "3-C")])
+
+
+def test_ai_complete(session):
+    """Test that ai_complete (NamedFunctionExpression) works with mock framework."""
+    df = session.create_dataframe(
+        [["Hello world"], ["Test prompt"]], schema=["prompt_text"]
+    )
+
+    # Mock the ai_complete function to return a simple response
+    @patch("ai_complete")
+    def mock_ai_complete(
+        model=None, prompt=None, response_format=None, model_parameters=None, **kwargs
+    ) -> ColumnEmulator:
+        """Simple mock that returns 'AI response: <prompt>' for each input."""
+        assert (
+            model == "test-model"
+            and model_parameters == {"temperature": 0.5}
+            and response_format == {"type": "json"}
+        )
+
+        responses = [{"response": f"AI response to {p}"} for p in prompt]
+        from snowflake.snowpark.types import MapType, StringType
+
+        return ColumnEmulator(
+            data=responses,
+            sf_type=ColumnType(MapType(StringType(), StringType()), False),
+        )
+
+    # Test ai_complete with named arguments (this creates a NamedFunctionExpression)
+    result_df = df.select(
+        ai_complete(
+            model="test-model",
+            prompt=col("prompt_text"),
+            model_parameters={"temperature": 0.5},
+            response_format={"type": "json"},
+        ).alias("ai_response")
+    )
+
+    Utils.check_answer(
+        result_df,
+        [
+            Row('{\n  "response": "AI response to Hello world"\n}'),
+            Row('{\n  "response": "AI response to Test prompt"\n}'),
+        ],
+    )
