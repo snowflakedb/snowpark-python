@@ -6031,8 +6031,6 @@ def test_time_travel_core_functionality(session):
     time.sleep(2)
 
     ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
-
-    time.sleep(1)
     with session.query_history() as query_history:
         session.sql(
             f"UPDATE {table_name} SET price = price + 50 WHERE id <= 2"
@@ -6122,28 +6120,27 @@ def test_time_travel_core_functionality(session):
             )
             Utils.check_answer(df_before_ts, df_reader_before_ts)
 
-        # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
-        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
-            0
-        ]
-        df_before_ts_after_update = session.table(
-            table_name,
-            time_travel_mode="before",
-            timestamp=ts_after_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_before_ts_after_update, expected_after_update)
+            # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
+            ts_after_update = session.sql("select current_timestamp() as CT").collect()[
+                0
+            ][0]
+            df_before_ts_after_update = session.table(
+                table_name,
+                time_travel_mode="before",
+                timestamp=ts_after_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_before_ts_after_update, expected_after_update)
 
-        df_at_ts_after_update = session.table(
-            table_name,
-            time_travel_mode="at",
-            timestamp=ts_after_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_at_ts_after_update, expected_after_update)
+            df_at_ts_after_update = session.table(
+                table_name,
+                time_travel_mode="at",
+                timestamp=ts_after_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_at_ts_after_update, expected_after_update)
 
-        # ==============Test 5: PySpark as-of-timestamp compatibility ==============
-        if not IS_IN_STORED_PROC:
+            # ==============Test 5: PySpark as-of-timestamp compatibility ==============
             df_as_of = (
                 session.read.option("as-of-timestamp", ts_before_update)
                 .option("timestamp_type", TimestampTimeZone.LTZ)
@@ -6179,8 +6176,6 @@ def test_time_travel_comprehensive_coverage(session):
     time.sleep(2)
 
     ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
-
-    time.sleep(1)
     with session.query_history() as query_history:
         session.sql(
             f"UPDATE {table1_name} SET price = price * 1.1 WHERE id <= 2"
