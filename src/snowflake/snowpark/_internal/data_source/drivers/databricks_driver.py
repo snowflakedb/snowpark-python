@@ -18,6 +18,7 @@ from snowflake.snowpark.types import (
     VariantType,
     TimestampType,
     TimestampTimeZone,
+    StringType,
 )
 
 if TYPE_CHECKING:
@@ -57,7 +58,10 @@ class DatabricksDriver(BaseDriver):
         all_columns = []
         for column_name, column_type, _ in schema:
             column_type = convert_map_to_use.get(column_type, column_type)
-            data_type = type_string_to_type_object(column_type)
+            try:
+                data_type = type_string_to_type_object(column_type)
+            except ValueError:
+                data_type = StringType
             if column_type.lower() == "timestamp":
                 # by default https://docs.databricks.com/aws/en/sql/language-manual/data-types/timestamp-type
                 data_type = TimestampType(TimestampTimeZone.LTZ)

@@ -67,7 +67,6 @@ class OracledbDriver(BaseDriver):
             oracledb.DB_TYPE_XMLTYPE: StringType,
             oracledb.DB_TYPE_OBJECT: VariantType,
             oracledb.DB_TYPE_VECTOR: VectorType,
-            oracledb.DB_TYPE_CURSOR: None,  # NOT SUPPORTED
         }
 
         fields = []
@@ -77,10 +76,7 @@ class OracledbDriver(BaseDriver):
             precision = column.precision
             scale = column.scale
             null_ok = column.null_ok
-            snow_type = convert_map_to_use.get(type_code, None)
-            if snow_type is None:
-                # TODO: SNOW-1912068 support types that we don't have now
-                raise NotImplementedError(f"oracledb type not supported: {type_code}")
+            snow_type = convert_map_to_use.get(type_code, StringType)
             if type_code == oracledb.DB_TYPE_TIMESTAMP_TZ:
                 data_type = snow_type(TimestampTimeZone.TZ)
             elif type_code == oracledb.DB_TYPE_TIMESTAMP_LTZ:
