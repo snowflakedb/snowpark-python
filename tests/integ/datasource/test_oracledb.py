@@ -5,6 +5,7 @@
 import logging
 import math
 import sys
+from collections import namedtuple
 
 import pytest
 
@@ -18,6 +19,7 @@ from snowflake.snowpark._internal.data_source.drivers import (
 from snowflake.snowpark._internal.data_source.utils import (
     DBMS_TYPE,
 )
+from snowflake.snowpark.types import StructType, StructField, StringType
 from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 from tests.resources.test_data_source_dir.test_data_source_data import (
     OracleDBType,
@@ -242,3 +244,15 @@ def test_double_quoted_column_name_oracledb(session, custom_schema):
         )
     ]
     assert df.schema == oracledb_double_quoted_schema
+
+
+def test_unsupported_type():
+    invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
+    MockDescription = namedtuple(
+        "mock_description", ["name", "type_code", "precision", "scale", "null_ok"]
+    )
+
+    schema = OracledbDriver(
+        create_connection_oracledb, DBMS_TYPE.SQL_SERVER_DB
+    ).to_snow_type([MockDescription("test_col", invalid_type, 0, 0, True)])
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
