@@ -1249,12 +1249,21 @@ class OrderedDataFrame:
         if is_join_needed and dummy_row_pos_mode and how not in ["asof", "cross"]:
             # Replace the dummy row position with a real one before performing a join on the row position
             # This currently does not handle the unlikely case of joining on both the row position and a data column
-            if left_on_cols == [left.row_position_snowflake_quoted_identifier]:
+            from snowflake.snowpark.modin.plugin._internal.utils import (
+                ROW_POSITION_COLUMN_LABEL,
+            )
+
+            left = left.ensure_row_position_column(dummy_row_pos_mode=True)
+            if len(left_on_cols) == 1 and ROW_POSITION_COLUMN_LABEL in left_on_cols[0]:
                 left.row_position_snowflake_quoted_identifier = None
                 left = left.ensure_row_position_column(dummy_row_pos_mode=False)
                 assert left.row_position_snowflake_quoted_identifier is not None
                 left_on_cols = [left.row_position_snowflake_quoted_identifier]
-            if right_on_cols == [right.row_position_snowflake_quoted_identifier]:
+            right = right.ensure_row_position_column(dummy_row_pos_mode=True)
+            if (
+                len(right_on_cols) == 1
+                and ROW_POSITION_COLUMN_LABEL in right_on_cols[0]
+            ):
                 right.row_position_snowflake_quoted_identifier = None
                 right = right.ensure_row_position_column(dummy_row_pos_mode=False)
                 assert right.row_position_snowflake_quoted_identifier is not None
