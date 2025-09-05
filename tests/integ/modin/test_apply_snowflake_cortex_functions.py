@@ -326,13 +326,14 @@ def test_apply_snowflake_cortex_complete_success_cases(
 )
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize(
-    "is_series, test_case, kwargs, expected_error",
+    "is_series, test_case, kwargs, expected_error, expected_error_type",
     [
         param(
             True,
             "missing_positional",
             {"timeout": 30.0},
             "Unspecified Argument",
+            NotImplementedError,
             id="series_missing_positional",
         ),
         param(
@@ -340,6 +341,7 @@ def test_apply_snowflake_cortex_complete_success_cases(
             "missing_positional",
             {"timeout": 30.0},
             "Unspecified Argument",
+            NotImplementedError,
             id="dataframe_missing_positional",
         ),
         param(
@@ -347,6 +349,7 @@ def test_apply_snowflake_cortex_complete_success_cases(
             "invalid_param",
             {"model": "mistral-large2", "invalid_param": "fail"},
             "Unspecified kwargs",
+            NotImplementedError,
             id="series_invalid_param",
         ),
         param(
@@ -354,16 +357,17 @@ def test_apply_snowflake_cortex_complete_success_cases(
             "invalid_param",
             {"model": "mistral-large2", "invalid_param": "fail"},
             "Unspecified kwargs",
+            NotImplementedError,
             id="dataframe_invalid_param",
         ),
     ],
 )
 def test_apply_snowflake_cortex_complete_error_cases(
-    session, is_series, test_case, kwargs, expected_error
+    session, is_series, test_case, kwargs, expected_error, expected_error_type
 ):
     content = "When was Snowflake founded?"
     modin_input = (pd.Series if is_series else pd.DataFrame)([content])
 
-    with pytest.raises((NotImplementedError, ValueError, TypeError)) as exc_info:
+    with pytest.raises(expected_error_type) as exc_info:
         modin_input.apply(Complete, **kwargs)
     assert expected_error in str(exc_info.value)
