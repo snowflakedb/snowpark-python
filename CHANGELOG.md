@@ -13,7 +13,7 @@
 #### Dependency Updates
 #### Improvements
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
-
+- Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
 
 ## 1.39.0 (YYYY-MM-DD)
 
