@@ -484,7 +484,7 @@ def is_granted_to_invoker_role(role_name: str, _emit_ast: bool = True) -> Column
     Example::
         >>> from snowflake.snowpark.functions import lit
         >>> df = session.create_dataframe([1])
-        >>> result = df.select(is_granted_to_invoker_role(lit('ANALYST')).alias('RESULT')).collect()
+        >>> result = df.select(is_granted_to_invoker_role('ANALYST').alias('RESULT')).collect()
         >>> assert len(result) == 1
         >>> assert isinstance(result[0]["RESULT"], bool)
     """
