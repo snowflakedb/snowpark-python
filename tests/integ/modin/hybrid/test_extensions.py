@@ -104,7 +104,7 @@ def test_to_snowpark(object_backend, to_snowpark, global_backend):
         ),
     ],
 )
-@sql_count_checker(query_count=8)
+@sql_count_checker(query_count=4)
 def test_to_snowflake(object_backend, to_snowflake, test_table_name, global_backend):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}).set_backend(object_backend)
     to_snowflake(df, test_table_name, if_exists="replace", index=False)  # query #1
@@ -141,14 +141,14 @@ def test_read_snowflake_on_different_backend(
     snowpark_df = pd.session.create_dataframe(native_df)
     snowpark_df.write.save_as_table(test_table_name, table_type="temp")
 
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=1):
         result_df = pd.read_snowflake(test_table_name)
 
     assert result_df.get_backend() == backend_for_read_snowflake
     assert result_df.to_pandas().astype(native_df.dtypes).equals(native_df)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 @pytest.mark.parametrize(
     "object_backend",
     [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"],
@@ -190,7 +190,7 @@ def test_dataframe_to_iceberg(
     )
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 @pytest.mark.parametrize(
     "object_backend",
     [param("Ray", marks=pytest.mark.skip(reason="SNOW-2276090")), "Pandas"],

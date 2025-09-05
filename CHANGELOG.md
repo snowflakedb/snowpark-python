@@ -1,28 +1,11 @@
 # Release History
-## 1.39.0 (YYYY-MM-DD)
-### Snowpark Python API Updates
-#### New Features
-#### Bug Fixes
-#### Deprecations
-#### Dependency Updates
-#### Improvements
-### Snowpark pandas API Updates
-#### New Features
-#### Bug Fixes
-#### Deprecations
-#### Dependency Updates
-#### Improvements
-- Eliminate duplicate parameter check queries for casing status when retrieving the session.
-- Introduce faster pandas: Improved performance by deferring row position computation. 
-  - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
-  - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
-
 
 ## 1.39.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 
 #### New Features
 
@@ -39,6 +22,12 @@
 #### New Features
 
 #### Improvements
+
+- Eliminate duplicate parameter check queries for casing status when retrieving the session.
+- Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
+- Introduce faster pandas: Improved performance by deferring row position computation. 
+  - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
+  - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 
 #### Dependency Updates
 

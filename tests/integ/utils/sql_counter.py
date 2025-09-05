@@ -85,6 +85,8 @@ HIGH_QUERY_COUNT_THRESHOLD = 9
 # so we should not count it
 # 7. SHOW PARAMETERS LIKE 'QUOTED_IDENTIFIERS_IGNORE_CASE' IN SESSION ... is to validate at the beginning of the session
 # that this parameter is unset, as currently required by Snowpark pandas.
+# 8. SHOW OBJECTS LIKE [TABLE_NAME] IN SCHEMA [SCHEMA] LIMIT 1 ... is to check the row count of a table we are reading
+# from, if it exists
 FILTER_OUT_QUERIES = [
     ["create SCOPED TEMPORARY", "stage if not exists"],
     ["PUT", "file:///tmp/placeholder/snowpark.zip"],
@@ -93,6 +95,7 @@ FILTER_OUT_QUERIES = [
     ["drop table if exists", "TESTTABLENAME"],
     ["drop table if exists", "/* internal query to drop unused temp table */"],
     ["SHOW PARAMETERS LIKE", "QUOTED_IDENTIFIERS_IGNORE_CASE"],
+    ["SHOW OBJECTS LIKE", "IN SCHEMA", "LIMIT 1"],
 ]
 
 # define global at module-level

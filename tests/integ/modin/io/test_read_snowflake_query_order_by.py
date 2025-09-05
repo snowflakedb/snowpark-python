@@ -191,7 +191,7 @@ def test_order_by_with_no_limit_but_colname_shadows(session, caplog, enforce_ord
 
 @pytest.mark.parametrize("enforce_ordering", [True, False])
 def test_order_by_with_limit_and_name_shadows(session, caplog, enforce_ordering):
-    expected_query_count = 4 if enforce_ordering else 2
+    expected_query_count = 3 if enforce_ordering else 2
     with SqlCounter(query_count=expected_query_count):
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         native_df = native_pd.DataFrame(

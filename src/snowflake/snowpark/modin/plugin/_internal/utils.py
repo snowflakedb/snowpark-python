@@ -37,6 +37,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     generate_random_alphanumeric,
     get_temp_type_for_object,
+    parse_table_name,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import Column
@@ -506,16 +507,9 @@ def create_initial_ordered_dataframe(
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
 
-    from modin.config import AutoSwitchBackend
-
-    if AutoSwitchBackend.get():
-        # Set the materialized row count
-        materialized_row_count = (
-            initial_ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
-                statement_params=get_default_snowpark_pandas_statement_params(),
-                _emit_ast=False,
-            )
-        )
+    materialized_row_count = None
+    if not is_query:
+        materialized_row_count = get_object_metadata_row_count(table_name_or_query)
         ordered_dataframe.row_count = materialized_row_count
         ordered_dataframe.row_count_upper_bound = materialized_row_count
 
@@ -1919,6 +1913,69 @@ def count_rows(df: OrderedDataFrame) -> int:
     df.row_count = row_count
     df.row_count_upper_bound = row_count
     return row_count
+
+
+def get_object_metadata_row_count(object_name: str) -> Optional[int]:
+    """
+    Get the row count of a table or materialized view from Snowflake's metadata.
+    This function uses "SHOW OBJECTS" to avoid running a COUNT query on the table.
+
+    Args:
+        object_name: The name of the object, which can be fully qualified.
+
+    Returns:
+        The number of rows in the table or None, if no object was found or if the
+        object name is invalid.
+    """
+    session = pd.session
+
+    try:
+        parts = parse_table_name(object_name)
+    except Exception:
+        # If the object name is invalid, return None rather than propagate the exception
+        return None
+
+    db, schema, table = None, None, None
+    current_db = session.get_current_database()
+    current_schema = session.get_current_schema()
+
+    if len(parts) == 1:
+        table = parts[0]
+        schema = current_schema
+        db = current_db
+    elif len(parts) == 2:
+        schema, table = parts[0], parts[1]
+        db = current_db
+    elif len(parts) == 3:
+        db, schema, table = parts[0], parts[1], parts[2]
+    else:
+        return None  # pragma: no cover
+
+    # These returns should never be hit; they should be covered by the parse_table_name
+    # function. Leaving them in just to be safe.
+    if not db:
+        return None  # pragma: no cover
+    if not schema:
+        return None  # pragma: no cover
+
+    try:
+        query = f"SHOW OBJECTS LIKE '{table}' IN SCHEMA {db}.{schema} LIMIT 1"
+        res = session.sql(query).collect(
+            statement_params=get_default_snowpark_pandas_statement_params()
+        )
+    except SnowparkSQLException:
+        # If we cannot access the metadata ( for some unusual permissions issue )
+        # just return None
+        return None  # pragma: no cover
+
+    if len(res) != 1:
+        return None
+
+    rows = res[0]["rows"]
+    if rows > 0 or res[0]["kind"] == "TABLE":
+        return rows
+    # Will return None for materialized views
+    return None
 
 
 def append_columns(
