@@ -272,6 +272,10 @@ def session(
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
+        .config(
+            "session_parameters",
+            {"feature_interval_types": "ENABLED", "enable_interval_subtypes": "true"},
+        )
         .create()
     )
     set_up_dataframe_processor_parameters(

@@ -135,6 +135,7 @@ from snowflake.snowpark.functions import (
     lower,
     lpad,
     ltrim,
+    interval_year_month_from_parts,
     max,
     md5,
     mean,
@@ -219,6 +220,7 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     TimestampType,
     VariantType,
+    YearMonthIntervalType,
 )
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
@@ -5613,3 +5615,112 @@ def test_any_value(session):
         Row(1, 1),
         Row(2, 1),
     ] or non_deterministic_result_2 == [Row(1, 1), Row(2, 2)]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: function floor not supported",
+)
+def test_interval_year_month_from_parts(session):
+    df = session.create_dataframe(
+        [
+            (0, 0, "+0-00"),
+            (1, 0, "+1-00"),
+            (0, 1, "+0-01"),
+            (1, 1, "+1-01"),
+            (2, 11, "+2-11"),
+            (1, 12, "+2-00"),
+            (0, 13, "+1-01"),
+            (1, 24, "+3-00"),
+            (-1, 0, "-1-00"),
+            (0, -1, "-0-01"),
+            (-1, -1, "-1-01"),
+            (-2, -11, "-2-11"),
+            (-1, -12, "-2-00"),
+            (0, -13, "-1-01"),
+            (-1, -24, "-3-00"),
+            (10, 5, "+10-05"),
+            (-10, -5, "-10-05"),
+            (999, 999, "+1082-03"),
+            (-999, -999, "-1082-03"),
+            (0, 999, "+83-03"),
+            (0, -999, "-83-03"),
+            (999999999, 11, "+999999999-11"),
+            (-999999999, 11, "-999999998-01"),
+        ],
+        schema=["years", "months", "expected"],
+    )
+
+    schema_result = df.select(
+        interval_year_month_from_parts(col("years"), col("months"))
+    )
+    assert schema_result.schema.fields[0].datatype == YearMonthIntervalType(0, 1)
+
+    result = df.select(
+        interval_year_month_from_parts(col("years"), col("months")),
+        col("expected"),
+    ).collect()
+
+    assert len(result) == 23
+    for row in result:
+        assert (
+            row['interval_year_month_from_parts("YEARS", "MONTHS")'] == row["EXPECTED"]
+        )
+
+    df_only_years = session.create_dataframe([(5,), (-3,), (0,)], schema=["years"])
+    years_schema_result = df_only_years.select(
+        interval_year_month_from_parts(col("years"))
+    )
+    assert years_schema_result.schema.fields[0].datatype == YearMonthIntervalType(0, 1)
+
+    result_years = years_schema_result.collect()
+    assert result_years[0]['interval_year_month_from_parts("YEARS", 0)'] == "+5-00"
+    assert result_years[1]['interval_year_month_from_parts("YEARS", 0)'] == "-3-00"
+    assert result_years[2]['interval_year_month_from_parts("YEARS", 0)'] == "+0-00"
+
+    df_only_months = session.create_dataframe([(15,), (-7,), (0,)], schema=["months"])
+    months_schema_result = df_only_months.select(
+        interval_year_month_from_parts(months=col("months"))
+    )
+    assert months_schema_result.schema.fields[0].datatype == YearMonthIntervalType(0, 1)
+
+    result_months = months_schema_result.collect()
+    assert result_months[0]['interval_year_month_from_parts(0, "MONTHS")'] == "+1-03"
+    assert result_months[1]['interval_year_month_from_parts(0, "MONTHS")'] == "-0-07"
+    assert result_months[2]['interval_year_month_from_parts(0, "MONTHS")'] == "+0-00"
+
+    df_literals = session.create_dataframe([(1,)], schema=["dummy"])
+    literals_schema_result = df_literals.select(
+        interval_year_month_from_parts(lit(2), lit(5)),
+        interval_year_month_from_parts(lit(-1), lit(13)),
+        interval_year_month_from_parts(lit(0)),
+        interval_year_month_from_parts(months=lit(25)),
+    )
+
+    for field in literals_schema_result.schema.fields:
+        assert field.datatype == YearMonthIntervalType(0, 1)
+
+    result_literals = literals_schema_result.collect()
+    assert result_literals[0]["interval_year_month_from_parts(2, 5)"] == "+2-05"
+    assert result_literals[0]["interval_year_month_from_parts(-1, 13)"] == "+0-01"
+    assert result_literals[0]["interval_year_month_from_parts(0, 0)"] == "+0-00"
+    assert result_literals[0]["interval_year_month_from_parts(0, 25)"] == "+2-01"
+
+    df_schema_test = session.create_dataframe([(1, 2)], schema=["y", "m"])
+    schema_result = df_schema_test.select(
+        interval_year_month_from_parts(col("y"), col("m"))
+    )
+    schema_fields = schema_result.schema.fields
+    assert len(schema_fields) == 1
+    assert schema_fields[0].datatype == YearMonthIntervalType(0, 1)
+
+    df_nulls = session.create_dataframe(
+        [(None, 5), (3, None), (None, None)], schema=["years", "months"]
+    )
+    result_nulls = df_nulls.select(
+        interval_year_month_from_parts(col("years"), col("months"))
+    ).collect()
+
+    assert result_nulls[0]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
+    assert result_nulls[1]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
+    assert result_nulls[2]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
