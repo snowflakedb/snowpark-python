@@ -241,34 +241,30 @@ def test_apply_snowflake_cortex_negative(session, is_series, operation):
     reason="TODO: SNOW-1859087 snowflake.cortex.complete SSL error",
 )
 @pytest.mark.parametrize(
-    "is_series, test_case, kwargs, query_count",
+    "is_series, test_case, kwargs",
     [
         param(
             True,
             "basic",
             {"model": "mistral-large2"},
-            1,
             id="series_basic",
         ),
         param(
             False,
             "basic",
             {"model": "mistral-large2"},
-            2,
             id="dataframe_basic",
         ),
         param(
             True,
             "with_timeout",
             {"model": "mistral-large2", "timeout": 30.0},
-            1,
             id="series_partial_params_timeout",
         ),
         param(
             False,
             "with_timeout",
             {"model": "mistral-large2", "timeout": 30.0},
-            2,
             id="dataframe_partial_params_timeout",
         ),
         param(
@@ -282,7 +278,6 @@ def test_apply_snowflake_cortex_negative(session, is_series, operation):
                 "timeout": 30.0,
                 "deadline": None,
             },
-            1,
             id="series_all_params",
         ),
         param(
@@ -296,23 +291,22 @@ def test_apply_snowflake_cortex_negative(session, is_series, operation):
                 "timeout": 30.0,
                 "deadline": None,
             },
-            2,
             id="dataframe_all_params",
         ),
     ],
 )
 def test_apply_snowflake_cortex_complete_success_cases(
-    session, is_series, test_case, kwargs, query_count
+    session, is_series, test_case, kwargs
 ):
     content = "When was Snowflake founded?"
     modin_input = (pd.Series if is_series else pd.DataFrame)([content])
 
-    with SqlCounter(query_count=query_count):
+    with SqlCounter(query_count=1):
         result = modin_input.apply(Complete, **kwargs)
         if is_series:
             response = result.iloc[0]
         else:
-            response = result[0][0]
+            response = result.iloc[0, 0]
 
         print("response: ", response)
 
