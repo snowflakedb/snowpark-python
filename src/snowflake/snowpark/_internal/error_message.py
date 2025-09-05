@@ -3,8 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from ast import List
-from typing import Optional, Set
+from typing import Optional, List, Set
 
 from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark.exceptions import (
