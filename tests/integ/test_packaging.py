@@ -188,14 +188,14 @@ def test_add_packages(session, local_testing_mode):
     session.add_packages(
         [
             "numpy==1.26.3",
-            "pandas==2.1.4",
+            "pandas==2.2.3",
             "matplotlib",
             "pyyaml",
         ]
     )
     assert session.get_packages() == {
         "numpy": "numpy==1.26.3",
-        "pandas": "pandas==2.1.4",
+        "pandas": "pandas==2.2.3",
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
     }
@@ -211,7 +211,7 @@ def test_add_packages(session, local_testing_mode):
     res = df.select(call_udf(udf_name)).collect()[0][0]
     # don't need to check the version of dateutil, as it can be changed on the server side
     assert (
-        res.startswith("1.26.3/2.1.4")
+        res.startswith("1.26.3/2.2.3")
         if not local_testing_mode
         else res == get_numpy_pandas_dateutil_version()
     )
@@ -418,7 +418,7 @@ def test_add_requirements(session, resources_path, local_testing_mode):
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
         "numpy": "numpy==1.26.3",
-        "pandas": "pandas==2.1.4",
+        "pandas": "pandas==2.2.3",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
@@ -431,7 +431,7 @@ def test_add_requirements(session, resources_path, local_testing_mode):
     res = df.select(call_udf(udf_name))
     Utils.check_answer(
         res,
-        [Row("1.26.3/2.1.4")]
+        [Row("1.26.3/2.2.3")]
         if not local_testing_mode
         else [Row(f"{numpy.__version__}/{pandas.__version__}")],
     )
@@ -445,7 +445,7 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
         "numpy": "numpy==1.26.3",
-        "pandas": "pandas==2.1.4",
+        "pandas": "pandas==2.2.3",
     }
 
     with pytest.raises(ValueError, match="Cannot add package"):
@@ -913,7 +913,7 @@ def test_add_requirements_with_empty_stage_as_cache_path(
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
         "numpy": "numpy==1.26.3",
-        "pandas": "pandas==2.1.4",
+        "pandas": "pandas==2.2.3",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
