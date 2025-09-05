@@ -235,6 +235,7 @@ Functions
     initcap
     insert
     instr
+    interval_year_month_from_parts
     invoker_role
     invoker_share
     is_application_role_in_session

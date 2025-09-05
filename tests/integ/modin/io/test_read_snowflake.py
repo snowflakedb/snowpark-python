@@ -85,6 +85,7 @@ def read_snowflake_and_verify_snapshot_creation_if_any(
         query
         for query in query_history.queries
         if "SHOW PARAMETERS LIKE" not in query.sql_text
+        and "SHOW OBJECTS LIKE" not in query.sql_text
     ]
 
     if not enforce_ordering:
@@ -554,7 +555,11 @@ def test_read_snowflake_row_access_policy_table(
         )
 
         assert df.columns.tolist() == ["COL1", "S"]
-        assert len(df) == 0
+        # We fetch the row size using metadata, which we have access to, but
+        # we cannot actually query the rows themselves due to access control
+        # restrictions. This results in a disagreement about the row counts.
+        assert len(df) == 1
+        assert len(df.to_pandas()) == 0
 
 
 @pytest.mark.parametrize(
