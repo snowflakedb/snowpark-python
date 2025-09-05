@@ -1,5 +1,43 @@
 # Release History
 
+## 1.39.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
+- Added support for `FileOperation.list` to list files in a stage with metadata.
+- Added support for `FileOperation.remove` to remove files in a stage.
+
+#### Bug Fixes
+
+#### Deprecations
+
+#### Dependency Updates
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+
+- Eliminate duplicate parameter check queries for casing status when retrieving the session.
+- Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
+
+#### Dependency Updates
+
+#### Bug Fixes
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support to allow patching `functions.ai_complete`.
+
 ## 1.38.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -22,7 +60,6 @@
 - Added support for `Session.directory` and `Session.read.directory` to retrieve the list of all files on a stage with metadata.
 - Added support for `DataFrameReader.jdbc`(PrPr) that allows ingesting external data source with jdbc driver.
 - Added support for `FileOperation.copy_files` to copy files from a source location to an output stage.
-
 - Added support for the following scalar functions in `functions.py`:
   - `all_user_names`
   - `bitand`
@@ -60,6 +97,7 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Completed support for `pd.read_snowflake()`, `pd.to_iceberg()`,
   `pd.to_pandas()`, `pd.to_snowpark()`, `pd.to_snowflake()`,
   `DataFrame.to_iceberg()`, `DataFrame.to_pandas()`, `DataFrame.to_snowpark()`,
@@ -70,12 +108,12 @@
 - Added support for `Index.get_level_values()`.
 
 #### Improvements
+
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
 - Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
 - Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
 - Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
 - Add a new test parameter for integration tests to enable hybrid execution
-
 
 #### Dependency Updates
 
