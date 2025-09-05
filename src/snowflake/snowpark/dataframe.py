@@ -6486,7 +6486,7 @@ Query List:
             return cols[0].with_name(normalized_col_name)
         else:
             raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
-                col_name
+                col_name, cols
             )
 
     @cached_property

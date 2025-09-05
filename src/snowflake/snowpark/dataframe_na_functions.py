@@ -249,7 +249,7 @@ class DataFrameNaFunctions:
             for normalized_col_name in normalized_col_name_set:
                 if normalized_col_name not in df_col_type_dict:
                     raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
-                        normalized_col_name
+                        normalized_col_name, df_col_type_dict.keys()
                     )
                 col = self._dataframe.col(normalized_col_name, _emit_ast=False)
                 if isinstance(
@@ -452,7 +452,7 @@ class DataFrameNaFunctions:
             normalized_col_name = quote_name(col_name)
             if normalized_col_name not in df_col_type_dict:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
-                    normalized_col_name
+                    normalized_col_name, df_col_type_dict.keys()
                 )
             normalized_value_dict[normalized_col_name] = value
 
@@ -691,7 +691,7 @@ class DataFrameNaFunctions:
         for normalized_col_name in normalized_col_name_set:
             if normalized_col_name not in df_col_type_dict:
                 raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
-                    normalized_col_name
+                    normalized_col_name, df_col_type_dict.keys()
                 )
 
         res_columns = []

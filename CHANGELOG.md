@@ -19,6 +19,8 @@
 
 #### Improvements
 
+- Improved error message to list available columns when dataframe cannot resolve given column name.
+
 ### Snowpark pandas API Updates
 
 #### New Features
@@ -113,7 +115,7 @@
 - Raised `NotImplementedError` instead of `AttributeError` on attempting to call
   Snowflake extension functions/methods `to_dynamic_table()`, `cache_result()`,
   `to_view()`, `create_or_replace_dynamic_table()`, and
-  `create_or_replace_view()` on dataframes or series using the pandas or ray 
+  `create_or_replace_view()` on dataframes or series using the pandas or ray
   backends.
 
 ## 1.37.0 (2025-08-18)
