@@ -4785,6 +4785,9 @@ class DataFrame:
                 )
             )
 
+    # Alias "snow" to "show" so snowpark users can let it snow.
+    snow = show
+
     @deprecated(
         version="0.7.0",
         extra_warning_text="Use `DataFrame.join_table_function()` instead.",
