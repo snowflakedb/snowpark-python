@@ -491,7 +491,7 @@ class TelemetryClient:
         #     except ImportError:
         #         internal_metrics_available = False
 
-        # TODO: Enable this once we have re-factored the telemetry to use otel metrics
+        # SNOW-2321754: Enable this once we have re-factored the telemetry to use otel metrics
         self.stored_proc_meter = None
         # We periodically clean out the stored procedure meter of unused gauges
         self.clean_up_stored_proc_meter_interval = 1000
