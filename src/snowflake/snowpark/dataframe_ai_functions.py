@@ -7,6 +7,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Union
 from snowflake.snowpark._internal.utils import (
     create_prompt_column_from_template,
     experimental,
+    publicapi,
+)
+from snowflake.snowpark._internal.ast.utils import (
+    build_expr_from_python_val,
+    build_expr_from_snowpark_column_or_col_name,
+    with_src_position,
 )
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.column import Column, _to_col_if_str, _to_col_if_lit
@@ -36,6 +42,7 @@ class DataFrameAIFunctions:
     def __init__(self, dataframe: "snowflake.snowpark.DataFrame") -> None:
         self._dataframe = dataframe
 
+    @publicapi
     @experimental(version="1.37.0")
     def complete(
         self,
@@ -128,12 +135,26 @@ class DataFrameAIFunctions:
         # Build the prompt Column
         if isinstance(input_columns, (dict, list)):
             prompt_obj = create_prompt_column_from_template(
-                prompt, input_columns, _emit_ast=False
+                prompt, input_columns, _emit_ast=_emit_ast
             )
         else:
             raise TypeError(
                 "input_columns must be a list of Columns or a dict mapping placeholder names to Columns"
             )
+
+        # AST at top
+        stmt = None
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_complete, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            ast.model = model
+            build_expr_from_snowpark_column_or_col_name(ast.prompt, prompt_obj)
+            if model_parameters:
+                for k, v in model_parameters.items():
+                    entry = ast.model_parameters.add()
+                    entry._1 = k
+                    build_expr_from_python_val(entry._2, v)
 
         # Call the ai_complete function with all explicit parameters
         result_col = ai_complete(
@@ -153,8 +174,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.complete",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def filter(
         self,
@@ -213,7 +237,26 @@ class DataFrameAIFunctions:
             1
         """
 
-        # Build the predicate Column
+        # AST at top
+        stmt = None
+        predicate_ast_col = None
+        if _emit_ast:
+            if isinstance(input_columns, (dict, list)):
+                predicate_ast_col = create_prompt_column_from_template(
+                    predicate, input_columns, _emit_ast=True
+                )
+            else:
+                raise TypeError(
+                    "input_columns must be a list of Columns or a dict mapping placeholder names to Columns"
+                )
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_filter, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(
+                ast.predicate, predicate_ast_col
+            )
+
+        # Build the predicate Column for execution
         if isinstance(input_columns, (dict, list)):
             predicate_col = create_prompt_column_from_template(
                 predicate, input_columns, _emit_ast=False
@@ -234,8 +277,11 @@ class DataFrameAIFunctions:
             filtered_df,
             "DataFrame.ai.filter",
         )
+        if _emit_ast:
+            filtered_df._ast_id = stmt.uid
         return filtered_df
 
+    @publicapi
     @experimental(version="1.37.0")
     def agg(
         self,
@@ -313,8 +359,19 @@ class DataFrameAIFunctions:
                   a concise and elaborative summary of source texts without missing any crucial information.".
         """
 
-        # Call the ai_agg function
+        # AST at top
+        stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.agg")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_agg, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(
+                ast.input_column, input_col
+            )
+            ast.task_description = task_description
+
+        # Call the ai_agg function
         result_col = ai_agg(
             input_col,
             task_description=task_description,
@@ -331,8 +388,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.agg",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def classify(
         self,
@@ -454,8 +514,22 @@ class DataFrameAIFunctions:
             True
         """
 
-        # Convert string input column to Column object
+        # Convert string input column to Column object and AST at top
+        stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.classify")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_classify, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
+            if isinstance(categories, Column):
+                build_expr_from_snowpark_column_or_col_name(ast.categories, categories)
+            else:
+                build_expr_from_python_val(ast.categories, categories)
+            for k, v in kwargs.items():
+                entry = ast.kwargs.add()
+                entry._1 = k
+                build_expr_from_python_val(entry._2, v)
 
         # Call the ai_classify function
         result_col = ai_classify(
@@ -475,8 +549,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.classify",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def similarity(
         self,
@@ -592,9 +669,20 @@ class DataFrameAIFunctions:
                 - -1 indicates opposite or very dissimilar content
         """
 
-        # Convert string inputs to Column objects
+        # Convert string inputs to Column objects and AST at top
+        stmt = None
         input1_col = _to_col_if_str(input1, "DataFrame.ai.similarity")
         input2_col = _to_col_if_str(input2, "DataFrame.ai.similarity")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_similarity, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input1, input1_col)
+            build_expr_from_snowpark_column_or_col_name(ast.input2, input2_col)
+            for k, v in kwargs.items():
+                entry = ast.kwargs.add()
+                entry._1 = k
+                build_expr_from_python_val(entry._2, v)
 
         # Call the ai_similarity function
         result_col = ai_similarity(
@@ -614,8 +702,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.similarity",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def sentiment(
         self,
@@ -700,8 +791,21 @@ class DataFrameAIFunctions:
             and Portuguese. You can specify categories in the language of the text or in English.
         """
 
-        # Convert string input column to Column object
+        # Convert string input column and AST at top
+        stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.sentiment")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_sentiment, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
+            if categories is not None:
+                if isinstance(categories, Column):
+                    build_expr_from_snowpark_column_or_col_name(
+                        ast.categories, categories
+                    )
+                else:
+                    build_expr_from_python_val(ast.categories, categories)
 
         # Call the ai_sentiment function
         result_col = ai_sentiment(
@@ -720,8 +824,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.sentiment",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def embed(
         self,
@@ -816,8 +923,15 @@ class DataFrameAIFunctions:
             - For best results, use the same model for all items you want to compare
         """
 
-        # Convert string input column to Column object
+        # Convert string input column to Column object & AST at top
+        stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.embed")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_embed, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
+            ast.model = model
 
         # Call the ai_embed function
         result_col = ai_embed(
@@ -836,8 +950,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.embed",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def summarize_agg(
         self,
@@ -908,8 +1025,14 @@ class DataFrameAIFunctions:
               automatically generates a comprehensive summary
         """
 
-        # Convert string input column to Column object
+        # Convert string input column to Column object & AST at top
+        stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.summarize_agg")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_summarize_agg, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
 
         # Call the ai_summarize_agg function
         result_col = ai_summarize_agg(
@@ -927,8 +1050,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.summarize_agg",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def transcribe(
         self,
@@ -1000,7 +1126,17 @@ class DataFrameAIFunctions:
             True
         """
 
+        stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.transcribe")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_transcribe, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
+            for k, v in kwargs.items():
+                entry = ast.kwargs.add()
+                entry._1 = k
+                build_expr_from_python_val(entry._2, v)
 
         result_col = ai_transcribe(
             input_col,
@@ -1017,8 +1153,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.transcribe",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def parse_document(
         self,
@@ -1079,7 +1218,17 @@ class DataFrameAIFunctions:
             True
         """
 
+        stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.parse_document")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_parse_document, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
+            for k, v in kwargs.items():
+                entry = ast.kwargs.add()
+                entry._1 = k
+                build_expr_from_python_val(entry._2, v)
 
         result_col = ai_parse_document(
             input_col,
@@ -1096,8 +1245,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.parse_document",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def extract(
         self,
@@ -1238,7 +1390,15 @@ class DataFrameAIFunctions:
 
         """
 
+        stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.extract")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_extract, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
+            if response_format is not None:
+                build_expr_from_python_val(ast.response_format, response_format)
 
         result_col = ai_extract(
             input=input_col,
@@ -1255,8 +1415,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.extract",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def count_tokens(
         self,
@@ -1321,8 +1484,15 @@ class DataFrameAIFunctions:
             automatically added when using other Cortex AI functions. The actual token
             usage may be higher when using those functions.
         """
-        # Convert string input to Column object
+        # AST at top
+        stmt = None
         prompt_col = _to_col_if_str(prompt, "DataFrame.ai.count_tokens")
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_ai_count_tokens, stmt)
+            self._dataframe._set_ast_ref(ast.df)
+            ast.model = model
+            build_expr_from_snowpark_column_or_col_name(ast.prompt, prompt_col)
 
         # Call SNOWFLAKE.CORTEX.COUNT_TOKENS function
         count_tokens_func = function("SNOWFLAKE.CORTEX.COUNT_TOKENS", _emit_ast=False)
@@ -1338,8 +1508,11 @@ class DataFrameAIFunctions:
             df,
             "DataFrame.ai.count_tokens",
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def split_text_markdown_header(
         self,
@@ -1426,11 +1599,24 @@ class DataFrameAIFunctions:
         """
         method_name = "DataFrame.ai.split_text_markdown_header"
 
-        # Convert inputs to Column objects
+        # Convert inputs to Column objects and AST at top
+        stmt = None
         text_col = _to_col_if_str(text_to_split, method_name)
         headers_col = _to_col_if_lit(headers_to_split_on, method_name)
         chunk_size_col = _to_col_if_lit(chunk_size, method_name)
         overlap_col = _to_col_if_lit(overlap, method_name)
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(
+                stmt.expr.dataframe_ai_split_text_markdown_header, stmt
+            )
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.text_to_split, text_col)
+            build_expr_from_snowpark_column_or_col_name(
+                ast.headers_to_split_on, headers_col
+            )
+            build_expr_from_snowpark_column_or_col_name(ast.chunk_size, chunk_size_col)
+            build_expr_from_snowpark_column_or_col_name(ast.overlap, overlap_col)
 
         # Call SNOWFLAKE.CORTEX.SPLIT_TEXT_MARKDOWN_HEADER function
         split_func = function(
@@ -1448,8 +1634,11 @@ class DataFrameAIFunctions:
             df,
             method_name,
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
 
+    @publicapi
     @experimental(version="1.37.0")
     def split_text_recursive_character(
         self,
@@ -1599,11 +1788,25 @@ class DataFrameAIFunctions:
         """
         method_name = "DataFrame.ai.split_text_recursive_character"
 
-        # Convert input to Column object
+        # Convert input to Column object & AST at top
+        stmt = None
         text_col = _to_col_if_str(text_to_split, method_name)
         chunk_size_col = _to_col_if_lit(chunk_size, method_name)
         separators_col = _to_col_if_lit(separators, method_name)
         overlap_col = _to_col_if_lit(overlap, method_name)
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(
+                stmt.expr.dataframe_ai_split_text_recursive_character, stmt
+            )
+            self._dataframe._set_ast_ref(ast.df)
+            build_expr_from_snowpark_column_or_col_name(ast.text_to_split, text_col)
+            ast.format = format
+            build_expr_from_snowpark_column_or_col_name(ast.chunk_size, chunk_size_col)
+            build_expr_from_snowpark_column_or_col_name(ast.overlap, overlap_col)
+            build_expr_from_snowpark_column_or_col_name(
+                ast.separators, separators_col
+            )
 
         # Call the function
         split_func = function(
@@ -1623,4 +1826,6 @@ class DataFrameAIFunctions:
             df,
             method_name,
         )
+        if _emit_ast:
+            df._ast_id = stmt.uid
         return df
