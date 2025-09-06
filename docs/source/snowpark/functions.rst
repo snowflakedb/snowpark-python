@@ -220,6 +220,8 @@ Functions
     getbit
     get_ignore_case
     get_path
+    getdate
+    getvariable
     greatest
     grouping
     grouping_id
@@ -234,19 +236,25 @@ Functions
     insert
     instr
     interval_year_month_from_parts
+    invoker_role
+    invoker_share
+    is_application_role_in_session
     is_array
     is_binary
     is_boolean
     is_char
+    is_database_role_in_session
     is_date
     is_date_value
     is_decimal
     is_double
+    is_granted_to_invoker_role
     is_integer
     is_null
     is_null_value
     is_object
     is_real
+    is_role_in_session
     is_time
     is_timestamp_ltz
     is_timestamp_ntz
@@ -265,6 +273,7 @@ Functions
     lit
     ln
     locate
+    localtime
     localtimestamp
     log
     log1p
@@ -375,6 +384,7 @@ Functions
     sum
     sum_distinct
     sysdate
+    systimestamp
     system_reference
     table_function
     tan

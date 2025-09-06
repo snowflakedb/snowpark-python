@@ -79,6 +79,16 @@
   - `current_secondary_roles`
   - `current_transaction`
   - `getbit`
+  - `getdate`
+  - `getvariable`
+  - `invoker_role`
+  - `invoker_share`
+  - `is_application_role_in_session`
+  - `is_database_role_in_session`
+  - `is_granted_to_invoker_role`
+  - `is_role_in_session`
+  - `localtime`
+  - `systimestamp`
 
 #### Bug Fixes
 
