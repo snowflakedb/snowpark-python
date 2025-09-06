@@ -110,7 +110,7 @@ def test_internal_telemetry_disabled(mock_logger, mock_is_in_stored_proc):
     """Test that Session logs debug message when telemetry is enabled but stored proc telemetry is disabled"""
     mock_is_in_stored_proc.return_value = True
     mock_session = MagicMock(spec=Session)
-    mock_session._stored_proc_telemetry_enabled = False
+    mock_session._internal_telemetry_enabled = False
     mock_session._conn = MagicMock()
     mock_session._conn._conn = MagicMock()
     mock_session._conn._telemetry_client = MagicMock()

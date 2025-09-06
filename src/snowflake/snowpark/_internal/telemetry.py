@@ -482,19 +482,17 @@ class TelemetryClient:
 
         # Initializing telemetry client for stored procedures
         # In stored procs, we can't import this package at the top level, so we need to do it here
-        internal_metrics_available = None
-        if is_in_stored_procedure():
-            try:
-                from _snowflake import internal_metrics
+        # internal_metrics_available = None
+        # if is_in_stored_procedure():
+        #     try:
+        #         from _snowflake import internal_metrics
 
-                internal_metrics_available = True
-            except ImportError:
-                internal_metrics_available = False
-        self.stored_proc_meter = (
-            internal_metrics.get_meter("snowpark-python-client")
-            if internal_metrics_available
-            else None
-        )
+        #         internal_metrics_available = True
+        #     except ImportError:
+        #         internal_metrics_available = False
+
+        # SNOW-2321754: Enable this once we have re-factored the telemetry to use otel metrics
+        self.stored_proc_meter = None
         # We periodically clean out the stored procedure meter of unused gauges
         self.clean_up_stored_proc_meter_interval = 1000
 

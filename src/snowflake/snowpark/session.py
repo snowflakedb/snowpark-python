@@ -4149,7 +4149,7 @@ class Session:
         # Set both in-band and out-of-band telemetry to True/False
         if value:
             self._conn._telemetry_client._enabled = True
-            if is_in_stored_procedure() and not self._stored_proc_telemetry_enabled:
+            if is_in_stored_procedure() and not self._internal_telemetry_enabled:
                 _logger.debug(
                     "Client side parameter ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY is set to False, telemetry could not be enabled"
                 )
