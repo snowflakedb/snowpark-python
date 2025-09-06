@@ -64,7 +64,7 @@ def read_hybrid_known_failures():
                df["status"].isin(["failed", "xfailed", "error"])
             ]
       filtered.to_csv("tests/integ/modin/modin_hybrid_integ_results.csv")
-          """
+    """
     HYBRID_RESULTS_PATH = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__), "../modin/modin_hybrid_integ_results.csv"

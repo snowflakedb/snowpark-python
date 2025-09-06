@@ -78,7 +78,7 @@
 365,tests.integ.modin.test_apply_persist,test_apply_named_udf_negative,TypeError: test_apply_named_udf_negative.<locals>.identity() got an unexpected keyword argument 'snowflake_udf_params',failed
 372,tests.integ.modin.binary.test_binary_op,test_binary_op_between_df_and_list_like_of_different_lengths_axis_0[index1-floordiv],"ValueError: Unable to coerce to Series, length must be 3: given 4",failed
 378,tests.integ.modin.frame.test_iloc,test_df_iloc_get_scalar_row_and_scalar_col[False-52879115--3],IndexError: positional indexers are out-of-bounds,failed
-382,tests.integ.modin.test_to_numpy,test_variant_data_to_numpy[DataFrame],"AssertionError: 
+382,tests.integ.modin.test_to_numpy,test_variant_data_to_numpy[DataFrame],"AssertionError:
 Arrays are not equal
 
 Mismatched elements: 4 / 10 (40%)
@@ -88,7 +88,7 @@ Mismatched elements: 4 / 10 (40%)
  y: array([[1],
        [1.1],
        ['snow'],...",failed
-386,tests.integ.modin.test_to_numpy,test_variant_data_to_numpy[Series],"AssertionError: 
+386,tests.integ.modin.test_to_numpy,test_variant_data_to_numpy[Series],"AssertionError:
 Arrays are not equal
 
 Mismatched elements: 4 / 10 (40%)
@@ -1141,7 +1141,7 @@ DataFrame.iloc[:, 0] (column name=""A"") values are different (100.0 %)
 3216,tests.integ.modin.frame.test_iat,test_iat_neg[key2-IndexingError],"TypeError: int() argument must be a string, a bytes-like object or a real number, not 'dict'",failed
 3222,tests.integ.modin.test_concat,test_concat_multiindex_columns_axis0[columns16-columns26-expected_cols6],AssertionError: Length of new_levels (3) must be <= self.nlevels (2),failed
 3223,tests.integ.modin.binary.test_binary_op,test_binary_logic_operations_between_series_and_list_like[index_with_name-__rand__],"ValueError: Unable to coerce to Series, length must be 1: given 6",failed
-3224,tests.integ.modin.frame.test_iat,test_iat_neg[a-IndexingError],"ValueError: 
+3224,tests.integ.modin.frame.test_iat,test_iat_neg[a-IndexingError],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 3225,tests.integ.modin.binary.test_binary_op,test_arithmetic_binary_ops_between_series_with_booleans_negative[rfloordiv-rhs2-lhs0],ZeroDivisionError: float floor division by zero,failed
@@ -1169,7 +1169,7 @@ Index classes are different
 [left]:  MultiIndex([(1, 2)],
            )
 [right]: Index([(1, 2), (1, 2, 3)], dtype='object')",failed
-3264,tests.integ.modin.frame.test_iat,test_iat_neg[key10-IndexError],"ValueError: 
+3264,tests.integ.modin.frame.test_iat,test_iat_neg[key10-IndexError],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 3267,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_out_of_bounds_keys[row_key1-col_key1],IndexError: index 8 is out of bounds for axis 0 with size 4,failed
@@ -1197,7 +1197,7 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 3328,tests.integ.modin.binary.test_timedelta,test_numeric_dataframe_with_timedelta_list_like[mul],TypeError: Cannot do operation with improper dtypes,failed
 3335,tests.integ.modin.binary.test_timedelta,test_numeric_dataframe_with_timedelta_list_like[rmul],TypeError: Cannot do operation with improper dtypes,failed
 3336,tests.integ.modin.binary.test_binary_op,test_binary_logic_operations_between_df_and_list_like[ndarray-__and__],"ValueError: Unable to coerce to Series, length must be 2: given 3",failed
-3340,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos0-col_pos0],"ValueError: 
+3340,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos0-col_pos0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 3346,tests.integ.modin.binary.test_timedelta,test_numeric_dataframe_with_timedelta_list_like[rdiv],TypeError: Cannot do operation with improper dtypes,failed
@@ -1228,7 +1228,7 @@ DataFrame.index levels are different
            )",failed
 3355,tests.integ.modin.crosstab.test_crosstab,test_normalize_margins_and_values[sum2-index-True],AttributeError: can't set attribute,failed
 3361,tests.integ.modin.binary.test_timedelta,test_numeric_dataframe_with_timedelta_list_like[rtruediv],TypeError: Cannot do operation with improper dtypes,failed
-3362,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos1-col_pos1],"ValueError: 
+3362,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos1-col_pos1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 3364,tests.integ.modin.binary.test_binary_op,test_binary_logic_operations_between_df_and_list_like[index-__or__],"ValueError: Unable to coerce to Series, length must be 2: given 3",failed
@@ -1238,7 +1238,7 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 3375,tests.integ.modin.binary.test_timedelta,test_numeric_dataframe_with_timedelta_list_like[rfloordiv],TypeError: Cannot do operation with improper dtypes,failed
 3376,tests.integ.modin.test_concat,test_concat_with_keys[1-keys3],"ValueError: Length mismatch: Expected axis has 7 elements, new values have 4 elements",failed
 3378,tests.integ.modin.binary.test_binary_op,test_binary_logic_operations_between_df_and_list_like[index-__ror__],"ValueError: Unable to coerce to Series, length must be 2: given 3",failed
-3380,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos2-col_pos2],"ValueError: 
+3380,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos2-col_pos2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 3382,tests.integ.modin.crosstab.test_crosstab,test_normalize_margins_and_values[sum2-columns-True],AttributeError: can't set attribute,failed
@@ -1265,7 +1265,7 @@ DataFrame.columns levels are different
             ('y', 2, 'C'),
             ('z', 3,   0)],
            )",failed
-3395,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos3-col_pos3],"ValueError: 
+3395,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos3-col_pos3],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 3397,tests.integ.modin.crosstab.test_crosstab,test_normalize_margins_and_values[sum2-columns-False],AttributeError: can't set attribute,failed
@@ -1278,7 +1278,7 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 3416,tests.integ.modin.binary.test_binary_op,test_other_with_native_pandas_object_raises[pow],Failed: DID NOT RAISE <class 'TypeError'>,failed
 3417,tests.integ.modin.crosstab.test_crosstab,test_margins_and_values[median0-False],AttributeError: can't set attribute,failed
 3420,tests.integ.modin.binary.test_binary_op,test_other_with_native_pandas_object_raises[rpow],Failed: DID NOT RAISE <class 'TypeError'>,failed
-3426,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos4-col_pos4],"ValueError: 
+3426,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos4-col_pos4],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 3427,tests.integ.modin.binary.test_binary_op,test_other_with_native_pandas_object_raises[__or__],Failed: DID NOT RAISE <class 'TypeError'>,failed
@@ -1306,7 +1306,7 @@ DataFrame.index levels are different
 3441,tests.integ.modin.binary.test_binary_op,test_other_with_native_pandas_object_raises[__and__],Failed: DID NOT RAISE <class 'TypeError'>,failed
 3445,tests.integ.modin.binary.test_binary_op,test_binary_logic_operations_between_df_and_list_like[index_with_name-__ror__],"ValueError: Unable to coerce to Series, length must be 2: given 3",failed
 3447,tests.integ.modin.frame.test_idxmax_idxmin,test_idxmax_idxmin_df[True-0-idxmin-data9-index9],reason: Snowpark pandas returns a Series with None whereas pandas throws a ValueError,xfailed
-3448,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos5-col_pos5],"ValueError: 
+3448,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_row_key_series_float_keys[row_pos5-col_pos5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 3449,tests.integ.modin.binary.test_binary_op,test_other_with_native_pandas_object_raises[__rand__],Failed: DID NOT RAISE <class 'TypeError'>,failed
@@ -1668,7 +1668,7 @@ DataFrame.iloc[:, 1] (column name=""('b', 2)"") values are different (40.0 %)
 [left]:  [2.0, nan, nan, 56.0, -6.0]
 [right]: [2, -997, -996, 56, -6]",failed
 4301,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[median1-columns-False],AttributeError: can't set attribute,failed
-4305,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key0-1-2],"ValueError: 
+4305,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key0-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4312,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_multiindex[item_values1-None-None-3-col_key3-col_key_index3-row_key3-row_key_index3],"AssertionError: DataFrame.iloc[:, 1] (column name=""('b', 2)"") are different
@@ -1683,7 +1683,7 @@ DataFrame.iloc[:, 2] (column name=""('a', 2)"") values are different (20.0 %)
 [index]: [(x, 99), (y, 11), (x, 11), (y, 99), (z, -12)]
 [left]:  [3.0, nan, 98.0, 57.0, -7.0]
 [right]: [3, -999, 98, 57, -7]",failed
-4331,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key5-1-2],"ValueError: 
+4331,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key5-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4337,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_multiindex[item_values2-item_index2-None-5-2-None-row_key1-None],"AssertionError: DataFrame.iloc[:, 2] (column name=""('a', 2)"") are different
@@ -1699,11 +1699,11 @@ DataFrame.iloc[:, 2] (column name=""('a', 2)"") values are different (40.0 %)
 [index]: [(x, 99), (y, 11), (x, 11), (y, 99), (z, -12)]
 [left]:  [3.0, nan, nan, 57.0, -7.0]
 [right]: [3, -999, -998, 57, -7]",failed
-4357,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key10-1-2],"ValueError: 
+4357,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key10-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4359,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[count-0-False],AttributeError: can't set attribute,failed
-4363,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key11-1-2],"ValueError: 
+4363,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key11-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4365,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_multiindex[item_values2-item_index2-None-5-2-None-row_key3-row_key_index3],"AssertionError: DataFrame.iloc[:, 2] (column name=""('a', 2)"") are different
@@ -1719,13 +1719,13 @@ DataFrame.iloc[:, 2] (column name=""('a', 2)"") values are different (40.0 %)
 4375,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[count-1-False],AttributeError: can't set attribute,failed
 4377,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_series_and_list_like_deviating_behavior[ndarray-rmod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
 4378,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_series_and_list_like_deviating_behavior[index-mod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
-4382,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key12-1-2],"ValueError: 
+4382,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key12-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4383,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[count-True-True],AttributeError: can't set attribute,failed
 4385,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_series_and_list_like_deviating_behavior[index-rmod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
 4388,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_series_and_list_like_deviating_behavior[index_with_name-mod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
-4389,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key13-1-2],"ValueError: 
+4389,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key13-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4391,tests.integ.modin.frame.test_items,test_items[dataframe3],AssertionError: Got type: <class 'pandas.core.series.Series'>,failed
@@ -1741,7 +1741,7 @@ DataFrame.iloc[:, 1] (column name=""('b', 2)"") values are different (40.0 %)
 [index]: [(x, 99), (y, 11), (x, 11), (y, 99), (z, -12)]
 [left]:  [nan, 11.0, 101.0, nan, -6.0]
 [right]: [-996, 11, 101, -997, -6]",failed
-4409,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key18-1-0],"ValueError: 
+4409,tests.integ.modin.frame.test_iloc,test_df_row_return_dataframe[key18-1-0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4410,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_df_and_list_like_on_axis_0_deviating_behavior[ndarray-mod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
@@ -1761,19 +1761,19 @@ DataFrame.iloc[:, 1] (column name=""('b', 2)"") values are different (40.0 %)
 [index]: [(x, 99), (y, 11), (x, 11), (y, 99), (z, -12)]
 [left]:  [2.0, nan, nan, 56.0, -6.0]
 [right]: [2, -996, -997, 56, -6]",failed
-4431,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key4-1-2],"ValueError: 
+4431,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key4-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4433,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[count-all-False],AttributeError: can't set attribute,failed
 4441,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[count-index-True],AttributeError: can't set attribute,failed
-4446,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key9-1-2],"ValueError: 
+4446,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key9-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4447,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_df_and_list_like_on_axis_0_deviating_behavior[index_with_name-rmod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
 4449,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_multiindex[item_values2-item_index2-None-5-col_key2-col_key_index2-1-None],ValueError: buffer source array is read-only,failed
 4451,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[count-index-False],AttributeError: can't set attribute,failed
 4453,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_df_and_list_like_on_axis_1_deviating_behavior[list-mod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
-4455,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key10-1-2],"ValueError: 
+4455,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key10-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4457,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_df_and_list_like_on_axis_1_deviating_behavior[list-rmod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
@@ -1785,13 +1785,13 @@ DataFrame.iloc[:, 1] (column name=""('b', 2)"") values are different (40.0 %)
 [index]: [(x, 99), (y, 11), (x, 11), (y, 99), (z, -12)]
 [left]:  [nan, 11.0, 101.0, nan, -6.0]
 [right]: [-998, 11, 101, -999, -6]",failed
-4466,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key11-1-2],"ValueError: 
+4466,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key11-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4468,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_df_and_list_like_on_axis_1_deviating_behavior[ndarray-rmod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
 4473,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[count-columns-False],AttributeError: can't set attribute,failed
 4474,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_df_and_list_like_on_axis_1_deviating_behavior[index-mod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
-4477,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key12-1-2],"ValueError: 
+4477,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key12-1-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4481,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_df_and_list_like_on_axis_1_deviating_behavior[index-rmod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
@@ -1805,7 +1805,7 @@ DataFrame.iloc[:, 1] (column name=""('b', 2)"") values are different (40.0 %)
 4488,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_df_and_list_like_on_axis_1_deviating_behavior[index_with_name-mod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
 4490,tests.integ.modin.test_concat,test_concat_object_with_same_index_with_dup[inner],pandas.errors.InvalidIndexError: Reindexing only valid with uniquely valued Index objects,failed
 4496,tests.integ.modin.binary.test_binary_op,test_binary_mod_between_df_and_list_like_on_axis_1_deviating_behavior[index_with_name-rmod],Failed: DID NOT RAISE <class 'AssertionError'>,failed
-4501,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key17-1-0],"ValueError: 
+4501,tests.integ.modin.frame.test_iloc,test_df_iloc_get_dataframe[key17-1-0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4502,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[mean0-0-False],AttributeError: can't set attribute,failed
@@ -2045,7 +2045,7 @@ DataFrame.iloc[:, 1] (column name=""('b', 2)"") values are different (40.0 %)
 [index]: [(x, 99), (y, 11), (x, 11), (y, 99), (z, -12)]
 [left]:  [2.0, nan, nan, 56.0, -6.0]
 [right]: [2, -996, -997, 56, -6]",failed
-4912,tests.integ.modin.frame.test_iloc,test_df_iloc_get_row_input_snowpark_pandas_return_dataframe[Index-2],"ValueError: 
+4912,tests.integ.modin.frame.test_iloc,test_df_iloc_get_row_input_snowpark_pandas_return_dataframe[Index-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4913,tests.integ.modin.binary.test_binary_op,test_binary_arithmetic_ops_between_series_and_scalar_nan[10.001-rsub],"AssertionError: Series are different
@@ -2174,7 +2174,7 @@ Series values are different (60.0 %)
 [left]:  [nan, nan, nan, nan, nan]
 [right]: [290019022754.90625, 1796048774939.5837, nan, 2.7078432771126627e+22, nan]
 At positional index 0, first diff: nan != 290019022754.90625",failed
-4948,tests.integ.modin.frame.test_iloc,test_df_iloc_get_row_input_snowpark_pandas_return_dataframe[Series-2],"ValueError: 
+4948,tests.integ.modin.frame.test_iloc,test_df_iloc_get_row_input_snowpark_pandas_return_dataframe[Series-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 4950,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_multiindex[item_values4-None-item_columns4-3-col_key1-None-row_key1-None],"AssertionError: DataFrame.iloc[:, 1] (column name=""('b', 2)"") are different
@@ -2413,7 +2413,7 @@ Series values are different (27.77778 %)
 [left]:  [False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False]
 [right]: [False, <NA>, False, <NA>, False, False, False, False, <NA>, <NA>, False, False, False, False, False, False, False, <NA>]",failed
 5035,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_multiindex[item_values4-None-item_columns4-3-col_key3-col_key_index3-1-None],ValueError: buffer source array is read-only,failed
-5036,tests.integ.modin.frame.test_iloc,test_df_iloc_get_row_input_snowpark_pandas_return_dataframe[emptyFloatSeries-2],"ValueError: 
+5036,tests.integ.modin.frame.test_iloc,test_df_iloc_get_row_input_snowpark_pandas_return_dataframe[emptyFloatSeries-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 5037,tests.integ.modin.binary.test_binary_op,test_binary_arithmetic_ops_between_df_and_scalar_nan_behavior_deviates[10.001-rmod],"AssertionError: DataFrame.iloc[:, 0] (column name=""0"") are different
@@ -2540,7 +2540,7 @@ Series values are different (100.0 %)
 [index]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
 [left]:  [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
 [right]: [False, <NA>, False, <NA>, False, False, False, False, False, False, False, False, False, False, False, False, False, <NA>]",failed
-5117,tests.integ.modin.frame.test_iloc,test_df_iloc_get_col_input_snowpark_pandas_return_dataframe[Index-2],"ValueError: 
+5117,tests.integ.modin.frame.test_iloc,test_df_iloc_get_col_input_snowpark_pandas_return_dataframe[Index-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 5120,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[amin-all-True],AttributeError: can't set attribute,failed
@@ -2566,7 +2566,7 @@ Series values are different (22.22222 %)
 [left]:  [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
 [right]: [True, <NA>, True, True, True, True, <NA>, True, <NA>, <NA>, True, True, True, True, True, True, True, True]",failed
 5139,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[amin-index-False],AttributeError: can't set attribute,failed
-5142,tests.integ.modin.frame.test_iloc,test_df_iloc_get_multiindex_key_negative,"ValueError: 
+5142,tests.integ.modin.frame.test_iloc,test_df_iloc_get_multiindex_key_negative,"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 5143,tests.integ.modin.frame.test_apply,test_apply_axis1_with_3rd_party_libraries_and_decorator[packages0-7],"TypeError: The input of UDF ""TESTDB_SNOWPANDAS"".""PUBLIC"".SNOWPARK_TEMP_FUNCTION_TVJR42YQJ6 must be Column, column name, or a list of them",failed
@@ -2598,7 +2598,7 @@ Series values are different (11.11111 %)
 [index]: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
 [left]:  [True, True, True, True, False, True, False, False, False, False, True, True, True, False, True, True, True, False]
 [right]: [True, True, True, True, False, True, <NA>, False, False, False, True, True, True, False, True, True, True, <NA>]",failed
-5180,tests.integ.modin.frame.test_iloc,test_df_iloc_get_col_input_snowpark_pandas_return_dataframe[Series-2],"ValueError: 
+5180,tests.integ.modin.frame.test_iloc,test_df_iloc_get_col_input_snowpark_pandas_return_dataframe[Series-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 5181,tests.integ.modin.frame.test_loc,test_df_loc_get_reversed_key_slice_with_unordered_nullable_index[first--2-1-6],KeyError: 3,failed
@@ -2657,7 +2657,7 @@ DataFrame shape mismatch
 5313,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[max1-0-True],AttributeError: can't set attribute,failed
 5314,tests.integ.modin.binary.test_binary_op,test_binary_comparison_method_between_series_numeric[gt-rhs2-lhs1],TypeError: boolean value of NA is ambiguous,failed
 5324,tests.integ.modin.frame.test_loc,test_df_loc_get_reversed_key_slice_with_unordered_nullable_index[first--2-6-6],KeyError: 8,failed
-5333,tests.integ.modin.frame.test_iloc,test_df_iloc_get_col_input_snowpark_pandas_return_dataframe[emptyFloatSeries-2],"ValueError: 
+5333,tests.integ.modin.frame.test_iloc,test_df_iloc_get_col_input_snowpark_pandas_return_dataframe[emptyFloatSeries-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 5338,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[max1-0-False],AttributeError: can't set attribute,failed
@@ -2674,7 +2674,7 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 5397,tests.integ.modin.frame.test_iloc,test_df_iloc_get_empty,IndexError: single positional indexer is out-of-bounds,failed
 5398,tests.integ.modin.crosstab.test_crosstab,test_normalize_and_values[max1-all-False],AttributeError: can't set attribute,failed
 5400,tests.integ.modin.frame.test_loc,test_df_loc_get_reversed_key_slice_with_unordered_nullable_index[first--9-1-4],KeyError: 10,failed
-5405,tests.integ.modin.frame.test_iloc,test_df_iloc_get_diff2native,"ValueError: 
+5405,tests.integ.modin.frame.test_iloc,test_df_iloc_get_diff2native,"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 5407,tests.integ.modin.binary.test_binary_op,test_binary_comparison_method_between_series_numeric[gt-rhs3-lhs1],TypeError: '>' not supported between instances of 'float' and 'NoneType',failed
@@ -3072,7 +3072,7 @@ Series values are different (5.55556 %)
 6112,tests.integ.modin.binary.test_binary_op,test_binary_comparison_method_between_series_different_types[gt],TypeError: '>' not supported between instances of 'str' and 'int',failed
 6114,tests.integ.modin.frame.test_loc,test_df_loc_set_scalar_row_key_enlargement_deviates_from_native_pandas[data_index1-u-col_key2-90],ValueError: cannot reindex on an axis with duplicate labels,failed
 6116,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_bool[row-index-key5],IndexError: positional indexers are out-of-bounds,failed
-6120,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_bool[row-ndarray-key0],"ValueError: 
+6120,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_bool[row-ndarray-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 6122,tests.integ.modin.binary.test_binary_op,test_binary_comparison_method_between_series_different_types[ge],TypeError: '>=' not supported between instances of 'str' and 'int',failed
@@ -3811,7 +3811,7 @@ DataFrame.iloc[:, 0] (column name=""0"") values are different (66.66667 %)
 7281,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_bool[col-index-key5],IndexError: positional indexers are out-of-bounds,failed
 7282,tests.integ.modin.binary.test_binary_op,test_binary_op_between_df_and_list_like_of_different_lengths_axis_0[list0-add],"ValueError: Unable to coerce to Series, length must be 3: given 2",failed
 7284,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True-None-4-4],ValueError: Incompatible indexer with DataFrame,failed
-7286,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_bool[col-ndarray-key0],"ValueError: 
+7286,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_bool[col-ndarray-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 7290,tests.integ.modin.frame.test_iloc,test_df_iloc_get_scalar_row_and_scalar_col[False-4--8],IndexError: index -8 is out of bounds for axis 0 with size 7,failed
@@ -4139,16 +4139,16 @@ At positional index 0, first diff: nan != 1.0",failed
 7837,tests.integ.modin.binary.test_binary_op,test_binary_op_between_df_and_list_like_of_different_lengths_axis_0[list1-add],"ValueError: Unable to coerce to Series, length must be 3: given 4",failed
 7838,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-list-key4],IndexError: index 12 is out of bounds for axis 0 with size 7,failed
 7846,tests.integ.modin.binary.test_timedelta,test_valid_arithmetic_between_possibly_negative_timedeltas[timedelta_scalar6-rfloordiv],reason: precision difference in snowflake,xfailed
-7847,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-list-key5],"ValueError: 
+7847,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-list-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 7848,tests.integ.modin.binary.test_binary_op,test_binary_op_between_df_and_list_like_of_different_lengths_axis_0[list1-radd],"ValueError: Unable to coerce to Series, length must be 3: given 4",failed
 7852,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type_with_duplicate_columns[series-col_key10],AssertionError: exception type <class 'IndexError'> does not match with expected type <class 'ValueError'>,failed
-7853,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-list-key6],"ValueError: 
+7853,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-list-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 7858,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True-9-None-None],ValueError: Incompatible indexer with DataFrame,failed
-7863,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-series-key0],"ValueError: 
+7863,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-series-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 7872,tests.integ.modin.binary.test_binary_op,test_binary_op_between_df_and_list_like_of_different_lengths_axis_0[list1-sub],"ValueError: Unable to coerce to Series, length must be 3: given 4",failed
@@ -4165,12 +4165,12 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 7925,tests.integ.modin.binary.test_binary_op,test_binary_op_between_df_and_list_like_of_different_lengths_axis_0[list1-floordiv],"ValueError: Unable to coerce to Series, length must be 3: given 4",failed
 7926,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True-9--1-None],ValueError: Incompatible indexer with DataFrame,failed
 7933,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-series-key4],IndexError: index 12 is out of bounds for axis 0 with size 7,failed
-7940,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-series-key5],"ValueError: 
+7940,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-series-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 7941,tests.integ.modin.frame.test_loc,test_df_loc_get_key_bool[series-key4],pandas.errors.IndexingError: Unalignable boolean Series provided as indexer (index of the boolean Series and of the indexed object do not match).,failed
 7949,tests.integ.modin.binary.test_binary_op,test_binary_op_between_df_and_list_like_of_different_lengths_axis_0[list1-rfloordiv],"ValueError: Unable to coerce to Series, length must be 3: given 4",failed
-7950,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-series-key6],"ValueError: 
+7950,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-series-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 7958,tests.integ.modin.binary.test_binary_op,test_binary_op_between_df_and_list_like_of_different_lengths_axis_0[list1-mod],"ValueError: Unable to coerce to Series, length must be 3: given 4",failed
@@ -4200,7 +4200,7 @@ assert False",failed
 DataFrame shape mismatch
 [left]:  (3, 8)
 [right]: (3, 4)",failed
-8064,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key1],"ValueError: 
+8064,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8065,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True-9-4-4],ValueError: Incompatible indexer with DataFrame,failed
@@ -4215,7 +4215,7 @@ At positional index 0, first diff: nan != 1.0",failed
 8088,tests.integ.modin.frame.test_set_index,test_set_index_timedelta_index[frame_of_ints],"TypeError: The parameter ""keys"" may be a column key, one-dimensional array, or a list containing only valid column keys and one-dimensional arrays. Received column of type <class 'snowflake.snowpark.modin.plugin.extensions.timedelta_index.TimedeltaIndex'>",failed
 8089,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True-9-10-None],ValueError: Incompatible indexer with DataFrame,failed
 8097,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type[list-row_key0-col_key9],"KeyError: array(['1', '2'], dtype='<U21')",failed
-8106,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key2],"ValueError: 
+8106,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8107,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type[list-row_key0-col_key10],"KeyError: array(['E', 1, 'X', 2], dtype=object)",failed
@@ -4232,7 +4232,7 @@ DataFrame.iloc[:, 4] (column name=""Y"") values are different (100.0 %)
 [index]: [0, 1, 2]
 [left]:  [1, 4, 7]
 [right]: [nan, nan, nan]",failed
-8135,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key3],"ValueError: 
+8135,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key3],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8138,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True-9-10-4],ValueError: Incompatible indexer with DataFrame,failed
@@ -4254,7 +4254,7 @@ DataFrame.iloc[:, 0] (column name=""D"") values are different (100.0 %)
 [left]:  [nan, nan, nan]
 [right]: [1.0, 4.0, 7.0]
 At positional index 0, first diff: nan != 1.0",failed
-8165,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key4],"ValueError: 
+8165,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key4],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8166,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True--9-None-None],ValueError: Incompatible indexer with DataFrame,failed
@@ -4264,7 +4264,7 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 8181,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type[list-row_key1-col_key10],"KeyError: array(['E', 1, 'X', 2], dtype=object)",failed
 8185,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True--9-None-1],ValueError: Incompatible indexer with DataFrame,failed
 8187,tests.integ.modin.frame.test_nlargest_nsmallest,test_nlargest_nsmallest_duplicate_labels[nsmallest],AttributeError: 'DataFrame' object has no attribute 'dtype'. Did you mean: 'dtypes'?,failed
-8188,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key5],"ValueError: 
+8188,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8190,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type_with_duplicate_columns[list-col_key1],"AssertionError: DataFrame.iloc[:, 0] (column name=""A"") are different
@@ -4283,11 +4283,11 @@ DataFrame.iloc[:, 0] (column name=""A"") values are different (100.0 %)
  Input: 'Index data must be 1-dimensional'",failed
 8205,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True--9--1-None],ValueError: Incompatible indexer with DataFrame,failed
 8206,tests.integ.modin.frame.test_nlargest_nsmallest,test_nlargest_nsmallest_non_numeric_types[nsmallest-data1],TypeError: '<' not supported between instances of 'str' and 'int',failed
-8208,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key6],"ValueError: 
+8208,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8210,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type_with_duplicate_columns[list-col_key6],ValueError: cannot reindex on an axis with duplicate labels,failed
-8214,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-ndarray-key0],"ValueError: 
+8214,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-ndarray-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8217,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True--9--1--1],ValueError: Incompatible indexer with DataFrame,failed
@@ -4302,11 +4302,11 @@ At positional index 0, first diff: nan != 1.0",failed
 8234,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type_with_duplicate_columns[list-col_key10],AssertionError: exception type <class 'IndexError'> does not match with expected type <class 'ValueError'>,failed
 8240,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True--9--1-4],ValueError: Incompatible indexer with DataFrame,failed
 8246,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-ndarray-key4],IndexError: index 12 is out of bounds for axis 0 with size 7,failed
-8250,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-ndarray-key5],"ValueError: 
+8250,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-ndarray-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8254,tests.integ.modin.frame.test_set_index,test_set_index_names[frame_of_ints],"TypeError: The parameter ""keys"" may be a column key, one-dimensional array, or a list containing only valid column keys and one-dimensional arrays. Received column of type <class 'snowflake.snowpark.modin.plugin.extensions.index.Index'>",failed
-8256,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-ndarray-key6],"ValueError: 
+8256,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-ndarray-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8257,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True--9-1-None],ValueError: Incompatible indexer with DataFrame,failed
@@ -4339,7 +4339,7 @@ DataFrame.iloc[:, 0] (column name=""D"") values are different (66.66667 %)
 [left]:  [nan, 4.0, nan]
 [right]: [1.0, 4.0, 7.0]
 At positional index 0, first diff: nan != 1.0",failed
-8396,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key1],"ValueError: 
+8396,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8398,tests.integ.modin.frame.test_loc,test_df_loc_set_key_slice[True--9-10--1],ValueError: Incompatible indexer with DataFrame,failed
@@ -4362,7 +4362,7 @@ DataFrame.iloc[:, 3] (column name=""A"") values are different (100.0 %)
 8433,tests.integ.modin.frame.test_apply,test_apply_axis1_with_dynamic_pivot_and_with_3rd_party_libraries_and_decorator[packages1-9],TODO: SNOW-1261830 need to support PandasSeriesType annotation.,xfailed
 8437,tests.integ.modin.frame.test_pct_change,test_pct_change_simple[rows-_NoDefault.no_default-2-nonulls],"Failed: DID NOT WARN. No warnings of type (<class 'FutureWarning'>,) were emitted.
 The list of emitted warnings is: [].",failed
-8443,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key2],"ValueError: 
+8443,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8445,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type[array-row_key1-col_key2],"AssertionError: DataFrame.iloc[:, 4] (column name=""Y"") are different
@@ -4381,7 +4381,7 @@ DataFrame.iloc[:, 4] (column name=""Y"") values are different (100.0 %)
 DataFrame shape mismatch
 [left]:  (3, 8)
 [right]: (3, 4)",failed
-8489,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key3],"ValueError: 
+8489,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key3],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8492,tests.integ.modin.frame.test_set_index,test_set_index_duplicate_label_in_dataframe_negative[False],"AssertionError: Regex pattern did not match.
@@ -4413,14 +4413,14 @@ The list of emitted warnings is: [].",failed
 8545,tests.integ.modin.frame.test_loc,test_df_loc_set_item_df_single_value[A-val_columns0-val_index0],ValueError: Length of values (1) does not match length of index (4),failed
 8548,tests.integ.modin.frame.test_pct_change,test_pct_change_simple[columns-_NoDefault.no_default-1-nonulls],"Failed: DID NOT WARN. No warnings of type (<class 'FutureWarning'>,) were emitted.
 The list of emitted warnings is: [].",failed
-8549,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key4],"ValueError: 
+8549,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key4],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8552,tests.integ.modin.frame.test_pct_change,test_pct_change_simple[columns-_NoDefault.no_default-2-nonulls],"Failed: DID NOT WARN. No warnings of type (<class 'FutureWarning'>,) were emitted.
 The list of emitted warnings is: [].",failed
 8566,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type_with_duplicate_columns[array-col_key6],ValueError: cannot reindex on an axis with duplicate labels,failed
 8573,tests.integ.modin.frame.test_loc,test_df_loc_set_item_df_single_value[A-val_columns0-val_index1],ValueError: Length of values (1) does not match length of index (4),failed
-8575,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key5],"ValueError: 
+8575,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8576,tests.integ.modin.frame.test_set_index,test_set_index_pass_single_array[True-True-frame_of_ints-Index],"TypeError: The parameter ""keys"" may be a column key, one-dimensional array, or a list containing only valid column keys and one-dimensional arrays. Received column of type <class 'snowflake.snowpark.modin.plugin.extensions.index.Index'>",failed
@@ -4435,7 +4435,7 @@ At positional index 0, first diff: nan != 1.0",failed
 8595,tests.integ.modin.frame.test_apply_axis_0,test_axis_0_basic_types_without_type_hints[return_timedelta_scalar],[XPASS(strict)] SNOW-1619940,failed
 8596,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type_with_duplicate_columns[array-col_key10],AssertionError: exception type <class 'IndexError'> does not match with expected type <class 'ValueError'>,failed
 8598,tests.integ.modin.frame.test_loc,test_df_loc_set_item_df_single_value[A-val_columns1-val_index0],ValueError: Length of values (1) does not match length of index (4),failed
-8604,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key6],"ValueError: 
+8604,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[row-index with name-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8618,tests.integ.modin.frame.test_loc,test_df_loc_set_item_df_single_value[A-val_columns1-val_index1],ValueError: Length of values (1) does not match length of index (4),failed
@@ -4453,17 +4453,17 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 8665,tests.integ.modin.frame.test_set_index,test_set_index_pass_single_array[True-True-frame_of_ints_and_timedelta-Index],"TypeError: The parameter ""keys"" may be a column key, one-dimensional array, or a list containing only valid column keys and one-dimensional arrays. Received column of type <class 'snowflake.snowpark.modin.plugin.extensions.index.Index'>",failed
 8666,tests.integ.modin.frame.test_to_view,test_to_view_index[function-False-None-expected_index_columns2],"NotImplementedError: Modin supports the method DataFrame.to_view on the Snowflake backend, but not on the backend Pandas.",failed
 8669,tests.integ.modin.frame.test_pct_change,test_axis_0_with_timedelta[_NoDefault.no_default-1],TypeError: unsupported operand type for /: got timedelta64[ns],failed
-8671,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-list-key5],"ValueError: 
+8671,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-list-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8677,tests.integ.modin.frame.test_pct_change,test_axis_0_with_timedelta[_NoDefault.no_default-2],TypeError: unsupported operand type for /: got timedelta64[ns],failed
 8679,tests.integ.modin.frame.test_loc,test_df_loc_get_key_bool[array-key5],IndexError: positional indexers are out-of-bounds,failed
-8680,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-list-key6],"ValueError: 
+8680,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-list-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8684,tests.integ.modin.frame.test_pct_change,test_axis_0_with_timedelta[ffill--1],TypeError: unsupported operand type for /: got timedelta64[ns],failed
 8689,tests.integ.modin.frame.test_pct_change,test_axis_0_with_timedelta[ffill-0],TypeError: unsupported operand type for /: got timedelta64[ns],failed
-8690,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-series-key0],"ValueError: 
+8690,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-series-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8692,tests.integ.modin.frame.test_loc,test_df_loc_set_with_column_wise_list_like_item[list-<lambda>-item2-A],"ValueError: could not broadcast input array from shape (4,) into shape (2, 1)",failed
@@ -4495,12 +4495,12 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 8743,tests.integ.modin.frame.test_pct_change,test_axis_0_with_timedelta[bfill--1],TypeError: unsupported operand type for /: got timedelta64[ns],failed
 8744,tests.integ.modin.frame.test_set_index,test_set_index_pass_single_array[True-False-frame_of_ints-Index],"TypeError: The parameter ""keys"" may be a column key, one-dimensional array, or a list containing only valid column keys and one-dimensional arrays. Received column of type <class 'snowflake.snowpark.modin.plugin.extensions.index.Index'>",failed
 8750,tests.integ.modin.frame.test_pct_change,test_axis_0_with_timedelta[bfill-0],TypeError: unsupported operand type for /: got timedelta64[ns],failed
-8754,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-series-key5],"ValueError: 
+8754,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-series-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8758,tests.integ.modin.frame.test_pct_change,test_axis_0_with_timedelta[bfill-1],TypeError: unsupported operand type for /: got timedelta64[ns],failed
 8763,tests.integ.modin.frame.test_pct_change,test_axis_0_with_timedelta[bfill-2],TypeError: unsupported operand type for /: got timedelta64[ns],failed
-8764,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-series-key6],"ValueError: 
+8764,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-series-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8769,tests.integ.modin.frame.test_pct_change,test_axis_1_with_timedelta_columns[None--1],TypeError: unsupported operand type for /: got timedelta64[ns],failed
@@ -4552,7 +4552,7 @@ DataFrame.iloc[:, 0] (column name=""D"") values are different (66.66667 %)
 [right]: [1.0, 4.0, 7.0]
 At positional index 0, first diff: nan != 1.0",failed
 8862,tests.integ.modin.frame.test_apply_axis_0,test_apply_axis_0_bug_1650918[data1-<lambda>],[XPASS(strict)] SNOW-1650918: Apply on dataframe data columns containing NULL fails with invalid arguments to udtf function,failed
-8863,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key1],"ValueError: 
+8863,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8864,tests.integ.modin.frame.test_apply_axis_0,test_apply_nested_series_negative,Failed: DID NOT RAISE <class 'NotImplementedError'>,failed
@@ -4570,7 +4570,7 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 8882,tests.integ.modin.frame.test_pct_change,test_axis_1_with_timedelta_and_non_timedelta_column_invalid[data1],"AssertionError: Regex pattern did not match.
  Regex: 'pct_change\\(axis=1\\)\\ is\\ invalid\\ when\\ one\\ column\\ is\\ Timedelta\\ another\\ column\\ is\\ not\\.'
  Input: 'unsupported operand type for /: got timedelta64[ns]'",failed
-8883,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key2],"ValueError: 
+8883,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8884,tests.integ.modin.frame.test_pct_change,test_pct_change_unsupported_args[params0],Failed: DID NOT RAISE <class 'NotImplementedError'>,failed
@@ -4583,11 +4583,11 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
  Input: 'unsupported operand type for /: got object'",failed
 8891,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type[index-row_key0-col_key9],"KeyError: array(['1', '2'], dtype='<U21')",failed
 8893,tests.integ.modin.frame.test_to_view,test_to_view_multiindex_length_mismatch_raises[method],"NotImplementedError: Modin supports the method DataFrame.to_view on the Snowflake backend, but not on the backend Pandas.",failed
-8894,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key3],"ValueError: 
+8894,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key3],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8899,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type[index-row_key0-col_key10],"KeyError: array(['E', 1, 'X', 2], dtype=object)",failed
-8904,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key4],"ValueError: 
+8904,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key4],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8907,tests.integ.modin.frame.test_set_index,test_set_index_pass_single_array[False-True-frame_of_ints_and_timedelta-Index],"TypeError: The parameter ""keys"" may be a column key, one-dimensional array, or a list containing only valid column keys and one-dimensional arrays. Received column of type <class 'snowflake.snowpark.modin.plugin.extensions.index.Index'>",failed
@@ -4597,7 +4597,7 @@ DataFrame.iloc[:, 3] (column name=""A"") values are different (100.0 %)
 [index]: [0, 1, 2]
 [left]:  [1, 4, 7]
 [right]: [nan, 7.0, 4.0]",failed
-8924,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key5],"ValueError: 
+8924,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8925,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type[index-row_key1-col_key2],"AssertionError: DataFrame.iloc[:, 4] (column name=""Y"") are different
@@ -4607,12 +4607,12 @@ DataFrame.iloc[:, 4] (column name=""Y"") values are different (100.0 %)
 [left]:  [1, 4, 7]
 [right]: [nan, nan, nan]",failed
 8928,tests.integ.modin.frame.test_to_view,test_to_view_multiindex_length_mismatch_raises[function],"NotImplementedError: Modin supports the method DataFrame.to_view on the Snowflake backend, but not on the backend Pandas.",failed
-8944,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key6],"ValueError: 
+8944,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8947,tests.integ.modin.frame.test_quantile,test_quantile_unsupported_args_negative[table-lower-0],Failed: DID NOT RAISE <class 'NotImplementedError'>,failed
 8948,tests.integ.modin.frame.test_quantile,test_quantile_unsupported_args_negative[table-lower-1],Failed: DID NOT RAISE <class 'NotImplementedError'>,failed
-8950,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-ndarray-key0],"ValueError: 
+8950,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-ndarray-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 8951,tests.integ.modin.frame.test_quantile,test_quantile_unsupported_args_negative[table-higher-0],Failed: DID NOT RAISE <class 'NotImplementedError'>,failed
@@ -4630,10 +4630,10 @@ DataFrame shape mismatch
 8977,tests.integ.modin.frame.test_quantile,test_quantile_unsupported_args_negative[table-midpoint-1],"ValueError: Invalid interpolation: midpoint. Interpolation must be in {'nearest', 'lower', 'higher'}",failed
 8982,tests.integ.modin.frame.test_quantile,test_quantile_datetime_negative,Failed: DID NOT RAISE <class 'NotImplementedError'>,failed
 8994,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-ndarray-key4],IndexError: index 12 is out of bounds for axis 0 with size 7,failed
-8999,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-ndarray-key5],"ValueError: 
+8999,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-ndarray-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-9005,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-ndarray-key6],"ValueError: 
+9005,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-ndarray-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9012,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type[index-row_key1-col_key8],"AssertionError: DataFrame.iloc[:, 0] (column name=""D"") are different
@@ -4667,22 +4667,22 @@ DataFrame.iloc[:, 0] (column name=""A"") values are different (100.0 %)
 [right]: [nan, 7.0, 4.0]",failed
 9136,tests.integ.modin.frame.test_set_index,test_set_index_pass_arrays[True-True-frame_of_ints-Index],"TypeError: The parameter ""keys"" may be a column key, one-dimensional array, or a list containing only valid column keys and one-dimensional arrays. Received column of type <class 'snowflake.snowpark.modin.plugin.extensions.index.Index'>",failed
 9142,tests.integ.modin.frame.test_applymap,test_applymap_basic_with_type_hints[map-return_timedelta_scalar],[XPASS(strict)] SNOW-1619940,failed
-9150,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key1],"ValueError: 
+9150,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9156,tests.integ.modin.frame.test_loc,test_df_loc_set_with_column_wise_list_like_item[index-<lambda>-item2-col_key4],"ValueError: could not broadcast input array from shape (4,) into shape (2, 1)",failed
-9176,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[row-slice_key0],"ValueError: 
+9176,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[row-slice_key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-9183,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[row-slice_key1],"ValueError: 
+9183,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[row-slice_key1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9185,tests.integ.modin.frame.test_loc,test_df_loc_set_with_column_wise_list_like_item[index-<lambda>-item2-None],"ValueError: could not broadcast input array from shape (4,) into shape (2, 1)",failed
-9191,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[row-slice_key2],"ValueError: 
+9191,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[row-slice_key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9195,tests.integ.modin.frame.test_applymap,test_applymap_basic_with_type_hints[map-apply_on_frame_with_timedelta_data_columns_returns_int],[XPASS(strict)] ,failed
-9199,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[col-slice_key0],"ValueError: 
+9199,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[col-slice_key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9202,tests.integ.modin.frame.test_applymap,test_applymap_date_time_timestamp[data0-str-str-expected_result0],"AssertionError: DataFrame.iloc[:, 0] (column name=""0"") are different
@@ -4693,10 +4693,10 @@ DataFrame.iloc[:, 0] (column name=""0"") values are different (100.0 %)
 [right]: [2023-01-01 00:00:00, NaT]
 At positional index 0, first diff: 2023-01-01 != 2023-01-01 00:00:00",failed
 9203,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[list-<lambda>-item0-col_key2],ValueError: Must have equal len keys and value when setting with an iterable,failed
-9206,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[col-slice_key1],"ValueError: 
+9206,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[col-slice_key1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-9209,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key2],"ValueError: 
+9209,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9212,tests.integ.modin.frame.test_applymap,test_applymap_date_time_timestamp[data1-type-str-expected_result1],"AssertionError: DataFrame.iloc[:, 0] (column name=""0"") are different
@@ -4706,7 +4706,7 @@ DataFrame.iloc[:, 0] (column name=""0"") values are different (100.0 %)
 [left]:  [<class 'datetime.date'>, <class 'NoneType'>]
 [right]: [<class 'pandas._libs.tslibs.timestamps.Timestamp'>, <class 'pandas._libs.tslibs.nattype.NaTType'>]
 At positional index 0, first diff: <class 'datetime.date'> != <class 'pandas._libs.tslibs.timestamps.Timestamp'>",failed
-9217,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[col-slice_key2],"ValueError: 
+9217,tests.integ.modin.frame.test_iloc,test_df_iloc_get_slice_with_non_integer_parameters_negative[col-slice_key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9219,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[list-<lambda>-item0-col_key3],ValueError: Must have equal len keys and value when setting with an iterable,failed
@@ -4743,7 +4743,7 @@ DataFrame.iloc[:, 0] (column name=""0"") values are different (33.33333 %)
 [left]:  [2023-01-01 01:02:03+00:00, 2023-01-01 01:02:03, None]
 [right]: [2023-01-01 01:02:03+00:00, 2023-01-01 01:02:03-08:00, None]
 At positional index 1, first diff: 2023-01-01 01:02:03 != 2023-01-01 01:02:03-08:00",failed
-9256,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key3],"ValueError: 
+9256,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key3],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9260,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[list-<lambda>-item1-col_key2],ValueError: Must have equal len keys and value when setting with an iterable,failed
@@ -4760,7 +4760,7 @@ At positional index 0, first diff: <class 'pandas._libs.tslibs.timestamps.Timest
 9275,tests.integ.modin.frame.test_applymap,test_frame_with_timedelta_index,[XPASS(strict)] ,failed
 9283,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[list-<lambda>-item1-col_key4],ValueError: Must have equal len keys and value when setting with an iterable,failed
 9295,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[list-<lambda>-item2-col_key0],Failed: DID NOT RAISE <class 'ValueError'>,failed
-9304,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key4],"ValueError: 
+9304,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key4],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9312,tests.integ.modin.frame.test_loc,test_df_loc_set_general_col_key_type_with_duplicate_columns[index-col_key8],"AssertionError: DataFrame.iloc[:, 0] (column name=""A"") are different
@@ -4773,7 +4773,7 @@ At positional index 0, first diff: nan != 1.0",failed
 9313,tests.integ.modin.frame.test_tz_convert,test_tz_convert_negative[1-None-None-UTC-NotImplementedError],AttributeError: 'RangeIndex' object has no attribute 'tz_convert',failed
 9321,tests.integ.modin.frame.test_tz_convert,test_tz_convert_negative[columns-None-None-UTC-NotImplementedError],AttributeError: 'RangeIndex' object has no attribute 'tz_convert',failed
 9329,tests.integ.modin.frame.test_tz_convert,test_tz_convert_negative[0-1-None-UTC-NotImplementedError],ValueError: The level 1 is not valid,failed
-9330,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key5],"ValueError: 
+9330,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9332,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[list-<lambda>-item2-col_key1],"AssertionError: Regex pattern did not match.
@@ -4787,13 +4787,13 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 9352,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[list-<lambda>-item2-col_key5],ValueError: Must have equal len keys and value when setting with an iterable,failed
 9366,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[array-<lambda>-item0-col_key2],ValueError: Must have equal len keys and value when setting with an iterable,failed
 9372,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[array-<lambda>-item0-col_key3],ValueError: Must have equal len keys and value when setting with an iterable,failed
-9377,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key6],"ValueError: 
+9377,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_numeric[col-index with name-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9382,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[array-<lambda>-item0-col_key4],ValueError: Must have equal len keys and value when setting with an iterable,failed
 9388,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[array-<lambda>-item0-col_key5],ValueError: Must have equal len keys and value when setting with an iterable,failed
 9390,tests.integ.modin.frame.test_set_index,test_set_index_pass_arrays[True-False-frame_of_ints-Index],"TypeError: The parameter ""keys"" may be a column key, one-dimensional array, or a list containing only valid column keys and one-dimensional arrays. Received column of type <class 'snowflake.snowpark.modin.plugin.extensions.index.Index'>",failed
-9396,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_int_series_with_1k_shape[key0],"ValueError: 
+9396,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_int_series_with_1k_shape[key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9402,tests.integ.modin.frame.test_loc,test_df_loc_set_general_key_with_duplicate_rows[index-item1],ValueError: cannot reindex on an axis with duplicate labels,failed
@@ -4803,7 +4803,7 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 9417,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[array-<lambda>-item1-col_key2],ValueError: Must have equal len keys and value when setting with an iterable,failed
 9419,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_int_series_with_1k_shape[key1],IndexError: index 1204 is out of bounds for axis 0 with size 1000,failed
 9428,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[array-<lambda>-item1-col_key3],ValueError: Must have equal len keys and value when setting with an iterable,failed
-9430,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_int_series_with_1k_shape[key2],"ValueError: 
+9430,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_int_series_with_1k_shape[key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9438,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[array-<lambda>-item1-col_key4],ValueError: Must have equal len keys and value when setting with an iterable,failed
@@ -5016,7 +5016,7 @@ DataFrame.iloc[:, 0] (column name=""A"") values are different (75.0 %)
 9749,tests.integ.modin.frame.test_unary_op,test_df_unary_np_none_bool[False-abs],TypeError: object is not a numeric data type,failed
 9751,tests.integ.modin.frame.test_set_index,test_set_index_pass_arrays[False-True-frame_of_ints_and_timedelta-list],"KeyError: ""None of ['a'] are in the columns""",failed
 9756,tests.integ.modin.frame.test_unary_op,test_df_unary_np_none_bool[False-neg],TypeError: object is not a numeric data type,failed
-9758,tests.integ.modin.frame.test_iloc,test_df_iloc_get_native_pd_key_raises_type_error_negative[key0-<class\\ 'pandas\\.core\\.series\\.Series'>\\ is\\ not\\ supported\\ as\\ 'value'\\ argument\\.\\ Please\\ convert\\ this\\ to\\ Snowpark\\ pandas\\ objects\\ by\\ calling\\ modin\\.pandas\\.Series\\(\\)/DataFrame\\(\\)-TypeError],"ValueError: 
+9758,tests.integ.modin.frame.test_iloc,test_df_iloc_get_native_pd_key_raises_type_error_negative[key0-<class\\ 'pandas\\.core\\.series\\.Series'>\\ is\\ not\\ supported\\ as\\ 'value'\\ argument\\.\\ Please\\ convert\\ this\\ to\\ Snowpark\\ pandas\\ objects\\ by\\ calling\\ modin\\.pandas\\.Series\\(\\)/DataFrame\\(\\)-TypeError],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9759,tests.integ.modin.frame.test_set_index,test_set_index_pass_arrays[False-True-frame_of_ints_and_timedelta-<lambda>],"KeyError: ""None of ['a'] are in the columns""",failed
@@ -5026,11 +5026,11 @@ DataFrame.iloc[:, 1] (column name=""B"") values are different (75.0 %)
 [index]: [0, 1, 2, 3]
 [left]:  [nan, nan, 12.0, nan]
 [right]: [95, 92, 12, 98]",failed
-9765,tests.integ.modin.frame.test_iloc,test_df_iloc_get_native_pd_key_raises_type_error_negative[key1-<class\\ 'pandas\\.core\\.frame\\.DataFrame'>\\ is\\ not\\ supported\\ as\\ 'value'\\ argument\\.\\ Please\\ convert\\ this\\ to\\ Snowpark\\ pandas\\ objects\\ by\\ calling\\ modin\\.pandas\\.Series\\(\\)/DataFrame\\(\\)-TypeError],"ValueError: 
+9765,tests.integ.modin.frame.test_iloc,test_df_iloc_get_native_pd_key_raises_type_error_negative[key1-<class\\ 'pandas\\.core\\.frame\\.DataFrame'>\\ is\\ not\\ supported\\ as\\ 'value'\\ argument\\.\\ Please\\ convert\\ this\\ to\\ Snowpark\\ pandas\\ objects\\ by\\ calling\\ modin\\.pandas\\.Series\\(\\)/DataFrame\\(\\)-TypeError],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9768,tests.integ.modin.frame.test_unary_op,test_df_unary_invalid_in_native_negative[data0-abs],TypeError: object is not a numeric data type,failed
-9769,tests.integ.modin.frame.test_iloc,"test_df_iloc_get_native_pd_key_raises_type_error_negative[key2-\\.iloc\\ requires\\ numeric\\ indexers,\\ got\\ \\[Ellipsis,\\ 1\\]-IndexError]","ValueError: 
+9769,tests.integ.modin.frame.test_iloc,"test_df_iloc_get_native_pd_key_raises_type_error_negative[key2-\\.iloc\\ requires\\ numeric\\ indexers,\\ got\\ \\[Ellipsis,\\ 1\\]-IndexError]","ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9771,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[index-<lambda>-item0-col_key4],ValueError: Must have equal len keys and value when setting with an iterable,failed
@@ -5050,7 +5050,7 @@ At positional index 0, first diff: nan != 92.0",failed
 9784,tests.integ.modin.frame.test_unary_op,test_df_unary_invalid_in_sf_negative[data1-abs],Failed: DID NOT RAISE <class 'snowflake.snowpark.exceptions.SnowparkSQLException'>,failed
 9787,tests.integ.modin.frame.test_unary_op,test_df_unary_invalid_in_sf_negative[data1-neg],Failed: DID NOT RAISE <class 'snowflake.snowpark.exceptions.SnowparkSQLException'>,failed
 9789,tests.integ.modin.frame.test_unary_op,test_df_unary_invalid_in_sf_negative[data2-abs],Failed: DID NOT RAISE <class 'snowflake.snowpark.exceptions.SnowparkSQLException'>,failed
-9790,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_raises_indexing_error_negative[key3-indexer may only contain one '...' entry],"ValueError: 
+9790,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_raises_indexing_error_negative[key3-indexer may only contain one '...' entry],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9792,tests.integ.modin.frame.test_unary_op,test_df_unary_invalid_in_sf_negative[data2-neg],Failed: DID NOT RAISE <class 'snowflake.snowpark.exceptions.SnowparkSQLException'>,failed
@@ -5062,14 +5062,14 @@ DataFrame.iloc[:, 0] (column name=""A"") values are different (75.0 %)
 [right]: [5, 91, 91, 91]",failed
 9795,tests.integ.modin.frame.test_join,test_join_validate_negative[lvalues0-rvalues0-1:1],pandas.errors.MergeError: Merge keys are not unique in right dataset; not a one-to-one merge,failed
 9796,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[index-<lambda>-item0-col_key5],ValueError: Must have equal len keys and value when setting with an iterable,failed
-9799,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[row-key0],"ValueError: 
+9799,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[row-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9800,tests.integ.modin.frame.test_unary_op,test_ser_unary_invalid_in_both_native_and_sf_negative[invalid_value0-Invalid argument types for function-abs],TypeError: object is not a numeric data type,failed
 9802,tests.integ.modin.frame.test_astype,test_input_negative,"AssertionError: Regex pattern did not match.
  Regex: 'not found in columns'
  Input: ""'Only a column name can be used for the key in a dtype mappings argument.'""",failed
-9804,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[row-key1],"ValueError: 
+9804,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[row-key1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9807,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_series_row_key_df_item_match_pandas[row_pos5-col_pos5-item_values5],"AssertionError: DataFrame.iloc[:, 0] (column name=""A"") are different
@@ -5079,10 +5079,10 @@ DataFrame.iloc[:, 0] (column name=""A"") values are different (75.0 %)
 [left]:  [5.0, nan, nan, nan]
 [right]: [5, 91, 92, 93]",failed
 9808,tests.integ.modin.frame.test_join,test_join_validate_negative[lvalues1-rvalues1-m:1],pandas.errors.MergeError: Merge keys are not unique in right dataset; not a many-to-one merge,failed
-9809,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[row-key2],"ValueError: 
+9809,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[row-key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-9815,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[col-key0],"ValueError: 
+9815,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[col-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9817,tests.integ.modin.frame.test_join,test_join_validate_negative[lvalues2-rvalues2-1:1],pandas.errors.MergeError: Merge keys are not unique in left dataset; not a one-to-one merge,failed
@@ -5099,17 +5099,17 @@ DataFrame.iloc[:, 1] (column name=""B"") values are different (75.0 %)
 [index]: [0, 1, 2, 3]
 [left]:  [nan, nan, nan, 15.0]
 [right]: [93, 91, 92, 15]",failed
-9825,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[col-key1],"ValueError: 
+9825,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[col-key1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9826,tests.integ.modin.frame.test_unary_op,test_ser_unary_invalid_in_both_native_and_sf_negative[invalid_value1-Invalid argument types for function-neg],TypeError: object is not a numeric data type,failed
 9829,tests.integ.modin.frame.test_set_index,test_set_index_pass_arrays[False-False-frame_of_ints-array],"KeyError: ""None of ['a'] are in the columns""",failed
-9830,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[col-key2],"ValueError: 
+9830,tests.integ.modin.frame.test_iloc,test_df_iloc_get_invalid_slice_key_negative[col-key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9832,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[index-<lambda>-item1-col_key2],ValueError: Must have equal len keys and value when setting with an iterable,failed
 9834,tests.integ.modin.frame.test_unary_op,test_ser_unary_invalid_in_both_native_and_sf_negative[invalid_value2-is not recognized-abs],TypeError: object is not a numeric data type,failed
-9836,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-None],"ValueError: 
+9836,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-None],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9838,tests.integ.modin.frame.test_iloc,test_df_iloc_set_with_series_row_key_df_item_match_pandas[row_pos8-col_pos8-item_values8],"AssertionError: DataFrame.iloc[:, 0] (column name=""A"") are different
@@ -5119,16 +5119,16 @@ DataFrame.iloc[:, 0] (column name=""A"") values are different (75.0 %)
 [left]:  [5.0, nan, nan, nan]
 [right]: [5, 93, 93, 93]",failed
 9840,tests.integ.modin.frame.test_unary_op,test_ser_unary_invalid_in_both_native_and_sf_negative[invalid_value2-is not recognized-neg],TypeError: object is not a numeric data type,failed
-9841,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-True],"ValueError: 
+9841,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-True],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-9845,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-False],"ValueError: 
+9845,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-False],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9846,tests.integ.modin.frame.test_unary_op,test_ser_unary_invalid_in_both_native_and_sf_negative[invalid_value3- Numeric value 'bad_str' is not recognized-abs],TypeError: object is not a numeric data type,failed
 9847,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[index-<lambda>-item1-col_key3],ValueError: Must have equal len keys and value when setting with an iterable,failed
 9848,tests.integ.modin.frame.test_join,test_join_validate_negative[lvalues4-rvalues4-1:1],pandas.errors.MergeError: Merge keys are not unique in either left or right dataset; not a one-to-one merge,failed
-9852,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row--3.14],"ValueError: 
+9852,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row--3.14],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9853,tests.integ.modin.frame.test_unary_op,test_ser_unary_invalid_in_both_native_and_sf_negative[invalid_value3- Numeric value 'bad_str' is not recognized-neg],TypeError: object is not a numeric data type,failed
@@ -5138,12 +5138,12 @@ DataFrame.iloc[:, 1] (column name=""B"") values are different (75.0 %)
 [index]: [0, 1, 2, 3]
 [left]:  [6.0, nan, nan, nan]
 [right]: [6, 91, 92, 93]",failed
-9859,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-3.142857142857143],"ValueError: 
+9859,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-3.142857142857143],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9860,tests.integ.modin.frame.test_set_index,test_set_index_pass_arrays[False-False-frame_of_ints-list],"KeyError: ""None of ['a'] are in the columns""",failed
 9862,tests.integ.modin.frame.test_join,test_join_validate_negative[lvalues5-rvalues5-1:m],pandas.errors.MergeError: Merge keys are not unique in left dataset; not a one-to-many merge,failed
-9864,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-nan],"ValueError: 
+9864,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-nan],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9866,tests.integ.modin.frame.test_loc,test_df_loc_set_with_row_wise_list_like_item[index-<lambda>-item1-col_key4],ValueError: Must have equal len keys and value when setting with an iterable,failed
@@ -5154,7 +5154,7 @@ DataFrame.iloc[:, 1] (column name=""B"") values are different (50.0 %)
 [index]: [0, 1, 2, 3]
 [left]:  [6.0, nan, nan, 15.0]
 [right]: [6, 91, 93, 15]",failed
-9871,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-key6],"ValueError: 
+9871,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9875,tests.integ.modin.frame.test_join,test_join_validate_negative[lvalues6-rvalues6-m:1],pandas.errors.MergeError: Merge keys are not unique in right dataset; not a many-to-one merge,failed
@@ -5200,7 +5200,7 @@ DataFrame.iloc[:, 0] (column name=""A"") values are different (25.0 %)
 [left]:  [5.0, nan, 11.0, 14.0]
 [right]: [5, 99, 11, 14]",failed
 9946,tests.integ.modin.frame.test_astype,test_astype_from_timestamp_ltz[uint64],"TypeError: Converting from datetime64[ns, America/Los_Angeles] to uint64 is not supported. Do obj.astype('int64').astype(dtype) instead",failed
-9951,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-key7],"ValueError: 
+9951,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-key7],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 9956,tests.integ.modin.frame.test_set_index,test_set_index_pass_arrays[False-False-frame_of_ints_and_timedelta-Index],"TypeError: The parameter ""keys"" may be a column key, one-dimensional array, or a list containing only valid column keys and one-dimensional arrays. Received column of type <class 'snowflake.snowpark.modin.plugin.extensions.index.Index'>",failed
@@ -5240,10 +5240,10 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 10192,tests.integ.modin.test_from_pandas_to_pandas,test_value_type_mismatch_index_type[datetime-tz],"Failed: DID NOT RAISE (<class 'AssertionError'>, <class 'NotImplementedError'>)",failed
 10196,tests.integ.modin.test_from_pandas_to_pandas,test_value_type_mismatch_index_type[timedelta],"Failed: DID NOT RAISE (<class 'AssertionError'>, <class 'NotImplementedError'>)",failed
 10205,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-key9],Failed: DID NOT RAISE <class 'IndexError'>,failed
-10217,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-string],"ValueError: 
+10217,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-string],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-10225,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-test],"ValueError: 
+10225,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-test],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10227,tests.integ.modin.frame.test_loc,test_df_loc_set_row_col_with_non_matching_scalar_key[native_df0-5-A-0],KeyError: array([5]),failed
@@ -5257,42 +5257,42 @@ DataFrame shape mismatch
 10251,tests.integ.modin.frame.test_loc,test_df_loc_set_row_col_with_non_matching_scalar_key[native_df0-A-C-7],"KeyError: array(['A'], dtype='<U1')",failed
 10255,tests.integ.modin.frame.test_loc,test_df_loc_set_duplicate_index[duplicate-self_index_val1-index3-y-item3],ValueError: cannot reindex on an axis with duplicate labels,failed
 10264,tests.integ.modin.frame.test_loc,test_df_loc_set_row_col_with_non_matching_scalar_key[native_df0-X-D-7],"KeyError: array(['X'], dtype='<U1')",failed
-10265,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-key12],"ValueError: 
+10265,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-key12],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10275,tests.integ.modin.frame.test_astype,test_astype_from_timestamp_ltz[uint32],"TypeError: Converting from datetime64[ns, America/Los_Angeles] to uint32 is not supported. Do obj.astype('int64').astype(dtype) instead",failed
-10279,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-key13],"ValueError: 
+10279,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[row-key13],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-10291,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-None],"ValueError: 
+10291,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-None],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10297,tests.integ.modin.frame.test_loc,test_df_loc_set_duplicate_index[duplicate-self_index_val1-index4-columns4-item4],ValueError: Length of values (2) does not match length of index (4),failed
-10302,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-True],"ValueError: 
+10302,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-True],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10314,tests.integ.modin.frame.test_loc,test_df_loc_set_with_multi_index_not_implemented,KeyError: array([1]),failed
-10315,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-False],"ValueError: 
+10315,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-False],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-10330,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col--3.14],"ValueError: 
+10330,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col--3.14],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10340,tests.integ.modin.frame.test_loc,test_df_loc_set_duplicate_index[duplicate-self_index_val1-index5-columns5-item5],ValueError: Length of values (2) does not match length of index (4),failed
-10345,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-3.142857142857143],"ValueError: 
+10345,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-3.142857142857143],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-10362,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-nan],"ValueError: 
+10362,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-nan],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-10377,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-key6],"ValueError: 
+10377,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10432,tests.integ.modin.frame.test_loc,test_df_loc_set_duplicate_index_negative[index0-columns0-item0],ValueError: Length of values (2) does not match length of index (4),failed
 10435,tests.integ.modin.frame.test_value_counts,test_value_counts_dropna[False-test_data0],reason: SNOW-1201658,xfailed
 10447,tests.integ.modin.frame.test_value_counts,test_non_existing_labels,Failed: DID NOT RAISE <class 'NotImplementedError'>,failed
 10474,tests.integ.modin.frame.test_astype,test_astype_from_timestamp_ltz[int16],"TypeError: Converting from datetime64[ns, America/Los_Angeles] to int16 is not supported. Do obj.astype('int64').astype(dtype) instead",failed
-10502,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-key7],"ValueError: 
+10502,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-key7],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10509,tests.integ.modin.test_from_pandas_to_pandas,test_from_to_pandas_datetime64_support,AssertionError,failed
@@ -5366,22 +5366,22 @@ At positional index 3, first diff: F != E",failed
 10694,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-key9],Failed: DID NOT RAISE <class 'IndexError'>,failed
 10697,tests.integ.modin.frame.test_set_index,test_set_index_pass_arrays_duplicate[True-True-frame_of_ints_and_timedelta-Index-Index],"TypeError: The parameter ""keys"" may be a column key, one-dimensional array, or a list containing only valid column keys and one-dimensional arrays. Received column of type <class 'snowflake.snowpark.modin.plugin.extensions.index.Index'>",failed
 10698,tests.integ.modin.frame.test_loc,test_df_loc_set_with_empty_key_and_empty_item_negative[item2-key3],Failed: DID NOT RAISE <class 'Exception'>,failed
-10699,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-string],"ValueError: 
+10699,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-string],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10700,tests.integ.modin.frame.test_loc,test_df_loc_get_key_bool_series_with_1k_shape[key1],pandas.errors.IndexingError: Unalignable boolean Series provided as indexer (index of the boolean Series and of the indexed object do not match).,failed
-10708,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-test],"ValueError: 
+10708,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-test],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10712,tests.integ.modin.frame.test_loc,test_df_loc_set_with_empty_key_and_empty_item_negative[item3-key1],Failed: DID NOT RAISE <class 'Exception'>,failed
-10716,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-key12],"ValueError: 
+10716,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-key12],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10718,tests.integ.modin.frame.test_astype,test_astype_from_timestamp_ltz[int8],"TypeError: Converting from datetime64[ns, America/Los_Angeles] to int8 is not supported. Do obj.astype('int64').astype(dtype) instead",failed
 10721,tests.integ.modin.frame.test_loc,test_df_loc_set_with_empty_key_and_empty_item_negative[item3-key2],Failed: DID NOT RAISE <class 'Exception'>,failed
 10731,tests.integ.modin.frame.test_loc,test_df_loc_set_with_empty_key_and_empty_item_negative[item3-key3],Failed: DID NOT RAISE <class 'Exception'>,failed
 10749,tests.integ.modin.frame.test_loc,test_series_loc_set_with_empty_key_and_scalar_item[key0],"KeyError: ""None of [[]] are in the [Index([0, 1, 2], dtype='int64')]""",failed
-10752,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-key13],"ValueError: 
+10752,tests.integ.modin.frame.test_iloc,test_df_iloc_get_non_numeric_key_negative[col-key13],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10759,tests.integ.modin.frame.test_loc,test_series_loc_set_with_empty_key_and_scalar_item[key1],Failed: DID NOT RAISE <class 'snowflake.snowpark.exceptions.SnowparkSQLException'>,failed
@@ -5483,13 +5483,13 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
        -1419,  -177, -1415,  1281,  1069,  -866, -1149, -1447,  -239,
         -201,  1267, -1384,  -176,  1452,  1191,  -339,  -332, -1123])",failed
 10822,tests.integ.modin.frame.test_loc,test_df_loc_get_negative_row_diff2native[key1-TypeError-Passing a dict as an indexer is not supported. Use a list instead.],Failed: DID NOT RAISE <class 'TypeError'>,failed
-10832,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_snowpark_empty_str_series_input_negative[row],"ValueError: 
+10832,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_snowpark_empty_str_series_input_negative[row],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10837,tests.integ.modin.frame.test_loc,test_df_loc_get_negative_row_diff2native[key2-TypeError-Please convert this to Snowpark pandas objects by calling modin],"KeyError: array([2, 4], dtype=object)",failed
 10843,tests.integ.modin.frame.test_astype,test_astype_from_timestamp_ltz[uint8],"TypeError: Converting from datetime64[ns, America/Los_Angeles] to uint8 is not supported. Do obj.astype('int64').astype(dtype) instead",failed
 10846,tests.integ.modin.frame.test_loc,test_df_loc_get_negative_row_diff2native[key3-TypeError-Please convert this to Snowpark pandas objects by calling modin],Failed: DID NOT RAISE <class 'TypeError'>,failed
-10848,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_snowpark_empty_str_series_input_negative[col],"ValueError: 
+10848,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_snowpark_empty_str_series_input_negative[col],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 10857,tests.integ.modin.frame.test_iloc,test_df_iloc_get_key_raises_not_implemented_error_negative[key0],Failed: DID NOT RAISE <class 'NotImplementedError'>,failed
@@ -11920,9 +11920,9 @@ Series length are different
         .dataframe tbody tr th:only-of-type {
             vertical-align: middle;
         }
-    
+
         .dataframe tbody tr th {...
-  
+
   ...Full output truncated (114 lines hidden), use '-vv' to show",failed
 20376,tests.integ.modin.groupby.test_quantile,test_quantile[0-a_vals0-b_vals0-midpoint],[XPASS(strict)] Quantile with lower or midpoint interpolation not yet supported,failed
 20377,tests.integ.modin.groupby.test_value_counts,test_value_counts_basic[False-subset1-True-True-False-by-test_data1],"AssertionError: Series are different
@@ -11945,9 +11945,9 @@ Series length are different
         .dataframe tbody tr th:only-of-type {
             vertical-align: middle;
         }
-    
+
         .dataframe tbody tr th {...
-  
+
   ...Full output truncated (78 lines hidden), use '-vv' to show",failed
 20383,tests.integ.modin.groupby.test_groupby_property,test_groups_and_indices[sort_False-as_index_False-group_series_True-dropna_False-basic_snowpark_pandas_df_with_missing_values-col3-None-col3-indices],TypeError: assert_array_equal() got an unexpected keyword argument 'strict',failed
 20385,tests.integ.modin.frame.test_merge,test_merge_on_index_multiindex_common_labels_with_none[outer-True],pandas bug: https://github.com/pandas-dev/pandas/issues/58721,xfailed
@@ -11960,9 +11960,9 @@ Series length are different
         .dataframe tbody tr th:only-of-type {
             vertical-align: middle;
         }
-    
+
         .dataframe tbody tr th {...
-  
+
   ...Full output truncated (1026 lines hidden), use '-vv' to show",failed
 20402,tests.integ.modin.groupby.test_groupby_property,test_groups_and_indices[sort_False-as_index_False-group_series_True-dropna_False-basic_snowpark_pandas_df_with_missing_values-index_cols10-col3-None-groups],ValueError: Categorical categories cannot be null,failed
 20404,tests.integ.modin.groupby.test_quantile,test_quantile[0-a_vals2-b_vals2-lower],[XPASS(strict)] Quantile with lower or midpoint interpolation not yet supported,failed
@@ -17590,7 +17590,7 @@ Series length are different
 Series length are different
 [left]:  1, Index([2], dtype='int64')
 [right]: 0, Index([], dtype='int64')",failed
-30614,tests.integ.modin.series.test_iloc,test_series_iloc_snowpark_pandas_input_return_dataframe[Index-2],"ValueError: 
+30614,tests.integ.modin.series.test_iloc,test_series_iloc_snowpark_pandas_input_return_dataframe[Index-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 30615,tests.integ.modin.io.test_read_snowflake,"test_read_snowflake_column_names[True-read_with_select_*-""co'l""]","assert 3 == 1
@@ -17605,14 +17605,14 @@ Series length are different
 Series length are different
 [left]:  6, Index([5, 4, 6, 4, 5, 6], dtype='int64')
 [right]: 0, Index([], dtype='int64')",failed
-30620,tests.integ.modin.series.test_iloc,test_series_iloc_snowpark_pandas_input_return_dataframe[Series-2],"ValueError: 
+30620,tests.integ.modin.series.test_iloc,test_series_iloc_snowpark_pandas_input_return_dataframe[Series-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 30634,tests.integ.modin.series.test_getitem,test_series_getitem_with_int_list_like_returns_empty_series[key3],IndexError: positional indexers are out-of-bounds,failed
 30641,tests.integ.modin.io.test_read_snowflake,"test_read_snowflake_column_names[True-read_with_select_*-""col""]","assert 3 == 1
  +  where 3 = len([QueryRecord(query_id=01bed54d-0e11-6e4d-000c-a90c0e7e6ad3, sql_text=CREATE OR REPLACE TEMPORARY READ ONLY TABLE SNOWPARK_TEMP_TABLE_H3HPN0S577READONLY CLONE SNOWPARK_TEMP_TABLE_WL9JXQM4Y0), QueryRecord(query_id=01bed54d-0e11-7168-000c-a90c0e7e9a1f, sql_text=SELECT count(1) AS ""COUNT(LITERAL())"" FROM ( SELECT  *  FROM SNOWPARK_TEMP_TABLE_H3HPN0S577READONLY) LIMIT 1), QueryRecord(query_id=01bed54d-0e11-6bfa-000c-a90c0e7ef683, sql_text=SELECT ""__row_position__"", ""col"" FROM (SELECT METADATA$ROW_POSITION as ""__row_position__"", ""col"" FROM SNOWPARK_TEMP_TABLE_H3HPN0S577READONLY) ORDER BY ""__row_position__"" ASC NULLS LAST)])",failed
 30649,tests.integ.modin.series.test_getitem,test_series_getitem_with_scalars[100],IndexError: positional indexers are out-of-bounds,failed
-30653,tests.integ.modin.series.test_iloc,test_series_iloc_snowpark_pandas_input_return_dataframe[emptyFloatSeries-2],"ValueError: 
+30653,tests.integ.modin.series.test_iloc,test_series_iloc_snowpark_pandas_input_return_dataframe[emptyFloatSeries-2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 30656,tests.integ.modin.series.test_getitem,test_series_getitem_with_scalars[5],"assert (1,) == [1]
@@ -17767,7 +17767,7 @@ Series values are different (20.0 %)
 [left]:  [x, new, new, new, u]
 [right]: [x, new, new, new, new]
 At positional index 4, first diff: u != new",failed
-31048,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_bool[ndarray-key0],"ValueError: 
+31048,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_bool[ndarray-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 31062,tests.integ.modin.series.test_loc,test_series_loc_set_key_slice[1-4-4],"AssertionError: Series are different
@@ -17788,7 +17788,7 @@ Series length are different
 [right]: 9, Index(['a', 'a', 'a', 'a', None, 'b', 'b', 'b', 'b'], dtype='object', name='index')",failed
 31096,tests.integ.modin.series.test_iat,test_iat_neg[key0-KeyError],Failed: DID NOT RAISE <class 'KeyError'>,failed
 31098,tests.integ.modin.series.test_iat,test_iat_neg[key1-KeyError],"TypeError: int() argument must be a string, a bytes-like object or a real number, not 'dict'",failed
-31100,tests.integ.modin.series.test_iat,test_iat_neg[a-IndexError],"ValueError: 
+31100,tests.integ.modin.series.test_iat,test_iat_neg[a-IndexError],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 31101,tests.integ.modin.series.test_loc,test_series_loc_get_key_bool_series_with_mismatch_index_len[True-key0],pandas.errors.IndexingError: Unalignable boolean Series provided as indexer (index of the boolean Series and of the indexed object do not match).,failed
@@ -17921,10 +17921,10 @@ Series values are different (20.0 %)
 [left]:  [10.0, nan, 12.0, 13.0, 14.0]
 [right]: [10, -999, 12, 13, 14]",failed
 31443,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[list-key4],IndexError: index 14 is out of bounds for axis 0 with size 7,failed
-31447,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[list-key5],"ValueError: 
+31447,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[list-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-31451,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[list-key6],"ValueError: 
+31451,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[list-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 31453,tests.integ.modin.series.test_iloc,test_df_iloc_set_with_multiindex[item_values1-None-3-row_key1-None],"AssertionError: Series are different
@@ -17933,7 +17933,7 @@ Series values are different (40.0 %)
 [index]: [(x, 99), (y, 11), (x, 11), (y, 99), (z, -12)]
 [left]:  [nan, 11.0, 12.0, nan, 14.0]
 [right]: [-998, 11, 12, -999, 14]",failed
-31458,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[series-key0],"ValueError: 
+31458,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[series-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 31466,tests.integ.modin.series.test_iloc,test_df_iloc_set_with_multiindex[item_values1-None-3-row_key2-row_key_index2],"AssertionError: Series are different
@@ -17991,10 +17991,10 @@ Series values are different (20.0 %)
 [right]: [x, y, z, w, new]
 At positional index 4, first diff: u != new",failed
 31509,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[series-key4],IndexError: index 14 is out of bounds for axis 0 with size 7,failed
-31515,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[series-key5],"ValueError: 
+31515,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[series-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-31521,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[series-key6],"ValueError: 
+31521,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[series-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 31525,tests.integ.modin.series.test_iloc,test_df_iloc_set_with_multiindex[item_values2-item_index2-4-row_key2-row_key_index2],"AssertionError: Series are different
@@ -18039,7 +18039,7 @@ Series values are different (40.0 %)
 [right]: [10, -998, -999, 13, 14]",failed
 31616,tests.integ.modin.io.test_read_snowflake,"test_read_snowflake_column_names[False-read_with_table_name-""C O L""]","assert 2 == 0
  +  where 2 = len([QueryRecord(query_id=01bed54d-0e11-7168-000c-a90c0e802eff, sql_text=SELECT count(1) AS ""COUNT(LITERAL())"" FROM ( SELECT  *  FROM SNOWPARK_TEMP_TABLE_KYIBM092AU) LIMIT 1), QueryRecord(query_id=01bed54d-0e11-6bfa-000c-a90c0e806aa7, sql_text=SELECT ""__row_position__"", ""C O L"" FROM (SELECT ROW_NUMBER() OVER (ORDER BY 1) - 1 as ""__row_position__"", ""C O L"" FROM (SNOWPARK_TEMP_TABLE_KYIBM092AU)) ORDER BY ""__row_position__"" ASC NULLS LAST)])",failed
-31625,tests.integ.modin.series.test_iloc,test_iloc_get_multiindex_key_negative,"ValueError: 
+31625,tests.integ.modin.series.test_iloc,test_iloc_get_multiindex_key_negative,"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 31627,tests.integ.modin.series.test_loc,test_series_loc_set_key_slice[-2--1-None],"AssertionError: Series are different
@@ -18125,22 +18125,22 @@ Series values are different (20.0 %)
 [left]:  [x, y, z, w, u]
 [right]: [x, y, z, w, new]
 At positional index 4, first diff: u != new",failed
-31787,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[index-key5],"ValueError: 
+31787,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[index-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 31796,tests.integ.modin.io.test_read_snowflake,"test_read_snowflake_column_names[False-read_with_table_name-""c""""ol""]","assert 2 == 0
  +  where 2 = len([QueryRecord(query_id=01bed54d-0e11-7168-000c-a90c0e817217, sql_text=SELECT count(1) AS ""COUNT(LITERAL())"" FROM ( SELECT  *  FROM SNOWPARK_TEMP_TABLE_PSTSUVQ4MO) LIMIT 1), QueryRecord(query_id=01bed54d-0e11-71f1-000c-a90c0e816233, sql_text=SELECT ""__row_position__"", ""c""""ol"" FROM (SELECT ROW_NUMBER() OVER (ORDER BY 1) - 1 as ""__row_position__"", ""c""""ol"" FROM (SNOWPARK_TEMP_TABLE_PSTSUVQ4MO)) ORDER BY ""__row_position__"" ASC NULLS LAST)])",failed
-31822,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[index-key6],"ValueError: 
+31822,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[index-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-31825,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[ndarray-key0],"ValueError: 
+31825,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[ndarray-key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 31853,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[ndarray-key4],IndexError: index 14 is out of bounds for axis 0 with size 7,failed
-31857,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[ndarray-key5],"ValueError: 
+31857,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[ndarray-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-31859,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[ndarray-key6],"ValueError: 
+31859,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[ndarray-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 31870,tests.integ.modin.io.test_read_snowflake,"test_read_snowflake_index_col[True-read_with_select_*-col-""c""""ol""]","assert 3 == 1
@@ -18222,19 +18222,19 @@ At positional index 4, first diff: u != new",failed
  Regex: 'slice step cannot be zero.'
  Input: 'slice step cannot be zero'",failed
 32100,tests.integ.modin.series.test_loc,test_series_loc_set_series_and_list_like_row_key_and_item[ndarray-series-row_key0],IndexError: index 2 is out of bounds for axis 0 with size 2,failed
-32101,tests.integ.modin.series.test_iloc,test_series_iloc_get_slice_with_non_integer_parameters_negative[slice_key0],"ValueError: 
+32101,tests.integ.modin.series.test_iloc,test_series_iloc_get_slice_with_non_integer_parameters_negative[slice_key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32102,tests.integ.modin.series.test_reindex,test_reindex_index_fill_method_pandas_negative[1-bfill],ValueError: limit argument for 'backfill' method only well-defined if index and target are monotonic,failed
-32104,tests.integ.modin.series.test_iloc,test_series_iloc_get_slice_with_non_integer_parameters_negative[slice_key1],"ValueError: 
+32104,tests.integ.modin.series.test_iloc,test_series_iloc_get_slice_with_non_integer_parameters_negative[slice_key1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32108,tests.integ.modin.series.test_iloc,test_series_iloc_get_slice_with_non_integer_parameters_negative[slice_key2],"ValueError: 
+32108,tests.integ.modin.series.test_iloc,test_series_iloc_get_slice_with_non_integer_parameters_negative[slice_key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32109,tests.integ.modin.io.test_read_snowflake,"test_read_snowflake_index_col[True-read_with_select_*-__col__-""C O L""]","assert 3 == 1
  +  where 3 = len([QueryRecord(query_id=01bed54d-0e11-722e-000c-a90c0e80dd3f, sql_text=CREATE OR REPLACE TEMPORARY READ ONLY TABLE SNOWPARK_TEMP_TABLE_SY1102EFYEREADONLY CLONE SNOWPARK_TEMP_TABLE_4G0G6BMMNF), QueryRecord(query_id=01bed54d-0e11-6d76-000c-a90c0e815837, sql_text=SELECT count(1) AS ""COUNT(LITERAL())"" FROM ( SELECT  *  FROM SNOWPARK_TEMP_TABLE_SY1102EFYEREADONLY) LIMIT 1), QueryRecord(query_id=01bed54d-0e11-71dd-000c-a90c0e81e3f3, sql_text=SELECT ""__COL__"", ""C O L"" FROM (SELECT METADATA$ROW_POSITION as ""__row_position__"", ""__COL__"", ""C O L"" FROM SNOWPARK_TEMP_TABLE_SY1102EFYEREADONLY) ORDER BY ""__row_position__"" ASC NULLS LAST)])",failed
-32110,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[index with name-key5],"ValueError: 
+32110,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[index with name-key5],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32114,tests.integ.modin.series.test_loc,test_series_loc_set_key_slice[-9--1-None],"AssertionError: Series are different
@@ -18248,7 +18248,7 @@ At positional index 4, first diff: u != new",failed
  Regex: 'only\\ list\\-like\\ objects\\ are\\ allowed\\ to\\ be\\ passed\\ to\\ isin\\(\\),\\ you\\ passed\\ a\\ \\[str\\]'
  Input: 'only list-like objects are allowed to be passed to isin(), you passed a `str`'",failed
 32120,tests.integ.modin.series.test_loc,test_series_loc_set_series_and_list_like_row_key_and_item[ndarray-series with name-row_key0],IndexError: index 2 is out of bounds for axis 0 with size 2,failed
-32122,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[index with name-key6],"ValueError: 
+32122,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_numeric[index with name-key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32123,tests.integ.modin.series.test_loc,test_series_loc_set_key_slice[-9--1-1],"AssertionError: Series are different
@@ -18289,29 +18289,29 @@ Series values are different (20.0 %)
 [left]:  [x, y, z, w, u]
 [right]: [x, y, z, w, new]
 At positional index 4, first diff: u != new",failed
-32174,tests.integ.modin.series.test_iloc,test_series_iloc_get_ellipses_and_native_pd_key_raises_type_error_negative[key0-<class\\ 'pandas\\.core\\.series\\.Series'>\\ is\\ not\\ supported\\ as\\ 'value'\\ argument\\.\\ Please\\ convert\\ this\\ to\\ Snowpark\\ pandas\\ objects\\ by\\ calling\\ modin\\.pandas\\.Series\\(\\)/DataFrame\\(\\)],"ValueError: 
+32174,tests.integ.modin.series.test_iloc,test_series_iloc_get_ellipses_and_native_pd_key_raises_type_error_negative[key0-<class\\ 'pandas\\.core\\.series\\.Series'>\\ is\\ not\\ supported\\ as\\ 'value'\\ argument\\.\\ Please\\ convert\\ this\\ to\\ Snowpark\\ pandas\\ objects\\ by\\ calling\\ modin\\.pandas\\.Series\\(\\)/DataFrame\\(\\)],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32176,tests.integ.modin.series.test_iloc,test_series_iloc_get_ellipses_and_native_pd_key_raises_type_error_negative[key1-<class\\ 'pandas\\.core\\.frame\\.DataFrame'>\\ is\\ not\\ supported\\ as\\ 'value'\\ argument\\.\\ Please\\ convert\\ this\\ to\\ Snowpark\\ pandas\\ objects\\ by\\ calling\\ modin\\.pandas\\.Series\\(\\)/DataFrame\\(\\)],"ValueError: 
+32176,tests.integ.modin.series.test_iloc,test_series_iloc_get_ellipses_and_native_pd_key_raises_type_error_negative[key1-<class\\ 'pandas\\.core\\.frame\\.DataFrame'>\\ is\\ not\\ supported\\ as\\ 'value'\\ argument\\.\\ Please\\ convert\\ this\\ to\\ Snowpark\\ pandas\\ objects\\ by\\ calling\\ modin\\.pandas\\.Series\\(\\)/DataFrame\\(\\)],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32177,tests.integ.modin.series.test_iloc,test_series_iloc_get_ellipses_and_native_pd_key_raises_type_error_negative[key2-Object\\ of\\ type\\ ellipsis\\ is\\ not\\ JSON\\ serializable],"ValueError: 
+32177,tests.integ.modin.series.test_iloc,test_series_iloc_get_ellipses_and_native_pd_key_raises_type_error_negative[key2-Object\\ of\\ type\\ ellipsis\\ is\\ not\\ JSON\\ serializable],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32178,tests.integ.modin.series.test_iloc,test_series_iloc_get_ellipses_and_native_pd_key_raises_type_error_negative[key3-Object of type ellipsis is not JSON serializable],"ValueError: 
+32178,tests.integ.modin.series.test_iloc,test_series_iloc_get_ellipses_and_native_pd_key_raises_type_error_negative[key3-Object of type ellipsis is not JSON serializable],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32192,tests.integ.modin.series.test_iloc,test_series_iloc_get_invalid_slice_key_negative[key0],"ValueError: 
+32192,tests.integ.modin.series.test_iloc,test_series_iloc_get_invalid_slice_key_negative[key0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32194,tests.integ.modin.series.test_iloc,test_series_iloc_get_invalid_slice_key_negative[key1],"ValueError: 
+32194,tests.integ.modin.series.test_iloc,test_series_iloc_get_invalid_slice_key_negative[key1],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32196,tests.integ.modin.series.test_iloc,test_series_iloc_get_invalid_slice_key_negative[key2],"ValueError: 
+32196,tests.integ.modin.series.test_iloc,test_series_iloc_get_invalid_slice_key_negative[key2],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32197,tests.integ.modin.series.test_reindex,test_reindex_index_fill_method_pandas_negative[2-bfill],ValueError: limit argument for 'backfill' method only well-defined if index and target are monotonic,failed
-32198,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[None],"ValueError: 
+32198,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[None],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32199,tests.integ.modin.series.test_loc,test_series_loc_set_key_slice[-9-1-1],"AssertionError: Series are different
@@ -18322,13 +18322,13 @@ Series values are different (20.0 %)
 [right]: [x, new, z, w, u]
 At positional index 1, first diff: y != new",failed
 32200,tests.integ.modin.series.test_iloc,test_series_iloc_get_range_deviating_behavior[range_key0],IndexError: positional indexers are out-of-bounds,failed
-32201,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[True],"ValueError: 
+32201,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[True],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32202,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[False],"ValueError: 
+32202,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[False],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32204,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[-3.14],"ValueError: 
+32204,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[-3.14],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32205,tests.integ.modin.io.test_read_snowflake,"test_read_snowflake_index_col[True-read_with_select_*-""col""-COL]","assert 3 == 1
@@ -18340,14 +18340,14 @@ Series values are different (20.0 %)
 [left]:  [x, y, z, w, u]
 [right]: [x, y, z, w, new]
 At positional index 4, first diff: u != new",failed
-32207,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[3.142857142857143],"ValueError: 
+32207,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[3.142857142857143],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32208,tests.integ.modin.series.test_iloc,test_series_iloc_get_range_deviating_behavior[range_key1],IndexError: positional indexers are out-of-bounds,failed
-32209,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[nan],"ValueError: 
+32209,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[nan],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32211,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[key6],"ValueError: 
+32211,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[key6],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32213,tests.integ.modin.series.test_iloc,test_series_iloc_get_range_deviating_behavior[range_key2],IndexError: positional indexers are out-of-bounds,failed
@@ -18369,7 +18369,7 @@ Series values are different (20.0 %)
 At positional index 4, first diff: u != new",failed
 32228,tests.integ.modin.series.test_reindex,test_reindex_index_fill_method_pandas_negative[2-pad],ValueError: limit argument for 'pad' method only well-defined if index and target are monotonic,failed
 32229,tests.integ.modin.series.test_iloc,test_iloc_with_row_key_series_rhs_series[row_pos0-col_pos0-item_values0],"ValueError: could not broadcast input array from shape (3,) into shape (3, 0)",failed
-32235,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[key7],"ValueError: 
+32235,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[key7],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32241,tests.integ.modin.series.test_reindex,test_reindex_index_fill_method_pandas_negative[2-ffill],ValueError: limit argument for 'pad' method only well-defined if index and target are monotonic,failed
@@ -18397,22 +18397,22 @@ At positional index 4, first diff: u != new",failed
  +  where 3 = len([QueryRecord(query_id=01bed54d-0e11-719e-000c-a90c0e813f1f, sql_text=CREATE OR REPLACE TEMPORARY READ ONLY TABLE SNOWPARK_TEMP_TABLE_KCK7HPR9DCREADONLY CLONE SNOWPARK_TEMP_TABLE_4FI8H4DWEG), QueryRecord(query_id=01bed54d-0e11-6dc3-000c-a90c0e8263eb, sql_text=SELECT count(1) AS ""COUNT(LITERAL())"" FROM ( SELECT  *  FROM SNOWPARK_TEMP_TABLE_KCK7HPR9DCREADONLY) LIMIT 1), QueryRecord(query_id=01bed54d-0e11-6e87-000c-a90c0e81bb2f, sql_text=SELECT ""COL"", ""c""""ol"" FROM (SELECT METADATA$ROW_POSITION as ""__row_position__"", ""COL"", ""c""""ol"" FROM SNOWPARK_TEMP_TABLE_KCK7HPR9DCREADONLY) ORDER BY ""__row_position__"" ASC NULLS LAST)])",failed
 32266,tests.integ.modin.series.test_iloc,test_iloc_with_row_key_series_rhs_series[row_pos2-col_pos2-item_values2],ValueError: buffer source array is read-only,failed
 32272,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[key9],Failed: DID NOT RAISE <class 'IndexError'>,failed
-32274,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[string],"ValueError: 
+32274,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[string],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32276,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[test],"ValueError: 
+32276,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[test],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32277,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[key12],"ValueError: 
+32277,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[key12],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
-32278,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[key13],"ValueError: 
+32278,tests.integ.modin.series.test_iloc,test_series_iloc_get_non_numeric_key_negative[key13],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32281,tests.integ.modin.series.test_reindex,test_reindex_index_fill_method_pandas_negative[100-pad],ValueError: limit argument for 'pad' method only well-defined if index and target are monotonic,failed
 32283,tests.integ.modin.series.test_iloc,test_iloc_with_row_key_series_rhs_series[row_pos3-col_pos3-item_values3],ValueError: buffer source array is read-only,failed
 32284,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_snowpark_df_input_negative,"ValueError: Buffer has wrong number of dimensions (expected 1, got 2)",failed
-32285,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_snowpark_empty_str_series_input_negative,"ValueError: 
+32285,tests.integ.modin.series.test_iloc,test_series_iloc_get_key_snowpark_empty_str_series_input_negative,"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 32289,tests.integ.modin.series.test_reindex,test_reindex_index_fill_method_pandas_negative[100-ffill],ValueError: limit argument for 'pad' method only well-defined if index and target are monotonic,failed
@@ -19638,7 +19638,7 @@ Attribute ""dtype"" are different
 37128,tests.integ.modin.test_telemetry,test_telemetry_repr,IndexError: list index out of range,failed
 37129,tests.integ.modin.test_telemetry,test_telemetry_interchange_call_count,"assert 0 == 6
  +  where 0 = len([])",failed
-37130,tests.integ.modin.types.test_timedelta_indexing,test_df_indexing_get_timedelta[key4-1-0-False],"ValueError: 
+37130,tests.integ.modin.types.test_timedelta_indexing,test_df_indexing_get_timedelta[key4-1-0-False],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 37131,tests.integ.modin.series.test_setitem,test_series_setitem_df_key_negative[0],"AssertionError: Regex pattern did not match.
@@ -19660,7 +19660,7 @@ INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",f
 37165,tests.integ.modin.test_telemetry,test_modin_e2e_telemetry_remote,"AssertionError: assert 'Pandas' == 'Snowflake'
   - Snowflake
   + Pandas",failed
-37169,tests.integ.modin.types.test_timedelta_indexing,test_df_indexing_get_timedelta[key11-1-0-False],"ValueError: 
+37169,tests.integ.modin.types.test_timedelta_indexing,test_df_indexing_get_timedelta[key11-1-0-False],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 37171,tests.integ.modin.test_telemetry,test_modin_e2e_telemetry_auto_switch,"AssertionError: Modin API telemetry for was not sent.
@@ -19668,11 +19668,11 @@ assert False",failed
 37181,tests.integ.modin.series.test_setitem,test_series_setitem_df_key_negative[item2],"AssertionError: Regex pattern did not match.
  Regex: 'Snowpark pandas DataFrame cannot be used as an indexer with Series'
  Input: 'Index data must be 1-dimensional'",failed
-37205,tests.integ.modin.types.test_timedelta_indexing,test_df_indexing_set_timedelta[item0],"ValueError: 
+37205,tests.integ.modin.types.test_timedelta_indexing,test_df_indexing_set_timedelta[item0],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 37211,tests.integ.modin.series.test_setitem,test_series_setitem_array_like_key_and_scalar_item_mixed_types[0-key1],Failed: DID NOT RAISE <class 'AssertionError'>,failed
-37212,tests.integ.modin.types.test_timedelta_indexing,test_df_indexing_set_timedelta[None],"ValueError: 
+37212,tests.integ.modin.types.test_timedelta_indexing,test_df_indexing_set_timedelta[None],"ValueError:
 Location based indexing can only have [integer, integer slice (START point is
 INCLUDED, END point is EXCLUDED), listlike of integers, boolean array] types.",failed
 37216,tests.integ.modin.types.test_timedelta_indexing,test_df_indexing_set_timedelta_with_other_type,Failed: DID NOT RAISE <class 'snowflake.snowpark.exceptions.SnowparkSQLException'>,failed
