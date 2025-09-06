@@ -14,6 +14,7 @@ Input/Output
     FileOperation
     PutResult
     GetResult
+    ListResult
 
 .. rubric:: Methods
 
@@ -55,6 +56,8 @@ Input/Output
     FileOperation.get_stream
     FileOperation.put
     FileOperation.put_stream
+    FileOperation.list
+    FileOperation.remove
     PutResult.count
     PutResult.index
     GetResult.count
@@ -77,4 +80,9 @@ Input/Output
     GetResult.message
     GetResult.size
     GetResult.status
+    ListResult.name
+    ListResult.size
+    ListResult.md5
+    ListResult.sha1
+    ListResult.last_modified
 
