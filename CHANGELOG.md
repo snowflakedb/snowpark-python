@@ -26,6 +26,9 @@
 #### New Features
 
 #### Improvements
+- Downgraded to level `logging.DEBUG - 1` the log message saying that the
+  Snowpark `DataFrame` reference of an internal `DataFrameReference` object
+  has changed.
 
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
