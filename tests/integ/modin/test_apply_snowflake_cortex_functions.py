@@ -8,7 +8,6 @@ from pytest import param
 
 
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import running_on_jenkins
 
 # snowflake-ml-python, which provides snowflake.cortex, may not be available in
 # the test environment. If it's not available, skip all tests in this module.
@@ -21,10 +20,6 @@ Complete = cortex.Complete
 ExtractAnswer = cortex.ExtractAnswer
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.summarize SSL error",
-)
 def test_apply_snowflake_cortex_summarize(session):
     with SqlCounter(query_count=1):
         content = """pandas on Snowflake lets you run your pandas code in a distributed manner directly on your data in
@@ -42,10 +37,6 @@ def test_apply_snowflake_cortex_summarize(session):
         assert 0 < len(summary) < len(content)
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 def test_apply_snowflake_cortex_sentiment_series(session):
     with SqlCounter(query_count=1):
         content = "A very very bad review!"
@@ -54,10 +45,6 @@ def test_apply_snowflake_cortex_sentiment_series(session):
         assert -1 <= sentiment <= 0
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 def test_apply_snowflake_cortex_sentiment_df(session):
     text_list = [
         "A first row of text.",
@@ -74,10 +61,6 @@ def test_apply_snowflake_cortex_sentiment_df(session):
         assert 0 <= sent_row_3 <= 1
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 @pytest.mark.parametrize(
     "is_series, operation, query_count",
     [
@@ -110,10 +93,6 @@ def test_apply_snowflake_cortex_classify_text(
         assert text_class_label == "travel"
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 @pytest.mark.parametrize(
     "is_series, operation, query_count",
     [
@@ -144,10 +123,6 @@ def test_apply_snowflake_cortex_translate(session, is_series, operation, query_c
         assert translated_text.lower() == "guten morgen"
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 @pytest.mark.parametrize(
     "is_series, operation, query_count",
     [
@@ -184,10 +159,6 @@ def test_apply_snowflake_cortex_extract_answer(
         assert extracted_text == "2012"
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize(
     "is_series, operation",
