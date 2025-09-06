@@ -1,55 +1,15 @@
 # Release History
-## 1.39.0 (YYYY-MM-DD)
-### Snowpark Python API Updates
-#### New Features
-#### Bug Fixes
-#### Deprecations
-#### Dependency Updates
-#### Improvements
-### Snowpark pandas API Updates
-#### New Features
-#### Bug Fixes
-#### Deprecations
-#### Dependency Updates
-#### Improvements
-- Eliminate duplicate parameter check queries for casing status when retrieving the session.
-- Provide a mechanism for skipping snowpark pandas integration tests when running in hybrid mode
-- Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
 
 ## 1.39.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
 
-- Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
-
 #### New Features
-
-#### Bug Fixes
-
-#### Deprecations
-
-#### Dependency Updates
-
-#### Improvements
-
-### Snowpark pandas API Updates
-
-#### New Features
-
-#### Improvements
-
-#### Dependency Updates
-
-#### Bug Fixes
-
-## 1.39.0 (YYYY-MM-DD)
-
-### Snowpark Python API Updates
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
-
-#### New Features
+- Added support for `FileOperation.list` to list files in a stage with metadata.
+- Added support for `FileOperation.remove` to remove files in a stage.
 
 #### Bug Fixes
 
@@ -59,17 +19,29 @@
 
 #### Improvements
 
+- Added a new option `cacheResult` to `DataFrameReader.xml` that allows users to cache the result of the XML reader to a temporary table after calling `xml`. It helps improve performance when subsequent operations are performed on the same DataFrame.
+
 ### Snowpark pandas API Updates
 
 #### New Features
 
 #### Improvements
 
+- Eliminate duplicate parameter check queries for casing status when retrieving the session.
+- Retrieve dataframe row counts through object metadata to avoid a COUNT(*) query (performance)
+- Provide a mechanism for skipping snowpark pandas integration tests when running in hybrid mode
+
 #### Dependency Updates
 
 #### Bug Fixes
 
-## 1.38.0 (YYYY-MM-DD)
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support to allow patching `functions.ai_complete`.
+
+## 1.38.0 (2025-09-04)
 
 ### Snowpark Python API Updates
 
@@ -91,7 +63,6 @@
 - Added support for `Session.directory` and `Session.read.directory` to retrieve the list of all files on a stage with metadata.
 - Added support for `DataFrameReader.jdbc`(PrPr) that allows ingesting external data source with jdbc driver.
 - Added support for `FileOperation.copy_files` to copy files from a source location to an output stage.
-
 - Added support for the following scalar functions in `functions.py`:
   - `all_user_names`
   - `bitand`
@@ -116,10 +87,6 @@
 - Fixed a bug in `DataFrameReader.dbapi` that udtf ingestion does not work in stored procedure.
 - Fixed a bug in schema inference that caused incorrect stage prefixes to be used.
 
-#### Deprecations
-
-#### Dependency Updates
-
 #### Improvements
 
 - Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
@@ -129,7 +96,6 @@
 ### Snowpark pandas API Updates
 
 #### New Features
-
 - Completed support for `pd.read_snowflake()`, `pd.to_iceberg()`,
   `pd.to_pandas()`, `pd.to_snowpark()`, `pd.to_snowflake()`,
   `DataFrame.to_iceberg()`, `DataFrame.to_pandas()`, `DataFrame.to_snowpark()`,
@@ -140,14 +106,11 @@
 - Added support for `Index.get_level_values()`.
 
 #### Improvements
-
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
-- Improve import error message by adding '--upgrade' to 'pip install "snowflake-snowpark-python[modin]"' in the error message.
+- Improve import error message by adding `--upgrade` to `pip install "snowflake-snowpark-python[modin]"` in the error message.
 - Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
 - Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
-- Add a new test parameter for integration tests to enable hybrid execution
-
-#### Dependency Updates
+- Add a new test parameter for integration tests to enable hybrid execution.
 
 #### Bug Fixes
 - Raised `NotImplementedError` instead of `AttributeError` on attempting to call
