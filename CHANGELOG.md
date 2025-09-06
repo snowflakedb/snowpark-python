@@ -79,6 +79,7 @@
   - `current_secondary_roles`
   - `current_transaction`
   - `getbit`
+- Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 
 #### Bug Fixes
 
