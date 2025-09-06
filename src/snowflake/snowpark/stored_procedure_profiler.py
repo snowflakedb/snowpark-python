@@ -32,16 +32,15 @@ class StoredProcedureProfiler:
         self._has_target_stage = False
         self._is_enabled = False
 
-    def register_modules(self, stored_procedures: Optional[List[str]] = None) -> None:
+    def register_modules(self, modules: Optional[List[str]] = None) -> None:
         """
         Register stored procedures to generate profiles for them.
 
         Args:
-            stored_procedures: List of names of stored procedures. Registered modules will be overwritten by this input.
-            Input None or an empty list will remove registered modules.
+            modules: List of names of Python modules to profile. Any previously registered modules will be overwritten by this input. Set this to None or an empty list to remove all previously registered modules.
         """
-        sp_string = ",".join(stored_procedures) if stored_procedures is not None else ""
-        sql_statement = f"alter session set python_profiler_modules='{sp_string}'"
+        modules_string = ",".join(modules) if modules is not None else ""
+        sql_statement = f"alter session set python_profiler_modules='{modules_string}'"
         self._session.sql(sql_statement)._internal_collect_with_tag_no_telemetry()
 
     def set_target_stage(self, stage: str) -> None:
@@ -75,8 +74,7 @@ class StoredProcedureProfiler:
         Set active profiler.
 
         Args:
-            active_profiler_type: String that represent active_profiler, must be either 'LINE' or 'MEMORY'
-            (case-insensitive). Active profiler is 'LINE' by default.
+            active_profiler_type: String that represent active_profiler, must be either 'LINE' or 'MEMORY' (case-insensitive). Active profiler is 'LINE' by default.
 
         """
         if not self._has_target_stage:
