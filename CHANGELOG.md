@@ -11,6 +11,8 @@
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
 
+- Added support for parameter `session_init_statement` in udtf ingestion of `DataFrameReader.jdbc`(PrPr).
+
 #### Bug Fixes
 
 #### Deprecations
