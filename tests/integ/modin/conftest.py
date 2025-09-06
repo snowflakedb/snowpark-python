@@ -33,6 +33,14 @@ from tests.conftest import set_skip_sql_count_check
 
 MODIN_HYBRID_TEST_MODE_ENABLED = False
 
+pytestmark = [
+    pytest.mark.skipif(
+        "pytestconfig.getoption('enable_modin_hybrid_mode')",
+        reason="hybrid not supported for this test",
+        run=False
+    ),
+    pytest.mark.hybrid,
+]
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_modin_hybrid_mode(pytestconfig):
