@@ -8,7 +8,6 @@ from pytest import param
 
 
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import running_on_jenkins
 
 # snowflake-ml-python, which provides snowflake.cortex, may not be available in
 # the test environment. If it's not available, skip all tests in this module.
@@ -21,10 +20,6 @@ Complete = cortex.Complete
 ExtractAnswer = cortex.ExtractAnswer
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.summarize SSL error",
-)
 def test_apply_snowflake_cortex_summarize(session):
     with SqlCounter(query_count=1):
         content = """pandas on Snowflake lets you run your pandas code in a distributed manner directly on your data in
@@ -42,10 +37,6 @@ def test_apply_snowflake_cortex_summarize(session):
         assert 0 < len(summary) < len(content)
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 def test_apply_snowflake_cortex_sentiment_series(session):
     with SqlCounter(query_count=1):
         content = "A very very bad review!"
@@ -54,10 +45,6 @@ def test_apply_snowflake_cortex_sentiment_series(session):
         assert -1 <= sentiment <= 0
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 def test_apply_snowflake_cortex_sentiment_df(session):
     text_list = [
         "A first row of text.",
@@ -74,10 +61,6 @@ def test_apply_snowflake_cortex_sentiment_df(session):
         assert 0 <= sent_row_3 <= 1
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 @pytest.mark.parametrize(
     "is_series, operation, query_count",
     [
@@ -110,10 +93,6 @@ def test_apply_snowflake_cortex_classify_text(
         assert text_class_label == "travel"
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 @pytest.mark.parametrize(
     "is_series, operation, query_count",
     [
@@ -144,10 +123,6 @@ def test_apply_snowflake_cortex_translate(session, is_series, operation, query_c
         assert translated_text.lower() == "guten morgen"
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 @pytest.mark.parametrize(
     "is_series, operation, query_count",
     [
@@ -184,24 +159,10 @@ def test_apply_snowflake_cortex_extract_answer(
         assert extracted_text == "2012"
 
 
-@pytest.mark.skipif(
-    running_on_jenkins(),
-    reason="TODO: SNOW-1859087 snowflake.cortex.sentiment SSL error",
-)
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize(
     "is_series, operation",
     [
-        param(
-            True,
-            (lambda s: s.apply(Complete, model="mistral-large2")),
-            id="series_cortex_unsupported_function_complete",
-        ),
-        param(
-            False,
-            (lambda df: df.apply(Complete, model="mistral-large2")),
-            id="df_cortex_unsupported_function_complete",
-        ),
         param(
             True,
             (lambda s: s.apply(Sentiment, args=("hello",))),
@@ -244,3 +205,126 @@ def test_apply_snowflake_cortex_negative(session, is_series, operation):
     modin_input = (pd.Series if is_series else pd.DataFrame)([content])
     with pytest.raises(NotImplementedError):
         operation(modin_input)
+
+
+@pytest.mark.parametrize(
+    "is_series, test_case, kwargs",
+    [
+        param(
+            True,
+            "basic",
+            {"model": "mistral-large2"},
+            id="series_basic",
+        ),
+        param(
+            False,
+            "basic",
+            {"model": "mistral-large2"},
+            id="dataframe_basic",
+        ),
+        param(
+            True,
+            "with_timeout",
+            {"model": "mistral-large2", "timeout": 30.0},
+            id="series_partial_params_timeout",
+        ),
+        param(
+            False,
+            "with_timeout",
+            {"model": "mistral-large2", "timeout": 30.0},
+            id="dataframe_partial_params_timeout",
+        ),
+        param(
+            True,
+            "all_params",
+            {
+                "model": "mistral-large2",
+                "options": None,
+                "session": None,
+                "stream": False,
+                "timeout": 30.0,
+                "deadline": None,
+            },
+            id="series_all_params",
+        ),
+        param(
+            False,
+            "all_params",
+            {
+                "model": "mistral-large2",
+                "options": None,
+                "session": None,
+                "stream": False,
+                "timeout": 30.0,
+                "deadline": None,
+            },
+            id="dataframe_all_params",
+        ),
+    ],
+)
+def test_apply_snowflake_cortex_complete_success_cases(
+    session, is_series, test_case, kwargs
+):
+    content = "When was Snowflake founded?"
+    modin_input = (pd.Series if is_series else pd.DataFrame)([content])
+
+    with SqlCounter(query_count=1):
+        result = modin_input.apply(Complete, **kwargs)
+        if is_series:
+            response = result.iloc[0]
+        else:
+            response = result.iloc[0, 0]
+
+        print("response: ", response)
+
+        assert isinstance(response, str)
+        assert "2012" in response
+
+
+@sql_count_checker(query_count=0)
+@pytest.mark.parametrize(
+    "is_series, test_case, kwargs, expected_error, expected_error_type",
+    [
+        param(
+            True,
+            "missing_positional",
+            {"timeout": 30.0},
+            "Unspecified Argument",
+            NotImplementedError,
+            id="series_missing_positional",
+        ),
+        param(
+            False,
+            "missing_positional",
+            {"timeout": 30.0},
+            "Unspecified Argument",
+            NotImplementedError,
+            id="dataframe_missing_positional",
+        ),
+        param(
+            True,
+            "invalid_param",
+            {"model": "mistral-large2", "invalid_param": "fail"},
+            "Unspecified kwargs",
+            NotImplementedError,
+            id="series_invalid_param",
+        ),
+        param(
+            False,
+            "invalid_param",
+            {"model": "mistral-large2", "invalid_param": "fail"},
+            "Unspecified kwargs",
+            NotImplementedError,
+            id="dataframe_invalid_param",
+        ),
+    ],
+)
+def test_apply_snowflake_cortex_complete_error_cases(
+    session, is_series, test_case, kwargs, expected_error, expected_error_type
+):
+    content = "When was Snowflake founded?"
+    modin_input = (pd.Series if is_series else pd.DataFrame)([content])
+
+    with pytest.raises(expected_error_type) as exc_info:
+        modin_input.apply(Complete, **kwargs)
+    assert expected_error in str(exc_info.value)

@@ -129,6 +129,7 @@ try:
         snowflake.cortex.ClassifyText,
         snowflake.cortex.Translate,
         snowflake.cortex.ExtractAnswer,
+        snowflake.cortex.Complete,
     }
 
     ALL_SNOWFLAKE_CORTEX_FUNCTIONS = tuple(
