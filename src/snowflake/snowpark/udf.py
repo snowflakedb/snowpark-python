@@ -23,6 +23,7 @@ import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.connector import ProgrammingError
 from snowflake.snowpark._internal.analyzer.expression import Expression, SnowflakeUDF
 from snowflake.snowpark._internal.ast.utils import (
+    add_intermediate_stmt,
     build_udf,
     build_udf_apply,
     with_src_position,
@@ -88,6 +89,7 @@ class UserDefinedFunction:
         packages: Optional[List[Union[str, ModuleType]]] = None,
         _ast: Optional[proto.Udf] = None,
         _ast_id: Optional[int] = None,
+        _session: Optional["snowflake.snowpark.session.Session"] = None,
     ) -> None:
         #: The Python function or a tuple containing the Python file path and the function name.
         self.func: Union[Callable, Tuple[str, str]] = func
@@ -102,6 +104,7 @@ class UserDefinedFunction:
         # If None, no ast will be emitted. Else, passed whenever udf is invoked.
         self._ast = _ast
         self._ast_id = _ast_id
+        self._session = _session
 
     @publicapi
     def __call__(
@@ -127,9 +130,11 @@ class UserDefinedFunction:
 
         udf_expr = None
         if _emit_ast and self._ast is not None:
-            assert (
-                self._ast is not None
-            ), "Need to ensure _emit_ast is True when registering UDF."
+            if self._ast_id is None:
+                session = (
+                    self._session or snowflake.snowpark.session._get_active_session()
+                )
+                add_intermediate_stmt(session._ast_batch, self)
             assert self._ast_id is not None, "Need to assign UDF an ID."
             udf_expr = proto.Expr()
             build_udf_apply(udf_expr, self._ast_id, *cols)
@@ -897,9 +902,12 @@ class UDFRegistration:
         ast, ast_id = None, None
         if kwargs.get("_registered_object_name") is not None:
             if _emit_ast:
-                stmt = self._session._ast_batch.bind()
-                ast = with_src_position(stmt.expr.udf, stmt)
-                ast_id = stmt.uid
+                if self._session is not None:
+                    stmt = self._session._ast_batch.bind()
+                    ast = with_src_position(stmt.expr.udf, stmt)
+                    ast_id = stmt.uid
+                else:
+                    ast = proto.Udf()
 
             return UserDefinedFunction(
                 func,
@@ -908,6 +916,7 @@ class UDFRegistration:
                 kwargs["_registered_object_name"],
                 _ast=ast,
                 _ast_id=ast_id,
+                _session=self._session,
             )
 
         check_imports_type(imports, "udf-level")
@@ -926,9 +935,12 @@ class UDFRegistration:
 
         # Capture original parameters.
         if _emit_ast:
-            stmt = self._session._ast_batch.bind()
-            ast = with_src_position(stmt.expr.udf, stmt)
-            ast_id = stmt.uid
+            if self._session is not None:
+                stmt = self._session._ast_batch.bind()
+                ast = with_src_position(stmt.expr.udf, stmt)
+                ast_id = stmt.uid
+            else:
+                ast = proto.Udf()
             build_udf(
                 ast,
                 func,
@@ -1066,6 +1078,7 @@ class UDFRegistration:
             packages=packages,
             _ast=ast,
             _ast_id=ast_id,
+            _session=self._session,
         )
 
         return udf
