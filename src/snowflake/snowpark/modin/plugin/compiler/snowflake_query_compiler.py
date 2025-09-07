@@ -2721,6 +2721,53 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _binary_op_internal to be supported in faster pandas.
+        """
+
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and (
+            not isinstance(other, (Series, DataFrame))
+            or other._query_compiler._relaxed_query_compiler is not None
+        ):
+            if isinstance(other, (Series, DataFrame)):
+                new_other = copy.copy(other)
+                new_other._query_compiler = (
+                    other._query_compiler._relaxed_query_compiler
+                )
+            else:
+                new_other = other
+            relaxed_query_compiler = self._relaxed_query_compiler._binary_op_internal(
+                op=op,
+                other=new_other,
+                axis=axis,
+                level=level,
+                fill_value=fill_value,
+                squeeze_self=squeeze_self,
+                **kwargs,
+            )
+
+        qc = self._binary_op_internal(
+            op=op,
+            other=other,
+            axis=axis,
+            level=level,
+            fill_value=fill_value,
+            squeeze_self=squeeze_self,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _binary_op_internal(
+        self,
+        op: str,
+        other: Union[Scalar, AnyArrayLike, "pd.Series", "pd.DataFrame"],
+        axis: int,
+        level: Optional[Level] = None,
+        fill_value: Optional[Scalar] = None,
+        squeeze_self: bool = False,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Perform binary operation.
 
         Args:
@@ -2745,28 +2792,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Native pandas does not support binary operations between a Series and a list-like object.
 
-        relaxed_query_compiler = None
-        if self._relaxed_query_compiler is not None and (
-            not isinstance(other, (Series, DataFrame))
-            or other._query_compiler._relaxed_query_compiler is not None
-        ):
-            if isinstance(other, (Series, DataFrame)):
-                used_other = other
-                used_other._query_compiler = (
-                    other._query_compiler._relaxed_query_compiler
-                )
-            else:
-                used_other = other
-            relaxed_query_compiler = self._relaxed_query_compiler.binary_op(
-                op=op,
-                other=used_other,
-                axis=axis,
-                level=level,
-                fill_value=fill_value,
-                squeeze_self=squeeze_self,
-                **kwargs,
-            )
-
         from modin.pandas.utils import is_scalar
 
         # fail explicitly for unsupported scenarios
@@ -2788,18 +2813,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if is_scalar(other):
             # (Case 1): other is scalar
             # -------------------------
-            qc = self._binary_op_scalar_rhs(op, other, fill_value)
-            return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+            return self._binary_op_scalar_rhs(op, other, fill_value)
 
         if not isinstance(other, (Series, DataFrame)) and is_list_like(other):
             # (Case 2): other is list-like
             # ----------------------------
             if axis == 0:
-                qc = self._binary_op_list_like_rhs_axis_0(op, other, fill_value)
-                return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+                return self._binary_op_list_like_rhs_axis_0(op, other, fill_value)
             else:  # axis=1
-                qc = self._binary_op_list_like_rhs_axis_1(op, other, fill_value)
-                return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+                return self._binary_op_list_like_rhs_axis_1(op, other, fill_value)
 
         if squeeze_self and isinstance(other, Series):
             # (Case 3): Series/Series
@@ -2874,10 +2896,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
             # return only newly created column. Because column has been appended, this is the last column indexed by -1
-            qc = SnowflakeQueryCompiler(
+            return SnowflakeQueryCompiler(
                 get_frame_by_col_pos(internal_frame=new_frame, columns=[-1])
             )
-            return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
         elif squeeze_self or isinstance(other, Series):
             # (Case 4): Series/DataFrame or DataFrame/Series
             # --------------------------
@@ -2888,16 +2909,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # However, pandas allows to call Series <binop> DataFrame with axis=0 set. In this case, the parameter
             # axis=0 is ignored and the result works the same as if axis=1 is invoked.
             if not squeeze_self and axis == 0:
-                qc = self._binary_op_between_dataframe_and_series_along_axis_0(
+                return self._binary_op_between_dataframe_and_series_along_axis_0(
                     op, other._query_compiler, fill_value
                 )
-                return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+                # return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
 
             # Invoke axis=1 case, this is the correct pandas behavior if squeeze_self is True and axis=0 also.
-            qc = self._binary_op_between_dataframe_and_series_along_axis_1(
+            return self._binary_op_between_dataframe_and_series_along_axis_1(
                 op, other._query_compiler, squeeze_self, fill_value
             )
-            return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
         else:
             # (Case 5): DataFrame/DataFrame
             # -----------------------------
@@ -2907,10 +2927,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             # The axis parameter is ignored for DataFrame <binop> DataFrame operations. The default axis behavior
             # is always aligning by columns (axis=1). Binary operations between DataFrames support fill_value.
-            qc = self._binary_op_between_dataframes(
+            return self._binary_op_between_dataframes(
                 op, other._query_compiler, fill_value
             )
-            return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
 
     def _bool_reduce_helper(
         self,
@@ -3672,6 +3691,41 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         names: IndexLabel = None,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _reset_index_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and not drop:
+            # When drop is True, we would still compute the row postion;
+            # i.e., reset_index is currently supported in faster pandas only when drop is False.
+            relaxed_query_compiler = self._relaxed_query_compiler._reset_index_internal(
+                level=level,
+                drop=drop,
+                col_level=col_level,
+                col_fill=col_fill,
+                allow_duplicates=allow_duplicates,
+                names=names,
+            )
+
+        qc = self._reset_index_internal(
+            level=level,
+            drop=drop,
+            col_level=col_level,
+            col_fill=col_fill,
+            allow_duplicates=allow_duplicates,
+            names=names,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _reset_index_internal(
+        self,
+        level: IndexLabel = None,
+        drop: bool = False,
+        col_level: Hashable = 0,
+        col_fill: Hashable = "",
+        allow_duplicates: bool = False,
+        names: IndexLabel = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Reset the index, or a level of it.
         Args:
             drop: Whether to drop the reset index or insert it at the beginning of the frame.
@@ -3685,19 +3739,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             A new SnowflakeQueryCompiler instance with updated index.
         """
-        relaxed_query_compiler = None
-        if self._relaxed_query_compiler is not None and not drop:
-            # When drop is True, we would still compute the row postion;
-            # i.e., reset_index is currently supported in Faster pandas only when drop is False.
-            relaxed_query_compiler = self._relaxed_query_compiler.reset_index(
-                level=level,
-                drop=drop,
-                col_level=col_level,
-                col_fill=col_fill,
-                allow_duplicates=allow_duplicates,
-                names=names,
-            )
-
         if allow_duplicates is no_default:
             allow_duplicates = False
         # These levels will be moved from index columns to data columns
@@ -3849,8 +3890,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index_column_types=index_column_types_remained,
         )
 
-        qc = SnowflakeQueryCompiler(internal_frame)
-        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+        return SnowflakeQueryCompiler(internal_frame)
 
     # TODO: Eliminate from Modin QC layer and call `first_last_valid_index` directly from frontend
     def first_valid_index(self) -> Union[Scalar, tuple[Scalar]]:
@@ -8274,6 +8314,73 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         validate: Optional[str] = None,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _merge_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if (
+            self._relaxed_query_compiler is not None
+            and right._relaxed_query_compiler is not None
+            and how not in ["asof", "cross"]
+        ):
+            relaxed_query_compiler = self._relaxed_query_compiler._merge_internal(
+                right=right._relaxed_query_compiler,
+                how=how,
+                on=on,
+                left_on=left_on,
+                right_on=right_on,
+                left_index=left_index,
+                right_index=right_index,
+                sort=sort,
+                suffixes=suffixes,
+                copy=copy,
+                indicator=indicator,
+                validate=validate,
+            )
+
+        qc = self._merge_internal(
+            right=right,
+            how=how,
+            on=on,
+            left_on=left_on,
+            right_on=right_on,
+            left_index=left_index,
+            right_index=right_index,
+            sort=sort,
+            suffixes=suffixes,
+            copy=copy,
+            indicator=indicator,
+            validate=validate,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _merge_internal(
+        self,
+        right: "SnowflakeQueryCompiler",
+        how: JoinTypeLit,
+        on: Optional[IndexLabel] = None,
+        left_on: Optional[
+            Union[
+                Hashable,
+                "SnowflakeQueryCompiler",
+                list[Union[Hashable, "SnowflakeQueryCompiler"]],
+            ]
+        ] = None,
+        right_on: Optional[
+            Union[
+                Hashable,
+                "SnowflakeQueryCompiler",
+                list[Union[Hashable, "SnowflakeQueryCompiler"]],
+            ]
+        ] = None,
+        left_index: Optional[bool] = False,
+        right_index: Optional[bool] = False,
+        sort: Optional[bool] = False,
+        suffixes: Suffixes = ("_x", "_y"),
+        copy: Optional[bool] = True,
+        indicator: Optional[Union[bool, str]] = False,
+        validate: Optional[str] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Merge with SnowflakeQueryCompiler object to perform Database-style join.
 
         Args:
@@ -8325,27 +8432,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         left = self
-        relaxed_query_compiler = None
-        if (
-            left._relaxed_query_compiler is not None
-            and right._relaxed_query_compiler is not None
-            and how not in ["asof", "cross"]
-        ):
-            relaxed_query_compiler = left._relaxed_query_compiler.merge(
-                right=right._relaxed_query_compiler,
-                how=how,
-                on=on,
-                left_on=left_on,
-                right_on=right_on,
-                left_index=left_index,
-                right_index=right_index,
-                sort=sort,
-                suffixes=suffixes,
-                copy=copy,
-                indicator=indicator,
-                validate=validate,
-            )
-
         join_index_on_index = left_index and right_index
         # As per this bug fix in pandas 2.2.x outer join always produce sorted results.
         # https://github.com/pandas-dev/pandas/pull/54611/files
@@ -8424,8 +8510,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 sort=sort,
                 dummy_row_pos_mode=self._dummy_row_pos_mode,
             )
-            merged_qc = SnowflakeQueryCompiler(merged_frame)
-            return self._maybe_set_relaxed_qc(merged_qc, relaxed_query_compiler)
+            return SnowflakeQueryCompiler(merged_frame)
 
         coalesce_config = join_utils.get_coalesce_config(
             left_keys=left_keys,
@@ -8521,7 +8606,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # both are false.
             merged_qc = merged_qc.reset_index(drop=True)
 
-        return self._maybe_set_relaxed_qc(merged_qc, relaxed_query_compiler)
+        return merged_qc
 
     def merge_asof(
         self,
@@ -10506,6 +10591,38 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ],
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _take_2d_labels_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and (
+            not isinstance(index, SnowflakeQueryCompiler)
+            or index._relaxed_query_compiler is not None
+        ):
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._take_2d_labels_internal(
+                    index=index
+                    if not isinstance(index, SnowflakeQueryCompiler)
+                    else index._relaxed_query_compiler,
+                    columns=columns,
+                )
+            )
+
+        qc = self._take_2d_labels_internal(
+            index=index,
+            columns=columns,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _take_2d_labels_internal(
+        self,
+        index: Union[
+            "SnowflakeQueryCompiler", Scalar, tuple, slice, list, "pd.Index", np.ndarray
+        ],
+        columns: Union[
+            "SnowflakeQueryCompiler", Scalar, slice, list, "pd.Index", np.ndarray
+        ],
+    ) -> "SnowflakeQueryCompiler":
+        """
         Index QueryCompiler with passed label keys.
 
         Parameters
@@ -10517,18 +10634,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         SnowflakeQueryCompiler
         """
-        relaxed_query_compiler = None
-        if self._relaxed_query_compiler is not None and (
-            not isinstance(index, SnowflakeQueryCompiler)
-            or index._relaxed_query_compiler is not None
-        ):
-            relaxed_query_compiler = self._relaxed_query_compiler.take_2d_labels(
-                index=index
-                if not isinstance(index, SnowflakeQueryCompiler)
-                else index._relaxed_query_compiler,
-                columns=columns,
-            )
-
         if self._modin_frame.is_multiindex(axis=0) and (
             is_scalar(index) or isinstance(index, tuple)
         ):
@@ -10546,7 +10651,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index = pd.Series(index).set_backend("Snowflake")
             if index.dtype == "bool":
                 # boolean list like indexer is always select rows by row position
-                qc = SnowflakeQueryCompiler(
+                return SnowflakeQueryCompiler(
                     get_frame_by_col_label(
                         get_frame_by_row_pos_frame(
                             internal_frame=self._modin_frame,
@@ -10556,10 +10661,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         columns,
                     )
                 )
-                return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
             index = index._query_compiler
 
-        qc = SnowflakeQueryCompiler(
+        return SnowflakeQueryCompiler(
             get_frame_by_col_label(
                 get_frame_by_row_label(
                     internal_frame=self._modin_frame,
@@ -10571,7 +10675,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 columns,
             )
         )
-        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
 
     def has_multiindex(self, axis: int = 0) -> bool:
         """
