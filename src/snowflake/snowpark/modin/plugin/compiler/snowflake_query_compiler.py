@@ -9400,10 +9400,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unprocessed_keys = set(kwargs.keys())
 
             for arg_name, param in params.items():
-                # Skip special internal Snowpark params always
+                # Handle special internal Snowpark AST params
+                # Since Snowpark Pandas doesn't support AST generation, explicitly set safe values
                 if arg_name in ("_emit_ast", "_ast"):
-                    # Always remove internal params from unprocessed_keys (safe even if not present)
                     unprocessed_keys.discard(arg_name)
+                    resolved_kwargs[arg_name] = False
                     continue
 
                 is_kw_only = param.kind == inspect.Parameter.KEYWORD_ONLY
