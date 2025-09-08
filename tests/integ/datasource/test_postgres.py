@@ -175,8 +175,8 @@ def test_udtf_ingestion_postgres(session, input_type, input_value, caplog):
     assert df.collect() == EXPECTED_TEST_DATA
     # assert UDTF creation and UDTF call
     assert (
-        "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
-        and "table(data_source_udtf" in caplog.text
+        "TEMPORARY  FUNCTION  SNOWPARK_TEMP_FUNCTION" "" in caplog.text
+        and "table(SNOWPARK_TEMP_FUNCTION" in caplog.text
     )
 
 
@@ -464,3 +464,12 @@ def test_unit_generate_select_query():
         'SELECT TO_JSON("jsonb_col")::TEXT AS jsonb_col FROM test_table'
     )
     assert jsonb_query == expected_jsonb_query
+
+
+def test_server_side_cursor(session):
+    conn = create_postgres_connection()
+    driver = Psycopg2Driver(create_postgres_connection, DBMS_TYPE.POSTGRES_DB)
+    cursor = driver.get_server_cursor_if_supported(conn)
+    assert cursor.name is not None  # Server-side cursor should have a name
+    cursor.close()
+    conn.close()

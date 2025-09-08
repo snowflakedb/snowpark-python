@@ -14,6 +14,7 @@ Input/Output
     FileOperation
     PutResult
     GetResult
+    ListResult
 
 .. rubric:: Methods
 
@@ -23,8 +24,10 @@ Input/Output
     DataFrameReader.avro
     DataFrameReader.csv
     DataFrameReader.dbapi
+    DataFrameReader.directory
     DataFrameReader.file
     DataFrameReader.format
+    DataFrameReader.jdbc
     DataFrameReader.json
     DataFrameReader.load
     DataFrameReader.option
@@ -48,10 +51,13 @@ Input/Output
     DataFrameWriter.save_as_table
     DataFrameWriter.insertInto
     DataFrameWriter.insert_into
+    FileOperation.copy_files
     FileOperation.get
     FileOperation.get_stream
     FileOperation.put
     FileOperation.put_stream
+    FileOperation.list
+    FileOperation.remove
     PutResult.count
     PutResult.index
     GetResult.count
@@ -74,4 +80,9 @@ Input/Output
     GetResult.message
     GetResult.size
     GetResult.status
+    ListResult.name
+    ListResult.size
+    ListResult.md5
+    ListResult.sha1
+    ListResult.last_modified
 

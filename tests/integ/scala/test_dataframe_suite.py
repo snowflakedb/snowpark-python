@@ -59,6 +59,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
 )
 from tests.utils import (
     IS_IN_STORED_PROC,
@@ -1829,10 +1830,10 @@ def test_createDataFrame_with_given_schema_timestamp(session):
 
     assert (
         schema_str
-        == "StructType([StructField('TIMESTAMP', TimestampType(tz=ntz), nullable=True), "
-        "StructField('TIMESTAMP_NTZ', TimestampType(tz=ntz), nullable=True), "
-        "StructField('TIMESTAMP_LTZ', TimestampType(tz=ltz), nullable=True), "
-        "StructField('TIMESTAMP_TZ', TimestampType(tz=tz), nullable=True)])"
+        == "StructType([StructField('TIMESTAMP', TimestampType(timezone=TimestampTimeZone('ntz')), nullable=True), "
+        "StructField('TIMESTAMP_NTZ', TimestampType(timezone=TimestampTimeZone('ntz')), nullable=True), "
+        "StructField('TIMESTAMP_LTZ', TimestampType(timezone=TimestampTimeZone('ltz')), nullable=True), "
+        "StructField('TIMESTAMP_TZ', TimestampType(timezone=TimestampTimeZone('tz')), nullable=True)])"
     )
     ts_sample_ntz_output = datetime.strptime(
         "2017-02-24 12:00:05.456", "%Y-%m-%d %H:%M:%S.%f"
@@ -3227,3 +3228,84 @@ def test_limit(session):
 |     |     |
 -------------\n""".lstrip()
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
+def test_year_month_interval_type_dataframe(session):
+    schema = StructType(
+        [
+            StructField("ID", LongType(), nullable=False),
+            StructField("YM_INTERVAL", YearMonthIntervalType(), nullable=False),
+        ]
+    )
+
+    df = session.sql(
+        """
+        SELECT 1 as id, INTERVAL '1-2' YEAR TO MONTH as ym_interval
+        UNION ALL
+        SELECT 2 as id, INTERVAL '2-0' YEAR TO MONTH as ym_interval
+        UNION ALL
+        SELECT 3 as id, INTERVAL '0-6' YEAR TO MONTH as ym_interval
+    """
+    )
+
+    result = df.collect()
+    assert len(result) == 3
+    assert df.schema == schema
+
+    assert result[0]["YM_INTERVAL"] == "+1-02"
+    assert result[1]["YM_INTERVAL"] == "+2-00"
+    assert result[2]["YM_INTERVAL"] == "+0-06"
+
+    df = session.sql(
+        """
+            SELECT 1 as id, INTERVAL '-1-2' YEAR TO MONTH as ym_interval
+            UNION ALL
+            SELECT 2 as id, INTERVAL '-2-0' YEAR TO MONTH as ym_interval
+            UNION ALL
+            SELECT 3 as id, INTERVAL '-12-11' YEAR TO MONTH as ym_interval
+        """
+    )
+
+    result = df.collect()
+    assert len(result) == 3
+    assert df.schema == schema
+
+    assert result[0]["YM_INTERVAL"] == "-1-02"
+    assert result[1]["YM_INTERVAL"] == "-2-00"
+    assert result[2]["YM_INTERVAL"] == "-12-11"
+
+    test_cases = [
+        ["3", "1-6", "15"],
+        ["-1", "-0-3", "7"],
+    ]
+    schema = StructType(
+        [
+            StructField("interval_col_year", YearMonthIntervalType(0)),
+            StructField("interval_col_year_month", YearMonthIntervalType(0, 1)),
+            StructField("interval_col_month", YearMonthIntervalType(1)),
+        ]
+    )
+    df = session.create_dataframe(test_cases, schema=schema)
+
+    test_result = df.collect()
+
+    assert len(test_result) == 2
+    assert test_result[0][0] == "+3-00"
+    assert test_result[0][1] == "+1-06"
+    assert test_result[0][2] == "+1-03"
+
+    assert test_result[1][0] == "-1-00"
+    assert test_result[1][1] == "-0-03"
+    assert test_result[1][2] == "+0-07"
+
+    assert isinstance(df.schema.fields[0].datatype, YearMonthIntervalType)
+    assert df.schema.fields[0].datatype.start_field == 0
+    assert df.schema.fields[0].datatype.end_field == 0
+    assert df.schema.fields[1].datatype.start_field == 0
+    assert df.schema.fields[1].datatype.end_field == 1
+    assert df.schema.fields[2].datatype.start_field == 1
+    assert df.schema.fields[2].datatype.end_field == 1

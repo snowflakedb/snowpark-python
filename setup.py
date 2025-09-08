@@ -17,7 +17,7 @@ SNOWPARK_SRC_DIR = os.path.join(SRC_DIR, "snowflake", "snowpark")
 # Snowpark pandas requires modin 0.34.x, which is compatible with pandas 2.2.x;
 # or modin 0.35.x, which is compatible with pandas 2.2.x or 2.3.x
 MODIN_DEPENDENCY_VERSION = ">=0.34.0, <0.36.0"
-CONNECTOR_DEPENDENCY_VERSION = ">=3.14.0, <4.0.0"
+CONNECTOR_DEPENDENCY_VERSION = ">=3.17.0, <4.0.0"
 CONNECTOR_DEPENDENCY = f"snowflake-connector-python{CONNECTOR_DEPENDENCY_VERSION}"
 INSTALL_REQ_LIST = [
     "setuptools>=40.6.0",
@@ -26,7 +26,7 @@ INSTALL_REQ_LIST = [
     # snowpark directly depends on typing-extension, so we should not remove it even if connector also depends on it.
     "typing-extensions>=4.1.0, <5.0.0",
     "pyyaml",
-    "cloudpickle>=1.6.0,<=3.0.0,!=2.1.0,!=2.2.0",
+    "cloudpickle>=1.6.0,<=3.1.1,!=2.1.0,!=2.2.0",
     # `protoc` < 3.20 is not able to generate protobuf code compatible with protobuf >= 3.20.
     "protobuf>=3.20, <6.32",  # Snowpark IR
     "python-dateutil",  # Snowpark IR
@@ -43,6 +43,7 @@ PANDAS_REQUIREMENTS = [
 MODIN_REQUIREMENTS = [
     *PANDAS_REQUIREMENTS,
     f"modin{MODIN_DEPENDENCY_VERSION}",
+    "pandas<=2.3.1",
     "tqdm",  # For progress bars during backend switching
     "ipywidgets",  # For enhanced progress bars in Jupyter notebooks
 ]
@@ -181,6 +182,7 @@ setup(
     # When a new package (directory) is added, we should also add it here
     packages=[
         "snowflake.snowpark",
+        "snowflake.snowpark._functions",
         "snowflake.snowpark._internal",
         "snowflake.snowpark._internal.analyzer",
         "snowflake.snowpark._internal.ast",

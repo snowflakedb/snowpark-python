@@ -3,11 +3,35 @@
 df = session.table(tables.table1)
 df = df.select("num")
 
+df1 = session.table(tables.table1, time_travel_mode="at", offset=-3600)
+
+df2 = session.table(tables.table1, time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012")
+
+df3 = session.table(tables.table1, time_travel_mode="at", timestamp=datetime.datetime(2025, 1, 1, 1, 1, 1, 111))
+
+df4 = session.table(tables.table1, time_travel_mode="at", timestamp="2023-01-01 12:00:00", timestamp_type="TZ")
+
+df5 = session.table(tables.table1, time_travel_mode="before", timestamp="2023-01-01 12:00:00", timestamp_type=TimestampTimeZone.LTZ)
+
+df6 = session.table(tables.table1, time_travel_mode="at", stream="my_stream")
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
 
 df = df.select("num")
+
+df1 = session.table("table1", time_travel_mode="at", offset=-3600)
+
+df2 = session.table("table1", time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012")
+
+df3 = session.table("table1", time_travel_mode="at", timestamp=datetime.datetime(2025, 1, 1, 1, 1, 1, 111, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST")))
+
+df4 = session.table("table1", time_travel_mode="at", timestamp="2023-01-01 12:00:00", timestamp_type="TZ")
+
+df5 = session.table("table1", time_travel_mode="before", timestamp="2023-01-01 12:00:00", timestamp_type="ltz")
+
+df6 = session.table("table1", time_travel_mode="at", stream="my_stream")
 
 ## EXPECTED ENCODED AST
 
@@ -90,6 +114,267 @@ body {
     uid: 2
   }
 }
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        offset {
+          value: -3600
+        }
+        src {
+          end_column: 79
+          end_line: 28
+          file: 2
+          start_column: 14
+          start_line: 28
+        }
+        time_travel_mode {
+          value: "at"
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 119
+          end_line: 30
+          file: 2
+          start_column: 14
+          start_line: 30
+        }
+        statement {
+          value: "01234567-abcd-1234-5678-123456789012"
+        }
+        time_travel_mode {
+          value: "before"
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 120
+          end_line: 32
+          file: 2
+          start_column: 14
+          start_line: 32
+        }
+        time_travel_mode {
+          value: "at"
+        }
+        timestamp {
+          python_timestamp_val {
+            day: 1
+            hour: 1
+            microsecond: 111
+            minute: 1
+            month: 1
+            second: 1
+            src {
+              end_column: 120
+              end_line: 32
+              file: 2
+              start_column: 14
+              start_line: 32
+            }
+            tz {
+              name {
+                value: "EST"
+              }
+              offset_seconds: -18000
+            }
+            year: 2025
+          }
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 119
+          end_line: 34
+          file: 2
+          start_column: 14
+          start_line: 34
+        }
+        time_travel_mode {
+          value: "at"
+        }
+        timestamp {
+          string_val {
+            src {
+              end_column: 119
+              end_line: 34
+              file: 2
+              start_column: 14
+              start_line: 34
+            }
+            v: "2023-01-01 12:00:00"
+          }
+        }
+        timestamp_type {
+          value: "TZ"
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 140
+          end_line: 36
+          file: 2
+          start_column: 14
+          start_line: 36
+        }
+        time_travel_mode {
+          value: "before"
+        }
+        timestamp {
+          string_val {
+            src {
+              end_column: 140
+              end_line: 36
+              file: 2
+              start_column: 14
+              start_line: 36
+            }
+            v: "2023-01-01 12:00:00"
+          }
+        }
+        timestamp_type {
+          value: "ltz"
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df5"
+    }
+    uid: 7
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 85
+          end_line: 38
+          file: 2
+          start_column: 14
+          start_line: 38
+        }
+        stream {
+          value: "my_stream"
+        }
+        time_travel_mode {
+          value: "at"
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df6"
+    }
+    uid: 8
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -103,6 +388,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 36
+  minor: 38
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

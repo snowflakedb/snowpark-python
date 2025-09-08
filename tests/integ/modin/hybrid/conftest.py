@@ -7,6 +7,19 @@ import pytest
 import modin.pandas as pd
 from modin.config import context as config_context
 
+from tests.utils import IS_WINDOWS
+
+
+if IS_WINDOWS:
+    # Ray startup is extremely flaky on Windows when multiple pytest workers are used.
+    # https://snowflakecomputing.atlassian.net/browse/SNOW-2292908
+    # https://github.com/modin-project/modin/issues/7387
+    @pytest.fixture(scope="module", autouse=True)
+    def skip_if_windows():
+        pytest.skip(
+            reason="skipping tests requiring Ray on Windows", allow_module_level=True
+        )
+
 
 @pytest.fixture(autouse=True, scope="function")
 def enable_autoswitch():

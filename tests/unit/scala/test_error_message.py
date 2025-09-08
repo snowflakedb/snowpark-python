@@ -95,10 +95,15 @@ def test_df_flatten_unsupported_input_mode():
 
 def test_df_cannot_resolve_column_name():
     col_name = "C1"
-    ex = SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(col_name)
+    ex = SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
+        col_name, ["A1", "B1"]
+    )
     assert type(ex) == SnowparkColumnException
     assert ex.error_code == "1105"
-    assert ex.message == f"The DataFrame does not contain the column named {col_name}."
+    assert (
+        ex.message
+        == f"The DataFrame does not contain the column named {col_name}. Available columns: A1, B1"
+    )
 
 
 def test_df_must_provide_schema_for_reading_file():

@@ -220,6 +220,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
     FileType,
     _AtomicType,
 )
@@ -1542,7 +1543,7 @@ class Session:
             >>> # and pandas with the version "2.1.*"
             >>> # and dateutil with the local version in your environment
             >>> session.custom_package_usage_config = {"enabled": True}  # This is added because latest dateutil is not in snowflake yet
-            >>> session.add_packages("numpy", "pandas==2.1.*", dateutil)
+            >>> session.add_packages("numpy", "pandas==2.2.*", dateutil)
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__, dateutil.__name__]
@@ -1593,7 +1594,7 @@ class Session:
             >>> session.clear_packages()
             >>> len(session.get_packages())
             0
-            >>> session.add_packages("numpy", "pandas==2.1.4")
+            >>> session.add_packages("numpy", "pandas==2.2.*")
             >>> len(session.get_packages())
             2
             >>> session.remove_package("numpy")
@@ -2509,6 +2510,13 @@ class Session:
         name: Union[str, Iterable[str]],
         is_temp_table_for_cleanup: bool = False,
         _emit_ast: bool = True,
+        *,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime.datetime]] = None,
+        timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
+        stream: Optional[str] = None,
     ) -> Table:
         """
         Returns a Table that points the specified table.
@@ -2518,6 +2526,14 @@ class Session:
                 fully-qualified object identifier (database name, schema name, and table name).
 
             _emit_ast: Whether to emit AST statements.
+
+            time_travel_mode: Time travel mode, either 'at' or 'before'.
+                Exactly one of statement, offset, timestamp, or stream must be provided when time_travel_mode is set.
+            statement: Query ID for time travel.
+            offset: Negative integer representing seconds in the past for time travel.
+            timestamp: Timestamp string or datetime object.
+            timestamp_type: Type of timestamp interpretation ('NTZ', 'LTZ', or 'TZ').
+            stream: Stream name for time travel.
 
             Note:
                 If your table name contains special characters, use double quotes to mark it like this, ``session.table('"my table"')``.
@@ -2534,6 +2550,19 @@ class Session:
             >>> current_schema = session.get_current_schema()
             >>> session.table([current_db, current_schema, "my_table"]).collect()
             [Row(A=1, B=2), Row(A=3, B=4)]
+
+            >>> df_at_time = session.table("my_table", time_travel_mode="at", timestamp="2023-01-01 12:00:00", timestamp_type="LTZ") # doctest: +SKIP
+            >>> df_before = session.table("my_table", time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012") # doctest: +SKIP
+            >>> df_offset = session.table("my_table", time_travel_mode="at", offset=-3600) # doctest: +SKIP
+            >>> df_stream = session.table("my_table", time_travel_mode="at", stream="my_stream") # doctest: +SKIP
+
+            # timestamp_type automatically set to "TZ" due to timezone info
+            >>> import datetime, pytz  # doctest: +SKIP
+            >>> tz_aware = datetime.datetime(2023, 1, 1, 12, 0, 0, tzinfo=pytz.UTC)  # doctest: +SKIP
+            >>> table1 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware)  # doctest: +SKIP
+
+            # timestamp_type remains "NTZ" (user's explicit choice respected)
+            >>> table2 = session.read.table("my_table", time_travel_mode="at", timestamp=tz_aware, timestamp_type="NTZ")  # doctest: +SKIP
         """
         if _emit_ast:
             stmt = self._ast_batch.bind()
@@ -2541,6 +2570,18 @@ class Session:
             build_table_name(ast.name, name)
             ast.variant.session_table = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
+            if time_travel_mode is not None:
+                ast.time_travel_mode.value = time_travel_mode
+            if statement is not None:
+                ast.statement.value = statement
+            if offset is not None:
+                ast.offset.value = offset
+            if timestamp is not None:
+                build_expr_from_python_val(ast.timestamp, timestamp)
+            if timestamp_type is not None:
+                ast.timestamp_type.value = str(timestamp_type)
+            if stream is not None:
+                ast.stream.value = stream
         else:
             stmt = None
 
@@ -2553,6 +2594,12 @@ class Session:
             is_temp_table_for_cleanup=is_temp_table_for_cleanup,
             _ast_stmt=stmt,
             _emit_ast=_emit_ast,
+            time_travel_mode=time_travel_mode,
+            statement=statement,
+            offset=offset,
+            timestamp=timestamp,
+            timestamp_type=timestamp_type,
+            stream=stream,
         )
         # Replace API call origin for table
         set_api_call_source(t, "Session.table")
@@ -3639,6 +3686,7 @@ class Session:
                         TimestampType,
                         VariantType,
                         VectorType,
+                        YearMonthIntervalType,
                         FileType,
                     ),
                 )
@@ -3692,6 +3740,8 @@ class Session:
                     data_type, DateType
                 ):
                     converted_row.append(str(value))
+                elif isinstance(data_type, YearMonthIntervalType):
+                    converted_row.append(value)
                 elif isinstance(data_type, _AtomicType):  # consider inheritance
                     converted_row.append(value)
                 elif isinstance(value, (list, tuple, array)) and isinstance(
@@ -3768,6 +3818,8 @@ class Session:
                 )
             elif isinstance(field.datatype, FileType):
                 project_columns.append(to_file(column(name)).as_(name))
+            elif isinstance(field.datatype, YearMonthIntervalType):
+                project_columns.append(column(name).cast(field.datatype).as_(name))
             else:
                 project_columns.append(column(name))
 
@@ -4097,7 +4149,7 @@ class Session:
         # Set both in-band and out-of-band telemetry to True/False
         if value:
             self._conn._telemetry_client._enabled = True
-            if is_in_stored_procedure() and not self._stored_proc_telemetry_enabled:
+            if is_in_stored_procedure() and not self._internal_telemetry_enabled:
                 _logger.debug(
                     "Client side parameter ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY is set to False, telemetry could not be enabled"
                 )
@@ -4707,3 +4759,74 @@ class Session:
             set_api_call_source(df, "Session.call")
             # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
             return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
+
+    def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
+        """
+        Returns a DataFrame representing the results of a directory table query on the specified stage.
+
+        A directory table query retrieves file-level metadata about the data files in a Snowflake stage.
+        This includes information like relative path, file size, last modified timestamp, file URL, and checksums.
+
+        Note:
+            The stage must have a directory table enabled for this method to work. The query is
+            executed lazily, which means the SQL is not executed until methods like
+            :func:`DataFrame.collect` or :func:`DataFrame.to_pandas` evaluate the DataFrame.
+
+        Args:
+            stage_name: The name of the stage to query. The stage name should not include the '@' prefix
+                as it will be added automatically.
+
+        Returns:
+            A DataFrame containing metadata about files in the stage with the following columns:
+
+            - ``RELATIVE_PATH``: Path to the files to access using the file URL
+            - ``SIZE``: Size of the file in bytes
+            - ``LAST_MODIFIED``: Timestamp when the file was last updated in the stage
+            - ``MD5``: MD5 checksum for the file
+            - ``ETAG``: ETag header for the file
+            - ``FILE_URL``: Snowflake file URL to access the file
+
+        Examples::
+            >>> # Get all file metadata from a stage named 'test_stage'
+            >>> _ = session.sql("CREATE OR REPLACE TEMP STAGE test_stage DIRECTORY = (ENABLE = TRUE)").collect()
+            >>> _ = session.file.put("tests/resources/testCSV.csv", "@test_stage", auto_compress=False)
+            >>> _ = session.file.put("tests/resources/testJson.json", "@test_stage", auto_compress=False)
+            >>> _ = session.sql("ALTER STAGE test_stage REFRESH").collect()
+
+            >>> # List all files in the stage
+            >>> df = session.directory('test_stage')
+            >>> df.count()
+            2
+
+            >>> # Get file URLs for CSV files only
+            >>> csv_files = session.directory('test_stage').filter(
+            ...     col('RELATIVE_PATH').like('%.csv%')
+            ... ).select('RELATIVE_PATH')
+            >>> csv_files.show()
+            -------------------
+            |"RELATIVE_PATH"  |
+            -------------------
+            |testCSV.csv      |
+            -------------------
+            <BLANKLINE>
+
+        For details, see the Snowflake documentation on
+        `Snowflake Directory Tables Documentation <https://docs.snowflake.com/en/user-guide/data-load-dirtables-query>`_
+        """
+        stage_name = (
+            stage_name
+            if stage_name.startswith(STAGE_PREFIX)
+            else f"{STAGE_PREFIX}{stage_name}"
+        )
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.directory, stmt)
+            ast.stage_name = stage_name
+
+        # string "@<stage_name>" does not work with parameter binding
+        return self.sql(
+            f"SELECT * FROM DIRECTORY({stage_name})",
+            _ast_stmt=stmt,
+            _emit_ast=_emit_ast,
+        )
