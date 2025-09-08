@@ -1,18 +1,20 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import pickle
 import cloudpickle
 from enum import Enum
 
-from typing import List, Any, Iterator, Type, Callable, Optional
+from typing import List, Any, Iterator, Type, Callable, Optional, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
-from snowflake.connector.options import pandas as pd
-import logging
+
+if TYPE_CHECKING:
+    from snowflake.connector.options import pandas as pd
 
 logger = logging.getLogger(__name__)
 

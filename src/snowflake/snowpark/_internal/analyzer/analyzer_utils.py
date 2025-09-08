@@ -8,16 +8,18 @@ import math
 import os
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
-
-from snowflake.connector import ProgrammingError
-from snowflake.connector.cursor import SnowflakeCursor
-from snowflake.connector.options import pyarrow
-from snowflake.connector.pandas_tools import (
-    _create_temp_stage,
-    _create_temp_file_format,
-    build_location_helper,
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    Literal,
+    Sequence,
+    TYPE_CHECKING,
 )
+
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     AsOf,
     Except,
@@ -58,6 +60,11 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
+
+
+if TYPE_CHECKING:
+    from snowflake.connector.cursor import SnowflakeCursor
+    from snowflake.connector.options import pyarrow
 
 LEFT_PARENTHESIS = "("
 RIGHT_PARENTHESIS = ")"
@@ -1985,7 +1992,7 @@ def cte_statement(queries: List[str], table_names: List[str]) -> str:
 
 
 def write_arrow(
-    cursor: SnowflakeCursor,
+    cursor: "SnowflakeCursor",
     table: "pyarrow.Table",
     table_name: str,
     database: Optional[str] = None,
@@ -2059,7 +2066,14 @@ def write_arrow(
     """
     # SNOW-1904593: This function mostly copies the functionality of snowflake.connector.pandas_utils.write_pandas.
     # It should be pushed down into the connector, but would require a minimum required version bump.
+    from snowflake.connector.options import pyarrow
     import pyarrow.parquet  # type: ignore
+    from snowflake.connector import ProgrammingError
+    from snowflake.connector.pandas_tools import (
+        _create_temp_stage,
+        _create_temp_file_format,
+        build_location_helper,
+    )
 
     if database is not None and schema is None:
         raise ProgrammingError(

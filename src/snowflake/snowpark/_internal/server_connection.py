@@ -29,7 +29,6 @@ from snowflake.connector.constants import ENV_VAR_PARTNER, FIELD_ID_TO_NAME
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
 from snowflake.connector.errors import Error, NotSupportedError, ProgrammingError
 from snowflake.connector.network import ReauthenticationRequest
-from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     quote_name_without_upper_casing,
 )
@@ -78,6 +77,7 @@ if TYPE_CHECKING:
         from snowflake.connector.cursor import ResultMetadataV2
     except ImportError:
         ResultMetadataV2 = ResultMetadata
+    from snowflake.connector.options import pandas
 
 logger = getLogger(__name__)
 
@@ -874,6 +874,8 @@ def _fix_pandas_df_fixed_type(
 
     We need to get rid of this workaround because this causes a performance hit.
     """
+    from snowflake.connector.options import pandas
+
     for column_metadata, pandas_dtype, pandas_col_name in zip(
         results_cursor.description, pd_df.dtypes, pd_df.columns
     ):

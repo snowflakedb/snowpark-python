@@ -14,6 +14,9 @@ import decimal
 import functools
 import re
 import sys
+
+# Thread-safe lazy loading for type mappings and validation tuples
+import threading
 import typing  # noqa: F401
 from array import array
 from typing import (  # noqa: F401
@@ -34,9 +37,7 @@ from typing import (  # noqa: F401
 
 import snowflake.snowpark.context as context
 import snowflake.snowpark.types  # type: ignore
-from snowflake.connector.constants import FIELD_ID_TO_NAME
-from snowflake.connector.cursor import ResultMetadata
-from snowflake.connector.options import installed_pandas, pandas
+
 from snowflake.snowpark._internal.utils import quote_name
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.types import (
@@ -88,16 +89,10 @@ try:
 except ImportError:
     from collections.abc import Iterable  # noqa: F401
 
-if installed_pandas:
-    from snowflake.snowpark.types import (
-        PandasDataFrame,
-        PandasDataFrameType,
-        PandasSeries,
-        PandasSeriesType,
-    )
 
 if TYPE_CHECKING:
     import snowflake.snowpark.column
+    from snowflake.connector.cursor import ResultMetadata
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2
@@ -106,9 +101,11 @@ if TYPE_CHECKING:
 
 
 def convert_metadata_to_sp_type(
-    metadata: Union[ResultMetadata, "ResultMetadataV2"],
+    metadata: Union["ResultMetadata", "ResultMetadataV2"],
     max_string_size: int,
 ) -> DataType:
+    from snowflake.connector.constants import FIELD_ID_TO_NAME
+
     column_type_name = FIELD_ID_TO_NAME[metadata.type_code]
     if column_type_name == "VECTOR":
         if not hasattr(metadata, "fields") or not hasattr(metadata, "vector_dimension"):
@@ -356,9 +353,10 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     raise TypeError(f"Unsupported data type: {datatype.__class__.__name__}")
 
 
-# Mapping Python types to DataType
 NoneType = type(None)
-PYTHON_TO_SNOW_TYPE_MAPPINGS = {
+
+# Base mapping (without pandas types)
+_BASE_PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     NoneType: NullType,
     bool: BooleanType,
     int: LongType,
@@ -371,32 +369,109 @@ PYTHON_TO_SNOW_TYPE_MAPPINGS = {
     datetime.time: TimeType,
     bytes: BinaryType,
 }
-if installed_pandas:
-    import numpy
 
-    PYTHON_TO_SNOW_TYPE_MAPPINGS.update(
-        {
-            type(pandas.NaT): TimestampType,
-            numpy.float64: DecimalType,
-        }
-    )
+# Lazy-loaded cached values
+_PYTHON_TO_SNOW_TYPE_MAPPINGS = None
+_VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = None
+_VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = None
+
+# Thread safety lock
+_type_mappings_lock = threading.RLock()
 
 
-# TODO: these tuples of types can be used with isinstance, but not as a type-hints
-VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (
-    *PYTHON_TO_SNOW_TYPE_MAPPINGS.keys(),
-    list,
-    tuple,
-    dict,
-)
-VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
-    *PYTHON_TO_SNOW_TYPE_MAPPINGS.values(),
-    _NumericType,
-    ArrayType,
-    MapType,
-    VariantType,
-    FileType,
-)
+def __getattr__(name: str):
+    """
+    Lazy loading for type mappings and validation tuples with thread safety.
+
+    Uses double-checked locking pattern to prevent race conditions.
+    """
+    global _PYTHON_TO_SNOW_TYPE_MAPPINGS, _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE, _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE
+    if name in (
+        "PYTHON_TO_SNOW_TYPE_MAPPINGS",
+        "VALID_PYTHON_TYPES_FOR_LITERAL_VALUE",
+        "VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE",
+    ):
+        from snowflake.connector.options import installed_pandas, pandas
+
+    if name == "PYTHON_TO_SNOW_TYPE_MAPPINGS":
+        # First check (no lock) - fast path
+        if _PYTHON_TO_SNOW_TYPE_MAPPINGS is not None:
+            return _PYTHON_TO_SNOW_TYPE_MAPPINGS
+
+        # Acquire lock for initialization
+        with _type_mappings_lock:
+            # Second check (with lock) - prevent race condition
+            if _PYTHON_TO_SNOW_TYPE_MAPPINGS is None:
+                # Start with base mappings
+                _PYTHON_TO_SNOW_TYPE_MAPPINGS = (
+                    _BASE_PYTHON_TO_SNOW_TYPE_MAPPINGS.copy()
+                )
+
+                # Add pandas types if available
+                if installed_pandas:
+                    import numpy
+
+                    _PYTHON_TO_SNOW_TYPE_MAPPINGS.update(
+                        {
+                            type(pandas.NaT): TimestampType,
+                            numpy.float64: DecimalType,
+                        }
+                    )
+
+        return _PYTHON_TO_SNOW_TYPE_MAPPINGS
+
+    elif name == "VALID_PYTHON_TYPES_FOR_LITERAL_VALUE":
+        # First check (no lock) - fast path
+        if _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE is not None:
+            return _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE
+
+        # Acquire lock for initialization
+        with _type_mappings_lock:
+            # Second check (with lock) - prevent race condition
+            if _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE is None:
+                # Ensure PYTHON_TO_SNOW_TYPE_MAPPINGS is loaded first
+                import sys
+
+                current_module = sys.modules[__name__]
+                type_mappings = current_module.PYTHON_TO_SNOW_TYPE_MAPPINGS
+
+                _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE = (
+                    *type_mappings.keys(),
+                    list,
+                    tuple,
+                    dict,
+                )
+
+        return _VALID_PYTHON_TYPES_FOR_LITERAL_VALUE
+
+    elif name == "VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE":
+        # First check (no lock) - fast path
+        if _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE is not None:
+            return _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE
+
+        # Acquire lock for initialization
+        with _type_mappings_lock:
+            # Second check (with lock) - prevent race condition
+            if _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE is None:
+                # Ensure PYTHON_TO_SNOW_TYPE_MAPPINGS is loaded first
+                import sys
+
+                current_module = sys.modules[__name__]
+                type_mappings = current_module.PYTHON_TO_SNOW_TYPE_MAPPINGS
+
+                _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE = (
+                    *type_mappings.values(),
+                    _NumericType,
+                    ArrayType,
+                    MapType,
+                    VariantType,
+                    FileType,
+                )
+
+        return _VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE
+
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
 
 # Mapping Python array types to DataType
 ARRAY_SIGNED_INT_TYPECODE_CTYPE_MAPPINGS = {
@@ -467,7 +542,7 @@ def infer_type(obj: Any) -> DataType:
     if obj is None:
         return NullType()
 
-    datatype = PYTHON_TO_SNOW_TYPE_MAPPINGS.get(type(obj))
+    datatype = PYTHON_TO_SNOW_TYPE_MAPPINGS.get(type(obj))  # noqa: F821
     if datatype is DecimalType:
         # the precision and scale of `obj` may be different from row to row.
         return DecimalType(38, 18)
@@ -517,7 +592,7 @@ def infer_schema(
                 elif len(names) < len(row):
                     names.extend(f"_{i}" for i in range(len(names) + 1, len(row) + 1))
                 items = zip(names, row)
-        elif isinstance(row, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):
+        elif isinstance(row, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):  # type: ignore # noqa: F821
             items = zip(names if names else ["_1"], [row])
         else:
             raise TypeError("Can not infer schema for type: %s" % type(row))
@@ -635,6 +710,8 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
 def python_type_str_to_object(
     tp_str: str, is_return_type_for_sproc: bool = False
 ) -> Type:
+    from snowflake.connector.options import installed_pandas, pandas
+
     # handle several special cases, which we want to support currently
     if tp_str == "Decimal":
         return decimal.Decimal
@@ -673,8 +750,8 @@ def python_type_to_snow_type(
 
     if tp is decimal.Decimal:
         return DecimalType(38, 18), False
-    elif tp in PYTHON_TO_SNOW_TYPE_MAPPINGS:
-        return PYTHON_TO_SNOW_TYPE_MAPPINGS[tp](), False
+    elif tp in PYTHON_TO_SNOW_TYPE_MAPPINGS:  # noqa: F821
+        return PYTHON_TO_SNOW_TYPE_MAPPINGS[tp](), False  # noqa: F821
 
     tp_origin = get_origin(tp)
     tp_args = get_args(tp)
@@ -718,7 +795,16 @@ def python_type_to_snow_type(
             return StructType(), False
         return MapType(key_type, value_type), False
 
+    from snowflake.connector.options import installed_pandas, pandas
+
     if installed_pandas:
+        from snowflake.snowpark.types import (
+            PandasSeries,
+            PandasSeriesType,
+            PandasDataFrame,
+            PandasDataFrameType,
+        )
+
         pandas_series_tps = [PandasSeries, pandas.Series]
         if tp in pandas_series_tps or (tp_origin and tp_origin in pandas_series_tps):
             return (
@@ -1335,5 +1421,5 @@ def most_permissive_type(datatype: DataType) -> DataType:
 ColumnOrName = Union["snowflake.snowpark.column.Column", str]
 ColumnOrLiteralStr = Union["snowflake.snowpark.column.Column", str]
 ColumnOrSqlExpr = Union["snowflake.snowpark.column.Column", str]
-LiteralType = Union[VALID_PYTHON_TYPES_FOR_LITERAL_VALUE]
+LiteralType = Union["VALID_PYTHON_TYPES_FOR_LITERAL_VALUE"]  # noqa: F821
 ColumnOrLiteral = Union["snowflake.snowpark.column.Column", LiteralType]

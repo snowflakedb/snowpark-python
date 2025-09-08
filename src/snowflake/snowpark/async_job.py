@@ -7,9 +7,6 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Iterator, List, Literal, Optional, Union
 
 import snowflake.snowpark
-from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
-from snowflake.connector.errors import DatabaseError
-from snowflake.connector.options import pandas
 from snowflake.snowpark._internal.analyzer.analyzer_utils import result_scan_statement
 from snowflake.snowpark._internal.analyzer.snowflake_plan import Query
 from snowflake.snowpark._internal.utils import (
@@ -24,6 +21,7 @@ from snowflake.snowpark.row import Row
 if TYPE_CHECKING:
     import snowflake.snowpark.dataframe
     import snowflake.snowpark.session
+    from snowflake.connector.options import pandas
 
 _logger = getLogger(__name__)
 
@@ -274,6 +272,8 @@ class AsyncJob:
     def cancel(self) -> None:
         """Cancels the query associated with this instance."""
         # stop and cancel current query id
+        from snowflake.connector.errors import DatabaseError
+
         if (
             is_in_stored_procedure()
             and self._session._conn._get_client_side_session_parameter(
@@ -365,6 +365,8 @@ class AsyncJob:
                 corresponding type. If you still provide a value for it, this value will overwrite
                 the original result data type.
         """
+        from snowflake.connector.cursor import ASYNC_RETRY_PATTERN
+
         async_result_type = (
             _AsyncResultType(result_type.lower()) if result_type else self._result_type
         )
