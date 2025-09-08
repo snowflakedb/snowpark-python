@@ -51,11 +51,6 @@ from typing import (
 )
 
 import snowflake.snowpark
-from snowflake.connector.constants import FIELD_ID_TO_NAME
-from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
-from snowflake.connector.description import OPERATING_SYSTEM, PLATFORM
-from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
-from snowflake.connector.version import VERSION as connector_version
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.version import VERSION as snowpark_version
@@ -67,6 +62,9 @@ if TYPE_CHECKING:
     )
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
     from snowflake.snowpark.types import TimestampTimeZone
+
+    from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
+    from snowflake.connector.options import ModuleLikeObject
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2
@@ -250,8 +248,42 @@ def _pandas_importer():  # noqa: E302
     return pandas
 
 
-pandas = _pandas_importer()
-installed_pandas = not isinstance(pandas, MissingOptionalDependency)
+# Lazy loading for pandas-related attributes
+_pandas = None
+_installed_pandas = None
+_MissingModin = None
+
+
+def __getattr__(name):
+    """Lazy loading for pandas-related attributes."""
+    global _pandas, _installed_pandas, _MissingModin
+
+    if name == "pandas":
+        if _pandas is None:
+            _pandas = _pandas_importer()
+        return _pandas
+
+    elif name == "installed_pandas":
+        if _installed_pandas is None:
+            if _pandas is None:
+                _pandas = _pandas_importer()
+            from snowflake.connector.options import MissingOptionalDependency
+
+            _installed_pandas = not isinstance(_pandas, MissingOptionalDependency)
+        return _installed_pandas
+
+    if name == "MissingModin":
+        if _MissingModin is None:
+
+            class MissingModin(MissingOptionalDependency):
+                """The class is specifically for modin optional dependency."""
+
+                _dep_name = "modin"
+
+            _MissingModin = MissingModin
+        return _MissingModin
+
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
 class TempObjectType(Enum):
@@ -364,6 +396,8 @@ def is_interactive() -> bool:
 
 @lru_cache
 def get_connector_version() -> str:
+    from snowflake.connector.version import VERSION as connector_version
+
     return ".".join([str(d) for d in connector_version if d is not None])
 
 
@@ -419,6 +453,8 @@ def normalize_path(path: str, is_local: bool) -> str:
     a directory named "load data". Therefore, if `path` is already wrapped by single quotes,
     we do nothing.
     """
+    from snowflake.connector.constants import OPERATING_SYSTEM
+
     prefixes = ["file://"] if is_local else SNOWFLAKE_PATH_PREFIXES_FOR_GET
     if is_single_quoted(path):
         return path
@@ -754,6 +790,8 @@ def get_stage_file_prefix_length(stage_location: str) -> int:
 
 
 def is_in_stored_procedure():
+    from snowflake.connector.description import PLATFORM
+
     return PLATFORM == "XP"
 
 
@@ -778,7 +816,7 @@ def column_to_bool(col_):
 
 
 def _parse_result_meta(
-    result_meta: Union[List[ResultMetadata], List["ResultMetadataV2"]]
+    result_meta: Union[List["ResultMetadata"], List["ResultMetadataV2"]]
 ) -> Tuple[Optional[List[str]], Optional[List[Callable]]]:
     """
     Takes a list of result metadata objects and returns a list containing the names of all fields as
@@ -789,6 +827,7 @@ def _parse_result_meta(
     represented as Row objects.
     """
     from snowflake.snowpark.context import _should_use_structured_type_semantics
+    from snowfake.connector.constants import FIELD_ID_TO_NAME
 
     if not result_meta:
         return None, None
@@ -809,7 +848,9 @@ def _parse_result_meta(
 
 def result_set_to_rows(
     result_set: List[Any],
-    result_meta: Optional[Union[List[ResultMetadata], List["ResultMetadataV2"]]] = None,
+    result_meta: Optional[
+        Union[List["ResultMetadata"], List["ResultMetadataV2"]]
+    ] = None,
     case_sensitive: bool = True,
 ) -> List[Row]:
     col_names, wrappers = _parse_result_meta(result_meta or [])
@@ -831,8 +872,8 @@ def result_set_to_rows(
 
 
 def result_set_to_iter(
-    result_set: SnowflakeCursor,
-    result_meta: Optional[List[ResultMetadata]] = None,
+    result_set: "SnowflakeCursor",
+    result_meta: Optional[List["ResultMetadata"]] = None,
     case_sensitive: bool = True,
 ) -> Iterator[Row]:
     col_names, wrappers = _parse_result_meta(result_meta)
@@ -1279,14 +1320,17 @@ def check_output_schema_type(  # noqa: F821
 
     from snowflake.snowpark.types import StructType
 
-    if installed_pandas:
+    if installed_pandas:  # noqa: F821
         from snowflake.snowpark.types import PandasDataFrameType
     else:
         PandasDataFrameType = int  # dummy type.
 
     if not (
         isinstance(output_schema, StructType)
-        or (installed_pandas and isinstance(output_schema, PandasDataFrameType))
+        or (
+            installed_pandas  # noqa: F821
+            and isinstance(output_schema, PandasDataFrameType)
+        )
         or isinstance(output_schema, Iterable)
     ):
         raise ValueError(
@@ -1608,13 +1652,7 @@ def check_agg_exprs(
                 )
 
 
-class MissingModin(MissingOptionalDependency):
-    """The class is specifically for modin optional dependency."""
-
-    _dep_name = "modin"
-
-
-def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
+def import_or_missing_modin_pandas() -> Tuple["ModuleLikeObject", bool]:
     """This function tries importing the following packages: modin.pandas
 
     If available it returns modin package with a flag of whether it was imported.
@@ -1623,7 +1661,7 @@ def import_or_missing_modin_pandas() -> Tuple[ModuleLikeObject, bool]:
         modin = importlib.import_module("modin.pandas")
         return modin, True
     except ImportError:
-        return MissingModin(), False
+        return MissingModin(), False  # noqa: F821
 
 
 class GlobalCounter:

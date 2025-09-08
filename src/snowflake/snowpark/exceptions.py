@@ -5,9 +5,11 @@
 
 """This package contains all Snowpark client-side exceptions."""
 import logging
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from snowflake.connector.errors import Error as ConnectorError
+
+if TYPE_CHECKING:
+    from snowflake.connector.errors import Error as ConnectorError
 
 _logger = logging.getLogger(__name__)
 
@@ -84,7 +86,7 @@ class SnowparkSQLException(SnowparkClientException):
         message: str,
         *,
         error_code: Optional[str] = None,
-        conn_error: Optional[ConnectorError] = None,
+        conn_error: Optional["ConnectorError"] = None,
         sfqid: Optional[str] = None,
         query: Optional[str] = None,
         sql_error_code: Optional[int] = None,

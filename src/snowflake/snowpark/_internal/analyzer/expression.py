@@ -6,7 +6,6 @@ import copy
 import uuid
 from typing import TYPE_CHECKING, AbstractSet, Any, Dict, List, Optional, Tuple
 
-import snowflake.snowpark._internal.utils
 from snowflake.snowpark._internal.analyzer.query_plan_analysis_utils import (
     PlanNodeCategory,
     sum_node_complexities,
@@ -19,8 +18,6 @@ if TYPE_CHECKING:
 
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.type_utils import (
-    VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
-    VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
     infer_type,
 )
 from snowflake.snowpark.types import DataType
@@ -233,6 +230,8 @@ class Attribute(Expression, NamedExpression):
         if self.name == new_name:
             return self
         else:
+            import snowflake.snowpark._internal.utils
+
             return Attribute(
                 snowflake.snowpark._internal.utils.quote_name(new_name),
                 self.datatype,
@@ -341,6 +340,10 @@ class UnresolvedAttribute(Expression, NamedExpression):
 class Literal(Expression):
     def __init__(self, value: Any, datatype: Optional[DataType] = None) -> None:
         super().__init__()
+        from snowflake.snowpark._internal.type_utils import (
+            VALID_PYTHON_TYPES_FOR_LITERAL_VALUE,
+            VALID_SNOWPARK_TYPES_FOR_LITERAL_VALUE,
+        )
 
         # check value
         if not isinstance(value, VALID_PYTHON_TYPES_FOR_LITERAL_VALUE):

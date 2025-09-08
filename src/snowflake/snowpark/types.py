@@ -15,13 +15,6 @@ import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.analyzer.expression as expression
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 
-# Use correct version from here:
-from snowflake.snowpark._internal.utils import (
-    installed_pandas,
-    pandas,
-    quote_name,
-)
-
 # TODO: connector installed_pandas is broken. If pyarrow is not installed, but pandas is this function returns the wrong answer.
 # The core issue is that in the connector detection of both pandas/arrow are mixed, which is wrong.
 # from snowflake.connector.options import installed_pandas, pandas
@@ -601,6 +594,8 @@ class ColumnIdentifier:
     """Represents a column identifier."""
 
     def __init__(self, normalized_name: str) -> None:
+        from snowflake.snowpark._internal.utils import quote_name
+
         self.normalized_name = quote_name(normalized_name)
         self.case_sensitive_name = quote_name(normalized_name, keep_case=True)
         self._original_name = normalized_name
@@ -1129,36 +1124,75 @@ class Timestamp(datetime.datetime, Generic[_T]):
     pass
 
 
-if installed_pandas:  # pragma: no cover
+# Lazy loading for pandas-related classes
+_PandasSeries = None
+_PandasDataFrame = None
 
-    class PandasSeries(pandas.Series, Generic[_T]):
-        """The type hint for annotating pandas Series data when registering UDFs."""
 
-        pass
+def __getattr__(name: str):
+    """Lazy loading for pandas-related classes."""
+    global _PandasSeries, _PandasDataFrame
 
-    from typing_extensions import TypeVarTuple
+    if name in ("PandasSeries", "PandasDataFrame"):
+        # Use correct version from here:
+        from snowflake.snowpark._internal.utils import (
+            installed_pandas,
+            pandas,
+        )
 
-    _TT = TypeVarTuple("_TT")
+    if name == "PandasSeries":
+        if not installed_pandas:
+            # If pandas not installed, raise AttributeError (original behavior)
+            raise AttributeError(
+                f"module '{__name__}' has no attribute 'PandasSeries' (pandas not installed)"
+            )
 
-    if sys.version_info >= (3, 11):
-        from typing import Unpack
+        if _PandasSeries is None:  # pragma: no cover
 
-        class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
-            """
-            The type hint for annotating pandas DataFrame data when registering UDFs.
-            The input should be a list of data types for all columns in order.
-            It cannot be used to annotate the return value of a pandas UDF.
-            """
+            class PandasSeries(pandas.Series, Generic[_T]):
+                """The type hint for annotating pandas Series data when registering UDFs."""
 
-            pass
+                pass
 
-    else:
+            _PandasSeries = PandasSeries
+        return _PandasSeries
 
-        class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
-            """
-            The type hint for annotating pandas DataFrame data when registering UDFs.
-            The input should be a list of data types for all columns in order.
-            It cannot be used to annotate the return value of a pandas UDF.
-            """
+    elif name == "PandasDataFrame":
+        if not installed_pandas:
+            # If pandas not installed, raise AttributeError (original behavior)
+            raise AttributeError(
+                f"module '{__name__}' has no attribute 'PandasDataFrame' (pandas not installed)"
+            )
 
-            pass
+        if _PandasDataFrame is None:  # pragma: no cover
+            from typing_extensions import TypeVarTuple
+
+            _TT = TypeVarTuple("_TT")
+
+            if sys.version_info >= (3, 11):
+                from typing import Unpack
+
+                class PandasDataFrame(pandas.DataFrame, Generic[Unpack[_TT]]):
+                    """
+                    The type hint for annotating pandas DataFrame data when registering UDFs.
+                    The input should be a list of data types for all columns in order.
+                    It cannot be used to annotate the return value of a pandas UDF.
+                    """
+
+                    pass
+
+            else:
+
+                class PandasDataFrame(pandas.DataFrame, Generic[_TT]):
+                    """
+                    The type hint for annotating pandas DataFrame data when registering UDFs.
+                    The input should be a list of data types for all columns in order.
+                    It cannot be used to annotate the return value of a pandas UDF.
+                    """
+
+                    pass
+
+            _PandasDataFrame = PandasDataFrame
+        return _PandasDataFrame
+
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
