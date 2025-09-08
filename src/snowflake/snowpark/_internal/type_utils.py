@@ -1080,7 +1080,7 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
 )
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_to_month"] = YearMonthIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["intervalyeartomonth"] = YearMonthIntervalType
-DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_month"] = DayTimeIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_month"] = YearMonthIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_day_to_second"] = DayTimeIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["intervaldaytosecond"] = DayTimeIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_day_time"] = DayTimeIntervalType
