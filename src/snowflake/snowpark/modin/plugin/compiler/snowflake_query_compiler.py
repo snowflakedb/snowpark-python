@@ -9399,12 +9399,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Track keys in kwargs that are not yet processed
             unprocessed_keys = set(kwargs.keys())
 
+            # Since Snowpark Pandas doesn't support AST generation, explicitly set safe values
+            ast_param_defaults = {"_emit_ast": False, "_ast": None}
+
             for arg_name, param in params.items():
                 # Handle special internal Snowpark AST params
-                # Since Snowpark Pandas doesn't support AST generation, explicitly set safe values
-                if arg_name in ("_emit_ast", "_ast"):
+                if arg_name in ast_param_defaults:
                     unprocessed_keys.discard(arg_name)
-                    resolved_kwargs[arg_name] = False
+                    resolved_kwargs[arg_name] = ast_param_defaults[arg_name]
                     continue
 
                 is_kw_only = param.kind == inspect.Parameter.KEYWORD_ONLY
