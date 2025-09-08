@@ -475,7 +475,7 @@ def is_granted_to_invoker_role(role_name: str, _emit_ast: bool = True) -> Column
     role in the argument based on the context in which the function is called.
 
     Args:
-        role_name (str): The name of the role to check. Can be a string or a Column.
+        role_name (str): The name of the role to check.
         _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
