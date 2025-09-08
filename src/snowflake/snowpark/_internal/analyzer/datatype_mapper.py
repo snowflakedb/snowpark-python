@@ -105,6 +105,7 @@ def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) 
         "INTERVAL 0 03:30:00 DAY TO SECOND", DayTimeIntervalType(1,1) -> "INTERVAL '03' HOUR"
         "INTERVAL 0 00:45:00 DAY TO SECOND", DayTimeIntervalType(2,2) -> "INTERVAL '45' MINUTE"
         "INTERVAL 0 00:00:30.5 DAY TO SECOND", DayTimeIntervalType(3,3) -> "INTERVAL '30.5' SECOND"
+        "INTERVAL '1 01:01:01.7878 DAY TO SECOND', DayTimeIntervalType(0, 3) -> "INTERVAL '1 01:01:01.7878' DAY TO SECOND" (passthrough)
     """
     parts = value.split(" ")
     if len(parts) < 2:
