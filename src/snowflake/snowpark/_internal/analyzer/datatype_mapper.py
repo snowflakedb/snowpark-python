@@ -123,13 +123,11 @@ def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) 
         return (
             f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()}"
         )
-    else:
-        extracted_value = parts[1]
-        if datatype.start_field == 0:
-            second_value = parts[2]
-            return f"INTERVAL '{extracted_value} {second_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
-        else:
-            return f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
+    extracted_value = parts[1]
+    if datatype.start_field == 0:
+        second_value = parts[2]
+        return f"INTERVAL '{extracted_value} {second_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
+    return f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
 
 
 def float_nan_inf_to_sql(value: float) -> str:
