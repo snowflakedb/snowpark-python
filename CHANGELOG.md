@@ -36,7 +36,6 @@
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
 - Added support for applying Snowflake Cortex function `Complete`.
 
-
 #### Dependency Updates
 
 #### Bug Fixes
