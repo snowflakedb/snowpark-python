@@ -274,7 +274,7 @@ def session(
         .config("local_testing", local_testing_mode)
         .config(
             "session_parameters",
-            {"feature_interval_types": "ENABLED", "enable_interval_subtypes": "true"},
+            {"feature_interval_types": "ENABLED"},
         )
         .create()
     )
