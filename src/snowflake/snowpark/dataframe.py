@@ -6485,8 +6485,9 @@ Query List:
         if len(cols) == 1:
             return cols[0].with_name(normalized_col_name)
         else:
+            all_cols = [attr.name for attr in self._output]
             raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
-                col_name
+                col_name, all_cols
             )
 
     @cached_property
