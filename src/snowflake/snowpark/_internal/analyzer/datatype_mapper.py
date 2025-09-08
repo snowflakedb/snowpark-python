@@ -94,7 +94,7 @@ def str_to_sql_for_year_month_interval(
 
 def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) -> str:
     """
-    Converts "INTERVAL DD HH:MM:SS.ffffff [DAY TO SECOND | DAY | HOUR | MINUTE | SECOND]" to quoted format:
+    Converts "INTERVAL DD HH:MM:SS.ffffff [DAY | HOUR | MINUTE | SECOND (TO) (DAY | HOUR | MINUTE | SECOND)]" to quoted format:
     - Same start/end field: extracts specific value (DAY, HOUR, MINUTE, or SECOND only)
     - Different fields: uses full range format (e.g., "DAY TO SECOND", "HOUR TO MINUTE")
     - Supports passthrough for already-quoted intervals
@@ -114,12 +114,53 @@ def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) 
     if len(parts[1]) > 1 and parts[1].startswith("'") and parts[1].endswith("'"):
         return value  # passthrough
 
-    start_field = datatype.start_field if datatype.start_field is not None else 0
-    end_field = datatype.end_field if datatype.end_field is not None else 1
+    start_field = (
+        datatype.start_field
+        if datatype.start_field is not None
+        else DayTimeIntervalType.DAY
+    )
+    end_field = (
+        datatype.end_field
+        if datatype.end_field is not None
+        else DayTimeIntervalType.SECOND
+    )
     if datatype.start_field == datatype.end_field:
         # When the start_field equals the end_field, it implies our DayTimeIntervalType is only
         # using a single field. This can be 1 of 4 choices. DAY for 0, HOUR for 1, MINUTE for 2, and SECOND for 3.
-        extracted_value = parts[1]
+        # We need to handle two cases:
+        # 1. Simple format: "INTERVAL 23 HOUR" - parts[1] contains the value directly
+        # 2. Complex format: "INTERVAL 1 01:01:01.7878 DAY TO SECOND" - need to parse the components
+
+        # Check if this is a simple format (e.g., "INTERVAL 23 HOUR")
+        if len(parts) >= 3 and parts[2].upper() in ["DAY", "HOUR", "MINUTE", "SECOND"]:
+            # Simple format: just use the value directly
+            extracted_value = parts[1]
+        elif len(parts) >= 3 and ":" in parts[2]:
+            if datatype.start_field == 0:
+                extracted_value = parts[1]
+            else:
+                time_part = parts[2]
+                time_components = time_part.split(":")
+                if datatype.start_field == 1:
+                    extracted_value = time_components[0]
+                elif datatype.start_field == 2:
+                    extracted_value = (
+                        time_components[1] if len(time_components) > 1 else "0"
+                    )
+                elif datatype.start_field == 3:
+                    if len(time_components) > 2:
+                        seconds_part = time_components[2]
+                        if "." in seconds_part:
+                            _, fractional = seconds_part.split(".", 1)
+                            extracted_value = fractional
+                        else:
+                            extracted_value = seconds_part
+                    else:
+                        extracted_value = "0"
+                else:
+                    extracted_value = parts[1]
+        else:
+            extracted_value = parts[1]
         return (
             f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()}"
         )

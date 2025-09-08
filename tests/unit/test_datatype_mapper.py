@@ -233,6 +233,30 @@ def test_to_sql():
         to_sql("INTERVAL 125.750 SECOND", DayTimeIntervalType(3))
         == "INTERVAL '125.750' SECOND :: INTERVAL SECOND"
     )
+    assert (
+        to_sql("INTERVAL 1 01:01:01.7878 DAY TO SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '7878' SECOND :: INTERVAL SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 5 12:30:45 DAY TO SECOND", DayTimeIntervalType(0))
+        == "INTERVAL '5' DAY :: INTERVAL DAY"
+    )
+    assert (
+        to_sql("INTERVAL 3 08:45:30 DAY TO SECOND", DayTimeIntervalType(1))
+        == "INTERVAL '08' HOUR :: INTERVAL HOUR"
+    )
+    assert (
+        to_sql("INTERVAL 2 14:37:22 DAY TO SECOND", DayTimeIntervalType(2))
+        == "INTERVAL '37' MINUTE :: INTERVAL MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL 1 05:20:15.123456 DAY TO SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '123456' SECOND :: INTERVAL SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 4 16:42:58 DAY TO SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '58' SECOND :: INTERVAL SECOND"
+    )
 
 
 def test_to_sql_system_function():
@@ -404,6 +428,32 @@ def test_to_sql_system_function():
     assert (
         to_sql_no_cast("INTERVAL 125.750 SECOND", DayTimeIntervalType(3))
         == "INTERVAL '125.750' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 1 01:01:01.7878 DAY TO SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '7878' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 5 12:30:45 DAY TO SECOND", DayTimeIntervalType(0))
+        == "INTERVAL '5' DAY"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 3 08:45:30 DAY TO SECOND", DayTimeIntervalType(1))
+        == "INTERVAL '08' HOUR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 2 14:37:22 DAY TO SECOND", DayTimeIntervalType(2))
+        == "INTERVAL '37' MINUTE"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 1 05:20:15.123456 DAY TO SECOND", DayTimeIntervalType(3)
+        )
+        == "INTERVAL '123456' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 4 16:42:58 DAY TO SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '58' SECOND"
     )
 
 
