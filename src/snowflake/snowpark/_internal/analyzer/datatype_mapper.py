@@ -134,9 +134,7 @@ def _extract_time_component(time_components: list, field: int) -> str:
     elif field == DayTimeIntervalType.SECOND:
         if len(time_components) > 2:
             seconds_part = time_components[2]
-            if "." in seconds_part:
-                _, fractional = seconds_part.split(".", 1)
-                return fractional
+            # Return the full seconds value including fractional part (e.g., "15.123456")
             return seconds_part
         return "0"
     return "0"
@@ -156,6 +154,33 @@ def _truncate_time_to_field(time_part: str, end_field: int) -> str:
         return "0:00"
     else:  # SECOND or beyond
         return time_part
+
+
+def _extract_time_range(time_part: str, start_field: int, end_field: int) -> str:
+    """Extract time range from start_field to end_field."""
+    time_components = time_part.split(":")
+
+    if start_field == DayTimeIntervalType.HOUR:
+        if end_field == DayTimeIntervalType.MINUTE:
+            # HOUR TO MINUTE: HH:MM
+            if len(time_components) >= 2:
+                return f"{time_components[0]}:{time_components[1]}"
+            return "0:00"
+        elif end_field == DayTimeIntervalType.SECOND:
+            # HOUR TO SECOND: HH:MM:SS[.fff]
+            return time_part
+    elif start_field == DayTimeIntervalType.MINUTE:
+        if end_field == DayTimeIntervalType.SECOND:
+            # MINUTE TO SECOND: MM:SS[.fff]
+            if len(time_components) == 3:
+                # Input is HH:MM:SS format, extract MM:SS part (skip hour component)
+                return f"{time_components[1]}:{time_components[2]}"
+            elif len(time_components) == 2:
+                # Input is already in MM:SS format, return as-is
+                return time_part
+            return "0:00"
+
+    return time_part
 
 
 def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) -> str:
@@ -226,12 +251,12 @@ def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) 
         # HOUR TO [MINUTE|SECOND] or MINUTE TO SECOND
         # Check if input is in full DAY TO SECOND format with time component
         if len(parts) >= 3 and ":" in parts[2]:
-            # Input like "INTERVAL 1 01:30:45 DAY TO SECOND" - extract time part
+            # Input like "INTERVAL 1 01:30:45 DAY TO SECOND" - extract time range
             time_part = parts[2]
-            extracted_value = _truncate_time_to_field(time_part, end_field)
+            extracted_value = _extract_time_range(time_part, start_field, end_field)
         elif len(parts) >= 2 and ":" in parts[1]:
-            # Input like "INTERVAL 01:30:45 HOUR TO SECOND" - truncate time part
-            extracted_value = _truncate_time_to_field(parts[1], end_field)
+            # Input like "INTERVAL 01:30:45 HOUR TO SECOND" - extract time range
+            extracted_value = _extract_time_range(parts[1], start_field, end_field)
         else:
             # Simple format like "INTERVAL 23 HOUR"
             extracted_value = parts[1]

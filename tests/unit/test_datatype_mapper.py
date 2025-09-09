@@ -235,7 +235,7 @@ def test_to_sql():
     )
     assert (
         to_sql("INTERVAL 1 01:01:01.7878 DAY TO SECOND", DayTimeIntervalType(3))
-        == "INTERVAL '7878' SECOND :: INTERVAL SECOND"
+        == "INTERVAL '01.7878' SECOND :: INTERVAL SECOND"
     )
     assert (
         to_sql("INTERVAL 5 12:30:45 DAY TO SECOND", DayTimeIntervalType(0))
@@ -251,7 +251,7 @@ def test_to_sql():
     )
     assert (
         to_sql("INTERVAL 1 05:20:15.123456 DAY TO SECOND", DayTimeIntervalType(3))
-        == "INTERVAL '123456' SECOND :: INTERVAL SECOND"
+        == "INTERVAL '15.123456' SECOND :: INTERVAL SECOND"
     )
     assert (
         to_sql("INTERVAL 4 16:42:58 DAY TO SECOND", DayTimeIntervalType(3))
@@ -471,7 +471,7 @@ def test_to_sql_system_function():
     )
     assert (
         to_sql_no_cast("INTERVAL 1 01:01:01.7878 DAY TO SECOND", DayTimeIntervalType(3))
-        == "INTERVAL '7878' SECOND"
+        == "INTERVAL '01.7878' SECOND"
     )
     assert (
         to_sql_no_cast("INTERVAL 5 12:30:45 DAY TO SECOND", DayTimeIntervalType(0))
@@ -489,7 +489,7 @@ def test_to_sql_system_function():
         to_sql_no_cast(
             "INTERVAL 1 05:20:15.123456 DAY TO SECOND", DayTimeIntervalType(3)
         )
-        == "INTERVAL '123456' SECOND"
+        == "INTERVAL '15.123456' SECOND"
     )
     assert (
         to_sql_no_cast("INTERVAL 4 16:42:58 DAY TO SECOND", DayTimeIntervalType(3))
@@ -526,7 +526,7 @@ def test_to_sql_system_function():
         to_sql_no_cast(
             "INTERVAL 1 12:30:15.999 DAY TO SECOND", DayTimeIntervalType(3, 3)
         )
-        == "INTERVAL '999' SECOND"
+        == "INTERVAL '15.999' SECOND"
     )
     assert (
         to_sql_no_cast("INTERVAL '+5-11' YEAR TO MONTH", YearMonthIntervalType(0, 1))
