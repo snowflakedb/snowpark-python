@@ -34,6 +34,7 @@
   has changed.
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
+- Added support for applying Snowflake Cortex function `Complete`.
 
 #### Dependency Updates
 
