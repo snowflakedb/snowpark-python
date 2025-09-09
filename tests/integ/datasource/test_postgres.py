@@ -108,7 +108,7 @@ def test_error_case(session, input_type, input_value, error_message):
 def test_query_timeout_and_session_init(session):
     with pytest.raises(
         SnowparkDataframeReaderException,
-        match=r"due to exception 'QueryCanceled\('canceling statement due to statement timeout",
+        match="canceling statement due to statement timeout",
     ):
         session.read.dbapi(
             create_postgres_connection,

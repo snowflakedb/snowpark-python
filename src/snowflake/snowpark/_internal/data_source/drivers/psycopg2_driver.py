@@ -286,6 +286,7 @@ class Psycopg2Driver(BaseDriver):
                 if session_init_statement is not None:
                     for statement in session_init_statement:
                         cursor.execute(statement)
+                        cursor.fetchall()
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

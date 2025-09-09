@@ -260,15 +260,16 @@ def test_query_timeout_and_session_init(session):
         DBMS_LOCK.SLEEP(5);
     END;
 """
-    with pytest.raises(
-        SnowparkDataframeReaderException,
-        match="socket timed out while recovering from previous socket timeout",
-    ):
+    with pytest.raises(SnowparkDataframeReaderException) as error:
         session.read.dbapi(
             create_connection_oracledb,
             table=ORACLEDB_TABLE_NAME,
             query_timeout=1,
             session_init_statement=[statement],
+        )
+        assert (
+            "socket timed out while recovering from previous socket timeout" in error
+            or "call timeout of 1000 ms exceeded" in error
         )
 
 

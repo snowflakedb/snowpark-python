@@ -1018,7 +1018,7 @@ def test_sql_server_udtf_ingestion(session):
         driver.to_snow_type(raw_schema),
         partitions_table,
         "",
-        packages=["pyodbc"],
+        packages=["pyodbc", "snowflake-snowpark-python"],
     )
     Utils.check_answer(df, sql_server_udtf_ingestion_data)
 
