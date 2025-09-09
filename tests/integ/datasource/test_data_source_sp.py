@@ -365,9 +365,7 @@ def test_dbapi_local(session, caplog, fetch_with_process):
 
 
 def test_dbapi_udtf(session, caplog):
-    udtf_configs = {
-        "external_access_integration": "snowpark_dbapi_oracledb_test_integration"
-    }
+    udtf_configs = {"external_access_integration": ""}
     test_datetime = datetime.datetime(2021, 1, 2, 12, 34, 56)
     test_date = test_datetime.date()
     test_time = test_datetime.time()
