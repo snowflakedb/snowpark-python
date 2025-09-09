@@ -101,9 +101,9 @@ def pytest_runtest_setup(item):
     config = item.config
     if not config.option.enable_modin_hybrid_mode:
         return
-    # When a test is annotated with @pytest.mark.no_hybrid it will be skipped
-    if len(list(item.iter_markers(name="no_hybrid"))) > 0:
-        pytest.skip("Skipped for Hybrid: pytest.mark.no_hybrid")
+    # When a test is annotated with @pytest.mark.skip_hybrid it will be skipped
+    if len(list(item.iter_markers(name="skip_hybrid"))) > 0:
+        pytest.skip("Skipped for Hybrid: pytest.mark.skip_hybrid")
     # Check the known failure list as of 2025-09-04 and skip those with a message
     (failed, msg) = is_hybrid_known_failure(item.module.__name__, item.name)
     if failed:

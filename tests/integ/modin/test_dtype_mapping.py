@@ -326,7 +326,7 @@ from tests.utils import Utils
         ),
     ],
 )
-@pytest.mark.no_hybrid
+@pytest.mark.skip_hybrid
 def test_read_snowflake_data_types(
     session,
     test_table_name,
