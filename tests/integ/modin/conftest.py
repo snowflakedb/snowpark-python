@@ -50,7 +50,7 @@ def setup_modin_hybrid_mode(pytestconfig):
 
 def read_hybrid_known_failures():
     """
-    Read the modin_hybrid_integ_results.csv file and create a pandas
+    Read `modin_hybrid_integ_results.csv` and create a pandas
     dataframe filtered down to only the failed tests. You can regenerate
     this file by:
     * Collecting the hybrid test results with pytest:
