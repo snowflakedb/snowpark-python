@@ -162,6 +162,9 @@ from snowflake.snowpark.functions import (
     vector_l2_distance,
     year,
 )
+import functools
+from snowflake.connector.options import installed_pandas
+from snowflake.snowpark.functions import udf, vectorized
 from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
@@ -2505,3 +2508,106 @@ def test_snowflake_cortex_sentiment(session):
 
     assert -1 <= sentiment_from_col <= 0
     assert -1 <= sentiment_from_str <= 0
+
+
+@pytest.mark.skipif(
+    not installed_pandas, reason="pandas required for vectorized UDF tests"
+)
+def test_vectorized_local_noop(session):
+    import pandas as pd
+
+    @vectorized(input=pd.DataFrame, max_batch_size=10)
+    def add_one_to_inputs(df):
+        return df[0] + df[1] + 1
+
+    # Local call should be a no-op wrapper; just verify Python behavior
+    import pandas as pd
+
+    df = pd.DataFrame({0: [1, 3], 1: [2, 4]})
+    result = add_one_to_inputs(df)
+    # Expect pandas Series [4, 8]
+    assert list(result.values) == [4, 8]
+
+
+@pytest.mark.skipif(
+    not installed_pandas, reason="pandas required for vectorized UDF tests"
+)
+def test_udf_with_vectorized_behaves_like_pandas_udf(session):
+    import pandas as pd
+
+    @udf(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
+    @vectorized(input=pd.DataFrame, max_batch_size=10)
+    def add_one_to_inputs(df):
+        return df[0] + df[1] + 1
+
+    df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+    res = df.select(add_one_to_inputs("a", "b")).collect()
+    # Row order preserved; expect 4 and 8
+    assert [row[0] for row in res] == [4, 8]
+
+
+@pytest.mark.skipif(
+    not installed_pandas, reason="pandas required for vectorized UDF tests"
+)
+def test_udf_with_vectorized_series_inputs(session):
+    import pandas as pd
+
+    # Vectorized function that takes two Series inputs
+    @udf(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
+    @vectorized(input=pd.Series, max_batch_size=5)
+    def add_two_series(s1, s2):
+        return s1 + s2
+
+    df = session.create_dataframe([[1, 2], [3, 4], [10, 20]], schema=["a", "b"])
+    res = df.select(add_two_series("a", "b").alias("result")).collect()
+    assert [row.RESULT for row in res] == [3, 7, 30]
+
+
+@pytest.mark.skipif(
+    not installed_pandas, reason="pandas required for vectorized UDF tests"
+)
+def test_udf_with_vectorized_nested_decorators_dataframe(session):
+    import pandas as pd
+
+    def outer_wrap(func):
+        @functools.wraps(func)
+        def _inner(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return _inner
+
+    @udf(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
+    @outer_wrap
+    @vectorized(input=pd.DataFrame, max_batch_size=3)
+    def add_df(df):
+        return df[0] + df[1]
+
+    df = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    res = df.select(add_df("a", "b").alias("result")).collect()
+    assert [row.RESULT for row in res] == [3, 7, 11]
+
+
+@pytest.mark.skipif(
+    not installed_pandas, reason="pandas required for vectorized UDF tests"
+)
+def test_udf_with_vectorized_nested_decorators_series(session):
+    import pandas as pd
+
+    def outer_wrap(func):
+        @functools.wraps(func)
+        def _inner(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return _inner
+
+    @udf(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
+    @outer_wrap
+    @vectorized(input=pd.Series, max_batch_size=4)
+    def add_series(s1, s2):
+        return s1 + s2
+
+    df = session.create_dataframe(
+        [[1, 2], [10, 20], [100, 200], [7, 8]], schema=["a", "b"]
+    )
+    res = df.select(add_series("a", "b").alias("result")).collect()
+    assert [row.RESULT for row in res] == [3, 30, 300, 15]
