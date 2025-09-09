@@ -1696,7 +1696,7 @@ def test_create_dataframe_with_basic_data_types(session):
 )
 @pytest.mark.skipif(
     IS_IN_STORED_PROC,
-    reason="FEAT: Alter Session not supported in local testing",
+    reason="FEAT: Not supported in stored procedures",
 )
 def test_create_dataframe_with_year_month_interval_type(session):
     schema = StructType([StructField("interval_col", YearMonthIntervalType())])
