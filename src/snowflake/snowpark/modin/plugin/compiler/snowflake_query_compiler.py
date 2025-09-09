@@ -9393,37 +9393,55 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             params = inspect.signature(snowflake_function).parameters
             resolved_positional = []
+            resolved_kwargs = {}
             found_snowpark_column = False
-            kwargs_list = kwargs
-            for arg in params:
-                if arg in kwargs:
-                    resolved_positional.append(kwargs[arg])
-                    kwargs_list.pop(arg)
+
+            # Track keys in kwargs that are not yet processed
+            unprocessed_keys = set(kwargs.keys())
+
+            # Since Snowpark Pandas doesn't support AST generation, explicitly set safe values
+            ast_param_defaults = {"_emit_ast": False, "_ast": None}
+
+            for arg_name, param in params.items():
+                # Handle special internal Snowpark AST params
+                if arg_name in ast_param_defaults:
+                    unprocessed_keys.discard(arg_name)
+                    resolved_kwargs[arg_name] = ast_param_defaults[arg_name]
+                    continue
+
+                is_kw_only = param.kind == inspect.Parameter.KEYWORD_ONLY
+
+                if arg_name in kwargs:
+                    # Parameter explicitly provided by user
+                    if is_kw_only:
+                        resolved_kwargs[arg_name] = kwargs[arg_name]
+                    else:
+                        resolved_positional.append(kwargs[arg_name])
+                    unprocessed_keys.discard(arg_name)
                 else:
-                    if not found_snowpark_column:
+                    # Parameter not provided by user
+                    if not found_snowpark_column and not is_kw_only:
+                        # Insert the single column argument here
                         resolved_positional.append(col)
                         found_snowpark_column = True
-                    # TODO: SNOW-1927811 Kwargs "_emit_ast" and "_ast" appear in the function signature
-                    # and will be passed to the function by Snowpark Python so they should not be added as
-                    # positional args here
-                    elif arg in ("_emit_ast", "_ast"):
-                        continue
-                    elif (
-                        params[arg].default is not inspect.Parameter.empty
-                    ):  # pragma: no cover
-                        #  If the unspecified arg has a default value, that default value is added
-                        #  to the positional arguments.
-                        resolved_positional.append(params[arg].default)
-
+                    elif param.default is not inspect.Parameter.empty:
+                        # Use default value for optional positional params
+                        if not is_kw_only:
+                            resolved_positional.append(param.default)
+                        # For keyword-only with default, omit since default will be used
                     else:
+                        # Missing required param (non-keyword-only)
                         ErrorMessage.not_implemented(
-                            f"Unspecified Argument: {arg} - when using apply with kwargs, all function arguments should be specified except the single column reference (if applicable)."
+                            f"Unspecified Argument: {arg_name} - when using apply with kwargs, "
+                            f"all function arguments should be specified except the single column reference (if applicable)."
                         )
-            if kwargs_list:
+
+            if unprocessed_keys:
                 ErrorMessage.not_implemented(
-                    f"Unspecified kwargs: {kwargs_list} are not part of function arguments."
+                    f"Unspecified kwargs: {unprocessed_keys} are not part of function arguments."
                 )
-            return snowflake_function(*resolved_positional)
+
+            return snowflake_function(*resolved_positional, **resolved_kwargs)
 
         return SnowflakeQueryCompiler(
             self._modin_frame.apply_snowpark_function_to_columns(sf_function)
