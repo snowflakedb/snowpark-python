@@ -4242,7 +4242,7 @@ def test_df_columns(session):
             df.select(df['"A B"']).collect()
         assert (
             sce.value.message
-            == 'The DataFrame does not contain the column named "A B".'
+            == 'The DataFrame does not contain the column named "A B". Available columns: "a b", "a""b", "a", "A"'
         )
     finally:
         Utils.drop_table(session, temp_table)
