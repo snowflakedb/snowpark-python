@@ -283,9 +283,9 @@ class Psycopg2Driver(BaseDriver):
                 cursor = conn.cursor(
                     f"SNOWPARK_CURSOR_{generate_random_alphanumeric(5)}"
                 )
-                for statement in session_init_statement:
-                    cursor.execute(statement)
-                    cursor.fetchall()
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

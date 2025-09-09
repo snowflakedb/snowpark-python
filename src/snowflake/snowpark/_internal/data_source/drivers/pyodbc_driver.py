@@ -106,8 +106,9 @@ class PyodbcDriver(BaseDriver):
                         pyodbc.SQL_LONGVARBINARY, binary_converter
                     )
                 cursor = conn.cursor()
-                for statement in session_init_statement:
-                    cursor.execute(statement)
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

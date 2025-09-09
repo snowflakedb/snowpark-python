@@ -186,8 +186,9 @@ class BaseDriver:
             def process(self, query: str):
                 conn = prepare_connection(create_connection(), query_timeout)
                 cursor = conn.cursor()
-                for statement in session_init_statement:
-                    cursor.execute(statement)
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

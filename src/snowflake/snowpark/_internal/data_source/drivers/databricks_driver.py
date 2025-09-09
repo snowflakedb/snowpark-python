@@ -81,8 +81,9 @@ class DatabricksDriver(BaseDriver):
             def process(self, query: str):
                 conn = create_connection()
                 cursor = conn.cursor()
-                for statement in session_init_statement:
-                    cursor.execute(statement)
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
 
                 # First get schema information
                 describe_query = f"DESCRIBE QUERY SELECT * FROM ({query})"

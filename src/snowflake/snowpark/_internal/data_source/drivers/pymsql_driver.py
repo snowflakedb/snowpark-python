@@ -199,8 +199,9 @@ class PymysqlDriver(BaseDriver):
 
                 conn = prepare_connection(create_connection())
                 cursor = pymysql.cursors.SSCursor(conn)
-                for statement in session_init_statement:
-                    cursor.execute(statement)
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
