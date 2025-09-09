@@ -35,6 +35,7 @@
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
 - Provide a mechanism for skipping snowpark pandas integration tests when running in hybrid mode
+- Added support for applying Snowflake Cortex function `Complete`.
 
 #### Dependency Updates
 
