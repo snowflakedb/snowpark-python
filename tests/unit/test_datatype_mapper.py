@@ -257,6 +257,46 @@ def test_to_sql():
         to_sql("INTERVAL 4 16:42:58 DAY TO SECOND", DayTimeIntervalType(3))
         == "INTERVAL '58' SECOND :: INTERVAL SECOND"
     )
+    assert (
+        to_sql("INTERVAL 1 01:30:45 DAY TO SECOND", DayTimeIntervalType(1, 2))
+        == "INTERVAL '01:30' HOUR TO MINUTE :: INTERVAL HOUR TO MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL '2 15:45:30' DAY TO SECOND", DayTimeIntervalType(0, 3))
+        == "INTERVAL '2 15:45:30' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL '5' DAY", DayTimeIntervalType(0))
+        == "INTERVAL '5' DAY :: INTERVAL DAY"
+    )
+    assert (
+        to_sql("INTERVAL 14:25:30.500 HOUR TO SECOND", DayTimeIntervalType(1, 3))
+        == "INTERVAL '14:25:30.500' HOUR TO SECOND :: INTERVAL HOUR TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 0 00:00:00 DAY TO SECOND", DayTimeIntervalType(2, 2))
+        == "INTERVAL '00' MINUTE :: INTERVAL MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL '+5-11' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '+5-11' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+    assert (
+        to_sql("INTERVAL '-2-06' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '-2-06' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+    assert (
+        to_sql("INTERVAL '+1 12:30:45.123' DAY TO SECOND", DayTimeIntervalType(0, 3))
+        == "INTERVAL '+1 12:30:45.123' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL '-2 08:15:30' DAY TO SECOND", DayTimeIntervalType(0, 3))
+        == "INTERVAL '-2 08:15:30' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL '23:45:30.500' HOUR TO SECOND", DayTimeIntervalType(1, 3))
+        == "INTERVAL '23:45:30.500' HOUR TO SECOND :: INTERVAL HOUR TO SECOND"
+    )
 
 
 def test_to_sql_system_function():
@@ -454,6 +494,65 @@ def test_to_sql_system_function():
     assert (
         to_sql_no_cast("INTERVAL 4 16:42:58 DAY TO SECOND", DayTimeIntervalType(3))
         == "INTERVAL '58' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 1 01:30:45 DAY TO SECOND", DayTimeIntervalType(1, 2))
+        == "INTERVAL '01:30' HOUR TO MINUTE"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL '2 15:45:30' DAY TO SECOND", DayTimeIntervalType(0, 3))
+        == "INTERVAL '2 15:45:30' DAY TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL '5' DAY", DayTimeIntervalType(0)) == "INTERVAL '5' DAY"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 14:25:30.500 HOUR TO SECOND", DayTimeIntervalType(1, 3)
+        )
+        == "INTERVAL '14:25:30.500' HOUR TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 0 00:00:00 DAY TO SECOND", DayTimeIntervalType(2, 2))
+        == "INTERVAL '00' MINUTE"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 2 08:45:30.750 DAY TO SECOND", DayTimeIntervalType(2, 3)
+        )
+        == "INTERVAL '45:30.750' MINUTE TO SECOND"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 1 12:30:15.999 DAY TO SECOND", DayTimeIntervalType(3, 3)
+        )
+        == "INTERVAL '999' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL '+5-11' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '+5-11' YEAR TO MONTH"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL '-2-06' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '-2-06' YEAR TO MONTH"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL '+1 12:30:45.123' DAY TO SECOND", DayTimeIntervalType(0, 3)
+        )
+        == "INTERVAL '+1 12:30:45.123' DAY TO SECOND"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL '-2 08:15:30' DAY TO SECOND", DayTimeIntervalType(0, 3)
+        )
+        == "INTERVAL '-2 08:15:30' DAY TO SECOND"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL '23:45:30.500' HOUR TO SECOND", DayTimeIntervalType(1, 3)
+        )
+        == "INTERVAL '23:45:30.500' HOUR TO SECOND"
     )
 
 

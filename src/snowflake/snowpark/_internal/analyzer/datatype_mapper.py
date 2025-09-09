@@ -6,6 +6,7 @@
 import binascii
 import json
 import math
+import re
 from array import array
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
@@ -47,6 +48,24 @@ from snowflake.snowpark.types import (
 MILLIS_PER_DAY = 24 * 3600 * 1000
 MICROS_PER_MILLIS = 1000
 
+# Regex patterns for detecting properly quoted interval values based on Snowflake documentation
+# INTERVAL YEAR TO MONTH format: '[<sign>]<Y>-<MM>'
+YEAR_MONTH_INTERVAL_QUOTED_PATTERN = re.compile(
+    r"INTERVAL\s+'[+-]?\d+-\d{2}'\s+(YEAR(\s+TO\s+MONTH)?|MONTH)(\s+.*)?$",
+    re.IGNORECASE,
+)
+
+# INTERVAL DAY TO SECOND format: '[<sign>]<D> <HH24>:<MI>:<SS>[.<F>]'
+DAY_TIME_INTERVAL_QUOTED_PATTERN = re.compile(
+    r"INTERVAL\s+'[+-]?(\d+\s+)?\d{2}:\d{2}:\d{2}(\.\d+)?'\s+(DAY(\s+TO\s+(HOUR|MINUTE|SECOND))?|HOUR(\s+TO\s+(MINUTE|SECOND))?|MINUTE(\s+TO\s+SECOND)?|SECOND)(\s+.*)?$",
+    re.IGNORECASE,
+)
+
+# Also match simpler quoted patterns for single fields
+SIMPLE_QUOTED_INTERVAL_PATTERN = re.compile(
+    r"INTERVAL\s+'[^']+'\s+(YEAR|MONTH|DAY|HOUR|MINUTE|SECOND)(\s+.*)?$", re.IGNORECASE
+)
+
 
 def str_to_sql(value: str) -> str:
     sql_str = str(value).replace("\\", "\\\\").replace("'", "''").replace("\n", "\\n")
@@ -68,28 +87,75 @@ def str_to_sql_for_year_month_interval(
         "INTERVAL 0-3 YEAR TO MONTH", YearMonthIntervalType(1,1) -> "INTERVAL '3' MONTH"
         "INTERVAL '1-2' YEAR TO MONTH", YearMonthIntervalType(0,1) -> "INTERVAL '1-2' YEAR TO MONTH" (passthrough)
     """
+    # Check for properly quoted intervals using regex patterns (passthrough)
+    if YEAR_MONTH_INTERVAL_QUOTED_PATTERN.match(
+        value
+    ) or SIMPLE_QUOTED_INTERVAL_PATTERN.match(value):
+        return value  # passthrough
+
     parts = value.split(" ")
     if len(parts) < 2:
         raise ValueError(f"Invalid interval format: {value}")
 
-    if len(parts[1]) > 1 and parts[1].startswith("'") and parts[1].endswith("'"):
-        return value  # passthrough
-
     extracted_values = parts[1]
-    start_field = datatype.start_field if datatype.start_field is not None else 0
-    end_field = datatype.end_field if datatype.end_field is not None else 1
+    start_field = (
+        datatype.start_field
+        if datatype.start_field is not None
+        else YearMonthIntervalType.YEAR
+    )
+    end_field = (
+        datatype.end_field
+        if datatype.end_field is not None
+        else YearMonthIntervalType.MONTH
+    )
     # When the start_field equals the end_field, it implies our YearMonthIntervalType is only
     # using a single field. Either YEAR for 0 or MONTH for 1.
     if datatype.start_field == datatype.end_field:
         extracted_values = extracted_values.split("-")
         extracted_value = extracted_values[0]
-        if datatype.start_field == 1 and len(extracted_values) == 2:
+        if (
+            datatype.start_field == YearMonthIntervalType.MONTH
+            and len(extracted_values) == 2
+        ):
             # Extract the second value if we only have a MONTH interval.
             extracted_value = extracted_values[1]
         return (
             f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()}"
         )
     return f"INTERVAL '{extracted_values}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
+
+
+def _extract_time_component(time_components: list, field: int) -> str:
+    """Extract a specific time component (HOUR, MINUTE, SECOND) from parsed time parts."""
+    if field == DayTimeIntervalType.HOUR:
+        return time_components[0] if time_components else "0"
+    elif field == DayTimeIntervalType.MINUTE:
+        return time_components[1] if len(time_components) > 1 else "0"
+    elif field == DayTimeIntervalType.SECOND:
+        if len(time_components) > 2:
+            seconds_part = time_components[2]
+            if "." in seconds_part:
+                _, fractional = seconds_part.split(".", 1)
+                return fractional
+            return seconds_part
+        return "0"
+    return "0"
+
+
+def _truncate_time_to_field(time_part: str, end_field: int) -> str:
+    """Truncate time part based on the target end field."""
+    time_components = time_part.split(":")
+
+    if end_field == DayTimeIntervalType.HOUR:
+        return time_components[0] if time_components else "0"
+    elif end_field == DayTimeIntervalType.MINUTE:
+        if len(time_components) >= 2:
+            return f"{time_components[0]}:{time_components[1]}"
+        elif len(time_components) == 1:
+            return f"{time_components[0]}:00"
+        return "0:00"
+    else:  # SECOND or beyond
+        return time_part
 
 
 def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) -> str:
@@ -107,12 +173,15 @@ def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) 
         "INTERVAL 0 00:00:30.5 DAY TO SECOND", DayTimeIntervalType(3,3) -> "INTERVAL '30.5' SECOND"
         "INTERVAL '1 01:01:01.7878' DAY TO SECOND", DayTimeIntervalType(0, 3) -> "INTERVAL '1 01:01:01.7878' DAY TO SECOND" (passthrough)
     """
+    # Check for properly quoted intervals using regex patterns (passthrough)
+    if DAY_TIME_INTERVAL_QUOTED_PATTERN.match(
+        value
+    ) or SIMPLE_QUOTED_INTERVAL_PATTERN.match(value):
+        return value  # passthrough
+
     parts = value.split(" ")
     if len(parts) < 2:
         raise ValueError(f"Invalid interval format: {value}")
-
-    if len(parts[1]) > 1 and parts[1].startswith("'") and parts[1].endswith("'"):
-        return value  # passthrough
 
     start_field = (
         datatype.start_field
@@ -124,51 +193,50 @@ def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) 
         if datatype.end_field is not None
         else DayTimeIntervalType.SECOND
     )
-    if datatype.start_field == datatype.end_field:
-        # When the start_field equals the end_field, it implies our DayTimeIntervalType is only
-        # using a single field. This can be 1 of 4 choices. DAY for 0, HOUR for 1, MINUTE for 2, and SECOND for 3.
-        # We need to handle two cases:
-        # 1. Simple format: "INTERVAL 23 HOUR" - parts[1] contains the value directly
-        # 2. Complex format: "INTERVAL 1 01:01:01.7878 DAY TO SECOND" - need to parse the components
 
-        # Check if this is a simple format (e.g., "INTERVAL 23 HOUR")
+    if start_field == end_field:
+        # Single field: extract specific component
         if len(parts) >= 3 and parts[2].upper() in ["DAY", "HOUR", "MINUTE", "SECOND"]:
-            # Simple format: just use the value directly
-            extracted_value = parts[1]
+            extracted_value = parts[1]  # Simple format like "INTERVAL 23 HOUR"
         elif len(parts) >= 3 and ":" in parts[2]:
-            if datatype.start_field == 0:
+            # Complex format like "INTERVAL 1 01:01:01.7878 DAY TO SECOND"
+            if start_field == DayTimeIntervalType.DAY:
                 extracted_value = parts[1]
             else:
-                time_part = parts[2]
-                time_components = time_part.split(":")
-                if datatype.start_field == 1:
-                    extracted_value = time_components[0]
-                elif datatype.start_field == 2:
-                    extracted_value = (
-                        time_components[1] if len(time_components) > 1 else "0"
-                    )
-                elif datatype.start_field == 3:
-                    if len(time_components) > 2:
-                        seconds_part = time_components[2]
-                        if "." in seconds_part:
-                            _, fractional = seconds_part.split(".", 1)
-                            extracted_value = fractional
-                        else:
-                            extracted_value = seconds_part
-                    else:
-                        extracted_value = "0"
-                else:
-                    extracted_value = parts[1]
+                time_components = parts[2].split(":")
+                extracted_value = _extract_time_component(time_components, start_field)
         else:
             extracted_value = parts[1]
+
         return (
             f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()}"
         )
-    extracted_value = parts[1]
-    if datatype.start_field == 0:
-        second_value = parts[2]
-        return f"INTERVAL '{extracted_value} {second_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
-    return f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
+
+    elif start_field == DayTimeIntervalType.DAY:
+        # DAY TO [HOUR|MINUTE|SECOND]: need to handle time truncation
+        day_value = parts[1]
+        if len(parts) >= 3:
+            time_value = _truncate_time_to_field(parts[2], end_field)
+        else:
+            time_value = "0"
+
+        return f"INTERVAL '{day_value} {time_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
+
+    else:
+        # HOUR TO [MINUTE|SECOND] or MINUTE TO SECOND
+        # Check if input is in full DAY TO SECOND format with time component
+        if len(parts) >= 3 and ":" in parts[2]:
+            # Input like "INTERVAL 1 01:30:45 DAY TO SECOND" - extract time part
+            time_part = parts[2]
+            extracted_value = _truncate_time_to_field(time_part, end_field)
+        elif len(parts) >= 2 and ":" in parts[1]:
+            # Input like "INTERVAL 01:30:45 HOUR TO SECOND" - truncate time part
+            extracted_value = _truncate_time_to_field(parts[1], end_field)
+        else:
+            # Simple format like "INTERVAL 23 HOUR"
+            extracted_value = parts[1]
+
+        return f"INTERVAL '{extracted_value}' {datatype._FIELD_NAMES[start_field].upper()} TO {datatype._FIELD_NAMES[end_field].upper()}"
 
 
 def float_nan_inf_to_sql(value: float) -> str:
