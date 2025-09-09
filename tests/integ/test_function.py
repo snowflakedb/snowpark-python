@@ -2511,6 +2511,10 @@ def test_snowflake_cortex_sentiment(session):
 
 
 @pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
+@pytest.mark.skipif(
     not installed_pandas, reason="pandas required for vectorized UDF tests"
 )
 def test_vectorized_local_noop(session):
@@ -2530,6 +2534,10 @@ def test_vectorized_local_noop(session):
 
 
 @pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
+@pytest.mark.skipif(
     not installed_pandas, reason="pandas required for vectorized UDF tests"
 )
 def test_udf_with_vectorized_behaves_like_pandas_udf(session):
@@ -2547,6 +2555,10 @@ def test_udf_with_vectorized_behaves_like_pandas_udf(session):
 
 
 @pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
+@pytest.mark.skipif(
     not installed_pandas, reason="pandas required for vectorized UDF tests"
 )
 def test_udf_with_vectorized_series_inputs(session):
@@ -2563,6 +2575,10 @@ def test_udf_with_vectorized_series_inputs(session):
     assert [row.RESULT for row in res] == [3, 7, 30]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(
     not installed_pandas, reason="pandas required for vectorized UDF tests"
 )
@@ -2587,6 +2603,10 @@ def test_udf_with_vectorized_nested_decorators_dataframe(session):
     assert [row.RESULT for row in res] == [3, 7, 11]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Vectorized UDF is not supported in Local Testing",
+)
 @pytest.mark.skipif(
     not installed_pandas, reason="pandas required for vectorized UDF tests"
 )

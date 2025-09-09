@@ -10123,7 +10123,7 @@ def pandas_udf(
     )
 
 
-def vectorized(input: type, max_batch_size: int | None = None) -> Callable:
+def vectorized(input: type, max_batch_size: Optional[int] = None) -> Callable:
     """Marks a function or UDTF method as vectorized for pandas input.
     This decorator is a no-op for local invocation.
     When combined with :func:`udf`, this will make the function behave as a vectorized UDF
@@ -10156,9 +10156,9 @@ def vectorized(input: type, max_batch_size: int | None = None) -> Callable:
 
     def _decorator(f):
         # Attach metadata that Snowpark inspects during registration
-        f.__dict__["_sf_vectorized_input"] = input
+        f._sf_vectorized_input = input
         if max_batch_size is not None:
-            f.__dict__["_sf_max_batch_size"] = int(max_batch_size)
+            f._sf_max_batch_size = int(max_batch_size)
 
         # Return a wrapper that is a pure no-op locally
         @functools.wraps(f)
