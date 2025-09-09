@@ -3190,6 +3190,7 @@ class Session:
         overwrite: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
         use_logical_type: Optional[bool] = None,
+        use_vectorized_scanner: bool = False,
         _emit_ast: bool = True,
         **kwargs: Dict[str, Any],
     ) -> Table:
@@ -3235,6 +3236,8 @@ class Session:
                 types during data loading. To enable Parquet logical types, set use_logical_type as True. Set to None to
                 use Snowflakes default. For more information, see:
                 `file format options: <https://docs.snowflake.com/en/sql-reference/sql/create-file-format#type-parquet>`_.
+            use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
+                `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
 
         Example::
 
@@ -3374,6 +3377,7 @@ class Session:
                         auto_create_table=auto_create_table,
                         overwrite=overwrite,
                         table_type=table_type,
+                        use_vectorized_scanner=use_vectorized_scanner,
                         **kwargs,
                     )
         except ProgrammingError as pe:
