@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import json
 import math
 import os
 import queue
@@ -209,9 +210,11 @@ def _task_fetch_data_from_source_with_retry(
     end = time.perf_counter()
     logger.debug(f"Partition {partition_idx} fetch finished")
     telemetry_dict = {
+        "partition_idx": partition_idx,
+        "thread_id": threading.get_ident(),
+        "process_id": os.getpid(),
         "duration": end - start,
         "partition_query": partition,
-        "partition_idx": partition_idx,
     }
     return telemetry_dict
 
@@ -262,7 +265,9 @@ def _upload_and_copy_into_table_with_retry(
     snowflake_table_name: Optional[str] = None,
     on_error: Optional[str] = "abort_statement",
     statements_params: Optional[Dict[str, str]] = None,
-):
+) -> Dict:
+    start = time.perf_counter()
+    logger.debug(f"Parquet file {parquet_id} upload and copy into table start")
     try:
         _retry_run(
             _upload_and_copy_into_table,
@@ -279,6 +284,14 @@ def _upload_and_copy_into_table_with_retry(
         # proactively close the buffer to release memory
         parquet_buffer.close()
         backpressure_semaphore.release()
+    end = time.perf_counter()
+    logger.debug(f"Parquet file {parquet_id} upload and copy into table finished")
+    telemetry_dict = {
+        "parquet_id": parquet_id,
+        "thread_id": threading.get_ident(),
+        "duration": end - start,
+    }
+    return telemetry_dict
 
 
 def _retry_run(func: Callable, *args, **kwargs) -> Any:
@@ -330,7 +343,7 @@ def worker_process(
                 parquet_queue,
                 stop_event,
             )
-            telemetry_set.add(telemetry_dict)
+            telemetry_set.add(json.dumps(telemetry_dict))
         except queue.Empty:
             # indicate whether a process is exit gracefully
             process_or_thread_error_indicator.put((os.getpid(), telemetry_set))
@@ -342,13 +355,14 @@ def worker_process(
             break
 
 
-def process_completed_futures(thread_futures) -> float:
+def process_completed_futures(thread_futures) -> Tuple[float, Set]:
     """Process completed futures with simplified error handling."""
+    telemetries = set()
     for parquet_id, future in list(thread_futures):  # Iterate over a copy of the set
         if future.done():
             thread_futures.discard((parquet_id, future))
             try:
-                future.result()
+                telemetries.add(json.dumps(future.result()))
                 logger.debug(
                     f"Thread future for parquet {parquet_id} completed successfully."
                 )
@@ -364,7 +378,7 @@ def process_completed_futures(thread_futures) -> float:
                         )
                 thread_futures.clear()  # Clear the set since all are cancelled
                 raise
-    return time.perf_counter()
+    return time.perf_counter(), telemetries
 
 
 def _drain_process_status_queue(
@@ -394,7 +408,7 @@ def process_parquet_queue_with_threads(
     statements_params: Optional[Dict[str, str]] = None,
     on_error: str = "abort_statement",
     fetch_with_process: bool = False,
-) -> Tuple[float, float, float]:
+) -> Tuple[float, float, float, Set, Set]:
     """
     Process parquet data from a multiprocessing queue using a thread pool.
 
@@ -425,7 +439,8 @@ def process_parquet_queue_with_threads(
 
     completed_partitions = set()
     gracefully_exited_processes = set()
-    telemetries = set()
+    fetch_to_local_workers_telemetries = set()
+    upload_to_sf_worker_telemetries = set()
     # process parquet_queue may produce more data than the threads can handle,
     # so we use semaphore to limit the number of threads
     backpressure_semaphore = BoundedSemaphore(value=_MAX_WORKER_SCALE * max_workers)
@@ -436,8 +451,13 @@ def process_parquet_queue_with_threads(
         thread_futures = set()  # stores tuples of (parquet_id, thread_future)
         while len(completed_partitions) < total_partitions or thread_futures:
             # Process any completed futures and handle errors
-            upload_to_sf_end_time = process_completed_futures(thread_futures)
-
+            (
+                upload_to_sf_end_time,
+                upload_to_sf_worker_telemetry,
+            ) = process_completed_futures(thread_futures)
+            upload_to_sf_worker_telemetries = upload_to_sf_worker_telemetries.union(
+                upload_to_sf_worker_telemetry
+            )
             try:
                 backpressure_semaphore.acquire()
                 parquet_id, parquet_buffer = parquet_queue.get(block=False)
@@ -492,7 +512,9 @@ def process_parquet_queue_with_threads(
                             gracefully_exited_processes = (
                                 gracefully_exited_processes.union(ids)
                             )
-                            telemetries = telemetries.union(telemetry)
+                            fetch_to_local_workers_telemetries = (
+                                fetch_to_local_workers_telemetries.union(telemetry)
+                            )
                             if process.pid not in gracefully_exited_processes:
                                 raise SnowparkDataframeReaderException(
                                     f"Partition {i} data fetching process failed with exit code {process.exitcode} or failed silently"
@@ -519,7 +541,9 @@ def process_parquet_queue_with_threads(
         # empty parquet queue to get all signals after each process ends
         ids, telemetry = _drain_process_status_queue(process_or_thread_error_indicator)
         gracefully_exited_processes = gracefully_exited_processes.union(ids)
-        telemetries = telemetries.union(telemetry)
+        fetch_to_local_workers_telemetries = fetch_to_local_workers_telemetries.union(
+            telemetry
+        )
 
         # check if any process fails
         for idx, process in enumerate(workers):
@@ -538,10 +562,20 @@ def process_parquet_queue_with_threads(
                 raise SnowparkDataframeReaderException(
                     f"Partition {idx} data fetching thread failed with error: {e}"
                 )
+        _, telemetry = _drain_process_status_queue(process_or_thread_error_indicator)
+        fetch_to_local_workers_telemetries = fetch_to_local_workers_telemetries.union(
+            telemetry
+        )
     logger.debug(f"fetch to local end at {fetch_to_local_end_time}")
     logger.debug(f"upload and copy into end at {upload_to_sf_end_time}")
     logger.debug(
         f"upload and copy into total time: {upload_to_sf_end_time - upload_to_sf_start_time}"
     )
 
-    return fetch_to_local_end_time, upload_to_sf_start_time, upload_to_sf_end_time
+    return (
+        fetch_to_local_end_time,
+        upload_to_sf_start_time,
+        upload_to_sf_end_time,
+        fetch_to_local_workers_telemetries,
+        upload_to_sf_worker_telemetries,
+    )

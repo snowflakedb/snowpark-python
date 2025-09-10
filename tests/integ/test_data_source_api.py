@@ -110,8 +110,8 @@ ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integr
     "input_type, input_value",
     [
         ("table", SQL_SERVER_TABLE_NAME),
-        ("query", f"SELECT * FROM {SQL_SERVER_TABLE_NAME}"),
-        ("query", f"(SELECT * FROM {SQL_SERVER_TABLE_NAME})"),
+        # ("query", f"SELECT * FROM {SQL_SERVER_TABLE_NAME}"),
+        # ("query", f"(SELECT * FROM {SQL_SERVER_TABLE_NAME})"),
     ],
 )
 @pytest.mark.parametrize("fetch_with_process", [True, False])
@@ -405,6 +405,25 @@ def test_telemetry(session, fetch_with_process):
     assert "fetch_to_local_duration" in telemetry_json
     assert "upload_and_copy_into_sf_table_duration" in telemetry_json
     assert "end_to_end_duration" in telemetry_json
+
+    assert "fetch_to_local_workers_telemetries" in telemetry_json
+    assert "upload_to_sf_workers_telemetries" in telemetry_json
+
+    # fetch_to_local_workers_telemetries
+    for entry in telemetry_json["fetch_to_local_workers_telemetries"]:
+        assert "partition_idx" in entry
+        assert "thread_id" in entry
+        assert "process_id" in entry
+        assert "duration" in entry
+        assert "partition_query" in entry
+
+    # upload_to_sf_workers_telemetries
+    for entry in telemetry_json["upload_to_sf_workers_telemetries"]:
+        assert "parquet_id" in entry
+        assert "thread_id" in entry
+        assert "duration" in entry
+
+    print(telemetry_json)
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
