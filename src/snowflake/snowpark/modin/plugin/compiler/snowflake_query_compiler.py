@@ -8652,7 +8652,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 e
             ) or "Modin is not installed" in str(e):
                 raise SnowparkSQLException(
-                    "pandas on Snowflake cannot be referenced within the pandas on Snowflake apply() function. "
+                    "modin.pandas cannot be referenced within a Snowpark pandas apply() function. "
                     "You can only use native pandas inside apply(). Please check developer guide for details "
                     "https://docs.snowflake.com/developer-guide/snowpark/python/pandas-on-snowflake#limitations."
                 )

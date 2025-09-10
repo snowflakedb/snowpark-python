@@ -1263,7 +1263,7 @@ def test_snowpandas_in_apply_negative():
     with pytest.raises(
         SnowparkSQLException,
         match=re.escape(
-            "pandas on Snowflake cannot be referenced within the pandas on Snowflake apply() function"
+            "modin.pandas cannot be referenced within a Snowpark pandas apply() function"
         ),
     ):
         df.apply(lambda row: pd.to_datetime(f"{row.date} {row.time}"), axis=1)
