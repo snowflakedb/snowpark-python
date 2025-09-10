@@ -49,9 +49,9 @@ class DataFrameAIFunctions:
         self,
         prompt: str,
         input_columns: Union[List[Column], Dict[str, Column]],
+        model: str,
         *,
         output_column: Optional[str] = None,
-        model: Optional[str] = None,
         model_parameters: Optional[Dict[str, Any]] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
@@ -62,10 +62,10 @@ class DataFrameAIFunctions:
                 or ``{0}``, ``{1}`` when passing a list.
             input_columns: A list of Columns (positional placeholders ``{0}``, ``{1}``, ...)
                 or a dict mapping placeholder names to Columns.
+            model: model: A string specifying the model to be used. Different input types have different supported models.
+                See details in `AI_COMPLETE <https://docs.snowflake.com/en/sql-reference/functions/ai_complete>`_.
             output_column: The name of the output column to be appended.
-                If not provided, a column named ``AI_COMPLETE_OUTPUT`` is appended.
-            model: Model name to pass to the underlying function.
-                It must be specified.
+                If not provided, a column named ``AI_COMPLETE_OUTPUT`` is appended
             model_parameters: Optional dict containing model hyperparameters:
 
                 - temperature: Value from 0 to 1 controlling randomness (default: 0)
@@ -129,9 +129,6 @@ class DataFrameAIFunctions:
             >>> 'dog' in results[1]["ANSWER"].lower()
             True
         """
-
-        if not model:
-            raise ValueError("model must be specified for ai.complete")
 
         # Build the prompt Column
         if isinstance(input_columns, (dict, list)):
