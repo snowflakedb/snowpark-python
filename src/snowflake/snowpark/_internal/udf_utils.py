@@ -179,7 +179,7 @@ def get_wrapped_attr(func: Callable, attr_name: str) -> Optional[Any]:
     Looks for `attr_name` on `func`; if not found and `func` has a `__wrapped__` attribute,
     follows the chain until the attribute is found or the end is reached.
     """
-    f: Any = func
+    f: Callable = func
     while True:
         value = getattr(f, attr_name, None)
         if value is not None:
