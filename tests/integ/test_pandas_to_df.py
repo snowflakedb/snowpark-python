@@ -8,6 +8,7 @@ import json
 import logging
 import math
 from datetime import date, datetime, time, timedelta, timezone
+from unittest import mock
 
 import pytest
 
@@ -323,6 +324,41 @@ def test_write_pandas_with_table_type(session, table_type: str):
         Utils.assert_table_type(session, table_name, table_type)
     finally:
         Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1421323: session.write_pandas is not supported in Local Testing.",
+)
+@pytest.mark.parametrize("use_vectorized_scanner", [False, True])
+def test_write_pandas_use_vectorized_scanner(session, use_vectorized_scanner):
+    from snowflake.connector.pandas_tools import write_pandas
+
+    original_func = write_pandas
+
+    def wrapper(*args, **kwargs):
+        return original_func(*args, **kwargs)
+
+    pd = PandasDF(
+        [
+            (1, 4.5, "t1"),
+            (2, 7.5, "t2"),
+            (3, 10.5, "t3"),
+        ],
+        columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
+    )
+    tb_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    with mock.patch(
+        "snowflake.snowpark.session.write_pandas", side_effect=wrapper
+    ) as execute:
+        session.write_pandas(
+            pd,
+            tb_name,
+            auto_create_table=True,
+            use_vectorized_scanner=use_vectorized_scanner,
+        )
+        _, kwargs = execute.call_args
+        assert kwargs["use_vectorized_scanner"] == use_vectorized_scanner
 
 
 @pytest.mark.skipif(
