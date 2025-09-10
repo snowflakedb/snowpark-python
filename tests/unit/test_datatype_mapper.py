@@ -297,6 +297,50 @@ def test_to_sql():
         to_sql("INTERVAL '23:45:30.500' HOUR TO SECOND", DayTimeIntervalType(1, 3))
         == "INTERVAL '23:45:30.500' HOUR TO SECOND :: INTERVAL HOUR TO SECOND"
     )
+    assert (
+        to_sql("INTERVAL 1 05:20 DAY TO SECOND", DayTimeIntervalType(3, 3))
+        == "INTERVAL '0' SECOND :: INTERVAL SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 3 08 DAY TO MINUTE", DayTimeIntervalType(0, 2))
+        == "INTERVAL '3 08:00' DAY TO MINUTE :: INTERVAL DAY TO MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL 5 DAY TO MINUTE", DayTimeIntervalType(0, 2))
+        == "INTERVAL '5 0' DAY TO MINUTE :: INTERVAL DAY TO MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL 1 05:30:45:123 DAY TO SECOND", DayTimeIntervalType(2, 3))
+        == "INTERVAL '0:00' MINUTE TO SECOND :: INTERVAL MINUTE TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 12:34 SECOND", DayTimeIntervalType(3, 3))
+        == "INTERVAL '12:34' SECOND :: INTERVAL SECOND"
+    )
+    with pytest.raises(ValueError, match="Invalid interval format: INTERVAL"):
+        to_sql("INTERVAL", DayTimeIntervalType())
+    assert (
+        to_sql("INTERVAL 23 HOUR", DayTimeIntervalType(1, 1))
+        == "INTERVAL '23' HOUR :: INTERVAL HOUR"
+    )
+    assert (
+        to_sql("INTERVAL 5 DAY TO HOUR", DayTimeIntervalType(0, 1))
+        == "INTERVAL '5 0' DAY TO HOUR :: INTERVAL DAY TO HOUR"
+    )
+    assert (
+        to_sql("INTERVAL 15 MINUTE", DayTimeIntervalType(2, 3))
+        == "INTERVAL '15' MINUTE TO SECOND :: INTERVAL MINUTE TO SECOND"
+    )
+    with pytest.raises(ValueError, match="Invalid interval format: INTERVAL"):
+        to_sql("INTERVAL", YearMonthIntervalType())
+    assert (
+        to_sql("INTERVAL '5' YEAR", YearMonthIntervalType(0, 0))
+        == "INTERVAL '5' YEAR :: INTERVAL YEAR"
+    )
+    assert (
+        to_sql("INTERVAL '3' MONTH", YearMonthIntervalType(1, 1))
+        == "INTERVAL '3' MONTH :: INTERVAL MONTH"
+    )
 
 
 def test_to_sql_system_function():
@@ -553,6 +597,52 @@ def test_to_sql_system_function():
             "INTERVAL '23:45:30.500' HOUR TO SECOND", DayTimeIntervalType(1, 3)
         )
         == "INTERVAL '23:45:30.500' HOUR TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 1 05:20 DAY TO SECOND", DayTimeIntervalType(3, 3))
+        == "INTERVAL '0' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 3 08 DAY TO MINUTE", DayTimeIntervalType(0, 2))
+        == "INTERVAL '3 08:00' DAY TO MINUTE"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 5 DAY TO MINUTE", DayTimeIntervalType(0, 2))
+        == "INTERVAL '5 0' DAY TO MINUTE"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 1 05:30:45:123 DAY TO SECOND", DayTimeIntervalType(2, 3)
+        )
+        == "INTERVAL '0:00' MINUTE TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 12:34 SECOND", DayTimeIntervalType(3, 3))
+        == "INTERVAL '12:34' SECOND"
+    )
+    with pytest.raises(ValueError, match="Invalid interval format: INTERVAL"):
+        to_sql_no_cast("INTERVAL", DayTimeIntervalType())
+    assert (
+        to_sql_no_cast("INTERVAL 23 HOUR", DayTimeIntervalType(1, 1))
+        == "INTERVAL '23' HOUR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 5 DAY TO HOUR", DayTimeIntervalType(0, 1))
+        == "INTERVAL '5 0' DAY TO HOUR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 15 MINUTE", DayTimeIntervalType(2, 3))
+        == "INTERVAL '15' MINUTE TO SECOND"
+    )
+    with pytest.raises(ValueError, match="Invalid interval format: INTERVAL"):
+        to_sql_no_cast("INTERVAL", YearMonthIntervalType())
+    assert (
+        to_sql_no_cast("INTERVAL '5' YEAR", YearMonthIntervalType(0, 0))
+        == "INTERVAL '5' YEAR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL '3' MONTH", YearMonthIntervalType(1, 1))
+        == "INTERVAL '3' MONTH"
     )
 
 

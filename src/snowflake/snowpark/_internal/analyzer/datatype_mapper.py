@@ -240,7 +240,8 @@ def str_to_sql_for_day_time_interval(value: str, datatype: DayTimeIntervalType) 
     elif start_field == DayTimeIntervalType.DAY:
         # DAY TO [HOUR|MINUTE|SECOND]: need to handle time truncation
         day_value = parts[1]
-        if len(parts) >= 3:
+        if len(parts) >= 3 and parts[2] not in ["DAY", "HOUR", "MINUTE", "SECOND"]:
+            # parts[2] is a time component, not a field name
             time_value = _truncate_time_to_field(parts[2], end_field)
         else:
             time_value = "0"
