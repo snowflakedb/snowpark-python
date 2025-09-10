@@ -910,13 +910,12 @@ class RelationalGroupedDataFrame:
 
         if _emit_ast:
             stmt = self._dataframe._session._ast_batch.bind()
-            ast = with_src_position(
-                stmt.expr.relational_grouped_dataframe_builtin, stmt
-            )
+            ast = with_src_position(stmt.expr.relational_grouped_dataframe_ai_agg, stmt)
+            # Reference the grouped dataframe
             self._set_ast_ref(ast.grouped_df)
-            ast.agg_name = "ai_agg"
-            build_expr_from_python_val(ast.cols.args.add(), expr)
-            build_expr_from_python_val(ast.cols.args.add(), task_description)
+            # Set arguments
+            build_expr_from_python_val(ast.expr, expr)
+            ast.task_description = task_description
             df._ast_id = stmt.uid
 
         return df
