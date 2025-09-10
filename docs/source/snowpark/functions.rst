@@ -233,6 +233,7 @@ Functions
     initcap
     insert
     instr
+    interval_year_month_from_parts
     is_array
     is_binary
     is_boolean
