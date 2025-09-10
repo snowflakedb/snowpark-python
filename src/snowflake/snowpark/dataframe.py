@@ -5246,6 +5246,7 @@ class DataFrame:
         *,
         comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        copy_grants: bool = False,
         _emit_ast: bool = True,
     ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
@@ -5261,6 +5262,8 @@ class DataFrame:
                 that specifies the database name, schema name, and view name.
             comment: Adds a comment for the created view. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+            copy_grants: A boolean value that specifies whether to retain the access permissions from the original view
+                when a new view is created. Defaults to False.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
 
@@ -5272,6 +5275,7 @@ class DataFrame:
             stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = False
+            expr.copy_grants = copy_grants
             self._set_ast_ref(expr.df)
             build_view_name(expr.name, name)
             if comment is not None:
@@ -5282,6 +5286,7 @@ class DataFrame:
             formatted_name,
             PersistedView(),
             comment=comment,
+            copy_grants=copy_grants,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -5311,6 +5316,7 @@ class DataFrame:
         max_data_extension_time: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
         iceberg_config: Optional[dict] = None,
+        copy_grants: bool = False,
         _emit_ast: bool = True,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
@@ -5354,6 +5360,8 @@ class DataFrame:
                 - base_location: the base directory that snowflake can write iceberg metadata and files to.
                 - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
                 - storage_serialization_policy: specifies the storage serialization policy for the table.
+            copy_grants: A boolean value that specifies whether to retain the access permissions from the original view
+                when a new view is created. Defaults to False.
 
 
         Note:
@@ -5407,6 +5415,7 @@ class DataFrame:
 
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
+            expr.copy_grants = copy_grants
         # TODO: Support create_or_replace_dynamic_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
 
@@ -5443,6 +5452,7 @@ class DataFrame:
                 ),
             ),
             iceberg_config=iceberg_config,
+            copy_grants=copy_grants,
         )
 
     @df_collect_api_telemetry
@@ -5453,6 +5463,7 @@ class DataFrame:
         *,
         comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        copy_grants: bool = False,
         _emit_ast: bool = True,
     ) -> List[Row]:
         """Creates or replace a temporary view that returns the same results as this DataFrame.
@@ -5472,6 +5483,8 @@ class DataFrame:
                 that specifies the database name, schema name, and view name.
             comment: Adds a comment for the created view. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+            copy_grants: A boolean value that specifies whether to retain the access permissions from the original view
+                when a new view is created. Defaults to False.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
 
@@ -5489,11 +5502,13 @@ class DataFrame:
                 expr.comment.value = comment
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
+            expr.copy_grants = copy_grants
 
         return self._do_create_or_replace_view(
             formatted_name,
             LocalTempView(),
             comment=comment,
+            copy_grants=copy_grants,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -5573,16 +5588,18 @@ class DataFrame:
         view_type: ViewType,
         comment: Optional[str],
         replace: bool = True,
+        copy_grants: bool = False,
         _ast_stmt: Optional[proto.Bind] = None,
         **kwargs,
     ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
-            view_name,
-            view_type,
-            comment,
-            replace,
-            self._plan,
+            name=view_name,
+            view_type=view_type,
+            comment=comment,
+            replace=replace,
+            copy_grants=copy_grants,
+            child=self._plan,
         )
 
         return self._session._conn.execute(
@@ -5603,6 +5620,7 @@ class DataFrame:
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
         iceberg_config: Optional[dict] = None,
+        copy_grants: bool = False,
         **kwargs,
     ):
         validate_object_name(name)
@@ -5630,6 +5648,7 @@ class DataFrame:
             max_data_extension_time=max_data_extension_time,
             child=self._plan,
             iceberg_config=iceberg_config,
+            copy_grants=copy_grants,
         )
 
         return self._session._conn.execute(

@@ -10,6 +10,10 @@
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
+- Added an option to specify `copy_grants` for the following `DataFrame` APIs:
+  - `create_or_replace_view`
+  - `create_or_replace_temp_view`
+  - `create_or_replace_dynamic_table`
 
 #### Bug Fixes
 
