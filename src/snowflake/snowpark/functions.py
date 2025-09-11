@@ -11153,7 +11153,7 @@ def interval_day_time_from_parts(
         concat(
             lit("."),
             lpad(
-                cast(floor(fractional_part * lit(1000) + lit(0.5)), "str"),
+                cast(round(fractional_part * lit(1000), 0), "str"),
                 3,
                 lit("0"),
             ),
