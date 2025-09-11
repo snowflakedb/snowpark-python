@@ -10,6 +10,7 @@
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
+- Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 
 #### Bug Fixes
 
@@ -19,6 +20,7 @@
 
 #### Improvements
 
+- Unsupported types in `DataFrameReader.dbapi`(PuPr) are ingested as `StringType` now.
 - Improved error message to list available columns when dataframe cannot resolve given column name.
 - Added a new option `cacheResult` to `DataFrameReader.xml` that allows users to cache the result of the XML reader to a temporary table after calling `xml`. It helps improve performance when subsequent operations are performed on the same DataFrame.
 
