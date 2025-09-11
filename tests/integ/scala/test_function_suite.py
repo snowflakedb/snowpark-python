@@ -5736,24 +5736,37 @@ def test_interval_year_month_from_parts(session):
     IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
 )
 def test_interval_day_time_from_parts(session):
+    test_cases = [
+        (0, 0, 0, 0.0, timedelta(0)),
+        (1, 0, 0, 0.0, timedelta(days=1)),
+        (0, 1, 0, 0.0, timedelta(hours=1)),
+        (0, 0, 1, 0.0, timedelta(minutes=1)),
+        (0, 0, 0, 1.0, timedelta(seconds=1.0)),
+        (1, 2, 3, 4.5, timedelta(days=1, hours=2, minutes=3, seconds=4.5)),
+        (5, 10, 30, 45.123, timedelta(days=5, hours=10, minutes=30, seconds=45.123)),
+        (0, 25, 90, 120.999, timedelta(hours=25, minutes=90, seconds=120.999)),
+        (-1, 0, 0, 0.0, timedelta(days=-1)),
+        (0, -1, 0, 0.0, timedelta(hours=-1)),
+        (0, 0, -1, 0.0, timedelta(minutes=-1)),
+        (0, 0, 0, -1.0, timedelta(seconds=-1.0)),
+        (-1, -2, -3, -4.5, timedelta(days=-1, hours=-2, minutes=-3, seconds=-4.5)),
+        (2, -1, 30, -15.0, timedelta(days=2, hours=-1, minutes=30, seconds=-15.0)),
+        (
+            365,
+            24,
+            60,
+            3600.0,
+            timedelta(days=365, hours=24, minutes=60, seconds=3600.0),
+        ),
+    ]
+
+    input_data = [
+        (days, hours, mins, secs) for days, hours, mins, secs, _ in test_cases
+    ]
+    expected_values = [expected for _, _, _, _, expected in test_cases]
+
     df = session.create_dataframe(
-        [
-            (0, 0, 0, 0.0),
-            (1, 0, 0, 0.0),
-            (0, 1, 0, 0.0),
-            (0, 0, 1, 0.0),
-            (0, 0, 0, 1.0),
-            (1, 2, 3, 4.5),
-            (5, 10, 30, 45.123),
-            (0, 25, 90, 120.999),
-            (-1, 0, 0, 0.0),
-            (0, -1, 0, 0.0),
-            (0, 0, -1, 0.0),
-            (0, 0, 0, -1.0),
-            (-1, -2, -3, -4.5),
-            (2, -1, 30, -15.0),
-            (365, 24, 60, 3600.0),
-        ],
+        input_data,
         schema=["days", "hours", "mins", "secs"],
     )
 
@@ -5763,25 +5776,7 @@ def test_interval_day_time_from_parts(session):
         ).alias("interval_result"),
     ).collect()
 
-    expected_values = [
-        timedelta(0),
-        timedelta(days=1),
-        timedelta(hours=1),
-        timedelta(minutes=1),
-        timedelta(seconds=1.0),
-        timedelta(days=1, hours=2, minutes=3, seconds=4.5),
-        timedelta(days=5, hours=10, minutes=30, seconds=45.123),
-        timedelta(hours=25, minutes=90, seconds=120.999),
-        timedelta(days=-1),
-        timedelta(hours=-1),
-        timedelta(minutes=-1),
-        timedelta(seconds=-1.0),
-        timedelta(days=-1, hours=-2, minutes=-3, seconds=-4.5),
-        timedelta(days=2, hours=-1, minutes=30, seconds=-15.0),
-        timedelta(days=365, hours=24, minutes=60, seconds=3600.0),
-    ]
-
-    assert len(result) == 15
+    assert len(result) == len(expected_values)
     for i, expected in enumerate(expected_values):
         assert result[i]["INTERVAL_RESULT"] == expected
 
