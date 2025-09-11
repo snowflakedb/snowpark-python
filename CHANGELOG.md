@@ -37,6 +37,9 @@
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
 - Added support for applying Snowflake Cortex function `Complete`.
+- Introduce faster pandas: Improved performance by deferring row position computation. 
+  - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
+  - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 
 #### Dependency Updates
 
