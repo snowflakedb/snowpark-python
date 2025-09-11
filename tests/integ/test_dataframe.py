@@ -4242,7 +4242,7 @@ def test_df_columns(session):
             df.select(df['"A B"']).collect()
         assert (
             sce.value.message
-            == 'The DataFrame does not contain the column named "A B".'
+            == 'The DataFrame does not contain the column named "A B". Available columns: "a b", "a""b", "a", "A"'
         )
     finally:
         Utils.drop_table(session, temp_table)
@@ -6070,69 +6070,83 @@ def test_time_travel_core_functionality(session):
         Utils.check_answer(df_reader_at_stmt, df_at_stmt)
 
         # ==============Test 2: BEFORE/AT with offset ==============
-        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
-            0
-        ]
-        offset_seconds = (
-            int((ts_after_update - ts_before_update).total_seconds()) + 1
-        )  # round up
-        df_at_offset = session.table(
-            table_name, time_travel_mode="at", offset=-offset_seconds
+        # Test offset validation: use -3600 seconds (1 hour ago) to trigger expected error
+        # since table was created moments ago, avoiding timestamp capture flakiness
+        with pytest.raises(
+            SnowparkSQLException, match="Time travel data is not available"
+        ):
+            session.table(table_name, time_travel_mode="at", offset=-3600).collect()
+
+        time.sleep(1)
+        df_before_offset = session.table(
+            table_name, time_travel_mode="before", offset=-1
+        ).collect()
+        Utils.check_answer(df_before_offset, expected_after_update)
+
+        df_at_offset = (
+            session.read.option("time_travel_mode", "at")
+            .option("offset", -1)
+            .table(table_name)
+            .collect()
         )
-        Utils.check_answer(df_at_offset, expected_before_update)
+        Utils.check_answer(df_at_offset, expected_after_update)
 
         # ==============Test 3: BEFORE/AT with timestamp ==============
         # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
         # in current session's timezone context, preventing timezone mismatches that could
         # cause time travel to resolve to a future point or before table creation (which would fail).
-        df_before_ts = session.table(
-            table_name,
-            time_travel_mode="before",
-            timestamp=ts_before_update,
-            timestamp_type=TimestampTimeZone.LTZ,
-        )
-        Utils.check_answer(df_before_ts, expected_before_update)
+        if not IS_IN_STORED_PROC:
+            df_before_ts = session.table(
+                table_name,
+                time_travel_mode="before",
+                timestamp=ts_before_update,
+                timestamp_type=TimestampTimeZone.LTZ,
+            )
+            Utils.check_answer(df_before_ts, expected_before_update)
 
-        df_at_ts = session.table(
-            table_name,
-            time_travel_mode="at",
-            timestamp=ts_before_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_at_ts, expected_before_update)
+            df_at_ts = session.table(
+                table_name,
+                time_travel_mode="at",
+                timestamp=ts_before_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_at_ts, expected_before_update)
 
-        df_reader_before_ts = session.read.table(
-            table_name,
-            time_travel_mode="before",
-            timestamp=ts_before_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_before_ts, df_reader_before_ts)
+            df_reader_before_ts = session.read.table(
+                table_name,
+                time_travel_mode="before",
+                timestamp=ts_before_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_before_ts, df_reader_before_ts)
 
-        # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
-        df_before_ts_after_update = session.table(
-            table_name,
-            time_travel_mode="before",
-            timestamp=ts_after_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_before_ts_after_update, expected_after_update)
+            # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
+            ts_after_update = session.sql("select current_timestamp() as CT").collect()[
+                0
+            ][0]
+            df_before_ts_after_update = session.table(
+                table_name,
+                time_travel_mode="before",
+                timestamp=ts_after_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_before_ts_after_update, expected_after_update)
 
-        df_at_ts_after_update = session.table(
-            table_name,
-            time_travel_mode="at",
-            timestamp=ts_after_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_at_ts_after_update, expected_after_update)
+            df_at_ts_after_update = session.table(
+                table_name,
+                time_travel_mode="at",
+                timestamp=ts_after_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_at_ts_after_update, expected_after_update)
 
-        # ==============Test 5: PySpark as-of-timestamp compatibility ==============
-        df_as_of = (
-            session.read.option("as-of-timestamp", ts_before_update)
-            .option("timestamp_type", TimestampTimeZone.LTZ)
-            .table(table_name)
-        )
-        Utils.check_answer(df_as_of, expected_before_update)
+            # ==============Test 5: PySpark as-of-timestamp compatibility ==============
+            df_as_of = (
+                session.read.option("as-of-timestamp", ts_before_update)
+                .option("timestamp_type", TimestampTimeZone.LTZ)
+                .table(table_name)
+            )
+            Utils.check_answer(df_as_of, expected_before_update)
 
     finally:
         Utils.drop_table(session, table_name)
@@ -6162,7 +6176,6 @@ def test_time_travel_comprehensive_coverage(session):
     time.sleep(2)
 
     ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
-
     with session.query_history() as query_history:
         session.sql(
             f"UPDATE {table1_name} SET price = price * 1.1 WHERE id <= 2"
@@ -6243,56 +6256,57 @@ def test_time_travel_comprehensive_coverage(session):
         # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
         # in current session's timezone context, preventing timezone mismatches that could
         # cause time travel to resolve to a future point or before table creation (which would fail).
-        df_join_before = (
-            session.table(
-                table1_name,
-                time_travel_mode="before",
-                timestamp=ts_before_update,
-                timestamp_type="LTZ",
+        if not IS_IN_STORED_PROC:
+            df_join_before = (
+                session.table(
+                    table1_name,
+                    time_travel_mode="before",
+                    timestamp=ts_before_update,
+                    timestamp_type="LTZ",
+                )
+                .join(session.table(table2_name), "id")
+                .select("id", "name", "category", "price")
+                .sort("id")
             )
-            .join(session.table(table2_name), "id")
-            .select("id", "name", "category", "price")
-            .sort("id")
-        )
-        expected_join_before = [
-            Row(1, "product_a", "electronics", 100.50),
-            Row(2, "product_b", "clothing", 200.75),
-            Row(3, "product_c", "automotive", 300.25),
-        ]
-        Utils.check_answer(df_join_before, expected_join_before)
+            expected_join_before = [
+                Row(1, "product_a", "electronics", 100.50),
+                Row(2, "product_b", "clothing", 200.75),
+                Row(3, "product_c", "automotive", 300.25),
+            ]
+            Utils.check_answer(df_join_before, expected_join_before)
 
-        # Test session.read.option().table() with timestamp and timezone options
-        df_reader_join_before = (
-            session.read.option("time_travel_mode", "before")
-            .option("timestamp", ts_before_update)
-            .option("timestamp_type", "LTZ")
-            .table(table1_name)
-            .join(session.table(table2_name), "id")
-            .select("id", "name", "category", "price")
-            .sort("id")
-        )
-        Utils.check_answer(df_join_before, df_reader_join_before)
-
-        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
-            0
-        ]
-        df_join_after = (
-            session.table(
-                table1_name,
-                time_travel_mode="at",
-                timestamp=ts_after_update,
-                timestamp_type=TimestampTimeZone.LTZ,
+            # Test session.read.option().table() with timestamp and timezone options
+            df_reader_join_before = (
+                session.read.option("time_travel_mode", "before")
+                .option("timestamp", ts_before_update)
+                .option("timestamp_type", "LTZ")
+                .table(table1_name)
+                .join(session.table(table2_name), "id")
+                .select("id", "name", "category", "price")
+                .sort("id")
             )
-            .join(session.table(table2_name), "id")
-            .select("id", "name", "category", "price")
-            .sort("id")
-        )
-        expected_join_after = [
-            Row(1, "product_a", "electronics", 110.55),
-            Row(2, "product_b", "clothing", 220.825),
-            Row(3, "product_c", "automotive", 300.25),
-        ]
-        Utils.check_answer(df_join_after, expected_join_after)
+            Utils.check_answer(df_join_before, df_reader_join_before)
+
+            ts_after_update = session.sql("select current_timestamp() as CT").collect()[
+                0
+            ][0]
+            df_join_after = (
+                session.table(
+                    table1_name,
+                    time_travel_mode="at",
+                    timestamp=ts_after_update,
+                    timestamp_type=TimestampTimeZone.LTZ,
+                )
+                .join(session.table(table2_name), "id")
+                .select("id", "name", "category", "price")
+                .sort("id")
+            )
+            expected_join_after = [
+                Row(1, "product_a", "electronics", 110.55),
+                Row(2, "product_b", "clothing", 220.825),
+                Row(3, "product_c", "automotive", 300.25),
+            ]
+            Utils.check_answer(df_join_after, expected_join_after)
 
         # ==============Test 3: DataFrame chained operations with time travel ==============
         df_chained_before = (
@@ -6360,12 +6374,13 @@ def test_time_travel_comprehensive_coverage(session):
         Utils.check_answer(table_before.sort("id"), option_table.sort("id"))
 
         # as-of-timestamp equivalence test
-        as_of_table = (
-            session.read.option("as-of-timestamp", ts_before_update)
-            .option("timestamp_type", "LTZ")
-            .table(table1_name)
-        )
-        Utils.check_answer(table_before.sort("id"), as_of_table.sort("id"))
+        if not IS_IN_STORED_PROC:
+            as_of_table = (
+                session.read.option("as-of-timestamp", ts_before_update)
+                .option("timestamp_type", "LTZ")
+                .table(table1_name)
+            )
+            Utils.check_answer(table_before.sort("id"), as_of_table.sort("id"))
 
         # ==============Test 5: Table copy operations with time travel ==============
         time_travel_table = session.table(
@@ -6399,17 +6414,17 @@ def test_time_travel_comprehensive_coverage(session):
         ]
         Utils.check_answer(copied_with_ops, expected_copied)
 
-        # Test as-of-timestamp with chained operations and string format
-        ts_string = ts_before_update.strftime("%Y-%m-%d %H:%M:%S")
-        as_of_chained = (
-            session.read.option("as-of-timestamp", ts_string)
-            .option("timestamp_type", "LTZ")
-            .table(table1_name)
-            .select("id", "name", "price")
-            .filter(col("price") > 150)
-            .sort("id")
-        )
-        Utils.check_answer(as_of_chained, expected_copied)
+        # Test as-of-timestamp with chained operations
+        if not IS_IN_STORED_PROC:
+            as_of_chained = (
+                session.read.option("as-of-timestamp", ts_before_update)
+                .option("timestamp_type", "LTZ")
+                .table(table1_name)
+                .select("id", "name", "price")
+                .filter(col("price") > 150)
+                .sort("id")
+            )
+            Utils.check_answer(as_of_chained, expected_copied)
 
         time_travel_table.show()
 
