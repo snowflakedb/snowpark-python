@@ -377,18 +377,16 @@ def boolor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> 
         - Zero values are regarded as False.
 
     As a result, the function returns:
-        - True if both expressions are non-zero or one expression is non-zero and the other expression is zero.
+        - True if both expressions are non-zero or one expression is non-zero and the other expression is zero or None.
         - False if both expressions are zero.
-        - NULL if both expressions are NULL or one expression is NULL and the other expression is zero.
+        - None if both expressions are None or one expression is None and the other expression is zero.
 
     Args:
         expr1: A :class:`Column` or column name representing the first boolean expression.
         expr2: A :class:`Column` or column name representing the second boolean expression.
 
     Returns:
-        A :class:`Column` object representing the logical OR result. Returns True if either
-        expression is True, False if both are False, and None if either expression is None
-        and the other is not True.
+        A :class:`Column` object representing the logical OR result.
 
     Example::
 
