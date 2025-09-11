@@ -578,7 +578,7 @@ def nvl2(
 @publicapi
 def regr_valx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns NULL if the first argument is NULL; otherwise, returns the second argument.
+    Returns NULL if either argument is NULL; otherwise, returns the second argument.
     Note that REGR_VALX is a NULL-preserving function, while the more commonly-used NVL is a NULL-replacing function.
 
     Args:
