@@ -330,6 +330,7 @@ def booland(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) ->
 
     Example::
 
+        >>> from snowflake.snowpark.functions import col
         >>> df = session.create_dataframe([[1, -2], [0, 2], [0, 0], [5, 3]], schema=["a", "b"])
         >>> df.select(booland(col("a"), col("b")).alias("result")).collect()
         [Row(RESULT=True), Row(RESULT=False), Row(RESULT=False), Row(RESULT=True)]
@@ -391,6 +392,7 @@ def boolor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> 
 
     Example::
 
+        >>> from snowflake.snowpark.functions import col
         >>> df = session.create_dataframe([
         ...     [1, 2],
         ...     [-1, 0],
@@ -427,6 +429,7 @@ def boolxor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) ->
 
     Example::
 
+        >>> from snowflake.snowpark.functions import col
         >>> df = session.create_dataframe([[2, 0], [1, -1], [0, 0], [None, 3]], schema=["a", "b"])
         >>> df.select(boolxor(col("a"), col("b")).alias("result")).collect()
         [Row(RESULT=True), Row(RESULT=False), Row(RESULT=False), Row(RESULT=None)]
@@ -454,6 +457,7 @@ def decode(expr: ColumnOrName, *args: ColumnOrName, _emit_ast: bool = True) -> C
 
     Example:
 
+        >>> from snowflake.snowpark.functions import col, lit
         >>> df = session.create_dataframe([[1, 1], [2, 4], [16, 24]], schema=["a", "b"])
         >>> df.select(decode(col("a"), lit(1), lit("one"), lit(2), lit("two"), lit("default")).alias("RESULT")).collect()
         [Row(RESULT='one'), Row(RESULT='two'), Row(RESULT='default')]
@@ -587,6 +591,7 @@ def regr_valx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colum
 
     Example::
 
+        >>> from snowflake.snowpark import Row
         >>> df = session.create_dataframe([[2.0, 1.0], [None, 3.0], [6.0, None]], schema=["col_y", "col_x"])
         >>> result = df.select(regr_valx(df["col_y"], df["col_x"]).alias("result")).collect()
         >>> assert result == [Row(RESULT=1.0), Row(RESULT=None), Row(RESULT=None)]
