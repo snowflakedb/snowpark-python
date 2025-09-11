@@ -248,3 +248,9 @@ def test_unsupported_type():
         create_connection_oracledb, DBMS_TYPE.ORACLE_DB
     ).to_snow_type([MockDescription("test_col", invalid_type, 0, 0, True)])
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_oracledb_non_retryable_error(session):
+    # input_dict = {"query": "invalid syntax", "custom_schema": oracledb_real_schema}
+    # session.read.dbapi(create_connection_oracledb, **input_dict).collect()
+    pass

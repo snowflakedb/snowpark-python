@@ -3,7 +3,8 @@
 #
 from enum import Enum
 import datetime
-from typing import List, Callable, Any, Optional, TYPE_CHECKING
+from functools import cached_property
+from typing import List, Callable, Any, Optional, TYPE_CHECKING, Tuple, Type
 from snowflake.connector.options import pandas as pd
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
@@ -54,6 +55,10 @@ class BaseDriver:
         raise NotImplementedError(
             f"{self.__class__.__name__} has not implemented to_snow_type function"
         )
+
+    @cached_property
+    def non_retryable_error(self) -> Tuple[Type[BaseException], ...]:
+        return ()
 
     @staticmethod
     def prepare_connection(

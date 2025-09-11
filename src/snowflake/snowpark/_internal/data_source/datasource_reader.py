@@ -9,7 +9,10 @@ from typing import List, Any, Iterator, Type, Callable, Optional
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkDataSourceNonRetryableException,
+)
 from snowflake.snowpark.types import StructType
 from snowflake.connector.options import pandas as pd
 import logging
@@ -85,6 +88,11 @@ class DataSourceReader:
                         batch = []
             else:
                 raise ValueError("fetch size cannot be smaller than 0")
+        except Exception as exc:
+            if self.driver.non_retryable_error and isinstance(
+                exc, self.driver.non_retryable_error
+            ):
+                raise SnowparkDataSourceNonRetryableException(exc)
         finally:
             try:
                 cursor.close()
