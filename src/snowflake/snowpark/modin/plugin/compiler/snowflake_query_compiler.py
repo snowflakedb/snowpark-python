@@ -2912,7 +2912,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 return self._binary_op_between_dataframe_and_series_along_axis_0(
                     op, other._query_compiler, fill_value
                 )
-                # return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
 
             # Invoke axis=1 case, this is the correct pandas behavior if squeeze_self is True and axis=0 also.
             return self._binary_op_between_dataframe_and_series_along_axis_1(
