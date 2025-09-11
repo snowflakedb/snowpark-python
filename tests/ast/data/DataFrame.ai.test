@@ -113,7 +113,7 @@ df = session.table("table1")
 
 df1 = df.select(col("STR").as_("question"))
 
-df2 = df1.ai.complete(prompt="Answer briefly: {q}", model="snowflake-arctic", input_columns=prompt("Answer briefly: {0}", col("question")))
+df2 = df1.ai.complete(prompt="Answer briefly: {q}", model="snowflake-arctic", input_columns=prompt("Answer briefly: {0}", col("question")), output_column="AI_COMPLETE_OUTPUT")
 
 df4 = session.create_dataframe([["Switzerland", "Europe"], ["Korea", "Asia"], ["Brazil", "South America"]], schema=["country", "continent"])
 
@@ -121,43 +121,43 @@ df5 = df4.ai.filter("Is {country} located in {continent} and specifically in Eur
 
 df6 = session.create_dataframe([["Excellent product, highly recommend!"], ["Great quality and fast shipping"], ["Average product, nothing special"], ["Poor quality, very disappointed"]], schema=["review"])
 
-df7 = df6.ai.agg("Summarize these product reviews for a blog post", input_column="review")
+df7 = df6.ai.agg("Summarize these product reviews for a blog post", input_column="review", output_column="AI_AGG_OUTPUT")
 
 df8 = session.create_dataframe([["I love hiking in the mountains"], ["My favorite dish is pasta"], ["Just finished reading a great book"]], schema=["text"])
 
-df9 = df8.ai.classify(input_column="text", categories=["hiking", "cooking", "reading"])
+df9 = df8.ai.classify(input_column="text", categories=["hiking", "cooking", "reading"], output_column="AI_CLASSIFY_OUTPUT")
 
 df10 = session.create_dataframe([["I love programming", "I enjoy coding"], ["The weather is nice", "It's raining heavily"]], schema=["text1", "text2"])
 
-df11 = df10.ai.similarity(input1="text1", input2="text2")
+df11 = df10.ai.similarity(input1="text1", input2="text2", output_column="AI_SIMILARITY_OUTPUT")
 
 df12 = session.create_dataframe([["The movie had amazing visual effects but the plot was terrible."], ["Everything about this experience was perfect!"]], schema=["review"])
 
-df13 = df12.ai.sentiment(input_column="review")
+df13 = df12.ai.sentiment(input_column="review", output_column="AI_SENTIMENT_OUTPUT")
 
 df14 = session.create_dataframe([["Machine learning is fascinating"], ["Snowflake provides cloud data platform"]], schema=["text"])
 
-df15 = df14.ai.embed(input_column="text", model="snowflake-arctic-embed-l-v2.0")
+df15 = df14.ai.embed(input_column="text", model="snowflake-arctic-embed-l-v2.0", output_column="AI_EMBED_OUTPUT")
 
 df16 = session.create_dataframe([["Meeting started with project updates"], ["Discussed timeline and deliverables"], ["Identified key risks"]], schema=["notes"])
 
-df17 = df16.ai.summarize_agg(input_column="notes")
+df17 = df16.ai.summarize_agg(input_column="notes", output_column="AI_SUMMARIZE_AGG_OUTPUT")
 
 df20 = session.create_dataframe([["John Smith lives in San Francisco and works for Snowflake"]], schema=["text"])
 
-df21 = df20.ai.extract(input_column="text", response_format={"name": "What is the first name of the employee?", "city": "What is the address of the employee?"})
+df21 = df20.ai.extract(input_column="text", response_format={"name": "What is the first name of the employee?", "city": "What is the address of the employee?"}, output_column="AI_EXTRACT_OUTPUT")
 
 df22 = session.create_dataframe([["What is a large language model?"], ["Explain quantum computing in simple terms."]], schema=["text"])
 
-df23 = df22.ai.count_tokens(model="llama3.1-70b", prompt="text")
+df23 = df22.ai.count_tokens(model="llama3.1-70b", prompt="text", output_column="COUNT_TOKENS_OUTPUT")
 
 df24 = session.create_dataframe([["# Intro\nThis is the intro.\n## Background\nSome background info."]], schema=["document"])
 
-df25 = df24.ai.split_text_markdown_header(text_to_split="document", headers_to_split_on={"#": "section", "##": "subsection"}, chunk_size=20, overlap=5)
+df25 = df24.ai.split_text_markdown_header(text_to_split="document", headers_to_split_on={"#": "section", "##": "subsection"}, chunk_size=20, overlap=5, output_column="SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT")
 
 df26 = session.create_dataframe([["This is a long document. It has multiple sentences.\n\nAnd multiple paragraphs."]], schema=["text"])
 
-df27 = df26.ai.split_text_recursive_character(text_to_split="text", format="none", chunk_size=30, overlap=5, separators=("\n\n", "\n", " ", ""))
+df27 = df26.ai.split_text_recursive_character(text_to_split="text", format="none", chunk_size=30, overlap=5, separators=("\n\n", "\n", " ", ""), output_column="SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT")
 
 ## EXPECTED ENCODED AST
 
@@ -355,6 +355,9 @@ body {
           }
         }
         model: "snowflake-arctic"
+        output_column {
+          value: "AI_COMPLETE_OUTPUT"
+        }
         prompt: "Answer briefly: {q}"
         src {
           end_column: 9
@@ -777,6 +780,9 @@ body {
             v: "review"
           }
         }
+        output_column {
+          value: "AI_AGG_OUTPUT"
+        }
         src {
           end_column: 9
           end_line: 58
@@ -960,6 +966,9 @@ body {
             v: "text"
           }
         }
+        output_column {
+          value: "AI_CLASSIFY_OUTPUT"
+        }
         src {
           end_column: 9
           end_line: 69
@@ -1109,6 +1118,9 @@ body {
             v: "text2"
           }
         }
+        output_column {
+          value: "AI_SIMILARITY_OUTPUT"
+        }
         src {
           end_column: 9
           end_line: 79
@@ -1220,6 +1232,9 @@ body {
             }
             v: "review"
           }
+        }
+        output_column {
+          value: "AI_SENTIMENT_OUTPUT"
         }
         src {
           end_column: 55
@@ -1334,6 +1349,9 @@ body {
           }
         }
         model: "snowflake-arctic-embed-l-v2.0"
+        output_column {
+          value: "AI_EMBED_OUTPUT"
+        }
         src {
           end_column: 88
           end_line: 93
@@ -1469,6 +1487,9 @@ body {
             v: "notes"
           }
         }
+        output_column {
+          value: "AI_SUMMARIZE_AGG_OUTPUT"
+        }
         src {
           end_column: 58
           end_line: 101
@@ -1557,6 +1578,9 @@ body {
             }
             v: "text"
           }
+        }
+        output_column {
+          value: "AI_EXTRACT_OUTPUT"
         }
         response_format {
           seq_map_val {
@@ -1722,6 +1746,9 @@ body {
           }
         }
         model: "llama3.1-70b"
+        output_column {
+          value: "COUNT_TOKENS_OUTPUT"
+        }
         prompt {
           string_val {
             src {
@@ -1886,6 +1913,9 @@ body {
             }
           }
         }
+        output_column {
+          value: "SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT"
+        }
         overlap {
           int64_val {
             src {
@@ -2001,6 +2031,9 @@ body {
         }
         format {
           ai_split_text_recursive_format_none: true
+        }
+        output_column {
+          value: "SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT"
         }
         overlap {
           int64_val {
