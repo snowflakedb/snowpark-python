@@ -65,6 +65,8 @@ def read_hybrid_known_failures():
             ]
       filtered.to_csv("tests/integ/modin/modin_hybrid_integ_results.csv")
     """
+    if not os.path.exists("../modin/modin_hybrid_integ_results.csv"):
+        return pandas.DataFrame([], columns=["module", "name", "message", "status"])
     HYBRID_RESULTS_PATH = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__), "../modin/modin_hybrid_integ_results.csv"
