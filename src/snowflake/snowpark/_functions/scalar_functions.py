@@ -357,7 +357,7 @@ def boolnot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
 
     Returns:
-        A `~nowflake.snowpark.column` representing the Boolean NOT of the input expression.
+        A `~snowflake.snowpark.column` representing the Boolean NOT of the input expression.
 
     Example::
 
