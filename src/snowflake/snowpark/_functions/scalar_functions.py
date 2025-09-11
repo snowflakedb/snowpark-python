@@ -377,7 +377,7 @@ def boolor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> 
         - Zero values are regarded as False.
 
     As a result, the function returns:
-        - True if both expressions are non-zero or one expression is non-zero and the other expression is zero or NULL.
+        - True if both expressions are non-zero or one expression is non-zero and the other expression is zero.
         - False if both expressions are zero.
         - NULL if both expressions are NULL or one expression is NULL and the other expression is zero.
 
