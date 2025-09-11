@@ -418,6 +418,7 @@ Functions
     var_pop
     var_samp
     variance
+    vectorized
     vector_inner_product
     vector_l2_distance
     weekofyear

@@ -10,6 +10,7 @@
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
+- Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 
 #### Bug Fixes
@@ -47,6 +48,7 @@
 
 #### Bug Fixes
 
+- Fixed an issue with drop_duplicates where the same data source could be read multiple times in the same query but in a different order each time, resulting in missing rows in the final result. The fix ensures that the data source is read only once.
 - Fixed a bug with hybrid execution mode where an `AssertionError` was unexpectedly raised by certain indexing operations.
 
 ### Snowpark Local Testing Updates
