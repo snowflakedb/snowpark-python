@@ -11000,11 +11000,10 @@ def interval_year_month_from_parts(
     """
     ast = None
     if _emit_ast:
+        # Always include both parameters to match the actual function execution
         args = []
-        if years is not None:
-            args.append(years)
-        if months is not None:
-            args.append(months)
+        args.append(years if years is not None else lit(0))
+        args.append(months if months is not None else lit(0))
         ast = build_function_expr("interval_year_month_from_parts", args)
 
     years_col = (
@@ -11088,16 +11087,12 @@ def interval_day_time_from_parts(
     ast = None
     if _emit_ast:
         # Create AST for this custom function using build_function_expr
-        # Filter out None parameters to only include provided arguments
+        # Always include all 4 parameters to match the actual function execution
         args = []
-        if days is not None:
-            args.append(days)
-        if hours is not None:
-            args.append(hours)
-        if mins is not None:
-            args.append(mins)
-        if secs is not None:
-            args.append(secs)
+        args.append(days if days is not None else lit(0))
+        args.append(hours if hours is not None else lit(0))
+        args.append(mins if mins is not None else lit(0))
+        args.append(secs if secs is not None else lit(0))
         ast = build_function_expr("interval_day_time_from_parts", args)
 
     days_col = (
@@ -11158,7 +11153,7 @@ def interval_day_time_from_parts(
         concat(
             lit("."),
             lpad(
-                cast(round(fractional_part * lit(1000)), "str"),
+                cast(floor(fractional_part * lit(1000) + lit(0.5)), "str"),
                 3,
                 lit("0"),
             ),

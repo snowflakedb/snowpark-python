@@ -450,7 +450,7 @@ df351 = df.select(function("avg")("B"))
 
 df352 = df.select(interval_year_month_from_parts("A", "B"))
 
-df353 = df.select(interval_day_time_from_parts("A", "B"))
+df353 = df.select(interval_day_time_from_parts("A", "B", "C", "D"))
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -902,7 +902,7 @@ df351 = df.select(call_function("avg", "B"))
 
 df352 = df.select(interval_year_month_from_parts("A", "B"))
 
-df353 = df.select(interval_day_time_from_parts("A", "B"))
+df353 = df.select(interval_day_time_from_parts("A", "B", "C", "D"))
 
 ## EXPECTED ENCODED AST
 
@@ -29278,7 +29278,7 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 64
+                    end_column: 74
                     end_line: 475
                     file: 2
                     start_column: 26
@@ -29290,7 +29290,7 @@ body {
               pos_args {
                 string_val {
                   src {
-                    end_column: 64
+                    end_column: 74
                     end_line: 475
                     file: 2
                     start_column: 26
@@ -29299,8 +29299,32 @@ body {
                   v: "B"
                 }
               }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 74
+                    end_line: 475
+                    file: 2
+                    start_column: 26
+                    start_line: 475
+                  }
+                  v: "C"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 74
+                    end_line: 475
+                    file: 2
+                    start_column: 26
+                    start_line: 475
+                  }
+                  v: "D"
+                }
+              }
               src {
-                end_column: 64
+                end_column: 74
                 end_line: 475
                 file: 2
                 start_column: 26
@@ -29316,7 +29340,7 @@ body {
           }
         }
         src {
-          end_column: 65
+          end_column: 75
           end_line: 475
           file: 2
           start_column: 16
