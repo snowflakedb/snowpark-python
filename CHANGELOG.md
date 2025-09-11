@@ -114,8 +114,6 @@
   - `current_transaction`
   - `getbit`
 
-- Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
-
 #### Bug Fixes
 
 - Fixed the repr of TimestampType to match the actual subtype it represents.
@@ -131,7 +129,6 @@
 ### Snowpark pandas API Updates
 
 #### New Features
-
 - Completed support for `pd.read_snowflake()`, `pd.to_iceberg()`,
   `pd.to_pandas()`, `pd.to_snowpark()`, `pd.to_snowflake()`,
   `DataFrame.to_iceberg()`, `DataFrame.to_pandas()`, `DataFrame.to_snowpark()`,
@@ -142,7 +139,6 @@
 - Added support for `Index.get_level_values()`.
 
 #### Improvements
-
 - Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
 - Improve import error message by adding `--upgrade` to `pip install "snowflake-snowpark-python[modin]"` in the error message.
 - Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
