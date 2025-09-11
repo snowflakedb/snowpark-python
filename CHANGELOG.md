@@ -43,6 +43,8 @@
 
 #### Dependency Updates
 
+- Updated the supported `modin` versions to >=0.35.0 and <0.37.0 (was previously >= 0.34.0 and <0.36.0).
+
 #### Bug Fixes
 
 ### Snowpark Local Testing Updates
