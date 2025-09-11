@@ -10,6 +10,7 @@
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
+- Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 - Added support for the following scalar functions in `functions.py`:
   - `h3_polygon_to_cells`
@@ -50,6 +51,8 @@
   - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 
 #### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.35.0 and <0.37.0 (was previously >= 0.34.0 and <0.36.0).
 
 #### Bug Fixes
 
