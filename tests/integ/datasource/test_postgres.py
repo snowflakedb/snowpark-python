@@ -11,7 +11,10 @@ from snowflake.snowpark._internal.data_source.drivers.psycopg2_driver import (
     Psycopg2TypeCode,
 )
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkDataSourceNonRetryableException,
+)
 from snowflake.snowpark.types import (
     DecimalType,
     BinaryType,
@@ -481,3 +484,15 @@ def test_server_side_cursor(session):
     assert cursor.name is not None  # Server-side cursor should have a name
     cursor.close()
     conn.close()
+
+
+def test_oracledb_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataSourceNonRetryableException,
+        match="syntax error",
+    ):
+        session.read.dbapi(
+            create_postgres_connection,
+            table=POSTGRES_TABLE_NAME,
+            predicates=["invalid syntax"],
+        ).collect()

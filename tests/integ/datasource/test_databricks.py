@@ -17,7 +17,10 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     TempObjectType,
 )
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkDataSourceNonRetryableException,
+)
 from snowflake.snowpark.types import (
     StructType,
     StructField,
@@ -258,3 +261,15 @@ def test_unsupported_type():
         create_databricks_connection, DBMS_TYPE.DATABRICKS_DB
     ).to_snow_type([("test_col", "unsupported_type", True)])
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_oracledb_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataSourceNonRetryableException,
+        match="PARSE_SYNTAX_ERROR",
+    ):
+        session.read.dbapi(
+            create_databricks_connection,
+            table=TEST_TABLE_NAME,
+            predicates=["invalid syntax"],
+        ).collect()

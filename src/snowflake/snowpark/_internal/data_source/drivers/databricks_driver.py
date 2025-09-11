@@ -68,6 +68,18 @@ class DatabricksDriver(BaseDriver):
             all_columns.append(StructField(column_name, data_type, True))
         return StructType(all_columns)
 
+    def non_retryable_error_checker(self, error: Exception) -> bool:
+        import databricks.sql
+
+        if isinstance(error, databricks.sql.ServerOperationError):
+            syntax_error_codes = [
+                "PARSE_SYNTAX_ERROR",  # syntax error
+            ]
+            for error_code in syntax_error_codes:
+                if error_code in str(error):
+                    return True
+        return False
+
     def udtf_class_builder(
         self, fetch_size: int = 1000, schema: StructType = None
     ) -> type:

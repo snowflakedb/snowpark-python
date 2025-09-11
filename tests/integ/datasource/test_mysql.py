@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import (
     PymysqlTypeCode,
 )
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
+from snowflake.snowpark.exceptions import SnowparkDataSourceNonRetryableException
 from snowflake.snowpark.types import StructType, StructField, StringType
 from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_real_data,
@@ -297,3 +298,15 @@ def test_unsupported_type():
         [("test_col", "unsupported_type", None, None, 0, 0, True)]
     )
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_oracledb_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataSourceNonRetryableException,
+        match="You have an error in your SQL syntax",
+    ):
+        session.read.dbapi(
+            create_connection_mysql,
+            table=TEST_TABLE_NAME,
+            predicates=["invalid syntax"],
+        ).collect()
