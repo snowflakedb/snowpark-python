@@ -47,6 +47,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug with hybrid execution mode where an `AssertionError` was unexpectedly raised by certain indexing operations.
+
 ### Snowpark Local Testing Updates
 
 #### New Features
