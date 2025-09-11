@@ -48,6 +48,8 @@
 
 #### Bug Fixes
 
+- Fixed an issue with drop_duplicates where the same data source could be read multiple times in the same query but in a different order each time, resulting in missing rows in the final result. The fix ensures that the data source is read only once.
+
 ### Snowpark Local Testing Updates
 
 #### New Features
