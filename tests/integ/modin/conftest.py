@@ -57,14 +57,17 @@ def read_hybrid_known_failures():
         pytest tests/integ/modin -n 10
                --enable_modin_hybrid_mode
                --csv tests/integ/modin/modin_hybrid_integ_results.csv
-    * (Recommended) Pre-Filtering the results to reduce the file size:
+    * Pre-filtering and sorting the results to reduce the file and diff size:
       import pandas as pd
       df = pd.read_csv("tests/integ/modin/modin_hybrid_integ_results.csv")
       filtered = df[["module", "name", "message", "status"]][
-               df["status"].isin(["failed", "xfailed", "error"])
-            ]
-      filtered.to_csv("tests/integ/modin/modin_hybrid_integ_results.csv")
+          df["status"].isin(["failed", "xfailed", "error"])
+      ]
+      filtered = filtered.sort_values(by=["module", "name"])
+      filtered.to_csv("tests/integ/modin/modin_hybrid_integ_results.csv", index=False)
     """
+    if not os.path.exists("../modin/modin_hybrid_integ_results.csv"):
+        return pandas.DataFrame([], columns=["module", "name", "message", "status"])
     HYBRID_RESULTS_PATH = os.path.normpath(
         os.path.join(
             os.path.dirname(__file__), "../modin/modin_hybrid_integ_results.csv"

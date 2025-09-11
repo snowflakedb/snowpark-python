@@ -59,6 +59,8 @@ from snowflake.snowpark.types import (
     ColumnIdentifier,
     DataType,
     DateType,
+    DayTimeInterval,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FileType,
@@ -242,6 +244,7 @@ def test_sf_datatype_names():
         == "TimestampType(timezone=TimestampTimeZone('tz'))"
     )
     assert str(YearMonthIntervalType()) == "YearMonthIntervalType(0, 1)"
+    assert str(DayTimeIntervalType()) == "DayTimeIntervalType(0, 3)"
 
 
 def test_sf_datatype_hashes():
@@ -271,6 +274,7 @@ def test_sf_datatype_hashes():
         "TimestampType(timezone=TimestampTimeZone('tz'))"
     )
     assert hash(YearMonthIntervalType()) == hash("YearMonthIntervalType(0, 1)")
+    assert hash(DayTimeIntervalType()) == hash("DayTimeIntervalType(0, 3)")
 
 
 def test_merge_type():
@@ -504,6 +508,7 @@ def test_python_type_to_snow_type():
     check_type(PandasDataFrame, PandasDataFrameType(()), False)
     check_type(DataFrame, StructType(), False, is_return_type_of_sproc=True)
     check_type(YearMonthInterval, YearMonthIntervalType(), False)
+    check_type(DayTimeInterval, DayTimeIntervalType(), False)
 
     # complicated (nested) types
     check_type(
@@ -720,6 +725,11 @@ def {func_name}(x, y {datatype_str} = {annotated_value}) -> None:
             YearMonthIntervalType(),
             "INTERVAL 1-1 YEAR TO MONTH",
         ),
+        (
+            "INTERVAL 1 01:01:01.0001 DAY TO SECOND",
+            YearMonthIntervalType(),
+            "INTERVAL 1 01:01:01.0001 DAY TO SECOND",
+        ),
         ("b'one'", BinaryType(), b"one"),
         ("bytearray('one', 'utf-8')", BinaryType(), bytearray("one", "utf-8")),
         ("datetime.date(2024, 4, 1)", DateType(), date(2024, 4, 1)),
@@ -771,6 +781,7 @@ def test_python_value_str_to_object(value_str, datatype, expected_value):
         GeographyType(),
         GeometryType(),
         YearMonthIntervalType(),
+        DayTimeIntervalType(),
     ],
 )
 def test_python_value_str_to_object_for_none(datatype):
@@ -957,6 +968,58 @@ def test_convert_sf_to_sp_year_month_interval_type():
         convert_sf_to_sp_type("INTERVAL_YEAR_MONTH", 0, 3, 0, 0)
 
 
+def test_convert_sf_to_sp_day_time_interval_type():
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_DAY_TIME", 0, 3, 0, 0)
+    assert isinstance(snowpark_type, DayTimeIntervalType)
+    assert snowpark_type.start_field == DayTimeIntervalType.DAY
+    assert snowpark_type.end_field == DayTimeIntervalType.SECOND
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_DAY_TIME", 0, 4, 0, 0)
+    assert isinstance(snowpark_type, DayTimeIntervalType)
+    assert snowpark_type.start_field == DayTimeIntervalType.DAY
+    assert snowpark_type.end_field == DayTimeIntervalType.MINUTE
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_DAY_TIME", 0, 5, 0, 0)
+    assert isinstance(snowpark_type, DayTimeIntervalType)
+    assert snowpark_type.start_field == DayTimeIntervalType.DAY
+    assert snowpark_type.end_field == DayTimeIntervalType.HOUR
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_DAY_TIME", 0, 6, 0, 0)
+    assert isinstance(snowpark_type, DayTimeIntervalType)
+    assert snowpark_type.start_field == DayTimeIntervalType.DAY
+    assert snowpark_type.end_field == DayTimeIntervalType.DAY
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_DAY_TIME", 0, 7, 0, 0)
+    assert isinstance(snowpark_type, DayTimeIntervalType)
+    assert snowpark_type.start_field == DayTimeIntervalType.HOUR
+    assert snowpark_type.end_field == DayTimeIntervalType.SECOND
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_DAY_TIME", 0, 8, 0, 0)
+    assert isinstance(snowpark_type, DayTimeIntervalType)
+    assert snowpark_type.start_field == DayTimeIntervalType.HOUR
+    assert snowpark_type.end_field == DayTimeIntervalType.MINUTE
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_DAY_TIME", 0, 9, 0, 0)
+    assert isinstance(snowpark_type, DayTimeIntervalType)
+    assert snowpark_type.start_field == DayTimeIntervalType.HOUR
+    assert snowpark_type.end_field == DayTimeIntervalType.HOUR
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_DAY_TIME", 0, 10, 0, 0)
+    assert isinstance(snowpark_type, DayTimeIntervalType)
+    assert snowpark_type.start_field == DayTimeIntervalType.MINUTE
+    assert snowpark_type.end_field == DayTimeIntervalType.SECOND
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_DAY_TIME", 0, 11, 0, 0)
+    assert isinstance(snowpark_type, DayTimeIntervalType)
+    assert snowpark_type.start_field == DayTimeIntervalType.MINUTE
+    assert snowpark_type.end_field == DayTimeIntervalType.MINUTE
+
+    snowpark_type = convert_sf_to_sp_type("INTERVAL_DAY_TIME", 0, 12, 0, 0)
+    assert isinstance(snowpark_type, DayTimeIntervalType)
+    assert snowpark_type.start_field == DayTimeIntervalType.SECOND
+    assert snowpark_type.end_field == DayTimeIntervalType.SECOND
+
+
 def test_convert_sf_to_sp_type_internal_size():
     snowpark_type = convert_sf_to_sp_type("TEXT", 0, 0, 0, 16777216)
     assert isinstance(snowpark_type, StringType)
@@ -1010,6 +1073,7 @@ def test_convert_sp_to_sf_type():
     )
     assert convert_sp_to_sf_type(BinaryType()) == "BINARY"
     assert convert_sp_to_sf_type(YearMonthIntervalType()) == "INTERVAL YEAR TO MONTH"
+    assert convert_sp_to_sf_type(DayTimeIntervalType()) == "INTERVAL DAY TO SECOND"
     assert convert_sp_to_sf_type(ArrayType()) == "ARRAY"
     assert (
         convert_sp_to_sf_type(ArrayType(IntegerType(), structured=True)) == "ARRAY(INT)"
@@ -1085,6 +1149,7 @@ def test_snow_type_to_dtype_str():
     assert snow_type_to_dtype_str(LongType()) == "bigint"
     assert snow_type_to_dtype_str(DecimalType(20, 5)) == "decimal(20,5)"
     assert snow_type_to_dtype_str(YearMonthIntervalType(0, 1)) == "yearmonthinterval"
+    assert snow_type_to_dtype_str(DayTimeIntervalType(0, 1)) == "daytimeinterval"
 
     assert snow_type_to_dtype_str(ArrayType(StringType())) == "array<string>"
     assert snow_type_to_dtype_str(ArrayType(StringType(11))) == "array<string(11)>"
@@ -1215,6 +1280,27 @@ def test_snow_type_to_dtype_str():
             '"interval month"',
             "yearmonthinterval",
             "interval month",
+        ),
+        (
+            DayTimeIntervalType(),
+            "interval day to second",
+            '"interval day to second"',
+            "daytimeinterval",
+            "interval day to second",
+        ),
+        (
+            DayTimeIntervalType(DayTimeIntervalType.DAY, DayTimeIntervalType.HOUR),
+            "interval day to hour",
+            '"interval day to hour"',
+            "daytimeinterval",
+            "interval day to hour",
+        ),
+        (
+            DayTimeIntervalType(DayTimeIntervalType.HOUR, DayTimeIntervalType.MINUTE),
+            "interval hour to minute",
+            '"interval hour to minute"',
+            "daytimeinterval",
+            "interval hour to minute",
         ),
         (
             ArrayType(IntegerType()),
@@ -1514,6 +1600,10 @@ def test_datatype(tpe, simple_string, json, type_name, json_value):
             StructField("BB", YearMonthIntervalType(0, 1)),
         ),
         (
+            StructField,
+            StructField("CC", DayTimeIntervalType(1, 3)),
+        ),
+        (
             PandasDataFrameType,
             PandasDataFrameType(
                 [StringType(), IntegerType(), FloatType()], ["id", "col1", "col2"]
@@ -1676,6 +1766,11 @@ def test_type_string_to_type_object_timestamp():
 def test_type_string_to_type_object_year_month_interval():
     dt = type_string_to_type_object("yearmonthinterval")
     assert isinstance(dt, YearMonthIntervalType)
+
+
+def test_type_string_to_type_object_daytimeinterval():
+    dt = type_string_to_type_object("daytimeinterval")
+    assert isinstance(dt, DayTimeIntervalType)
 
 
 def test_type_string_to_type_object_array_of_int():
@@ -2178,6 +2273,20 @@ def test_year_month_interval_type_invalid_fields():
         YearMonthIntervalType(1, 0)
 
 
+def test_day_time_interval_type_invalid_fields():
+    with pytest.raises(ValueError, match="interval 5 to 0 is invalid"):
+        DayTimeIntervalType(5, 0)
+
+    with pytest.raises(ValueError, match="interval 0 to 5 is invalid"):
+        DayTimeIntervalType(0, 5)
+
+    with pytest.raises(ValueError, match="interval 10 to 20 is invalid"):
+        DayTimeIntervalType(10, 20)
+
+    with pytest.raises(ValueError, match="interval 1 to 0 is invalid"):
+        DayTimeIntervalType(1, 0)
+
+
 def test_most_permissive_type():
     basic = [
         NullType(),
@@ -2191,6 +2300,7 @@ def test_most_permissive_type():
         GeographyType(),
         GeometryType(),
         YearMonthIntervalType(),
+        DayTimeIntervalType(),
     ]
     for basic_type in basic:
         assert most_permissive_type(basic_type) == basic_type

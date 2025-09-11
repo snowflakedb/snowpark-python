@@ -6,9 +6,11 @@ import modin.pandas as pd
 import pandas as native_pd
 import pytest
 
+from snowflake.snowpark._internal.utils import TempObjectType
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import assert_frame_equal
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
+from tests.utils import Utils
 
 
 @pytest.mark.parametrize("subset", ["a", ["a"], ["a", "B"], []])
@@ -74,6 +76,29 @@ def test_drop_duplicates(subset, keep, ignore_index):
             pandas_df.drop_duplicates(
                 subset=subset, keep=keep, ignore_index=ignore_index
             ),
+            check_dtype=False,
+            check_index_type=False,
+        )
+
+
+def test_drop_duplicates_after_read_snowflake(session):
+    pandas_df = native_pd.DataFrame(
+        {"A": [0, 1, 1, 2, 0], "B": ["a", "b", "c", "b", "a"]}
+    )
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(pandas_df).write.save_as_table(
+        table_name, table_type="temp"
+    )
+    # Simulate random order each time read_snowflake is run.
+    snow_df = pd.read_snowflake(
+        f"select A, B from (select random() as r, A, B from {table_name}) order by r"
+    )
+    query_count = 1
+    join_count = 2
+    with SqlCounter(query_count=query_count, join_count=join_count):
+        assert_frame_equal(
+            snow_df.drop_duplicates(keep="first"),
+            pandas_df.drop_duplicates(keep="first"),
             check_dtype=False,
             check_index_type=False,
         )
