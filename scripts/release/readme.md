@@ -148,9 +148,10 @@ Fetching latest origin/main...
 🎉 Release preparation completed successfully!
 
 Next steps:
-1. Review the changes with: git diff
-2. Commit the changes with: git commit -am 'Prepare release v1.40.0'
-3. Push the branch with: git push origin release-v1.40.0
+1. Sync the dependency updates in version.py and meta.yaml if they are inconsistent
+2. Review the changes with: git diff
+3. Commit the changes with: git commit -am 'Prepare release v1.40.0'
+4. Push the branch with: git push origin release-v1.40.0
 ```
 
 ## Error Handling
