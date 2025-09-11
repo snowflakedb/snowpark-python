@@ -184,6 +184,7 @@ def get_dummies_helper(
     columns: list[Hashable],
     prefixes: list[Hashable],
     prefix_sep: str,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Helper function for get dummies to perform encoding on given columns
@@ -222,9 +223,9 @@ def get_dummies_helper(
             )
 
     # append a lit true column as value column for pivot
-    new_internal_frame = internal_frame.ensure_row_position_column().append_column(
-        LIT_TRUE_COLUMN_PANDAS_LABEL, pandas_lit(True)
-    )
+    new_internal_frame = internal_frame.ensure_row_position_column(
+        dummy_row_pos_mode
+    ).append_column(LIT_TRUE_COLUMN_PANDAS_LABEL, pandas_lit(True))
     # the dummy column is appended as the last data column of the new_internal_frame
     row_position_column_snowflake_quoted_identifier = (
         new_internal_frame.row_position_snowflake_quoted_identifier
