@@ -119,12 +119,6 @@ _MAX_IDENTIFIER_LENGTH = 32
 _logger = logging.getLogger(__name__)
 
 
-# Flag guarding certain features available only in newer modin versions.
-# Snowpark pandas supports the newest two released versions of modin; update this flag and remove legacy
-# code as needed when we bump dependency versions.
-MODIN_IS_AT_LEAST_0_35_0 = version.parse(pd.__version__) >= version.parse("0.35.0")
-
-
 # This is the default statement parameters for queries from Snowpark pandas API. It provides the fine grain metric for
 # the server to track all pandas API usage.
 def get_default_snowpark_pandas_statement_params() -> dict[str, str]:
@@ -327,6 +321,7 @@ def _create_read_only_table(
 def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
     enforce_ordering: bool,
+    dummy_row_pos_mode: bool = False,
 ) -> tuple[OrderedDataFrame, str]:
     """
     create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
@@ -436,7 +431,12 @@ def create_initial_ordered_dataframe(
         if enforce_ordering:
             row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
         else:
-            row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
+            if dummy_row_pos_mode:
+                row_position_column_str = (
+                    f"0 as {row_position_snowflake_quoted_identifier}"
+                )
+            else:
+                row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
 
         columns_to_select = ", ".join(
             [row_position_column_str] + snowflake_quoted_identifiers
@@ -493,9 +493,10 @@ def create_initial_ordered_dataframe(
                 f"Failed to create Snowpark pandas DataFrame out of query {table_name_or_query} with error {ex}",
                 error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
             ) from ex
-        ordered_dataframe = (
+        initial_ordered_dataframe = (
             snowpark_pandas_df._query_compiler._modin_frame.ordered_dataframe
         )
+        ordered_dataframe = initial_ordered_dataframe
         row_position_snowflake_quoted_identifier = (
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )

@@ -11,6 +11,7 @@
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
 - Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
+- Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 
 #### Bug Fixes
 
@@ -20,6 +21,7 @@
 
 #### Improvements
 
+- Unsupported types in `DataFrameReader.dbapi`(PuPr) are ingested as `StringType` now.
 - Improved error message to list available columns when dataframe cannot resolve given column name.
 - Added a new option `cacheResult` to `DataFrameReader.xml` that allows users to cache the result of the XML reader to a temporary table after calling `xml`. It helps improve performance when subsequent operations are performed on the same DataFrame.
 
@@ -35,8 +37,14 @@
   has changed.
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
+- Added support for applying Snowflake Cortex function `Complete`.
+- Introduce faster pandas: Improved performance by deferring row position computation. 
+  - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
+  - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 
 #### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.35.0 and <0.37.0 (was previously >= 0.34.0 and <0.36.0).
 
 #### Bug Fixes
 
