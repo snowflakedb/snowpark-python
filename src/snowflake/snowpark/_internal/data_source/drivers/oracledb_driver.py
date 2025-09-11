@@ -105,7 +105,8 @@ class OracledbDriver(BaseDriver):
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":
-        conn.call_timeout = query_timeout * 1000
+        if query_timeout > 0:
+            conn.call_timeout = query_timeout * 1000
         if conn.outputtypehandler is None:
             conn.outputtypehandler = output_type_handler
         return conn
@@ -142,7 +143,8 @@ class OracledbDriver(BaseDriver):
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
-                conn.call_timeout = query_timeout * 1000
+                if query_timeout > 0:
+                    conn.call_timeout = query_timeout * 1000
                 if conn.outputtypehandler is None:
                     conn.outputtypehandler = oracledb_output_type_handler
                 cursor = conn.cursor()
