@@ -492,6 +492,7 @@ def clean_up_unpivot(
     pandas_id_columns: Optional[list[Hashable]] = None,
     snowflake_id_quoted_columns: Optional[list[str]] = None,
     ignore_index: Optional[bool] = False,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Cleans up an unpivot operation and reconstructs the index.
@@ -614,7 +615,7 @@ def clean_up_unpivot(
         variables_column_quoted,
         value_column_quoted,
     ]
-    ordered_dataframe = ordered_dataframe.ensure_row_position_column()
+    ordered_dataframe = ordered_dataframe.ensure_row_position_column(dummy_row_pos_mode)
 
     # setup the index names for the internal frame
     index_column_quoted_names = [
@@ -657,6 +658,7 @@ def _simple_unpivot(
     pandas_value_columns: list[Hashable],
     pandas_var_name: Optional[Hashable],
     pandas_value_name: Optional[Hashable],
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Performs a melt/unpivot on a a dataframe, when the index can be
@@ -820,7 +822,7 @@ def _simple_unpivot(
     ordered_dataframe = ordered_dataframe.select(
         *unpivoted_columns, ordering_column_case_expr, value_column
     ).sort(OrderingColumn(ordering_column_name))
-    ordered_dataframe = ordered_dataframe.ensure_row_position_column()
+    ordered_dataframe = ordered_dataframe.ensure_row_position_column(dummy_row_pos_mode)
 
     ###########################################################################################
     # OrderedDataFrame at this point, prior to creation of the new InternalFrame
