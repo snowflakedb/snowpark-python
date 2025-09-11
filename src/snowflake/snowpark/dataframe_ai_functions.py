@@ -62,7 +62,7 @@ class DataFrameAIFunctions:
                 or ``{0}``, ``{1}`` when passing a list.
             input_columns: A list of Columns (positional placeholders ``{0}``, ``{1}``, ...)
                 or a dict mapping placeholder names to Columns.
-            model: model: A string specifying the model to be used. Different input types have different supported models.
+            model: A string specifying the model to be used. Different input types have different supported models.
                 See details in `AI_COMPLETE <https://docs.snowflake.com/en/sql-reference/functions/ai_complete>`_.
             output_column: The name of the output column to be appended.
                 If not provided, a column named ``AI_COMPLETE_OUTPUT`` is appended
