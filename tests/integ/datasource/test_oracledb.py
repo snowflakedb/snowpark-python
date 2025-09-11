@@ -267,10 +267,10 @@ def test_query_timeout_and_session_init(session):
             query_timeout=1,
             session_init_statement=[statement],
         )
-        assert (
-            "socket timed out while recovering from previous socket timeout" in error
-            or "call timeout of 1000 ms exceeded" in error
-        )
+    assert (
+        "socket timed out while recovering from previous socket timeout" in error
+        or "call timeout of 1000 ms exceeded" in error
+    )
 
 
 def test_query_timeout_and_session_init_udtf(session):

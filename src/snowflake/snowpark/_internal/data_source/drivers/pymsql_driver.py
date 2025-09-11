@@ -191,13 +191,12 @@ class PymysqlDriver(BaseDriver):
         query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
-        prepare_connection = self.prepare_connection
 
         class UDTFIngestion:
             def process(self, query: str):
                 import pymysql
 
-                conn = prepare_connection(create_connection())
+                conn = create_connection()
                 cursor = pymysql.cursors.SSCursor(conn)
                 if session_init_statement is not None:
                     for statement in session_init_statement:
@@ -210,16 +209,6 @@ class PymysqlDriver(BaseDriver):
                     yield from rows
 
         return UDTFIngestion
-
-    def prepare_connection(
-        self,
-        conn: "Connection",
-        query_timeout: int = 0,
-    ) -> "Connection":
-        if query_timeout > 0:
-            cursor = conn.cursor()
-            cursor.execute(f"SET SESSION MAX_EXECUTION_TIME={1000 * query_timeout}")
-        return conn
 
     @staticmethod
     def infer_type_from_data(data: List[tuple], number_of_columns: int) -> List[Type]:
