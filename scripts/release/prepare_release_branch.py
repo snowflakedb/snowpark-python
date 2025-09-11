@@ -271,13 +271,14 @@ def main():
     update_changelog(version_str, release_date)
     update_test_files(major, minor, patch)
 
-    print("\n🎉 Release preparation completed successfully!")  # noqa: T201
-    print("\nNext steps:")  # noqa: T201
-    print("1. Review the changes with: git diff")  # noqa: T201
     print(  # noqa: T201
-        f"2. Commit the changes with: git commit -am 'Prepare release v{version_str}'"
+        f"\n🎉 Release preparation completed successfully!"
+        f"\n\nNext steps:"
+        f"\n1. Sync the dependency updates in version.py and meta.yaml if they are inconsistent"
+        f"\n2. Review the changes with: git diff"
+        f"\n3. Commit the changes with: git commit -am 'Prepare release v{version_str}'"
+        f"\n4. Push the branch with: git push origin {branch_name}"
     )
-    print(f"3. Push the branch with: git push origin {branch_name}")  # noqa: T201
 
 
 if __name__ == "__main__":
