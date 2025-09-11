@@ -11,6 +11,17 @@
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
+- Added support for the following scalar functions in `functions.py`:
+  - `booland`
+  - `boolnot`
+  - `boolor`
+  - `boolxor`
+  - `decode`
+  - `greatest_ignore_nulls`
+  - `least_ignore_nulls`
+  - `nullif`
+  - `nvl2`
+  - `regr_valx`
 
 #### Bug Fixes
 

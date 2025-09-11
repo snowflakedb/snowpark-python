@@ -314,3 +314,285 @@ def getbit(
         else None
     )
     return builtin("getbit", _emit_ast=_emit_ast)(c, pos)
+
+
+@publicapi
+def booland(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Computes the Boolean AND of two numeric expressions. In accordance with Boolean semantics:
+        - Non-zero values (including negative numbers) are regarded as True.
+        - Zero values are regarded as False.
+
+    As a result, the function returns:
+        - True if both expressions are non-zero.
+        - False if both expressions are zero or one expression is zero and the other expression is non-zero or NULL.
+        - NULL if both expressions are NULL or one expression is NULL and the other expression is non-zero.
+
+    Example::
+
+        >>> df = session.create_dataframe([[1, -2], [0, 2], [0, 0], [5, 3]], schema=["a", "b"])
+        >>> df.select(booland(col("a"), col("b")).alias("result")).collect()
+        [Row(RESULT=True), Row(RESULT=False), Row(RESULT=False), Row(RESULT=True)]
+    """
+    c1 = _to_col_if_str(expr1, "booland")
+    c2 = _to_col_if_str(expr2, "booland")
+    return builtin("booland", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def boolnot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Computes the Boolean NOT of a single numeric expression. In accordance with Boolean semantics:
+        - Non-zero values (including negative numbers) are regarded as True.
+        - Zero values are regarded as False.
+
+    As a result, the function returns:
+        - True if the expression is zero.
+        - False if the expression is non-zero.
+        - NULL if the expression is NULL.
+
+    Args:
+        e: A numeric expression (Column or column name) to be evaluated.
+        _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
+
+    Returns:
+        A `~nowflake.snowpark.column` representing the Boolean NOT of the input expression.
+
+    Example::
+
+        >>> df = session.create_dataframe([0, 10, -5], schema=["a"])
+        >>> df.select(boolnot("a")).collect()
+        [Row(BOOLNOT("A")=True), Row(BOOLNOT("A")=False), Row(BOOLNOT("A")=False)]
+    """
+    c = _to_col_if_str(e, "boolnot")
+    return builtin("boolnot", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def boolor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Computes the Boolean OR of two numeric expressions. In accordance with Boolean semantics:
+        - Non-zero values (including negative numbers) are regarded as True.
+        - Zero values are regarded as False.
+
+    As a result, the function returns:
+        - True if both expressions are non-zero or one expression is non-zero and the other expression is zero or NULL.
+        - False if both expressions are zero.
+        - NULL if both expressions are NULL or one expression is NULL and the other expression is zero.
+
+    Args:
+        expr1: A :class:`Column` or column name representing the first boolean expression.
+        expr2: A :class:`Column` or column name representing the second boolean expression.
+
+    Returns:
+        A :class:`Column` object representing the logical OR result. Returns True if either
+        expression is True, False if both are False, and None if either expression is None
+        and the other is not True.
+
+    Example::
+
+        >>> df = session.create_dataframe([
+        ...     [1, 2],
+        ...     [-1, 0],
+        ...     [3, None],
+        ...     [0, 0],
+        ...     [None, 0],
+        ...     [None, None]
+        ... ], schema=["expr1", "expr2"])
+        >>> df.select(boolor(col("expr1"), col("expr2")).alias("result")).collect()
+        [Row(RESULT=True), Row(RESULT=True), Row(RESULT=True), Row(RESULT=False), Row(RESULT=None), Row(RESULT=None)]
+    """
+    c1 = _to_col_if_str(expr1, "boolor")
+    c2 = _to_col_if_str(expr2, "boolor")
+    return builtin("boolor", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def boolxor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Computes the Boolean XOR of two numeric expressions (i.e. one of the expressions, but not both expressions, is TRUE).
+    In accordance with Boolean semantics:
+        - Non-zero values (including negative numbers) are regarded as True.
+        - Zero values are regarded as False.
+
+    As a result, the function returns:
+        - True if one expression is non-zero and the other expression is zero.
+        - False if both expressions are non-zero or both expressions are zero.
+        - NULL if one or both expressions are NULL.
+
+    Args:
+        expr1: First numeric expression or a string name of the column.
+        expr2: Second numeric expression or a string name of the column.
+        _emit_ast: Whether to emit the AST for this function. This is for internal use only.
+
+    Example::
+
+        >>> df = session.create_dataframe([[2, 0], [1, -1], [0, 0], [None, 3]], schema=["a", "b"])
+        >>> df.select(boolxor(col("a"), col("b")).alias("result")).collect()
+        [Row(RESULT=True), Row(RESULT=False), Row(RESULT=False), Row(RESULT=None)]
+    """
+    c1 = _to_col_if_str(expr1, "boolxor")
+    c2 = _to_col_if_str(expr2, "boolxor")
+    return builtin("boolxor", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def decode(expr: ColumnOrName, *args: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Decodes an expression by comparing it with search values and returning corresponding result values.
+
+    Similar to a Case statement, this function compares an expression to one or more search values
+    and returns the corresponding result when a match is found.
+
+    Args:
+        expr (ColumnOrName): The expression to decode. Can be a Column or column name string.
+        *args (ColumnOrName): Variable length argument list containing pairs of search values and
+            result values, with an optional default value at the end.
+        _emit_ast (bool, optional): Internal parameter for AST generation. Defaults to True.
+
+    Returns:
+        Column: A Column object representing the decoded result.
+
+    Example:
+
+        >>> df = session.create_dataframe([[1, 1], [2, 4], [16, 24]], schema=["a", "b"])
+        >>> df.select(decode(col("a"), lit(1), lit("one"), lit(2), lit("two"), lit("default")).alias("RESULT")).collect()
+        [Row(RESULT='one'), Row(RESULT='two'), Row(RESULT='default')]
+    """
+    expr_col = _to_col_if_str(expr, "decode")
+    arg_cols = [_to_col_if_str(arg, "decode") for arg in args]
+    return builtin("decode", _emit_ast=_emit_ast)(expr_col, *arg_cols)
+
+
+@publicapi
+def greatest_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the largest value from a list of expressions, ignoring NULL values.
+    If all argument values are NULL, the result is NULL.
+
+    Args:
+        columns (ColumnOrName): A variable number of Column or column name strings to compare.
+        _emit_ast (bool, optional): Internal parameter for AST generation. Defaults to True.
+
+    Returns:
+        Column: A `~snowflake.snowpark.Column` object representing the greatest value, ignoring NULLs.
+
+    Examples::
+
+        >>> df = session.create_dataframe([[1, 2, 3, 4.25], [2, 4, -1, None], [3, 6, None, -2.75]], schema=["a", "b", "c", "d"])
+        >>> df.select(greatest_ignore_nulls(df["a"], df["b"], df["c"], df["d"]).alias("greatest_ignore_nulls")).collect()
+        [Row(GREATEST_IGNORE_NULLS=4.25), Row(GREATEST_IGNORE_NULLS=4.0), Row(GREATEST_IGNORE_NULLS=6.0)]
+    """
+    c = [_to_col_if_str(ex, "greatest_ignore_nulls") for ex in columns]
+    return builtin("greatest_ignore_nulls", _emit_ast=_emit_ast)(*c)
+
+
+@publicapi
+def least_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the smallest value from a list of expressions, ignoring NULL values.
+    If all argument values are NULL, the result is NULL.
+
+    Args:
+        columns: list of :class:`Column` or column names to compare.
+        _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
+
+    Returns:
+        :class:`Column`: A column containing the smallest value from the list of expressions, ignoring NULL values.
+
+    Example::
+
+        >>> df = session.create_dataframe([[1, 2, 3], [2, 4, -1], [3, 6, None]], schema=["a", "b", "c"])
+        >>> df.select(least_ignore_nulls(df["a"], df["b"], df["c"]).alias("least_ignore_nulls")).collect()
+        [Row(LEAST_IGNORE_NULLS=1), Row(LEAST_IGNORE_NULLS=-1), Row(LEAST_IGNORE_NULLS=3)]
+    """
+    c = [_to_col_if_str(ex, "least_ignore_nulls") for ex in columns]
+    return builtin("least_ignore_nulls", _emit_ast=_emit_ast)(*c)
+
+
+@publicapi
+def nullif(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns NULL if expr1 is equal to expr2, otherwise returns expr1.
+
+    Args:
+        expr1: The first expression to compare. Can be a :class:`Column` or a column name.
+        expr2: The second expression to compare. Can be a :class:`Column` or a column name.
+        _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
+
+    Returns:
+        :class:`Column`: A column containing NULL if expr1 is equal to expr2, otherwise expr1.
+
+    Example::
+
+        >>> df = session.create_dataframe([[0, 0], [0, 1], [1, 0], [1, 1], [None, 0]], schema=["a", "b"])
+        >>> df.select(nullif(df["a"], df["b"]).alias("result")).collect()
+        [Row(RESULT=None), Row(RESULT=0), Row(RESULT=1), Row(RESULT=None), Row(RESULT=None)]
+    """
+    c1 = _to_col_if_str(expr1, "nullif")
+    c2 = _to_col_if_str(expr2, "nullif")
+    return builtin("nullif", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def nvl2(
+    expr1: ColumnOrName,
+    expr2: ColumnOrName,
+    expr3: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns expr2 if expr1 is not NULL, otherwise returns expr3.
+
+    Args:
+        expr1: The expression to test for NULL.
+        expr2: The value to return if expr1 is not NULL.
+        expr3: The value to return if expr1 is NULL.
+        _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
+
+    Returns:
+        A :class:`Column` representing the result of the nvl2 function.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([
+        ...     [0, 5, 3],
+        ...     [0, 5, None],
+        ...     [0, None, 3],
+        ...     [None, 5, 3],
+        ...     [None, None, 3]
+        ... ], schema=["a", "b", "c"])
+        >>> df.select(nvl2(col("a"), col("b"), col("c")).alias("nvl2_result")).collect()
+        [Row(NVL2_RESULT=5), Row(NVL2_RESULT=5), Row(NVL2_RESULT=None), Row(NVL2_RESULT=3), Row(NVL2_RESULT=3)]
+    """
+    c1 = _to_col_if_str(expr1, "nvl2")
+    c2 = _to_col_if_str(expr2, "nvl2")
+    c3 = _to_col_if_str(expr3, "nvl2")
+    return builtin("nvl2", _emit_ast=_emit_ast)(c1, c2, c3)
+
+
+@publicapi
+def regr_valx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns NULL if the first argument is NULL; otherwise, returns the second argument.
+    Note that REGR_VALX is a NULL-preserving function, while the more commonly-used NVL is a NULL-replacing function.
+
+    Args:
+        y: The dependent variable column.
+        x: The independent variable column.
+        _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
+
+    Returns:
+        A :class:`Column` representing the result of the regr_valx function.
+
+    Example::
+
+        >>> df = session.create_dataframe([[2.0, 1.0], [None, 3.0], [6.0, None]], schema=["col_y", "col_x"])
+        >>> result = df.select(regr_valx(df["col_y"], df["col_x"]).alias("result")).collect()
+        >>> assert result == [Row(RESULT=1.0), Row(RESULT=None), Row(RESULT=None)]
+
+        Important: Note the order of the arguments; y precedes x
+    """
+    y_col = _to_col_if_str(y, "regr_valx")
+    x_col = _to_col_if_str(x, "regr_valx")
+    return builtin("regr_valx", _emit_ast=_emit_ast)(y_col, x_col)
