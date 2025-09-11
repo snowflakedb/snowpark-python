@@ -11,6 +11,14 @@
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
+- Added support for the following scalar functions in `functions.py`:
+  - `h3_polygon_to_cells`
+  - `h3_polygon_to_cells_strings`
+  - `h3_string_to_int`
+  - `h3_try_polygon_to_cells_strings`
+  - `h3_cell_to_children`
+  - `h3_cell_to_children_string`
+  - `h3_int_to_string`
 
 #### Bug Fixes
 
