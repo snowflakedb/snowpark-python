@@ -89,10 +89,10 @@ class DataSourceReader:
             else:
                 raise ValueError("fetch size cannot be smaller than 0")
         except Exception as exc:
-            if self.driver.non_retryable_error and isinstance(
-                exc, self.driver.non_retryable_error
-            ):
+            if self.driver.non_retryable_error_checker(exc):
                 raise SnowparkDataSourceNonRetryableException(exc)
+            else:
+                raise
         finally:
             try:
                 cursor.close()

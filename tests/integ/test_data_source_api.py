@@ -51,7 +51,10 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkDataSourceNonRetryableException,
+)
 from snowflake.snowpark.types import (
     StructType,
     StructField,
@@ -208,6 +211,29 @@ def test_dbapi_retry(session, fetch_with_process):
                 snowflake_table_name="fake_table",
             )
         assert mock_task.call_count == _MAX_RETRY_TIME
+
+
+@pytest.mark.parametrize("fetch_with_process", [True, False])
+def test_dbapi_non_retryable_error(session, fetch_with_process):
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source.utils._task_fetch_data_from_source",
+        side_effect=SnowparkDataSourceNonRetryableException(Exception("mock error")),
+    ) as mock_task:
+        mock_task.__name__ = "_task_fetch_from_data_source"
+        parquet_queue = multiprocessing.Queue() if fetch_with_process else queue.Queue()
+        with pytest.raises(SnowparkDataSourceNonRetryableException, match="mock error"):
+            _task_fetch_data_from_source_with_retry(
+                worker=DataSourceReader(
+                    PyodbcDriver,
+                    sql_server_create_connection,
+                    StructType([StructField("col1", IntegerType(), False)]),
+                    DBMS_TYPE.SQL_SERVER_DB,
+                ),
+                partition="SELECT * FROM test_table",
+                partition_idx=0,
+                parquet_queue=parquet_queue,
+            )
+        assert mock_task.call_count == 1
 
 
 @pytest.mark.skipif(
