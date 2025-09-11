@@ -178,3 +178,9 @@ After the script completes successfully:
 - All print statement linter warnings are suppressed with `# noqa: T201`
 - The script creates a new branch and doesn't modify your current working branch until checkout
 - If a release branch with the same name already exists, git will show an error
+
+
+## Future Improvements
+
+- Auto sync dependency updates
+- Use Python based unparser to update ast code

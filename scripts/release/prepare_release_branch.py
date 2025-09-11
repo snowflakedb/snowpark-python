@@ -6,7 +6,7 @@ import os
 import sys
 import re
 import subprocess
-from datetime import date
+from datetime import date, datetime
 import glob
 
 
@@ -50,6 +50,34 @@ def get_base_reference():
         return base_ref, f"commit {base_ref}"
     else:
         return base_ref, f"branch {base_ref}"
+
+
+def get_release_date_input():
+    """Get optional release date from user and validate format"""
+    print("\nOptional: Specify a release date (format: YYYY-MM-DD)")  # noqa: T201
+    print("- Press Enter to use today's date (default)")  # noqa: T201
+    date_str = input("Release date (default: today): ").strip()
+
+    if not date_str:
+        return date.today().strftime("%Y-%m-%d")
+
+    # Validate date format (YYYY-MM-DD)
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+        print(  # noqa: T201
+            "Error: Date must be in format YYYY-MM-DD (e.g., 2024-12-31)"
+        )
+        sys.exit(1)
+
+    # Validate that it's a valid date
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        print(  # noqa: T201
+            "Error: Invalid date. Please enter a valid date in format YYYY-MM-DD"
+        )
+        sys.exit(1)
+
+    return date_str
 
 
 def run_git_command(command):
@@ -113,10 +141,9 @@ def update_meta_yaml(version_str):
     print(f"✓ Updated {meta_file}")  # noqa: T201
 
 
-def update_changelog(version_str):
-    """Update CHANGELOG.md by replacing the version date with today's date"""
+def update_changelog(version_str, release_date):
+    """Update CHANGELOG.md by replacing the version date with the specified date"""
     changelog_file = "CHANGELOG.md"
-    today = date.today().strftime("%Y-%m-%d")
 
     if not os.path.exists(changelog_file):
         print(f"Error: {changelog_file} not found")  # noqa: T201
@@ -125,10 +152,10 @@ def update_changelog(version_str):
     with open(changelog_file) as f:
         content = f.read()
 
-    # Find the first version line and replace it with the new version and today's date
+    # Find the first version line and replace it with the new version and specified date
     # Pattern matches the first: ## x.y.z (any_date)
     first_version_pattern = r"## \d+\.\d+\.\d+ \([^)]+\)"
-    replacement = f"## {version_str} ({today})"
+    replacement = f"## {version_str} ({release_date})"
 
     new_content = re.sub(first_version_pattern, replacement, content, count=1)
 
@@ -206,6 +233,10 @@ def main():
     # Get version input
     version_str, major, minor, patch = get_version_input()
 
+    # Get release date
+    release_date = get_release_date_input()
+    print(f"\nRelease date: {release_date}")  # noqa: T201
+
     print(f"\nPreparing release for version {version_str}")  # noqa: T201
     print(f"Major: {major}, Minor: {minor}, Patch: {patch}")  # noqa: T201
 
@@ -237,7 +268,7 @@ def main():
     # Update files
     update_version_py(version_str, major, minor, patch)
     update_meta_yaml(version_str)
-    update_changelog(version_str)
+    update_changelog(version_str, release_date)
     update_test_files(major, minor, patch)
 
     print("\n🎉 Release preparation completed successfully!")  # noqa: T201
