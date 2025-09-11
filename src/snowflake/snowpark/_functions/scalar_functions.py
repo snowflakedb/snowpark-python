@@ -414,19 +414,15 @@ def boolxor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) ->
     In accordance with Boolean semantics:
         - Non-zero values (including negative numbers) are regarded as True.
         - Zero values are regarded as False.
-
     As a result, the function returns:
         - True if one expression is non-zero and the other expression is zero.
         - False if both expressions are non-zero or both expressions are zero.
         - NULL if one or both expressions are NULL.
-
     Args:
         expr1: First numeric expression or a string name of the column.
         expr2: Second numeric expression or a string name of the column.
         _emit_ast: Whether to emit the AST for this function. This is for internal use only.
-
     Example::
-
         >>> from snowflake.snowpark.functions import col
         >>> df = session.create_dataframe([[2, 0], [1, -1], [0, 0], [None, 3]], schema=["a", "b"])
         >>> df.select(boolxor(col("a"), col("b")).alias("result")).collect()
