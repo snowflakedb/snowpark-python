@@ -119,7 +119,9 @@ def test_dataframe_ai_complete_error_handling(session):
 
     # Test missing model parameter
     df = session.create_dataframe([["test"]], schema=["text"])
-    with pytest.raises(ValueError, match="model must be specified"):
+    with pytest.raises(
+        TypeError, match="missing 1 required positional argument: 'model'"
+    ):
         df.ai.complete(
             prompt="Test {text}",
             input_columns={"text": col("text")}
