@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 from packaging import version  # noqa: E402,F401
 
 import modin.pandas as pd
+from modin.config import context as config_context
 import numpy as np
 import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
@@ -2259,3 +2260,29 @@ def add_extra_columns_and_select_required_columns(
     # explicitly drop the unwanted columns. This also ensures that the columns in the resultant DataFrame are in the
     # same order as the columns in the `columns` parameter.
     return query_compiler.take_2d_labels(slice(None), columns)
+
+
+def new_snow_series(*args: Any, **kwargs: Any) -> pd.Series:
+    """
+    Create a new modin Series, guaranteed to use the Snowpark pandas backend.
+
+    This is necessary to prevent accidental backend switching when a modin Series is created in an
+    internal helper function, which may otherwise incorrectly produce a NativeQueryCompiler.
+
+    See SNOW-2084670 and SNOW-2331021 for examples of such failures.
+    """
+    with config_context(AutoSwitchBackend=False):
+        return pd.Series(*args, **kwargs)
+
+
+def new_snow_df(*args: Any, **kwargs: Any) -> pd.DataFrame:
+    """
+    Create a new modin DataFrame, guaranteed to use the Snowpark pandas backend.
+
+    This is necessary to prevent accidental backend switching when modin a DataFrame is created in an
+    internal helper function, which may otherwise incorrectly produce a NativeQueryCompiler.
+
+    See SNOW-2084670 and SNOW-2331021 for examples of such failures.
+    """
+    with config_context(AutoSwitchBackend=False):
+        return pd.DataFrame(*args, **kwargs)

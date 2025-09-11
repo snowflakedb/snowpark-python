@@ -33,6 +33,7 @@ from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.plugin.extensions.datetime_index import DatetimeIndex
 from tests.integ.utils.sql_counter import sql_count_checker
+from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 # snowflake-ml-python, which provides snowflake.cortex, may not be available in
 # the test environment. If it's not available, skip all tests in this module.
@@ -591,3 +592,19 @@ class TestApplySnowparkAndCortexFunctions:
         sentiment = method(pandas_backend_data, Sentiment)
         assert sentiment.get_backend() == "Snowflake"
         sentiment.to_pandas()
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_switch_then_iloc():
+    # Switching backends then calling iloc should be valid.
+    # Prior to fixing SNOW-2331021, discrepancies with the index class caused an AssertionError.
+    df = pd.DataFrame([[0] * 10] * 10)
+    assert df.get_backend() == "Pandas"
+    # Should not error
+    assert_snowpark_pandas_equal_to_pandas(
+        df.move_to("Snowflake").iloc[[1, 3, 9], 1],
+        df.iloc[[1, 3, 9], 1].to_pandas(),
+    )
+    # Setting should similarly not error
+    df.iloc[1, 1] = 100
+    assert df.iloc[1, 1] == 100

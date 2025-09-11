@@ -8,11 +8,22 @@
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
+- Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
 - Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 - Added support for the following scalar functions in `functions.py`:
+  - `getdate`
+  - `getvariable`
+  - `invoker_role`
+  - `invoker_share`
+  - `is_application_role_in_session`
+  - `is_database_role_in_session`
+  - `is_granted_to_invoker_role`
+  - `is_role_in_session`
+  - `localtime`
+  - `systimestamp`
   - `booland`
   - `boolnot`
   - `boolor`
@@ -58,6 +69,9 @@
 - Updated the supported `modin` versions to >=0.35.0 and <0.37.0 (was previously >= 0.34.0 and <0.36.0).
 
 #### Bug Fixes
+
+- Fixed an issue with drop_duplicates where the same data source could be read multiple times in the same query but in a different order each time, resulting in missing rows in the final result. The fix ensures that the data source is read only once.
+- Fixed a bug with hybrid execution mode where an `AssertionError` was unexpectedly raised by certain indexing operations.
 
 ### Snowpark Local Testing Updates
 

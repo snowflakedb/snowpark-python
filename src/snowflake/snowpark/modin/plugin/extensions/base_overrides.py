@@ -1514,6 +1514,17 @@ def drop_duplicates(
     """
     if keep not in ("first", "last", False):
         raise ValueError('keep must be either "first", "last" or False')
+
+    # Make sure CTE optimization is enabled.
+    # The reason this is required for drop_duplicates is that two dataframes need to be joined
+    # on their row position (one is used as a filter for the other) and while not identical,
+    # they both originate from the same source.
+    # Since read_snowflake can result in assigning row positions differently each time it's run,
+    # then if we compute the two dataframes independently, their row positions may not match.
+    # With the CTE optimization, we are guaranteed that reading the input source will only happen
+    # once in the finally generated query, and hence no mismatch in row positions will take place.
+    pd.session.cte_optimization_enabled = True
+
     inplace = validate_bool_kwarg(inplace, "inplace")
     ignore_index = kwargs.get("ignore_index", False)
     subset = kwargs.get("subset", None)
