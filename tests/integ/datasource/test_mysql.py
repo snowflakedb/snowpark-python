@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import (
     PymysqlTypeCode,
 )
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
+from snowflake.snowpark.types import StructType, StructField, StringType
 from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_real_data,
     MysqlType,
@@ -138,14 +139,6 @@ def test_dbapi_batch_fetch(
             len(expected_result) / fetch_size
         )
         assert df.order_by("ID").collect() == expected_result
-
-
-def test_type_conversion():
-    invalid_type = MysqlType("ID", "UNKNOWN", None, None, None, None, False)
-    with pytest.raises(NotImplementedError, match="mysql type not supported"):
-        PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB).to_snow_type(
-            [invalid_type]
-        )
 
 
 def test_pymysql_driver_coverage(caplog):
@@ -296,3 +289,11 @@ def test_server_side_cursor():
     assert isinstance(cursor, pymysql.cursors.SSCursor)
     cursor.close()
     conn.close()
+
+
+def test_unsupported_type():
+
+    schema = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB).to_snow_type(
+        [("test_col", "unsupported_type", None, None, 0, 0, True)]
+    )
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])

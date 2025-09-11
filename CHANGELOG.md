@@ -20,6 +20,7 @@
 
 #### Improvements
 
+- Unsupported types in `DataFrameReader.dbapi`(PuPr) are ingested as `StringType` now.
 - Improved error message to list available columns when dataframe cannot resolve given column name.
 - Added a new option `cacheResult` to `DataFrameReader.xml` that allows users to cache the result of the XML reader to a temporary table after calling `xml`. It helps improve performance when subsequent operations are performed on the same DataFrame.
 
