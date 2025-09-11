@@ -140,6 +140,8 @@ class DataFrameAIFunctions:
                 "input_columns must be a list of Columns or a dict mapping placeholder names to Columns"
             )
 
+        output_column_name = output_column or "AI_COMPLETE_OUTPUT"
+
         # AST at top
         stmt = None
         if _emit_ast:
@@ -156,6 +158,8 @@ class DataFrameAIFunctions:
                     entry._1 = k
                     build_expr_from_python_val(entry._2, v)
 
+            ast.output_column.value = output_column_name
+
         # Call the ai_complete function with all explicit parameters
         result_col = ai_complete(
             model=model,
@@ -165,7 +169,6 @@ class DataFrameAIFunctions:
         )
 
         # Add the output column to the DataFrame
-        output_column_name = output_column or "AI_COMPLETE_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
@@ -359,6 +362,7 @@ class DataFrameAIFunctions:
                   various publishers presenting events from different points of view. Please create
                   a concise and elaborative summary of source texts without missing any crucial information.".
         """
+        output_column_name = output_column or "AI_AGG_OUTPUT"
 
         # AST at top
         stmt = None
@@ -370,6 +374,8 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
             ast.task_description = task_description
 
+            ast.output_column.value = output_column_name
+
         # Call the ai_agg function
         result_col = ai_agg(
             input_col,
@@ -378,7 +384,6 @@ class DataFrameAIFunctions:
         )
 
         # Create a new DataFrame with the aggregated result
-        output_column_name = output_column or "AI_AGG_OUTPUT"
         df = self._dataframe.select(
             result_col.alias(output_column_name), _emit_ast=False
         )
@@ -513,6 +518,8 @@ class DataFrameAIFunctions:
             True
         """
 
+        output_column_name = output_column or "AI_CLASSIFY_OUTPUT"
+
         # Convert string input column to Column object and AST at top
         stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.classify")
@@ -527,6 +534,8 @@ class DataFrameAIFunctions:
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
 
+            ast.output_column.value = output_column_name
+
         # Call the ai_classify function
         result_col = ai_classify(
             input_col,
@@ -536,7 +545,6 @@ class DataFrameAIFunctions:
         )
 
         # Add the output column to the DataFrame
-        output_column_name = output_column or "AI_CLASSIFY_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
@@ -664,6 +672,7 @@ class DataFrameAIFunctions:
                 - 0 indicates no similarity
                 - -1 indicates opposite or very dissimilar content
         """
+        output_column_name = output_column or "AI_SIMILARITY_OUTPUT"
 
         # Convert string inputs to Column objects and AST at top
         stmt = None
@@ -680,6 +689,8 @@ class DataFrameAIFunctions:
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
 
+            ast.output_column.value = output_column_name
+
         # Call the ai_similarity function
         result_col = ai_similarity(
             input1_col,
@@ -689,7 +700,6 @@ class DataFrameAIFunctions:
         )
 
         # Add the output column to the DataFrame
-        output_column_name = output_column or "AI_SIMILARITY_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
@@ -786,6 +796,7 @@ class DataFrameAIFunctions:
             AI_SENTIMENT can analyze sentiment in English, French, German, Hindi, Italian, Spanish,
             and Portuguese. You can specify categories in the language of the text or in English.
         """
+        output_column_name = output_column or "AI_SENTIMENT_OUTPUT"
 
         # Convert string input column and AST at top
         stmt = None
@@ -798,6 +809,8 @@ class DataFrameAIFunctions:
             if categories is not None:
                 build_expr_from_python_val(ast.categories, categories)
 
+            ast.output_column.value = output_column_name
+
         # Call the ai_sentiment function
         result_col = ai_sentiment(
             input_col,
@@ -806,7 +819,6 @@ class DataFrameAIFunctions:
         )
 
         # Add the output column to the DataFrame
-        output_column_name = output_column or "AI_SENTIMENT_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
@@ -913,6 +925,7 @@ class DataFrameAIFunctions:
             - Different models produce embeddings of different dimensions
             - For best results, use the same model for all items you want to compare
         """
+        output_column_name = output_column or "AI_EMBED_OUTPUT"
 
         # Convert string input column to Column object & AST at top
         stmt = None
@@ -924,6 +937,8 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
             ast.model = model
 
+            ast.output_column.value = output_column_name
+
         # Call the ai_embed function
         result_col = ai_embed(
             model=model,
@@ -932,7 +947,6 @@ class DataFrameAIFunctions:
         )
 
         # Add the output column to the DataFrame
-        output_column_name = output_column or "AI_EMBED_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
@@ -1015,6 +1029,7 @@ class DataFrameAIFunctions:
             - Unlike the ``agg`` method which requires a task description, ``summarize_agg``
               automatically generates a comprehensive summary
         """
+        output_column_name = output_column or "AI_SUMMARIZE_AGG_OUTPUT"
 
         # Convert string input column to Column object & AST at top
         stmt = None
@@ -1025,6 +1040,8 @@ class DataFrameAIFunctions:
             self._dataframe._set_ast_ref(ast.df)
             build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
 
+            ast.output_column.value = output_column_name
+
         # Call the ai_summarize_agg function
         result_col = ai_summarize_agg(
             input_col,
@@ -1032,7 +1049,6 @@ class DataFrameAIFunctions:
         )
 
         # Create a new DataFrame with the summarized result
-        output_column_name = output_column or "AI_SUMMARIZE_AGG_OUTPUT"
         df = self._dataframe.select(
             result_col.alias(output_column_name), _emit_ast=False
         )
@@ -1116,6 +1132,7 @@ class DataFrameAIFunctions:
             >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
             True
         """
+        output_column_name = output_column or "AI_TRANSCRIBE_OUTPUT"
 
         stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.transcribe")
@@ -1129,13 +1146,14 @@ class DataFrameAIFunctions:
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
 
+            ast.output_column.value = output_column_name
+
         result_col = ai_transcribe(
             input_col,
             _emit_ast=False,
             **kwargs,
         )
 
-        output_column_name = output_column or "AI_TRANSCRIBE_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
@@ -1208,6 +1226,7 @@ class DataFrameAIFunctions:
             >>> len(result["pages"]) == 3 and result["pages"][0]["index"] == 0
             True
         """
+        output_column_name = output_column or "AI_PARSE_DOCUMENT_OUTPUT"
 
         stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.parse_document")
@@ -1220,6 +1239,7 @@ class DataFrameAIFunctions:
                 entry = ast.kwargs.add()
                 entry._1 = k
                 build_expr_from_python_val(entry._2, v)
+            ast.output_column.value = output_column_name
 
         result_col = ai_parse_document(
             input_col,
@@ -1227,7 +1247,6 @@ class DataFrameAIFunctions:
             **kwargs,
         )
 
-        output_column_name = output_column or "AI_PARSE_DOCUMENT_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
@@ -1381,6 +1400,8 @@ class DataFrameAIFunctions:
 
         """
 
+        output_column_name = output_column or "AI_EXTRACT_OUTPUT"
+
         stmt = None
         input_col = _to_col_if_str(input_column, "DataFrame.ai.extract")
         if _emit_ast:
@@ -1390,6 +1411,8 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_col_name(ast.input_column, input_col)
             if response_format is not None:
                 build_expr_from_python_val(ast.response_format, response_format)
+
+            ast.output_column.value = output_column_name
 
         result_col = ai_extract(
             input=input_col,
@@ -1475,6 +1498,9 @@ class DataFrameAIFunctions:
             automatically added when using other Cortex AI functions. The actual token
             usage may be higher when using those functions.
         """
+
+        output_column_name = output_column or "COUNT_TOKENS_OUTPUT"
+
         # AST at top
         stmt = None
         prompt_col = _to_col_if_str(prompt, "DataFrame.ai.count_tokens")
@@ -1485,12 +1511,13 @@ class DataFrameAIFunctions:
             ast.model = model
             build_expr_from_snowpark_column_or_col_name(ast.prompt, prompt_col)
 
+            ast.output_column.value = output_column_name
+
         # Call SNOWFLAKE.CORTEX.COUNT_TOKENS function
         count_tokens_func = function("SNOWFLAKE.CORTEX.COUNT_TOKENS", _emit_ast=False)
         result_col = count_tokens_func(model, prompt_col)
 
         # Add the output column to the DataFrame
-        output_column_name = output_column or "COUNT_TOKENS_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
@@ -1589,6 +1616,7 @@ class DataFrameAIFunctions:
             - Overlap helps maintain context across chunk boundaries
         """
         method_name = "DataFrame.ai.split_text_markdown_header"
+        output_column_name = output_column or "SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT"
 
         # Convert inputs to Column objects and AST at top
         stmt = None
@@ -1611,6 +1639,8 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_python_val(ast.chunk_size, chunk_size)
             build_expr_from_snowpark_column_or_python_val(ast.overlap, overlap)
 
+            ast.output_column.value = output_column_name
+
         # Call SNOWFLAKE.CORTEX.SPLIT_TEXT_MARKDOWN_HEADER function
         split_func = function(
             "SNOWFLAKE.CORTEX.SPLIT_TEXT_MARKDOWN_HEADER", _emit_ast=False
@@ -1618,7 +1648,6 @@ class DataFrameAIFunctions:
         result_col = split_func(text_col, headers_col, chunk_size_col, overlap_col)
 
         # Add the output column to the DataFrame
-        output_column_name = output_column or "SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
@@ -1780,6 +1809,7 @@ class DataFrameAIFunctions:
               functions for code)
         """
         method_name = "DataFrame.ai.split_text_recursive_character"
+        output_column_name = output_column or "SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT"
 
         # Convert input to Column object & AST at top
         stmt = None
@@ -1804,6 +1834,8 @@ class DataFrameAIFunctions:
             build_expr_from_snowpark_column_or_python_val(ast.overlap, overlap)
             build_expr_from_snowpark_column_or_python_val(ast.separators, separators)
 
+            ast.output_column.value = output_column_name
+
         # Call the function
         split_func = function(
             "SNOWFLAKE.CORTEX.SPLIT_TEXT_RECURSIVE_CHARACTER", _emit_ast=False
@@ -1813,7 +1845,6 @@ class DataFrameAIFunctions:
         )
 
         # Add the output column to the DataFrame
-        output_column_name = output_column or "SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT"
         df = self._dataframe.with_column(
             output_column_name, result_col, _emit_ast=False
         )
