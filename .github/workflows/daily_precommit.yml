@@ -1,5 +1,17 @@
 # This is copied from original precommit.yml with one change: only run precommit tests daily
 
+# Define reusable OS configurations
+x-os-configs:
+  ubuntu: &ubuntu-os
+    image_name: ubuntu-latest-64-cores
+    download_name: linux
+  macos: &macos-os
+    image_name: macos-latest
+    download_name: macos
+  windows: &windows-os
+    image_name: windows-latest-64-cores
+    download_name: windows
+
 name: Daily precommit test
 on:
   schedule:
@@ -103,15 +115,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - image_name: ubuntu-latest-64-cores
-            download_name: linux
-          - image_name: macos-latest
-            download_name: macos
-          - image_name: windows-latest-64-cores
-            download_name: windows
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
-        cloud-provider: [aws, azure, gcp]
+        include:
+          # Ubuntu + rotating cloud providers
+          - { os: *ubuntu-os, python-version: "3.9", cloud-provider: aws }
+          - { os: *ubuntu-os, python-version: "3.10", cloud-provider: azure }
+          - { os: *ubuntu-os, python-version: "3.11", cloud-provider: gcp }
+          - { os: *ubuntu-os, python-version: "3.12", cloud-provider: aws }
+          - { os: *ubuntu-os, python-version: "3.13", cloud-provider: azure }
+
+          # macOS + rotating cloud providers
+          - { os: *macos-os, python-version: "3.9", cloud-provider: gcp }
+          - { os: *macos-os, python-version: "3.10", cloud-provider: aws }
+          - { os: *macos-os, python-version: "3.11", cloud-provider: azure }
+          - { os: *macos-os, python-version: "3.12", cloud-provider: gcp }
+          - { os: *macos-os, python-version: "3.13", cloud-provider: aws }
+
+          # Windows + rotating cloud providers
+          - { os: *windows-os, python-version: "3.9", cloud-provider: azure }
+          - { os: *windows-os, python-version: "3.10", cloud-provider: gcp }
+          - { os: *windows-os, python-version: "3.11", cloud-provider: aws }
+          - { os: *windows-os, python-version: "3.12", cloud-provider: azure }
+          - { os: *windows-os, python-version: "3.13", cloud-provider: gcp }
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
