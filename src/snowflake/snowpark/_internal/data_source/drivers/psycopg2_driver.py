@@ -7,6 +7,7 @@ from typing import Callable, List, Any, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
+from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.functions import to_variant, parse_json, column
 from snowflake.snowpark.types import (
     StructType,
@@ -28,6 +29,9 @@ from snowflake.snowpark.types import (
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session  # pragma: no cover
     from snowflake.snowpark.dataframe import DataFrame  # pragma: no cover
+    from snowflake.snowpark._internal.data_source.datasource_typing import (
+        Cursor,
+    )  # pragma: no cover
 
 
 logger = logging.getLogger(__name__)
@@ -185,15 +189,10 @@ class Psycopg2Driver(BaseDriver):
             try:
                 type_code = Psycopg2TypeCode(type_code)
             except ValueError:
-                raise NotImplementedError(
-                    f"Postgres type not supported: {type_code} for column: {name}"
-                )
-            snow_type = BASE_POSTGRES_TYPE_TO_SNOW_TYPE.get(type_code)
-            if snow_type is None:
-                raise NotImplementedError(
-                    f"Postgres type not supported: {type_code} for column: {name}"
-                )
-            if Psycopg2TypeCode(type_code) == Psycopg2TypeCode.NUMERICOID:
+                # not supported type is now handled as string type in below code
+                type_code = None
+            snow_type = BASE_POSTGRES_TYPE_TO_SNOW_TYPE.get(type_code, StringType)
+            if type_code == Psycopg2TypeCode.NUMERICOID:
                 if not self.validate_numeric_precision_scale(precision, scale):
                     logger.debug(
                         f"Snowpark does not support column"
@@ -277,7 +276,9 @@ class Psycopg2Driver(BaseDriver):
         class UDTFIngestion:
             def process(self, query: str):
                 conn = prepare_connection_in_udtf(create_connection())
-                cursor = conn.cursor()
+                cursor = conn.cursor(
+                    f"SNOWPARK_CURSOR_{generate_random_alphanumeric(5)}"
+                )
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
@@ -286,3 +287,6 @@ class Psycopg2Driver(BaseDriver):
                     yield from rows
 
         return UDTFIngestion
+
+    def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
+        return conn.cursor(f"SNOWPARK_CURSOR_{generate_random_alphanumeric(5)}")

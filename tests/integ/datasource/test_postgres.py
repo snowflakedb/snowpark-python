@@ -369,18 +369,26 @@ def test_unit_psycopg2_driver_to_snow_type_mapping():
     assert result.fields[3].datatype.scale == 0
 
     # Test unsupported type code
-    with pytest.raises(NotImplementedError, match="Postgres type not supported"):
-        nonexisting_type_code = -1
-        Psycopg2Driver(create_postgres_connection, DBMS_TYPE.POSTGRES_DB).to_snow_type(
-            [("UNSUPPORTED_COL", nonexisting_type_code, None, None, None, None, True)]
-        )
+    nonexisting_type_code = -1
+    schema = Psycopg2Driver(
+        create_postgres_connection, DBMS_TYPE.POSTGRES_DB
+    ).to_snow_type(
+        [("UNSUPPORTED_COL", nonexisting_type_code, None, None, None, None, True)]
+    )
+    assert schema == StructType(
+        [StructField("UNSUPPORTED_COL", StringType(), nullable=True)]
+    )
 
     # Test unsupported type code
-    with pytest.raises(NotImplementedError, match="Postgres type not supported"):
-        unimplemented_code = Psycopg2TypeCode.ACLITEMOID
-        Psycopg2Driver(create_postgres_connection, DBMS_TYPE.POSTGRES_DB).to_snow_type(
-            [("UNSUPPORTED_COL", unimplemented_code, None, None, None, None, True)]
-        )
+    unimplemented_code = Psycopg2TypeCode.ACLITEMOID
+    schema = Psycopg2Driver(
+        create_postgres_connection, DBMS_TYPE.POSTGRES_DB
+    ).to_snow_type(
+        [("UNSUPPORTED_COL", unimplemented_code, None, None, None, None, True)]
+    )
+    assert schema == StructType(
+        [StructField("UNSUPPORTED_COL", StringType(), nullable=True)]
+    )
 
 
 def test_unit_generate_select_query():
@@ -464,3 +472,12 @@ def test_unit_generate_select_query():
         'SELECT TO_JSON("jsonb_col")::TEXT AS jsonb_col FROM test_table'
     )
     assert jsonb_query == expected_jsonb_query
+
+
+def test_server_side_cursor(session):
+    conn = create_postgres_connection()
+    driver = Psycopg2Driver(create_postgres_connection, DBMS_TYPE.POSTGRES_DB)
+    cursor = driver.get_server_cursor_if_supported(conn)
+    assert cursor.name is not None  # Server-side cursor should have a name
+    cursor.close()
+    conn.close()

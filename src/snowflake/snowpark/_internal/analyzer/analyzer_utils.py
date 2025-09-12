@@ -172,6 +172,8 @@ MODE = " MODE "
 LATERAL = " LATERAL "
 PUT = " PUT "
 GET = " GET "
+LIST = " LIST "
+REMOVE = " REMOVE "
 COPY_FILES = " COPY FILES "
 GROUPING_SETS = " GROUPING SETS "
 QUESTION_MARK = "?"
@@ -1232,6 +1234,10 @@ def file_operation_statement(
         return f"{PUT}{file_name}{SPACE}{stage_location}{SPACE}{get_options_statement(options)}"
     if command.lower() == "get":
         return f"{GET}{stage_location}{SPACE}{file_name}{SPACE}{get_options_statement(options)}"
+    if command.lower() == "list":
+        return f"{LIST}{stage_location}{get_options_statement(options)}"
+    if command.lower() == "remove":
+        return f"{REMOVE}{stage_location}{get_options_statement(options)}"
     if command.lower() == "copy_files":
         # For COPY FILES, file_name stores the value of the source stage location or subquery (from a DataFrame)
         return f"{COPY_FILES}{INTO}{stage_location}{FROM}{file_name}{get_options_statement(options)}"

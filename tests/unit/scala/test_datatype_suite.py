@@ -8,6 +8,7 @@ from snowflake.snowpark.types import (
     ByteType,
     DataType,
     DateType,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -19,6 +20,7 @@ from snowflake.snowpark.types import (
     StructType,
     TimestampType,
     TimeType,
+    YearMonthIntervalType,
     _AtomicType,
     _FractionalType,
     _IntegralType,
@@ -138,6 +140,64 @@ def test_time_type():
     assert isinstance(tpe, DataType)
     assert str(tpe) == "TimeType()"
     assert repr(tpe) == "TimeType()"
+
+
+def test_year_month_interval_type():
+    tpe = YearMonthIntervalType()
+    assert isinstance(tpe, DataType)
+    assert str(tpe) == "YearMonthIntervalType(0, 1)"
+    assert repr(tpe) == "YearMonthIntervalType(0, 1)"
+
+    tpe_year = YearMonthIntervalType(0, 0)
+    assert str(tpe_year) == "YearMonthIntervalType(0, 0)"
+    assert repr(tpe_year) == "YearMonthIntervalType(0, 0)"
+
+    tpe_month = YearMonthIntervalType(1, 1)
+    assert str(tpe_month) == "YearMonthIntervalType(1, 1)"
+    assert repr(tpe_month) == "YearMonthIntervalType(1, 1)"
+
+
+def test_day_time_interval_type():
+    tpe = DayTimeIntervalType()
+    assert isinstance(tpe, DataType)
+    assert str(tpe) == "DayTimeIntervalType(0, 3)"
+    assert repr(tpe) == "DayTimeIntervalType(0, 3)"
+
+    tpe_day_minute = DayTimeIntervalType(0, 2)
+    assert str(tpe_day_minute) == "DayTimeIntervalType(0, 2)"
+    assert repr(tpe_day_minute) == "DayTimeIntervalType(0, 2)"
+
+    tpe_day_hour = DayTimeIntervalType(0, 1)
+    assert str(tpe_day_hour) == "DayTimeIntervalType(0, 1)"
+    assert repr(tpe_day_hour) == "DayTimeIntervalType(0, 1)"
+
+    tpe_day = DayTimeIntervalType(0)
+    assert str(tpe_day) == "DayTimeIntervalType(0, 0)"
+    assert repr(tpe_day) == "DayTimeIntervalType(0, 0)"
+
+    tpe_hour_second = DayTimeIntervalType(1, 3)
+    assert str(tpe_hour_second) == "DayTimeIntervalType(1, 3)"
+    assert repr(tpe_hour_second) == "DayTimeIntervalType(1, 3)"
+
+    tpe_hour_minute = DayTimeIntervalType(1, 2)
+    assert str(tpe_hour_minute) == "DayTimeIntervalType(1, 2)"
+    assert repr(tpe_hour_minute) == "DayTimeIntervalType(1, 2)"
+
+    tpe_hour = DayTimeIntervalType(1)
+    assert str(tpe_hour) == "DayTimeIntervalType(1, 1)"
+    assert repr(tpe_hour) == "DayTimeIntervalType(1, 1)"
+
+    tpe_minute_second = DayTimeIntervalType(2, 3)
+    assert str(tpe_minute_second) == "DayTimeIntervalType(2, 3)"
+    assert repr(tpe_minute_second) == "DayTimeIntervalType(2, 3)"
+
+    tpe_minute = DayTimeIntervalType(2)
+    assert str(tpe_minute) == "DayTimeIntervalType(2, 2)"
+    assert repr(tpe_minute) == "DayTimeIntervalType(2, 2)"
+
+    tpe_second = DayTimeIntervalType(3)
+    assert str(tpe_second) == "DayTimeIntervalType(3, 3)"
+    assert repr(tpe_second) == "DayTimeIntervalType(3, 3)"
 
 
 def test_structtype():

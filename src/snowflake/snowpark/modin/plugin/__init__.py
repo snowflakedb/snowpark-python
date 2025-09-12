@@ -5,6 +5,7 @@
 import inspect
 import sys
 from typing import Union, Callable, Any
+import warnings
 
 from packaging import version
 
@@ -17,7 +18,7 @@ if sys.version_info.major == 3 and sys.version_info.minor == 8:
 # since modin may raise its own warnings/errors on the wrong pandas version
 import pandas  # isort: skip  # noqa: E402
 
-recommended_supported_modin_version = "0.35.0"
+recommended_supported_modin_version = "0.36.0"
 
 install_modin_msg = (
     f"Please set the modin version as {recommended_supported_modin_version} in the Packages menu at the top of your notebook."
@@ -32,8 +33,8 @@ except ModuleNotFoundError:  # pragma: no cover
         "Modin is not installed. " + install_modin_msg
     )  # pragma: no cover
 
-modin_min_supported_version = version.parse("0.34.0")
-modin_max_supported_version = version.parse("0.36.0")  # non-inclusive
+modin_min_supported_version = version.parse("0.35.0")
+modin_max_supported_version = version.parse("0.37.0")  # non-inclusive
 actual_modin_version = version.parse(modin.__version__)
 if not (
     modin_min_supported_version <= actual_modin_version < modin_max_supported_version
@@ -48,21 +49,11 @@ if not (
 # TODO SNOW-1758773: perform pandas version check in modin instead
 actual_pandas_version = version.parse(pandas.__version__)
 supported_pandas_major_version = 2
-# TODO MODIN_IS_AT_LEAST_0_35_0 after dropping modin 0.34.x,
-# remove this conditional check to always allow both 2.2 and 2.3
-MODIN_IS_AT_LEAST_0_35_0 = actual_modin_version >= version.parse("0.35.0")
-if MODIN_IS_AT_LEAST_0_35_0:
-    recommended_pandas_minor_version = 3
-    pandas_version_supported = (
-        actual_pandas_version.major == supported_pandas_major_version
-        and actual_pandas_version.minor in (2, 3)
-    )
-else:
-    recommended_pandas_minor_version = 2
-    pandas_version_supported = (
-        actual_pandas_version.major == supported_pandas_major_version
-        and actual_pandas_version.minor == recommended_pandas_minor_version
-    )
+recommended_pandas_minor_version = 3
+pandas_version_supported = (
+    actual_pandas_version.major == supported_pandas_major_version
+    and actual_pandas_version.minor in (2, 3)
+)
 
 install_pandas_msg = (
     f"Please set the pandas version as {supported_pandas_major_version}.{recommended_pandas_minor_version}.x in the Packages menu at the top of your notebook."
@@ -183,8 +174,19 @@ from modin.core.storage_formats.pandas.query_compiler_caster import (  # isort: 
 )
 from modin.config import AutoSwitchBackend  # isort: skip  # noqa: E402
 
+HYBRID_WARNING = (
+    "Snowpark pandas now runs with hybrid execution enabled by default, and will perform certain operations "
+    + "on smaller data using local, in-memory pandas. To disable this behavior and force all computations to occur in "
+    + "Snowflake, run this line:\nfrom modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()"
+)
+
+warnings.filterwarnings("once", message=HYBRID_WARNING)
+
 if AutoSwitchBackend.get_value_source() is ValueSource.DEFAULT:
-    AutoSwitchBackend.disable()
+    AutoSwitchBackend.enable()
+
+if AutoSwitchBackend.get():
+    warnings.warn(HYBRID_WARNING, stacklevel=1)
 
 # Hybrid Mode Registration
 # In hybrid execution mode, the client will automatically switch backends when a
@@ -284,10 +286,7 @@ for class_name, method in (
         backend="Pandas",
     )
 
-if MODIN_IS_AT_LEAST_0_35_0:
-    Backend.set_active_backends(["Snowflake", "Pandas", "Ray"])
-else:
-    Backend.set_active_backends(["Snowflake", "Pandas"])
+Backend.set_active_backends(["Snowflake", "Pandas", "Ray"])
 
 
 # === SET UP TELEMETRY ===

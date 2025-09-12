@@ -103,15 +103,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - image_name: ubuntu-latest-64-cores
-            download_name: linux
-          - image_name: macos-latest
-            download_name: macos
-          - image_name: windows-latest-64-cores
-            download_name: windows
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
-        cloud-provider: [aws, azure, gcp]
+        include:
+          # Ubuntu + rotating cloud providers
+          - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.9", cloud-provider: aws }
+          - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.10", cloud-provider: azure }
+          - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.11", cloud-provider: gcp }
+          - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.12", cloud-provider: aws }
+          - { os: {image_name: ubuntu-latest-64-cores, download_name: linux}, python-version: "3.13", cloud-provider: azure }
+
+          # macOS + rotating cloud providers
+          - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.9", cloud-provider: gcp }
+          - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.10", cloud-provider: aws }
+          - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.11", cloud-provider: azure }
+          - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.12", cloud-provider: gcp }
+          - { os: {image_name: macos-latest, download_name: macos}, python-version: "3.13", cloud-provider: aws }
+
+          # Windows + rotating cloud providers
+          - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.9", cloud-provider: azure }
+          - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.10", cloud-provider: gcp }
+          - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.11", cloud-provider: aws }
+          - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.12", cloud-provider: azure }
+          - { os: {image_name: windows-latest-64-cores, download_name: windows}, python-version: "3.13", cloud-provider: gcp }
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -382,6 +394,8 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
           # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.12 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
+          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
+          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
@@ -580,7 +594,8 @@ jobs:
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
         run: uv pip install tox --system
-      - if: ${{ contains('macos', matrix.os.download_name) }}
+      # SNOW-2213578: Re-enable the test for 3.13
+      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.13' }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:

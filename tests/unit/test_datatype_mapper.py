@@ -23,6 +23,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     ByteType,
     DateType,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -40,6 +41,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
 )
 
 
@@ -75,6 +77,8 @@ def test_to_sql():
     assert to_sql(None, StringType()) == "NULL :: STRING"
     assert to_sql(None, DoubleType()) == "NULL :: FLOAT"
     assert to_sql(None, BooleanType()) == "NULL :: BOOLEAN"
+    assert to_sql(None, YearMonthIntervalType()) == "NULL :: INTERVAL YEAR TO MONTH"
+    assert to_sql(None, DayTimeIntervalType()) == "NULL :: INTERVAL DAY TO SECOND"
 
     assert to_sql(None, "Not any of the previous types") == "NULL"
 
@@ -167,6 +171,177 @@ def test_to_sql():
         == "[1, 2, 31234567, -1928, 0, -3] :: VECTOR(int,5)"
     )
 
+    assert (
+        to_sql("INTERVAL 1-2 YEAR TO MONTH", YearMonthIntervalType())
+        == "INTERVAL '1-2' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+    assert (
+        to_sql("INTERVAL 5-0 YEAR TO MONTH", YearMonthIntervalType(0, 0))
+        == "INTERVAL '5' YEAR :: INTERVAL YEAR"
+    )
+    assert (
+        to_sql("INTERVAL 0-3 YEAR TO MONTH", YearMonthIntervalType(1, 1))
+        == "INTERVAL '3' MONTH :: INTERVAL MONTH"
+    )
+
+    assert (
+        to_sql("INTERVAL '3-11' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '3-11' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+
+    assert (
+        to_sql("INTERVAL 1 01:01:01.7878 DAY TO SECOND", DayTimeIntervalType())
+        == "INTERVAL '1 01:01:01.7878' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 5 12:30:45.123 DAY TO SECOND", DayTimeIntervalType(0, 3))
+        == "INTERVAL '5 12:30:45.123' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 3 08:45 DAY TO MINUTE", DayTimeIntervalType(0, 2))
+        == "INTERVAL '3 08:45' DAY TO MINUTE :: INTERVAL DAY TO MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL 7 14 DAY TO HOUR", DayTimeIntervalType(0, 1))
+        == "INTERVAL '7 14' DAY TO HOUR :: INTERVAL DAY TO HOUR"
+    )
+    assert (
+        to_sql("INTERVAL 10 DAY", DayTimeIntervalType(0))
+        == "INTERVAL '10' DAY :: INTERVAL DAY"
+    )
+    assert (
+        to_sql("INTERVAL 15:30:45.999 HOUR TO SECOND", DayTimeIntervalType(1, 3))
+        == "INTERVAL '15:30:45.999' HOUR TO SECOND :: INTERVAL HOUR TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 9:15 HOUR TO MINUTE", DayTimeIntervalType(1, 2))
+        == "INTERVAL '9:15' HOUR TO MINUTE :: INTERVAL HOUR TO MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL 23 HOUR", DayTimeIntervalType(1))
+        == "INTERVAL '23' HOUR :: INTERVAL HOUR"
+    )
+    assert (
+        to_sql("INTERVAL 45:30.500 MINUTE TO SECOND", DayTimeIntervalType(2, 3))
+        == "INTERVAL '45:30.500' MINUTE TO SECOND :: INTERVAL MINUTE TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 90 MINUTE", DayTimeIntervalType(2))
+        == "INTERVAL '90' MINUTE :: INTERVAL MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL 125.750 SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '125.750' SECOND :: INTERVAL SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 1 01:01:01.7878 DAY TO SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '01.7878' SECOND :: INTERVAL SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 5 12:30:45 DAY TO SECOND", DayTimeIntervalType(0))
+        == "INTERVAL '5' DAY :: INTERVAL DAY"
+    )
+    assert (
+        to_sql("INTERVAL 3 08:45:30 DAY TO SECOND", DayTimeIntervalType(1))
+        == "INTERVAL '08' HOUR :: INTERVAL HOUR"
+    )
+    assert (
+        to_sql("INTERVAL 2 14:37:22 DAY TO SECOND", DayTimeIntervalType(2))
+        == "INTERVAL '37' MINUTE :: INTERVAL MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL 1 05:20:15.123456 DAY TO SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '15.123456' SECOND :: INTERVAL SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 4 16:42:58 DAY TO SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '58' SECOND :: INTERVAL SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 1 01:30:45 DAY TO SECOND", DayTimeIntervalType(1, 2))
+        == "INTERVAL '01:30' HOUR TO MINUTE :: INTERVAL HOUR TO MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL '2 15:45:30' DAY TO SECOND", DayTimeIntervalType(0, 3))
+        == "INTERVAL '2 15:45:30' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL '5' DAY", DayTimeIntervalType(0))
+        == "INTERVAL '5' DAY :: INTERVAL DAY"
+    )
+    assert (
+        to_sql("INTERVAL 14:25:30.500 HOUR TO SECOND", DayTimeIntervalType(1, 3))
+        == "INTERVAL '14:25:30.500' HOUR TO SECOND :: INTERVAL HOUR TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 0 00:00:00 DAY TO SECOND", DayTimeIntervalType(2, 2))
+        == "INTERVAL '00' MINUTE :: INTERVAL MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL '+5-11' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '+5-11' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+    assert (
+        to_sql("INTERVAL '-2-06' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '-2-06' YEAR TO MONTH :: INTERVAL YEAR TO MONTH"
+    )
+    assert (
+        to_sql("INTERVAL '+1 12:30:45.123' DAY TO SECOND", DayTimeIntervalType(0, 3))
+        == "INTERVAL '+1 12:30:45.123' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL '-2 08:15:30' DAY TO SECOND", DayTimeIntervalType(0, 3))
+        == "INTERVAL '-2 08:15:30' DAY TO SECOND :: INTERVAL DAY TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL '23:45:30.500' HOUR TO SECOND", DayTimeIntervalType(1, 3))
+        == "INTERVAL '23:45:30.500' HOUR TO SECOND :: INTERVAL HOUR TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 1 05:20 DAY TO SECOND", DayTimeIntervalType(3, 3))
+        == "INTERVAL '0' SECOND :: INTERVAL SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 3 08 DAY TO MINUTE", DayTimeIntervalType(0, 2))
+        == "INTERVAL '3 08:00' DAY TO MINUTE :: INTERVAL DAY TO MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL 5 DAY TO MINUTE", DayTimeIntervalType(0, 2))
+        == "INTERVAL '5 0' DAY TO MINUTE :: INTERVAL DAY TO MINUTE"
+    )
+    assert (
+        to_sql("INTERVAL 1 05:30:45:123 DAY TO SECOND", DayTimeIntervalType(2, 3))
+        == "INTERVAL '0:00' MINUTE TO SECOND :: INTERVAL MINUTE TO SECOND"
+    )
+    assert (
+        to_sql("INTERVAL 12:34 SECOND", DayTimeIntervalType(3, 3))
+        == "INTERVAL '12:34' SECOND :: INTERVAL SECOND"
+    )
+    with pytest.raises(ValueError, match="Invalid interval format: INTERVAL"):
+        to_sql("INTERVAL", DayTimeIntervalType())
+    assert (
+        to_sql("INTERVAL 23 HOUR", DayTimeIntervalType(1, 1))
+        == "INTERVAL '23' HOUR :: INTERVAL HOUR"
+    )
+    assert (
+        to_sql("INTERVAL 5 DAY TO HOUR", DayTimeIntervalType(0, 1))
+        == "INTERVAL '5 0' DAY TO HOUR :: INTERVAL DAY TO HOUR"
+    )
+    assert (
+        to_sql("INTERVAL 15 MINUTE", DayTimeIntervalType(2, 3))
+        == "INTERVAL '15' MINUTE TO SECOND :: INTERVAL MINUTE TO SECOND"
+    )
+    with pytest.raises(ValueError, match="Invalid interval format: INTERVAL"):
+        to_sql("INTERVAL", YearMonthIntervalType())
+    assert (
+        to_sql("INTERVAL '5' YEAR", YearMonthIntervalType(0, 0))
+        == "INTERVAL '5' YEAR :: INTERVAL YEAR"
+    )
+    assert (
+        to_sql("INTERVAL '3' MONTH", YearMonthIntervalType(1, 1))
+        == "INTERVAL '3' MONTH :: INTERVAL MONTH"
+    )
+
 
 def test_to_sql_system_function():
     # Test nulls
@@ -185,6 +360,8 @@ def test_to_sql_system_function():
     assert to_sql_no_cast(None, StringType()) == "NULL"
     assert to_sql_no_cast(None, DoubleType()) == "NULL"
     assert to_sql_no_cast(None, BooleanType()) == "NULL"
+    assert to_sql_no_cast(None, YearMonthIntervalType()) == "NULL"
+    assert to_sql_no_cast(None, DayTimeIntervalType()) == "NULL"
 
     assert to_sql_no_cast(None, "Not any of the previous types") == "NULL"
 
@@ -269,6 +446,203 @@ def test_to_sql_system_function():
     assert (
         to_sql_no_cast([1, 2, 31234567, -1928, 0, -3], VectorType(int, 5))
         == "[1, 2, 31234567, -1928, 0, -3]"
+    )
+
+    assert (
+        to_sql_no_cast("INTERVAL 1-2 YEAR TO MONTH", YearMonthIntervalType())
+        == "INTERVAL '1-2' YEAR TO MONTH"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 5-0 YEAR TO MONTH", YearMonthIntervalType(0, 0))
+        == "INTERVAL '5' YEAR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 0-3 YEAR TO MONTH", YearMonthIntervalType(1, 1))
+        == "INTERVAL '3' MONTH"
+    )
+
+    assert (
+        to_sql_no_cast("INTERVAL '3-11' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '3-11' YEAR TO MONTH"
+    )
+
+    assert (
+        to_sql_no_cast("INTERVAL 1 01:01:01.7878 DAY TO SECOND", DayTimeIntervalType())
+        == "INTERVAL '1 01:01:01.7878' DAY TO SECOND"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 5 12:30:45.123 DAY TO SECOND", DayTimeIntervalType(0, 3)
+        )
+        == "INTERVAL '5 12:30:45.123' DAY TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 3 08:45 DAY TO MINUTE", DayTimeIntervalType(0, 2))
+        == "INTERVAL '3 08:45' DAY TO MINUTE"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 7 14 DAY TO HOUR", DayTimeIntervalType(0, 1))
+        == "INTERVAL '7 14' DAY TO HOUR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 10 DAY", DayTimeIntervalType(0)) == "INTERVAL '10' DAY"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 15:30:45.999 HOUR TO SECOND", DayTimeIntervalType(1, 3)
+        )
+        == "INTERVAL '15:30:45.999' HOUR TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 9:15 HOUR TO MINUTE", DayTimeIntervalType(1, 2))
+        == "INTERVAL '9:15' HOUR TO MINUTE"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 23 HOUR", DayTimeIntervalType(1))
+        == "INTERVAL '23' HOUR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 45:30.500 MINUTE TO SECOND", DayTimeIntervalType(2, 3))
+        == "INTERVAL '45:30.500' MINUTE TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 90 MINUTE", DayTimeIntervalType(2))
+        == "INTERVAL '90' MINUTE"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 125.750 SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '125.750' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 1 01:01:01.7878 DAY TO SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '01.7878' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 5 12:30:45 DAY TO SECOND", DayTimeIntervalType(0))
+        == "INTERVAL '5' DAY"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 3 08:45:30 DAY TO SECOND", DayTimeIntervalType(1))
+        == "INTERVAL '08' HOUR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 2 14:37:22 DAY TO SECOND", DayTimeIntervalType(2))
+        == "INTERVAL '37' MINUTE"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 1 05:20:15.123456 DAY TO SECOND", DayTimeIntervalType(3)
+        )
+        == "INTERVAL '15.123456' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 4 16:42:58 DAY TO SECOND", DayTimeIntervalType(3))
+        == "INTERVAL '58' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 1 01:30:45 DAY TO SECOND", DayTimeIntervalType(1, 2))
+        == "INTERVAL '01:30' HOUR TO MINUTE"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL '2 15:45:30' DAY TO SECOND", DayTimeIntervalType(0, 3))
+        == "INTERVAL '2 15:45:30' DAY TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL '5' DAY", DayTimeIntervalType(0)) == "INTERVAL '5' DAY"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 14:25:30.500 HOUR TO SECOND", DayTimeIntervalType(1, 3)
+        )
+        == "INTERVAL '14:25:30.500' HOUR TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 0 00:00:00 DAY TO SECOND", DayTimeIntervalType(2, 2))
+        == "INTERVAL '00' MINUTE"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 2 08:45:30.750 DAY TO SECOND", DayTimeIntervalType(2, 3)
+        )
+        == "INTERVAL '45:30.750' MINUTE TO SECOND"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 1 12:30:15.999 DAY TO SECOND", DayTimeIntervalType(3, 3)
+        )
+        == "INTERVAL '15.999' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL '+5-11' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '+5-11' YEAR TO MONTH"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL '-2-06' YEAR TO MONTH", YearMonthIntervalType(0, 1))
+        == "INTERVAL '-2-06' YEAR TO MONTH"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL '+1 12:30:45.123' DAY TO SECOND", DayTimeIntervalType(0, 3)
+        )
+        == "INTERVAL '+1 12:30:45.123' DAY TO SECOND"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL '-2 08:15:30' DAY TO SECOND", DayTimeIntervalType(0, 3)
+        )
+        == "INTERVAL '-2 08:15:30' DAY TO SECOND"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL '23:45:30.500' HOUR TO SECOND", DayTimeIntervalType(1, 3)
+        )
+        == "INTERVAL '23:45:30.500' HOUR TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 1 05:20 DAY TO SECOND", DayTimeIntervalType(3, 3))
+        == "INTERVAL '0' SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 3 08 DAY TO MINUTE", DayTimeIntervalType(0, 2))
+        == "INTERVAL '3 08:00' DAY TO MINUTE"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 5 DAY TO MINUTE", DayTimeIntervalType(0, 2))
+        == "INTERVAL '5 0' DAY TO MINUTE"
+    )
+    assert (
+        to_sql_no_cast(
+            "INTERVAL 1 05:30:45:123 DAY TO SECOND", DayTimeIntervalType(2, 3)
+        )
+        == "INTERVAL '0:00' MINUTE TO SECOND"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 12:34 SECOND", DayTimeIntervalType(3, 3))
+        == "INTERVAL '12:34' SECOND"
+    )
+    with pytest.raises(ValueError, match="Invalid interval format: INTERVAL"):
+        to_sql_no_cast("INTERVAL", DayTimeIntervalType())
+    assert (
+        to_sql_no_cast("INTERVAL 23 HOUR", DayTimeIntervalType(1, 1))
+        == "INTERVAL '23' HOUR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 5 DAY TO HOUR", DayTimeIntervalType(0, 1))
+        == "INTERVAL '5 0' DAY TO HOUR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL 15 MINUTE", DayTimeIntervalType(2, 3))
+        == "INTERVAL '15' MINUTE TO SECOND"
+    )
+    with pytest.raises(ValueError, match="Invalid interval format: INTERVAL"):
+        to_sql_no_cast("INTERVAL", YearMonthIntervalType())
+    assert (
+        to_sql_no_cast("INTERVAL '5' YEAR", YearMonthIntervalType(0, 0))
+        == "INTERVAL '5' YEAR"
+    )
+    assert (
+        to_sql_no_cast("INTERVAL '3' MONTH", YearMonthIntervalType(1, 1))
+        == "INTERVAL '3' MONTH"
     )
 
 
@@ -360,6 +734,14 @@ def test_schema_expression():
     assert schema_expression(BinaryType(), True) == "NULL :: BINARY"
     assert schema_expression(VectorType(int, 3), True) == "NULL :: VECTOR(int,3)"
     assert schema_expression(VectorType(float, 2), True) == "NULL :: VECTOR(float,2)"
+    assert (
+        schema_expression(YearMonthIntervalType(), True)
+        == "NULL :: INTERVAL YEAR TO MONTH"
+    )
+    assert (
+        schema_expression(DayTimeIntervalType(), True)
+        == "NULL :: INTERVAL DAY TO SECOND"
+    )
 
     assert (
         schema_expression(GeographyType(), False)
@@ -415,3 +797,11 @@ def test_schema_expression():
         == "[0.0, 1.0, 2.0] :: VECTOR(float,3)"
     )
     assert schema_expression(StructType([]), False) == "to_object(parse_json('{}'))"
+    assert (
+        schema_expression(YearMonthIntervalType(), False)
+        == "INTERVAL '1-0' YEAR TO MONTH"
+    )
+    assert (
+        schema_expression(DayTimeIntervalType(), False)
+        == "INTERVAL '1 01:01:01.0001' DAY TO SECOND"
+    )

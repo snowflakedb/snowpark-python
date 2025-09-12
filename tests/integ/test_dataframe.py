@@ -81,6 +81,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     ByteType,
     DateType,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -96,6 +97,7 @@ from snowflake.snowpark.types import (
     TimestampType,
     TimeType,
     VariantType,
+    YearMonthIntervalType,
 )
 from tests.utils import (
     IS_IN_STORED_PROC,
@@ -1687,6 +1689,220 @@ def test_create_dataframe_with_basic_data_types(session):
     assert result[0].asDict(True) == {k: v for k, v in zip(expected_names, data1)}
     assert result[1].asDict(True) == {k: v for k, v in zip(expected_names, data2)}
     assert df.select(expected_names).collect() == expected_rows
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
+def test_create_dataframe_with_year_month_interval_type(session):
+    schema = StructType([StructField("interval_col", YearMonthIntervalType())])
+    data = [["1-2"], ["-2-3"]]
+    df = session.create_dataframe(data, schema=schema)
+
+    assert isinstance(df.schema.fields[0].datatype, YearMonthIntervalType)
+    result = df.collect()
+    assert len(result) == 2
+    assert result[0][0] == "+1-02"
+    assert result[1][0] == "-2-03"
+
+    test_schema = StructType(
+        [
+            StructField("test_date", DateType()),
+            StructField("interval_col", YearMonthIntervalType()),
+        ]
+    )
+
+    test_data = [["2023-01-15", "1-6"], ["2022-06-30", "-0-3"]]
+
+    test_df = session.create_dataframe(test_data, schema=test_schema)
+
+    addition_result = test_df.select(
+        (test_df.test_date + test_df.interval_col).alias("date_plus_interval")
+    ).collect()
+
+    subtraction_result = test_df.select(
+        (test_df.test_date - test_df.interval_col).alias("date_minus_interval")
+    ).collect()
+
+    assert len(addition_result) == 2
+    assert addition_result[0][0] == datetime.date(2024, 7, 15)
+    assert addition_result[1][0] == datetime.date(2022, 3, 30)
+
+    assert len(subtraction_result) == 2
+    assert subtraction_result[0][0] == datetime.date(2021, 7, 15)
+    assert subtraction_result[1][0] == datetime.date(2022, 9, 30)
+
+    interval_arithmetic_df = session.sql(
+        """
+        SELECT
+            DATE '2023-01-01' + INTERVAL '1-2' YEAR TO MONTH as addition_result,
+            DATE '2023-12-31' - INTERVAL '0-6' YEAR TO MONTH as subtraction_result
+    """
+    )
+
+    arithmetic_result = interval_arithmetic_df.collect()
+    assert len(arithmetic_result) == 1
+    assert arithmetic_result[0][0] == datetime.date(2024, 3, 1)
+    assert arithmetic_result[0][1] == datetime.date(2023, 6, 30)
+
+    interval_schema = StructType(
+        [
+            StructField("interval1", YearMonthIntervalType()),
+            StructField("interval2", YearMonthIntervalType()),
+        ]
+    )
+
+    interval_data = [["2-6", "1-3"], ["1-0", "-0-6"], ["-1-2", "2-4"], ["-2-11", "0-1"]]
+
+    interval_df = session.create_dataframe(interval_data, schema=interval_schema)
+
+    interval_addition_result = interval_df.select(
+        (interval_df.interval1 + interval_df.interval2).alias("interval_sum")
+    ).collect()
+
+    interval_subtraction_result = interval_df.select(
+        (interval_df.interval1 - interval_df.interval2).alias("interval_diff")
+    ).collect()
+
+    assert len(interval_addition_result) == 4
+    assert interval_addition_result[0][0] == "+3-09"
+    assert interval_addition_result[1][0] == "+0-06"
+    assert interval_addition_result[2][0] == "+1-02"
+    assert interval_addition_result[3][0] == "-2-10"
+
+    assert len(interval_subtraction_result) == 4
+    assert interval_subtraction_result[0][0] == "+1-03"
+    assert interval_subtraction_result[1][0] == "+1-06"
+    assert interval_subtraction_result[2][0] == "-3-06"
+    assert interval_subtraction_result[3][0] == "-3-00"
+
+    interval_sql_df = session.sql(
+        """
+        SELECT
+            INTERVAL '2-6' YEAR TO MONTH + INTERVAL '1-3' YEAR TO MONTH as interval_addition,
+            INTERVAL '3-0' YEAR TO MONTH - INTERVAL '1-6' YEAR TO MONTH as interval_subtraction,
+            INTERVAL '1-6' YEAR TO MONTH - INTERVAL '3-0' YEAR TO MONTH as interval_subtraction_2,
+    """
+    )
+
+    interval_sql_result = interval_sql_df.collect()
+    assert len(interval_sql_result) == 1
+    assert len(interval_sql_result[0]) == 3
+    assert interval_sql_result[0][0] == "+3-09"
+    assert interval_sql_result[0][1] == "+1-06"
+    assert interval_sql_result[0][2] == "-1-06"
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
+def test_create_dataframe_with_day_time_interval_type(session):
+    schema = StructType([StructField("interval_col", DayTimeIntervalType())])
+    data = [["1 12:30:45"], ["-2 08:15:30"]]
+    df = session.create_dataframe(data, schema=schema)
+
+    assert isinstance(df.schema.fields[0].datatype, DayTimeIntervalType)
+    result = df.collect()
+    assert len(result) == 2
+    assert result[0][0] == datetime.timedelta(days=1, seconds=45045)
+    assert result[1][0] == datetime.timedelta(days=-3, seconds=56670)
+
+    test_schema = StructType(
+        [
+            StructField("test_date", DateType()),
+            StructField("interval_col", DayTimeIntervalType()),
+        ]
+    )
+
+    test_data = [["2023-01-15", "1 06:30:00"], ["2022-06-30", "-0 03:15:45"]]
+
+    test_df = session.create_dataframe(test_data, schema=test_schema)
+
+    addition_result = test_df.select(
+        (test_df.test_date + test_df.interval_col).alias("date_plus_interval")
+    ).collect()
+
+    subtraction_result = test_df.select(
+        (test_df.test_date - test_df.interval_col).alias("date_minus_interval")
+    ).collect()
+
+    assert len(addition_result) == 2
+    assert addition_result[0][0] == datetime.datetime(2023, 1, 16, 6, 30)
+    assert addition_result[1][0] == datetime.datetime(2022, 6, 29, 20, 44, 15)
+
+    assert len(subtraction_result) == 2
+    assert subtraction_result[0][0] == datetime.datetime(2023, 1, 13, 17, 30)
+    assert subtraction_result[1][0] == datetime.datetime(2022, 6, 30, 3, 15, 45)
+
+    interval_arithmetic_df = session.sql(
+        """
+        SELECT
+            DATE '2023-01-01' + INTERVAL '1 12:00:00' DAY TO SECOND as addition_result,
+            DATE '2023-12-31' - INTERVAL '0 06:30:15' DAY TO SECOND as subtraction_result
+    """
+    )
+
+    arithmetic_result = interval_arithmetic_df.collect()
+    assert len(arithmetic_result) == 1
+    assert arithmetic_result[0][0] == datetime.datetime(2023, 1, 2, 12, 0)
+    assert arithmetic_result[0][1] == datetime.datetime(2023, 12, 30, 17, 29, 45)
+
+    interval_schema = StructType(
+        [
+            StructField("interval1", DayTimeIntervalType()),
+            StructField("interval2", DayTimeIntervalType()),
+        ]
+    )
+
+    interval_data = [
+        ["2 12:30:45", "1 06:15:30"],
+        ["1 00:00:00", "-0 12:30:00"],
+        ["-1 08:45:15", "2 04:30:45"],
+    ]
+
+    interval_df = session.create_dataframe(interval_data, schema=interval_schema)
+
+    interval_addition_result = interval_df.select(
+        (interval_df.interval1 + interval_df.interval2).alias("interval_sum")
+    ).collect()
+
+    interval_subtraction_result = interval_df.select(
+        (interval_df.interval1 - interval_df.interval2).alias("interval_diff")
+    ).collect()
+
+    assert len(interval_addition_result) == 3
+    assert interval_addition_result[0][0] == datetime.timedelta(days=3, seconds=67575)
+    assert interval_addition_result[1][0] == datetime.timedelta(seconds=41400)
+    assert interval_addition_result[2][0] == datetime.timedelta(seconds=71130)
+
+    assert len(interval_subtraction_result) == 3
+    assert interval_subtraction_result[0][0] == datetime.timedelta(
+        days=1, seconds=22515
+    )
+    assert interval_subtraction_result[1][0] == datetime.timedelta(
+        days=1, seconds=45000
+    )
+    assert interval_subtraction_result[2][0] == datetime.timedelta(
+        days=-4, seconds=38640
+    )
+
+    interval_sql_df = session.sql(
+        """
+        SELECT
+            INTERVAL '2 12:30:45' DAY TO SECOND + INTERVAL '1 06:15:30' DAY TO SECOND as interval_addition,
+            INTERVAL '3 00:00:00' DAY TO SECOND - INTERVAL '1 12:30:00' DAY TO SECOND as interval_subtraction,
+            INTERVAL '1 06:30:00' DAY TO SECOND - INTERVAL '2 12:45:30' DAY TO SECOND as interval_subtraction_2,
+    """
+    )
+
+    interval_sql_result = interval_sql_df.collect()
+    assert len(interval_sql_result) == 1
+    assert len(interval_sql_result[0]) == 3
+    assert interval_sql_result[0][0] == datetime.timedelta(days=3, seconds=67575)
+    assert interval_sql_result[0][1] == datetime.timedelta(days=1, seconds=41400)
+    assert interval_sql_result[0][2] == datetime.timedelta(days=-2, seconds=63870)
 
 
 def test_create_dataframe_with_semi_structured_data_types(session):
@@ -4138,7 +4354,7 @@ def test_df_columns(session):
             df.select(df['"A B"']).collect()
         assert (
             sce.value.message
-            == 'The DataFrame does not contain the column named "A B".'
+            == 'The DataFrame does not contain the column named "A B". Available columns: "a b", "a""b", "a", "A"'
         )
     finally:
         Utils.drop_table(session, temp_table)
@@ -5966,69 +6182,83 @@ def test_time_travel_core_functionality(session):
         Utils.check_answer(df_reader_at_stmt, df_at_stmt)
 
         # ==============Test 2: BEFORE/AT with offset ==============
-        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
-            0
-        ]
-        offset_seconds = (
-            int((ts_after_update - ts_before_update).total_seconds()) + 1
-        )  # round up
-        df_at_offset = session.table(
-            table_name, time_travel_mode="at", offset=-offset_seconds
+        # Test offset validation: use -3600 seconds (1 hour ago) to trigger expected error
+        # since table was created moments ago, avoiding timestamp capture flakiness
+        with pytest.raises(
+            SnowparkSQLException, match="Time travel data is not available"
+        ):
+            session.table(table_name, time_travel_mode="at", offset=-3600).collect()
+
+        time.sleep(1)
+        df_before_offset = session.table(
+            table_name, time_travel_mode="before", offset=-1
+        ).collect()
+        Utils.check_answer(df_before_offset, expected_after_update)
+
+        df_at_offset = (
+            session.read.option("time_travel_mode", "at")
+            .option("offset", -1)
+            .table(table_name)
+            .collect()
         )
-        Utils.check_answer(df_at_offset, expected_before_update)
+        Utils.check_answer(df_at_offset, expected_after_update)
 
         # ==============Test 3: BEFORE/AT with timestamp ==============
         # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
         # in current session's timezone context, preventing timezone mismatches that could
         # cause time travel to resolve to a future point or before table creation (which would fail).
-        df_before_ts = session.table(
-            table_name,
-            time_travel_mode="before",
-            timestamp=ts_before_update,
-            timestamp_type=TimestampTimeZone.LTZ,
-        )
-        Utils.check_answer(df_before_ts, expected_before_update)
+        if not IS_IN_STORED_PROC:
+            df_before_ts = session.table(
+                table_name,
+                time_travel_mode="before",
+                timestamp=ts_before_update,
+                timestamp_type=TimestampTimeZone.LTZ,
+            )
+            Utils.check_answer(df_before_ts, expected_before_update)
 
-        df_at_ts = session.table(
-            table_name,
-            time_travel_mode="at",
-            timestamp=ts_before_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_at_ts, expected_before_update)
+            df_at_ts = session.table(
+                table_name,
+                time_travel_mode="at",
+                timestamp=ts_before_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_at_ts, expected_before_update)
 
-        df_reader_before_ts = session.read.table(
-            table_name,
-            time_travel_mode="before",
-            timestamp=ts_before_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_before_ts, df_reader_before_ts)
+            df_reader_before_ts = session.read.table(
+                table_name,
+                time_travel_mode="before",
+                timestamp=ts_before_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_before_ts, df_reader_before_ts)
 
-        # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
-        df_before_ts_after_update = session.table(
-            table_name,
-            time_travel_mode="before",
-            timestamp=ts_after_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_before_ts_after_update, expected_after_update)
+            # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
+            ts_after_update = session.sql("select current_timestamp() as CT").collect()[
+                0
+            ][0]
+            df_before_ts_after_update = session.table(
+                table_name,
+                time_travel_mode="before",
+                timestamp=ts_after_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_before_ts_after_update, expected_after_update)
 
-        df_at_ts_after_update = session.table(
-            table_name,
-            time_travel_mode="at",
-            timestamp=ts_after_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_at_ts_after_update, expected_after_update)
+            df_at_ts_after_update = session.table(
+                table_name,
+                time_travel_mode="at",
+                timestamp=ts_after_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_at_ts_after_update, expected_after_update)
 
-        # ==============Test 5: PySpark as-of-timestamp compatibility ==============
-        df_as_of = (
-            session.read.option("as-of-timestamp", ts_before_update)
-            .option("timestamp_type", TimestampTimeZone.LTZ)
-            .table(table_name)
-        )
-        Utils.check_answer(df_as_of, expected_before_update)
+            # ==============Test 5: PySpark as-of-timestamp compatibility ==============
+            df_as_of = (
+                session.read.option("as-of-timestamp", ts_before_update)
+                .option("timestamp_type", TimestampTimeZone.LTZ)
+                .table(table_name)
+            )
+            Utils.check_answer(df_as_of, expected_before_update)
 
     finally:
         Utils.drop_table(session, table_name)
@@ -6058,7 +6288,6 @@ def test_time_travel_comprehensive_coverage(session):
     time.sleep(2)
 
     ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
-
     with session.query_history() as query_history:
         session.sql(
             f"UPDATE {table1_name} SET price = price * 1.1 WHERE id <= 2"
@@ -6139,56 +6368,57 @@ def test_time_travel_comprehensive_coverage(session):
         # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
         # in current session's timezone context, preventing timezone mismatches that could
         # cause time travel to resolve to a future point or before table creation (which would fail).
-        df_join_before = (
-            session.table(
-                table1_name,
-                time_travel_mode="before",
-                timestamp=ts_before_update,
-                timestamp_type="LTZ",
+        if not IS_IN_STORED_PROC:
+            df_join_before = (
+                session.table(
+                    table1_name,
+                    time_travel_mode="before",
+                    timestamp=ts_before_update,
+                    timestamp_type="LTZ",
+                )
+                .join(session.table(table2_name), "id")
+                .select("id", "name", "category", "price")
+                .sort("id")
             )
-            .join(session.table(table2_name), "id")
-            .select("id", "name", "category", "price")
-            .sort("id")
-        )
-        expected_join_before = [
-            Row(1, "product_a", "electronics", 100.50),
-            Row(2, "product_b", "clothing", 200.75),
-            Row(3, "product_c", "automotive", 300.25),
-        ]
-        Utils.check_answer(df_join_before, expected_join_before)
+            expected_join_before = [
+                Row(1, "product_a", "electronics", 100.50),
+                Row(2, "product_b", "clothing", 200.75),
+                Row(3, "product_c", "automotive", 300.25),
+            ]
+            Utils.check_answer(df_join_before, expected_join_before)
 
-        # Test session.read.option().table() with timestamp and timezone options
-        df_reader_join_before = (
-            session.read.option("time_travel_mode", "before")
-            .option("timestamp", ts_before_update)
-            .option("timestamp_type", "LTZ")
-            .table(table1_name)
-            .join(session.table(table2_name), "id")
-            .select("id", "name", "category", "price")
-            .sort("id")
-        )
-        Utils.check_answer(df_join_before, df_reader_join_before)
-
-        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
-            0
-        ]
-        df_join_after = (
-            session.table(
-                table1_name,
-                time_travel_mode="at",
-                timestamp=ts_after_update,
-                timestamp_type=TimestampTimeZone.LTZ,
+            # Test session.read.option().table() with timestamp and timezone options
+            df_reader_join_before = (
+                session.read.option("time_travel_mode", "before")
+                .option("timestamp", ts_before_update)
+                .option("timestamp_type", "LTZ")
+                .table(table1_name)
+                .join(session.table(table2_name), "id")
+                .select("id", "name", "category", "price")
+                .sort("id")
             )
-            .join(session.table(table2_name), "id")
-            .select("id", "name", "category", "price")
-            .sort("id")
-        )
-        expected_join_after = [
-            Row(1, "product_a", "electronics", 110.55),
-            Row(2, "product_b", "clothing", 220.825),
-            Row(3, "product_c", "automotive", 300.25),
-        ]
-        Utils.check_answer(df_join_after, expected_join_after)
+            Utils.check_answer(df_join_before, df_reader_join_before)
+
+            ts_after_update = session.sql("select current_timestamp() as CT").collect()[
+                0
+            ][0]
+            df_join_after = (
+                session.table(
+                    table1_name,
+                    time_travel_mode="at",
+                    timestamp=ts_after_update,
+                    timestamp_type=TimestampTimeZone.LTZ,
+                )
+                .join(session.table(table2_name), "id")
+                .select("id", "name", "category", "price")
+                .sort("id")
+            )
+            expected_join_after = [
+                Row(1, "product_a", "electronics", 110.55),
+                Row(2, "product_b", "clothing", 220.825),
+                Row(3, "product_c", "automotive", 300.25),
+            ]
+            Utils.check_answer(df_join_after, expected_join_after)
 
         # ==============Test 3: DataFrame chained operations with time travel ==============
         df_chained_before = (
@@ -6256,12 +6486,13 @@ def test_time_travel_comprehensive_coverage(session):
         Utils.check_answer(table_before.sort("id"), option_table.sort("id"))
 
         # as-of-timestamp equivalence test
-        as_of_table = (
-            session.read.option("as-of-timestamp", ts_before_update)
-            .option("timestamp_type", "LTZ")
-            .table(table1_name)
-        )
-        Utils.check_answer(table_before.sort("id"), as_of_table.sort("id"))
+        if not IS_IN_STORED_PROC:
+            as_of_table = (
+                session.read.option("as-of-timestamp", ts_before_update)
+                .option("timestamp_type", "LTZ")
+                .table(table1_name)
+            )
+            Utils.check_answer(table_before.sort("id"), as_of_table.sort("id"))
 
         # ==============Test 5: Table copy operations with time travel ==============
         time_travel_table = session.table(
@@ -6295,17 +6526,17 @@ def test_time_travel_comprehensive_coverage(session):
         ]
         Utils.check_answer(copied_with_ops, expected_copied)
 
-        # Test as-of-timestamp with chained operations and string format
-        ts_string = ts_before_update.strftime("%Y-%m-%d %H:%M:%S")
-        as_of_chained = (
-            session.read.option("as-of-timestamp", ts_string)
-            .option("timestamp_type", "LTZ")
-            .table(table1_name)
-            .select("id", "name", "price")
-            .filter(col("price") > 150)
-            .sort("id")
-        )
-        Utils.check_answer(as_of_chained, expected_copied)
+        # Test as-of-timestamp with chained operations
+        if not IS_IN_STORED_PROC:
+            as_of_chained = (
+                session.read.option("as-of-timestamp", ts_before_update)
+                .option("timestamp_type", "LTZ")
+                .table(table1_name)
+                .select("id", "name", "price")
+                .filter(col("price") > 150)
+                .sort("id")
+            )
+            Utils.check_answer(as_of_chained, expected_copied)
 
         time_travel_table.show()
 

@@ -18,6 +18,7 @@ This package contains all Snowpark logical types.
     ColumnIdentifier
     DataType
     DateType
+    DayTimeIntervalType
     DecimalType
     DoubleType
     FileType
@@ -48,3 +49,4 @@ This package contains all Snowpark logical types.
     Variant
     VariantType
     VectorType
+    YearMonthIntervalType

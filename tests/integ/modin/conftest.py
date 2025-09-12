@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import os
 import pathlib
 import re
 from datetime import datetime
@@ -29,9 +30,87 @@ from tests.integ.utils.sql_counter import (
 from tests.utils import Utils, running_on_jenkins
 
 from modin.config import AutoSwitchBackend
+from tests.conftest import set_skip_sql_count_check
 
-# Disable automatic backend selection for hybrid execution by default.
-AutoSwitchBackend.disable()
+MODIN_HYBRID_TEST_MODE_ENABLED = False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_modin_hybrid_mode(pytestconfig):
+    global MODIN_HYBRID_TEST_MODE_ENABLED
+    hybrid_mode = pytestconfig.getoption("enable_modin_hybrid_mode")
+    if hybrid_mode:
+        AutoSwitchBackend.enable()
+        MODIN_HYBRID_TEST_MODE_ENABLED = True
+        set_skip_sql_count_check(True)
+    else:
+        AutoSwitchBackend.disable()
+        MODIN_HYBRID_TEST_MODE_ENABLED = False
+
+
+def read_hybrid_known_failures():
+    """
+    Read `modin_hybrid_integ_results.csv` and create a pandas
+    dataframe filtered down to only the failed tests. You can regenerate
+    this file by:
+    * Collecting the hybrid test results with pytest:
+        pytest tests/integ/modin -n 10
+               --enable_modin_hybrid_mode
+               --csv tests/integ/modin/modin_hybrid_integ_results.csv
+    * Pre-filtering and sorting the results to reduce the file and diff size:
+      import pandas as pd
+      df = pd.read_csv("tests/integ/modin/modin_hybrid_integ_results.csv")
+      filtered = df[["module", "name", "message", "status"]][
+          df["status"].isin(["failed", "xfailed", "error"])
+      ]
+      filtered = filtered.sort_values(by=["module", "name"])
+      filtered.to_csv("tests/integ/modin/modin_hybrid_integ_results.csv", index=False)
+    """
+    if not os.path.exists("../modin/modin_hybrid_integ_results.csv"):
+        return pandas.DataFrame([], columns=["module", "name", "message", "status"])
+    HYBRID_RESULTS_PATH = os.path.normpath(
+        os.path.join(
+            os.path.dirname(__file__), "../modin/modin_hybrid_integ_results.csv"
+        )
+    )
+    df = pandas.read_csv(HYBRID_RESULTS_PATH)
+    return df[["module", "name", "message", "status"]][
+        df["status"].isin(["failed", "xfailed", "error"])
+    ]
+
+
+HYBRID_KNOWN_FAILURES = read_hybrid_known_failures()
+
+
+def is_hybrid_known_failure(module_name, test_name) -> dict[bool, str]:
+    """
+    Determine whether the module/test is a known hybrid mode failure
+    and return the result along with the error message if applicable.
+    """
+    module_mask = HYBRID_KNOWN_FAILURES.module == module_name
+    testname_mask = HYBRID_KNOWN_FAILURES.name == test_name
+    test_data = HYBRID_KNOWN_FAILURES[module_mask & testname_mask]
+    failed = len(test_data) >= 1
+    msg = None
+    if failed:
+        msg = test_data["message"].iloc[0]
+    return (failed, msg)
+
+
+def pytest_runtest_setup(item):
+    """
+    pytest hook to filter out tests when running under hybrid mode
+    """
+    config = item.config
+    if not config.option.enable_modin_hybrid_mode:
+        return
+    # When a test is annotated with @pytest.mark.skip_hybrid it will be skipped
+    if len(list(item.iter_markers(name="skip_hybrid"))) > 0:
+        pytest.skip("Skipped for Hybrid: pytest.mark.skip_hybrid")
+    # Check the known failure list and skip those with a message
+    (failed, msg) = is_hybrid_known_failure(item.module.__name__, item.name)
+    if failed:
+        pytest.skip(f"Skipped for Hybrid: {msg}")
 
 
 @pytest.fixture(scope="module", autouse=True)

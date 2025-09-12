@@ -206,6 +206,7 @@ from snowflake.snowpark.types import (
     ArrayType,
     BooleanType,
     DateType,
+    DayTimeIntervalType,
     DecimalType,
     FloatType,
     GeographyType,
@@ -220,6 +221,7 @@ from snowflake.snowpark.types import (
     TimeType,
     VariantType,
     VectorType,
+    YearMonthIntervalType,
     FileType,
     _AtomicType,
 )
@@ -3189,6 +3191,7 @@ class Session:
         overwrite: bool = False,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
         use_logical_type: Optional[bool] = None,
+        use_vectorized_scanner: bool = False,
         _emit_ast: bool = True,
         **kwargs: Dict[str, Any],
     ) -> Table:
@@ -3234,6 +3237,8 @@ class Session:
                 types during data loading. To enable Parquet logical types, set use_logical_type as True. Set to None to
                 use Snowflakes default. For more information, see:
                 `file format options: <https://docs.snowflake.com/en/sql-reference/sql/create-file-format#type-parquet>`_.
+            use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
+                `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
 
         Example::
 
@@ -3373,6 +3378,7 @@ class Session:
                         auto_create_table=auto_create_table,
                         overwrite=overwrite,
                         table_type=table_type,
+                        use_vectorized_scanner=use_vectorized_scanner,
                         **kwargs,
                     )
         except ProgrammingError as pe:
@@ -3677,6 +3683,7 @@ class Session:
                     (
                         ArrayType,
                         DateType,
+                        DayTimeIntervalType,
                         GeographyType,
                         GeometryType,
                         MapType,
@@ -3685,6 +3692,7 @@ class Session:
                         TimestampType,
                         VariantType,
                         VectorType,
+                        YearMonthIntervalType,
                         FileType,
                     ),
                 )
@@ -3738,6 +3746,10 @@ class Session:
                     data_type, DateType
                 ):
                     converted_row.append(str(value))
+                elif isinstance(data_type, YearMonthIntervalType):
+                    converted_row.append(value)
+                elif isinstance(data_type, DayTimeIntervalType):
+                    converted_row.append(value)
                 elif isinstance(data_type, _AtomicType):  # consider inheritance
                     converted_row.append(value)
                 elif isinstance(value, (list, tuple, array)) and isinstance(
@@ -3814,6 +3826,10 @@ class Session:
                 )
             elif isinstance(field.datatype, FileType):
                 project_columns.append(to_file(column(name)).as_(name))
+            elif isinstance(field.datatype, YearMonthIntervalType):
+                project_columns.append(column(name).cast(field.datatype).as_(name))
+            elif isinstance(field.datatype, DayTimeIntervalType):
+                project_columns.append(column(name).cast(field.datatype).as_(name))
             else:
                 project_columns.append(column(name))
 
@@ -4143,7 +4159,7 @@ class Session:
         # Set both in-band and out-of-band telemetry to True/False
         if value:
             self._conn._telemetry_client._enabled = True
-            if is_in_stored_procedure() and not self._stored_proc_telemetry_enabled:
+            if is_in_stored_procedure() and not self._internal_telemetry_enabled:
                 _logger.debug(
                     "Client side parameter ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY is set to False, telemetry could not be enabled"
                 )

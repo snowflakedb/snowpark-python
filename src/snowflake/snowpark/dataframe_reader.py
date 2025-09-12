@@ -1056,6 +1056,11 @@ class DataFrameReader:
               + ``rowValidationXSDPath``: The Snowflake stage path to the XSD file used for row validation.
                 Rows that do not match the XSD schema will be considered corrupt records and handled according to
                 the specified ``mode`` option.
+
+              + ``cacheResult``: Whether to cache the result DataFrame of the XML reader to a temporary table after calling :meth:`xml`.
+                When set to ``True`` (default), the result is cached and all subsequent operations on the DataFrame are performed on the cached data.
+                This means the actual computation occurs before :meth:`DataFrame.collect` is called.
+                When set to ``False``, the DataFrame is computed lazily and the actual computation occurs when :meth:`DataFrame.collect` is called.
         """
         df = self._read_semi_structured_file(path, "XML")
         # AST.
@@ -1100,7 +1105,9 @@ class DataFrameReader:
         if _emit_ast and self._ast is not None:
             t = self._ast.dataframe_reader.options.add()
             t._1 = key
-            build_expr_from_python_val(t._2, value)
+            build_expr_from_python_val(
+                t._2, str(value) if isinstance(value, TimestampTimeZone) else value
+            )
 
         aliased_key = get_aliased_option_name(key, READER_OPTIONS_ALIAS_MAP)
         self._cur_options[aliased_key] = value
@@ -1487,6 +1494,9 @@ class DataFrameReader:
         df._reader = self
         if xml_reader_udtf:
             set_api_call_source(df, XML_READER_API_SIGNATURE)
+            if self._cur_options.get("CACHERESULT", True):
+                df = df.cache_result()
+                df._all_variant_cols = True
         else:
             set_api_call_source(df, f"DataFrameReader.{format.lower()}")
         return df
@@ -1509,7 +1519,7 @@ class DataFrameReader:
         fetch_size: Optional[int] = 0,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
-        session_init_statement: Optional[List[str]] = None,
+        session_init_statement: Optional[Union[str, List[str]]] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1585,8 +1595,10 @@ class DataFrameReader:
                 For example, `"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED"` can be used in SQL Server
                 to avoid row locks and improve read performance.
                 The `session_init_statement` is executed only once at the beginning of each partition read.
+
         Example::
             .. code-block:: python
+
                 udtf_configs={
                         "external_access_integration": ...,
                         "secret": ...,
@@ -1600,6 +1612,7 @@ class DataFrameReader:
 
         Example::
             .. code-block:: python
+
                 udtf_configs={
                     "external_access_integration": ...,
                     "secret": ...,
@@ -1629,6 +1642,9 @@ class DataFrameReader:
             raise ValueError(
                 "external_access_integration, secret and imports must be specified in udtf configs"
             )
+
+        if session_init_statement and isinstance(session_init_statement, str):
+            session_init_statement = [session_init_statement]
 
         jdbc_client = JDBC(
             session=self._session,
