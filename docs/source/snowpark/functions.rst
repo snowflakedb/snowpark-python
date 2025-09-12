@@ -59,6 +59,7 @@ Functions
     array_position
     array_prepend
     array_remove
+    array_remove_at
     array_reverse
     array_size
     array_slice
@@ -70,6 +71,7 @@ Functions
     arrays_zip
     as_array
     as_binary
+    as_boolean
     as_char
     as_date
     as_decimal
@@ -109,6 +111,7 @@ Functions
     bitshiftright
     bitxor
     bitxor_agg
+    boolor_agg
     build_stage_file_url
     builtin
     bround
@@ -123,6 +126,7 @@ Functions
     charindex
     check_json
     check_xml
+    chr
     coalesce
     col
     collate
@@ -187,6 +191,8 @@ Functions
     desc_nulls_last
     div0
     divnull
+    dp_interval_high
+    dp_interval_low
     editdistance
     endswith
     equal_nan
@@ -227,6 +233,7 @@ Functions
     grouping_id
     hash
     hex
+    hex_decode_binary
     hex_encode
     hour
     iff
@@ -264,6 +271,8 @@ Functions
     kurtosis
     lag
     last_day
+    last_query_id
+    last_transaction
     last_value
     lead
     least
