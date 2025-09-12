@@ -16,14 +16,14 @@ def get_generic_secret_string(secret_name: str) -> str:
     Returns:
         The secret value as a string.
     Raises:
-        RuntimeError: If the _snowflake module cannot be imported.
+        NotImplementedError: If the _snowflake module cannot be imported.
     """
     try:
         import _snowflake
 
         return _snowflake.get_generic_secret_string(secret_name)
     except ImportError:
-        raise RuntimeError("Cannot import _snowflake module")
+        raise NotImplementedError("Cannot import _snowflake module")
 
 
 @publicapi
@@ -34,14 +34,14 @@ def get_oauth_access_token(secret_name: str) -> str:
     Returns:
         The OAuth2 access token as a string.
     Raises:
-        RuntimeError: If the _snowflake module cannot be imported.
+        NotImplementedError: If the _snowflake module cannot be imported.
     """
     try:
         import _snowflake
 
         return _snowflake.get_oauth_access_token(secret_name)
     except ImportError:
-        raise RuntimeError("Cannot import _snowflake module")
+        raise NotImplementedError("Cannot import _snowflake module")
 
 
 @publicapi
@@ -52,14 +52,14 @@ def get_secret_type(secret_name: str) -> str:
     Returns:
         The type of the secret as a string.
     Raises:
-        RuntimeError: If the _snowflake module cannot be imported.
+        NotImplementedError: If the _snowflake module cannot be imported.
     """
     try:
         import _snowflake
 
         return str(_snowflake.get_secret_type(secret_name))
     except ImportError:
-        raise RuntimeError("Cannot import _snowflake module")
+        raise NotImplementedError("Cannot import _snowflake module")
 
 
 @publicapi
@@ -73,7 +73,7 @@ def get_username_password(secret_name: str) -> Dict[str, str]:
         - 'username': The username string
         - 'password': The password string
     Raises:
-        RuntimeError: If the _snowflake module cannot be imported.
+        NotImplementedError: If the _snowflake module cannot be imported.
     """
     try:
         import _snowflake
@@ -84,7 +84,7 @@ def get_username_password(secret_name: str) -> Dict[str, str]:
             "password": secret_object.password,
         }
     except ImportError:
-        raise RuntimeError("Cannot import _snowflake module")
+        raise NotImplementedError("Cannot import _snowflake module")
 
 
 @publicapi
@@ -99,7 +99,7 @@ def get_cloud_provider_token(secret_name: str) -> Dict[str, str]:
         - 'secret_access_key': The secret access key string
         - 'token': The session token string
     Raises:
-        RuntimeError: If the _snowflake module cannot be imported.
+        NotImplementedError: If the _snowflake module cannot be imported.
     """
     try:
         import _snowflake
@@ -111,4 +111,4 @@ def get_cloud_provider_token(secret_name: str) -> Dict[str, str]:
             "token": secret_object.token,
         }
     except ImportError:
-        raise RuntimeError("Cannot import _snowflake module")
+        raise NotImplementedError("Cannot import _snowflake module")
