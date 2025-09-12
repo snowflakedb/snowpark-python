@@ -61,6 +61,7 @@ from pandas.core.dtypes.common import (
 from pandas.core.indexing import IndexingError
 
 import snowflake.snowpark.modin.plugin.extensions.utils as frontend_utils
+from snowflake.snowpark.modin.plugin._internal.utils import new_snow_series, new_snow_df
 from snowflake.snowpark.modin.plugin._internal.indexing_utils import (
     MULTIPLE_ELLIPSIS_INDEXING_ERROR_MESSAGE,
     TOO_FEW_INDEXERS_INDEXING_ERROR_MESSAGE,
@@ -1015,7 +1016,7 @@ class _LocIndexer(_LocationIndexerBase):
 
         # If the row key is list-like (Index, list, np.ndarray, etc.), convert it to Series.
         if not isinstance(row_loc, pd.Series) and is_list_like(row_loc):
-            row_loc = pd.Series(row_loc)
+            row_loc = new_snow_series(row_loc)
 
         matching_item_columns_by_label = self._loc_set_matching_item_columns_by_label(
             key, item
@@ -1040,7 +1041,7 @@ class _LocIndexer(_LocationIndexerBase):
             else col_loc
         )
         if item_is_2d_array:
-            item = pd.DataFrame(item)
+            item = new_snow_df(item)
         frame_is_df_and_item_is_series = isinstance(item, pd.Series) and isinstance(
             self.df, pd.DataFrame
         )
@@ -1209,7 +1210,7 @@ class _iLocIndexer(_LocationIndexerBase):
                 dtype = float
             else:
                 dtype = None
-            row_loc = pd.Series(row_loc, dtype=dtype)
+            row_loc = new_snow_series(row_loc, dtype=dtype)
 
         # Check whether the row and column input is of numeric dtype.
         self._validate_numeric_get_key_values(row_loc, original_row_loc)
@@ -1331,10 +1332,10 @@ class _iLocIndexer(_LocationIndexerBase):
                 item = item.flatten()[0]
             else:
                 if item.ndim == 1:
-                    item = pd.Series(item)
+                    item = new_snow_series(item)
                     is_item_series = True
                 else:
-                    item = pd.DataFrame(item)
+                    item = new_snow_df(item)
 
         is_row_key_df = isinstance(row_loc, pd.DataFrame)
         is_col_key_df = isinstance(col_loc, pd.DataFrame)

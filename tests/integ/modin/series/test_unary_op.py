@@ -122,6 +122,7 @@ def test_ser_unary_invalid_in_sf_negative(func, data):
         ([3, [2, 3]], "Failed to cast variant value"),
     ],
 )
+@pytest.mark.skip_hybrid  # this test is disabled when running under hybrid execution
 def test_ser_unary_invalid_in_both_native_and_sf_negative(
     func, invalid_value, expected_sf_error
 ):

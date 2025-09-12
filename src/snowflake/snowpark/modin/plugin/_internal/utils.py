@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 from packaging import version  # noqa: E402,F401
 
 import modin.pandas as pd
+from modin.config import context as config_context
 import numpy as np
 import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
@@ -117,12 +118,6 @@ _MAX_NUM_RETRIES = 3
 _MAX_IDENTIFIER_LENGTH = 32
 
 _logger = logging.getLogger(__name__)
-
-
-# Flag guarding certain features available only in newer modin versions.
-# Snowpark pandas supports the newest two released versions of modin; update this flag and remove legacy
-# code as needed when we bump dependency versions.
-MODIN_IS_AT_LEAST_0_35_0 = version.parse(pd.__version__) >= version.parse("0.35.0")
 
 
 # This is the default statement parameters for queries from Snowpark pandas API. It provides the fine grain metric for
@@ -327,6 +322,7 @@ def _create_read_only_table(
 def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
     enforce_ordering: bool,
+    dummy_row_pos_mode: bool = False,
 ) -> tuple[OrderedDataFrame, str]:
     """
     create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
@@ -436,7 +432,12 @@ def create_initial_ordered_dataframe(
         if enforce_ordering:
             row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
         else:
-            row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
+            if dummy_row_pos_mode:
+                row_position_column_str = (
+                    f"0 as {row_position_snowflake_quoted_identifier}"
+                )
+            else:
+                row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
 
         columns_to_select = ", ".join(
             [row_position_column_str] + snowflake_quoted_identifiers
@@ -493,9 +494,10 @@ def create_initial_ordered_dataframe(
                 f"Failed to create Snowpark pandas DataFrame out of query {table_name_or_query} with error {ex}",
                 error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
             ) from ex
-        ordered_dataframe = (
+        initial_ordered_dataframe = (
             snowpark_pandas_df._query_compiler._modin_frame.ordered_dataframe
         )
+        ordered_dataframe = initial_ordered_dataframe
         row_position_snowflake_quoted_identifier = (
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
@@ -2258,3 +2260,29 @@ def add_extra_columns_and_select_required_columns(
     # explicitly drop the unwanted columns. This also ensures that the columns in the resultant DataFrame are in the
     # same order as the columns in the `columns` parameter.
     return query_compiler.take_2d_labels(slice(None), columns)
+
+
+def new_snow_series(*args: Any, **kwargs: Any) -> pd.Series:
+    """
+    Create a new modin Series, guaranteed to use the Snowpark pandas backend.
+
+    This is necessary to prevent accidental backend switching when a modin Series is created in an
+    internal helper function, which may otherwise incorrectly produce a NativeQueryCompiler.
+
+    See SNOW-2084670 and SNOW-2331021 for examples of such failures.
+    """
+    with config_context(AutoSwitchBackend=False):
+        return pd.Series(*args, **kwargs)
+
+
+def new_snow_df(*args: Any, **kwargs: Any) -> pd.DataFrame:
+    """
+    Create a new modin DataFrame, guaranteed to use the Snowpark pandas backend.
+
+    This is necessary to prevent accidental backend switching when modin a DataFrame is created in an
+    internal helper function, which may otherwise incorrectly produce a NativeQueryCompiler.
+
+    See SNOW-2084670 and SNOW-2331021 for examples of such failures.
+    """
+    with config_context(AutoSwitchBackend=False):
+        return pd.DataFrame(*args, **kwargs)
