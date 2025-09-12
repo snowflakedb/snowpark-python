@@ -589,6 +589,15 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
+      - if: ${{ matrix.os == 'ubuntu-latest-64-cores' && matrix.cloud-provider == 'aws' }}
+        name: Run Snowpark pandas API tests under Hybrid Mode
+        run: python -m tox -e "py${PYTHON_VERSION/\./}-snowparkpandasnotdoctest-modin-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
+          PYTEST_ADDOPTS: tests/integ/modin --enable_modin_hybrid_mode --color=yes --tb=short
+          TOX_PARALLEL_NO_SPINNER: 1
+        shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
