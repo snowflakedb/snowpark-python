@@ -10123,6 +10123,53 @@ def pandas_udf(
     )
 
 
+def vectorized(input: type, max_batch_size: Optional[int] = None) -> Callable:
+    """Marks a function or UDTF method as vectorized for pandas input.
+    This decorator is a no-op for local invocation.
+    When combined with :func:`udf`, this will make the function behave as a vectorized UDF
+    using :func:`pandas_udf`.
+
+    Args:
+        input: The type of the input to the function. Must be either ``pandas.Series`` or ``pandas.DataFrame``.
+        max_batch_size: The maximum batch size to use for the function. If not provided, the default batch size will be used.
+
+    Returns:
+        A decorator that marks the function as vectorized.
+
+    Example::
+
+        >>> import pandas as pd
+        >>> from snowflake.snowpark.functions import udf, vectorized
+        >>> from snowflake.snowpark.types import IntegerType
+        >>> @udf(return_type=IntegerType(), input_types=[IntegerType(), IntegerType()])
+        ... @vectorized(input=pd.DataFrame)
+        ... def add_one_to_inputs(df):
+        ...     return df[0] + df[1] + 1
+        >>> df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        >>> df.select(add_one_to_inputs("a", "b").alias("result")).collect()
+        [Row(RESULT=4), Row(RESULT=8)]
+
+    See Also:
+        - :func:`udf`
+        - :func:`pandas_udf`
+    """
+
+    def _decorator(f):
+        # Attach metadata that Snowpark inspects during registration
+        f._sf_vectorized_input = input
+        if max_batch_size is not None:
+            f._sf_max_batch_size = int(max_batch_size)
+
+        # Return a wrapper that is a pure no-op locally
+        @functools.wraps(f)
+        def _inner(*args, **kwargs):
+            return f(*args, **kwargs)
+
+        return _inner
+
+    return _decorator
+
+
 @publicapi
 def pandas_udtf(
     handler: Optional[Callable] = None,
@@ -10915,7 +10962,7 @@ def make_interval(
 
 @private_preview(
     version="1.38.0",
-    extra_doc_string="Type YearMonthIntervalType is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED` and `ENABLE_INTERVAL_SUBTYPES` to `TRUE`.",
+    extra_doc_string="Type YearMonthIntervalType is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED`",
 )
 @publicapi
 def interval_year_month_from_parts(
@@ -10941,7 +10988,6 @@ def interval_year_month_from_parts(
         >>> from snowflake.snowpark.functions import interval_year_month_from_parts
         >>>
         >>> _ = session.sql("ALTER SESSION SET FEATURE_INTERVAL_TYPES=ENABLED;").collect()
-        >>> _ = session.sql("ALTER SESSION SET ENABLE_INTERVAL_SUBTYPES=TRUE;").collect()
         >>> df = session.create_dataframe([[1, 2]], ["years", "months"])
         >>> df.select(interval_year_month_from_parts(col("years"), col("months")).alias("interval")).show()
         --------------
