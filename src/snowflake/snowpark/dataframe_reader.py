@@ -83,6 +83,7 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
     SnowparkDataframeReaderException,
+    SnowparkDataSourceNonRetryableException,
 )
 from snowflake.snowpark.functions import sql_expr, col, concat, lit, to_file
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -2001,7 +2002,13 @@ class DataFrameReader:
                             f"Cancelled a remaining data fetching future {future} due to error in another thread."
                         )
 
-            if isinstance(exc, SnowparkDataframeReaderException):
+            if isinstance(
+                exc,
+                (
+                    SnowparkDataframeReaderException,
+                    SnowparkDataSourceNonRetryableException,
+                ),
+            ):
                 raise exc
 
             raise SnowparkDataframeReaderException(
