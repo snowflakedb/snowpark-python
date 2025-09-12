@@ -24,6 +24,16 @@
   - `is_role_in_session`
   - `localtime`
   - `systimestamp`
+  - `array_remove_at`
+  - `as_boolean`
+  - `boolor_agg`
+  - `chr`
+  - `div0null`
+  - `dp_interval_high`
+  - `dp_interval_low`
+  - `hex_decode_binary`
+  - `last_query_id`
+  - `last_transaction`
 
 #### Bug Fixes
 
