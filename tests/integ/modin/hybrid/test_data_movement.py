@@ -11,7 +11,6 @@ import pytest
 from modin.config import Backend, context as config_context
 from modin.tests.pandas.utils import df_equals
 
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_35_0
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
 )
@@ -36,9 +35,6 @@ def pandas_df():
 
 
 @sql_count_checker(query_count=0)
-@pytest.mark.skipif(
-    not MODIN_IS_AT_LEAST_0_35_0, reason="Modin 0.35.0+ defines movement interface"
-)
 def test_unsupported_movement(session, pandas_df):
     with config_context(Backend="Snowflake", AutoSwitchBackend=False):
         snow_df = pd.DataFrame(pandas_df)

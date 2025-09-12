@@ -49,6 +49,8 @@ from snowflake.snowpark.types import (
     ByteType,
     DataType,
     DateType,
+    DayTimeInterval,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -234,6 +236,43 @@ def convert_sf_to_sp_type(
             raise ValueError(
                 f"Invalid scale value {scale} for YearMonthIntervalType. Expected 0, 1, or 2."
             )
+    if column_type_name == "INTERVAL_DAY_TIME":
+        if scale == 3:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.DAY, DayTimeIntervalType.SECOND
+            )
+        elif scale == 4:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.DAY, DayTimeIntervalType.MINUTE
+            )
+        elif scale == 5:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.DAY, DayTimeIntervalType.HOUR
+            )
+        elif scale == 6:
+            return DayTimeIntervalType(DayTimeIntervalType.DAY)
+        elif scale == 7:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.HOUR, DayTimeIntervalType.SECOND
+            )
+        elif scale == 8:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.HOUR, DayTimeIntervalType.MINUTE
+            )
+        elif scale == 9:
+            return DayTimeIntervalType(DayTimeIntervalType.HOUR)
+        elif scale == 10:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.MINUTE, DayTimeIntervalType.SECOND
+            )
+        elif scale == 11:
+            return DayTimeIntervalType(DayTimeIntervalType.MINUTE)
+        elif scale == 12:
+            return DayTimeIntervalType(DayTimeIntervalType.SECOND)
+        else:
+            raise ValueError(
+                f"Invalid scale value {scale} for DayTimeIntervalType. Expected between 3 and 12."
+            )
     if column_type_name == "TEXT":
         if internal_size > 0:
             return StringType(internal_size, internal_size == max_string_size)
@@ -306,6 +345,8 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     if isinstance(datatype, TimeType):
         return "TIME"
     if isinstance(datatype, YearMonthIntervalType):
+        return datatype.simple_string().upper()
+    if isinstance(datatype, DayTimeIntervalType):
         return datatype.simple_string().upper()
     if isinstance(datatype, TimestampType):
         if datatype.tz == TimestampTimeZone.NTZ:
@@ -621,7 +662,15 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
         }
 
     if isinstance(
-        tp, (GeometryType, GeographyType, VariantType, FileType, YearMonthIntervalType)
+        tp,
+        (
+            GeometryType,
+            GeographyType,
+            VariantType,
+            FileType,
+            YearMonthIntervalType,
+            DayTimeIntervalType,
+        ),
     ):
         if value.strip() == "None":
             return None
@@ -764,6 +813,9 @@ def python_type_to_snow_type(
     if tp == YearMonthInterval:
         return YearMonthIntervalType(), False
 
+    if tp == DayTimeInterval:
+        return DayTimeIntervalType(), False
+
     if tp == Timestamp or tp_origin == Timestamp:
         if not tp_args:
             timezone = TimestampTimeZone.DEFAULT
@@ -794,6 +846,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             TimestampType,
             TimeType,
             YearMonthIntervalType,
+            DayTimeIntervalType,
             GeographyType,
             GeometryType,
             VariantType,
@@ -1027,6 +1080,10 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
 )
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_to_month"] = YearMonthIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["intervalyeartomonth"] = YearMonthIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_month"] = YearMonthIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_day_to_second"] = DayTimeIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["intervaldaytosecond"] = DayTimeIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_day_time"] = DayTimeIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["str"] = StringType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["varchar"] = StringType
 

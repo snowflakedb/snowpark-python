@@ -8,10 +8,23 @@
 
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
+- Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
+- Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 - Added support for parameter `session_init_statement` in udtf ingestion of `DataFrameReader.jdbc`(PrPr).
+- Added support for the following scalar functions in `functions.py`:
+  - `getdate`
+  - `getvariable`
+  - `invoker_role`
+  - `invoker_share`
+  - `is_application_role_in_session`
+  - `is_database_role_in_session`
+  - `is_granted_to_invoker_role`
+  - `is_role_in_session`
+  - `localtime`
+  - `systimestamp`
 
 #### Bug Fixes
 
@@ -40,10 +53,19 @@
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
 - Added support for applying Snowflake Cortex function `Complete`.
+- Introduce faster pandas: Improved performance by deferring row position computation. 
+  - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
+  - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
+- Updated the error message for when Snowpark pandas is referenced within apply.
 
 #### Dependency Updates
 
+- Updated the supported `modin` versions to >=0.35.0 and <0.37.0 (was previously >= 0.34.0 and <0.36.0).
+
 #### Bug Fixes
+
+- Fixed an issue with drop_duplicates where the same data source could be read multiple times in the same query but in a different order each time, resulting in missing rows in the final result. The fix ensures that the data source is read only once.
+- Fixed a bug with hybrid execution mode where an `AssertionError` was unexpectedly raised by certain indexing operations.
 
 ### Snowpark Local Testing Updates
 
