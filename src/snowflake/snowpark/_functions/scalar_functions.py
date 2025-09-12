@@ -627,8 +627,7 @@ def boolor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> 
 @publicapi
 def boolxor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Computes the Boolean XOR of two numeric expressions (i.e. one of the expressions, but not both expressions, is True).
-    In accordance with Boolean semantics:
+    Computes the Boolean XOR of two numeric expressions (i.e. one of the expressions, but not both expressions, is True). In accordance with Boolean semantics:
         - Non-zero values (including negative numbers) are regarded as True.
         - Zero values are regarded as False.
 
