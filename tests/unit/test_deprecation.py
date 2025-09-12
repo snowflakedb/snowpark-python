@@ -32,7 +32,8 @@ def test_py39_deprecation():
         pytest.skip("This test is for Python 3.9 only")
 
     with pytest.warns(
-        DeprecationWarning, match="Python Runtime 3.9 reached its End-Of-Life"
+        DeprecationWarning,
+        match="Python 3.9 is due to reach its end-of-life on October 2025",
     ) as record:
         importlib.reload(snowflake.snowpark)
 
