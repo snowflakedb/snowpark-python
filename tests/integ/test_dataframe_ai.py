@@ -46,7 +46,7 @@ def test_dataframe_ai_complete_with_named_placeholders(session):
     assert result_df.columns == ["REVIEW", "RATING", "CATEGORY", "SENTIMENT_ANALYSIS"]
 
     # Collect and verify results
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 3
 
     for row in results:
@@ -78,7 +78,7 @@ def test_dataframe_ai_complete_with_positional_placeholders(session):
     assert result_df.columns == ["TOPIC", "CATEGORY", "DEFINITION"]
 
     # Collect and verify results
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 3
 
     for row in results:
@@ -108,7 +108,7 @@ def test_dataframe_ai_complete_default_output_column(session):
     # Check that default column name is used
     assert "AI_COMPLETE_OUTPUT" in result_df.schema.names
 
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 2
     for row in results:
         assert row["AI_COMPLETE_OUTPUT"] is not None
@@ -119,7 +119,9 @@ def test_dataframe_ai_complete_error_handling(session):
 
     # Test missing model parameter
     df = session.create_dataframe([["test"]], schema=["text"])
-    with pytest.raises(ValueError, match="model must be specified"):
+    with pytest.raises(
+        TypeError, match="missing 1 required positional argument: 'model'"
+    ):
         df.ai.complete(
             prompt="Test {text}",
             input_columns={"text": col("text")}
@@ -157,7 +159,7 @@ def test_dataframe_ai_filter_simple_text(session):
     )
 
     # Check that we get some results (should be the positive ones)
-    results = positive_df.collect(_emit_ast=False)
+    results = positive_df.collect()
     assert len(results) >= 1  # At least some positive reviews should be found
     assert len(results) <= 5  # Not more than the original count
 
@@ -191,7 +193,7 @@ def test_dataframe_ai_filter_with_named_placeholders(session):
     )
 
     # Check results
-    results = european_df.collect(_emit_ast=False)
+    results = european_df.collect()
     assert len(results) >= 1  # Should find at least one European country
 
     # Verify the results are European countries
@@ -221,7 +223,7 @@ def test_dataframe_ai_filter_with_positional_placeholders(session):
     )
 
     # Check results
-    results = programming_df.collect(_emit_ast=False)
+    results = programming_df.collect()
     assert len(results) >= 1  # Should find at least one programming language
 
     # Verify the results contain programming languages
@@ -265,7 +267,7 @@ def test_dataframe_ai_agg_basic(session):
     )
 
     # Verify results
-    results = summary_df.collect(_emit_ast=False)
+    results = summary_df.collect()
     assert len(results) == 1  # Should be a single aggregated row
     assert results[0]["SUMMARY"] is not None
     assert len(results[0]["SUMMARY"]) > 10  # Should have meaningful content
@@ -276,7 +278,7 @@ def test_dataframe_ai_agg_basic(session):
     )
 
     # Verify results
-    results = summary_df.collect(_emit_ast=False)
+    results = summary_df.collect()
     assert len(results) == 1  # Should be a single aggregated row
     assert results[0]["AI_AGG_OUTPUT"] is not None
     assert len(results[0]["AI_AGG_OUTPUT"]) > 10  # Should have meaningful content
@@ -298,7 +300,7 @@ def test_dataframe_ai_agg_error_handling(session):
         df.ai.agg(
             task_description="Summarize the text",
             input_column=col("invalid"),  # Invalid column name
-        ).collect(_emit_ast=False)
+        ).collect()
 
 
 def test_grouped_dataframe_ai_agg(session):
@@ -329,7 +331,7 @@ def test_grouped_dataframe_ai_agg(session):
         task_description="Create an overall summary of all customer reviews",
     )
 
-    count = global_summary_df.count(_emit_ast=False)
+    count = global_summary_df.count()
     assert count == 1  # Single row for global aggregation
 
     # Test 2: Group by single column with string expr
@@ -343,7 +345,7 @@ def test_grouped_dataframe_ai_agg(session):
         .sort(col("CATEGORY").asc())  # Chain sort operation
     )
 
-    category_results = category_summary_df.collect(_emit_ast=False)
+    category_results = category_summary_df.collect()
     assert len(category_results) == 3  # 3 categories after filtering out toys
     categories = [row["CATEGORY"] for row in category_results]
     assert categories == ["books", "clothing", "electronics"]  # Alphabetically sorted
@@ -365,7 +367,7 @@ def test_grouped_dataframe_ai_agg(session):
         .select("QUALITY_LEVEL")  # Chain select to keep only grouping column
     )
 
-    quality_results = quality_summary_df.collect(_emit_ast=False)
+    quality_results = quality_summary_df.collect()
     assert len(quality_results) == 2  # Two quality levels: high and low
     assert all(
         len(row.as_dict()) == 1 for row in quality_results
@@ -385,7 +387,7 @@ def test_grouped_dataframe_ai_agg(session):
         .limit(2)  # Limit to top 2 results
     )
 
-    multi_results = multi_group_df.collect(_emit_ast=False)
+    multi_results = multi_group_df.collect()
     assert len(multi_results) == 2  # Limited to 2 results
 
     # Verify the results are high quality and sorted correctly
@@ -411,7 +413,7 @@ def test_grouped_dataframe_ai_agg(session):
         .sort("PRODUCT_TYPE")
     )
 
-    complex_results = complex_chain_df.collect(_emit_ast=False)
+    complex_results = complex_chain_df.collect()
     assert len(complex_results) == 2  # Only electronics and books
     assert "PRODUCT_TYPE" in complex_results[0].as_dict()
     assert "CATEGORY" not in complex_results[0].as_dict()
@@ -444,7 +446,7 @@ def test_dataframe_ai_classify_basic(session):
     assert result_df.columns == ["TEXT", "CATEGORY"]
 
     # Collect and verify results
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 4
 
     # Verify some expected classifications
@@ -487,7 +489,7 @@ def test_dataframe_ai_classify_multi_label(session):
     assert result_df.columns == ["TEXT", "CATEGORIES", "TOPICS"]
 
     # Collect and verify results
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 4
 
     # First text mentions both travel and cooking
@@ -539,7 +541,7 @@ def test_dataframe_ai_classify_with_examples(session):
     assert result_df.columns == ["FEEDBACK", "SENTIMENT"]
 
     # Collect and verify results
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 4
 
     # Check sentiment classifications
@@ -591,7 +593,7 @@ def test_dataframe_ai_similarity_basic(session):
     assert result_df.columns == ["TEXT1", "TEXT2", "SIMILARITY_SCORE"]
 
     # Collect and verify results
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 4
 
     # Verify similarity scores are in range
@@ -630,7 +632,7 @@ def test_dataframe_ai_similarity_default_output_column(session):
     # Check that default column name is used
     assert "AI_SIMILARITY_OUTPUT" in result_df.columns
 
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 2
     for row in results:
         assert row["AI_SIMILARITY_OUTPUT"] is not None
@@ -664,7 +666,7 @@ def test_dataframe_ai_similarity_with_custom_model(session):
     ]
 
     # Collect and verify results
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 3
 
     # With multilingual model, translations should have high similarity
@@ -695,7 +697,7 @@ def test_dataframe_ai_similarity_error_handling(session):
         df.ai.similarity(
             input1="text",
             input2="nonexistent_column",
-        ).collect(_emit_ast=False)
+        ).collect()
 
 
 def test_dataframe_ai_similarity_with_nulls(session):
@@ -717,7 +719,7 @@ def test_dataframe_ai_similarity_with_nulls(session):
         output_column="similarity",
     )
 
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 4
 
     # Rows with NULLs should return NULL similarity scores
@@ -752,7 +754,7 @@ def test_dataframe_ai_sentiment_basic(session):
     assert result_df.columns == ["REVIEW", "SENTIMENT"]
 
     # Collect and verify results
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 4
 
     # Parse sentiment results
@@ -802,7 +804,7 @@ def test_dataframe_ai_sentiment_with_categories(session):
     assert result_df.columns == ["REVIEW", "DETAILED_SENTIMENT"]
 
     # Collect and verify results
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 3
 
     # Check first review sentiments
@@ -970,9 +972,9 @@ def test_dataframe_ai_summarize_agg_basic(session):
 
     # Check schema and results
     assert summary_df.columns == ["REVIEWS_SUMMARY"]
-    assert summary_df.count(_emit_ast=False) == 1
+    assert summary_df.count() == 1
 
-    results = summary_df.collect(_emit_ast=False)
+    results = summary_df.collect()
     assert len(results) == 1
     assert results[0]["REVIEWS_SUMMARY"] is not None
     assert len(results[0]["REVIEWS_SUMMARY"]) > 10  # Should have meaningful content
@@ -994,9 +996,9 @@ def test_dataframe_ai_summarize_agg_default_output_column(session):
 
     # Check that default column name is used
     assert "AI_SUMMARIZE_AGG_OUTPUT" in summary_df.columns
-    assert summary_df.count(_emit_ast=False) == 1
+    assert summary_df.count() == 1
 
-    results = summary_df.collect(_emit_ast=False)
+    results = summary_df.collect()
     assert results[0]["AI_SUMMARIZE_AGG_OUTPUT"] is not None
 
 
@@ -1030,7 +1032,7 @@ def test_dataframe_ai_transcribe_basic(session, resources_path):
 
     assert result_df.columns == ["AUDIO_PATH", "TRANSCRIPT"]
 
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 1
     data = json.loads(results[0]["TRANSCRIPT"]) if results[0]["TRANSCRIPT"] else {}
     assert isinstance(data, dict)
@@ -1057,7 +1059,7 @@ def test_dataframe_ai_transcribe_default_output_column(session, resources_path):
     )
 
     assert "AI_TRANSCRIBE_OUTPUT" in result_df.columns
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     data = (
         json.loads(results[0]["AI_TRANSCRIBE_OUTPUT"])
         if results[0]["AI_TRANSCRIBE_OUTPUT"]
@@ -1087,7 +1089,7 @@ def test_dataframe_ai_parse_document_basic(session, resources_path):
 
     assert result_df.columns == ["FILE_PATH", "PARSED"]
 
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     data = json.loads(results[0]["PARSED"]) if results[0]["PARSED"] else {}
     assert isinstance(data, dict)
     assert "content" in data and isinstance(data["content"], str)
@@ -1112,7 +1114,7 @@ def test_dataframe_ai_parse_document_default_output_column(session, resources_pa
     )
 
     assert "AI_PARSE_DOCUMENT_OUTPUT" in result_df.columns
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     data = (
         json.loads(results[0]["AI_PARSE_DOCUMENT_OUTPUT"])
         if results[0]["AI_PARSE_DOCUMENT_OUTPUT"]
@@ -1268,7 +1270,7 @@ def test_dataframe_ai_count_tokens_default_output_column(session):
         prompt="text",
     )
 
-    results = result_df.collect(_emit_ast=False)
+    results = result_df.collect()
     assert len(results) == 1
     assert results[0]["COUNT_TOKENS_OUTPUT"] == 5
 
@@ -1318,7 +1320,7 @@ Final thoughts and summary of the findings."""
     )
 
     # Verify results
-    results = result_df.select("chunks").collect(_emit_ast=False)
+    results = result_df.select("chunks").collect()
     chunks = json.loads(results[0][0])
     assert chunks == [
         {
@@ -1374,9 +1376,7 @@ def test_dataframe_ai_split_text_markdown_header_default_output(session):
         chunk_size=20,
     )
 
-    results = result_df.select("SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT").collect(
-        _emit_ast=False
-    )
+    results = result_df.select("SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT").collect()
     chunks = json.loads(results[0][0])
     assert chunks == [{"chunk": "Content", "headers": {"h1": "Header"}}]
 
@@ -1419,7 +1419,7 @@ Final paragraph with concluding remarks."""
     )
 
     # Verify results
-    results = result_df.select("chunks").collect(_emit_ast=False)
+    results = result_df.select("chunks").collect()
     chunks = json.loads(results[0][0])
     assert chunks == [
         "This is a long document with multiple sentences.",
@@ -1471,7 +1471,7 @@ More content in section 2.
     )
 
     # Verify results
-    results = result_df.select("md_chunks").collect(_emit_ast=False)
+    results = result_df.select("md_chunks").collect()
     chunks = json.loads(results[0][0])
     assert chunks == [
         "# Main Title",
@@ -1519,7 +1519,7 @@ def function_three():
     )
 
     # Verify results
-    results = result_df.select("code_chunks").collect(_emit_ast=False)
+    results = result_df.select("code_chunks").collect()
     chunks = json.loads(results[0][0])
     assert chunks == [
         "def function_one():",
@@ -1546,9 +1546,7 @@ def test_dataframe_ai_split_text_recursive_character_default_output(session):
     )
 
     # Verify results
-    results = result_df.select("SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT").collect(
-        _emit_ast=False
-    )
+    results = result_df.select("SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT").collect()
     chunks = json.loads(results[0][0])
     assert chunks == ["Short text", "to split"]
 

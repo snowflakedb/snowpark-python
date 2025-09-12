@@ -1,0 +1,2151 @@
+## TEST CASE
+
+# Basic table to drive some AI ops that don't require files
+df = session.table(tables.table1)
+
+# DataFrame.ai.complete with named placeholders
+from snowflake.snowpark.functions import col
+df1 = df.select(col("STR").as_("question"))
+df2 = df1.ai.complete(
+    prompt="Answer briefly: {q}",
+    input_columns={"q": col("question")},
+    model="snowflake-arctic",
+)
+
+# DataFrame.ai.filter with named placeholders
+df4 = session.create_dataframe([
+    ["Switzerland", "Europe"],
+    ["Korea", "Asia"],
+    ["Brazil", "South America"],
+], schema=["country", "continent"])
+df5 = df4.ai.filter(
+    "Is {country} located in {continent} and specifically in Europe?",
+    input_columns={"country": col("country"), "continent": col("continent")},
+)
+
+# DataFrame.ai.agg on text column
+df6 = session.create_dataframe([
+    ["Excellent product, highly recommend!"],
+    ["Great quality and fast shipping"],
+    ["Average product, nothing special"],
+    ["Poor quality, very disappointed"],
+], schema=["review"])
+df7 = df6.ai.agg(
+    task_description="Summarize these product reviews for a blog post",
+    input_column="review",
+)
+
+# DataFrame.ai.classify with list categories
+df8 = session.create_dataframe([
+    ["I love hiking in the mountains"],
+    ["My favorite dish is pasta"],
+    ["Just finished reading a great book"],
+], schema=["text"])
+df9 = df8.ai.classify(
+    input_column="text",
+    categories=["hiking", "cooking", "reading"],
+)
+
+# DataFrame.ai.similarity between two text columns
+df10 = session.create_dataframe([
+    ["I love programming", "I enjoy coding"],
+    ["The weather is nice", "It's raining heavily"],
+], schema=["text1", "text2"])
+df11 = df10.ai.similarity(
+    input1="text1",
+    input2="text2",
+)
+
+# DataFrame.ai.sentiment overall sentiment
+df12 = session.create_dataframe([
+    ["The movie had amazing visual effects but the plot was terrible."],
+    ["Everything about this experience was perfect!"],
+], schema=["review"])
+df13 = df12.ai.sentiment(input_column="review")
+
+# DataFrame.ai.embed text embeddings
+df14 = session.create_dataframe([
+    ["Machine learning is fascinating"],
+    ["Snowflake provides cloud data platform"],
+], schema=["text"])
+df15 = df14.ai.embed(input_column="text", model="snowflake-arctic-embed-l-v2.0")
+
+# DataFrame.ai.summarize_agg aggregation summary
+df16 = session.create_dataframe([
+    ["Meeting started with project updates"],
+    ["Discussed timeline and deliverables"],
+    ["Identified key risks"],
+], schema=["notes"])
+df17 = df16.ai.summarize_agg(input_column="notes")
+
+# DataFrame.ai.extract with dict response_format
+df20 = session.create_dataframe([["John Smith lives in San Francisco and works for Snowflake"]], schema=["text"])
+df21 = df20.ai.extract(
+    input_column="text",
+    response_format={"name": "What is the first name of the employee?", "city": "What is the address of the employee?"},
+)
+
+# DataFrame.ai.count_tokens simple
+df22 = session.create_dataframe([["What is a large language model?"], ["Explain quantum computing in simple terms."]], schema=["text"])
+df23 = df22.ai.count_tokens(model="llama3.1-70b", prompt="text")
+
+# DataFrame.ai.split_text_markdown_header
+df24 = session.create_dataframe([["# Intro\nThis is the intro.\n## Background\nSome background info."]], schema=["document"])
+df25 = df24.ai.split_text_markdown_header(
+    text_to_split="document",
+    headers_to_split_on={"#": "section", "##": "subsection"},
+    chunk_size=20,
+    overlap=5,
+)
+
+# DataFrame.ai.split_text_recursive_character
+df26 = session.create_dataframe([["This is a long document. It has multiple sentences.\n\nAnd multiple paragraphs."]], schema=["text"])
+df27 = df26.ai.split_text_recursive_character(
+    text_to_split="text",
+    format="none",
+    chunk_size=30,
+    overlap=5,
+)
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+df1 = df.select(col("STR").as_("question"))
+
+df2 = df1.ai.complete(prompt="Answer briefly: {q}", model="snowflake-arctic", input_columns=prompt("Answer briefly: {0}", col("question")), output_column="AI_COMPLETE_OUTPUT")
+
+df4 = session.create_dataframe([["Switzerland", "Europe"], ["Korea", "Asia"], ["Brazil", "South America"]], schema=["country", "continent"])
+
+df5 = df4.ai.filter("Is {country} located in {continent} and specifically in Europe?", input_columns=prompt("Is {0} located in {1} and specifically in Europe?", col("country"), col("continent")))
+
+df6 = session.create_dataframe([["Excellent product, highly recommend!"], ["Great quality and fast shipping"], ["Average product, nothing special"], ["Poor quality, very disappointed"]], schema=["review"])
+
+df7 = df6.ai.agg("Summarize these product reviews for a blog post", input_column="review", output_column="AI_AGG_OUTPUT")
+
+df8 = session.create_dataframe([["I love hiking in the mountains"], ["My favorite dish is pasta"], ["Just finished reading a great book"]], schema=["text"])
+
+df9 = df8.ai.classify(input_column="text", categories=["hiking", "cooking", "reading"], output_column="AI_CLASSIFY_OUTPUT")
+
+df10 = session.create_dataframe([["I love programming", "I enjoy coding"], ["The weather is nice", "It's raining heavily"]], schema=["text1", "text2"])
+
+df11 = df10.ai.similarity(input1="text1", input2="text2", output_column="AI_SIMILARITY_OUTPUT")
+
+df12 = session.create_dataframe([["The movie had amazing visual effects but the plot was terrible."], ["Everything about this experience was perfect!"]], schema=["review"])
+
+df13 = df12.ai.sentiment(input_column="review", output_column="AI_SENTIMENT_OUTPUT")
+
+df14 = session.create_dataframe([["Machine learning is fascinating"], ["Snowflake provides cloud data platform"]], schema=["text"])
+
+df15 = df14.ai.embed(input_column="text", model="snowflake-arctic-embed-l-v2.0", output_column="AI_EMBED_OUTPUT")
+
+df16 = session.create_dataframe([["Meeting started with project updates"], ["Discussed timeline and deliverables"], ["Identified key risks"]], schema=["notes"])
+
+df17 = df16.ai.summarize_agg(input_column="notes", output_column="AI_SUMMARIZE_AGG_OUTPUT")
+
+df20 = session.create_dataframe([["John Smith lives in San Francisco and works for Snowflake"]], schema=["text"])
+
+df21 = df20.ai.extract(input_column="text", response_format={"name": "What is the first name of the employee?", "city": "What is the address of the employee?"}, output_column="AI_EXTRACT_OUTPUT")
+
+df22 = session.create_dataframe([["What is a large language model?"], ["Explain quantum computing in simple terms."]], schema=["text"])
+
+df23 = df22.ai.count_tokens(model="llama3.1-70b", prompt="text", output_column="COUNT_TOKENS_OUTPUT")
+
+df24 = session.create_dataframe([["# Intro\nThis is the intro.\n## Background\nSome background info."]], schema=["document"])
+
+df25 = df24.ai.split_text_markdown_header(text_to_split="document", headers_to_split_on={"#": "section", "##": "subsection"}, chunk_size=20, overlap=5, output_column="SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT")
+
+df26 = session.create_dataframe([["This is a long document. It has multiple sentences.\n\nAnd multiple paragraphs."]], schema=["text"])
+
+df27 = df26.ai.split_text_recursive_character(text_to_split="text", format="none", chunk_size=30, overlap=5, separators=("\n\n", "\n", " ", ""), output_column="SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT")
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 26
+          file: 2
+          start_column: 13
+          start_line: 26
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            column_alias {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 34
+                        end_line: 30
+                        file: 2
+                        start_column: 24
+                        start_line: 30
+                      }
+                      v: "STR"
+                    }
+                  }
+                  src {
+                    end_column: 34
+                    end_line: 30
+                    file: 2
+                    start_column: 24
+                    start_line: 30
+                  }
+                }
+              }
+              fn {
+                column_alias_fn_as: true
+              }
+              name: "question"
+              src {
+                end_column: 50
+                end_line: 30
+                file: 2
+                start_column: 24
+                start_line: 30
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 51
+          end_line: 30
+          file: 2
+          start_column: 14
+          start_line: 30
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_complete {
+        df {
+          dataframe_ref {
+            id: 2
+          }
+        }
+        input_columns {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "prompt"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 35
+                  file: 2
+                  start_column: 14
+                  start_line: 31
+                }
+                v: "Answer briefly: {0}"
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 47
+                      end_line: 33
+                      file: 2
+                      start_column: 32
+                      start_line: 33
+                    }
+                    v: "question"
+                  }
+                }
+                src {
+                  end_column: 47
+                  end_line: 33
+                  file: 2
+                  start_column: 32
+                  start_line: 33
+                }
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 35
+              file: 2
+              start_column: 14
+              start_line: 31
+            }
+          }
+        }
+        model: "snowflake-arctic"
+        output_column {
+          value: "AI_COMPLETE_OUTPUT"
+        }
+        prompt: "Answer briefly: {q}"
+        src {
+          end_column: 9
+          end_line: 35
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 43
+                  end_line: 42
+                  file: 2
+                  start_column: 14
+                  start_line: 38
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 43
+                      end_line: 42
+                      file: 2
+                      start_column: 14
+                      start_line: 38
+                    }
+                    v: "Switzerland"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 43
+                      end_line: 42
+                      file: 2
+                      start_column: 14
+                      start_line: 38
+                    }
+                    v: "Europe"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 43
+                  end_line: 42
+                  file: 2
+                  start_column: 14
+                  start_line: 38
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 43
+                      end_line: 42
+                      file: 2
+                      start_column: 14
+                      start_line: 38
+                    }
+                    v: "Korea"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 43
+                      end_line: 42
+                      file: 2
+                      start_column: 14
+                      start_line: 38
+                    }
+                    v: "Asia"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 43
+                  end_line: 42
+                  file: 2
+                  start_column: 14
+                  start_line: 38
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 43
+                      end_line: 42
+                      file: 2
+                      start_column: 14
+                      start_line: 38
+                    }
+                    v: "Brazil"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 43
+                      end_line: 42
+                      file: 2
+                      start_column: 14
+                      start_line: 38
+                    }
+                    v: "South America"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "country"
+            vs: "continent"
+          }
+        }
+        src {
+          end_column: 43
+          end_line: 42
+          file: 2
+          start_column: 14
+          start_line: 38
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df4"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_filter {
+        df {
+          dataframe_ref {
+            id: 4
+          }
+        }
+        input_columns {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "prompt"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 46
+                  file: 2
+                  start_column: 14
+                  start_line: 43
+                }
+                v: "Is {0} located in {1} and specifically in Europe?"
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 52
+                      end_line: 45
+                      file: 2
+                      start_column: 38
+                      start_line: 45
+                    }
+                    v: "country"
+                  }
+                }
+                src {
+                  end_column: 52
+                  end_line: 45
+                  file: 2
+                  start_column: 38
+                  start_line: 45
+                }
+              }
+            }
+            pos_args {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 83
+                      end_line: 45
+                      file: 2
+                      start_column: 67
+                      start_line: 45
+                    }
+                    v: "continent"
+                  }
+                }
+                src {
+                  end_column: 83
+                  end_line: 45
+                  file: 2
+                  start_column: 67
+                  start_line: 45
+                }
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 46
+              file: 2
+              start_column: 14
+              start_line: 43
+            }
+          }
+        }
+        predicate: "Is {country} located in {continent} and specifically in Europe?"
+        src {
+          end_column: 9
+          end_line: 46
+          file: 2
+          start_column: 14
+          start_line: 43
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df5"
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 29
+                  end_line: 54
+                  file: 2
+                  start_column: 14
+                  start_line: 49
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 29
+                      end_line: 54
+                      file: 2
+                      start_column: 14
+                      start_line: 49
+                    }
+                    v: "Excellent product, highly recommend!"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 29
+                  end_line: 54
+                  file: 2
+                  start_column: 14
+                  start_line: 49
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 29
+                      end_line: 54
+                      file: 2
+                      start_column: 14
+                      start_line: 49
+                    }
+                    v: "Great quality and fast shipping"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 29
+                  end_line: 54
+                  file: 2
+                  start_column: 14
+                  start_line: 49
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 29
+                      end_line: 54
+                      file: 2
+                      start_column: 14
+                      start_line: 49
+                    }
+                    v: "Average product, nothing special"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 29
+                  end_line: 54
+                  file: 2
+                  start_column: 14
+                  start_line: 49
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 29
+                      end_line: 54
+                      file: 2
+                      start_column: 14
+                      start_line: 49
+                    }
+                    v: "Poor quality, very disappointed"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "review"
+          }
+        }
+        src {
+          end_column: 29
+          end_line: 54
+          file: 2
+          start_column: 14
+          start_line: 49
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df6"
+    }
+    uid: 6
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_agg {
+        df {
+          dataframe_ref {
+            id: 6
+          }
+        }
+        input_column {
+          string_val {
+            src {
+              end_column: 9
+              end_line: 58
+              file: 2
+              start_column: 14
+              start_line: 55
+            }
+            v: "review"
+          }
+        }
+        output_column {
+          value: "AI_AGG_OUTPUT"
+        }
+        src {
+          end_column: 9
+          end_line: 58
+          file: 2
+          start_column: 14
+          start_line: 55
+        }
+        task_description: "Summarize these product reviews for a blog post"
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df7"
+    }
+    uid: 7
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 27
+                  end_line: 65
+                  file: 2
+                  start_column: 14
+                  start_line: 61
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 27
+                      end_line: 65
+                      file: 2
+                      start_column: 14
+                      start_line: 61
+                    }
+                    v: "I love hiking in the mountains"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 27
+                  end_line: 65
+                  file: 2
+                  start_column: 14
+                  start_line: 61
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 27
+                      end_line: 65
+                      file: 2
+                      start_column: 14
+                      start_line: 61
+                    }
+                    v: "My favorite dish is pasta"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 27
+                  end_line: 65
+                  file: 2
+                  start_column: 14
+                  start_line: 61
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 27
+                      end_line: 65
+                      file: 2
+                      start_column: 14
+                      start_line: 61
+                    }
+                    v: "Just finished reading a great book"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "text"
+          }
+        }
+        src {
+          end_column: 27
+          end_line: 65
+          file: 2
+          start_column: 14
+          start_line: 61
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df8"
+    }
+    uid: 8
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_classify {
+        categories {
+          list_val {
+            src {
+              end_column: 9
+              end_line: 69
+              file: 2
+              start_column: 14
+              start_line: 66
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 69
+                  file: 2
+                  start_column: 14
+                  start_line: 66
+                }
+                v: "hiking"
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 69
+                  file: 2
+                  start_column: 14
+                  start_line: 66
+                }
+                v: "cooking"
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 69
+                  file: 2
+                  start_column: 14
+                  start_line: 66
+                }
+                v: "reading"
+              }
+            }
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 8
+          }
+        }
+        input_column {
+          string_val {
+            src {
+              end_column: 9
+              end_line: 69
+              file: 2
+              start_column: 14
+              start_line: 66
+            }
+            v: "text"
+          }
+        }
+        output_column {
+          value: "AI_CLASSIFY_OUTPUT"
+        }
+        src {
+          end_column: 9
+          end_line: 69
+          file: 2
+          start_column: 14
+          start_line: 66
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df9"
+    }
+    uid: 9
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 37
+                  end_line: 75
+                  file: 2
+                  start_column: 15
+                  start_line: 72
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 37
+                      end_line: 75
+                      file: 2
+                      start_column: 15
+                      start_line: 72
+                    }
+                    v: "I love programming"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 37
+                      end_line: 75
+                      file: 2
+                      start_column: 15
+                      start_line: 72
+                    }
+                    v: "I enjoy coding"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 37
+                  end_line: 75
+                  file: 2
+                  start_column: 15
+                  start_line: 72
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 37
+                      end_line: 75
+                      file: 2
+                      start_column: 15
+                      start_line: 72
+                    }
+                    v: "The weather is nice"
+                  }
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 37
+                      end_line: 75
+                      file: 2
+                      start_column: 15
+                      start_line: 72
+                    }
+                    v: "It\'s raining heavily"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "text1"
+            vs: "text2"
+          }
+        }
+        src {
+          end_column: 37
+          end_line: 75
+          file: 2
+          start_column: 15
+          start_line: 72
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df10"
+    }
+    uid: 10
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_similarity {
+        df {
+          dataframe_ref {
+            id: 10
+          }
+        }
+        input1 {
+          string_val {
+            src {
+              end_column: 9
+              end_line: 79
+              file: 2
+              start_column: 15
+              start_line: 76
+            }
+            v: "text1"
+          }
+        }
+        input2 {
+          string_val {
+            src {
+              end_column: 9
+              end_line: 79
+              file: 2
+              start_column: 15
+              start_line: 76
+            }
+            v: "text2"
+          }
+        }
+        output_column {
+          value: "AI_SIMILARITY_OUTPUT"
+        }
+        src {
+          end_column: 9
+          end_line: 79
+          file: 2
+          start_column: 15
+          start_line: 76
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df11"
+    }
+    uid: 11
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 29
+                  end_line: 85
+                  file: 2
+                  start_column: 15
+                  start_line: 82
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 29
+                      end_line: 85
+                      file: 2
+                      start_column: 15
+                      start_line: 82
+                    }
+                    v: "The movie had amazing visual effects but the plot was terrible."
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 29
+                  end_line: 85
+                  file: 2
+                  start_column: 15
+                  start_line: 82
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 29
+                      end_line: 85
+                      file: 2
+                      start_column: 15
+                      start_line: 82
+                    }
+                    v: "Everything about this experience was perfect!"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "review"
+          }
+        }
+        src {
+          end_column: 29
+          end_line: 85
+          file: 2
+          start_column: 15
+          start_line: 82
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df12"
+    }
+    uid: 12
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_sentiment {
+        df {
+          dataframe_ref {
+            id: 12
+          }
+        }
+        input_column {
+          string_val {
+            src {
+              end_column: 55
+              end_line: 86
+              file: 2
+              start_column: 15
+              start_line: 86
+            }
+            v: "review"
+          }
+        }
+        output_column {
+          value: "AI_SENTIMENT_OUTPUT"
+        }
+        src {
+          end_column: 55
+          end_line: 86
+          file: 2
+          start_column: 15
+          start_line: 86
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df13"
+    }
+    uid: 13
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 27
+                  end_line: 92
+                  file: 2
+                  start_column: 15
+                  start_line: 89
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 27
+                      end_line: 92
+                      file: 2
+                      start_column: 15
+                      start_line: 89
+                    }
+                    v: "Machine learning is fascinating"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 27
+                  end_line: 92
+                  file: 2
+                  start_column: 15
+                  start_line: 89
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 27
+                      end_line: 92
+                      file: 2
+                      start_column: 15
+                      start_line: 89
+                    }
+                    v: "Snowflake provides cloud data platform"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "text"
+          }
+        }
+        src {
+          end_column: 27
+          end_line: 92
+          file: 2
+          start_column: 15
+          start_line: 89
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df14"
+    }
+    uid: 14
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_embed {
+        df {
+          dataframe_ref {
+            id: 14
+          }
+        }
+        input_column {
+          string_val {
+            src {
+              end_column: 88
+              end_line: 93
+              file: 2
+              start_column: 15
+              start_line: 93
+            }
+            v: "text"
+          }
+        }
+        model: "snowflake-arctic-embed-l-v2.0"
+        output_column {
+          value: "AI_EMBED_OUTPUT"
+        }
+        src {
+          end_column: 88
+          end_line: 93
+          file: 2
+          start_column: 15
+          start_line: 93
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df15"
+    }
+    uid: 15
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 28
+                  end_line: 100
+                  file: 2
+                  start_column: 15
+                  start_line: 96
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 28
+                      end_line: 100
+                      file: 2
+                      start_column: 15
+                      start_line: 96
+                    }
+                    v: "Meeting started with project updates"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 28
+                  end_line: 100
+                  file: 2
+                  start_column: 15
+                  start_line: 96
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 28
+                      end_line: 100
+                      file: 2
+                      start_column: 15
+                      start_line: 96
+                    }
+                    v: "Discussed timeline and deliverables"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 28
+                  end_line: 100
+                  file: 2
+                  start_column: 15
+                  start_line: 96
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 28
+                      end_line: 100
+                      file: 2
+                      start_column: 15
+                      start_line: 96
+                    }
+                    v: "Identified key risks"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "notes"
+          }
+        }
+        src {
+          end_column: 28
+          end_line: 100
+          file: 2
+          start_column: 15
+          start_line: 96
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df16"
+    }
+    uid: 16
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_summarize_agg {
+        df {
+          dataframe_ref {
+            id: 16
+          }
+        }
+        input_column {
+          string_val {
+            src {
+              end_column: 58
+              end_line: 101
+              file: 2
+              start_column: 15
+              start_line: 101
+            }
+            v: "notes"
+          }
+        }
+        output_column {
+          value: "AI_SUMMARIZE_AGG_OUTPUT"
+        }
+        src {
+          end_column: 58
+          end_line: 101
+          file: 2
+          start_column: 15
+          start_line: 101
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df17"
+    }
+    uid: 17
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 121
+                  end_line: 104
+                  file: 2
+                  start_column: 15
+                  start_line: 104
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 121
+                      end_line: 104
+                      file: 2
+                      start_column: 15
+                      start_line: 104
+                    }
+                    v: "John Smith lives in San Francisco and works for Snowflake"
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "text"
+          }
+        }
+        src {
+          end_column: 121
+          end_line: 104
+          file: 2
+          start_column: 15
+          start_line: 104
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df20"
+    }
+    uid: 18
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_extract {
+        df {
+          dataframe_ref {
+            id: 18
+          }
+        }
+        input_column {
+          string_val {
+            src {
+              end_column: 9
+              end_line: 108
+              file: 2
+              start_column: 15
+              start_line: 105
+            }
+            v: "text"
+          }
+        }
+        output_column {
+          value: "AI_EXTRACT_OUTPUT"
+        }
+        response_format {
+          seq_map_val {
+            kvs {
+              vs {
+                string_val {
+                  src {
+                    end_column: 9
+                    end_line: 108
+                    file: 2
+                    start_column: 15
+                    start_line: 105
+                  }
+                  v: "name"
+                }
+              }
+              vs {
+                string_val {
+                  src {
+                    end_column: 9
+                    end_line: 108
+                    file: 2
+                    start_column: 15
+                    start_line: 105
+                  }
+                  v: "What is the first name of the employee?"
+                }
+              }
+            }
+            kvs {
+              vs {
+                string_val {
+                  src {
+                    end_column: 9
+                    end_line: 108
+                    file: 2
+                    start_column: 15
+                    start_line: 105
+                  }
+                  v: "city"
+                }
+              }
+              vs {
+                string_val {
+                  src {
+                    end_column: 9
+                    end_line: 108
+                    file: 2
+                    start_column: 15
+                    start_line: 105
+                  }
+                  v: "What is the address of the employee?"
+                }
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 108
+              file: 2
+              start_column: 15
+              start_line: 105
+            }
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 108
+          file: 2
+          start_column: 15
+          start_line: 105
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df21"
+    }
+    uid: 19
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 143
+                  end_line: 111
+                  file: 2
+                  start_column: 15
+                  start_line: 111
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 143
+                      end_line: 111
+                      file: 2
+                      start_column: 15
+                      start_line: 111
+                    }
+                    v: "What is a large language model?"
+                  }
+                }
+              }
+            }
+            vs {
+              list_val {
+                src {
+                  end_column: 143
+                  end_line: 111
+                  file: 2
+                  start_column: 15
+                  start_line: 111
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 143
+                      end_line: 111
+                      file: 2
+                      start_column: 15
+                      start_line: 111
+                    }
+                    v: "Explain quantum computing in simple terms."
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "text"
+          }
+        }
+        src {
+          end_column: 143
+          end_line: 111
+          file: 2
+          start_column: 15
+          start_line: 111
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df22"
+    }
+    uid: 20
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_count_tokens {
+        df {
+          dataframe_ref {
+            id: 20
+          }
+        }
+        model: "llama3.1-70b"
+        output_column {
+          value: "COUNT_TOKENS_OUTPUT"
+        }
+        prompt {
+          string_val {
+            src {
+              end_column: 72
+              end_line: 112
+              file: 2
+              start_column: 15
+              start_line: 112
+            }
+            v: "text"
+          }
+        }
+        src {
+          end_column: 72
+          end_line: 112
+          file: 2
+          start_column: 15
+          start_line: 112
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df23"
+    }
+    uid: 21
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 133
+                  end_line: 115
+                  file: 2
+                  start_column: 15
+                  start_line: 115
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 133
+                      end_line: 115
+                      file: 2
+                      start_column: 15
+                      start_line: 115
+                    }
+                    v: "# Intro\nThis is the intro.\n## Background\nSome background info."
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "document"
+          }
+        }
+        src {
+          end_column: 133
+          end_line: 115
+          file: 2
+          start_column: 15
+          start_line: 115
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df24"
+    }
+    uid: 22
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_split_text_markdown_header {
+        chunk_size {
+          int64_val {
+            src {
+              end_column: 9
+              end_line: 121
+              file: 2
+              start_column: 15
+              start_line: 116
+            }
+            v: 20
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 22
+          }
+        }
+        headers_to_split_on {
+          seq_map_val {
+            kvs {
+              vs {
+                string_val {
+                  src {
+                    end_column: 9
+                    end_line: 121
+                    file: 2
+                    start_column: 15
+                    start_line: 116
+                  }
+                  v: "#"
+                }
+              }
+              vs {
+                string_val {
+                  src {
+                    end_column: 9
+                    end_line: 121
+                    file: 2
+                    start_column: 15
+                    start_line: 116
+                  }
+                  v: "section"
+                }
+              }
+            }
+            kvs {
+              vs {
+                string_val {
+                  src {
+                    end_column: 9
+                    end_line: 121
+                    file: 2
+                    start_column: 15
+                    start_line: 116
+                  }
+                  v: "##"
+                }
+              }
+              vs {
+                string_val {
+                  src {
+                    end_column: 9
+                    end_line: 121
+                    file: 2
+                    start_column: 15
+                    start_line: 116
+                  }
+                  v: "subsection"
+                }
+              }
+            }
+            src {
+              end_column: 9
+              end_line: 121
+              file: 2
+              start_column: 15
+              start_line: 116
+            }
+          }
+        }
+        output_column {
+          value: "SPLIT_TEXT_MARKDOWN_HEADER_OUTPUT"
+        }
+        overlap {
+          int64_val {
+            src {
+              end_column: 9
+              end_line: 121
+              file: 2
+              start_column: 15
+              start_line: 116
+            }
+            v: 5
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 121
+          file: 2
+          start_column: 15
+          start_line: 116
+        }
+        text_to_split {
+          string_val {
+            src {
+              end_column: 9
+              end_line: 121
+              file: 2
+              start_column: 15
+              start_line: 116
+            }
+            v: "document"
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df25"
+    }
+    uid: 23
+  }
+}
+body {
+  bind {
+    expr {
+      create_dataframe {
+        data {
+          dataframe_data__list {
+            vs {
+              list_val {
+                src {
+                  end_column: 143
+                  end_line: 124
+                  file: 2
+                  start_column: 15
+                  start_line: 124
+                }
+                vs {
+                  string_val {
+                    src {
+                      end_column: 143
+                      end_line: 124
+                      file: 2
+                      start_column: 15
+                      start_line: 124
+                    }
+                    v: "This is a long document. It has multiple sentences.\n\nAnd multiple paragraphs."
+                  }
+                }
+              }
+            }
+          }
+        }
+        schema {
+          dataframe_schema__list {
+            vs: "text"
+          }
+        }
+        src {
+          end_column: 143
+          end_line: 124
+          file: 2
+          start_column: 15
+          start_line: 124
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df26"
+    }
+    uid: 24
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_ai_split_text_recursive_character {
+        chunk_size {
+          int64_val {
+            src {
+              end_column: 9
+              end_line: 130
+              file: 2
+              start_column: 15
+              start_line: 125
+            }
+            v: 30
+          }
+        }
+        df {
+          dataframe_ref {
+            id: 24
+          }
+        }
+        format {
+          ai_split_text_recursive_format_none: true
+        }
+        output_column {
+          value: "SPLIT_TEXT_RECURSIVE_CHARACTER_OUTPUT"
+        }
+        overlap {
+          int64_val {
+            src {
+              end_column: 9
+              end_line: 130
+              file: 2
+              start_column: 15
+              start_line: 125
+            }
+            v: 5
+          }
+        }
+        separators {
+          tuple_val {
+            src {
+              end_column: 9
+              end_line: 130
+              file: 2
+              start_column: 15
+              start_line: 125
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 130
+                  file: 2
+                  start_column: 15
+                  start_line: 125
+                }
+                v: "\n\n"
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 130
+                  file: 2
+                  start_column: 15
+                  start_line: 125
+                }
+                v: "\n"
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 130
+                  file: 2
+                  start_column: 15
+                  start_line: 125
+                }
+                v: " "
+              }
+            }
+            vs {
+              string_val {
+                src {
+                  end_column: 9
+                  end_line: 130
+                  file: 2
+                  start_column: 15
+                  start_line: 125
+                }
+              }
+            }
+          }
+        }
+        src {
+          end_column: 9
+          end_line: 130
+          file: 2
+          start_column: 15
+          start_line: 125
+        }
+        text_to_split {
+          string_val {
+            src {
+              end_column: 9
+              end_line: 130
+              file: 2
+              start_column: 15
+              start_line: 125
+            }
+            v: "text"
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df27"
+    }
+    uid: 25
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 37
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
