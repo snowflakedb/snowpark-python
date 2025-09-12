@@ -105,7 +105,7 @@ def validate_base_ref(base_ref):
     """Validate and format base reference"""
     if not base_ref or base_ref == "origin/main":
         return "origin/main", "origin/main"
-    elif re.match(r"^[a-f0-9]{7,40}$", base_ref):
+    elif re.match(r"^[a-fA-F0-9]{7,40}$", base_ref):
         return base_ref, f"commit {base_ref}"
     else:
         return base_ref, f"branch {base_ref}"
