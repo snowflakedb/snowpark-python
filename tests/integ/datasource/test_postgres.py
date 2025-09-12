@@ -486,7 +486,7 @@ def test_server_side_cursor(session):
     conn.close()
 
 
-def test_oracledb_non_retryable_error(session):
+def test_postgres_non_retryable_error(session):
     with pytest.raises(
         SnowparkDataSourceNonRetryableException,
         match="syntax error",

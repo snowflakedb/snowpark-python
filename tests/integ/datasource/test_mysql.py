@@ -300,7 +300,7 @@ def test_unsupported_type():
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
 
 
-def test_oracledb_non_retryable_error(session):
+def test_mysql_non_retryable_error(session):
     with pytest.raises(
         SnowparkDataSourceNonRetryableException,
         match="You have an error in your SQL syntax",

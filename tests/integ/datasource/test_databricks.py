@@ -263,7 +263,7 @@ def test_unsupported_type():
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
 
 
-def test_oracledb_non_retryable_error(session):
+def test_databricks_non_retryable_error(session):
     with pytest.raises(
         SnowparkDataSourceNonRetryableException,
         match="PARSE_SYNTAX_ERROR",
