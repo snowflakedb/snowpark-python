@@ -37,12 +37,13 @@ read_snowflake, value_counts, tail, var, std, sum, sem, max, min, mean, agg, agg
 Examples
 ========
 
-Enabling and Disabling Hybrid Execution
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Enabling and Disabling Hybrid Execution:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Hybrid execution is enabled by default, and can be turned off with the AutoSwitchBackend variable.
 
 .. code-block:: python
+    
     import modin.pandas as pd
     import snowflake.snowpark.modin.plugin
 
