@@ -92,12 +92,8 @@ _deprecation_warning_msg = (
     "to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy."
 )
 _deprecation_warning_msg_for_3_9 = (
-    "Python Runtime 3.9 reaches its End-Of-Life (EOL) in October 2025, there will be no further bug fixes "
-    "or security updates for this runtime. We recommend that you upgrade your existing Python 3.9 objects to "
-    "Python 3.10, 3.11, 3.12 and 3.13. Please note that end of support does not impact execution, "
-    "and you will still be able to update and invoke existing objects. "
-    "However, they will be running on an unsupported runtime which will no longer be maintained or patched by "
-    "the Snowflake team. For more details, please refer "
+    "Python 3.9 is due to reach its end-of-life on October 2025. Please update to a newer Python version."
+    "For more details, please refer "
     "to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy."
 )
 
