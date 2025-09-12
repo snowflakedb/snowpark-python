@@ -1,5 +1,5 @@
 ===========================================
-Hybrid Execution (Public Preview)
+Hybrid Execution
 ===========================================
 
 Snowpark pandas supports workloads on mixed underlying execution engines and will automatically
@@ -37,24 +37,37 @@ read_snowflake, value_counts, tail, var, std, sum, sem, max, min, mean, agg, agg
 Examples
 ========
 
-Enabling Hybrid Execution
+Enabling and Disabling Hybrid Execution
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: python
+Hybrid execution is enabled by default, and can be turned off with the AutoSwitchBackend variable.
 
+.. code-block:: python
     import modin.pandas as pd
     import snowflake.snowpark.modin.plugin
 
     # Import the configuration variable
     from modin.config import AutoSwitchBackend
+
+    # Disable Hybrid mode
+    AutoSwitchBackend.disable()
+
+    # Enable Hybrid mode
+    AutoSwitchBackend.enable()
+
+You can selectively disable hybrid mode within a context imported
+from modin.config
+
+.. code-block:: python
+
+    import modin.pandas as pd
+    import snowflake.snowpark.modin.plugin
     from snowflake.snowpark import Session
     
     Session.builder.create()
     df = pd.DataFrame([1, 2, 3])
     print(df.get_backend()) # 'Snowflake'
 
-   # Enable hybrid execution
-    AutoSwitchBackend().enable()
     df = pd.DataFrame([4, 5, 6])
     # DataFrame should use local execution backend, 'Pandas'
     # because the data frame is already small and in memory
