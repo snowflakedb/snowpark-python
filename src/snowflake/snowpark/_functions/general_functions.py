@@ -3,7 +3,9 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Callable, Optional
+from typing import Callable, Optional, Union, Iterable
+
+import snowflake
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 from snowflake.snowpark._internal.analyzer.expression import (
@@ -13,6 +15,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 from snowflake.snowpark._internal.ast.utils import (
     build_builtin_fn_apply,
     build_function_expr,
+    build_call_table_function_apply,
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
@@ -139,6 +142,26 @@ def col(
             _emit_ast=_emit_ast,
             _caller_name="col",
         )
+
+
+def call_table_function(
+    function_name: Union[str, Iterable[str]],
+    *args: ColumnOrLiteral,
+    _emit_ast: bool = True,
+    **kwargs: ColumnOrLiteral,
+) -> "snowflake.snowpark.table_function.TableFunctionCall":
+    from snowflake.snowpark import table_function
+
+    ast = None
+    if _emit_ast:
+        ast = proto.Expr()
+        build_call_table_function_apply(ast, function_name, *args, **kwargs)
+
+    func_call = table_function.TableFunctionCall(
+        function_name, *args, _ast=ast, _emit_ast=_emit_ast, **kwargs
+    )
+
+    return func_call
 
 
 builtin = function
