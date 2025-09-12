@@ -6,8 +6,55 @@ import os
 import sys
 import re
 import subprocess
+import argparse
 from datetime import date, datetime
 import glob
+
+
+def setup_argument_parser():
+    """Set up command line argument parser"""
+    parser = argparse.ArgumentParser(
+        description="Snowpark Python Release Preparation Script",
+        epilog="""
+Examples:
+  # Interactive mode (no arguments - prompts for input)
+  python prepare_release_branch.py
+
+  # Non-interactive mode (any arguments provided - requires --version)
+  python prepare_release_branch.py --version 1.39.0 --release-date 2024-12-31 --base-ref origin/main
+
+  # Non-interactive mode with minimal options (uses defaults for date and base-ref)
+  python prepare_release_branch.py --version 1.39.0
+
+  # Use a specific commit as base
+  python prepare_release_branch.py --version 1.39.0 --base-ref abc1234
+
+  # Use custom release date with version
+  python prepare_release_branch.py --version 1.39.0 --release-date 2024-12-31
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument(
+        "--version",
+        help="Release version in format x.y.z (e.g., 1.39.0). Required in non-interactive mode.",
+        type=str,
+    )
+
+    parser.add_argument(
+        "--release-date",
+        help="Release date in format YYYY-MM-DD (default: today)",
+        type=str,
+    )
+
+    parser.add_argument(
+        "--base-ref",
+        help="Base reference for release branch - commit ID, branch name, or origin/main (default: origin/main)",
+        type=str,
+        default="origin/main",
+    )
+
+    return parser
 
 
 def check_snowpark_directory():
@@ -20,10 +67,10 @@ def check_snowpark_directory():
         sys.exit(1)
 
 
-def get_version_input():
-    """Get version input from user and validate format"""
-    print("Enter the next release version (format: x.y.z, e.g., 1.39.0)")  # noqa: T201
-    version_str = input("Version: ").strip()
+def validate_version(version_str):
+    """Validate version format and return parsed components"""
+    if not version_str:
+        return None
 
     # Validate version format (x.y.z)
     if not re.match(r"^\d+\.\d+\.\d+$", version_str):
@@ -36,28 +83,8 @@ def get_version_input():
     return version_str, major, minor, patch
 
 
-def get_base_reference():
-    """Get optional base commit/branch for the release branch"""
-    print("\nOptional: Specify a base for the release branch")  # noqa: T201
-    print("- Enter a commit ID (e.g., abc1234)")  # noqa: T201
-    print("- Enter a local branch name (e.g., feature-branch)")  # noqa: T201
-    print("- Press Enter to use origin/main (default)")  # noqa: T201
-    base_ref = input("Base reference (default: origin/main): ").strip()
-
-    if not base_ref:
-        return "origin/main", "origin/main"
-    elif re.match(r"^[a-f0-9]{7,40}$", base_ref):
-        return base_ref, f"commit {base_ref}"
-    else:
-        return base_ref, f"branch {base_ref}"
-
-
-def get_release_date_input():
-    """Get optional release date from user and validate format"""
-    print("\nOptional: Specify a release date (format: YYYY-MM-DD)")  # noqa: T201
-    print("- Press Enter to use today's date (default)")  # noqa: T201
-    date_str = input("Release date (default: today): ").strip()
-
+def validate_date(date_str):
+    """Validate date format and return formatted date"""
     if not date_str:
         return date.today().strftime("%Y-%m-%d")
 
@@ -78,6 +105,65 @@ def get_release_date_input():
         sys.exit(1)
 
     return date_str
+
+
+def validate_base_ref(base_ref):
+    """Validate and format base reference"""
+    if not base_ref or base_ref == "origin/main":
+        return "origin/main", "origin/main"
+    elif re.match(r"^[a-f0-9]{7,40}$", base_ref):
+        return base_ref, f"commit {base_ref}"
+    else:
+        return base_ref, f"branch {base_ref}"
+
+
+def get_version_input(args=None, is_interactive=True):
+    """Get version input from CLI args or user and validate format"""
+    if args and args.version:
+        return validate_version(args.version)
+
+    if not is_interactive:
+        # This shouldn't happen as we validate --version is required in non-interactive mode
+        print("Error: Version is required in non-interactive mode")  # noqa: T201
+        sys.exit(1)
+
+    print("Enter the next release version (format: x.y.z, e.g., 1.39.0)")  # noqa: T201
+    version_str = input("Version: ").strip()
+    return validate_version(version_str)
+
+
+def get_base_reference(args=None, is_interactive=True):
+    """Get optional base commit/branch for the release branch from CLI args or user input"""
+    if args and args.base_ref:
+        return validate_base_ref(args.base_ref)
+
+    if not is_interactive:
+        # Use default value in non-interactive mode
+        return validate_base_ref("origin/main")
+
+    print("\nOptional: Specify a base for the release branch")  # noqa: T201
+    print("- Enter a commit ID (e.g., abc1234)")  # noqa: T201
+    print("- Enter a local branch name (e.g., feature-branch)")  # noqa: T201
+    print("- Press Enter to use origin/main (default)")  # noqa: T201
+    base_ref = input("Base reference (default: origin/main): ").strip()
+
+    return validate_base_ref(base_ref)
+
+
+def get_release_date_input(args=None, is_interactive=True):
+    """Get optional release date from CLI args or user input and validate format"""
+    if args and args.release_date:
+        return validate_date(args.release_date)
+
+    if not is_interactive:
+        # Use today's date as default in non-interactive mode
+        return validate_date(None)  # None will default to today
+
+    print("\nOptional: Specify a release date (format: YYYY-MM-DD)")  # noqa: T201
+    print("- Press Enter to use today's date (default)")  # noqa: T201
+    date_str = input("Release date (default: today): ").strip()
+
+    return validate_date(date_str)
 
 
 def run_git_command(command):
@@ -224,18 +310,47 @@ def update_test_files(major, minor, patch):
 
 
 def main():
-    print("Snowpark Python Release Preparation Script")  # noqa: T201
-    print("==========================================")  # noqa: T201
+    # Parse command line arguments
+    parser = setup_argument_parser()
+    args = parser.parse_args()
+
+    # Determine if we're in interactive or non-interactive mode
+    # Non-interactive mode: any command-line arguments provided
+    # Interactive mode: no command-line arguments (just script name)
+    is_interactive = len(sys.argv) == 1
+
+    # In non-interactive mode, --version is required
+    if not is_interactive and not args.version:
+        print(
+            "Error: --version is required when using non-interactive mode"
+        )  # noqa: T201
+        sys.exit(1)
+
+    if is_interactive:
+        print("Snowpark Python Release Preparation Script")  # noqa: T201
+        print("==========================================")  # noqa: T201
+    else:
+        print(
+            "Snowpark Python Release Preparation Script (Non-Interactive Mode)"
+        )  # noqa: T201
+        print(
+            "=================================================================="
+        )  # noqa: T201
 
     # Check if we're in the right directory
     check_snowpark_directory()
 
     # Get version input
-    version_str, major, minor, patch = get_version_input()
+    version_result = get_version_input(args, is_interactive)
+    if not version_result:
+        print("Error: Version is required")  # noqa: T201
+        sys.exit(1)
+    version_str, major, minor, patch = version_result
 
     # Get release date
-    release_date = get_release_date_input()
-    print(f"\nRelease date: {release_date}")  # noqa: T201
+    release_date = get_release_date_input(args, is_interactive)
+    if is_interactive or args.release_date:
+        print(f"\nRelease date: {release_date}")  # noqa: T201
 
     print(f"\nPreparing release for version {version_str}")  # noqa: T201
     print(f"Major: {major}, Minor: {minor}, Patch: {patch}")  # noqa: T201
@@ -246,7 +361,7 @@ def main():
     )
 
     # Get base reference for release branch
-    base_ref, base_description = get_base_reference()
+    base_ref, base_description = get_base_reference(args, is_interactive)
 
     # Checkout release branch
     branch_name = f"release-v{version_str}"
