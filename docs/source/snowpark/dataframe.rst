@@ -13,6 +13,7 @@ DataFrame
     DataFrameNaFunctions
     DataFrameStatFunctions
     DataFrameAnalyticsFunctions
+    DataFrameAIFunctions
 
 .. rubric:: Methods
 
@@ -120,6 +121,20 @@ DataFrame
     DataFrameAnalyticsFunctions.compute_lag
     DataFrameAnalyticsFunctions.compute_lead
     DataFrameAnalyticsFunctions.time_series_agg
+    DataFrameAIFunctions.agg
+    DataFrameAIFunctions.classify
+    DataFrameAIFunctions.complete
+    DataFrameAIFunctions.count_tokens
+    DataFrameAIFunctions.embed
+    DataFrameAIFunctions.extract
+    DataFrameAIFunctions.filter
+    DataFrameAIFunctions.parse_document
+    DataFrameAIFunctions.sentiment
+    DataFrameAIFunctions.similarity
+    DataFrameAIFunctions.split_text_markdown_header
+    DataFrameAIFunctions.split_text_recursive_character
+    DataFrameAIFunctions.summarize_agg
+    DataFrameAIFunctions.transcribe
     dataframe.map
     dataframe.map_in_pandas
 
@@ -133,6 +148,7 @@ DataFrame
 .. autosummary::
     :toctree: api/
 
+    DataFrame.ai
     DataFrame.columns
     DataFrame.na
     DataFrame.queries
