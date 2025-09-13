@@ -184,7 +184,11 @@ class PymysqlDriver(BaseDriver):
         return StructType(fields)
 
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
 
@@ -194,6 +198,9 @@ class PymysqlDriver(BaseDriver):
 
                 conn = create_connection()
                 cursor = pymysql.cursors.SSCursor(conn)
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
@@ -202,14 +209,6 @@ class PymysqlDriver(BaseDriver):
                     yield from rows
 
         return UDTFIngestion
-
-    def prepare_connection(
-        self,
-        conn: "Connection",
-        query_timeout: int = 0,
-    ) -> "Connection":
-        conn.read_timeout = query_timeout if query_timeout != 0 else None
-        return conn
 
     @staticmethod
     def infer_type_from_data(data: List[tuple], number_of_columns: int) -> List[Type]:
