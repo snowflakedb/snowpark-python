@@ -10,7 +10,6 @@ import inspect
 import itertools
 import json
 import logging
-import os
 import re
 from collections import Counter, defaultdict
 import typing
@@ -1455,15 +1454,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
         src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
-        dummy_row_pos_optimization_enabled = (
-            os.environ.get(
-                "SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED", "true"
-            ).lower()
-            == "true"
-        )
         relaxed_query_compiler = None
         if (
-            dummy_row_pos_optimization_enabled
+            pd.session.dummy_row_pos_optimization_enabled
             and not enforce_ordering
             and not dummy_row_pos_mode
         ):

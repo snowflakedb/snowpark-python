@@ -54,6 +54,7 @@
   - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
   - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 - Updated the error message for when Snowpark pandas is referenced within apply.
+- Added a session parameter `dummy_row_pos_optimization_enabled` to enable/disable dummy row position optimization in faster pandas.
 
 #### Dependency Updates
 
