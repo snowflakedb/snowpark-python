@@ -24,6 +24,16 @@
   - `is_role_in_session`
   - `localtime`
   - `systimestamp`
+  - `booland`
+  - `boolnot`
+  - `boolor`
+  - `boolxor`
+  - `decode`
+  - `greatest_ignore_nulls`
+  - `least_ignore_nulls`
+  - `nullif`
+  - `nvl2`
+  - `regr_valx`
 
 #### Bug Fixes
 
