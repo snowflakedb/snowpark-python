@@ -301,6 +301,9 @@ _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES = (
     "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES"
 )
 _PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED = "ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY"
+_SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED = (
+    "SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED"
+)
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -745,6 +748,12 @@ class Session:
             _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION
         )
 
+        self._dummy_row_pos_optimization_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED, True
+            )
+        )
+
         self._thread_store = create_thread_local(
             self._conn._thread_safe_session_enabled
         )
@@ -1010,6 +1019,13 @@ class Session:
         return self._reduce_describe_query_enabled
 
     @property
+    def dummy_row_pos_optimization_enabled(self) -> bool:
+        """Set to ``True`` to enable the dummy row position optimization (defaults to ``True``).
+        The generated SQLs from pandas transformations would potentially have fewer expensive window functions to compute the row position column.
+        """
+        return self._dummy_row_pos_optimization_enabled
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -1172,6 +1188,16 @@ class Session:
         else:
             raise ValueError(
                 "value for reduce_describe_query_enabled must be True or False!"
+            )
+
+    @dummy_row_pos_optimization_enabled.setter
+    def dummy_row_pos_optimization_enabled(self, value: bool) -> None:
+        """Set the value for dummy_row_pos_optimization_enabled"""
+        if value in [True, False]:
+            self._dummy_row_pos_optimization_enabled = value
+        else:
+            raise ValueError(
+                "value for dummy_row_pos_optimization_enabled must be True or False!"
             )
 
     @custom_package_usage_config.setter
