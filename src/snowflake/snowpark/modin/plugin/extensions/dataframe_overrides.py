@@ -77,6 +77,7 @@ from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     is_snowflake_agg_func,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
+    new_snow_series,
     add_extra_columns_and_select_required_columns,
     assert_fields_are_none,
     convert_index_to_list_of_qcs,
@@ -1827,7 +1828,7 @@ def rename(
         )
 
     if isinstance(index, dict):
-        index = Series(index)
+        index = new_snow_series(index)
 
     new_qc = self._query_compiler.rename(
         index_renamer=index, columns_renamer=columns, level=level, errors=errors

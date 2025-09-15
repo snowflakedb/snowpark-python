@@ -608,3 +608,23 @@ def test_switch_then_iloc():
     # Setting should similarly not error
     df.iloc[1, 1] = 100
     assert df.iloc[1, 1] == 100
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_rename():
+    # SNOW-2333472: Switching backends then performing a rename should be valid.
+    df = pd.DataFrame([[0] * 3] * 3)
+    assert df.get_backend() == "Pandas"
+    assert_snowpark_pandas_equal_to_pandas(
+        df.move_to("Snowflake").rename({0: "a", 1: "b", 2: "c"}),
+        # Perform to_pandas first due to modin issue 7667
+        df.to_pandas().rename({0: "a", 1: "b", 2: "c"}),
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_set_index():
+    s = pd.Series([0]).move_to("Snowflake")
+    # SNOW-2333472: Switching backends then setting the index should be valid.
+    s.index = ["a"]
+    assert_snowpark_pandas_equal_to_pandas(s, native_pd.Series([0], index=["a"]))
