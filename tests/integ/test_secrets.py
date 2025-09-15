@@ -3,21 +3,22 @@
 #
 
 import pytest
-from snowflake.snowpark.secrets import get_generic_secret_string, get_username_password
-from snowflake.snowpark.types import BooleanType
-from tests.utils import IS_NOT_ON_GITHUB, RUNNING_ON_JENKINS
-
-
-@pytest.mark.skipif(
-    IS_NOT_ON_GITHUB,
-    reason="Secret API is only supported on Snowflake server environment",
+from snowflake.snowpark.secrets import (
+    get_generic_secret_string,
+    get_username_password,
+    get_secret_type,
 )
+from snowflake.snowpark.types import BooleanType, StringType
+from tests.utils import IS_NOT_ON_GITHUB, RUNNING_ON_JENKINS, Utils
+from snowflake.snowpark import Row
+
+
 @pytest.mark.skipif(
-    not RUNNING_ON_JENKINS,
+    IS_NOT_ON_GITHUB or not RUNNING_ON_JENKINS,
     reason="Secret API is only supported on Snowflake server environment",
 )
 def test_get_generic_secret_string_sproc(session, db_parameters):
-    def get_secret_string():
+    def get_secret_string(session_):
         if get_generic_secret_string("cred") == "replace-with-your-api-key":
             return True
         return False
@@ -39,11 +40,7 @@ def test_get_generic_secret_string_sproc(session, db_parameters):
 
 
 @pytest.mark.skipif(
-    IS_NOT_ON_GITHUB,
-    reason="Secret API is only supported on Snowflake server environment",
-)
-@pytest.mark.skipif(
-    not RUNNING_ON_JENKINS,
+    IS_NOT_ON_GITHUB or not RUNNING_ON_JENKINS,
     reason="Secret API is only supported on Snowflake server environment",
 )
 def test_get_generic_secret_string_udf(session, db_parameters):
@@ -62,26 +59,22 @@ def test_get_generic_secret_string_udf(session, db_parameters):
             ],
             secrets={"cred": f"{db_parameters['external_access_key2']}"},
         )
-        result = get_secret_string_udf()
-        assert result
+        df = session.create_dataframe([[1], [2]]).to_df("x")
+        Utils.check_answer(df.select(get_secret_string_udf()), [Row(True), Row(True)])
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
 
 
 @pytest.mark.skipif(
-    IS_NOT_ON_GITHUB,
-    reason="Secret API is only supported on Snowflake server environment",
-)
-@pytest.mark.skipif(
-    not RUNNING_ON_JENKINS,
+    IS_NOT_ON_GITHUB or not RUNNING_ON_JENKINS,
     reason="Secret API is only supported on Snowflake server environment",
 )
 def test_get_username_password_udf(session, db_parameters):
     def get_secret_username_password():
-        object = get_username_password("cred")
+        creds = get_username_password("cred")
         if (
-            object["username"] == "replace-with-your-username"
-            and object["password"] == "replace-with-your-password"
+            creds["username"] == "replace-with-your-username"
+            and creds["password"] == "replace-with-your-password"
         ):
             return True
         return False
@@ -96,7 +89,40 @@ def test_get_username_password_udf(session, db_parameters):
             ],
             secrets={"cred": f"{db_parameters['external_access_key2']}"},
         )
-        result = get_secret_udf()
-        assert result
+        df = session.create_dataframe([[1], [2]]).to_df("x")
+        Utils.check_answer(df.select(get_secret_udf()), [Row(True), Row(True)])
+    except KeyError:
+        pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.skipif(
+    IS_NOT_ON_GITHUB or not RUNNING_ON_JENKINS,
+    reason="Secret API is only supported on Snowflake server environment",
+)
+def test_get_secret_type_sproc(session, db_parameters):
+    def get_type(session_):
+        t_str = get_secret_type("cred_str")
+        t_pwd = get_secret_type("cred_pwd")
+        return f"{t_str},{t_pwd}"
+
+    try:
+        get_type_sp = session.sproc.register(
+            get_type,
+            return_type=StringType(),
+            packages=["snowflake-snowpark-python"],
+            external_access_integrations=[
+                db_parameters["external_access_integration1"],
+                db_parameters["external_access_integration3"],
+            ],
+            secrets={
+                "cred_str": f"{db_parameters['external_access_key1']}",
+                "cred_pwd": f"{db_parameters['external_access_key3']}",
+            },
+            anonymous=True,
+        )
+        result = get_type_sp()
+        parts = result.split(",")
+        assert parts[0] == "GENERIC_STRING"
+        assert parts[1] == "PASSWORD"
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")

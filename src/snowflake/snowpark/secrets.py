@@ -23,7 +23,9 @@ def get_generic_secret_string(secret_name: str) -> str:
 
         return _snowflake.get_generic_secret_string(secret_name)
     except ImportError:
-        raise NotImplementedError("Cannot import _snowflake module")
+        raise NotImplementedError(
+            "Cannot import _snowflake module. Secret API is only supported on Snowflake server environment."
+        )
 
 
 @publicapi
@@ -41,7 +43,9 @@ def get_oauth_access_token(secret_name: str) -> str:
 
         return _snowflake.get_oauth_access_token(secret_name)
     except ImportError:
-        raise NotImplementedError("Cannot import _snowflake module")
+        raise NotImplementedError(
+            "Cannot import _snowflake module. Secret API is only supported on Snowflake server environment."
+        )
 
 
 @publicapi
@@ -59,7 +63,9 @@ def get_secret_type(secret_name: str) -> str:
 
         return str(_snowflake.get_secret_type(secret_name))
     except ImportError:
-        raise NotImplementedError("Cannot import _snowflake module")
+        raise NotImplementedError(
+            "Cannot import _snowflake module. Secret API is only supported on Snowflake server environment."
+        )
 
 
 @publicapi
@@ -84,7 +90,9 @@ def get_username_password(secret_name: str) -> Dict[str, str]:
             "password": secret_object.password,
         }
     except ImportError:
-        raise NotImplementedError("Cannot import _snowflake module")
+        raise NotImplementedError(
+            "Cannot import _snowflake module. Secret API is only supported on Snowflake server environment."
+        )
 
 
 @publicapi
@@ -111,4 +119,6 @@ def get_cloud_provider_token(secret_name: str) -> Dict[str, str]:
             "token": secret_object.token,
         }
     except ImportError:
-        raise NotImplementedError("Cannot import _snowflake module")
+        raise NotImplementedError(
+            "Cannot import _snowflake module. Secret API is only supported on Snowflake server environment."
+        )
