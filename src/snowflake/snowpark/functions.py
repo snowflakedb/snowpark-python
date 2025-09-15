@@ -11145,7 +11145,7 @@ def interval_day_time_from_parts(
         cast(secs_int, "str"),
     )
 
-    has_fraction = secs_part != cast(secs_int, "double")
+    has_fraction = abs(secs_part - cast(secs_int, "double")) > 1e-10
     fractional_part = secs_part - cast(secs_int, "double")
 
     fraction_str = iff(
