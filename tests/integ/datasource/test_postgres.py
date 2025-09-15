@@ -210,7 +210,9 @@ def test_psycopg2_driver_udtf_class_builder():
     driver = Psycopg2Driver(create_postgres_connection, DBMS_TYPE.POSTGRES_DB)
 
     # Get the UDTF class with a small fetch size to test batching
-    UDTFClass = driver.udtf_class_builder(fetch_size=2)
+    UDTFClass = driver.udtf_class_builder(
+        fetch_size=2, session_init_statement=["SELECT pg_sleep(1)"]
+    )
 
     # Instantiate the UDTF class
     udtf_instance = UDTFClass()
