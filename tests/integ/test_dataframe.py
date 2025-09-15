@@ -4690,6 +4690,11 @@ def test_limit_offset(session):
     assert df.limit(1, offset=1).collect() == [Row(A=4, B=5, C=6)]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Not supported in local testing ",
+    run=False,
+)
 def test_limit_param_binding(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe(
