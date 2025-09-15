@@ -265,7 +265,9 @@ def test_pymysql_driver_udtf_class_builder():
     driver = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB)
 
     # Get the UDTF class with a small fetch size to test batching
-    UDTFClass = driver.udtf_class_builder(fetch_size=2)
+    UDTFClass = driver.udtf_class_builder(
+        fetch_size=2, session_init_statement=["select 1"]
+    )
 
     # Instantiate the UDTF class
     udtf_instance = UDTFClass()

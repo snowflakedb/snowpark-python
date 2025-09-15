@@ -208,7 +208,9 @@ def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
 
 def test_unit_udtf_ingestion():
     dbx_driver = DatabricksDriver(create_databricks_connection, DBMS_TYPE.DATABRICKS_DB)
-    udtf_ingestion_class = dbx_driver.udtf_class_builder()
+    udtf_ingestion_class = dbx_driver.udtf_class_builder(
+        session_init_statement=["select 1"]
+    )
     udtf_ingestion_instance = udtf_ingestion_class()
 
     dsp = DataSourcePartitioner(
