@@ -81,6 +81,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     ByteType,
     DateType,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -1791,6 +1792,117 @@ def test_create_dataframe_with_year_month_interval_type(session):
     assert interval_sql_result[0][0] == "+3-09"
     assert interval_sql_result[0][1] == "+1-06"
     assert interval_sql_result[0][2] == "-1-06"
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
+def test_create_dataframe_with_day_time_interval_type(session):
+    schema = StructType([StructField("interval_col", DayTimeIntervalType())])
+    data = [["1 12:30:45"], ["-2 08:15:30"]]
+    df = session.create_dataframe(data, schema=schema)
+
+    assert isinstance(df.schema.fields[0].datatype, DayTimeIntervalType)
+    result = df.collect()
+    assert len(result) == 2
+    assert result[0][0] == datetime.timedelta(days=1, seconds=45045)
+    assert result[1][0] == datetime.timedelta(days=-3, seconds=56670)
+
+    test_schema = StructType(
+        [
+            StructField("test_date", DateType()),
+            StructField("interval_col", DayTimeIntervalType()),
+        ]
+    )
+
+    test_data = [["2023-01-15", "1 06:30:00"], ["2022-06-30", "-0 03:15:45"]]
+
+    test_df = session.create_dataframe(test_data, schema=test_schema)
+
+    addition_result = test_df.select(
+        (test_df.test_date + test_df.interval_col).alias("date_plus_interval")
+    ).collect()
+
+    subtraction_result = test_df.select(
+        (test_df.test_date - test_df.interval_col).alias("date_minus_interval")
+    ).collect()
+
+    assert len(addition_result) == 2
+    assert addition_result[0][0] == datetime.datetime(2023, 1, 16, 6, 30)
+    assert addition_result[1][0] == datetime.datetime(2022, 6, 29, 20, 44, 15)
+
+    assert len(subtraction_result) == 2
+    assert subtraction_result[0][0] == datetime.datetime(2023, 1, 13, 17, 30)
+    assert subtraction_result[1][0] == datetime.datetime(2022, 6, 30, 3, 15, 45)
+
+    interval_arithmetic_df = session.sql(
+        """
+        SELECT
+            DATE '2023-01-01' + INTERVAL '1 12:00:00' DAY TO SECOND as addition_result,
+            DATE '2023-12-31' - INTERVAL '0 06:30:15' DAY TO SECOND as subtraction_result
+    """
+    )
+
+    arithmetic_result = interval_arithmetic_df.collect()
+    assert len(arithmetic_result) == 1
+    assert arithmetic_result[0][0] == datetime.datetime(2023, 1, 2, 12, 0)
+    assert arithmetic_result[0][1] == datetime.datetime(2023, 12, 30, 17, 29, 45)
+
+    interval_schema = StructType(
+        [
+            StructField("interval1", DayTimeIntervalType()),
+            StructField("interval2", DayTimeIntervalType()),
+        ]
+    )
+
+    interval_data = [
+        ["2 12:30:45", "1 06:15:30"],
+        ["1 00:00:00", "-0 12:30:00"],
+        ["-1 08:45:15", "2 04:30:45"],
+    ]
+
+    interval_df = session.create_dataframe(interval_data, schema=interval_schema)
+
+    interval_addition_result = interval_df.select(
+        (interval_df.interval1 + interval_df.interval2).alias("interval_sum")
+    ).collect()
+
+    interval_subtraction_result = interval_df.select(
+        (interval_df.interval1 - interval_df.interval2).alias("interval_diff")
+    ).collect()
+
+    assert len(interval_addition_result) == 3
+    assert interval_addition_result[0][0] == datetime.timedelta(days=3, seconds=67575)
+    assert interval_addition_result[1][0] == datetime.timedelta(seconds=41400)
+    assert interval_addition_result[2][0] == datetime.timedelta(seconds=71130)
+
+    assert len(interval_subtraction_result) == 3
+    assert interval_subtraction_result[0][0] == datetime.timedelta(
+        days=1, seconds=22515
+    )
+    assert interval_subtraction_result[1][0] == datetime.timedelta(
+        days=1, seconds=45000
+    )
+    assert interval_subtraction_result[2][0] == datetime.timedelta(
+        days=-4, seconds=38640
+    )
+
+    interval_sql_df = session.sql(
+        """
+        SELECT
+            INTERVAL '2 12:30:45' DAY TO SECOND + INTERVAL '1 06:15:30' DAY TO SECOND as interval_addition,
+            INTERVAL '3 00:00:00' DAY TO SECOND - INTERVAL '1 12:30:00' DAY TO SECOND as interval_subtraction,
+            INTERVAL '1 06:30:00' DAY TO SECOND - INTERVAL '2 12:45:30' DAY TO SECOND as interval_subtraction_2,
+    """
+    )
+
+    interval_sql_result = interval_sql_df.collect()
+    assert len(interval_sql_result) == 1
+    assert len(interval_sql_result[0]) == 3
+    assert interval_sql_result[0][0] == datetime.timedelta(days=3, seconds=67575)
+    assert interval_sql_result[0][1] == datetime.timedelta(days=1, seconds=41400)
+    assert interval_sql_result[0][2] == datetime.timedelta(days=-2, seconds=63870)
 
 
 def test_create_dataframe_with_semi_structured_data_types(session):
@@ -4242,7 +4354,7 @@ def test_df_columns(session):
             df.select(df['"A B"']).collect()
         assert (
             sce.value.message
-            == 'The DataFrame does not contain the column named "A B".'
+            == 'The DataFrame does not contain the column named "A B". Available columns: "a b", "a""b", "a", "A"'
         )
     finally:
         Utils.drop_table(session, temp_table)

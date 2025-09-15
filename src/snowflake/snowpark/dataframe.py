@@ -1092,9 +1092,11 @@ class DataFrame:
                 return pandas.DataFrame(
                     result,
                     columns=[
-                        unquote_if_quoted(attr.name)
-                        if is_select_statement
-                        else attr.name
+                        (
+                            unquote_if_quoted(attr.name)
+                            if is_select_statement
+                            else attr.name
+                        )
                         for attr in self._plan.attributes
                     ],
                 )
@@ -6292,7 +6294,9 @@ class DataFrame:
                 Every number in ``weights`` has to be positive. If only one
                 weight is specified, the returned DataFrame list only includes
                 the current DataFrame.
-            seed: The seed for sampling.
+            seed: The seed used by the randomness generator for splitting.
+
+                .. caution:: By default, reusing a seed value doesn't guarantee reproducible results.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Example::
@@ -6309,6 +6313,13 @@ class DataFrame:
 
             2. When a weight or a normailized weight is less than ``1e-6``, the
             corresponding split dataframe will be empty.
+
+            3. To get reproducible seeding behavior, configure the DataFrame's :py:class:`Session`
+            to use simplified querying:
+
+            .. code-block::
+
+                >>> session.conf.set("use_simplified_query_generation", True)
         """
 
         if not weights:
@@ -6504,8 +6515,9 @@ Query List:
         if len(cols) == 1:
             return cols[0].with_name(normalized_col_name)
         else:
+            all_cols = [attr.name for attr in self._output]
             raise SnowparkClientExceptionMessages.DF_CANNOT_RESOLVE_COLUMN_NAME(
-                col_name
+                col_name, all_cols
             )
 
     @cached_property
