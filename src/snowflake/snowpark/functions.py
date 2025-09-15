@@ -11075,11 +11075,11 @@ def interval_day_time_from_parts(
         >>> _ = session.sql("ALTER SESSION SET FEATURE_INTERVAL_TYPES=ENABLED;").collect()
         >>> df = session.create_dataframe([[1, 12, 30, 01.001001]], ['day', 'hour', 'min', 'sec'])
         >>> df.select(interval_day_time_from_parts(col("day"), col("hour"), col("min"), col("sec")).alias("interval")).show()
-        ------------------
-        |"INTERVAL"      |
-        ------------------
-        |1 12:30:01.001  |
-        ------------------
+        --------------------------
+        |"INTERVAL"              |
+        --------------------------
+        |1 day, 12:30:01.001000  |
+        --------------------------
         <BLANKLINE>
 
     """
