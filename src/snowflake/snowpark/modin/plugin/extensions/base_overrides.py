@@ -70,6 +70,7 @@ from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
 )
+from snowflake.snowpark.modin.plugin._internal.utils import new_snow_series
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
     extract_validate_and_try_convert_named_aggs_from_kwargs,
@@ -1166,10 +1167,11 @@ def _to_series_list(self, index: pd.Index) -> list[pd.Series]:
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
     if isinstance(index, pd.MultiIndex):
         return [
-            pd.Series(index.get_level_values(level)) for level in range(index.nlevels)
+            new_snow_series(index.get_level_values(level))
+            for level in range(index.nlevels)
         ]
     elif isinstance(index, pd.Index):
-        return [pd.Series(index)]
+        return [new_snow_series(index)]
     else:
         raise Exception("invalid index: " + str(index))
 
