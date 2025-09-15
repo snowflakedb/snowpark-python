@@ -27,6 +27,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
+
 #### Deprecations
 
 - Deprecated warnings will be triggered when using snowpark-python with Python 3.9. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.

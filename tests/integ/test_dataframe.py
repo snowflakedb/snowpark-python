@@ -4690,6 +4690,22 @@ def test_limit_offset(session):
     assert df.limit(1, offset=1).collect() == [Row(A=4, B=5, C=6)]
 
 
+def test_limit_param_binding(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        [[{"name": "Alice"}]], schema=StructType([StructField("col", VariantType())])
+    ).write.save_as_table(table_name, table_type="temp")
+    result = session.sql(
+        f"""
+            SELECT col:name as Name
+            FROM {table_name}
+            WHERE GET_PATH(col, cast(? as VARCHAR)) IS NOT NULL
+            """,
+        ["name"],
+    ).limit(1)
+    Utils.check_answer(result, [Row(NAME='"Alice"')])
+
+
 def test_df_join_how_on_overwrite(session):
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(
         ["int", "int2", "str"]
