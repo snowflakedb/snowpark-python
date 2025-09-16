@@ -7,10 +7,13 @@ from snowflake.snowpark.secrets import (
     get_generic_secret_string,
     get_username_password,
     get_secret_type,
+    get_cloud_provider_token,
+    get_oauth_access_token,
 )
 from snowflake.snowpark.types import BooleanType, StringType
-from tests.utils import IS_NOT_ON_GITHUB, RUNNING_ON_JENKINS, Utils
+from tests.utils import IS_NOT_ON_GITHUB, RUNNING_ON_JENKINS, IS_IN_STORED_PROC, Utils
 from snowflake.snowpark import Row
+from snowflake.snowpark.exceptions import SnowparkSQLException
 
 
 @pytest.mark.skipif(
@@ -73,8 +76,8 @@ def test_get_username_password_udf(session, db_parameters):
     def get_secret_username_password():
         creds = get_username_password("cred")
         if (
-            creds["username"] == "replace-with-your-username"
-            and creds["password"] == "replace-with-your-password"
+            creds.username == "replace-with-your-username"
+            and creds.password == "replace-with-your-password"
         ):
             return True
         return False
@@ -126,3 +129,43 @@ def test_get_secret_type_sproc(session, db_parameters):
         assert parts[1] == "PASSWORD"
     except KeyError:
         pytest.skip("External Access Integration is not supported on the deployment.")
+
+
+@pytest.mark.skipif(
+    IS_NOT_ON_GITHUB or not RUNNING_ON_JENKINS,
+    reason="Secret API is only supported on Snowflake server environment",
+)
+def test_get_nonexistent_secret(session, db_parameters):
+    def get_secret():
+        get_generic_secret_string("cred")
+        return False
+
+    with pytest.raises(SnowparkSQLException):
+        session.udf.register(
+            get_secret,
+            return_type=BooleanType(),
+            packages=["snowflake-snowpark-python"],
+            external_access_integrations=[
+                db_parameters["external_access_integration2"]
+            ],
+            secrets={"cred": "nonexistent_secret"},
+        )
+
+
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="Run only outside Snowflake server to validate NotImplementedError",
+)
+def test_secrets_import_error():
+    # [SNOW-2324796] Phase 1 relies on Snowflake server environment
+    # Remove this test once secrets local development support is complete
+    with pytest.raises(NotImplementedError):
+        get_generic_secret_string("s1")
+    with pytest.raises(NotImplementedError):
+        get_username_password("p1")
+    with pytest.raises(NotImplementedError):
+        get_secret_type("t1")
+    with pytest.raises(NotImplementedError):
+        get_cloud_provider_token("c1")
+    with pytest.raises(NotImplementedError):
+        get_oauth_access_token("o1")

@@ -2,10 +2,21 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from snowflake.snowpark._internal.utils import publicapi
-from typing import Dict
+from typing import NamedTuple
 
 # Reference for Python API for Secret Access:
 # https://docs.snowflake.com/en/developer-guide/external-network-access/secret-api-reference#python-api-for-secret-access
+
+
+class UsernamePassword(NamedTuple):
+    username: str
+    password: str
+
+
+class CloudProviderToken(NamedTuple):
+    access_key_id: str
+    secret_access_key: str
+    token: str
 
 
 @publicapi
@@ -69,15 +80,12 @@ def get_secret_type(secret_name: str) -> str:
 
 
 @publicapi
-def get_username_password(secret_name: str) -> Dict[str, str]:
+def get_username_password(secret_name: str) -> UsernamePassword:
     """Get a username and password secret from Snowflake.
     Note:
         Require a Snowflake environment with username/password secrets configured
     Returns:
-        A dictionary containing the username and password with keys:
-
-        - 'username': The username string
-        - 'password': The password string
+        UsernamePassword: An object with attributes ``username`` and ``password``.
     Raises:
         NotImplementedError: If the _snowflake module cannot be imported.
     """
@@ -85,10 +93,9 @@ def get_username_password(secret_name: str) -> Dict[str, str]:
         import _snowflake
 
         secret_object = _snowflake.get_username_password(secret_name)
-        return {
-            "username": secret_object.username,
-            "password": secret_object.password,
-        }
+        return UsernamePassword(
+            username=secret_object.username, password=secret_object.password
+        )
     except ImportError:
         raise NotImplementedError(
             "Cannot import _snowflake module. Secret API is only supported on Snowflake server environment."
@@ -96,16 +103,13 @@ def get_username_password(secret_name: str) -> Dict[str, str]:
 
 
 @publicapi
-def get_cloud_provider_token(secret_name: str) -> Dict[str, str]:
+def get_cloud_provider_token(secret_name: str) -> CloudProviderToken:
     """Get a cloud provider token secret from Snowflake.
     Note:
         Require a Snowflake environment with cloud provider secrets configured
     Returns:
-        A dictionary containing the cloud provider credentials with keys:
-
-        - 'access_key_id': The access key ID string
-        - 'secret_access_key': The secret access key string
-        - 'token': The session token string
+        CloudProviderToken: An object with attributes ``access_key_id``,
+        ``secret_access_key``, and ``token``.
     Raises:
         NotImplementedError: If the _snowflake module cannot be imported.
     """
@@ -113,11 +117,11 @@ def get_cloud_provider_token(secret_name: str) -> Dict[str, str]:
         import _snowflake
 
         secret_object = _snowflake.get_cloud_provider_token(secret_name)
-        return {
-            "access_key_id": secret_object.access_key_id,
-            "secret_access_key": secret_object.secret_access_key,
-            "token": secret_object.token,
-        }
+        return CloudProviderToken(
+            access_key_id=secret_object.access_key_id,
+            secret_access_key=secret_object.secret_access_key,
+            token=secret_object.token,
+        )
     except ImportError:
         raise NotImplementedError(
             "Cannot import _snowflake module. Secret API is only supported on Snowflake server environment."
