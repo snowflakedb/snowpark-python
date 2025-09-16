@@ -4,10 +4,10 @@
 
 
 def test_importing_plugin_always_turns_on_auto_switch_backend():
-    """Test that importing snowflake.snowpark.modin.plugin always turns AutoSwitchBackend."""
+    """Test that importing snowflake.snowpark.modin.plugin always turns AutoSwitchBackend off."""
 
     from modin.config import AutoSwitchBackend
 
     import snowflake.snowpark.modin.plugin  # noqa: F401
 
-    assert AutoSwitchBackend.get() is True
+    assert AutoSwitchBackend.get() is False
