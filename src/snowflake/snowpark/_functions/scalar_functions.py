@@ -540,13 +540,17 @@ def booland(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) ->
         - Non-zero values (including negative numbers) are regarded as True.
         - Zero values are regarded as False.
 
-    As a result, the function returns:
+    Args:
+        expr1 (ColumnOrName): The first boolean expression.
+        expr2 (ColumnOrName): The second boolean expression.
+        _emit_ast (bool, optional): Whether to emit the AST for this function. This is for internal use only.
+
+    Returns:
         - True if both expressions are non-zero.
         - False if both expressions are zero or one expression is zero and the other expression is non-zero or NULL.
         - NULL if both expressions are NULL or one expression is NULL and the other expression is non-zero.
 
     Example::
-
         >>> from snowflake.snowpark.functions import col
         >>> df = session.create_dataframe([[1, -2], [0, 2], [0, 0], [5, 3]], schema=["a", "b"])
         >>> df.select(booland(col("a"), col("b")).alias("result")).collect()
@@ -564,17 +568,14 @@ def boolnot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         - Non-zero values (including negative numbers) are regarded as True.
         - Zero values are regarded as False.
 
-    As a result, the function returns:
+    Args:
+        e (ColumnOrName): A numeric expression to be evaluated.
+        _emit_ast (bool, optional): Whether to emit the AST node for this function. This is for internal use only. Defaults to True.
+
+    Returns:
         - True if the expression is zero.
         - False if the expression is non-zero.
         - NULL if the expression is NULL.
-
-    Args:
-        e: A numeric expression (Column or column name) to be evaluated.
-        _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
-
-    Returns:
-        A `~snowflake.snowpark.column` representing the Boolean NOT of the input expression.
 
     Example::
 
@@ -593,17 +594,15 @@ def boolor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> 
         - Non-zero values (including negative numbers) are regarded as True.
         - Zero values are regarded as False.
 
-    As a result, the function returns:
+    Args:
+        expr1 (ColumnOrName): The first boolean expression.
+        expr2 (ColumnOrName): The second boolean expression.
+        _emit_ast (bool, optional): Whether to emit the AST for this function. This is for internal use only.
+
+    Returns:
         - True if both expressions are non-zero or the first expression is non-zero and the second expression is zero or None.
         - False if both expressions are zero.
         - None if both expressions are None or the first expression is None and the second expression is zero.
-
-    Args:
-        expr1: A :class:`Column` or column name representing the first boolean expression.
-        expr2: A :class:`Column` or column name representing the second boolean expression.
-
-    Returns:
-        A :class:`Column` object representing the logical OR result.
 
     Example::
 
@@ -631,15 +630,16 @@ def boolxor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) ->
         - Non-zero values (including negative numbers) are regarded as True.
         - Zero values are regarded as False.
 
-    As a result, the function returns:
-        - True if one expression is non-zero and the other expression is zero.
-        - False if both expressions are non-zero or both expressions are zero.
-        - NULL if one or both expressions are NULL.
-
     Args:
-        expr1: First numeric expression or a string name of the column.
-        expr2: Second numeric expression or a string name of the column.
-        _emit_ast: Whether to emit the AST for this function. This is for internal use only.
+        expr1 (ColumnOrName): First numeric expression or a string name of the column.
+        expr2 (ColumnOrName): Second numeric expression or a string name of the column.
+        _emit_ast (bool, optional): Whether to emit the AST for this function. This is for internal use only.
+
+    Returns:
+        - True if exactly one of the expressions is non-zero.
+        - False if both expressions are zero or both expressions are non-zero.
+        - NULL if both expressions are NULL, or one expression is NULL and the other expression is zero.
+
     Example::
         >>> from snowflake.snowpark.functions import col
         >>> df = session.create_dataframe([[2, 0], [1, -1], [0, 0], [None, 3]], schema=["a", "b"])
@@ -690,7 +690,7 @@ def greatest_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Col
         _emit_ast (bool, optional): Internal parameter for AST generation. Defaults to True.
 
     Returns:
-        Column: A `~snowflake.snowpark.Column` object representing the greatest value, ignoring NULLs.
+        Column: A column object representing the greatest value, ignoring NULLs.
 
     Examples::
 
@@ -709,11 +709,11 @@ def least_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Column
     If all argument values are NULL, the result is NULL.
 
     Args:
-        columns: list of :class:`Column` or column names to compare.
-        _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
+        columns (ColumnOrName): list of column or column names to compare.
+        _emit_ast (ColumnOrName): Whether to emit the AST node for this function. This is for internal use only.
 
     Returns:
-        :class:`Column`: A column containing the smallest value from the list of expressions, ignoring NULL values.
+        A column containing the smallest value from the list of expressions, ignoring NULL values.
 
     Example::
 
@@ -731,12 +731,12 @@ def nullif(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> 
     Returns NULL if expr1 is equal to expr2, otherwise returns expr1.
 
     Args:
-        expr1: The first expression to compare. Can be a :class:`Column` or a column name.
-        expr2: The second expression to compare. Can be a :class:`Column` or a column name.
-        _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
+        expr1 (ColumnOrName): The first expression to compare. Can be a :class:`Column` or a column name.
+        expr2 (ColumnOrName): The second expression to compare. Can be a :class:`Column` or a column name.
+        _emit_ast (bool, optional): Whether to emit the AST node for this function. This is for internal use only.
 
     Returns:
-        :class:`Column`: A column containing NULL if expr1 is equal to expr2, otherwise expr1.
+        A column containing NULL if expr1 is equal to expr2, otherwise expr1.
 
     Example::
 
@@ -760,13 +760,13 @@ def nvl2(
     Returns expr2 if expr1 is not NULL, otherwise returns expr3.
 
     Args:
-        expr1: The expression to test for NULL.
-        expr2: The value to return if expr1 is not NULL.
-        expr3: The value to return if expr1 is NULL.
-        _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
+        expr1 (ColumnOrName): The expression to test for NULL.
+        expr2 (ColumnOrName): The value to return if expr1 is not NULL.
+        expr3 (ColumnOrName): The value to return if expr1 is NULL.
+        _emit_ast (bool, optional): Whether to emit the AST node for this function. This is for internal use only.
 
     Returns:
-        A :class:`Column` representing the result of the nvl2 function.
+        A column representing the result of the nvl2 function.
 
     Example::
 
@@ -794,12 +794,12 @@ def regr_valx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colum
     Note that REGR_VALX is a NULL-preserving function, while the more commonly-used NVL is a NULL-replacing function.
 
     Args:
-        y: The dependent variable column.
-        x: The independent variable column.
-        _emit_ast: Whether to emit the AST node for this function. This is for internal use only.
+        y (ColumnOrName): The dependent variable column.
+        x (ColumnOrName): The independent variable column.
+        _emit_ast (bool, optional): Whether to emit the AST node for this function. This is for internal use only.
 
     Returns:
-        A :class:`Column` representing the result of the regr_valx function.
+        A column representing the result of the regr_valx function.
 
     Example::
 
