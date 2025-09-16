@@ -542,13 +542,13 @@ def array_remove_at(
     Returns an ARRAY with the element at the specified position removed.
 
     Args:
-        array: Column containing the source ARRAY.
-        position: Column containing a (zero-based) position in the source ARRAY.
+        array (ColumnOrName): Column containing the source ARRAY.
+        position (ColumnOrName): Column containing a (zero-based) position in the source ARRAY.
             The element at this position is removed from the resulting ARRAY.
             A negative position is interpreted as an index from the back of the array (e.g. -1 removes the last element in the array).
 
     Returns:
-        A Column containing the resulting ARRAY with the specified element removed.
+        Column: The resulting ARRAY with the specified element removed.
 
     Example::
 
@@ -567,11 +567,10 @@ def as_boolean(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
     Casts a VARIANT value to a boolean.
 
     Args:
-        variant: A Column or column name containing VARIANT values to be cast to boolean.
-        _emit_ast: Internal parameter for AST emission control.
+        variant (ColumnOrName): A Column or column name containing VARIANT values to be cast to boolean.
 
     Returns:
-        A Column object representing the boolean values cast from the VARIANT input.
+        ColumnL The boolean values cast from the VARIANT input.
 
     Example::
         >>> from snowflake.snowpark.functions import to_variant, to_boolean
@@ -592,11 +591,10 @@ def boolor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     Returns the logical OR of all non-NULL records in a group. If all records are NULL, returns NULL.
 
     Args:
-        e: A Column or column name containing boolean values to aggregate.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+        e (ColumnOrName): Boolean values to aggregate.
 
     Returns:
-        Column: A Snowflake `Column` object representing the logical OR aggregation result.
+        Column: The logical OR aggregation result.
 
     Example::
 
@@ -623,11 +621,10 @@ def chr(col: ColumnOrName, _emit_ast: bool = True) -> Column:
     Converts a Unicode code point (including 7-bit ASCII) into the character that matches the input Unicode.
 
     Args:
-    col: A Column or column name containing integer Unicode code points.
-    _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+        col (ColumnOrName): Integer Unicode code points.
 
     Returns:
-        Column: A Snowflake `Column` object with the corresponding character for each code point.
+        Column: The corresponding character for each code point.
 
     Example::
 
@@ -658,12 +655,11 @@ def div0null(
     Performs division like the division operator (/), but returns 0 when the divisor is 0 or NULL (rather than reporting an error).
 
     Args:
-        dividend: The dividend, which can be a Column, column name, int, or float.
-        divisor: The divisor, which can be a Column, column name, int, or float.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+        dividend (ColumnOrName, int, float): The dividend.
+        divisor (ColumnOrName, int, float): The divisor.
 
     Returns:
-        A Column representing the result of the division, with 0 returned for cases where the divisor is 0 or NULL.
+        Column: The result of the division, with 0 returned for cases where the divisor is 0 or NULL.
 
     Example::
 
@@ -692,11 +688,10 @@ def dp_interval_high(aggregated_column: ColumnOrName, _emit_ast: bool = True) ->
     the upper bound of the confidence interval for the aggregated result.
 
     Args:
-        aggregated_column: A Column or column name containing the result of a differential privacy aggregation function.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+        aggregated_column (ColumnOrName): The result of a differential privacy aggregation function.
 
     Returns:
-        A Column representing the high end of the confidence interval for the differentially private aggregate.
+        Column: The high end of the confidence interval for the differentially private aggregate.
 
     Example::
 
@@ -715,10 +710,10 @@ def dp_interval_low(aggregated_column: ColumnOrName, _emit_ast: bool = True) -> 
     Returns the lower bound of the confidence interval for a differentially private aggregate. This function is used with differential privacy aggregation functions to provide statistical bounds on the results.
 
     Args:
-        aggregated_column: The column containing the differentially private aggregate result.
+        aggregated_column (ColumnOrName): The differentially private aggregate result.
 
     Returns:
-        A Column representing the lower bound of the confidence interval.
+        Column: The lower bound of the confidence interval.
 
     Example::
 
@@ -738,10 +733,9 @@ def hex_decode_binary(input_expr: ColumnOrName, _emit_ast: bool = True) -> Colum
     Decodes a hex-encoded string to binary data.
 
     Args:
-        input_expr: A :class:`Column` or a string that is the name of a column containing hex-encoded strings to decode.
-        _emit_ast: Whether to produce an AST node for this function. Used internally to distinguish between functions that should be evaluated in Snowflake versus in the client. Default: ``True``.
+        input_expr (:class:`ColumnOrName`): the hex-encoded string to decode.
     Returns:
-        A :class:`Column` containing the decoded binary data.
+        :class:`Column`: the decoded binary data.
 
     Example::
 
@@ -754,16 +748,16 @@ def hex_decode_binary(input_expr: ColumnOrName, _emit_ast: bool = True) -> Colum
 
 
 @publicapi
-def last_query_id(num=None, _emit_ast=True):
+def last_query_id(num: ColumnOrName = None, _emit_ast: bool = True) -> Column:
     """
     Returns the query ID of the last statement executed in the current session.
     If num is specified, returns the query ID of the nth statement executed in the current session.
 
     Args:
-        num: Optional. The number of statements back to retrieve the query ID for. If None, returns the query ID of the last statement.
+        num (ColumnOrName, optional): The number of statements back to retrieve the query ID for. If None, returns the query ID of the last statement.
 
     Returns:
-        A :class:`Column` object containing the query ID as a string.
+        Column: The query ID as a string.
 
     Example::
 
@@ -788,11 +782,8 @@ def last_transaction(_emit_ast: bool = True) -> Column:
     """
     Returns the query ID of the last transaction committed or rolled back in the current session. If no transaction has been committed or rolled back in the current session, returns NULL.
 
-    Args:
-        _emit_ast: Whether to emit the AST node for this function. Default is True.
-
     Returns:
-        A :class:`Column` of type :class:`StringType`.
+        Column: The last transaction.
 
     Example::
 
