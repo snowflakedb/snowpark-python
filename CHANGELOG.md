@@ -32,6 +32,7 @@
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 - Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `interval_day_time_from_parts` that allows users to easily create `DayTimeIntervalType` without using SQL.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
 - Added an option to specify `copy_grants` for the following `DataFrame` APIs:
