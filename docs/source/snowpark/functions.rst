@@ -242,6 +242,7 @@ Functions
     initcap
     insert
     instr
+    interval_day_time_from_parts
     interval_year_month_from_parts
     invoker_role
     invoker_share
