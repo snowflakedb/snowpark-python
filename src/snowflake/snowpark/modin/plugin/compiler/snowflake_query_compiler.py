@@ -10,7 +10,6 @@ import inspect
 import itertools
 import json
 import logging
-import os
 import re
 from collections import Counter, defaultdict
 import typing
@@ -1455,15 +1454,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
         src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
-        dummy_row_pos_optimization_enabled = (
-            os.environ.get(
-                "SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED", "true"
-            ).lower()
-            == "true"
-        )
         relaxed_query_compiler = None
         if (
-            dummy_row_pos_optimization_enabled
+            pd.session.dummy_row_pos_optimization_enabled
             and not enforce_ordering
             and not dummy_row_pos_mode
         ):
@@ -8884,7 +8877,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # materially slow down CI or individual groupby.apply() calls.
         # TODO(SNOW-1345395): Investigate why and to what extent the cache_result
         # is useful.
-        ordered_dataframe = cache_result(udtf_dataframe)
+        try:
+            ordered_dataframe = cache_result(udtf_dataframe)
+        except SnowparkSQLException as e:
+            if "No module named 'snowflake'" in str(
+                e
+            ) or "Modin is not installed" in str(e):
+                raise SnowparkSQLException(
+                    "modin.pandas cannot be referenced within a Snowpark pandas apply() function. "
+                    "You can only use native pandas inside apply(). Please check developer guide for details "
+                    "https://docs.snowflake.com/developer-guide/snowpark/python/pandas-on-snowflake#limitations."
+                )
+            else:
+                # retry the try-block logic
+                ordered_dataframe = cache_result(udtf_dataframe)
 
         # After applying the udtf, the underlying Snowpark DataFrame becomes
         # -------------------------------------------------------------------------------------------
