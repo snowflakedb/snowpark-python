@@ -229,6 +229,16 @@ Functions
     hex
     hex_encode
     hour
+    h3_cell_to_boundary
+    h3_cell_to_parent
+    h3_cell_to_point
+    h3_compact_cells
+    h3_compact_cells_strings
+    h3_coverage
+    h3_coverage_strings
+    h3_get_resolution
+    h3_grid_disk
+    h3_grid_distance
     iff
     ifnull
     in_
