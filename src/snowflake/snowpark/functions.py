@@ -218,6 +218,7 @@ from snowflake.snowpark._internal.utils import (
     check_create_map_parameter,
     deprecated,
     private_preview,
+    warning,
 )
 from snowflake.snowpark._functions.scalar_functions import *  # noqa: F403,F401
 from snowflake.snowpark.column import (
@@ -228,10 +229,7 @@ from snowflake.snowpark.column import (
     _to_col_if_str,
     _to_col_if_str_or_int,
 )
-from snowflake.snowpark.stored_procedure import (
-    StoredProcedure,
-    StoredProcedureRegistration,
-)
+from snowflake.snowpark.stored_procedure import StoredProcedure
 from snowflake.snowpark.types import (
     ArrayType,
     DataType,
@@ -242,9 +240,9 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     TimestampType,
 )
-from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
-from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
-from snowflake.snowpark.udtf import UDTFRegistration, UserDefinedTableFunction
+from snowflake.snowpark.udaf import UserDefinedAggregateFunction
+from snowflake.snowpark.udf import UserDefinedFunction
+from snowflake.snowpark.udtf import UserDefinedTableFunction
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -9295,7 +9293,7 @@ def udf(
     resource_constraint: Optional[Dict[str, str]] = None,
     _emit_ast: bool = True,
     **kwargs,
-) -> Union[UserDefinedFunction, functools.partial]:
+) -> Union[UserDefinedFunction, functools.partial, Callable]:
     """Registers a Python function as a Snowflake Python UDF and returns the UDF.
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.
@@ -9462,7 +9460,13 @@ def udf(
     )
 
     if session is None:
-        udf_registration_method = UDFRegistration(session=session).register
+        warning(
+            name=f"udf_no_active_session_{func.__name__ if func else 'unknown'}",
+            text="WARN: UDF registration requires an active session. "
+            "This function was not registered.",
+            warning_times=1,
+        )
+        return func
     else:
         udf_registration_method = session.udf.register
 
@@ -9548,7 +9552,7 @@ def udtf(
     resource_constraint: Optional[Dict[str, str]] = None,
     _emit_ast: bool = True,
     **kwargs,
-) -> Union[UserDefinedTableFunction, functools.partial]:
+) -> Union[UserDefinedTableFunction, functools.partial, Callable]:
     """Registers a Python class as a Snowflake Python UDTF and returns the UDTF.
 
     It can be used as either a function call or a decorator. In most cases you work with a single session.
@@ -9712,7 +9716,13 @@ def udtf(
         session
     )
     if session is None:
-        udtf_registration_method = UDTFRegistration(session=session).register
+        warning(
+            name=f"udtf_no_active_session_{handler.__name__ if handler else 'unknown'}",
+            text="WARN: UDTF registration requires an active session. "
+            "This function was not registered.",
+            warning_times=1,
+        )
+        return handler
     else:
         udtf_registration_method = session.udtf.register
 
@@ -9964,7 +9974,13 @@ def udaf(
         session
     )
     if session is None:
-        udaf_registration_method = UDAFRegistration(session=session).register
+        warning(
+            name=f"udaf_no_active_session_{handler.__name__ if handler else 'unknown'}",
+            text="WARN: UDAF registration requires an active session. "
+            "This function was not registered.",
+            warning_times=1,
+        )
+        return handler
     else:
         udaf_registration_method = session.udaf.register
 
@@ -10660,9 +10676,13 @@ def sproc(
         session
     )
     if session is None:
-        sproc_registration_method = StoredProcedureRegistration(
-            session=session
-        ).register
+        warning(
+            name=f"sproc_no_active_session_{func.__name__ if func else 'unknown'}",
+            text="WARN: SPROC registration requires an active session. "
+            "This function was not registered.",
+            warning_times=1,
+        )
+        return func
     else:
         sproc_registration_method = session.sproc.register
 
