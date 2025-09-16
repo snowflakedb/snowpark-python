@@ -6,6 +6,12 @@
 
 #### New Features
 
+## 1.39.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
 - Added support for unstructured data engineering in Snowpark, powered by Snowflake AISQL and Cortex functions:
   - `DataFrame.ai.complete`: Generate per-row LLM completions from prompts built over columns and files.
   - `DataFrame.ai.filter`: Keep rows where an AI classifier returns TRUE for the given predicate.
@@ -23,13 +29,6 @@
   - `DataFrame.ai.split_text_markdown_header`: Split Markdown into hierarchical header-aware chunks.
   - `DataFrame.ai.split_text_recursive_character`: Split text into size-bounded chunks using recursive separators.
   - `DataFrameReader.file`: Create a DataFrame containing all files from a stage as FILE data type for downstream unstructured data processing.
-
-## 1.39.0 (YYYY-MM-DD)
-
-### Snowpark Python API Updates
-
-#### New Features
-
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 - Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.

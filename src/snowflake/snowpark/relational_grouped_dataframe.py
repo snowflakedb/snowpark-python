@@ -833,7 +833,7 @@ class RelationalGroupedDataFrame:
         return df
 
     @relational_group_df_api_usage
-    @experimental(version="1.40.0")
+    @experimental(version="1.39.0")
     @publicapi
     def ai_agg(
         self,
