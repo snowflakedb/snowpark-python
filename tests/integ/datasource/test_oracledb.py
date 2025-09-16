@@ -305,3 +305,32 @@ def test_query_timeout_and_session_init_udtf(session):
             session_init_statement=[statement],
             udtf_configs=udtf_configs,
         ).collect()
+
+
+def test_oracledb_driver_udtf_class_builder():
+    """Test the UDTF class builder in Psycopg2Driver using a real PostgreSQL connection"""
+    # Create the driver with the real connection function
+    driver = OracledbDriver(create_connection_oracledb, DBMS_TYPE.ORACLE_DB)
+
+    # Get the UDTF class with a small fetch size to test batching
+    UDTFClass = driver.udtf_class_builder(
+        fetch_size=2, session_init_statement=["select 1 from dual"], query_timeout=1
+    )
+
+    # Instantiate the UDTF class
+    udtf_instance = UDTFClass()
+
+    # Test with a simple query that should return a few rows
+    test_query = f"SELECT * FROM {ORACLEDB_TABLE_NAME}"
+    result_rows = list(udtf_instance.process(test_query))
+
+    # Verify we got some data back (we know the test table has data from other tests)
+    assert len(result_rows) > 0
+
+    # Test with a query that returns specific columns
+    test_columns_query = f"SELECT ID, NUMBER_COL FROM {ORACLEDB_TABLE_NAME}"
+    column_result_rows = list(udtf_instance.process(test_columns_query))
+
+    # Verify we got data with the right structure (2 columns)
+    assert len(column_result_rows) > 0
+    assert len(column_result_rows[0]) == 2  # Two columns
