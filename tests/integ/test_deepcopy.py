@@ -353,11 +353,12 @@ def test_table_creation(session, mode):
 def test_create_or_replace_view(session):
     df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
     create_view_logical_plan = CreateViewCommand(
-        random_name_for_temp_object(TempObjectType.VIEW),
-        LocalTempView(),
-        None,
-        True,
-        df._plan,
+        name=random_name_for_temp_object(TempObjectType.VIEW),
+        view_type=LocalTempView(),
+        comment=None,
+        replace=True,
+        copy_grants=True,
+        child=df._plan,
     )
 
     snowflake_plan = session._analyzer.resolve(create_view_logical_plan)

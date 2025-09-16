@@ -11,6 +11,10 @@
 - Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
+- Added an option to specify `copy_grants` for the following `DataFrame` APIs:
+  - `create_or_replace_view`
+  - `create_or_replace_temp_view`
+  - `create_or_replace_dynamic_table`
 - Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 - Added support for the following scalar functions in `functions.py`:
