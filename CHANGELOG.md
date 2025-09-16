@@ -1,5 +1,18 @@
 # Release History
 
+## 1.40.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added a new module `snowflake.snowpark.secrets` that provides Python wrappers for accessing Snowflake Secrets within Python UDFs and stored procedures that execute inside Snowflake.
+  - `get_generic_secret_string(secret_name: str) -> str`: Returns the generic token string stored in the secret.
+  - `get_oauth_access_token(secret_name: str) -> str`: Returns the OAuth2 access token stored in the secret.
+  - `get_secret_type(secret_name: str) -> str`: Returns the type of the secret (e.g., `GENERIC_STRING`, `OAUTH2`, `PASSWORD`, `CLOUD_PROVIDER_TOKEN`).
+  - `get_username_password(secret_name: str) -> Dict[str, str]`: Returns a dictionary with `username` and `password` for the specified secret.
+  - `get_cloud_provider_token(secret_name: str) -> Dict[str, str]`: Returns a dictionary with `access_key_id`, `secret_access_key`, and `token` for the specified secret.
+
 ## 1.39.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
