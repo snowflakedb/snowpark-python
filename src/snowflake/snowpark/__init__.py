@@ -22,6 +22,7 @@ __all__ = [
     "DataFrameStatFunctions",
     "DataFrameAnalyticsFunctions",
     "DataFrameNaFunctions",
+    "DataFrameAIFunctions",
     "DataFrameWriter",
     "DataFrameReader",
     "GroupingSets",
@@ -54,6 +55,7 @@ from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.dataframe_ai_functions import DataFrameAIFunctions
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_reader import DataFrameReader
@@ -91,14 +93,35 @@ _deprecation_warning_msg = (
     "the Snowflake team. For more details, please refer "
     "to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy."
 )
+_deprecation_warning_msg_for_3_9 = (
+    "Python Runtime 3.9 reached its End-Of-Life (EOL) in October 2025, there will be no further bug fixes "
+    "or security updates for this runtime. We recommend that you upgrade your existing Python 3.9 objects to "
+    "Python 3.10, 3.11, 3.12 or 3.13. Please note that end of support does not impact execution, "
+    "and you will still be able to update and invoke existing objects. "
+    "However, they will be running on an unsupported runtime which will no longer be maintained or patched by "
+    "the Snowflake team. For more details, please refer "
+    "to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy."
+)
+
 warnings.filterwarnings(
     "once",  # ensure the warning is only shown once to avoid warning explosion
     message=_deprecation_warning_msg,
+)
+warnings.filterwarnings(
+    "once",
+    message=_deprecation_warning_msg_for_3_9,
 )
 
 if sys.version_info.major == 3 and sys.version_info.minor == 8:
     warnings.warn(
         _deprecation_warning_msg,
+        category=DeprecationWarning,
+        stacklevel=2,
+    )
+
+if sys.version_info.major == 3 and sys.version_info.minor == 9:
+    warnings.warn(
+        _deprecation_warning_msg_for_3_9,
         category=DeprecationWarning,
         stacklevel=2,
     )
