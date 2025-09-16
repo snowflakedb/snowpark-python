@@ -342,12 +342,14 @@ def _add_session(session: "Session") -> None:
         _active_sessions.add(session)
 
 
-def _get_sandbox_conditional_active_session(session: "Session") -> "Session":
+def _get_sandbox_conditional_active_session(session: "Session") -> Optional["Session"]:
     # Precedence to checking sandbox to avoid any side effects
     if _is_execution_environment_sandboxed_for_client:
         session = None
     else:
-        session = session or _get_active_session()
+        session = (
+            session or (len(_active_sessions) > 0 and _get_active_session()) or None
+        )
     return session
 
 
