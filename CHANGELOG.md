@@ -6,7 +6,7 @@
 
 #### New Features
 
-## 1.39.0 (YYYY-MM-DD)
+## 1.39.0 (2025-09-17)
 
 ### Snowpark Python API Updates
 
