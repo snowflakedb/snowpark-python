@@ -11,6 +11,10 @@
 - Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
+- Added an option to specify `copy_grants` for the following `DataFrame` APIs:
+  - `create_or_replace_view`
+  - `create_or_replace_temp_view`
+  - `create_or_replace_dynamic_table`
 - Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 - Added support for the following scalar functions in `functions.py`:
@@ -39,6 +43,8 @@
 
 #### Deprecations
 
+- Deprecated warnings will be triggered when using snowpark-python with Python 3.9. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
+
 #### Dependency Updates
 
 #### Improvements
@@ -64,6 +70,7 @@
   - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
   - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 - Updated the error message for when Snowpark pandas is referenced within apply.
+- Added a session parameter `dummy_row_pos_optimization_enabled` to enable/disable dummy row position optimization in faster pandas.
 
 #### Dependency Updates
 
