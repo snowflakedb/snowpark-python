@@ -322,6 +322,7 @@ class CreateViewCommand(UnaryNode):
         view_type: ViewType,
         comment: Optional[str],
         replace: bool,
+        copy_grants: bool,
         child: LogicalPlan,
     ) -> None:
         super().__init__(child)
@@ -329,6 +330,7 @@ class CreateViewCommand(UnaryNode):
         self.view_type = view_type
         self.comment = comment
         self.replace = replace
+        self.copy_grants = copy_grants
 
 
 class CreateDynamicTableCommand(UnaryNode):
@@ -347,6 +349,7 @@ class CreateDynamicTableCommand(UnaryNode):
         max_data_extension_time: Optional[int],
         child: LogicalPlan,
         iceberg_config: Optional[dict] = None,
+        copy_grants: bool = False,
     ) -> None:
         super().__init__(child)
         self.name = name
@@ -361,3 +364,4 @@ class CreateDynamicTableCommand(UnaryNode):
         self.data_retention_time = data_retention_time
         self.max_data_extension_time = max_data_extension_time
         self.iceberg_config = iceberg_config
+        self.copy_grants = copy_grants

@@ -835,7 +835,7 @@ message DataframeCollect {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe-io.ir:163
+// dataframe-io.ir:165
 message DataframeCopyIntoTable {
   repeated Tuple_String_Expr copy_options = 1;
   Expr df = 2;
@@ -859,32 +859,34 @@ message DataframeCount {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe-io.ir:147
+// dataframe-io.ir:148
 message DataframeCreateOrReplaceDynamicTable {
   repeated Expr clustering_keys = 1;
   google.protobuf.StringValue comment = 2;
-  google.protobuf.Int64Value data_retention_time = 3;
-  Expr df = 4;
-  google.protobuf.StringValue initialize = 5;
-  bool is_transient = 6;
-  string lag = 7;
-  google.protobuf.Int64Value max_data_extension_time = 8;
-  SaveMode mode = 9;
-  NameRef name = 10;
-  google.protobuf.StringValue refresh_mode = 11;
-  SrcPosition src = 12;
-  repeated Tuple_String_String statement_params = 13;
-  string warehouse = 14;
+  bool copy_grants = 3;
+  google.protobuf.Int64Value data_retention_time = 4;
+  Expr df = 5;
+  google.protobuf.StringValue initialize = 6;
+  bool is_transient = 7;
+  string lag = 8;
+  google.protobuf.Int64Value max_data_extension_time = 9;
+  SaveMode mode = 10;
+  NameRef name = 11;
+  google.protobuf.StringValue refresh_mode = 12;
+  SrcPosition src = 13;
+  repeated Tuple_String_String statement_params = 14;
+  string warehouse = 15;
 }
 
 // dataframe-io.ir:139
 message DataframeCreateOrReplaceView {
   google.protobuf.StringValue comment = 1;
-  Expr df = 2;
-  bool is_temp = 3;
-  NameRef name = 4;
-  SrcPosition src = 5;
-  repeated Tuple_String_String statement_params = 6;
+  bool copy_grants = 2;
+  Expr df = 3;
+  bool is_temp = 4;
+  NameRef name = 5;
+  SrcPosition src = 6;
+  repeated Tuple_String_String statement_params = 7;
 }
 
 // dataframe.ir:185
