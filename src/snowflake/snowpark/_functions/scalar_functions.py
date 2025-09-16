@@ -542,8 +542,12 @@ def h3_polygon_to_cells(
     """Returns the H3 cell IDs contained by the input polygon at the specified resolution.
 
     Args:
-        geography_polygon: A column containing a GEOGRAPHY object representing a polygon.
-        target_resolution: A column or literal value specifying the H3 resolution (0-15).
+        geography_polygon (ColumnOrName): A GEOGRAPHY object representing a polygon.
+        target_resolution (ColumnOrName): The H3 resolution (0-15).
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        Column: An array of H3 cell IDs as integers.
 
     Example::
         >>> from snowflake.snowpark.functions import to_geography, lit
@@ -570,8 +574,12 @@ def h3_polygon_to_cells_strings(
     Returns an array of H3 cell IDs (as strings) that cover the given geography polygon at the specified resolution.
 
     Args:
-        geography_polygon: Column containing the geography polygon to convert to H3 cells.
-        target_resolution: Column containing the H3 resolution level (0-15) for the output cells.
+        geography_polygon (ColumnOrName): The GEOGRAPHY polygon to convert to H3 cells.
+        target_resolution (ColumnOrName): The H3 resolution level (0-15) for the output cells.
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        Column: An array of H3 cell IDs as strings.
 
     Example::
         >>> from snowflake.snowpark.functions import to_geography, lit
@@ -597,6 +605,13 @@ def h3_string_to_int(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Converts an H3 cell ID from hexadecimal string representation to its integer representation.
 
+    Args:
+        cell_id (ColumnOrName): The H3 cell ID as a hexadecimal string.
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        Column: The H3 cell ID as an integer.
+
     Example::
 
         >>> df = session.create_dataframe([['89283087033FFFF']], schema=["cell_id"])
@@ -618,8 +633,11 @@ def h3_try_polygon_to_cells_strings(
     at the specified resolution. Returns NULL if the input is invalid.
 
     Args:
-        geography_polygon: A column or column name containing a GEOGRAPHY polygon.
-        target_resolution: A column or column name containing the target H3 resolution (0-15).
+        geography_polygon (ColumnOrName): The GEOGRAPHY polygon.
+        target_resolution (ColumnOrName): The target H3 resolution (0-15).
+
+    Returns:
+        Column: An array of H3 cell IDs as strings, or NULL if the input is invalid.
 
     Example::
         >>> from snowflake.snowpark.functions import to_geography, lit
@@ -648,8 +666,12 @@ def h3_cell_to_children(
     Returns the children of an H3 cell at a specified target resolution.
 
     Args:
-        cell_id: The H3 cell ID to get children for.
-        target_resolution: The target resolution for the children cells.
+        cell_id (ColumnOrName): The H3 cell ID to get children for.
+        target_resolution (ColumnOrName): The target resolution for the children cells.
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        Column: A JSON array string containing the children H3 cell IDs.
 
     Example::
         >>> from snowflake.snowpark.functions import col
@@ -672,8 +694,12 @@ def h3_cell_to_children_string(
     Returns the children of the given H3 cell at the specified target resolution as a JSON array string.
 
     Args:
-        cell_id: Column containing the H3 cell ID.
-        target_resolution: Column containing the target resolution for the children cells.
+        cell_id (ColumnOrName): Column containing the H3 cell ID.
+        target_resolution (ColumnOrName): Column containing the target resolution for the children cells.
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        Column: A JSON array string containing the children H3 cell IDs.
 
     Example::
         >>> from snowflake.snowpark.functions import col
@@ -696,7 +722,11 @@ def h3_int_to_string(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
     Converts an H3 cell ID from integer format to string format.
 
     Args:
-        cell_id: Column containing the H3 cell ID as an integer.
+        cell_id (ColumnOrName): The H3 cell ID as an integer.
+        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
+
+    Returns:
+        Column: The H3 cell ID as a hexadecimal string.
 
     Example::
         >>> df = session.create_dataframe([617700171168612351], schema=["cell_id"])
