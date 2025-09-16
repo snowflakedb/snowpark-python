@@ -544,7 +544,6 @@ def h3_polygon_to_cells(
     Args:
         geography_polygon (ColumnOrName): A GEOGRAPHY object representing a polygon.
         target_resolution (ColumnOrName): The H3 resolution (0-15).
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         Column: An array of H3 cell IDs as integers.
@@ -576,7 +575,6 @@ def h3_polygon_to_cells_strings(
     Args:
         geography_polygon (ColumnOrName): The GEOGRAPHY polygon to convert to H3 cells.
         target_resolution (ColumnOrName): The H3 resolution level (0-15) for the output cells.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         Column: An array of H3 cell IDs as strings.
@@ -607,7 +605,6 @@ def h3_string_to_int(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
 
     Args:
         cell_id (ColumnOrName): The H3 cell ID as a hexadecimal string.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         Column: The H3 cell ID as an integer.
@@ -668,7 +665,6 @@ def h3_cell_to_children(
     Args:
         cell_id (ColumnOrName): The H3 cell ID to get children for.
         target_resolution (ColumnOrName): The target resolution for the children cells.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         Column: A JSON array string containing the children H3 cell IDs.
@@ -696,7 +692,6 @@ def h3_cell_to_children_string(
     Args:
         cell_id (ColumnOrName): Column containing the H3 cell ID.
         target_resolution (ColumnOrName): Column containing the target resolution for the children cells.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         Column: A JSON array string containing the children H3 cell IDs.
@@ -723,7 +718,6 @@ def h3_int_to_string(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
 
     Args:
         cell_id (ColumnOrName): The H3 cell ID as an integer.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         Column: The H3 cell ID as a hexadecimal string.
