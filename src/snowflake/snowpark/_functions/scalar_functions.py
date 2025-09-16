@@ -543,7 +543,6 @@ def booland(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) ->
     Args:
         expr1 (ColumnOrName): The first boolean expression.
         expr2 (ColumnOrName): The second boolean expression.
-        _emit_ast (bool, optional): Whether to emit the AST for this function. This is for internal use only.
 
     Returns:
         - True if both expressions are non-zero.
@@ -570,7 +569,6 @@ def boolnot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
     Args:
         e (ColumnOrName): A numeric expression to be evaluated.
-        _emit_ast (bool, optional): Whether to emit the AST node for this function. This is for internal use only. Defaults to True.
 
     Returns:
         - True if the expression is zero.
@@ -597,7 +595,6 @@ def boolor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> 
     Args:
         expr1 (ColumnOrName): The first boolean expression.
         expr2 (ColumnOrName): The second boolean expression.
-        _emit_ast (bool, optional): Whether to emit the AST for this function. This is for internal use only.
 
     Returns:
         - True if both expressions are non-zero or the first expression is non-zero and the second expression is zero or None.
@@ -633,7 +630,6 @@ def boolxor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) ->
     Args:
         expr1 (ColumnOrName): First numeric expression or a string name of the column.
         expr2 (ColumnOrName): Second numeric expression or a string name of the column.
-        _emit_ast (bool, optional): Whether to emit the AST for this function. This is for internal use only.
 
     Returns:
         - True if exactly one of the expressions is non-zero.
@@ -659,13 +655,13 @@ def decode(expr: ColumnOrName, *args: ColumnOrName, _emit_ast: bool = True) -> C
     and returns the corresponding result when a match is found.
 
     Args:
-        expr (ColumnOrName): The expression to decode. Can be a Column or column name string.
+        expr (ColumnOrName): The expression to decode.
         *args (ColumnOrName): Variable length argument list containing pairs of search values and
             result values, with an optional default value at the end.
-        _emit_ast (bool, optional): Internal parameter for AST generation. Defaults to True.
+
 
     Returns:
-        Column: A Column object representing the decoded result.
+        Column: The decoded result.
 
     Example:
 
@@ -686,11 +682,10 @@ def greatest_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Col
     If all argument values are NULL, the result is NULL.
 
     Args:
-        columns (ColumnOrName): A variable number of Column or column name strings to compare.
-        _emit_ast (bool, optional): Internal parameter for AST generation. Defaults to True.
+        columns (ColumnOrName): The name strings to compare.
 
     Returns:
-        Column: A column object representing the greatest value, ignoring NULLs.
+        Column: The greatest value, ignoring NULLs.
 
     Examples::
 
@@ -710,10 +705,9 @@ def least_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Column
 
     Args:
         columns (ColumnOrName): list of column or column names to compare.
-        _emit_ast (ColumnOrName): Whether to emit the AST node for this function. This is for internal use only.
 
     Returns:
-        A column containing the smallest value from the list of expressions, ignoring NULL values.
+        Column: The smallest value from the list of expressions, ignoring NULL values.
 
     Example::
 
@@ -731,12 +725,11 @@ def nullif(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> 
     Returns NULL if expr1 is equal to expr2, otherwise returns expr1.
 
     Args:
-        expr1 (ColumnOrName): The first expression to compare. Can be a :class:`Column` or a column name.
-        expr2 (ColumnOrName): The second expression to compare. Can be a :class:`Column` or a column name.
-        _emit_ast (bool, optional): Whether to emit the AST node for this function. This is for internal use only.
+        expr1 (ColumnOrName): The first expression to compare.
+        expr2 (ColumnOrName): The second expression to compare.
 
     Returns:
-        A column containing NULL if expr1 is equal to expr2, otherwise expr1.
+        Column: NULL if expr1 is equal to expr2, otherwise expr1.
 
     Example::
 
@@ -763,10 +756,9 @@ def nvl2(
         expr1 (ColumnOrName): The expression to test for NULL.
         expr2 (ColumnOrName): The value to return if expr1 is not NULL.
         expr3 (ColumnOrName): The value to return if expr1 is NULL.
-        _emit_ast (bool, optional): Whether to emit the AST node for this function. This is for internal use only.
 
     Returns:
-        A column representing the result of the nvl2 function.
+        Column: The result of the nvl2 function.
 
     Example::
 
@@ -796,10 +788,9 @@ def regr_valx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colum
     Args:
         y (ColumnOrName): The dependent variable column.
         x (ColumnOrName): The independent variable column.
-        _emit_ast (bool, optional): Whether to emit the AST node for this function. This is for internal use only.
 
     Returns:
-        A column representing the result of the regr_valx function.
+        Column: The result of the regr_valx function.
 
     Example::
 
