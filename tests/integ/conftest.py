@@ -4,7 +4,7 @@
 #
 import os
 from logging import getLogger
-from typing import Dict, Generator
+from typing import Dict
 
 import pytest
 
@@ -12,7 +12,6 @@ import snowflake.connector
 from snowflake.snowpark import Session
 from snowflake.snowpark._internal.utils import set_ast_state, AstFlagSource
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.mock._connection import MockServerConnection
 from tests.ast.ast_test_utils import (
     close_full_ast_validation_mode,
@@ -386,12 +385,3 @@ def clear_session_ast_batch_on_validate_ast(session, validate_ast):
     yield
     if validate_ast:
         session._ast_batch.flush()
-
-
-@pytest.fixture(autouse=True)
-def clear_printed_warnings() -> Generator[None, None, None]:
-    # Preserve a copy of the warnings printed before the test.
-    warnings = set(WarningMessage.printed_warnings)
-    WarningMessage.printed_warnings.clear()
-    yield
-    WarningMessage.printed_warnings = warnings
