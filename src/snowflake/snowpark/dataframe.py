@@ -172,6 +172,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
+from snowflake.snowpark.dataframe_ai_functions import DataFrameAIFunctions
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -652,6 +653,8 @@ class DataFrame:
         self.dropna = self._na.drop
         self.fillna = self._na.fill
         self.replace = self._na.replace
+
+        self._ai = DataFrameAIFunctions(self)
 
         self._alias: Optional[str] = None
 
@@ -5812,6 +5815,14 @@ class DataFrame:
         handling missing values in the DataFrame.
         """
         return self._na
+
+    @property
+    def ai(self) -> DataFrameAIFunctions:
+        """
+        Returns a :class:`DataFrameAIFunctions` object that provides AI-powered functions
+        for the DataFrame.
+        """
+        return self._ai
 
     @property
     def session(self) -> "snowflake.snowpark.Session":
