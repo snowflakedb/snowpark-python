@@ -65,7 +65,7 @@ package/
 If you have access to the encrypted parameters file and GPG key:
 ```bash
 export GPG_KEY="your-gpg-passphrase"
-./conda_build_verficiation.sh  # Automatically decrypts parameters.py.gpg
+./conda_build_verification.sh  # Automatically decrypts parameters.py.gpg
 ```
 
 #### Option 2: Manual Creation
@@ -87,16 +87,16 @@ Then run verification:
 
 ```bash
 # Run verification on default architecture (noarch)
-./conda_build_verficiation.sh 3.10
+./conda_build_verification.sh 3.10
 
 # Run verification on specific architectures
-./conda_build_verficiation.sh 3.10 linux-64 noarch
+./conda_build_verification.sh 3.10 linux-64 noarch
 ```
 
 ### Command Line Syntax
 
 ```bash
-./conda_build_verficiation.sh [python_version] [architecture...]
+./conda_build_verification.sh [python_version] [architecture...]
 ```
 
 **Parameters:**
@@ -106,10 +106,10 @@ Then run verification:
   - Default: `noarch` only if no architectures specified
 
 **Examples:**
-- `./conda_build_verficiation.sh` → Test Python 3.10 on noarch
-- `./conda_build_verficiation.sh 3.11` → Test Python 3.11 on noarch  
-- `./conda_build_verficiation.sh 3.10 linux-64` → Test Python 3.10 on linux-64 only
-- `./conda_build_verficiation.sh 3.11 linux-64 noarch` → Test Python 3.11 on both linux-64 and noarch
+- `./conda_build_verification.sh` → Test Python 3.10 on noarch
+- `./conda_build_verification.sh 3.11` → Test Python 3.11 on noarch  
+- `./conda_build_verification.sh 3.10 linux-64` → Test Python 3.10 on linux-64 only
+- `./conda_build_verification.sh 3.11 linux-64 noarch` → Test Python 3.11 on both linux-64 and noarch
 
 ### Environment Variables
 
