@@ -10,7 +10,7 @@
 #   ./conda_build_verficiation.sh 3.11               # Test Python 3.11 on noarch only
 #   ./conda_build_verficiation.sh 3.10 linux-64      # Test Python 3.10 on linux-64 only
 #   ./conda_build_verficiation.sh 3.11 linux-64 noarch linux-aarch64  # Test multiple architectures
-exit 1
+
 set -e
 
 # Parse arguments with fallback to environment variables
