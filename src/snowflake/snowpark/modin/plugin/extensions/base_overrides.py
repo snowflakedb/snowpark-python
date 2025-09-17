@@ -69,6 +69,7 @@ from pandas.util._validators import (
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
+    UnsupportedKwargsRule,
 )
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
@@ -95,14 +96,41 @@ _TIMEDELTA_PCT_CHANGE_AXIS_1_MIXED_TYPE_ERROR_MESSAGE = (
 register_base_override = functools.partial(register_base_accessor, backend="Snowflake")
 
 
-def register_base_not_implemented():
+def register_base_not_implemented(unsupported_kwargs=None):
+    """
+    POC: Enhanced decorator for BasePandasDataset methods with kwargs-based auto-switching.
+
+    Args:
+        unsupported_kwargs: UnsupportedKwargsRule for kwargs-based auto-switching.
+                           If None, method is completely unimplemented (original behavior).
+    """
+
     def decorator(base_method: Any):
         name = base_method.__name__
-        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("BasePandasDataset", name))
-        register_function_for_pre_op_switch(
-            class_name="BasePandasDataset", backend="Snowflake", method=name
-        )
-        return register_base_override(name=name)(base_not_implemented()(base_method))
+
+        if unsupported_kwargs is None:
+            # Original behavior - completely unimplemented method
+            HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("BasePandasDataset", name))
+            register_function_for_pre_op_switch(
+                class_name="BasePandasDataset", backend="Snowflake", method=name
+            )
+            return register_base_override(name=name)(
+                base_not_implemented()(base_method)
+            )
+        else:
+            # POC: New behavior - kwargs-based switching
+            from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+                HYBRID_SWITCH_FOR_UNSUPPORTED_KWARGS,
+            )
+
+            HYBRID_SWITCH_FOR_UNSUPPORTED_KWARGS[
+                ("BasePandasDataset", name)
+            ] = unsupported_kwargs
+            register_function_for_pre_op_switch(
+                class_name="BasePandasDataset", backend="Snowflake", method=name
+            )
+            # Return the original method but register it for kwargs checking
+            return register_base_override(name=name)(base_method)
 
     return decorator
 
@@ -419,6 +447,42 @@ def __finalize__(self, other, method=None, **kwargs):
 @register_base_not_implemented()
 def __sizeof__(self):
     pass  # pragma: no cover
+
+
+# === ENHANCED DECORATOR EXAMPLE ===
+# Frontend override for cumsum to demonstrate kwargs-based auto-switching
+
+
+@register_base_not_implemented(
+    unsupported_kwargs=UnsupportedKwargsRule(
+        conditions={
+            "axis": lambda x: x
+            == 1,  # axis=1 raises NotImplementedError in query compiler
+        },
+        default_values={"axis": 0},
+    )
+)
+def cumsum(
+    self,
+    axis: int = 0,
+    skipna: bool = True,
+    *args,
+    **kwargs,
+):
+    """
+    Return cumulative sum over a DataFrame or Series axis.
+
+    This method works for axis=0 on Snowflake but auto-switches to pandas for axis=1.
+    """
+    # Call the query compiler cumsum method
+    return self.__constructor__(
+        query_compiler=self._query_compiler.cumsum(
+            axis=axis,
+            skipna=skipna,
+            *args,
+            **kwargs,
+        )
+    )
 
 
 # === OVERRIDDEN METHODS ===
