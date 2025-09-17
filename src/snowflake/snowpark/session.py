@@ -758,11 +758,15 @@ class Session:
         if importlib.util.find_spec("modin"):
             from modin.config import AutoSwitchBackend
 
-            self._pandas_hybrid_execution_enabled: bool = (
+            pandas_hybrid_execution_enabled: bool = (
                 self._conn._get_client_side_session_parameter(
                     _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED, AutoSwitchBackend().get()
                 )
             )
+            if pandas_hybrid_execution_enabled:
+                AutoSwitchBackend().enable()
+            else:
+                AutoSwitchBackend().disable()
 
         self._thread_store = create_thread_local(
             self._conn._thread_safe_session_enabled
@@ -1037,17 +1041,17 @@ class Session:
 
     @property
     def pandas_hybrid_execution_enabled(self) -> bool:
-        """Set to ``True`` to enable hybrid execution mode (defaults to ``True``).
+        """Set to ``True`` to enable hybrid execution mode (has the same default as AutoSwitchBackend).
         When enabled, certain operations on smaller data will automatically execute in native pandas in-memory.
         This can significantly improve performance for operations that are more efficient in pandas than in Snowflake.
         """
         if not importlib.util.find_spec("modin"):
-            return
+            # If modin is not installed, always return False
+            return False
 
         from modin.config import AutoSwitchBackend
 
-        self._pandas_hybrid_execution_enabled = AutoSwitchBackend().get()
-        return self._pandas_hybrid_execution_enabled
+        return AutoSwitchBackend().get()
 
     @property
     def custom_package_usage_config(self) -> Dict:
@@ -1228,11 +1232,11 @@ class Session:
     def pandas_hybrid_execution_enabled(self, value: bool) -> None:
         """Set the value for pandas_hybrid_execution_enabled"""
         if not importlib.util.find_spec("modin"):
+            # If modin is not installed treat this method as a NOOP.
             return
         from modin.config import AutoSwitchBackend
 
         if value in [True, False]:
-            self._pandas_hybrid_execution_enabled = value
             if value:
                 AutoSwitchBackend.enable()
             else:
