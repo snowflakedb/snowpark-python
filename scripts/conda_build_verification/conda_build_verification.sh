@@ -3,13 +3,13 @@
 # Docker-based Snowflake Snowpark Python conda package verification
 # Supports both x86_64 and aarch64 architectures using continuumio/miniconda3
 #
-# Usage: ./conda_build_verficiation.sh [python_version] [architecture...]
+# Usage: ./conda_build_verification.sh [python_version] [architecture...]
 #
 # Examples:
-#   ./conda_build_verficiation.sh                    # Test Python 3.10 on noarch only
-#   ./conda_build_verficiation.sh 3.11               # Test Python 3.11 on noarch only
-#   ./conda_build_verficiation.sh 3.10 linux-64      # Test Python 3.10 on linux-64 only
-#   ./conda_build_verficiation.sh 3.11 linux-64 noarch linux-aarch64  # Test multiple architectures
+#   ./conda_build_verification.sh                    # Test Python 3.10 on noarch only
+#   ./conda_build_verification.sh 3.11               # Test Python 3.11 on noarch only
+#   ./conda_build_verification.sh 3.10 linux-64      # Test Python 3.10 on linux-64 only
+#   ./conda_build_verification.sh 3.11 linux-64 noarch linux-aarch64  # Test multiple architectures
 
 set -e
 
