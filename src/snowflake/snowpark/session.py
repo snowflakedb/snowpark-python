@@ -755,13 +755,14 @@ class Session:
             )
         )
 
-        from modin.config import AutoSwitchBackend
+        if importlib.util.find_spec("modin"):
+            from modin.config import AutoSwitchBackend
 
-        self._pandas_hybrid_execution_enabled: bool = (
-            self._conn._get_client_side_session_parameter(
-                _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED, AutoSwitchBackend().get()
+            self._pandas_hybrid_execution_enabled: bool = (
+                self._conn._get_client_side_session_parameter(
+                    _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED, AutoSwitchBackend().get()
+                )
             )
-        )
 
         self._thread_store = create_thread_local(
             self._conn._thread_safe_session_enabled
@@ -1040,6 +1041,9 @@ class Session:
         When enabled, certain operations on smaller data will automatically execute in native pandas in-memory.
         This can significantly improve performance for operations that are more efficient in pandas than in Snowflake.
         """
+        if not importlib.util.find_spec("modin"):
+            return
+
         from modin.config import AutoSwitchBackend
 
         self._pandas_hybrid_execution_enabled = AutoSwitchBackend().get()
@@ -1223,6 +1227,8 @@ class Session:
     @pandas_hybrid_execution_enabled.setter
     def pandas_hybrid_execution_enabled(self, value: bool) -> None:
         """Set the value for pandas_hybrid_execution_enabled"""
+        if not importlib.util.find_spec("modin"):
+            return
         from modin.config import AutoSwitchBackend
 
         if value in [True, False]:
