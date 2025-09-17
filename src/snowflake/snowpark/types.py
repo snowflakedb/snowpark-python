@@ -301,6 +301,73 @@ class YearMonthIntervalType(_AnsiIntervalType):
         ast.year_month_interval_type.end_field = self.end_field
 
 
+class DayTimeIntervalType(_AnsiIntervalType):
+    """DayTimeIntervalType data type. This maps to the INTERVAL DAY TO SECOND data type in Snowflake.
+
+    Args:
+        start_field: The start field of the interval (0=DAY, 1=HOUR, 2=MINUTE, 3=SECOND)
+        end_field: The end field of the interval (0=DAY, 1=HOUR, 2=MINUTE, 3=SECOND)
+
+    Notes:
+        DayTimeIntervalType is currently in private preview since 1.38.0. It needs to be enabled by setting parameters `FEATURE_INTERVAL_TYPES` to `ENABLED`.
+
+        DayTimeIntervalType is currently not supported in UDFs and Stored Procedures.
+    """
+
+    DAY = 0  #: Constant representing the DAY field for interval start/end positions
+    HOUR = 1  #: Constant representing the HOUR field for interval start/end positions
+    MINUTE = (
+        2  #: Constant representing the MINUTE field for interval start/end positions
+    )
+    SECOND = (
+        3  #: Constant representing the SECOND field for interval start/end positions
+    )
+
+    _FIELD_NAMES = {DAY: "day", HOUR: "hour", MINUTE: "minute", SECOND: "second"}
+
+    _FIELD_VALUES_TO_NAMES = {value: key for key, value in _FIELD_NAMES.items()}
+
+    def __init__(
+        self, start_field: Optional[int] = None, end_field: Optional[int] = None
+    ) -> None:
+        if start_field is None and end_field is None:
+            start_field = DayTimeIntervalType.DAY
+            end_field = DayTimeIntervalType.SECOND
+        if start_field is not None and end_field is None:
+            end_field = start_field
+
+        fields = self._FIELD_NAMES.keys()
+        if (
+            start_field not in fields
+            or end_field not in fields
+            or start_field > end_field
+        ):
+            raise ValueError(f"interval {start_field} to {end_field} is invalid")
+
+        self.start_field = start_field
+        self.end_field = end_field
+
+    def __repr__(self) -> str:
+        return f"DayTimeIntervalType({self.start_field}, {self.end_field})"
+
+    def simple_string(self) -> str:
+        fields = self._FIELD_NAMES
+        if self.start_field != self.end_field:
+            return f"interval {fields[self.start_field]} to {fields[self.end_field]}"
+        else:
+            return f"interval {fields[self.start_field]}"
+
+    def json_value(self) -> str:
+        return self.simple_string()
+
+    simpleString = simple_string
+    jsonValue = json_value
+
+    def _fill_ast(self, ast: proto.DataType) -> None:
+        ast.day_time_interval_type.start_field = self.start_field
+        ast.day_time_interval_type.end_field = self.end_field
+
+
 # Numeric types
 class _IntegralType(_NumericType):
     pass
@@ -1054,6 +1121,9 @@ _all_complex_types: Dict[str, Type[Union[ArrayType, MapType, StructType]]] = {
 _FIXED_VECTOR_PATTERN = re.compile(r"vector\(\s*(int|float)\s*,\s*(\d+)\s*\)")
 _FIXED_DECIMAL_PATTERN = re.compile(r"decimal\(\s*(\d+)\s*,\s*(\d+)\s*\)")
 _INTERVAL_YEARMONTH_PATTERN = re.compile(r"interval (year|month)( to (year|month))?")
+_INTERVAL_DAYTIME_PATTERN = re.compile(
+    r"interval (day|hour|minute|second)( to (day|hour|minute|second))?"
+)
 
 
 def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
@@ -1080,6 +1150,14 @@ def _parse_datatype_json_value(json_value: Union[dict, str]) -> DataType:
             if first_field is not None and second_field is None:
                 return YearMonthIntervalType(first_field)
             return YearMonthIntervalType(first_field, second_field)
+        elif _INTERVAL_DAYTIME_PATTERN.match(json_value):
+            m = _INTERVAL_DAYTIME_PATTERN.match(json_value)
+            field_values_to_names = DayTimeIntervalType._FIELD_VALUES_TO_NAMES
+            first_field = field_values_to_names.get(m.group(1))  # type: ignore[union-attr]
+            second_field = field_values_to_names.get(m.group(3))  # type: ignore[union-attr]
+            if first_field is not None and second_field is None:
+                return DayTimeIntervalType(first_field)
+            return DayTimeIntervalType(first_field, second_field)
         else:
             raise ValueError(f"Cannot parse data type: {str(json_value)}")
     else:
@@ -1104,6 +1182,9 @@ File = TypeVar("File")
 
 #: The type hint for annotating YearMonthInterval data when registering UDFs.
 YearMonthInterval = TypeVar("YearMonthInterval")
+
+#: The type hint for annotating DayTimeInterval data when registering UDFs.
+DayTimeInterval = TypeVar("DayTimeInterval")
 
 # TODO(SNOW-969479): Add a type hint that can be used to annotate Vector data. Python does not
 # currently support integer type parameters (which are needed to represent a vector's dimension).

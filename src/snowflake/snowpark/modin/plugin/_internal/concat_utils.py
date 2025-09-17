@@ -373,7 +373,9 @@ def _select_columns(
     )
 
 
-def add_global_ordering_columns(frame: InternalFrame, position: int) -> InternalFrame:
+def add_global_ordering_columns(
+    frame: InternalFrame, position: int, dummy_row_pos_mode: bool = False
+) -> InternalFrame:
     """
     To create global ordering for concat (axis=0) operation we first ensure a
     row position column for local ordering within the frame. Then add another
@@ -388,7 +390,7 @@ def add_global_ordering_columns(frame: InternalFrame, position: int) -> Internal
         A new frame with updated ordering columns.
 
     """
-    frame = frame.ensure_row_position_column()
+    frame = frame.ensure_row_position_column(dummy_row_pos_mode)
     ordered_dataframe = frame.ordered_dataframe.sort(
         [OrderingColumn(frame.row_position_snowflake_quoted_identifier)]
     )

@@ -172,6 +172,7 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
+from snowflake.snowpark.dataframe_ai_functions import DataFrameAIFunctions
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
 from snowflake.snowpark.dataframe_na_functions import DataFrameNaFunctions
 from snowflake.snowpark.dataframe_stat_functions import DataFrameStatFunctions
@@ -653,6 +654,8 @@ class DataFrame:
         self.fillna = self._na.fill
         self.replace = self._na.replace
 
+        self._ai = DataFrameAIFunctions(self)
+
         self._alias: Optional[str] = None
 
         if context._debug_eager_schema_validation:
@@ -1092,9 +1095,11 @@ class DataFrame:
                 return pandas.DataFrame(
                     result,
                     columns=[
-                        unquote_if_quoted(attr.name)
-                        if is_select_statement
-                        else attr.name
+                        (
+                            unquote_if_quoted(attr.name)
+                            if is_select_statement
+                            else attr.name
+                        )
                         for attr in self._plan.attributes
                     ],
                 )
@@ -5244,6 +5249,7 @@ class DataFrame:
         *,
         comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        copy_grants: bool = False,
         _emit_ast: bool = True,
     ) -> List[Row]:
         """Creates a view that captures the computation expressed by this DataFrame.
@@ -5259,6 +5265,8 @@ class DataFrame:
                 that specifies the database name, schema name, and view name.
             comment: Adds a comment for the created view. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+            copy_grants: A boolean value that specifies whether to retain the access permissions from the original view
+                when a new view is created. Defaults to False.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
 
@@ -5270,6 +5278,7 @@ class DataFrame:
             stmt = self._session._ast_batch.bind()
             expr = with_src_position(stmt.expr.dataframe_create_or_replace_view, stmt)
             expr.is_temp = False
+            expr.copy_grants = copy_grants
             self._set_ast_ref(expr.df)
             build_view_name(expr.name, name)
             if comment is not None:
@@ -5280,6 +5289,7 @@ class DataFrame:
             formatted_name,
             PersistedView(),
             comment=comment,
+            copy_grants=copy_grants,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -5309,6 +5319,7 @@ class DataFrame:
         max_data_extension_time: Optional[int] = None,
         statement_params: Optional[Dict[str, str]] = None,
         iceberg_config: Optional[dict] = None,
+        copy_grants: bool = False,
         _emit_ast: bool = True,
     ) -> List[Row]:
         """Creates a dynamic table that captures the computation expressed by this DataFrame.
@@ -5352,6 +5363,8 @@ class DataFrame:
                 - base_location: the base directory that snowflake can write iceberg metadata and files to.
                 - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
                 - storage_serialization_policy: specifies the storage serialization policy for the table.
+            copy_grants: A boolean value that specifies whether to retain the access permissions from the original view
+                when a new view is created. Defaults to False.
 
 
         Note:
@@ -5405,6 +5418,7 @@ class DataFrame:
 
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
+            expr.copy_grants = copy_grants
         # TODO: Support create_or_replace_dynamic_table in MockServerConnection.
         from snowflake.snowpark.mock._connection import MockServerConnection
 
@@ -5441,6 +5455,7 @@ class DataFrame:
                 ),
             ),
             iceberg_config=iceberg_config,
+            copy_grants=copy_grants,
         )
 
     @df_collect_api_telemetry
@@ -5451,6 +5466,7 @@ class DataFrame:
         *,
         comment: Optional[str] = None,
         statement_params: Optional[Dict[str, str]] = None,
+        copy_grants: bool = False,
         _emit_ast: bool = True,
     ) -> List[Row]:
         """Creates or replace a temporary view that returns the same results as this DataFrame.
@@ -5470,6 +5486,8 @@ class DataFrame:
                 that specifies the database name, schema name, and view name.
             comment: Adds a comment for the created view. See
                 `COMMENT <https://docs.snowflake.com/en/sql-reference/sql/comment>`_.
+            copy_grants: A boolean value that specifies whether to retain the access permissions from the original view
+                when a new view is created. Defaults to False.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
         """
 
@@ -5487,11 +5505,13 @@ class DataFrame:
                 expr.comment.value = comment
             if statement_params is not None:
                 build_expr_from_dict_str_str(expr.statement_params, statement_params)
+            expr.copy_grants = copy_grants
 
         return self._do_create_or_replace_view(
             formatted_name,
             LocalTempView(),
             comment=comment,
+            copy_grants=copy_grants,
             _statement_params=create_or_update_statement_params_with_query_tag(
                 statement_params or self._statement_params,
                 self._session.query_tag,
@@ -5571,16 +5591,18 @@ class DataFrame:
         view_type: ViewType,
         comment: Optional[str],
         replace: bool = True,
+        copy_grants: bool = False,
         _ast_stmt: Optional[proto.Bind] = None,
         **kwargs,
     ):
         validate_object_name(view_name)
         cmd = CreateViewCommand(
-            view_name,
-            view_type,
-            comment,
-            replace,
-            self._plan,
+            name=view_name,
+            view_type=view_type,
+            comment=comment,
+            replace=replace,
+            copy_grants=copy_grants,
+            child=self._plan,
         )
 
         return self._session._conn.execute(
@@ -5601,6 +5623,7 @@ class DataFrame:
         data_retention_time: Optional[int] = None,
         max_data_extension_time: Optional[int] = None,
         iceberg_config: Optional[dict] = None,
+        copy_grants: bool = False,
         **kwargs,
     ):
         validate_object_name(name)
@@ -5628,6 +5651,7 @@ class DataFrame:
             max_data_extension_time=max_data_extension_time,
             child=self._plan,
             iceberg_config=iceberg_config,
+            copy_grants=copy_grants,
         )
 
         return self._session._conn.execute(
@@ -5791,6 +5815,14 @@ class DataFrame:
         handling missing values in the DataFrame.
         """
         return self._na
+
+    @property
+    def ai(self) -> DataFrameAIFunctions:
+        """
+        Returns a :class:`DataFrameAIFunctions` object that provides AI-powered functions
+        for the DataFrame.
+        """
+        return self._ai
 
     @property
     def session(self) -> "snowflake.snowpark.Session":
@@ -6273,7 +6305,9 @@ class DataFrame:
                 Every number in ``weights`` has to be positive. If only one
                 weight is specified, the returned DataFrame list only includes
                 the current DataFrame.
-            seed: The seed for sampling.
+            seed: The seed used by the randomness generator for splitting.
+
+                .. caution:: By default, reusing a seed value doesn't guarantee reproducible results.
             statement_params: Dictionary of statement level parameters to be set while executing this action.
 
         Example::
@@ -6290,6 +6324,13 @@ class DataFrame:
 
             2. When a weight or a normailized weight is less than ``1e-6``, the
             corresponding split dataframe will be empty.
+
+            3. To get reproducible seeding behavior, configure the DataFrame's :py:class:`Session`
+            to use simplified querying:
+
+            .. code-block::
+
+                >>> session.conf.set("use_simplified_query_generation", True)
         """
 
         if not weights:

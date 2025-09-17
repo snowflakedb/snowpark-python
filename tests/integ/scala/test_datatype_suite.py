@@ -34,6 +34,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     ByteType,
     DateType,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -238,6 +239,7 @@ def test_verify_datatypes_reference(session):
             StructField("double", DoubleType()),
             StructField("decimal", DecimalType(10, 2)),
             StructField("yearmonthinterval", YearMonthIntervalType()),
+            StructField("daytimeinterval", DayTimeIntervalType()),
             StructField("array", ArrayType(IntegerType())),
             StructField("map", MapType(ByteType(), TimeType())),
         ]
@@ -263,6 +265,7 @@ def test_verify_datatypes_reference(session):
                 6.0,
                 Decimal(123),
                 "1-3",
+                "1 01:01:01.0001",
                 None,
                 None,
             ]
@@ -289,6 +292,7 @@ def test_verify_datatypes_reference(session):
             StructField("DOUBLE", DoubleType()),
             StructField("DECIMAL", DecimalType(10, 2)),
             StructField("YEARMONTHINTERVAL", YearMonthIntervalType()),
+            StructField("DAYTIMEINTERVAL", DayTimeIntervalType()),
             StructField("ARRAY", ArrayType(StringType())),
             StructField("MAP", MapType(StringType(), StringType())),
         ]
@@ -365,6 +369,7 @@ def test_dtypes(session):
             StructField("double", DoubleType()),
             StructField("decimal", DecimalType(10, 2)),
             StructField("yearmonthinterval", YearMonthIntervalType()),
+            StructField("daytimeinterval", DayTimeIntervalType()),
             StructField("array", ArrayType(IntegerType())),
             StructField("map", MapType(ByteType(), TimeType())),
         ]
@@ -390,6 +395,7 @@ def test_dtypes(session):
                 6.0,
                 Decimal(123),
                 "-6-3",
+                "-1 01:01:01.0001",
                 None,
                 None,
             ]
@@ -415,6 +421,7 @@ def test_dtypes(session):
         ("DOUBLE", "double"),
         ("DECIMAL", "decimal(10,2)"),
         ("YEARMONTHINTERVAL", "yearmonthinterval"),
+        ("DAYTIMEINTERVAL", "daytimeinterval"),
         ("ARRAY", "array<string>"),
         ("MAP", "map<string,string>"),
     ]

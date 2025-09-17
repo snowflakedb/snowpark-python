@@ -250,3 +250,11 @@ def test_unit_udtf_ingestion():
             else:
                 # Keep other types as is
                 assert value == expected_row[index]
+
+
+def test_unsupported_type():
+
+    schema = DatabricksDriver(
+        create_databricks_connection, DBMS_TYPE.DATABRICKS_DB
+    ).to_snow_type([("test_col", "unsupported_type", True)])
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
