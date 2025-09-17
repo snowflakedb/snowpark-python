@@ -12,6 +12,7 @@ import json
 import logging
 import re
 from collections import Counter, defaultdict
+from dataclasses import dataclass, field
 import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
@@ -502,6 +503,28 @@ HYBRID_ALL_EXPENSIVE_METHODS = (
 # Snowpark pandas. This list is populated by the register_*_not_implemented decorators.
 HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS: Set[Tuple[str, str]] = set()
 
+# POC: Add kwargs-based auto-switching infrastructure
+
+
+@dataclass
+class UnsupportedKwargsRule:
+    """Rule defining which kwargs should trigger auto-switching."""
+
+    # Parameters with custom conditions for switching
+    conditions: dict[str, Callable[[Any], bool]] = field(default_factory=dict)
+
+    # Default values to check against (for sentinel values like no_default)
+    default_values: dict[str, Any] = field(default_factory=dict)
+
+
+# Global registry for kwargs-based switching rules
+# Format: {(class_name, method_name): UnsupportedKwargsRule}
+HYBRID_SWITCH_FOR_UNSUPPORTED_KWARGS: dict[
+    tuple[Optional[str], str], UnsupportedKwargsRule
+] = {}
+
+# POC: concat method rule will be registered via enhanced decorator in general_overrides.py
+
 T = TypeVar("T", bound=Callable[..., Any])
 
 
@@ -859,6 +882,43 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return True
 
     @classmethod
+    def _has_unsupported_kwargs(
+        cls,
+        api_cls_name: Optional[str],
+        operation: Optional[str],
+        arguments: MappingProxyType[str, Any],
+    ) -> bool:
+        """
+        Check if method call contains unsupported kwargs that require pandas backend.
+
+        Args:
+            api_cls_name: Class name (DataFrame, Series, BasePandasDataset, None for top-level functions)
+            operation: Method name
+            arguments: Method arguments including kwargs
+
+        Returns:
+            True if unsupported kwargs detected and auto-switch should occur
+        """
+        if not operation:
+            return False
+
+        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_KWARGS.get((api_cls_name, operation))
+        if rule is None:
+            return False
+
+        # Check custom conditions
+        for param_name, condition_func in rule.conditions.items():
+            if param_name in arguments:
+                param_value = arguments[param_name]
+                default_value = rule.default_values.get(param_name)
+
+                # Only check condition if value differs from default
+                if param_value != default_value and condition_func(param_value):
+                    return True
+
+        return False
+
+    @classmethod
     def _transfer_threshold(cls) -> int:
         return SnowflakePandasTransferThreshold.get()
 
@@ -906,6 +966,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
+
+        # POC: Check for unsupported kwargs that require pandas backend
+        if arguments and self._has_unsupported_kwargs(
+            api_cls_name, operation, arguments
+        ):
+            return QCCoercionCost.COST_IMPOSSIBLE
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
             return QCCoercionCost.COST_HIGH
@@ -942,6 +1008,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             or not cls._are_dtypes_compatible_with_snowflake(other_qc)
             or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
         ):
+            return QCCoercionCost.COST_IMPOSSIBLE
+
+        # POC: Check for unsupported kwargs that require pandas backend
+        if arguments and cls._has_unsupported_kwargs(
+            api_cls_name, operation, arguments
+        ):
+            from snowflake.snowpark.modin.plugin.utils.warning_message import (
+                WarningMessage,
+            )
+
+            WarningMessage.single_warning(
+                f"Method '{operation}' with specified parameters requires pandas backend. "
+                f"Automatically switching for execution."
+            )
             return QCCoercionCost.COST_IMPOSSIBLE
 
         if arguments is not None and (
@@ -7798,10 +7878,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             NOTE: Original column level names are lost and result column index has only
             one level.
         """
-        if levels is not None:
-            raise NotImplementedError(
-                "Snowpark pandas doesn't support 'levels' argument in concat API"
-            )
         frames = [self._modin_frame] + [o._modin_frame for o in other]
         for frame in frames:
             self._raise_not_implemented_error_for_timedelta(frame=frame)
@@ -7999,8 +8075,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
-        if axis == 1:
-            ErrorMessage.not_implemented("cumsum with axis=1 is not supported yet")
+        # POC: Temporarily removed NotImplementedError to test cost-based auto-switching
+        # if axis == 1:
+        #     ErrorMessage.not_implemented("cumsum with axis=1 is not supported yet")
 
         cumagg_col_to_expr_map = get_cumagg_col_to_expr_map_axis0(self, sum_, skipna)
         return SnowflakeQueryCompiler(
