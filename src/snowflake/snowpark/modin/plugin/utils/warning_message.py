@@ -4,9 +4,7 @@
 
 import functools
 from logging import getLogger
-from typing import Any, Callable, Generator
-
-import pytest
+from typing import Any, Callable
 
 logger = getLogger(__name__)
 
@@ -133,12 +131,3 @@ class WarningMessage:
         cls.single_warning(
             f"`{type}` may be lost in `{operation}`'s result, please use `astype` to convert the result type back."
         )
-
-
-@pytest.fixture
-def clear_printed_warnings() -> Generator[None, None, None]:
-    # Preserve a copy of the warnings printed before the test.
-    warnings = set(WarningMessage.printed_warnings)
-    WarningMessage.printed_warnings.clear()
-    yield
-    WarningMessage.printed_warnings = warnings

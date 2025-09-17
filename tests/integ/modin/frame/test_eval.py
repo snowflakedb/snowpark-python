@@ -12,9 +12,6 @@ from tests.integ.modin.utils import (
 )
 import pandas as native_pd
 from tests.integ.utils.sql_counter import sql_count_checker
-from snowflake.snowpark.modin.plugin.utils.warning_message import (  # noqa: F401
-    clear_printed_warnings,
-)
 import logging
 from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_36_0
 from pytest import param
@@ -321,9 +318,7 @@ class TestParser:
 
 
 @sql_count_checker(query_count=1)
-def test_warning_for_explicit_numexpr_engine(
-    test_dfs, clear_printed_warnings, caplog  # noqa: F811
-):
+def test_warning_for_explicit_numexpr_engine(test_dfs, caplog):  # noqa: F811
     with caplog.at_level(logging.WARNING):
         eval_snowpark_pandas_result(
             *test_dfs,
@@ -335,9 +330,7 @@ def test_warning_for_explicit_numexpr_engine(
 
 
 @sql_count_checker(query_count=1)
-def test_no_warning_for_default_numexpr_engine(
-    test_dfs, clear_printed_warnings, caplog  # noqa: F811
-):
+def test_no_warning_for_default_numexpr_engine(test_dfs, caplog):  # noqa: F811
     with caplog.at_level(logging.WARNING):
         eval_snowpark_pandas_result(
             *test_dfs,
