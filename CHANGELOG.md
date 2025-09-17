@@ -13,6 +13,14 @@
   - `get_username_password`
   - `get_cloud_provider_token`
 
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
+- Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
+
 ## 1.39.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -80,7 +88,6 @@
 
 #### Improvements
 
-- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Downgraded to level `logging.DEBUG - 1` the log message saying that the
   Snowpark `DataFrame` reference of an internal `DataFrameReference` object
   has changed.
