@@ -1,14 +1,38 @@
 # Release History
 
+## 1.40.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
 ## 1.39.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
+- Added support for unstructured data engineering in Snowpark, powered by Snowflake AISQL and Cortex functions:
+  - `DataFrame.ai.complete`: Generate per-row LLM completions from prompts built over columns and files.
+  - `DataFrame.ai.filter`: Keep rows where an AI classifier returns TRUE for the given predicate.
+  - `DataFrame.ai.agg`: Reduce a text column into one result using a natural-language task description.
+  - `RelationalGroupedDataFrame.ai_agg`: Perform the same natural-language aggregation per group.
+  - `DataFrame.ai.classify`: Assign single or multiple labels from given categories to text or images.
+  - `DataFrame.ai.similarity`: Compute cosine-based similarity scores between two columns via embeddings.
+  - `DataFrame.ai.sentiment`: Extract overall and aspect-level sentiment from text into JSON.
+  - `DataFrame.ai.embed`: Generate VECTOR embeddings for text or images using configurable models.
+  - `DataFrame.ai.summarize_agg`: Aggregate and produce a single comprehensive summary over many rows.
+  - `DataFrame.ai.transcribe`: Transcribe audio files to text with optional timestamps and speaker labels.
+  - `DataFrame.ai.parse_document`: OCR/layout-parse documents or images into structured JSON.
+  - `DataFrame.ai.extract`: Pull structured fields from text or files using a response schema.
+  - `DataFrame.ai.count_tokens`: Estimate token usage for a given model and input text per row.
+  - `DataFrame.ai.split_text_markdown_header`: Split Markdown into hierarchical header-aware chunks.
+  - `DataFrame.ai.split_text_recursive_character`: Split text into size-bounded chunks using recursive separators.
+  - `DataFrameReader.file`: Create a DataFrame containing all files from a stage as FILE data type for downstream unstructured data processing.
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 - Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `interval_day_time_from_parts` that allows users to easily create `DayTimeIntervalType` without using SQL.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
 - Added an option to specify `copy_grants` for the following `DataFrame` APIs:
