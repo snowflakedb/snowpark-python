@@ -4,6 +4,14 @@ Snowpark Secrets
 
 .. currentmodule:: snowflake.snowpark.secrets
 
+.. rubric:: Classes
+
+.. autosummary::
+    :toctree: api/
+
+    UsernamePassword
+    CloudProviderToken
+
 .. rubric:: Functions
 
 .. autosummary::

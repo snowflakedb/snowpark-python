@@ -2,21 +2,22 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 from snowflake.snowpark._internal.utils import publicapi
-from typing import NamedTuple
 
 # Reference for Python API for Secret Access:
 # https://docs.snowflake.com/en/developer-guide/external-network-access/secret-api-reference#python-api-for-secret-access
 
 
-class UsernamePassword(NamedTuple):
-    username: str
-    password: str
+class UsernamePassword:
+    def __init__(self, username, password) -> None:
+        self.username = username
+        self.password = password
 
 
-class CloudProviderToken(NamedTuple):
-    access_key_id: str
-    secret_access_key: str
-    token: str
+class CloudProviderToken:
+    def __init__(self, id, key, token) -> None:
+        self.access_key_id = id
+        self.secret_access_key = key
+        self.token = token
 
 
 @publicapi
@@ -93,9 +94,7 @@ def get_username_password(secret_name: str) -> UsernamePassword:
         import _snowflake
 
         secret_object = _snowflake.get_username_password(secret_name)
-        return UsernamePassword(
-            username=secret_object.username, password=secret_object.password
-        )
+        return UsernamePassword(secret_object.username, secret_object.password)
     except ImportError:
         raise NotImplementedError(
             "Cannot import _snowflake module. Secret API is only supported on Snowflake server environment."
@@ -118,9 +117,9 @@ def get_cloud_provider_token(secret_name: str) -> CloudProviderToken:
 
         secret_object = _snowflake.get_cloud_provider_token(secret_name)
         return CloudProviderToken(
-            access_key_id=secret_object.access_key_id,
-            secret_access_key=secret_object.secret_access_key,
-            token=secret_object.token,
+            secret_object.access_key_id,
+            secret_object.secret_access_key,
+            secret_object.token,
         )
     except ImportError:
         raise NotImplementedError(
