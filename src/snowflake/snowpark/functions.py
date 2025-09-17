@@ -229,7 +229,11 @@ from snowflake.snowpark.column import (
     _to_col_if_str,
     _to_col_if_str_or_int,
 )
-from snowflake.snowpark.stored_procedure import StoredProcedure
+from snowflake.snowpark.context import _is_execution_environment_sandboxed_for_client
+from snowflake.snowpark.stored_procedure import (
+    StoredProcedure,
+    StoredProcedureRegistration,
+)
 from snowflake.snowpark.types import (
     ArrayType,
     DataType,
@@ -240,9 +244,9 @@ from snowflake.snowpark.types import (
     TimestampTimeZone,
     TimestampType,
 )
-from snowflake.snowpark.udaf import UserDefinedAggregateFunction
-from snowflake.snowpark.udf import UserDefinedFunction
-from snowflake.snowpark.udtf import UserDefinedTableFunction
+from snowflake.snowpark.udaf import UDAFRegistration, UserDefinedAggregateFunction
+from snowflake.snowpark.udf import UDFRegistration, UserDefinedFunction
+from snowflake.snowpark.udtf import UDTFRegistration, UserDefinedTableFunction
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -9460,13 +9464,16 @@ def udf(
     )
 
     if session is None:
-        warning(
-            name=f"udf_no_active_session_{func.__name__ if func else 'unknown'}",
-            text="WARN: UDF registration requires an active session. "
-            "This function was not registered.",
-            warning_times=1,
-        )
-        return func
+        udf_registration_method = UDFRegistration(session=session).register
+        if not _is_execution_environment_sandboxed_for_client:
+            # This happens when the user uses the decorator without an active session.
+            warning(
+                name=f"udf_no_active_session_{func.__name__ if func else 'unknown'}",
+                text="WARN: UDF registration requires an active session. "
+                "This function was not registered.",
+                warning_times=1,
+            )
+            return func
     else:
         udf_registration_method = session.udf.register
 
@@ -9716,13 +9723,16 @@ def udtf(
         session
     )
     if session is None:
-        warning(
-            name=f"udtf_no_active_session_{handler.__name__ if handler else 'unknown'}",
-            text="WARN: UDTF registration requires an active session. "
-            "This function was not registered.",
-            warning_times=1,
-        )
-        return handler
+        udtf_registration_method = UDTFRegistration(session=session).register
+        if not _is_execution_environment_sandboxed_for_client:
+            # This happens when the user uses the decorator without an active session.
+            warning(
+                name=f"udtf_no_active_session_{handler.__name__ if handler else 'unknown'}",
+                text="WARN: UDTF registration requires an active session. "
+                "This function was not registered.",
+                warning_times=1,
+            )
+            return handler
     else:
         udtf_registration_method = session.udtf.register
 
@@ -9974,13 +9984,16 @@ def udaf(
         session
     )
     if session is None:
-        warning(
-            name=f"udaf_no_active_session_{handler.__name__ if handler else 'unknown'}",
-            text="WARN: UDAF registration requires an active session. "
-            "This function was not registered.",
-            warning_times=1,
-        )
-        return handler
+        udaf_registration_method = UDAFRegistration(session=session).register
+        if not _is_execution_environment_sandboxed_for_client:
+            # This happens when the user uses the decorator without an active session.
+            warning(
+                name=f"udaf_no_active_session_{handler.__name__ if handler else 'unknown'}",
+                text="WARN: UDAF registration requires an active session. "
+                "This function was not registered.",
+                warning_times=1,
+            )
+            return handler
     else:
         udaf_registration_method = session.udaf.register
 
@@ -10676,13 +10689,18 @@ def sproc(
         session
     )
     if session is None:
-        warning(
-            name=f"sproc_no_active_session_{func.__name__ if func else 'unknown'}",
-            text="WARN: SPROC registration requires an active session. "
-            "This function was not registered.",
-            warning_times=1,
-        )
-        return func
+        sproc_registration_method = StoredProcedureRegistration(
+            session=session
+        ).register
+        if not _is_execution_environment_sandboxed_for_client:
+            # This happens when the user uses the decorator without an active session.
+            warning(
+                name=f"sproc_no_active_session_{func.__name__ if func else 'unknown'}",
+                text="WARN: SPROC registration requires an active session. "
+                "This function was not registered.",
+                warning_times=1,
+            )
+            return func
     else:
         sproc_registration_method = session.sproc.register
 
