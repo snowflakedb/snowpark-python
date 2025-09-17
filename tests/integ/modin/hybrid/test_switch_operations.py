@@ -425,6 +425,49 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
             assert snow_result == pandas_result
 
 
+@pytest.mark.parametrize(
+    "class_name, method_name, f_args",
+    [
+        ("DataFrame", "to_json", ()),  # declared in base_overrides
+        ("Series", "to_json", ()),  # declared in base_overrides
+        ("DataFrame", "dot", ([6],)),  # declared in dataframe_overrides
+        ("Series", "transform", (lambda x: x * 2,)),  # declared in series_overrides
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_unimplemented_autoswitches_using_hybrid_session_param(
+    class_name, method_name, f_args
+):
+    # Unimplemented methods declared via register_*_not_implemented should automatically
+    # default to local pandas execution.
+    # This test needs to be modified if any of the APIs in question are ever natively implemented
+    # for Snowpark pandas.
+    data = [1, 2, 3]
+    method = getattr(getattr(pd, class_name)(data).move_to("Snowflake"), method_name)
+    # Attempting to call the method without switching should raise.
+    pd.session.pandas_hybrid_execution_enabled = False
+    with pytest.raises(
+        NotImplementedError, match="Snowpark pandas does not yet support the method"
+    ):
+        method(*f_args)
+
+    # Attempting to call the method while switching is enabled should work fine.
+    pd.session.pandas_hybrid_execution_enabled = True
+    snow_result = method(*f_args)
+    pandas_result = getattr(getattr(native_pd, class_name)(data), method_name)(*f_args)
+    if isinstance(snow_result, (pd.DataFrame, pd.Series)):
+        assert snow_result.get_backend() == "Pandas"
+        assert_array_equal(snow_result.to_numpy(), pandas_result.to_numpy())
+    else:
+        # Series.to_json will output an extraneous level for the __reduced__ column, but that's OK
+        # since we don't officially support the method.
+        # See modin bug: https://github.com/modin-project/modin/issues/7624
+        if class_name == "Series" and method_name == "to_json":
+            assert snow_result == '{"__reduced__":{"0":1,"1":2,"2":3}}'
+        else:
+            assert snow_result == pandas_result
+
+
 @sql_count_checker(query_count=0)
 def test_to_datetime():
     assert Backend.get() == "Snowflake"
@@ -463,6 +506,45 @@ def test_query_count_no_switch(init_transaction_tables):
 
     with pd.session.query_history() as query_history_hybrid:
         with config_context(AutoSwitchBackend=True, NativePandasMaxRows=10):
+            df_result = inner_test(df_transactions)
+            hybrid_len = len(df_result)
+
+    assert orig_len == hybrid_len
+    assert len(query_history_orig.queries) == len(query_history_hybrid.queries)
+
+
+@sql_count_checker(
+    query_count=11,
+    join_count=6,
+    udtf_count=2,
+    high_count_expected=True,
+    high_count_reason="tests queries across different execution modes",
+)
+def test_query_count_no_switch_using_hybrid_session_param(init_transaction_tables):
+    """
+    Tests that when there is no switching behavior the query count is the
+    same under hybrid mode and non-hybrid mode.
+    """
+
+    def inner_test(df_in):
+        df_result = df_in[(df_in["REVENUE"] > 123) & (df_in["REVENUE"] < 200)]
+        df_result["REVENUE_DUPE"] = df_result["REVENUE"]
+        df_result["COUNT"] = df_result.groupby("DATE")["REVENUE"].transform("count")
+        return df_result
+
+    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    inner_test(df_transactions)
+    orig_len = None
+    hybrid_len = None
+    with pd.session.query_history() as query_history_orig:
+        with config_context(NativePandasMaxRows=10):
+            pd.session.pandas_hybrid_execution_enabled = False
+            df_result = inner_test(df_transactions)
+            orig_len = len(df_result)
+
+    with pd.session.query_history() as query_history_hybrid:
+        with config_context(NativePandasMaxRows=10):
+            pd.session.pandas_hybrid_execution_enabled = True
             df_result = inner_test(df_transactions)
             hybrid_len = len(df_result)
 

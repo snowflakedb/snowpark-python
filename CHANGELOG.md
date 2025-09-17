@@ -6,6 +6,14 @@
 
 #### New Features
 
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+
+- Added a session parameter `pandas_hybrid_execution_enabled` to enable/disable hybrid execution as an alternative to using `AutoSwitchBackend`.
+
 ## 1.39.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
