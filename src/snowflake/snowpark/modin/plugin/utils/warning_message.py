@@ -137,7 +137,8 @@ class WarningMessage:
 
 @pytest.fixture
 def clear_printed_warnings() -> Generator[None, None, None]:
-    warnings = WarningMessage.printed_warnings
+    # Preserve a copy of the warnings printed before the test.
+    warnings = set(WarningMessage.printed_warnings)
     WarningMessage.printed_warnings.clear()
     yield
     WarningMessage.printed_warnings = warnings

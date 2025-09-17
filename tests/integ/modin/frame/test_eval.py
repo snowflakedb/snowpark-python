@@ -43,7 +43,7 @@ engine_parameters = pytest.mark.parametrize(
 )
 
 
-def python_eval(self, expr, *, inplace=False, **kwargs):
+def python_eval(df, expr, *, inplace=False, **kwargs):
     """
     Implement DataFrame.eval(), but always use engine='python' for pandas dataframes.
 
@@ -55,10 +55,10 @@ def python_eval(self, expr, *, inplace=False, **kwargs):
     # have to add an extra stack level since we are wrapping eval in another
     # function call.
     kwargs["level"] = kwargs.get("level", 0) + 1
-    if isinstance(self, pd.DataFrame):
-        return self.eval(expr, inplace=inplace, **kwargs)
-    assert isinstance(self, native_pd.DataFrame)
-    return self.eval(expr, inplace=inplace, **(kwargs | {"engine": "python"}))
+    if isinstance(df, pd.DataFrame):
+        return df.eval(expr, inplace=inplace, **kwargs)
+    assert isinstance(df, native_pd.DataFrame)
+    return df.eval(expr, inplace=inplace, **(kwargs | {"engine": "python"}))
 
 
 @pytest.fixture
@@ -460,6 +460,10 @@ class TestInplace:
         param(
             lambda df: python_eval(df, "1", inplace=True),
             id="inplace_with_no_assignment",
+        ),
+        param(
+            lambda df: python_eval(df, "1 +", inplace=True),
+            id="invalid_syntax",
         ),
     ),
 )
