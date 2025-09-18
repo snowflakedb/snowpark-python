@@ -308,7 +308,7 @@ def test_query_timeout_and_session_init_udtf(session):
 
 
 def test_oracledb_driver_udtf_class_builder():
-    """Test the UDTF class builder in Psycopg2Driver using a real PostgreSQL connection"""
+    """Test the UDTF class builder in OracledbDriver using a real Oracledb connection"""
     # Create the driver with the real connection function
     driver = OracledbDriver(create_connection_oracledb, DBMS_TYPE.ORACLE_DB)
 

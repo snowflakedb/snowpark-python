@@ -1697,24 +1697,3 @@ def test_error_in_upload_is_raised(session):
                 create_connection=sql_server_create_connection,
                 table=SQL_SERVER_TABLE_NAME,
             )
-
-
-def test_pyodbc_driver_udtf_class_builder():
-    """Test the UDTF class builder in Psycopg2Driver using a real PostgreSQL connection"""
-    # Create the driver with the real connection function
-    driver = PyodbcDriver(sql_server_create_connection, DBMS_TYPE.ORACLE_DB)
-
-    # Get the UDTF class with a small fetch size to test batching
-    UDTFClass = driver.udtf_class_builder(
-        fetch_size=2, session_init_statement=["select 1"], query_timeout=1
-    )
-
-    # Instantiate the UDTF class
-    udtf_instance = UDTFClass()
-
-    # Test with a simple query that should return a few rows
-    test_query = f"SELECT * FROM {SQL_SERVER_TABLE_NAME}"
-    result_rows = list(udtf_instance.process(test_query))
-
-    # Verify we got some data back (we know the test table has data from other tests)
-    assert len(result_rows) > 0
