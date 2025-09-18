@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
+
 #### New Features
 
 ### Snowpark pandas API Updates
@@ -62,8 +66,6 @@
   - `systimestamp`
 
 #### Bug Fixes
-
-- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
 
 #### Deprecations
 
