@@ -6,7 +6,6 @@ import logging
 import math
 import sys
 from collections import namedtuple
-
 import pytest
 
 from snowflake.snowpark import Row
@@ -20,6 +19,7 @@ from snowflake.snowpark._internal.data_source.utils import (
     DBMS_TYPE,
 )
 from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.exceptions import SnowparkDataSourceNonRetryableException
 from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 from tests.resources.test_data_source_dir.test_data_source_data import (
     OracleDBType,
@@ -248,3 +248,15 @@ def test_unsupported_type():
         create_connection_oracledb, DBMS_TYPE.ORACLE_DB
     ).to_snow_type([MockDescription("test_col", invalid_type, 0, 0, True)])
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_oracledb_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataSourceNonRetryableException,
+        match="ORA-00920: invalid relational operator",
+    ):
+        session.read.dbapi(
+            create_connection_oracledb,
+            table=ORACLEDB_TABLE_NAME,
+            predicates=["invalid syntax"],
+        ).collect()

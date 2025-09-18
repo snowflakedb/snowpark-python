@@ -55,6 +55,9 @@ class BaseDriver:
             f"{self.__class__.__name__} has not implemented to_snow_type function"
         )
 
+    def non_retryable_error_checker(self, error: Exception) -> bool:
+        return False
+
     @staticmethod
     def prepare_connection(
         conn: "Connection",
