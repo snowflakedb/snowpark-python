@@ -6,6 +6,13 @@
 
 #### New Features
 
+- Added a new module `snowflake.snowpark.secrets` that provides Python wrappers for accessing Snowflake Secrets within Python UDFs and stored procedures that execute inside Snowflake.
+  - `get_generic_secret_string`
+  - `get_oauth_access_token`
+  - `get_secret_type`
+  - `get_username_password`
+  - `get_cloud_provider_token`
+
 ### Snowpark pandas API Updates
 
 #### New Features
