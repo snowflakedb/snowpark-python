@@ -4,8 +4,9 @@
 #
 
 import sys
+import datetime
 from logging import getLogger
-from typing import Dict, List, NamedTuple, Optional, Union, overload
+from typing import Dict, List, Literal, NamedTuple, Optional, Union, overload
 
 import snowflake.snowpark
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
@@ -21,6 +22,7 @@ from snowflake.snowpark._internal.analyzer.table_merge_expression import (
 )
 from snowflake.snowpark._internal.analyzer.unary_plan_node import Sample
 from snowflake.snowpark._internal.ast.utils import (
+    build_expr_from_python_val,
     build_expr_from_dict_str_str,
     build_expr_from_snowpark_column,
     build_expr_from_snowpark_column_or_python_val,
@@ -31,10 +33,14 @@ from snowflake.snowpark._internal.ast.utils import (
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import add_api_call, set_api_call_source
 from snowflake.snowpark._internal.type_utils import ColumnOrLiteral
-from snowflake.snowpark._internal.utils import publicapi
+from snowflake.snowpark._internal.utils import (
+    publicapi,
+    TimeTravelConfig,
+)
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.dataframe import DataFrame, _disambiguate
 from snowflake.snowpark.row import Row
+from snowflake.snowpark.types import TimestampTimeZone
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
 # Python 3.9 can use both
@@ -288,6 +294,13 @@ class Table(DataFrame):
         is_temp_table_for_cleanup: bool = False,
         _ast_stmt: Optional[proto.Bind] = None,
         _emit_ast: bool = True,
+        *,
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime.datetime]] = None,
+        timestamp_type: Optional[Union[str, TimestampTimeZone]] = None,
+        stream: Optional[str] = None,
     ) -> None:
         if _ast_stmt is None and session is not None and _emit_ast:
             _ast_stmt = session._ast_batch.bind()
@@ -295,11 +308,33 @@ class Table(DataFrame):
             build_table_name(ast.name, table_name)
             ast.variant.table_init = True
             ast.is_temp_table_for_cleanup = is_temp_table_for_cleanup
+            if time_travel_mode is not None:
+                ast.time_travel_mode.value = time_travel_mode
+            if statement is not None:
+                ast.statement.value = statement
+            if offset is not None:
+                ast.offset.value = offset
+            if timestamp is not None:
+                build_expr_from_python_val(ast.timestamp, timestamp)
+            if timestamp_type is not None:
+                ast.timestamp_type.value = str(timestamp_type)
+            if stream is not None:
+                ast.stream.value = stream
+
+        time_travel_config = TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode=time_travel_mode,
+            statement=statement,
+            offset=offset,
+            timestamp=timestamp,
+            timestamp_type=timestamp_type,
+            stream=stream,
+        )
 
         snowflake_table_plan = SnowflakeTable(
             table_name,
             session=session,
             is_temp_table_for_cleanup=is_temp_table_for_cleanup,
+            time_travel_config=time_travel_config,
         )
         if session.sql_simplifier_enabled:
             plan = session._analyzer.create_select_statement(
@@ -314,6 +349,7 @@ class Table(DataFrame):
         self.is_cached: bool = self.is_cached  #: Whether the table is cached.
         self.table_name: str = table_name  #: The table name
         self._is_temp_table_for_cleanup = is_temp_table_for_cleanup
+        self._time_travel_config = time_travel_config
 
         # By default, the set the initial API call to say 'Table.__init__' since
         # people could instantiate a table directly. This value is overwritten when
@@ -321,19 +357,29 @@ class Table(DataFrame):
         set_api_call_source(self, "Table.__init__")
 
     def _copy_without_ast(self):
+        kwargs = {}
+        if self._time_travel_config:
+            kwargs.update(self._time_travel_config._asdict())
+
         return Table(
             self.table_name,
             session=self._session,
             is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
             _emit_ast=False,
+            **kwargs,
         )
 
     def __copy__(self) -> "Table":
+        kwargs = {}
+        if self._time_travel_config:
+            kwargs.update(self._time_travel_config._asdict())
+
         return Table(
             self.table_name,
             session=self._session,
             is_temp_table_for_cleanup=self._is_temp_table_for_cleanup,
             _emit_ast=self._session.ast_enabled,
+            **kwargs,
         )
 
     def __enter__(self):

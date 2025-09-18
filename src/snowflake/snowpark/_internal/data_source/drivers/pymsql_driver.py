@@ -157,9 +157,7 @@ class PymysqlDriver(BaseDriver):
                 scale,
                 null_ok,
             ) = col
-            snow_type = BASE_PYMYSQL_TYPE_TO_SNOW_TYPE.get(type_code, None)
-            if snow_type is None:
-                raise NotImplementedError(f"mysql type not supported: {type_code}")
+            snow_type = BASE_PYMYSQL_TYPE_TO_SNOW_TYPE.get(type_code, StringType)
             if type_code in (PymysqlTypeCode.DECIMAL, PymysqlTypeCode.NEWDECIMAL):
                 # we did -2 here because what driver returned is precision + 2, mysql store + 2 precision internally
                 precision -= 2
@@ -192,9 +190,10 @@ class PymysqlDriver(BaseDriver):
 
         class UDTFIngestion:
             def process(self, query: str):
+                import pymysql
 
                 conn = create_connection()
-                cursor = conn.cursor()
+                cursor = pymysql.cursors.SSCursor(conn)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
@@ -256,3 +255,8 @@ class PymysqlDriver(BaseDriver):
             else:
                 cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
         return res_df.select(cols, _emit_ast=_emit_ast)
+
+    def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
+        import pymysql
+
+        return pymysql.cursors.SSCursor(conn)

@@ -17,6 +17,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     NOT,
     OR,
     REPLACE,
+    create_or_replace_view_statement,
     format_uuid,
     convert_value_to_sql_option,
     create_file_format_statement,
@@ -35,6 +36,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     pivot_statement,
     unpivot_statement,
     sample_by_statement,
+    get_options_statement,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Inner,
@@ -279,6 +281,40 @@ def test_create_table_statement(
     assert if_not_exists_sql in create_table_stmt
 
 
+def test_create_or_replace_view_statement():
+    assert create_or_replace_view_statement(
+        name="my_view",
+        child="select * from foo",
+        is_temp=False,
+        comment=None,
+        replace=True,
+        copy_grants=True,
+    ) == "\n".join(
+        [
+            " CREATE  OR  REPLACE  VIEW my_view COPY GRANTS  AS  SELECT  * ",
+            " FROM (",
+            "select * from foo",
+            ")",
+        ]
+    )
+
+    assert create_or_replace_view_statement(
+        name="my_view",
+        child="select * from foo",
+        is_temp=True,
+        comment="A frosty winter wonderland with glistening snowflakes and icy views",
+        replace=False,
+        copy_grants=False,
+    ) == "\n".join(
+        [
+            " CREATE  TEMPORARY  VIEW my_view COMMENT  = 'A frosty winter wonderland with glistening snowflakes and icy views' AS  SELECT  * ",
+            " FROM (",
+            "select * from foo",
+            ")",
+        ]
+    )
+
+
 def test_create_or_replace_dynamic_table_statement():
     dt_name = "my_dt"
     warehouse = "my_warehouse"
@@ -302,9 +338,10 @@ def test_create_or_replace_dynamic_table_statement():
         data_retention_time=None,
         max_data_extension_time=None,
         child="select * from foo",
+        copy_grants=True,
     ) == (
         f" CREATE  OR  REPLACE  DYNAMIC  TABLE {dt_name} LAG  = '1 minute' WAREHOUSE  = {warehouse}     "
-        "AS  SELECT  * \n FROM (\nselect * from foo\n)"
+        "COPY GRANTS  AS  SELECT  * \n FROM (\nselect * from foo\n)"
     )
 
     assert create_or_replace_dynamic_table_statement(
@@ -376,6 +413,7 @@ def test_convert_value_to_sql_option():
     assert convert_value_to_sql_option("") == "''"
     assert convert_value_to_sql_option(1) == "1"
     assert convert_value_to_sql_option(None) == "None"
+    assert convert_value_to_sql_option(None, parse_none_as_string=True) == "'None'"
     assert convert_value_to_sql_option((1,)) == "(1)"
     assert convert_value_to_sql_option((1, 2)) == "(1, 2)"
 
@@ -737,3 +775,24 @@ def test_unpivot_statement_formatting():
         " UNPIVOT  INCLUDE NULLS (\n"
         "    sales_amount FOR month IN (JAN, FEB, MAR)\n)"
     )
+
+
+def test_get_options_statement():
+    # basic rendering and ordering
+    assert get_options_statement({"A": 1, "B": "x"}) == " A = 1 B = 'x' "
+    # skip None by default
+    assert get_options_statement({"A": None, "B": 2}) == " B = 2 "
+    # include None when skip_none=False
+    assert get_options_statement({"A": None}, skip_none=False) == " A = None "
+    # include None and quote it when parse_none_as_string=True
+    assert (
+        get_options_statement({"A": None}, skip_none=False, parse_none_as_string=True)
+        == " A = 'None' "
+    )
+    # list/tuple handling
+    assert (
+        get_options_statement({"FILES": ["a", "b"], "COLS": (1, 2)})
+        == " FILES = ('a', 'b') COLS = (1, 2) "
+    )
+    # already single-quoted string should pass through unchanged
+    assert get_options_statement({"P": "'abc'"}) == " P = 'abc' "

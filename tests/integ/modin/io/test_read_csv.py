@@ -48,7 +48,7 @@ def setup(session, resources_path):
     session.sql(f"DROP STAGE IF EXISTS {tmp_stage_name1}").collect()
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv():
     df = native_pd.DataFrame({"c1": [1, 2], "c2": ["qwe", 3], "c3": [4, 5]})
     filename = f"test_read_csv_{str(uuid.uuid4())}"
@@ -69,7 +69,7 @@ def test_read_csv_header_none(resources_path):
 
     filename = test_files.test_file_csv_header
 
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=2):
         assert_frame_equal(
             pd.read_csv(filename, header=None),
             native_pd.read_csv(filename, header=None),
@@ -78,7 +78,7 @@ def test_read_csv_header_none(resources_path):
 
 
 @pytest.mark.parametrize("header", [0, 1])
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_header_simple(resources_path, header):
     test_files = TestFiles(resources_path)
 
@@ -89,7 +89,7 @@ def test_read_csv_header_simple(resources_path, header):
 
 @pytest.mark.modin_sp_precommit
 @pytest.mark.parametrize("engine", ["c", "python", "pyarrow"])
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_engine_local(resources_path, engine):
     test_files = TestFiles(resources_path)
 
@@ -99,11 +99,7 @@ def test_read_csv_engine_local(resources_path, engine):
 
 
 @pytest.mark.modin_sp_precommit
-@sql_count_checker(
-    query_count=10,
-    high_count_expected=True,
-    high_count_reason="Expected high count read from Snowflake",
-)
+@sql_count_checker(query_count=9)
 def test_read_csv_engine_snowflake(resources_path):
     test_files = TestFiles(resources_path)
 
@@ -112,7 +108,7 @@ def test_read_csv_engine_snowflake(resources_path):
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_header_skiprows(resources_path):
     test_files = TestFiles(resources_path)
 
@@ -141,7 +137,7 @@ def test_read_csv_header_skiprows(resources_path):
         ],
     ],
 )
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_names(resources_path, names):
     test_files = TestFiles(resources_path)
 
@@ -151,7 +147,7 @@ def test_read_csv_names(resources_path, names):
     assert_frame_equal(expected, got, check_dtype=False, check_index_type=False)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_names_overwrite_header(resources_path):
     test_files = TestFiles(resources_path)
 
@@ -182,7 +178,7 @@ def test_read_csv_name_negative(resources_path, names, error_msg, expected_query
             pd.read_csv(test_files.test_file_csv_header, names=names)
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_read_csv_name_invalid_type_negative(resources_path):
     test_files = TestFiles(resources_path)
 
@@ -192,7 +188,7 @@ def test_read_csv_name_invalid_type_negative(resources_path):
         pd.read_csv(test_files.test_file_csv_header, names=names)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_diff_dataypes():
 
     df = native_pd.DataFrame(
@@ -303,7 +299,7 @@ def test_read_csv_diff_dataypes():
     reason="files cannot be named with certain reserved characters in Windows",
 )
 @pytest.mark.parametrize("wildcard", ["*", "?"])
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_filepath_glob_pattern(wildcard):
     df = native_pd.DataFrame({"c1": [1, 2], "c2": ["qwe", 3], "c3": [4, 5]})
     filename_a = f"test_read_csv_b_filepath_glob_pattern_{str(uuid.uuid4())}"
@@ -332,7 +328,7 @@ def test_read_csv_filepath_glob_pattern(wildcard):
             os.remove(filename_wildcard)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_filepath_starting_with_stage_symbol():
     df = native_pd.DataFrame({"c1": [1, 2], "c2": ["qwe", 3], "c3": [4, 5]})
     filename = f"@test_read_csv_backslash_{str(uuid.uuid4())}"
@@ -372,7 +368,7 @@ def test_read_csv_filepath_negative():
         ("dtype_backend", "numpy_nullable"),
     ],
 )
-@sql_count_checker(query_count=9)
+@sql_count_checker(query_count=8)
 def test_read_csv_with_warning_params(param, resources_path, arg):
     test_files = TestFiles(resources_path)
     staging_filename = f"@{tmp_stage_name1}/{test_file_csv}"
@@ -385,7 +381,7 @@ def test_read_csv_with_warning_params(param, resources_path, arg):
     )
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_no_sep():
     df = native_pd.DataFrame({"c1": [1, 2], "c2": ["qwe", 3], "c3": [4, 5]})
     filename = f"test_read_csv_no_sep_{str(uuid.uuid4())}"
@@ -402,7 +398,7 @@ def test_read_csv_no_sep():
             os.remove(filename)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_delimiter():
     df = native_pd.DataFrame({"c1": [1, 2], "c2": ["qwe", 3], "c3": [4, 5]})
     filename = f"test_read_csv_delimiter_{str(uuid.uuid4())}"
@@ -428,7 +424,7 @@ def test_read_csv_sep_delimiter_negative(resources_path):
         pd.read_csv(test_files.test_file_csv_colon, sep=";", delimiter=";")
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_misc_parameters(resources_path):
     test_files = TestFiles(resources_path)
     got = pd.read_csv(
@@ -452,7 +448,7 @@ def test_read_csv_misc_parameters(resources_path):
     assert_frame_equal(got, expected, check_dtype=False)
 
 
-@sql_count_checker(query_count=9)
+@sql_count_checker(query_count=8)
 def test_read_csv_stage(resources_path):
     got = pd.read_csv(f"@{tmp_stage_name1}/{test_file_csv}")
     test_files = TestFiles(resources_path)
@@ -513,7 +509,7 @@ def test_read_staged_csv_negative(param, arg):
         native_pd.Index(["rating", "id"]),
     ],
 )
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_usecols(resources_path, usecols):
     test_files = TestFiles(resources_path)
 
@@ -541,7 +537,7 @@ def test_read_csv_usecols_empty_negative(resources_path):
         [datetime.date(2021, 1, 9), datetime.datetime(2023, 1, 1, 1, 2, 3)],
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_read_csv_usecols_invalid_types_negative(resources_path, usecols):
     test_files = TestFiles(resources_path)
 
@@ -556,7 +552,7 @@ def test_read_csv_usecols_invalid_types_negative(resources_path, usecols):
     "usecols",
     [["non_existent_col"], ["rating", "non_existent_col"], [-1], [0, 4], ("rating")],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_read_csv_usecols_nonexistent_negative(resources_path, usecols):
     test_files = TestFiles(resources_path)
 
@@ -571,7 +567,7 @@ def test_read_csv_usecols_nonexistent_negative(resources_path, usecols):
     "usecols",
     [["c1", "c2"], ["c3"], ["c3", "c2"], [0, 2], [2, 1], [1]],
 )
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_usecols_with_names(resources_path, usecols):
     test_files = TestFiles(resources_path)
 
@@ -598,7 +594,7 @@ def test_read_csv_usecols_with_names(resources_path, usecols):
         [1],
     ],
 )
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_usecols_with_special_names(resources_path, usecols):
     test_files = TestFiles(resources_path)
     names = [
@@ -616,7 +612,7 @@ def test_read_csv_usecols_with_special_names(resources_path, usecols):
 def test_read_csv_usecols_with_names_negative(resources_path):
     test_files = TestFiles(resources_path)
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         with pytest.raises(
             ValueError,
             match="'usecols' do not match columns, columns expected but not found",
@@ -627,7 +623,7 @@ def test_read_csv_usecols_with_names_negative(resources_path):
                 usecols=["id"],
             )
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=1):
         with pytest.raises(
             ValueError,
             match="'usecols' do not match columns, columns expected but not found",
@@ -648,7 +644,7 @@ def test_read_csv_usecols_with_names_negative(resources_path):
         {},
     ],
 )
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_dtype(resources_path, dtype):
     test_files = TestFiles(resources_path)
     expected = native_pd.read_csv(test_files.test_file_csv_header, dtype=dtype)
@@ -707,7 +703,7 @@ def test_read_csv_dtype_usecols_negative(resources_path):
         [-1],
     ],
 )
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_index_col(resources_path, index_col):
     test_files = TestFiles(resources_path)
     expected = native_pd.read_csv(test_files.test_file_csv_header, index_col=index_col)
@@ -720,7 +716,7 @@ def test_read_csv_index_col_name(resources_path):
     expected = native_pd.read_csv(
         test_files.test_file_csv_header, names=["c1", "c2", "c3"], index_col=["c3"]
     )
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=2):
         got = pd.read_csv(
             test_files.test_file_csv_header, names=["c1", "c2", "c3"], index_col=["c3"]
         )
@@ -732,7 +728,7 @@ def test_read_csv_index_col_name(resources_path):
         names=["c1", "c2", "c3"],
         index_col=["c3", "c1"],
     )
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=2):
         got = pd.read_csv(
             test_files.test_file_csv_header,
             names=["c1", "c2", "c3"],
@@ -756,7 +752,7 @@ def test_read_csv_index_col_name(resources_path):
         ),
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_read_csv_index_col_frontend_negative(
     resources_path, index_col, expected_error_type, expected_error_msg
 ):
@@ -776,7 +772,7 @@ def test_read_csv_index_col_frontend_negative(
         ([1, "name"], ValueError, "Duplicate columns in index_col are not allowed."),
     ],
 )
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_read_csv_index_col_negative(
     resources_path, index_col, expected_error_type, expected_error_msg
 ):
@@ -786,7 +782,7 @@ def test_read_csv_index_col_negative(
         pd.read_csv(test_files.test_file_csv_header, index_col=index_col).to_pandas()
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_empty_header_snow_1272443():
     # generate a random temp name so these tests can be run in parallel
     temp_file_name = f"test_read_csv_empty_header_{generate_random_alphanumeric(4)}.csv"
@@ -801,7 +797,7 @@ def test_read_csv_empty_header_snow_1272443():
     assert_frame_equal(expected_df, got_df, check_dtype=False, check_index_type=False)
 
 
-@sql_count_checker(query_count=6)
+@sql_count_checker(query_count=4)
 def test_read_csv_dateparse():
     # generate a random temp name so these tests can be run in parallel
     temp_file_name = f"test_read_csv_dateparse_{generate_random_alphanumeric(4)}.csv"
@@ -821,7 +817,7 @@ def test_read_csv_dateparse():
     os.remove(temp_file_name)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=2)
 def test_read_csv_dateparse_multiple_columns():
     # generate a random temp name so these tests can be run in parallel
     temp_file_name = f"test_read_csv_dateparse_{generate_random_alphanumeric(4)}.csv"
@@ -847,7 +843,7 @@ def test_read_csv_s3():
         pytest.skip(
             reason="Skipping test for Windows because the schema cannot be found"
         )
-    with SqlCounter(query_count=9):
+    with SqlCounter(query_count=8):
         df = pd.read_csv(
             "s3://sfquickstarts/frostbyte_tastybytes/analytics/menu_item_aggregate_v.csv"
         )

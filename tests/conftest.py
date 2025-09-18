@@ -77,12 +77,16 @@ def pytest_addoption(parser, pluginmanager):
         help="Path to the Unparser JAR built in the monorepo.",
     )
     parser.addoption("--join_alias_fix", action="store_true", default=False)
+    parser.addoption("--enable_modin_hybrid_mode", action="store_true", default=False)
 
 
 def pytest_collection_modifyitems(items) -> None:
     """Applies tags to tests based on folders that they are in."""
     top_test_dir = Path(__file__).parent
     top_doctest_dir = top_test_dir.parent.joinpath("src/snowflake/snowpark")
+    top_doctest_internal_dir = top_test_dir.parent.joinpath(
+        "src/snowflake/snowpark/_functions"
+    )
     for item in items:
         item_path = Path(str(item.fspath)).parent
         try:
@@ -94,7 +98,7 @@ def pytest_collection_modifyitems(items) -> None:
             # the path isn't in the tests dir. We also accept doctest files
             # in src/snowflake/snowpark (and set a marker for them) but
             # we raise an exception for all other dirs that are passed in
-            if item_path == top_doctest_dir:
+            if item_path == top_doctest_dir or item_path == top_doctest_internal_dir:
                 item.add_marker("doctest")
             elif "modin" in str(item_path):
                 if not COMPATIBLE_WITH_MODIN:
@@ -189,6 +193,11 @@ def pytest_sessionstart(session):
 
 
 SKIP_SQL_COUNT_CHECK = False
+
+
+def set_skip_sql_count_check(value: bool):
+    global SKIP_SQL_COUNT_CHECK
+    SKIP_SQL_COUNT_CHECK = value
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -3,12 +3,15 @@
 #
 from collections import defaultdict
 from unittest import mock
+from snowflake.snowpark.functions import col
 
 import pytest
 import uuid
 import copy
 import time
+from datetime import datetime
 from snowflake.snowpark._internal.utils import (
+    create_prompt_column_from_template,
     ExprAliasUpdateDict,
     str_contains_alphabet,
     get_sorted_key_for_version,
@@ -16,6 +19,7 @@ from snowflake.snowpark._internal.utils import (
     remove_comments,
     get_line_numbers,
     get_plan_from_line_numbers,
+    TimeTravelConfig,
 )
 from snowflake.snowpark._internal.analyzer.snowflake_plan import (
     SnowflakePlan,
@@ -555,3 +559,321 @@ GROUP BY u.name"""
         ValueError, match="Line number 4 does not fall within any interval"
     ):
         get_plan_from_line_numbers(orphan_plan, 4)
+
+
+def test_create_prompt_column_from_template():
+    # Mock the prompt function to capture its calls
+    with mock.patch("snowflake.snowpark.functions.prompt") as mock_prompt:
+        mock_prompt.return_value = mock.Mock(name="prompt_column")
+
+        # Test: Dict with named placeholders - all placeholders used
+        template = "Analyze {review} with rating {rating}"
+        columns_dict = {"review": col("review_col"), "rating": col("rating_col")}
+        _ = create_prompt_column_from_template(template, columns_dict)
+
+        # Check that prompt was called with positional template
+        mock_prompt.assert_called()
+        call_args = mock_prompt.call_args
+        assert "{0}" in call_args[0][0] and "{1}" in call_args[0][0]
+        assert len(call_args[0]) == 3  # template + 2 columns
+
+        # Test: Dict with unused columns - should raise error
+        template = "Analyze {review} and {rating}"
+        columns_dict = {
+            "review": col("review_col"),
+            "rating": col("rating_col"),
+            "unused": col("unused_col"),
+        }
+        with pytest.raises(ValueError, match="not used in the template.*unused"):
+            create_prompt_column_from_template(template, columns_dict)
+
+        # Test: Dict with missing placeholder - should raise error
+        template = "Analyze {review} and {sentiment}"
+        columns_dict = {"review": col("review_col")}
+        with pytest.raises(ValueError, match="Placeholder.*sentiment.*not found"):
+            create_prompt_column_from_template(template, columns_dict)
+
+        # Test: List with matching positional placeholders
+        mock_prompt.reset_mock()
+        template = "Analyze {0} with rating {1}"
+        columns_list = [col("review_col"), col("rating_col")]
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        # Check that prompt was called with the original template
+        mock_prompt.assert_called_once()
+        call_args = mock_prompt.call_args
+        assert call_args[0][0] == template
+        assert len(call_args[0]) == 3  # template + 2 columns
+
+        # Test: List with no placeholders - should auto-append
+        mock_prompt.reset_mock()
+        template = "Analyze this review and rating:"
+        columns_list = [col("review_col"), col("rating_col")]
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        # Check that placeholders were appended
+        mock_prompt.assert_called_once()
+        call_args = mock_prompt.call_args
+        expected_template = "Analyze this review and rating: {0} {1}"
+        assert call_args[0][0] == expected_template
+
+        # Test: List with mismatched placeholder count - should raise error
+        template = "Analyze {0} with rating {1}"
+        columns_list = [col("review_col"), col("rating_col"), col("extra_col")]
+        with pytest.raises(
+            ValueError, match="Number of positional placeholders.*2.*does not match.*3"
+        ):
+            create_prompt_column_from_template(template, columns_list)
+
+        # Test: Invalid input type - should raise error
+        template = "Some template"
+        invalid_input = "not_a_dict_or_list"
+        with pytest.raises(TypeError, match="must be a list of Columns or a dict"):
+            create_prompt_column_from_template(template, invalid_input)
+
+        # Test: List with single column and no placeholder
+        mock_prompt.reset_mock()
+        template = "Process this:"
+        columns_list = [col("data_col")]
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        mock_prompt.assert_called_once()
+        call_args = mock_prompt.call_args
+        expected_template = "Process this: {0}"
+        assert call_args[0][0] == expected_template
+
+        # Test: Dict with repeated placeholders
+        mock_prompt.reset_mock()
+        template = "Compare {value} with {value} and rate {rating}"
+        columns_dict = {"value": col("value_col"), "rating": col("rating_col")}
+        _ = create_prompt_column_from_template(template, columns_dict)
+
+        # Should work fine, using same column twice
+        mock_prompt.assert_called()
+        call_args = mock_prompt.call_args
+        # Should have converted to "{0} with {0} and rate {1}"
+        assert call_args[0][0].count("{0}") == 2
+        assert "{1}" in call_args[0][0]
+
+        # Test: Empty list - should just append placeholders
+        mock_prompt.reset_mock()
+        template = "No placeholders here"
+        columns_list = []
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        mock_prompt.assert_called_once()
+        call_args = mock_prompt.call_args
+        # With no columns, template should remain unchanged (no placeholders to add)
+        assert call_args[0][0] == "No placeholders here "
+
+        # Test: List with duplicate placeholders
+        template = "Compare {0} with {0} and {1}"
+        columns_list = [col("first_col"), col("second_col")]
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        # Should work - {0} appears twice but we still have 2 unique placeholders
+        mock_prompt.assert_called()
+
+        # Test: List with out-of-order placeholders
+        mock_prompt.reset_mock()
+        template = "First: {2}, Second: {0}, Third: {1}"
+        columns_list = [col("col_0"), col("col_1"), col("col_2")]
+        _ = create_prompt_column_from_template(template, columns_list)
+
+        mock_prompt.assert_called_once()
+        call_args = mock_prompt.call_args
+        assert call_args[0][0] == template  # Should keep original template
+
+
+def test_time_travel_config():
+    """Test TimeTravelConfig NamedTuple creation."""
+    config = TimeTravelConfig(time_travel_mode="at", statement="query_123")
+    assert config.time_travel_mode == "at"
+    assert config.statement == "query_123"
+    assert config.timestamp_type is None
+
+
+def test_validate_and_normalize_time_travel_params():
+    """Test time travel parameter validation and normalization."""
+    # Test no time travel
+    assert TimeTravelConfig.validate_and_normalize_params() is None
+    assert TimeTravelConfig.validate_and_normalize_params(time_travel_mode=None) is None
+
+    # Test valid cases
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", statement="query_123"
+    )
+    assert config.time_travel_mode == "at" and config.statement == "query_123"
+
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="before", offset=-3600
+    )
+    assert config.time_travel_mode == "before" and config.offset == -3600
+
+    # Test datetime object normalization
+    dt = datetime(2023, 1, 1, 12, 0, 0)
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", timestamp=dt
+    )
+    assert "2023-01-01 12:00:00" in config.timestamp
+
+    # Test error cases
+    with pytest.raises(ValueError, match="Must specify time travel mode"):
+        TimeTravelConfig.validate_and_normalize_params(statement="query_123")
+
+    with pytest.raises(ValueError, match="Invalid time travel mode"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="invalid", statement="query_123"
+        )
+
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(time_travel_mode="at")
+
+    with pytest.raises(ValueError, match="Exactly one of"):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", statement="q1", offset=-60
+        )
+
+    with pytest.raises(
+        ValueError, match="'timestamp_type' value .* must be None or one of"
+    ):
+        TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", timestamp="2023-01-01 12:00:00", timestamp_type="UTC"
+        )
+
+
+def test_normalize_timestamp():
+    """Test timestamp and timestamp_type handling."""
+    # timestamp_type handling - various timezone sources
+    import pytz
+    from datetime import timezone, timedelta
+
+    timezones_to_test = [
+        pytz.UTC,  # UTC
+        pytz.timezone("US/Eastern"),  # EST/EDT
+        pytz.timezone("Europe/London"),  # GMT/BST
+        pytz.timezone("Asia/Tokyo"),  # JST
+        timezone.utc,  # UTC
+        timezone(timedelta(hours=5, minutes=30)),  # +05:30 (India)
+        timezone(timedelta(hours=-8)),  # -08:00 (PST)
+    ]
+
+    from snowflake.snowpark.types import TimestampTimeZone
+
+    for tz in timezones_to_test:
+        ts_with_tz = datetime(2023, 6, 15, 14, 30, 0, tzinfo=tz)
+
+        config = TimeTravelConfig.validate_and_normalize_params(
+            time_travel_mode="at", timestamp=ts_with_tz
+        )
+        assert config.timestamp_type == "TZ"
+        assert any(indicator in config.timestamp for indicator in ["+", "-", "UTC"])
+
+        # Respect explicit timestamp_type choice
+        for explicit_type in ["NTZ", "LTZ"]:
+            config_explicit = TimeTravelConfig.validate_and_normalize_params(
+                time_travel_mode="at",
+                timestamp=ts_with_tz,
+                timestamp_type=explicit_type,
+            )
+            assert config_explicit.timestamp_type == explicit_type
+
+        for enum_type in [
+            TimestampTimeZone.NTZ,
+            TimestampTimeZone.LTZ,
+            TimestampTimeZone.TZ,
+        ]:
+            config_enum = TimeTravelConfig.validate_and_normalize_params(
+                time_travel_mode="at", timestamp=ts_with_tz, timestamp_type=enum_type
+            )
+            assert config_enum.timestamp_type == enum_type.value.upper()
+
+    ts_naive = datetime(2023, 1, 1, 12, 0, 0)
+    config_naive = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", timestamp=ts_naive
+    )
+    assert config_naive.timestamp_type is None
+
+    config_naive_explicit = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", timestamp=ts_naive, timestamp_type="LTZ"
+    )
+    assert config_naive_explicit.timestamp_type == "LTZ"
+
+    config_string_no_type = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", timestamp="2023-01-01 12:00:00+05:30"
+    )
+    assert config_string_no_type.timestamp_type is None
+
+    config_string_explicit = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at",
+        timestamp="2023-01-01 12:00:00+05:30",
+        timestamp_type="TZ",
+    )
+    assert config_string_explicit.timestamp_type == "TZ"
+
+    # TimestampTimeZone.DEFAULT handling
+    config_default = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at",
+        timestamp="2023-01-01 12:00:00",
+        timestamp_type=TimestampTimeZone.DEFAULT,
+    )
+    assert config_default.timestamp_type == "NTZ"
+
+
+def test_generate_time_travel_sql_clause():
+    """Test SQL clause generation."""
+    test_cases = [
+        (
+            TimeTravelConfig(time_travel_mode="AT", statement="q123"),
+            " AT (STATEMENT => 'q123')",
+        ),
+        (
+            TimeTravelConfig(time_travel_mode="BEFORE", offset=-3600),
+            " BEFORE (OFFSET => -3600)",
+        ),
+        (
+            TimeTravelConfig(time_travel_mode="AT", stream="stream1"),
+            " AT (STREAM => 'stream1')",
+        ),
+        (
+            TimeTravelConfig(
+                time_travel_mode="AT",
+                timestamp="2023-01-01 12:00:00",
+                timestamp_type="NTZ",
+            ),
+            " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('2023-01-01 12:00:00'))",
+        ),
+        (
+            TimeTravelConfig(
+                time_travel_mode="BEFORE",
+                timestamp="2023-01-01 12:00:00",
+                timestamp_type="LTZ",
+            ),
+            " BEFORE (TIMESTAMP => TO_TIMESTAMP_LTZ('2023-01-01 12:00:00'))",
+        ),
+        (
+            TimeTravelConfig(
+                time_travel_mode="at",
+                timestamp="2023-01-01 12:00:00",
+                timestamp_type="UNKNOWN",
+            ),
+            " AT (TIMESTAMP => TO_TIMESTAMP('2023-01-01 12:00:00'))",
+        ),  # fallback uses generic TO_TIMESTAMP
+        (
+            TimeTravelConfig(
+                time_travel_mode="before",
+                timestamp="2023-01-01 12:00:00",
+                timestamp_type=None,
+            ),
+            " BEFORE (TIMESTAMP => '2023-01-01 12:00:00')",
+        ),
+    ]
+
+    for config, expected in test_cases:
+        assert config.generate_sql_clause() == expected
+
+    config = TimeTravelConfig.validate_and_normalize_params(
+        time_travel_mode="at", statement="abc123"
+    )
+    sql_clause = config.generate_sql_clause()
+    assert sql_clause == " AT (STATEMENT => 'abc123')"

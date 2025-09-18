@@ -23,14 +23,18 @@ Functions
     acosh
     add_months
     ai_agg
-    ai_embed
     ai_classify
     ai_complete
+    ai_embed
+    ai_extract
     ai_filter
+    ai_parse_document
     ai_sentiment
     ai_similarity
     ai_summarize_agg
+    ai_transcribe
     any_value
+    all_user_names
     approx_count_distinct
     approx_percentile
     approx_percentile_accumulate
@@ -93,12 +97,18 @@ Functions
     base64_decode_string
     base64_encode
     bit_length
+    bitand
+    bitand_agg
+    bitor
+    bitor_agg
     bitmap_bit_position
     bitmap_bucket_number
     bitmap_construct_agg
     bitnot
     bitshiftleft
     bitshiftright
+    bitxor
+    bitxor_agg
     build_stage_file_url
     builtin
     bround
@@ -135,17 +145,25 @@ Functions
     create_map
     cume_dist
     current_account
+    current_account_name
     current_available_roles
+    current_client
     current_database
     current_date
+    current_ip_address
+    current_organization_name
+    current_organization_user
     current_region
     current_role
+    current_role_type
     current_schema
     current_schemas
+    current_secondary_roles
     current_session
     current_statement
     current_time
     current_timestamp
+    current_transaction
     current_user
     current_version
     current_warehouse
@@ -199,8 +217,11 @@ Functions
     from_utc_timestamp
     function
     get
+    getbit
     get_ignore_case
     get_path
+    getdate
+    getvariable
     greatest
     grouping
     grouping_id
@@ -214,19 +235,27 @@ Functions
     initcap
     insert
     instr
+    interval_day_time_from_parts
+    interval_year_month_from_parts
+    invoker_role
+    invoker_share
+    is_application_role_in_session
     is_array
     is_binary
     is_boolean
     is_char
+    is_database_role_in_session
     is_date
     is_date_value
     is_decimal
     is_double
+    is_granted_to_invoker_role
     is_integer
     is_null
     is_null_value
     is_object
     is_real
+    is_role_in_session
     is_time
     is_timestamp_ltz
     is_timestamp_ntz
@@ -245,6 +274,7 @@ Functions
     lit
     ln
     locate
+    localtime
     localtimestamp
     log
     log1p
@@ -355,6 +385,7 @@ Functions
     sum
     sum_distinct
     sysdate
+    systimestamp
     system_reference
     table_function
     tan
@@ -398,6 +429,7 @@ Functions
     var_pop
     var_samp
     variance
+    vectorized
     vector_inner_product
     vector_l2_distance
     weekofyear

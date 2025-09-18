@@ -1,6 +1,202 @@
 # Release History
 
-## 1.37.0 (YYYY-MM-DD)
+## 1.40.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added a new module `snowflake.snowpark.secrets` that provides Python wrappers for accessing Snowflake Secrets within Python UDFs and stored procedures that execute inside Snowflake.
+  - `get_generic_secret_string`
+  - `get_oauth_access_token`
+  - `get_secret_type`
+  - `get_username_password`
+  - `get_cloud_provider_token`
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+
+- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
+- Added a session parameter `pandas_hybrid_execution_enabled` to enable/disable hybrid execution as an alternative to using `AutoSwitchBackend`.
+- Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
+
+## 1.39.0 (2025-09-17)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for unstructured data engineering in Snowpark, powered by Snowflake AISQL and Cortex functions:
+  - `DataFrame.ai.complete`: Generate per-row LLM completions from prompts built over columns and files.
+  - `DataFrame.ai.filter`: Keep rows where an AI classifier returns TRUE for the given predicate.
+  - `DataFrame.ai.agg`: Reduce a text column into one result using a natural-language task description.
+  - `RelationalGroupedDataFrame.ai_agg`: Perform the same natural-language aggregation per group.
+  - `DataFrame.ai.classify`: Assign single or multiple labels from given categories to text or images.
+  - `DataFrame.ai.similarity`: Compute cosine-based similarity scores between two columns via embeddings.
+  - `DataFrame.ai.sentiment`: Extract overall and aspect-level sentiment from text into JSON.
+  - `DataFrame.ai.embed`: Generate VECTOR embeddings for text or images using configurable models.
+  - `DataFrame.ai.summarize_agg`: Aggregate and produce a single comprehensive summary over many rows.
+  - `DataFrame.ai.transcribe`: Transcribe audio files to text with optional timestamps and speaker labels.
+  - `DataFrame.ai.parse_document`: OCR/layout-parse documents or images into structured JSON.
+  - `DataFrame.ai.extract`: Pull structured fields from text or files using a response schema.
+  - `DataFrame.ai.count_tokens`: Estimate token usage for a given model and input text per row.
+  - `DataFrame.ai.split_text_markdown_header`: Split Markdown into hierarchical header-aware chunks.
+  - `DataFrame.ai.split_text_recursive_character`: Split text into size-bounded chunks using recursive separators.
+  - `DataFrameReader.file`: Create a DataFrame containing all files from a stage as FILE data type for downstream unstructured data processing.
+- Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
+- Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `interval_day_time_from_parts` that allows users to easily create `DayTimeIntervalType` without using SQL.
+- Added support for `FileOperation.list` to list files in a stage with metadata.
+- Added support for `FileOperation.remove` to remove files in a stage.
+- Added an option to specify `copy_grants` for the following `DataFrame` APIs:
+  - `create_or_replace_view`
+  - `create_or_replace_temp_view`
+  - `create_or_replace_dynamic_table`
+- Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
+- Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
+- Added support for the following scalar functions in `functions.py`:
+  - `getdate`
+  - `getvariable`
+  - `invoker_role`
+  - `invoker_share`
+  - `is_application_role_in_session`
+  - `is_database_role_in_session`
+  - `is_granted_to_invoker_role`
+  - `is_role_in_session`
+  - `localtime`
+  - `systimestamp`
+
+#### Bug Fixes
+
+#### Deprecations
+
+- Deprecated warnings will be triggered when using snowpark-python with Python 3.9. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
+
+#### Dependency Updates
+
+#### Improvements
+
+- Unsupported types in `DataFrameReader.dbapi`(PuPr) are ingested as `StringType` now.
+- Improved error message to list available columns when dataframe cannot resolve given column name.
+- Added a new option `cacheResult` to `DataFrameReader.xml` that allows users to cache the result of the XML reader to a temporary table after calling `xml`. It helps improve performance when subsequent operations are performed on the same DataFrame.
+
+### Snowpark pandas API Updates
+- Added support for `DataFrame.eval()` for dataframes with single-level indexes.
+
+#### New Features
+
+#### Improvements
+
+- Downgraded to level `logging.DEBUG - 1` the log message saying that the
+  Snowpark `DataFrame` reference of an internal `DataFrameReference` object
+  has changed.
+- Eliminate duplicate parameter check queries for casing status when retrieving the session.
+- Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
+- Added support for applying Snowflake Cortex function `Complete`.
+- Introduce faster pandas: Improved performance by deferring row position computation. 
+  - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
+  - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
+- Updated the error message for when Snowpark pandas is referenced within apply.
+- Added a session parameter `dummy_row_pos_optimization_enabled` to enable/disable dummy row position optimization in faster pandas.
+
+#### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.35.0 and <0.37.0 (was previously >= 0.34.0 and <0.36.0).
+
+#### Bug Fixes
+
+- Fixed an issue with drop_duplicates where the same data source could be read multiple times in the same query but in a different order each time, resulting in missing rows in the final result. The fix ensures that the data source is read only once.
+- Fixed a bug with hybrid execution mode where an `AssertionError` was unexpectedly raised by certain indexing operations.
+
+### Snowpark Local Testing Updates
+
+#### New Features
+
+- Added support to allow patching `functions.ai_complete`.
+
+## 1.38.0 (2025-09-04)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for the following AI-powered functions in `functions.py`:
+  - `ai_extract`
+  - `ai_parse_document`
+  - `ai_transcribe`
+- Added time travel support for querying historical data:
+  - `Session.table()` now supports time travel parameters: `time_travel_mode`, `statement`, `offset`, `timestamp`, `timestamp_type`, and `stream`.
+  - `DataFrameReader.table()` supports the same time travel parameters as direct arguments.
+  - `DataFrameReader` supports time travel via option chaining (e.g., `session.read.option("time_travel_mode", "at").option("offset", -60).table("my_table")`).
+- Added support for specifying the following parameters to `DataFrameWriter.copy_into_location` for validation and writing data to external locations:
+    - `validation_mode`
+    - `storage_integration`
+    - `credentials`
+    - `encryption`
+- Added support for `Session.directory` and `Session.read.directory` to retrieve the list of all files on a stage with metadata.
+- Added support for `DataFrameReader.jdbc`(PrPr) that allows ingesting external data source with jdbc driver.
+- Added support for `FileOperation.copy_files` to copy files from a source location to an output stage.
+- Added support for the following scalar functions in `functions.py`:
+  - `all_user_names`
+  - `bitand`
+  - `bitand_agg`
+  - `bitor`
+  - `bitor_agg`
+  - `bitxor`
+  - `bitxor_agg`
+  - `current_account_name`
+  - `current_client`
+  - `current_ip_address`
+  - `current_role_type`
+  - `current_organization_name`
+  - `current_organization_user`
+  - `current_secondary_roles`
+  - `current_transaction`
+  - `getbit`
+
+#### Bug Fixes
+
+- Fixed the repr of TimestampType to match the actual subtype it represents.
+- Fixed a bug in `DataFrameReader.dbapi` that udtf ingestion does not work in stored procedure.
+- Fixed a bug in schema inference that caused incorrect stage prefixes to be used.
+
+#### Improvements
+
+- Enhanced error handling in `DataFrameReader.dbapi` thread-based ingestion to prevent unnecessary operations, which improves resource efficiency.
+- Bumped cloudpickle dependency to also support `cloudpickle==3.1.1` in addition to previous versions.
+- Improved `DataFrameReader.dbapi` (PuPr) ingestion performance for PostgreSQL and MySQL by using server side cursor to fetch data.
+
+### Snowpark pandas API Updates
+
+#### New Features
+- Completed support for `pd.read_snowflake()`, `pd.to_iceberg()`,
+  `pd.to_pandas()`, `pd.to_snowpark()`, `pd.to_snowflake()`,
+  `DataFrame.to_iceberg()`, `DataFrame.to_pandas()`, `DataFrame.to_snowpark()`,
+  `DataFrame.to_snowflake()`, `Series.to_iceberg()`, `Series.to_pandas()`,
+  `Series.to_snowpark()`, and `Series.to_snowflake()` on the "Pandas" and "Ray"
+  backends. Previously, only some of these functions and methods were supported
+  on the Pandas backend.
+- Added support for `Index.get_level_values()`.
+
+#### Improvements
+- Set the default transfer limit in hybrid execution for data leaving Snowflake to 100k, which can be overridden with the SnowflakePandasTransferThreshold environment variable. This configuration is appropriate for scenarios with two available engines, "Pandas" and "Snowflake" on relational workloads.
+- Improve import error message by adding `--upgrade` to `pip install "snowflake-snowpark-python[modin]"` in the error message.
+- Reduce the telemetry messages from the modin client by pre-aggregating into 5 second windows and only keeping a narrow band of metrics which are useful for tracking hybrid execution and native pandas performance.
+- Set the initial row count only when hybrid execution is enabled. This reduces the number of queries issued for many workloads.
+- Add a new test parameter for integration tests to enable hybrid execution.
+
+#### Bug Fixes
+- Raised `NotImplementedError` instead of `AttributeError` on attempting to call
+  Snowflake extension functions/methods `to_dynamic_table()`, `cache_result()`,
+  `to_view()`, `create_or_replace_dynamic_table()`, and
+  `create_or_replace_view()` on dataframes or series using the pandas or ray
+  backends.
+
+## 1.37.0 (2025-08-18)
 
 ### Snowpark Python API Updates
 

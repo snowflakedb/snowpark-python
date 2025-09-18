@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import (
     PymysqlTypeCode,
 )
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
+from snowflake.snowpark.types import StructType, StructField, StringType
 from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_real_data,
     MysqlType,
@@ -140,14 +141,6 @@ def test_dbapi_batch_fetch(
         assert df.order_by("ID").collect() == expected_result
 
 
-def test_type_conversion():
-    invalid_type = MysqlType("ID", "UNKNOWN", None, None, None, None, False)
-    with pytest.raises(NotImplementedError, match="mysql type not supported"):
-        PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB).to_snow_type(
-            [invalid_type]
-        )
-
-
 def test_pymysql_driver_coverage(caplog):
     mysql_driver = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB)
     mysql_driver.to_snow_type(
@@ -257,8 +250,8 @@ def test_udtf_ingestion_mysql(session, caplog):
 
     # check that udtf is used
     assert (
-        "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
-        and "table(data_source_udtf" in caplog.text
+        "TEMPORARY  FUNCTION  SNOWPARK_TEMP_FUNCTION" "" in caplog.text
+        and "table(SNOWPARK_TEMP_FUNCTION" in caplog.text
     )
 
 
@@ -287,3 +280,20 @@ def test_pymysql_driver_udtf_class_builder():
     # Verify we got data with the right structure (2 columns)
     assert len(column_result_rows) > 0
     assert len(column_result_rows[0]) == 2  # Two columns
+
+
+def test_server_side_cursor():
+    conn = create_connection_mysql()
+    driver = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB)
+    cursor = driver.get_server_cursor_if_supported(conn)
+    assert isinstance(cursor, pymysql.cursors.SSCursor)
+    cursor.close()
+    conn.close()
+
+
+def test_unsupported_type():
+
+    schema = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB).to_snow_type(
+        [("test_col", "unsupported_type", None, None, 0, 0, True)]
+    )
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])

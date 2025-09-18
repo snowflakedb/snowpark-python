@@ -113,6 +113,7 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SaveMode,
     SelectFromFileNode,
     SelectWithCopyIntoTableNode,
+    SnowflakeTable,
     TableCreationSource,
     WithQueryBlock,
 )
@@ -1052,7 +1053,11 @@ class SnowflakePlanBuilder:
         return new_plan
 
     def table(self, table_name: str, source_plan: LogicalPlan) -> SnowflakePlan:
-        return self.query(project_statement([], table_name), source_plan)
+        table_reference = table_name
+        if isinstance(source_plan, SnowflakeTable) and source_plan.time_travel_config:
+            table_reference += source_plan.time_travel_config.generate_sql_clause()
+
+        return self.query(project_statement([], table_reference), source_plan)
 
     def file_operation_plan(
         self, command: str, file_name: str, stage_location: str, options: Dict[str, str]
@@ -1543,6 +1548,7 @@ class SnowflakePlanBuilder:
         is_temp: bool,
         comment: Optional[str],
         replace: bool,
+        copy_grants: bool,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
@@ -1569,7 +1575,7 @@ class SnowflakePlanBuilder:
 
         return self.build(
             lambda x: create_or_replace_view_statement(
-                name, x, is_temp, comment, replace
+                name, x, is_temp, comment, replace, copy_grants
             ),
             child,
             source_plan,
@@ -1661,6 +1667,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         iceberg_config: Optional[dict] = None,
+        copy_grants: bool = False,
     ) -> SnowflakePlan:
 
         child = self.find_and_update_table_function_plan(child)
@@ -1700,6 +1707,7 @@ class SnowflakePlanBuilder:
                 max_data_extension_time=max_data_extension_time,
                 child=x,
                 iceberg_config=iceberg_config,
+                copy_grants=copy_grants,
             ),
             child,
             source_plan,
@@ -2152,6 +2160,10 @@ class SnowflakePlanBuilder:
         file_format_type: Optional[str] = None,
         format_type_options: Optional[Dict[str, Any]] = None,
         header: bool = False,
+        validation_mode: Optional[str] = None,
+        storage_integration: Optional[str] = None,
+        credentials: Optional[dict] = None,
+        encryption: Optional[dict] = None,
         **copy_options: Optional[Any],
     ) -> SnowflakePlan:
         return self.build(
@@ -2163,6 +2175,10 @@ class SnowflakePlanBuilder:
                 file_format_type=file_format_type,
                 format_type_options=format_type_options,
                 header=header,
+                validation_mode=validation_mode,
+                storage_integration=storage_integration,
+                credentials=credentials,
+                encryption=encryption,
                 **copy_options,
             ),
             query,

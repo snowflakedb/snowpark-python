@@ -706,12 +706,13 @@ def test_database_detector():
         assert result == (DBMS_TYPE.UNKNOWN, DRIVER_TYPE.PYODBC)
 
 
-def test_type_conversion():
+def test_unsupported_type():
     invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
-    with pytest.raises(NotImplementedError, match="sql server type not supported"):
-        PyodbcDriver(
-            sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB
-        ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
+
+    schema = PyodbcDriver(
+        sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB
+    ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
@@ -1369,37 +1370,10 @@ def test_threading_error_handling_with_stop_event(session):
         ):
             assert stop_event
             processed_partitions.put(partition_idx)
-
             # Simulate error on the second partition (partition_idx=1)
             if partition_idx == 1:
                 assert not stop_event.is_set()
-                # Add a small delay to ensure other threads have started
-                import time
-
-                time.sleep(0.05)
-                # Raise an error that should trigger the stop event mechanism
                 raise RuntimeError("Simulated thread error in partition 1")
-
-            # For other partitions, add delay to simulate longer-running work
-            # This ensures they will still be running when partition 1 fails
-            if partition_idx in [0, 2]:
-                import time
-
-                time.sleep(
-                    0.1
-                )  # Longer delay to ensure they're still running when error occurs
-
-            # For other partitions, check stop event and exit gracefully if set
-            if stop_event and stop_event.is_set():
-                parquet_queue.put(
-                    (
-                        PARTITION_TASK_ERROR_SIGNAL,
-                        SnowparkDataframeReaderException(
-                            "Data fetching stopped by thread failure"
-                        ),
-                    )
-                )
-                return
 
             # Otherwise proceed normally
             return original_task_fetch(
@@ -1441,16 +1415,11 @@ def test_threading_error_handling_with_stop_event(session):
                     column="id",
                     upper_bound=10,
                     lower_bound=0,
-                    num_partitions=3,  # Create 3 partitions to test multi-threading
-                    max_workers=3,
+                    num_partitions=9,  # Create 9 partitions to test multi-threading
+                    max_workers=2,
                     custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
                     fetch_with_process=False,  # Use threading mode
                 )
-            # Give threads a moment to be cancelled/complete
-            import time
-
-            time.sleep(0.2)
-
             # Convert queues to lists for assertion checks using helper function
             processed_list = drain_queue(processed_partitions)
             cancelled_list = drain_queue(cancelled_futures)
@@ -1458,11 +1427,12 @@ def test_threading_error_handling_with_stop_event(session):
 
             # Verify threading behavior: 3 futures created, partition 1 failed, some (but not all) futures cancelled
             assert (
-                len(created_list) == 3
+                9
+                > len(created_list)
+                > 1  # at least 0 and 1 must be created in order to process
                 and len(processed_list) >= 1
                 and 1 in processed_list
-                and len(cancelled_list) > 0
-                and len(cancelled_list) < 3
+                and 9 > len(cancelled_list) > 0
             ), f"Threading verification failed: created={len(created_list)}, processed={processed_list}, cancelled={len(cancelled_list)}"
 
             # Additional verification: check that cancelled futures were indeed not done when cancelled

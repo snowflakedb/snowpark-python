@@ -30,6 +30,7 @@ from snowflake.snowpark._internal.utils import (
     validate_object_name,
     warning,
     zip_file_or_directory_to_stream,
+    is_cloud_path,
 )
 from tests.utils import IS_WINDOWS, TestFiles
 
@@ -170,6 +171,37 @@ def test_normalize_file(is_local):
     )
 
 
+def test_is_cloud_path_comprehensive():
+    # True cases: supported cloud schemes
+    true_cases = [
+        "s3://mybucket/key",
+        "s3china://cn-bucket/key",
+        "s3gov://gov-bucket/key",
+        "azure://container/blob",
+        "gcs://bucket/obj",
+    ]
+    for p in true_cases:
+        assert is_cloud_path(p)
+
+    # False cases: unsupported or similar-looking schemes
+    false_cases = [
+        "S3://upper/bucket",  # case sensitive
+        "s3a://bucket/key",
+        "s3n://bucket/key",
+        "abfs://container/path",
+        "http://example.com/file",
+        "https://example.com/file",
+        "snow://location",
+        "@mystage/path",
+        "file://local/path",
+        "/absolute/local/path",
+        "relative/path",
+        " s3://leading/space",  # not trimmed
+    ]
+    for p in false_cases:
+        assert is_cloud_path(p) is False
+
+
 def test_get_udf_upload_prefix():
     assert get_udf_upload_prefix("name") == "name"
     assert get_udf_upload_prefix("abcABC_0123456789") == "abcABC_0123456789"
@@ -277,16 +309,20 @@ def test_zip_file_or_directory_to_stream():
             stream,
             [
                 "resources/",
+                "resources/audio.ogg",
                 "resources/books.xml",
                 "resources/books.xsd",
                 "resources/books2.xml",
                 "resources/broken.csv",
                 "resources/cat.jpeg",
+                "resources/conversation.ogg",
                 "resources/diamonds.csv",
                 "resources/declared_namespace.xml",
+                "resources/doc.pdf",
                 "resources/dog.jpg",
                 "resources/fias_house.xml",
                 "resources/fias_house.large.xml",
+                "resources/invoice.pdf",
                 "resources/iris.csv",
                 "resources/kitchen.png",
                 "resources/malformed_no_closing_tag.xml",
@@ -322,9 +358,12 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_sas.sas7bdat",
                 "resources/test_sas.xpt",
                 "resources/test_data_source_dir/",
+                "resources/test_data_source_dir/ojdbc17-23.9.0.25.07.jar",
+                "resources/test_data_source_dir/postgresql-42.7.7.jar",
                 "resources/test_data_source_dir/test_data_source_data.py",
                 "resources/test_data_source_dir/test_postgres_data.py",
                 "resources/test_data_source_dir/test_databricks_data.py",
+                "resources/test_data_source_dir/test_jdbc_data.py",
                 "resources/test_data_source_dir/test_mysql_data.py",
                 "resources/test_debug_utils_dir/",
                 "resources/test_debug_utils_dir/dataframe_generator1.py",

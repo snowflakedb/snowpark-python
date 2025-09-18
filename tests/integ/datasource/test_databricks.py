@@ -198,8 +198,8 @@ def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
     assert df.schema == EXPECTED_TYPE
 
     assert (
-        "TEMPORARY  FUNCTION  data_source_udtf_" "" in caplog.text
-        and "table(data_source_udtf" in caplog.text
+        "TEMPORARY  FUNCTION  SNOWPARK_TEMP_FUNCTION" "" in caplog.text
+        and "table(SNOWPARK_TEMP_FUNCTION" in caplog.text
     )
 
 
@@ -250,3 +250,11 @@ def test_unit_udtf_ingestion():
             else:
                 # Keep other types as is
                 assert value == expected_row[index]
+
+
+def test_unsupported_type():
+
+    schema = DatabricksDriver(
+        create_databricks_connection, DBMS_TYPE.DATABRICKS_DB
+    ).to_snow_type([("test_col", "unsupported_type", True)])
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])

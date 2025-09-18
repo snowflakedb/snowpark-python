@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-from typing import Optional, Set
+from typing import Optional, List, Set
 
 from snowflake.connector import OperationalError, ProgrammingError
 from snowflake.snowpark.exceptions import (
@@ -106,9 +106,11 @@ class SnowparkClientExceptionMessages:
         )
 
     @staticmethod
-    def DF_CANNOT_RESOLVE_COLUMN_NAME(col_name: str) -> SnowparkColumnException:
+    def DF_CANNOT_RESOLVE_COLUMN_NAME(
+        col_name: str, available_columns: List[str]
+    ) -> SnowparkColumnException:
         return SnowparkColumnException(
-            f"The DataFrame does not contain the column named {col_name}.",
+            f"The DataFrame does not contain the column named {col_name}. Available columns: {', '.join(available_columns)}",
             error_code="1105",
         )
 

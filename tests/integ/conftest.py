@@ -62,7 +62,16 @@ CONNECTION_PARAMETERS = {
 
 
 def set_up_external_access_integration_resources(
-    session, rule1, rule2, key1, key2, integration1, integration2
+    session,
+    rule1,
+    rule2,
+    rule3,
+    key1,
+    key2,
+    key3,
+    integration1,
+    integration2,
+    integration3,
 ):
     try:
         # IMPORTANT SETUP NOTES: the test role needs to be granted the creation privilege
@@ -87,6 +96,14 @@ def set_up_external_access_integration_resources(
         ).collect()
         session.sql(
             f"""
+    CREATE IF NOT EXISTS NETWORK RULE {rule3}
+      MODE = EGRESS
+      TYPE = HOST_PORT
+      VALUE_LIST = ('www.amazon.com');
+    """
+        ).collect()
+        session.sql(
+            f"""
     CREATE IF NOT EXISTS SECRET {key1}
       TYPE = GENERIC_STRING
       SECRET_STRING = 'replace-with-your-api-key';
@@ -97,6 +114,14 @@ def set_up_external_access_integration_resources(
     CREATE IF NOT EXISTS SECRET {key2}
       TYPE = GENERIC_STRING
       SECRET_STRING = 'replace-with-your-api-key_2';
+    """
+        ).collect()
+        session.sql(
+            f"""
+    CREATE IF NOT EXISTS SECRET {key3}
+      TYPE = PASSWORD
+      USERNAME = 'replace-with-your-username';
+      PASSWORD = 'replace-with-your-password';
     """
         ).collect()
         session.sql(
@@ -115,12 +140,23 @@ def set_up_external_access_integration_resources(
       ENABLED = true;
     """
         ).collect()
+        session.sql(
+            f"""
+    CREATE IF NOT EXISTS EXTERNAL ACCESS INTEGRATION {integration3}
+      ALLOWED_NETWORK_RULES = ({rule3})
+      ALLOWED_AUTHENTICATION_SECRETS = ({key3})
+      ENABLED = true;
+    """
+        ).collect()
         CONNECTION_PARAMETERS["external_access_rule1"] = rule1
         CONNECTION_PARAMETERS["external_access_rule2"] = rule2
+        CONNECTION_PARAMETERS["external_access_rule3"] = rule3
         CONNECTION_PARAMETERS["external_access_key1"] = key1
         CONNECTION_PARAMETERS["external_access_key2"] = key2
+        CONNECTION_PARAMETERS["external_access_key3"] = key3
         CONNECTION_PARAMETERS["external_access_integration1"] = integration1
         CONNECTION_PARAMETERS["external_access_integration2"] = integration2
+        CONNECTION_PARAMETERS["external_access_integration3"] = integration3
     except SnowparkSQLException:
         # GCP currently does not support external access integration
         # we can remove the exception once the integration is available on GCP
@@ -142,10 +178,13 @@ def set_up_external_access_integration_resources(
 def clean_up_external_access_integration_resources():
     CONNECTION_PARAMETERS.pop("external_access_rule1", None)
     CONNECTION_PARAMETERS.pop("external_access_rule2", None)
+    CONNECTION_PARAMETERS.pop("external_access_rule3", None)
     CONNECTION_PARAMETERS.pop("external_access_key1", None)
     CONNECTION_PARAMETERS.pop("external_access_key2", None)
+    CONNECTION_PARAMETERS.pop("external_access_key3", None)
     CONNECTION_PARAMETERS.pop("external_access_integration1", None)
     CONNECTION_PARAMETERS.pop("external_access_integration2", None)
+    CONNECTION_PARAMETERS.pop("external_access_integration3", None)
 
 
 def set_up_dataframe_processor_parameters(
@@ -264,14 +303,21 @@ def session(
     set_ast_state(AstFlagSource.TEST, ast_enabled)
     rule1 = "snowpark_python_test_rule1"
     rule2 = "snowpark_python_test_rule2"
+    rule3 = "snowpark_python_test_rule3"
     key1 = "snowpark_python_test_key1"
     key2 = "snowpark_python_test_key2"
+    key3 = "snowpark_python_test_key3"
     integration1 = "snowpark_python_test_integration1"
     integration2 = "snowpark_python_test_integration2"
+    integration3 = "snowpark_python_test_integration3"
 
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
+        .config(
+            "session_parameters",
+            {"feature_interval_types": "ENABLED"},
+        )
         .create()
     )
     set_up_dataframe_processor_parameters(
@@ -287,7 +333,16 @@ def session(
 
     if (RUNNING_ON_GH or RUNNING_ON_JENKINS) and not local_testing_mode:
         set_up_external_access_integration_resources(
-            session, rule1, rule2, key1, key2, integration1, integration2
+            session,
+            rule1,
+            rule2,
+            rule3,
+            key1,
+            key2,
+            key3,
+            integration1,
+            integration2,
+            integration3,
         )
 
     if validate_ast:
@@ -317,10 +372,13 @@ def profiler_session(
 ):
     rule1 = "snowpark_python_profiler_test_rule1"
     rule2 = "snowpark_python_profiler_test_rule2"
+    rule3 = "snowpark_python_profiler_test_rule3"
     key1 = "snowpark_python_profiler_test_key1"
     key2 = "snowpark_python_profiler_test_key2"
+    key3 = "snowpark_python_profiler_test_key3"
     integration1 = "snowpark_python_profiler_test_integration1"
     integration2 = "snowpark_python_profiler_test_integration2"
+    integration3 = "snowpark_python_profiler_test_integration3"
     session = (
         Session.builder.configs(db_parameters)
         .config("local_testing", local_testing_mode)
@@ -330,7 +388,16 @@ def profiler_session(
     session._cte_optimization_enabled = cte_optimization_enabled
     if RUNNING_ON_GH and not local_testing_mode:
         set_up_external_access_integration_resources(
-            session, rule1, rule2, key1, key2, integration1, integration2
+            session,
+            rule1,
+            rule2,
+            rule3,
+            key1,
+            key2,
+            key3,
+            integration1,
+            integration2,
+            integration3,
         )
     try:
         yield session

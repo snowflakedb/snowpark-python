@@ -1338,12 +1338,13 @@ class Analyzer:
                 )
 
             return self.plan_builder.create_or_replace_view(
-                logical_plan.name,
-                resolved_children[logical_plan.child],
-                is_temp,
-                logical_plan.comment,
-                logical_plan.replace,
-                logical_plan,
+                name=logical_plan.name,
+                child=resolved_children[logical_plan.child],
+                is_temp=is_temp,
+                comment=logical_plan.comment,
+                replace=logical_plan.replace,
+                copy_grants=logical_plan.copy_grants,
+                source_plan=logical_plan,
             )
 
         if isinstance(logical_plan, CreateDynamicTableCommand):
@@ -1365,6 +1366,7 @@ class Analyzer:
                 child=resolved_children[logical_plan.child],
                 source_plan=logical_plan,
                 iceberg_config=logical_plan.iceberg_config,
+                copy_grants=logical_plan.copy_grants,
             )
 
         if isinstance(logical_plan, ReadFileNode):
@@ -1428,6 +1430,10 @@ class Analyzer:
                 file_format_type=logical_plan.file_format_type,
                 format_type_options=logical_plan.format_type_options,
                 header=logical_plan.header,
+                validation_mode=logical_plan.validation_mode,
+                storage_integration=logical_plan.storage_integration,
+                credentials=logical_plan.credentials,
+                encryption=logical_plan.encryption,
                 **logical_plan.copy_options,
             )
 

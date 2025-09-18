@@ -1,5 +1,7 @@
 ## TEST CASE
 
+from datetime import timezone
+
 df1 = session.read.csv("@resources/iris.csv")
 
 df2 = session.read.json("@resources/testJson.json")
@@ -33,6 +35,38 @@ df14 = session.read.format("parquet").load("@resources/test.parquet")
 df15 = session.read.format("xml").load("@resources/test.xml")
 
 df16 = session.read.format("orc").load("@resources/test.orc")
+
+df17 = session.read.directory("abcd")
+
+df18 = session.read.directory("@abcd")
+
+df19 = session.read.directory('""dk!@#xc126"')
+
+df20 = session.read.table(tables.table1, time_travel_mode="at", offset=-100)
+
+df21 = session.read.table(tables.table1, time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012")
+
+df22 = session.read.table(tables.table1, time_travel_mode="at", timestamp="2023-01-01 12:00:00", timestamp_type="LTZ")
+
+df23 = session.read.table(tables.table1, time_travel_mode="at", timestamp=datetime.datetime(2025, 1, 1, 1, 1, 1, 111), timestamp_type=TimestampTimeZone.NTZ)
+
+df24 = session.read.table(tables.table1, time_travel_mode="at", stream="my_stream")
+
+df25 = session.read.option("time_travel_mode", "before").option("timestamp", "2023-01-01 12:00:00").table(tables.table1)
+
+df26 = session.read.option("as-of-timestamp", "2023-01-01 12:00:00").table(tables.table1)
+
+df27 = session.read.option("time_travel_mode", "before").option("timestamp", datetime.datetime(2024, 6, 7, 23, 15, 33, 403587)).table(tables.table1)
+
+df28 = session.read.option("time_travel_mode", "before").option("timestamp", datetime.datetime(2025, 1, 1, 1, 1, 1, 111, tzinfo=timezone.utc)).table(tables.table1)
+
+df29 = session.read.option("time_travel_mode", "at").option("offset", -360).table(tables.table1)
+
+df30 = session.read.option("time_travel_mode", "before").option("statement", "01234567-abcd-1234-5678-123456789012").table(tables.table1)
+
+df31 = session.read.option("time_travel_mode", "before").option("stream", "my_stream").table(tables.table1)
+
+df32 = session.read.option("time_travel_mode", "at").option("timestamp", datetime.datetime(2025, 1, 1, 1, 1, 1, 111)).option("timestamp_type", TimestampTimeZone.LTZ).table(tables.table1)
 
 ## EXPECTED UNPARSER OUTPUT
 
@@ -68,6 +102,38 @@ df15 = session.read.format("xml").load("@resources/test.xml")
 
 df16 = session.read.format("orc").load("@resources/test.orc")
 
+df17 = session.read.directory("abcd")
+
+df18 = session.read.directory("@abcd")
+
+df19 = session.read.directory("\"\"dk!@#xc126\"")
+
+df20 = session.read.table("table1", time_travel_mode="at", offset=-100)
+
+df21 = session.read.table("table1", time_travel_mode="before", statement="01234567-abcd-1234-5678-123456789012")
+
+df22 = session.read.table("table1", time_travel_mode="at", timestamp="2023-01-01 12:00:00", timestamp_type="LTZ")
+
+df23 = session.read.table("table1", time_travel_mode="at", timestamp=datetime.datetime(2025, 1, 1, 1, 1, 1, 111, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST")), timestamp_type="ntz")
+
+df24 = session.read.table("table1", time_travel_mode="at", stream="my_stream")
+
+df25 = session.read.options({"time_travel_mode": "before", "timestamp": "2023-01-01 12:00:00"}).table("table1")
+
+df26 = session.read.options({"as-of-timestamp": "2023-01-01 12:00:00"}).table("table1")
+
+df27 = session.read.options({"time_travel_mode": "before", "timestamp": datetime.datetime(2024, 6, 7, 23, 15, 33, 403587, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST"))}).table("table1")
+
+df28 = session.read.options({"time_travel_mode": "before", "timestamp": datetime.datetime(2025, 1, 1, 1, 1, 1, 111, tzinfo=datetime.timezone(datetime.timedelta(seconds=0), name="UTC"))}).table("table1")
+
+df29 = session.read.options({"time_travel_mode": "at", "offset": -360}).table("table1")
+
+df30 = session.read.options({"time_travel_mode": "before", "statement": "01234567-abcd-1234-5678-123456789012"}).table("table1")
+
+df31 = session.read.options({"time_travel_mode": "before", "stream": "my_stream"}).table("table1")
+
+df32 = session.read.options({"time_travel_mode": "at", "timestamp": datetime.datetime(2025, 1, 1, 1, 1, 1, 111, tzinfo=datetime.timezone(datetime.timedelta(seconds=-18000), name="EST")), "timestamp_type": "ltz"}).table("table1")
+
 ## EXPECTED ENCODED AST
 
 interned_value_table {
@@ -88,19 +154,19 @@ body {
           dataframe_reader {
             src {
               end_column: 26
-              end_line: 25
+              end_line: 27
               file: 2
               start_column: 14
-              start_line: 25
+              start_line: 27
             }
           }
         }
         src {
           end_column: 53
-          end_line: 25
+          end_line: 27
           file: 2
           start_column: 14
-          start_line: 25
+          start_line: 27
         }
       }
     }
@@ -120,19 +186,19 @@ body {
           dataframe_reader {
             src {
               end_column: 26
-              end_line: 27
+              end_line: 29
               file: 2
               start_column: 14
-              start_line: 27
+              start_line: 29
             }
           }
         }
         src {
           end_column: 59
-          end_line: 27
+          end_line: 29
           file: 2
           start_column: 14
-          start_line: 27
+          start_line: 29
         }
       }
     }
@@ -152,19 +218,19 @@ body {
           dataframe_reader {
             src {
               end_column: 26
-              end_line: 29
+              end_line: 31
               file: 2
               start_column: 14
-              start_line: 29
+              start_line: 31
             }
           }
         }
         src {
           end_column: 55
-          end_line: 29
+          end_line: 31
           file: 2
           start_column: 14
-          start_line: 29
+          start_line: 31
         }
       }
     }
@@ -184,19 +250,19 @@ body {
           dataframe_reader {
             src {
               end_column: 26
-              end_line: 31
+              end_line: 33
               file: 2
               start_column: 14
-              start_line: 31
+              start_line: 33
             }
           }
         }
         src {
           end_column: 61
-          end_line: 31
+          end_line: 33
           file: 2
           start_column: 14
-          start_line: 31
+          start_line: 33
         }
       }
     }
@@ -216,19 +282,19 @@ body {
           dataframe_reader {
             src {
               end_column: 26
-              end_line: 33
+              end_line: 35
               file: 2
               start_column: 14
-              start_line: 33
+              start_line: 35
             }
           }
         }
         src {
           end_column: 53
-          end_line: 33
+          end_line: 35
           file: 2
           start_column: 14
-          start_line: 33
+          start_line: 35
         }
       }
     }
@@ -248,19 +314,19 @@ body {
           dataframe_reader {
             src {
               end_column: 26
-              end_line: 35
+              end_line: 37
               file: 2
               start_column: 14
-              start_line: 35
+              start_line: 37
             }
           }
         }
         src {
           end_column: 53
-          end_line: 35
+          end_line: 37
           file: 2
           start_column: 14
-          start_line: 35
+          start_line: 37
         }
       }
     }
@@ -284,10 +350,10 @@ body {
                 bool_val {
                   src {
                     end_column: 55
-                    end_line: 37
+                    end_line: 39
                     file: 2
                     start_column: 14
-                    start_line: 37
+                    start_line: 39
                   }
                   v: true
                 }
@@ -299,10 +365,10 @@ body {
                 bool_val {
                   src {
                     end_column: 84
-                    end_line: 37
+                    end_line: 39
                     file: 2
                     start_column: 14
-                    start_line: 37
+                    start_line: 39
                   }
                   v: true
                 }
@@ -310,19 +376,19 @@ body {
             }
             src {
               end_column: 26
-              end_line: 37
+              end_line: 39
               file: 2
               start_column: 14
-              start_line: 37
+              start_line: 39
             }
           }
         }
         src {
           end_column: 110
-          end_line: 37
+          end_line: 39
           file: 2
           start_column: 14
-          start_line: 37
+          start_line: 39
         }
       }
     }
@@ -346,10 +412,10 @@ body {
                 bool_val {
                   src {
                     end_column: 80
-                    end_line: 39
+                    end_line: 41
                     file: 2
                     start_column: 14
-                    start_line: 39
+                    start_line: 41
                   }
                   v: true
                 }
@@ -361,10 +427,10 @@ body {
                 bool_val {
                   src {
                     end_column: 80
-                    end_line: 39
+                    end_line: 41
                     file: 2
                     start_column: 14
-                    start_line: 39
+                    start_line: 41
                   }
                   v: true
                 }
@@ -372,19 +438,19 @@ body {
             }
             src {
               end_column: 26
-              end_line: 39
+              end_line: 41
               file: 2
               start_column: 14
-              start_line: 39
+              start_line: 41
             }
           }
         }
         src {
           end_column: 106
-          end_line: 39
+          end_line: 41
           file: 2
           start_column: 14
-          start_line: 39
+          start_line: 41
         }
       }
     }
@@ -420,20 +486,20 @@ body {
                     string_val {
                       src {
                         end_column: 72
-                        end_line: 43
+                        end_line: 45
                         file: 2
                         start_column: 41
-                        start_line: 43
+                        start_line: 45
                       }
                       v: "METADATA$FILE_ROW_NUMBER"
                     }
                   }
                   src {
                     end_column: 72
-                    end_line: 43
+                    end_line: 45
                     file: 2
                     start_column: 41
-                    start_line: 43
+                    start_line: 45
                   }
                 }
               }
@@ -441,10 +507,10 @@ body {
                 string_val {
                   src {
                     end_column: 104
-                    end_line: 43
+                    end_line: 45
                     file: 2
                     start_column: 14
-                    start_line: 43
+                    start_line: 45
                   }
                   v: "METADATA$FILE_LAST_MODIFIED"
                 }
@@ -491,19 +557,19 @@ body {
             }
             src {
               end_column: 26
-              end_line: 43
+              end_line: 45
               file: 2
               start_column: 14
-              start_line: 43
+              start_line: 45
             }
           }
         }
         src {
           end_column: 150
-          end_line: 43
+          end_line: 45
           file: 2
           start_column: 14
-          start_line: 43
+          start_line: 45
         }
       }
     }
@@ -529,19 +595,19 @@ body {
           dataframe_reader {
             src {
               end_column: 27
-              end_line: 45
+              end_line: 47
               file: 2
               start_column: 15
-              start_line: 45
+              start_line: 47
             }
           }
         }
         src {
           end_column: 48
-          end_line: 45
+          end_line: 47
           file: 2
           start_column: 15
-          start_line: 45
+          start_line: 47
         }
       }
     }
@@ -564,19 +630,19 @@ body {
             }
             src {
               end_column: 27
-              end_line: 47
+              end_line: 49
               file: 2
               start_column: 15
-              start_line: 47
+              start_line: 49
             }
           }
         }
         src {
           end_column: 69
-          end_line: 47
+          end_line: 49
           file: 2
           start_column: 15
-          start_line: 47
+          start_line: 49
         }
       }
     }
@@ -599,19 +665,19 @@ body {
             }
             src {
               end_column: 27
-              end_line: 49
+              end_line: 51
               file: 2
               start_column: 15
-              start_line: 49
+              start_line: 51
             }
           }
         }
         src {
           end_column: 75
-          end_line: 49
+          end_line: 51
           file: 2
           start_column: 15
-          start_line: 49
+          start_line: 51
         }
       }
     }
@@ -634,19 +700,19 @@ body {
             }
             src {
               end_column: 27
-              end_line: 51
+              end_line: 53
               file: 2
               start_column: 15
-              start_line: 51
+              start_line: 53
             }
           }
         }
         src {
           end_column: 71
-          end_line: 51
+          end_line: 53
           file: 2
           start_column: 15
-          start_line: 51
+          start_line: 53
         }
       }
     }
@@ -669,19 +735,19 @@ body {
             }
             src {
               end_column: 27
-              end_line: 53
+              end_line: 55
               file: 2
               start_column: 15
-              start_line: 53
+              start_line: 55
             }
           }
         }
         src {
           end_column: 77
-          end_line: 53
+          end_line: 55
           file: 2
           start_column: 15
-          start_line: 53
+          start_line: 55
         }
       }
     }
@@ -704,19 +770,19 @@ body {
             }
             src {
               end_column: 27
-              end_line: 55
+              end_line: 57
               file: 2
               start_column: 15
-              start_line: 55
+              start_line: 57
             }
           }
         }
         src {
           end_column: 69
-          end_line: 55
+          end_line: 57
           file: 2
           start_column: 15
-          start_line: 55
+          start_line: 57
         }
       }
     }
@@ -739,19 +805,19 @@ body {
             }
             src {
               end_column: 27
-              end_line: 57
+              end_line: 59
               file: 2
               start_column: 15
-              start_line: 57
+              start_line: 59
             }
           }
         }
         src {
           end_column: 69
-          end_line: 57
+          end_line: 59
           file: 2
           start_column: 15
-          start_line: 57
+          start_line: 59
         }
       }
     }
@@ -760,6 +826,937 @@ body {
       value: "df16"
     }
     uid: 16
+  }
+}
+body {
+  bind {
+    expr {
+      read_directory {
+        reader {
+          dataframe_reader {
+            src {
+              end_column: 27
+              end_line: 61
+              file: 2
+              start_column: 15
+              start_line: 61
+            }
+          }
+        }
+        src {
+          end_column: 45
+          end_line: 61
+          file: 2
+          start_column: 15
+          start_line: 61
+        }
+        stage_name: "abcd"
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df17"
+    }
+    uid: 17
+  }
+}
+body {
+  bind {
+    expr {
+      read_directory {
+        reader {
+          dataframe_reader {
+            src {
+              end_column: 27
+              end_line: 63
+              file: 2
+              start_column: 15
+              start_line: 63
+            }
+          }
+        }
+        src {
+          end_column: 46
+          end_line: 63
+          file: 2
+          start_column: 15
+          start_line: 63
+        }
+        stage_name: "@abcd"
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df18"
+    }
+    uid: 18
+  }
+}
+body {
+  bind {
+    expr {
+      read_directory {
+        reader {
+          dataframe_reader {
+            src {
+              end_column: 27
+              end_line: 65
+              file: 2
+              start_column: 15
+              start_line: 65
+            }
+          }
+        }
+        src {
+          end_column: 54
+          end_line: 65
+          file: 2
+          start_column: 15
+          start_line: 65
+        }
+        stage_name: "\"\"dk!@#xc126\""
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df19"
+    }
+    uid: 19
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        offset {
+          value: -100
+        }
+        reader {
+          dataframe_reader {
+            src {
+              end_column: 27
+              end_line: 67
+              file: 2
+              start_column: 15
+              start_line: 67
+            }
+          }
+        }
+        src {
+          end_column: 84
+          end_line: 67
+          file: 2
+          start_column: 15
+          start_line: 67
+        }
+        time_travel_mode {
+          value: "at"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df20"
+    }
+    uid: 20
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            src {
+              end_column: 27
+              end_line: 69
+              file: 2
+              start_column: 15
+              start_line: 69
+            }
+          }
+        }
+        src {
+          end_column: 125
+          end_line: 69
+          file: 2
+          start_column: 15
+          start_line: 69
+        }
+        statement {
+          value: "01234567-abcd-1234-5678-123456789012"
+        }
+        time_travel_mode {
+          value: "before"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df21"
+    }
+    uid: 21
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            src {
+              end_column: 27
+              end_line: 71
+              file: 2
+              start_column: 15
+              start_line: 71
+            }
+          }
+        }
+        src {
+          end_column: 126
+          end_line: 71
+          file: 2
+          start_column: 15
+          start_line: 71
+        }
+        time_travel_mode {
+          value: "at"
+        }
+        timestamp {
+          string_val {
+            src {
+              end_column: 126
+              end_line: 71
+              file: 2
+              start_column: 15
+              start_line: 71
+            }
+            v: "2023-01-01 12:00:00"
+          }
+        }
+        timestamp_type {
+          value: "LTZ"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df22"
+    }
+    uid: 22
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            src {
+              end_column: 27
+              end_line: 73
+              file: 2
+              start_column: 15
+              start_line: 73
+            }
+          }
+        }
+        src {
+          end_column: 164
+          end_line: 73
+          file: 2
+          start_column: 15
+          start_line: 73
+        }
+        time_travel_mode {
+          value: "at"
+        }
+        timestamp {
+          python_timestamp_val {
+            day: 1
+            hour: 1
+            microsecond: 111
+            minute: 1
+            month: 1
+            second: 1
+            src {
+              end_column: 164
+              end_line: 73
+              file: 2
+              start_column: 15
+              start_line: 73
+            }
+            tz {
+              name {
+                value: "EST"
+              }
+              offset_seconds: -18000
+            }
+            year: 2025
+          }
+        }
+        timestamp_type {
+          value: "ntz"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df23"
+    }
+    uid: 23
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            src {
+              end_column: 27
+              end_line: 75
+              file: 2
+              start_column: 15
+              start_line: 75
+            }
+          }
+        }
+        src {
+          end_column: 91
+          end_line: 75
+          file: 2
+          start_column: 15
+          start_line: 75
+        }
+        stream {
+          value: "my_stream"
+        }
+        time_travel_mode {
+          value: "at"
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df24"
+    }
+    uid: 24
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            options {
+              _1: "time_travel_mode"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 64
+                    end_line: 77
+                    file: 2
+                    start_column: 15
+                    start_line: 77
+                  }
+                  v: "before"
+                }
+              }
+            }
+            options {
+              _1: "timestamp"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 107
+                    end_line: 77
+                    file: 2
+                    start_column: 15
+                    start_line: 77
+                  }
+                  v: "2023-01-01 12:00:00"
+                }
+              }
+            }
+            src {
+              end_column: 27
+              end_line: 77
+              file: 2
+              start_column: 15
+              start_line: 77
+            }
+          }
+        }
+        src {
+          end_column: 128
+          end_line: 77
+          file: 2
+          start_column: 15
+          start_line: 77
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df25"
+    }
+    uid: 25
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            options {
+              _1: "as-of-timestamp"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 76
+                    end_line: 79
+                    file: 2
+                    start_column: 15
+                    start_line: 79
+                  }
+                  v: "2023-01-01 12:00:00"
+                }
+              }
+            }
+            src {
+              end_column: 27
+              end_line: 79
+              file: 2
+              start_column: 15
+              start_line: 79
+            }
+          }
+        }
+        src {
+          end_column: 97
+          end_line: 79
+          file: 2
+          start_column: 15
+          start_line: 79
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df26"
+    }
+    uid: 26
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            options {
+              _1: "time_travel_mode"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 64
+                    end_line: 81
+                    file: 2
+                    start_column: 15
+                    start_line: 81
+                  }
+                  v: "before"
+                }
+              }
+            }
+            options {
+              _1: "timestamp"
+              _2 {
+                python_timestamp_val {
+                  day: 7
+                  hour: 23
+                  microsecond: 403587
+                  minute: 15
+                  month: 6
+                  second: 33
+                  src {
+                    end_column: 135
+                    end_line: 81
+                    file: 2
+                    start_column: 15
+                    start_line: 81
+                  }
+                  tz {
+                    name {
+                      value: "EST"
+                    }
+                    offset_seconds: -18000
+                  }
+                  year: 2024
+                }
+              }
+            }
+            src {
+              end_column: 27
+              end_line: 81
+              file: 2
+              start_column: 15
+              start_line: 81
+            }
+          }
+        }
+        src {
+          end_column: 156
+          end_line: 81
+          file: 2
+          start_column: 15
+          start_line: 81
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df27"
+    }
+    uid: 27
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            options {
+              _1: "time_travel_mode"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 64
+                    end_line: 83
+                    file: 2
+                    start_column: 15
+                    start_line: 83
+                  }
+                  v: "before"
+                }
+              }
+            }
+            options {
+              _1: "timestamp"
+              _2 {
+                python_timestamp_val {
+                  day: 1
+                  hour: 1
+                  microsecond: 111
+                  minute: 1
+                  month: 1
+                  second: 1
+                  src {
+                    end_column: 150
+                    end_line: 83
+                    file: 2
+                    start_column: 15
+                    start_line: 83
+                  }
+                  tz {
+                    name {
+                      value: "UTC"
+                    }
+                  }
+                  year: 2025
+                }
+              }
+            }
+            src {
+              end_column: 27
+              end_line: 83
+              file: 2
+              start_column: 15
+              start_line: 83
+            }
+          }
+        }
+        src {
+          end_column: 171
+          end_line: 83
+          file: 2
+          start_column: 15
+          start_line: 83
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df28"
+    }
+    uid: 28
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            options {
+              _1: "time_travel_mode"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 60
+                    end_line: 85
+                    file: 2
+                    start_column: 15
+                    start_line: 85
+                  }
+                  v: "at"
+                }
+              }
+            }
+            options {
+              _1: "offset"
+              _2 {
+                int64_val {
+                  src {
+                    end_column: 83
+                    end_line: 85
+                    file: 2
+                    start_column: 15
+                    start_line: 85
+                  }
+                  v: -360
+                }
+              }
+            }
+            src {
+              end_column: 27
+              end_line: 85
+              file: 2
+              start_column: 15
+              start_line: 85
+            }
+          }
+        }
+        src {
+          end_column: 104
+          end_line: 85
+          file: 2
+          start_column: 15
+          start_line: 85
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df29"
+    }
+    uid: 29
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            options {
+              _1: "time_travel_mode"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 64
+                    end_line: 87
+                    file: 2
+                    start_column: 15
+                    start_line: 87
+                  }
+                  v: "before"
+                }
+              }
+            }
+            options {
+              _1: "statement"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 124
+                    end_line: 87
+                    file: 2
+                    start_column: 15
+                    start_line: 87
+                  }
+                  v: "01234567-abcd-1234-5678-123456789012"
+                }
+              }
+            }
+            src {
+              end_column: 27
+              end_line: 87
+              file: 2
+              start_column: 15
+              start_line: 87
+            }
+          }
+        }
+        src {
+          end_column: 145
+          end_line: 87
+          file: 2
+          start_column: 15
+          start_line: 87
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df30"
+    }
+    uid: 30
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            options {
+              _1: "time_travel_mode"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 64
+                    end_line: 89
+                    file: 2
+                    start_column: 15
+                    start_line: 89
+                  }
+                  v: "before"
+                }
+              }
+            }
+            options {
+              _1: "stream"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 94
+                    end_line: 89
+                    file: 2
+                    start_column: 15
+                    start_line: 89
+                  }
+                  v: "my_stream"
+                }
+              }
+            }
+            src {
+              end_column: 27
+              end_line: 89
+              file: 2
+              start_column: 15
+              start_line: 89
+            }
+          }
+        }
+        src {
+          end_column: 115
+          end_line: 89
+          file: 2
+          start_column: 15
+          start_line: 89
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df31"
+    }
+    uid: 31
+  }
+}
+body {
+  bind {
+    expr {
+      read_table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        reader {
+          dataframe_reader {
+            options {
+              _1: "time_travel_mode"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 60
+                    end_line: 91
+                    file: 2
+                    start_column: 15
+                    start_line: 91
+                  }
+                  v: "at"
+                }
+              }
+            }
+            options {
+              _1: "timestamp"
+              _2 {
+                python_timestamp_val {
+                  day: 1
+                  hour: 1
+                  microsecond: 111
+                  minute: 1
+                  month: 1
+                  second: 1
+                  src {
+                    end_column: 125
+                    end_line: 91
+                    file: 2
+                    start_column: 15
+                    start_line: 91
+                  }
+                  tz {
+                    name {
+                      value: "EST"
+                    }
+                    offset_seconds: -18000
+                  }
+                  year: 2025
+                }
+              }
+            }
+            options {
+              _1: "timestamp_type"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 173
+                    end_line: 91
+                    file: 2
+                    start_column: 15
+                    start_line: 91
+                  }
+                  v: "ltz"
+                }
+              }
+            }
+            src {
+              end_column: 27
+              end_line: 91
+              file: 2
+              start_column: 15
+              start_line: 91
+            }
+          }
+        }
+        src {
+          end_column: 194
+          end_line: 91
+          file: 2
+          start_column: 15
+          start_line: 91
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df32"
+    }
+    uid: 32
   }
 }
 client_ast_version: 1
@@ -775,6 +1772,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 36
+  minor: 39
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
