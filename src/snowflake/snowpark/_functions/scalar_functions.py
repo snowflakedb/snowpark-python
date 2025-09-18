@@ -634,7 +634,7 @@ def boolxor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) ->
     Returns:
         - True if exactly one of the expressions is non-zero.
         - False if both expressions are zero or both expressions are non-zero.
-        - NULL if both expressions are NULL, or one expression is NULL and the other expression is zero.
+        - None if both expressions are None, or one expression is None and the other expression is zero.
 
     Example::
         >>> from snowflake.snowpark.functions import col
@@ -678,14 +678,14 @@ def decode(expr: ColumnOrName, *args: ColumnOrName, _emit_ast: bool = True) -> C
 @publicapi
 def greatest_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the largest value from a list of expressions, ignoring NULL values.
-    If all argument values are NULL, the result is NULL.
+    Returns the largest value from a list of expressions, ignoring None values.
+    If all argument values are None, the result is None.
 
     Args:
         columns (ColumnOrName): The name strings to compare.
 
     Returns:
-        Column: The greatest value, ignoring NULLs.
+        Column: The greatest value, ignoring None values.
 
     Examples::
 
@@ -700,14 +700,14 @@ def greatest_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Col
 @publicapi
 def least_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns the smallest value from a list of expressions, ignoring NULL values.
-    If all argument values are NULL, the result is NULL.
+    Returns the smallest value from a list of expressions, ignoring None values.
+    If all argument values are None, the result is None.
 
     Args:
         columns (ColumnOrName): list of column or column names to compare.
 
     Returns:
-        Column: The smallest value from the list of expressions, ignoring NULL values.
+        Column: The smallest value from the list of expressions, ignoring None values.
 
     Example::
 
@@ -722,14 +722,14 @@ def least_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Column
 @publicapi
 def nullif(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns NULL if expr1 is equal to expr2, otherwise returns expr1.
+    Returns None if expr1 is equal to expr2, otherwise returns expr1.
 
     Args:
         expr1 (ColumnOrName): The first expression to compare.
         expr2 (ColumnOrName): The second expression to compare.
 
     Returns:
-        Column: NULL if expr1 is equal to expr2, otherwise expr1.
+        Column: None if expr1 is equal to expr2, otherwise expr1.
 
     Example::
 
@@ -750,12 +750,12 @@ def nvl2(
     _emit_ast: bool = True,
 ) -> Column:
     """
-    Returns expr2 if expr1 is not NULL, otherwise returns expr3.
+    Returns expr2 if expr1 is not None, otherwise returns expr3.
 
     Args:
-        expr1 (ColumnOrName): The expression to test for NULL.
-        expr2 (ColumnOrName): The value to return if expr1 is not NULL.
-        expr3 (ColumnOrName): The value to return if expr1 is NULL.
+        expr1 (ColumnOrName): The expression to test for None.
+        expr2 (ColumnOrName): The value to return if expr1 is not None.
+        expr3 (ColumnOrName): The value to return if expr1 is None.
 
     Returns:
         Column: The result of the nvl2 function.
@@ -782,8 +782,8 @@ def nvl2(
 @publicapi
 def regr_valx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
-    Returns NULL if either argument is NULL; otherwise, returns the second argument.
-    Note that REGR_VALX is a NULL-preserving function, while the more commonly-used NVL is a NULL-replacing function.
+    Returns None if either argument is None; otherwise, returns the second argument.
+    Note that REGR_VALX is a None-preserving function, while the more commonly-used NVL is a None-replacing function.
 
     Args:
         y (ColumnOrName): The dependent variable column.
