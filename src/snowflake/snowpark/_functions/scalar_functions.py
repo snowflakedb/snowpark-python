@@ -322,9 +322,6 @@ def getdate(_emit_ast: bool = True) -> Column:
     """
     Returns the current timestamp for the system in the local time zone.
 
-    Args:
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
-
     Returns:
         A :class:`~snowflake.snowpark.Column` with the current date and time.
 
@@ -343,9 +340,6 @@ def localtime(_emit_ast: bool = True) -> Column:
     """
     Returns the current time for the system.
 
-    Args:
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
-
     Returns:
         A :class:`~snowflake.snowpark.Column` with the current local time.
 
@@ -362,9 +356,6 @@ def localtime(_emit_ast: bool = True) -> Column:
 def systimestamp(_emit_ast: bool = True) -> Column:
     """
     Returns the current timestamp for the system.
-
-    Args:
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         A :class:`~snowflake.snowpark.Column` with the current system timestamp.
@@ -383,9 +374,6 @@ def systimestamp(_emit_ast: bool = True) -> Column:
 def invoker_role(_emit_ast: bool = True) -> Column:
     """
     Returns the name of the role that was active when the current stored procedure or user-defined function was called.
-
-    Args:
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         Column: A Snowflake `Column` object representing the name of the active role.
@@ -407,10 +395,6 @@ def invoker_share(_emit_ast: bool = True) -> Column:
     Returns the name of the share that directly accessed the table or view where the INVOKER_SHARE
     function is invoked, otherwise the function returns None.
 
-    Args:
-        _emit_ast (bool, optional): A flag indicating whether to emit the abstract
-                                    syntax tree (AST). Defaults to True.
-
     Returns:
         Column: A Snowflake `Column` object representing the name of the active share.
 
@@ -429,7 +413,6 @@ def is_application_role_in_session(role_name: str, _emit_ast: bool = True) -> Co
 
     Args:
         role_name (str): The name of the application role to check.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         A :class:`~snowflake.snowpark.Column` indicating whether the specified application role is active in the current session.
@@ -453,7 +436,6 @@ def is_database_role_in_session(
 
     Args:
         role_name (ColumnOrName): The name of the database role to check. Can be a string or a Column.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         Column: A Snowflake `Column` object representing the result of the check.
@@ -477,7 +459,6 @@ def is_granted_to_invoker_role(role_name: str, _emit_ast: bool = True) -> Column
 
     Args:
         role_name (str): The name of the role to check.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         Column: A Snowflake `Column` object representing the result of the check.
@@ -499,7 +480,6 @@ def is_role_in_session(role: ColumnOrName, _emit_ast: bool = True) -> Column:
 
     Args:
         role (ColumnOrName): A Column or column name containing the role name to check.
-        _emit_ast (bool, optional): Whether to emit the abstract syntax tree (AST). Defaults to True.
 
     Returns:
         Column: A Snowflake `Column` object representing the result of the check.
@@ -521,8 +501,6 @@ def getvariable(name: str, _emit_ast: bool = True) -> Column:
 
     Args:
         name (str): The name of the session variable to retrieve.
-        _emit_ast (bool, optional): A flag indicating whether to emit the abstract syntax tree (AST).
-                                    Defaults to True.
 
     Returns:
         Column: A Snowflake `Column` object representing the value of the specified session variable.
