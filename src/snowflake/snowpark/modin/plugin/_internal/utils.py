@@ -119,6 +119,11 @@ _MAX_IDENTIFIER_LENGTH = 32
 
 _logger = logging.getLogger(__name__)
 
+# Flag guarding certain features available only in newer modin versions.
+# Snowpark pandas supports the newest two released versions of modin; update this flag and remove legacy
+# code as needed when we bump dependency versions.
+MODIN_IS_AT_LEAST_0_36_0 = version.parse(pd.__version__) >= version.parse("0.36.0")
+
 
 # This is the default statement parameters for queries from Snowpark pandas API. It provides the fine grain metric for
 # the server to track all pandas API usage.
@@ -322,7 +327,9 @@ def _create_read_only_table(
 def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
     enforce_ordering: bool,
+    *,
     dummy_row_pos_mode: bool = False,
+    row_count_hint: Optional[int] = None,
 ) -> tuple[OrderedDataFrame, str]:
     """
     create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
@@ -334,6 +341,11 @@ def create_initial_ordered_dataframe(
         enforce_ordering: If True, create a read only temp table on top of the existing table or Snowflake query,
             and create the OrderedDataFrame using the read only temp table created.
             Otherwise, directly using the existing table.
+        dummy_row_pos_mode: If True, uses "dummy" row position columns to avoid a potentially
+            expensive ROW_NUMBER() query.
+        row_count_hint: An optional hint for the exact row count of the frame. This is used in scenarios
+            where we have already performed a query for the size of the underlying data, and can re-use
+            the value.
 
     Returns:
         OrderedDataFrame with row position column.
@@ -502,8 +514,10 @@ def create_initial_ordered_dataframe(
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
 
-    materialized_row_count = None
-    if not is_query:
+    if row_count_hint is not None:
+        ordered_dataframe.row_count = row_count_hint
+        ordered_dataframe.row_count_upper_bound = row_count_hint
+    elif not is_query:
         materialized_row_count = get_object_metadata_row_count(table_name_or_query)
         ordered_dataframe.row_count = materialized_row_count
         ordered_dataframe.row_count_upper_bound = materialized_row_count

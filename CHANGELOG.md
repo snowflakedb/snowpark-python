@@ -6,7 +6,15 @@
 
 #### New Features
 
-## 1.39.0 (YYYY-MM-DD)
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Improvements
+- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
+- Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
+
+## 1.39.0 (2025-09-17)
 
 ### Snowpark Python API Updates
 
@@ -78,12 +86,12 @@
 - Added a new option `cacheResult` to `DataFrameReader.xml` that allows users to cache the result of the XML reader to a temporary table after calling `xml`. It helps improve performance when subsequent operations are performed on the same DataFrame.
 
 ### Snowpark pandas API Updates
+- Added support for `DataFrame.eval()` for dataframes with single-level indexes.
 
 #### New Features
 
 #### Improvements
 
-- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Downgraded to level `logging.DEBUG - 1` the log message saying that the
   Snowpark `DataFrame` reference of an internal `DataFrameReference` object
   has changed.
