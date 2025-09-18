@@ -61,16 +61,16 @@
 - Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 - Added support for the following scalar functions in `functions.py`:
-- `getdate`
-- `getvariable`
-- `invoker_role`
-- `invoker_share`
-- `is_application_role_in_session`
-- `is_database_role_in_session`
-- `is_granted_to_invoker_role`
-- `is_role_in_session`
-- `localtime`
-- `systimestamp`
+  - `getdate`
+  - `getvariable`
+  - `invoker_role`
+  - `invoker_share`
+  - `is_application_role_in_session`
+  - `is_database_role_in_session`
+  - `is_granted_to_invoker_role`
+  - `is_role_in_session`
+  - `localtime`
+  - `systimestamp`
 
 #### Bug Fixes
 
