@@ -13,6 +13,17 @@
 #### Improvements
 - Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
+- Added support for the following scalar functions in `functions.py`:
+  - `booland`
+  - `boolnot`
+  - `boolor`
+  - `boolxor`
+  - `decode`
+  - `greatest_ignore_nulls`
+  - `least_ignore_nulls`
+  - `nullif`
+  - `nvl2`
+  - `regr_valx`
 
 ## 1.39.0 (2025-09-17)
 
