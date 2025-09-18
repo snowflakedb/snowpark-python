@@ -14,6 +14,13 @@
   - `get_cloud_provider_token`
 
 - Added support for the following scalar functions in `functions.py`:
+  - `array_remove_at`
+  - `as_boolean`
+  - `boolor_agg`
+  - `chr`
+  - `div0null`
+  - `dp_interval_high`
+  - `dp_interval_low`
   - `h3_cell_to_boundary`
   - `h3_cell_to_parent`
   - `h3_cell_to_point`
@@ -24,22 +31,13 @@
   - `h3_get_resolution`
   - `h3_grid_disk`
   - `h3_grid_distance`
+  - `hex_decode_binary`
+  - `last_query_id`
+  - `last_transaction`
 
 ### Snowpark pandas API Updates
 
 #### New Features
-
-- Added support for the following scalar functions in `functions.py`:
-  - `array_remove_at`
-  - `as_boolean`
-  - `boolor_agg`
-  - `chr`
-  - `div0null`
-  - `dp_interval_high`
-  - `dp_interval_low`
-  - `hex_decode_binary`
-  - `last_query_id`
-  - `last_transaction`
 
 #### Improvements
 
