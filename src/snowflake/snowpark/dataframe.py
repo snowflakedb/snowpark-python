@@ -206,11 +206,13 @@ from snowflake.snowpark.table_function import (
 from snowflake.snowpark.types import (
     ArrayType,
     DataType,
+    DayTimeIntervalType,
     MapType,
     PandasDataFrameType,
     StringType,
     StructField,
     StructType,
+    YearMonthIntervalType,
     _NumericType,
     _FractionalType,
     TimestampType,
@@ -5115,6 +5117,209 @@ class DataFrame:
                     res = "-Infinity"
                 else:
                     res = str(cell).replace("e+", "E").replace("e-", "E-")
+            elif isinstance(cell, str) and isinstance(datatype, YearMonthIntervalType):
+                # Determine the appropriate range based on datatype fields
+                start_field = getattr(
+                    datatype, "start_field", YearMonthIntervalType.YEAR
+                )
+                end_field = getattr(datatype, "end_field", YearMonthIntervalType.MONTH)
+
+                # Handle different input formats
+                # Check for compound format (year-month) vs simple number
+                has_internal_dash = (
+                    cell.startswith("+") or cell.startswith("-")
+                ) and "-" in cell[1:]
+
+                if has_internal_dash:
+                    # Format like "+1-03" or "-1-03" or "-1-6" (compound year-month)
+                    is_negative = cell.startswith("-")
+                    # Handle the case where there might be multiple dashes
+                    if is_negative:
+                        # For negative: "-1-6" -> split on the second dash
+                        remaining = cell[1:]  # "1-6"
+                        if "-" in remaining:
+                            parts = remaining.split(
+                                "-", 1
+                            )  # Split only on first dash: ["1", "6"]
+                            years = str(int(parts[0]))
+                            months = str(int(parts[1]))
+                        else:
+                            # Single number case, handle in the elif below
+                            years = "0"
+                            months = remaining
+                    else:
+                        # For positive: "+1-6" -> split on the second dash
+                        remaining = cell[1:]  # "1-6"
+                        if "-" in remaining:
+                            parts = remaining.split(
+                                "-", 1
+                            )  # Split only on first dash: ["1", "6"]
+                            years = str(int(parts[0]))
+                            months = str(int(parts[1]))
+                        else:
+                            # Single number case
+                            years = "0"
+                            months = remaining
+                elif cell.startswith("-") or cell.startswith("+") or cell.isdigit():
+                    # Format like "-8" or "15" (single number for months-only or years-only)
+                    is_negative = cell.startswith("-")
+                    if (
+                        start_field == YearMonthIntervalType.MONTH
+                        and end_field == YearMonthIntervalType.MONTH
+                    ):
+                        # This is a month-only interval, treat the number as total months
+                        total_months = int(cell)
+                        res = f"INTERVAL '{total_months}' MONTH"
+                        return res.replace("\n", "\\n")
+                    elif (
+                        start_field == YearMonthIntervalType.YEAR
+                        and end_field == YearMonthIntervalType.YEAR
+                    ):
+                        # This is a year-only interval
+                        years_val = int(cell)
+                        res = f"INTERVAL '{years_val}' YEAR"
+                        return res.replace("\n", "\\n")
+                    else:
+                        # Shouldn't happen, but fallback
+                        res = cell
+                        return res.replace("\n", "\\n")
+                else:
+                    res = cell
+                    return res.replace("\n", "\\n")
+
+                # Format based on start/end field
+                if (
+                    start_field == YearMonthIntervalType.YEAR
+                    and end_field == YearMonthIntervalType.MONTH
+                ):
+                    # Full range: YEAR TO MONTH
+                    sign_prefix = "-" if is_negative else ""
+                    res = f"INTERVAL '{sign_prefix}{years}-{months}' YEAR TO MONTH"
+                elif (
+                    start_field == YearMonthIntervalType.YEAR
+                    and end_field == YearMonthIntervalType.YEAR
+                ):
+                    # Years only: YEAR
+                    sign_prefix = "-" if is_negative else ""
+                    res = f"INTERVAL '{sign_prefix}{years}' YEAR"
+                elif (
+                    start_field == YearMonthIntervalType.MONTH
+                    and end_field == YearMonthIntervalType.MONTH
+                ):
+                    # Months only: MONTH - calculate total months
+                    total_months = int(years) * 12 + int(months)
+                    if is_negative:
+                        total_months = -total_months
+                    res = f"INTERVAL '{total_months}' MONTH"
+                else:
+                    # Fallback to full format
+                    sign_prefix = "-" if is_negative else ""
+                    res = f"INTERVAL '{sign_prefix}{years}-{months}' YEAR TO MONTH"
+            elif isinstance(cell, (str, datetime.timedelta)) and isinstance(
+                datatype, DayTimeIntervalType
+            ):
+                start_field = getattr(datatype, "start_field", DayTimeIntervalType.DAY)
+                end_field = getattr(datatype, "end_field", DayTimeIntervalType.SECOND)
+
+                def format_day_time_interval(total_seconds_float: float) -> str:
+                    is_negative = total_seconds_float < 0
+                    abs_total_seconds = abs(total_seconds_float)
+
+                    days = int(abs_total_seconds) // 86400
+                    remaining_seconds = abs_total_seconds - (days * 86400)
+                    hours = int(remaining_seconds) // 3600
+                    remaining_after_hours = remaining_seconds - (hours * 3600)
+                    minutes = int(remaining_after_hours) // 60
+                    seconds = remaining_after_hours - (minutes * 60)
+
+                    sign = "-" if is_negative else ""
+
+                    # For single field intervals, extract just that component
+                    if start_field == end_field:
+                        if start_field == DayTimeIntervalType.DAY:
+                            return f"{sign}{days}"
+                        elif start_field == DayTimeIntervalType.HOUR:
+                            total_hours = int(abs_total_seconds) // 3600
+                            return f"{sign}{total_hours:02d}"
+                        elif start_field == DayTimeIntervalType.MINUTE:
+                            total_minutes = int(abs_total_seconds) // 60
+                            return f"{sign}{total_minutes}"
+                        elif start_field == DayTimeIntervalType.SECOND:
+                            # Handle fractional seconds - use total seconds, not just remainder
+                            if abs_total_seconds == int(abs_total_seconds):
+                                return f"{sign}{int(abs_total_seconds)}"
+                            else:
+                                return f"{sign}{abs_total_seconds:g}"
+
+                    # For multi-field intervals, format based on start/end fields
+                    if start_field == DayTimeIntervalType.DAY:
+                        # DAY TO X format: "D HH:MM:SS"
+                        if seconds == int(seconds):
+                            return f"{sign}{days} {hours:02d}:{minutes:02d}:{int(seconds):02d}"
+                        else:
+                            return f"{sign}{days} {hours:02d}:{minutes:02d}:{seconds:06.3f}"
+                    elif start_field == DayTimeIntervalType.HOUR:
+                        # HOUR TO X format: "HH:MM:SS" (no days)
+                        total_hours = int(abs_total_seconds) // 3600
+                        remaining_after_hours = abs_total_seconds - (total_hours * 3600)
+                        mins = int(remaining_after_hours) // 60
+                        secs = remaining_after_hours - (mins * 60)
+
+                        if end_field == DayTimeIntervalType.HOUR:
+                            return f"{sign}{total_hours:02d}"
+                        elif end_field == DayTimeIntervalType.MINUTE:
+                            return f"{sign}{total_hours:02d}:{mins:02d}"
+                        else:  # TO SECOND
+                            if secs == int(secs):
+                                return f"{sign}{total_hours:02d}:{mins:02d}:{int(secs):02d}"
+                            else:
+                                return (
+                                    f"{sign}{total_hours:02d}:{mins:02d}:{secs:06.3f}"
+                                )
+                    elif start_field == DayTimeIntervalType.MINUTE:
+                        # MINUTE TO X format: "MM:SS" (no days or hours)
+                        total_minutes = int(abs_total_seconds) // 60
+                        remaining_secs = abs_total_seconds - (total_minutes * 60)
+
+                        if end_field == DayTimeIntervalType.MINUTE:
+                            return f"{sign}{total_minutes}"
+                        else:  # TO SECOND
+                            if remaining_secs == int(remaining_secs):
+                                return f"{sign}{total_minutes:02d}:{int(remaining_secs):02d}"
+                            else:
+                                return (
+                                    f"{sign}{total_minutes:02d}:{remaining_secs:06.3f}"
+                                )
+                    else:
+                        # Fallback to basic format
+                        if seconds == int(seconds):
+                            return f"{sign}{days} {hours:02d}:{minutes:02d}:{int(seconds):02d}"
+                        else:
+                            return f"{sign}{days} {hours:02d}:{minutes:02d}:{seconds:06.3f}"
+
+                if isinstance(cell, datetime.timedelta):
+                    total_seconds_float = cell.total_seconds()
+                    interval_str = format_day_time_interval(total_seconds_float)
+                elif isinstance(cell, str) and "INTERVAL" not in cell:
+                    interval_str = cell
+                else:
+                    res = cell
+                    return res.replace("\n", "\\n")
+
+                field_names = {
+                    DayTimeIntervalType.DAY: "DAY",
+                    DayTimeIntervalType.HOUR: "HOUR",
+                    DayTimeIntervalType.MINUTE: "MINUTE",
+                    DayTimeIntervalType.SECOND: "SECOND",
+                }
+
+                start_name = field_names.get(start_field, "DAY")
+                end_name = field_names.get(end_field, "SECOND")
+
+                if start_field == end_field:
+                    res = f"INTERVAL '{interval_str}' {start_name}"
+                else:
+                    res = f"INTERVAL '{interval_str}' {start_name} TO {end_name}"
             else:
                 res = str(cell)
             return res.replace("\n", "\\n")
