@@ -39,6 +39,7 @@ requirements:
     - protobuf==3.20.1  # [py<=310]
     - protobuf==4.25.3  # [py>310]
     - mypy-protobuf
+    - pyopenssl >=25.0.0
   run:
     {% if noarch_build and py == 39 %}
     - python >=3.9,<3.10.0a0
