@@ -5,8 +5,11 @@
 
 set -e
 
+# List of Python versions to test
+PYTHON_VERSIONS=("3.9" "3.10" "3.11" "3.12" "3.13")
+
 echo "=== Docker Container Verification Script ==="
-echo "Python version: ${PYTHON_VERSION:-3.10}"
+echo "Python versions to test: ${PYTHON_VERSIONS[*]}"
 echo "Architecture directory: ${ARCH_DIR}"
 echo "Container: $(uname -a)"
 echo "Conda version: $(conda --version)"
@@ -93,46 +96,69 @@ find_packages() {
 
 # Main verification process
 main() {
-    local python_version="${PYTHON_VERSION:-3.10}"
-
     # Initialize conda for this shell session
     echo "Initializing conda..."
     source /opt/conda/etc/profile.d/conda.sh
     echo "✅ Conda initialized successfully"
 
-    # Find packages to test
-    local packages=$(find_packages "$python_version")
-    local conda_package=$(echo "$packages" | cut -d':' -f1)
-    local tar_package=$(echo "$packages" | cut -d':' -f2)
+    local overall_test_failed=false
 
-    local test_failed=false
+    # Loop through all Python versions
+    for python_version in "${PYTHON_VERSIONS[@]}"; do
+        echo ""
+        echo "=== Testing Python ${python_version} ==="
 
-    # Test .conda package if available
-    if [ -n "$conda_package" ] && [ -f "$conda_package" ]; then
-        if ! test_package "$conda_package" "conda" "$python_version"; then
-            echo "❌ .conda package test failed"
-            test_failed=true
+        # Find packages to test for this Python version
+        local packages=$(find_packages "$python_version")
+        local conda_package=$(echo "$packages" | cut -d':' -f1)
+        local tar_package=$(echo "$packages" | cut -d':' -f2)
+
+        local version_test_failed=false
+
+        # Skip if no packages found for this version
+        if [ -z "$conda_package" ] && [ -z "$tar_package" ]; then
+            echo "⚠️  No packages found for Python $python_version, skipping..."
+            continue
         fi
-    else
-        echo "No .conda package found for Python $python_version"
-    fi
 
-    # Test .tar.bz2 package if available
-    if [ -n "$tar_package" ] && [ -f "$tar_package" ]; then
-        if ! test_package "$tar_package" "tar.bz2" "$python_version"; then
-            echo "❌ .tar.bz2 package test failed"
-            test_failed=true
+        # Test .conda package if available
+        if [ -n "$conda_package" ] && [ -f "$conda_package" ]; then
+            if ! test_package "$conda_package" "conda" "$python_version"; then
+                echo "❌ .conda package test failed for Python $python_version"
+                version_test_failed=true
+                overall_test_failed=true
+            fi
+        else
+            echo "No .conda package found for Python $python_version"
         fi
-    else
-        echo "No .tar.bz2 package found for Python $python_version"
-    fi
+
+        # Test .tar.bz2 package if available
+        if [ -n "$tar_package" ] && [ -f "$tar_package" ]; then
+            if ! test_package "$tar_package" "tar.bz2" "$python_version"; then
+                echo "❌ .tar.bz2 package test failed for Python $python_version"
+                version_test_failed=true
+                overall_test_failed=true
+            fi
+        else
+            echo "No .tar.bz2 package found for Python $python_version"
+        fi
+
+        # Report results for this Python version
+        if [ "$version_test_failed" = false ]; then
+            echo "✅ All tests passed for Python $python_version"
+        else
+            echo "❌ Some tests failed for Python $python_version"
+        fi
+    done
 
     # Final result
-    if [ "$test_failed" = true ]; then
-        echo "❌ Some package tests failed"
+    echo ""
+    echo "=== Final Results ==="
+    if [ "$overall_test_failed" = true ]; then
+        echo "❌ Some package tests failed across Python versions"
         exit 1
     else
-        echo "✅ All package tests completed successfully"
+        echo "✅ All package tests completed successfully across all Python versions"
     fi
 }
 

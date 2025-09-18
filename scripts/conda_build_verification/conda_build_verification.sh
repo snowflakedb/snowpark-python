@@ -2,20 +2,16 @@
 
 # Docker-based Snowflake Snowpark Python conda package verification
 # Supports both x86_64 and aarch64 architectures using continuumio/miniconda3
+# Tests all Python versions (3.9-3.13) automatically
 #
-# Usage: ./conda_build_verification.sh [python_version] [architecture...]
+# Usage: ./conda_build_verification.sh [architecture...]
 #
 # Examples:
-#   ./conda_build_verification.sh                    # Test Python 3.10 on noarch only
-#   ./conda_build_verification.sh 3.11               # Test Python 3.11 on noarch only
-#   ./conda_build_verification.sh 3.10 linux-64      # Test Python 3.10 on linux-64 only
-#   ./conda_build_verification.sh 3.11 linux-64 noarch linux-aarch64  # Test multiple architectures
+#   ./conda_build_verification.sh                    # Test all Python versions on noarch only
+#   ./conda_build_verification.sh linux-64           # Test all Python versions on linux-64 only
+#   ./conda_build_verification.sh linux-64 noarch linux-aarch64  # Test multiple architectures
 
 set -e
-
-# Parse arguments with fallback to environment variables
-SNOWPARK_CONDA_BUILD_PYTHON_TEST_VERSION=${1:-${SNOWPARK_CONDA_BUILD_PYTHON_TEST_VERSION:-3.10}}
-shift 2>/dev/null || true  # Remove first argument (python version) if it exists
 
 # Parse architecture arguments
 if [ $# -gt 0 ]; then
@@ -31,7 +27,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-echo "Using Python version: $SNOWPARK_CONDA_BUILD_PYTHON_TEST_VERSION"
+echo "Testing Python versions: 3.9, 3.10, 3.11, 3.12, 3.13"
 echo "Testing architectures: ${PACKAGE_DIRS[*]}"
 echo "Script directory: $SCRIPT_DIR"
 echo "Project root: $PROJECT_ROOT"
@@ -56,41 +52,36 @@ check_packages() {
     return 1
 }
 
-# Function to get matching Python version packages
-get_matching_packages() {
+# Function to check if any packages exist in directory (for any Python version)
+check_any_packages() {
     local dir="$1"
-    local python_version="$2"
     local package_path="${SCRIPT_DIR}/package/${dir}"
 
-    # Convert Python version (e.g., 3.10 -> py310)
-    local py_version="py$(echo $python_version | tr -d '.')"
+    if [ ! -d "$package_path" ]; then
+        return 1
+    fi
 
-    local conda_package=$(ls "${package_path}"/snowflake-snowpark-python-*-${py_version}_*.conda 2>/dev/null | head -1)
-    local tar_package=$(ls "${package_path}"/snowflake-snowpark-python-*-${py_version}_*.tar.bz2 2>/dev/null | head -1)
-
-    echo "$conda_package:$tar_package"
+    # Check if there are any snowflake-snowpark-python packages for any Python version
+    if ls "${package_path}"/snowflake-snowpark-python-*.conda >/dev/null 2>&1 || \
+       ls "${package_path}"/snowflake-snowpark-python-*.tar.bz2 >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
 }
 
 # Function to run Docker verification for an architecture
 run_docker_verification() {
     local arch_dir="$1"
-    local python_version="$2"
 
     echo "=== Running verification for $arch_dir ==="
 
-    # Get packages for this architecture and Python version
-    local packages=$(get_matching_packages "$arch_dir" "$python_version")
-    local conda_package=$(echo "$packages" | cut -d':' -f1)
-    local tar_package=$(echo "$packages" | cut -d':' -f2)
-
-    if [ -z "$conda_package" ] && [ -z "$tar_package" ]; then
-        echo "No packages found for Python $python_version in $arch_dir, skipping..."
+    # Check if any packages exist for this architecture
+    if ! check_any_packages "$arch_dir"; then
+        echo "No packages found in $arch_dir, skipping..."
         return 0
     fi
 
-    echo "Found packages:"
-    [ -n "$conda_package" ] && echo "  .conda: $(basename "$conda_package")"
-    [ -n "$tar_package" ] && echo "  .tar.bz2: $(basename "$tar_package")"
+    echo "Found packages in $arch_dir, will test all Python versions (3.9-3.13)"
 
     # Create container name
     local container_name="snowpark-verify-${arch_dir}-$(date +%s)"
@@ -122,7 +113,6 @@ run_docker_verification() {
     docker_cmd="$docker_cmd -v ${SCRIPT_DIR}/package/${arch_dir}:/packages"
 
     # Add environment variables
-    docker_cmd="$docker_cmd -e PYTHON_VERSION=$python_version"
     docker_cmd="$docker_cmd -e ARCH_DIR=$arch_dir"
 
     # Use the Docker image
@@ -150,6 +140,9 @@ cleanup_decrypted_parameters() {
         echo "Removed decrypted parameters.py"
     fi
 }
+
+# Set up trap to ensure cleanup on script exit or interruption
+trap cleanup_decrypted_parameters EXIT INT TERM
 
 # Main execution
 main() {
@@ -197,7 +190,6 @@ main() {
         echo "    \"schema\": \"your_schema\""
         echo "}"
         echo ""
-        cleanup_decrypted_parameters
         exit 1
     fi
 
@@ -208,33 +200,29 @@ main() {
     for dir in "${PACKAGE_DIRS[@]}"; do
         local test_dir=""
 
-        if check_packages "$dir"; then
+        if check_any_packages "$dir"; then
             echo "Found packages in $dir"
             test_dir="$dir"
         else
             echo "❌ Error: No packages found in requested architecture: $dir"
             echo "Available packages can be found in:"
             for check_dir in "linux-64" "linux-aarch64" "noarch"; do
-                if check_packages "$check_dir"; then
+                if check_any_packages "$check_dir"; then
                     echo "  - $check_dir"
                 fi
             done
             echo "❌ Exiting due to no packages found in requested architecture"
-            cleanup_decrypted_parameters
             exit 1
         fi
 
         # Run verification for the selected directory
-        if ! run_docker_verification "$test_dir" "$SNOWPARK_CONDA_BUILD_PYTHON_TEST_VERSION"; then
+        if ! run_docker_verification "$test_dir"; then
             verification_failed=true
         fi
     done
 
     # Remove any dangling containers
     docker container prune -f >/dev/null 2>&1 || true
-
-    # Cleanup decrypted parameters.py if it was created by GPG
-    cleanup_decrypted_parameters
 
     if [ "$verification_failed" = true ]; then
         echo "❌ Some verifications failed"
