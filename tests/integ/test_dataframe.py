@@ -2536,6 +2536,179 @@ def test_show_dataframe_spark(session):
         )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Interval types not fully supported in local testing",
+)
+def test_show_interval_formatting(session):
+    df = session.sql("SELECT INTERVAL '1' HOUR as hour_single")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"HOUR_SINGLE"     |
+        +------------------+
+        |INTERVAL '01' HOUR|
+        +------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '5' MINUTE as minute_single")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"MINUTE_SINGLE"     |
+        +--------------------+
+        |INTERVAL '05' MINUTE|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '5' SECOND as second_integer")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"SECOND_INTEGER"    |
+        +--------------------+
+        |INTERVAL '05' SECOND|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '1.000001' SECOND as second_microseconds")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"SECOND_MICROSECONDS"      |
+        +---------------------------+
+        |INTERVAL '01.000001' SECOND|
+        +---------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '24' HOUR as hour_full_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"HOUR_FULL_DAY"   |
+        +------------------+
+        |INTERVAL '24' HOUR|
+        +------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '90' MINUTE as minute_over_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"MINUTE_OVER_HOUR"  |
+        +--------------------+
+        |INTERVAL '90' MINUTE|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '0' SECOND as zero_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"ZERO_SECOND"       |
+        +--------------------+
+        |INTERVAL '00' SECOND|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '0.000001' SECOND as microsecond")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"MICROSECOND"              |
+        +---------------------------+
+        |INTERVAL '00.000001' SECOND|
+        +---------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '2 12' DAY TO HOUR as day_to_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"DAY_TO_HOUR"              |
+        +---------------------------+
+        |INTERVAL '2 12' DAY TO HOUR|
+        +---------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '1 08:30' DAY TO MINUTE as day_to_minute")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------+
+        |"DAY_TO_MINUTE"                 |
+        +--------------------------------+
+        |INTERVAL '1 08:30' DAY TO MINUTE|
+        +--------------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '08:30' HOUR TO MINUTE as hour_to_minute")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------------+
+        |"HOUR_TO_MINUTE"               |
+        +-------------------------------+
+        |INTERVAL '08:30' HOUR TO MINUTE|
+        +-------------------------------+
+        """
+    )
+
+    df = session.sql(
+        "SELECT INTERVAL '01:00:00.456' HOUR TO SECOND as hour_to_second_fractional"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------------+
+        |"HOUR_TO_SECOND_FRACTIONAL"           |
+        +--------------------------------------+
+        |INTERVAL '01:00:00.456' HOUR TO SECOND|
+        +--------------------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-2' HOUR as negative_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"NEGATIVE_HOUR"    |
+        +-------------------+
+        |INTERVAL '-02' HOUR|
+        +-------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-15.5' SECOND as negative_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------+
+        |"NEGATIVE_SECOND"      |
+        +-----------------------+
+        |INTERVAL '-15.5' SECOND|
+        +-----------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '999999' SECOND as large_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"LARGE_SECOND"          |
+        +------------------------+
+        |INTERVAL '999999' SECOND|
+        +------------------------+
+        """
+    )
+
+
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
     expected_names = ["_1"]
