@@ -36,6 +36,7 @@ from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeD
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
+from modin.core.computation.eval import eval as _eval
 from modin.core.storage_formats.pandas.query_compiler_caster import (
     register_function_for_pre_op_switch,
 )
@@ -226,9 +227,63 @@ def dot(self, other):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
-@register_dataframe_not_implemented()
+# Override eval because
+# 1) we treat the "engine" parameter differently
+# 2) We have to update the level parameter to reflect this method's place in
+#    the function stack. Modin can't do that for us since it doesn't know our
+#    place in the stack.
+@register_dataframe_accessor("eval")
 def eval(self, expr, inplace=False, **kwargs):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    """
+    Evaluate a string describing operations on ``DataFrame`` columns.
+    """
+    if self._query_compiler.nlevels() > 1:
+        # If the rows of this dataframe have a multi-index, we store the index
+        # as a native_pd.MultiIndex, and the usual method of getting index
+        # resolvers with _get_index_resolvers() does not work.
+        ErrorMessage.not_implemented("eval() does not support a multi-level index.")
+
+    inplace = validate_bool_kwarg(inplace, "inplace")
+
+    # numexpr engine is useful for chained operations on numpy-backed
+    # arrays. It doesn't support all the syntax that the python engine
+    # does, and the Snowpark backend doesn't store data in numpy, so the
+    # numexpr performance optimizations are not useful. Ignore the "engine"
+    # requirement, and warn the user that if they explicitly select
+    # engine="numexpr", we will not honor their preference.
+    if kwargs.get("engine", None) == "numexpr":
+        WarningMessage.ignored_argument(
+            operation="eval",
+            argument="engine",
+            message="Snowpark pandas always uses the python engine in "
+            + "favor of the numexpr engine, even if the numexpr engine is "
+            + "available",
+        )
+    kwargs["engine"] = "python"
+
+    # eval() lets the user reference variables according to dynamic scope
+    # at `level` stack frames below the stack frame that called eval(). The
+    # eval() implementation is 4 stack frames above the frame where we execute
+    # the _eval() implementation:
+    # 1) query_compiler_caster wrapper dispatches to snowflake implementation
+    # 2) telemetry wrapper 1
+    # 3) telemetry wrapper 2 calls this implementation.
+    # 4) This method implementation calls the _eval() implementation
+    # so we add 4 to the `level` param.
+    kwargs["level"] = kwargs.get("level", 0) + 4
+
+    index_resolvers = self._get_index_resolvers()
+    column_resolvers = self._get_cleaned_column_resolvers()
+    kwargs["resolvers"] = (
+        *kwargs.get("resolvers", ()),
+        index_resolvers,
+        column_resolvers,
+    )
+
+    if "target" not in kwargs:
+        kwargs["target"] = self
+
+    return _eval(expr, inplace=inplace, **kwargs)
 
 
 @register_dataframe_not_implemented()
