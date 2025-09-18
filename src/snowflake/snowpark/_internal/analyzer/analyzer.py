@@ -912,7 +912,8 @@ class Analyzer:
 
         for c in logical_plan.children:  # post-order traversal of the tree
             resolved = self.resolve(c)
-            df_aliased_col_name_to_real_col_name.update(resolved.df_aliased_col_name_to_real_col_name)  # type: ignore
+            for alias, dict_ in resolved.df_aliased_col_name_to_real_col_name.items():
+                df_aliased_col_name_to_real_col_name[alias].update(dict_)
             resolved_children[c] = resolved
 
         if isinstance(logical_plan, Selectable):
@@ -944,9 +945,8 @@ class Analyzer:
         res = self.do_resolve_with_resolved_children(
             logical_plan, resolved_children, df_aliased_col_name_to_real_col_name
         )
-        res.df_aliased_col_name_to_real_col_name.update(
-            df_aliased_col_name_to_real_col_name
-        )
+        for alias, dict_ in df_aliased_col_name_to_real_col_name.items():
+            res.df_aliased_col_name_to_real_col_name[alias].update(dict_)
         return res
 
     def do_resolve_with_resolved_children(
