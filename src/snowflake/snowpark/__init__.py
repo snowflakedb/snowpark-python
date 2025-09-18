@@ -7,7 +7,7 @@
 Contains core classes of Snowpark.
 """
 
-# types, udf, functions, exceptions still use its own modules
+# types, udf, functions, exceptions, secrets still use its own modules
 
 __all__ = [
     "Column",
