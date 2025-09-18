@@ -375,6 +375,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 36
+  minor: 39
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

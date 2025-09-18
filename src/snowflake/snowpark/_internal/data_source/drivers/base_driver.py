@@ -12,9 +12,10 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Cursor,
 )
 from snowflake.snowpark._internal.utils import (
-    generate_random_alphanumeric,
     get_sorted_key_for_version,
     measure_time,
+    random_name_for_temp_object,
+    TempObjectType,
 )
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import (
@@ -142,7 +143,7 @@ class BaseDriver:
     ) -> "snowflake.snowpark.DataFrame":
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
 
-        udtf_name = f"data_source_udtf_{generate_random_alphanumeric(5)}"
+        udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
         with measure_time() as udtf_register_time:
             session.udtf.register(
                 self.udtf_class_builder(fetch_size=fetch_size, schema=schema),
@@ -259,3 +260,20 @@ class BaseDriver:
             for field in schema.fields
         ]
         return res_df.select(cols, _emit_ast=_emit_ast)
+
+    def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
+        """
+        This method is used to get a server cursor if the driver and the DBMS supports it.
+        It can be overridden by the driver to return a server cursor if supported.
+        Otherwise, it will return the default cursor supported by the driver and the DBMS.
+
+        - databricks-sql-connector: no concept of client/server cursor, no need to override
+        - python-oracledb: default to the server cursor, no need to override
+        - psycopg2: default to the client cursor which needs to be overridden to return the server cursor
+        - pymysql: default to the client cursor which needs to be overridden to return the server cursor
+
+        TODO:
+        - pyodbc: This is a Python wrapper on top of ODBC drivers, the ODBC driver and the DBMS may or may not support server cursor
+         and if they do support, the way to get the server cursor may vary across different DBMS. we need to document pyodbc.
+        """
+        return conn.cursor()

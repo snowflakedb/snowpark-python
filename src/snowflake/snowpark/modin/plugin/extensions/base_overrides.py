@@ -70,6 +70,7 @@ from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
 )
+from snowflake.snowpark.modin.plugin._internal.utils import new_snow_series
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     ensure_index,
     extract_validate_and_try_convert_named_aggs_from_kwargs,
@@ -1166,10 +1167,11 @@ def _to_series_list(self, index: pd.Index) -> list[pd.Series]:
     # TODO: SNOW-1119855: Modin upgrade - modin.pandas.base.BasePandasDataset
     if isinstance(index, pd.MultiIndex):
         return [
-            pd.Series(index.get_level_values(level)) for level in range(index.nlevels)
+            new_snow_series(index.get_level_values(level))
+            for level in range(index.nlevels)
         ]
     elif isinstance(index, pd.Index):
-        return [pd.Series(index)]
+        return [new_snow_series(index)]
     else:
         raise Exception("invalid index: " + str(index))
 
@@ -1514,6 +1516,17 @@ def drop_duplicates(
     """
     if keep not in ("first", "last", False):
         raise ValueError('keep must be either "first", "last" or False')
+
+    # Make sure CTE optimization is enabled.
+    # The reason this is required for drop_duplicates is that two dataframes need to be joined
+    # on their row position (one is used as a filter for the other) and while not identical,
+    # they both originate from the same source.
+    # Since read_snowflake can result in assigning row positions differently each time it's run,
+    # then if we compute the two dataframes independently, their row positions may not match.
+    # With the CTE optimization, we are guaranteed that reading the input source will only happen
+    # once in the finally generated query, and hence no mismatch in row positions will take place.
+    pd.session.cte_optimization_enabled = True
+
     inplace = validate_bool_kwarg(inplace, "inplace")
     ignore_index = kwargs.get("ignore_index", False)
     subset = kwargs.get("subset", None)

@@ -8,6 +8,7 @@ import json
 import logging
 import math
 from datetime import date, datetime, time, timedelta, timezone
+from unittest import mock
 
 import pytest
 
@@ -329,6 +330,41 @@ def test_write_pandas_with_table_type(session, table_type: str):
     "config.getoption('local_testing_mode', default=False)",
     reason="SNOW-1421323: session.write_pandas is not supported in Local Testing.",
 )
+@pytest.mark.parametrize("use_vectorized_scanner", [False, True])
+def test_write_pandas_use_vectorized_scanner(session, use_vectorized_scanner):
+    from snowflake.connector.pandas_tools import write_pandas
+
+    original_func = write_pandas
+
+    def wrapper(*args, **kwargs):
+        return original_func(*args, **kwargs)
+
+    pd = PandasDF(
+        [
+            (1, 4.5, "t1"),
+            (2, 7.5, "t2"),
+            (3, 10.5, "t3"),
+        ],
+        columns=["id".upper(), "foot_size".upper(), "shoe_model".upper()],
+    )
+    tb_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    with mock.patch(
+        "snowflake.snowpark.session.write_pandas", side_effect=wrapper
+    ) as execute:
+        session.write_pandas(
+            pd,
+            tb_name,
+            auto_create_table=True,
+            use_vectorized_scanner=use_vectorized_scanner,
+        )
+        _, kwargs = execute.call_args
+        assert kwargs["use_vectorized_scanner"] == use_vectorized_scanner
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1421323: session.write_pandas is not supported in Local Testing.",
+)
 @pytest.mark.parametrize("table_type", ["", "temp", "temporary", "transient"])
 def test_write_temp_table_no_breaking_change(session, table_type, caplog):
     pd = PandasDF(
@@ -639,7 +675,7 @@ StructField('"sTr"', StringType({max_size}), nullable=True), \
 StructField('"dOublE"', DoubleType(), nullable=True), \
 StructField('"LoNg"', LongType(), nullable=True), \
 StructField('"booL"', BooleanType(), nullable=True), \
-StructField('"timestamp"', TimestampType(tz=ntz), nullable=True), \
+StructField('"timestamp"', TimestampType(timezone=TimestampTimeZone('ntz')), nullable=True), \
 StructField('TIMEDELTA', LongType(), nullable=True)\
 ])\
 """
@@ -755,7 +791,7 @@ def test_create_from_pandas_datetime_types(session):
     sp_df = session.create_dataframe(data=pandas_df)
     assert (
         str(sp_df.schema)
-        == "StructType([StructField('A', TimestampType(tz=ntz), nullable=True)])"
+        == "StructType([StructField('A', TimestampType(timezone=TimestampTimeZone('ntz')), nullable=True)])"
     )
     assert sp_df.select("A").collect() == [Row(datetime(1997, 6, 3, 14, 21, 32, 00))]
 

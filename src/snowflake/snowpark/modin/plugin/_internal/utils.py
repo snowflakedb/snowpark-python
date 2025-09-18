@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 from packaging import version  # noqa: E402,F401
 
 import modin.pandas as pd
+from modin.config import context as config_context
 import numpy as np
 import pandas as native_pd
 from pandas._typing import AnyArrayLike, Scalar
@@ -37,6 +38,7 @@ from snowflake.snowpark._internal.utils import (
     TempObjectType,
     generate_random_alphanumeric,
     get_temp_type_for_object,
+    parse_table_name,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import Column
@@ -117,11 +119,10 @@ _MAX_IDENTIFIER_LENGTH = 32
 
 _logger = logging.getLogger(__name__)
 
-
 # Flag guarding certain features available only in newer modin versions.
 # Snowpark pandas supports the newest two released versions of modin; update this flag and remove legacy
 # code as needed when we bump dependency versions.
-MODIN_IS_AT_LEAST_0_35_0 = version.parse(pd.__version__) >= version.parse("0.35.0")
+MODIN_IS_AT_LEAST_0_36_0 = version.parse(pd.__version__) >= version.parse("0.36.0")
 
 
 # This is the default statement parameters for queries from Snowpark pandas API. It provides the fine grain metric for
@@ -326,6 +327,9 @@ def _create_read_only_table(
 def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
     enforce_ordering: bool,
+    *,
+    dummy_row_pos_mode: bool = False,
+    row_count_hint: Optional[int] = None,
 ) -> tuple[OrderedDataFrame, str]:
     """
     create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
@@ -337,6 +341,11 @@ def create_initial_ordered_dataframe(
         enforce_ordering: If True, create a read only temp table on top of the existing table or Snowflake query,
             and create the OrderedDataFrame using the read only temp table created.
             Otherwise, directly using the existing table.
+        dummy_row_pos_mode: If True, uses "dummy" row position columns to avoid a potentially
+            expensive ROW_NUMBER() query.
+        row_count_hint: An optional hint for the exact row count of the frame. This is used in scenarios
+            where we have already performed a query for the size of the underlying data, and can re-use
+            the value.
 
     Returns:
         OrderedDataFrame with row position column.
@@ -435,7 +444,12 @@ def create_initial_ordered_dataframe(
         if enforce_ordering:
             row_position_column_str = f"{METADATA_ROW_POSITION_COLUMN} as {row_position_snowflake_quoted_identifier}"
         else:
-            row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
+            if dummy_row_pos_mode:
+                row_position_column_str = (
+                    f"0 as {row_position_snowflake_quoted_identifier}"
+                )
+            else:
+                row_position_column_str = f"ROW_NUMBER() OVER (ORDER BY 1) - 1 as {row_position_snowflake_quoted_identifier}"
 
         columns_to_select = ", ".join(
             [row_position_column_str] + snowflake_quoted_identifiers
@@ -492,18 +506,22 @@ def create_initial_ordered_dataframe(
                 f"Failed to create Snowpark pandas DataFrame out of query {table_name_or_query} with error {ex}",
                 error_code=SnowparkPandasErrorCode.GENERAL_SQL_EXCEPTION.value,
             ) from ex
-        ordered_dataframe = (
+        initial_ordered_dataframe = (
             snowpark_pandas_df._query_compiler._modin_frame.ordered_dataframe
         )
+        ordered_dataframe = initial_ordered_dataframe
         row_position_snowflake_quoted_identifier = (
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
-    # Set the materialized row count
-    materialized_row_count = ordered_dataframe._dataframe_ref.snowpark_dataframe.count(
-        statement_params=get_default_snowpark_pandas_statement_params(), _emit_ast=False
-    )
-    ordered_dataframe.row_count = materialized_row_count
-    ordered_dataframe.row_count_upper_bound = materialized_row_count
+
+    if row_count_hint is not None:
+        ordered_dataframe.row_count = row_count_hint
+        ordered_dataframe.row_count_upper_bound = row_count_hint
+    elif not is_query:
+        materialized_row_count = get_object_metadata_row_count(table_name_or_query)
+        ordered_dataframe.row_count = materialized_row_count
+        ordered_dataframe.row_count_upper_bound = materialized_row_count
+
     return ordered_dataframe, row_position_snowflake_quoted_identifier
 
 
@@ -1906,6 +1924,69 @@ def count_rows(df: OrderedDataFrame) -> int:
     return row_count
 
 
+def get_object_metadata_row_count(object_name: str) -> Optional[int]:
+    """
+    Get the row count of a table or materialized view from Snowflake's metadata.
+    This function uses "SHOW OBJECTS" to avoid running a COUNT query on the table.
+
+    Args:
+        object_name: The name of the object, which can be fully qualified.
+
+    Returns:
+        The number of rows in the table or None, if no object was found or if the
+        object name is invalid.
+    """
+    session = pd.session
+
+    try:
+        parts = parse_table_name(object_name)
+    except Exception:
+        # If the object name is invalid, return None rather than propagate the exception
+        return None
+
+    db, schema, table = None, None, None
+    current_db = session.get_current_database()
+    current_schema = session.get_current_schema()
+
+    if len(parts) == 1:
+        table = parts[0]
+        schema = current_schema
+        db = current_db
+    elif len(parts) == 2:
+        schema, table = parts[0], parts[1]
+        db = current_db
+    elif len(parts) == 3:
+        db, schema, table = parts[0], parts[1], parts[2]
+    else:
+        return None  # pragma: no cover
+
+    # These returns should never be hit; they should be covered by the parse_table_name
+    # function. Leaving them in just to be safe.
+    if not db:
+        return None  # pragma: no cover
+    if not schema:
+        return None  # pragma: no cover
+
+    try:
+        query = f"SHOW OBJECTS LIKE '{table}' IN SCHEMA {db}.{schema} LIMIT 1"
+        res = session.sql(query).collect(
+            statement_params=get_default_snowpark_pandas_statement_params()
+        )
+    except SnowparkSQLException:
+        # If we cannot access the metadata ( for some unusual permissions issue )
+        # just return None
+        return None  # pragma: no cover
+
+    if len(res) != 1:
+        return None
+
+    rows = res[0]["rows"]
+    if rows > 0 or res[0]["kind"] == "TABLE":
+        return rows
+    # Will return None for materialized views
+    return None
+
+
 def append_columns(
     df: OrderedDataFrame,
     column_identifiers: Union[str, list[str]],
@@ -2193,3 +2274,29 @@ def add_extra_columns_and_select_required_columns(
     # explicitly drop the unwanted columns. This also ensures that the columns in the resultant DataFrame are in the
     # same order as the columns in the `columns` parameter.
     return query_compiler.take_2d_labels(slice(None), columns)
+
+
+def new_snow_series(*args: Any, **kwargs: Any) -> pd.Series:
+    """
+    Create a new modin Series, guaranteed to use the Snowpark pandas backend.
+
+    This is necessary to prevent accidental backend switching when a modin Series is created in an
+    internal helper function, which may otherwise incorrectly produce a NativeQueryCompiler.
+
+    See SNOW-2084670 and SNOW-2331021 for examples of such failures.
+    """
+    with config_context(AutoSwitchBackend=False):
+        return pd.Series(*args, **kwargs)
+
+
+def new_snow_df(*args: Any, **kwargs: Any) -> pd.DataFrame:
+    """
+    Create a new modin DataFrame, guaranteed to use the Snowpark pandas backend.
+
+    This is necessary to prevent accidental backend switching when modin a DataFrame is created in an
+    internal helper function, which may otherwise incorrectly produce a NativeQueryCompiler.
+
+    See SNOW-2084670 and SNOW-2331021 for examples of such failures.
+    """
+    with config_context(AutoSwitchBackend=False):
+        return pd.DataFrame(*args, **kwargs)

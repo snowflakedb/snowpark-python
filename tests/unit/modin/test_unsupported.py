@@ -78,7 +78,6 @@ def test_unsupported_general(general_method, kwargs):
         ["cov", {}],
         ["dot", {"other": ""}],
         ["droplevel", {"level": ""}],
-        ["eval", {"expr": "xxx"}],
         ["ewm", {}],
         ["clip", {}],
         ["combine", {"other": "", "func": ""}],

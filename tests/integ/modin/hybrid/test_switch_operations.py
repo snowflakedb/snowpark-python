@@ -33,6 +33,7 @@ from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.plugin.extensions.datetime_index import DatetimeIndex
 from tests.integ.utils.sql_counter import sql_count_checker
+from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 # snowflake-ml-python, which provides snowflake.cortex, may not be available in
 # the test environment. If it's not available, skip all tests in this module.
@@ -76,11 +77,11 @@ def test_snowflake_pandas_transfer_threshold():
     is correctly used in the cost model.
     """
     # Verify the default value of the configuration variable.
-    assert SnowflakePandasTransferThreshold.get() == 10_000_000
+    assert SnowflakePandasTransferThreshold.get() == 100_000
 
     # Create a SnowflakeQueryCompiler and verify that it has the default value.
     compiler = SnowflakeQueryCompiler(mock.create_autospec(InternalFrame))
-    assert compiler._transfer_threshold() == 10_000_000
+    assert compiler._transfer_threshold() == 100_000
 
     df = pd.DataFrame()
     assert df.get_backend() == "Pandas"
@@ -150,7 +151,10 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
         df_incompatible.move_to("Snowflake")
 
 
-@sql_count_checker(query_count=1)
+# There is no query count because the Snowflake->Pandas migration
+# of the small dataset is not counted and there is no actual materialization
+# of the merge
+@sql_count_checker(query_count=0)
 def test_merge(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
@@ -164,7 +168,7 @@ def test_merge(init_transaction_tables, us_holidays_data):
     assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=2)
 def test_filtered_data(init_transaction_tables):
     # When data is filtered, the engine should change when it is sufficiently small.
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
@@ -175,27 +179,49 @@ def test_filtered_data(init_transaction_tables):
     df_transactions["DATE"] = pd.to_datetime(df_transactions["DATE"])
     assert df_transactions.get_backend() == "Snowflake"
     base_date = pd.Timestamp("2025-06-09").date()
+
+    # Filter 1 will stay in snowflake, because no operations are
+    # performed which will trigger a switch
     df_transactions_filter1 = df_transactions[
         (df_transactions["DATE"] >= base_date - pd.Timedelta("7 days"))
         & (df_transactions["DATE"] < base_date)
-    ]
+    ][["DATE", "REVENUE"]]
     assert df_transactions_filter1.get_backend() == "Snowflake"
+
+    # We still do not know the size of the underlying data, so
+    # GroupBy.sum will keep the data in Snowflake
     # The smaller dataframe does operations in pandas
-    df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()["REVENUE"]
+    df_transactions_filter1 = df_transactions_filter1.groupby("DATE").sum()
     # We still operate in Snowflake because we cannot properly estimate the rows
     assert df_transactions_filter1.get_backend() == "Snowflake"
+
+    # The SQL here is functionatly the same as above
+    # Unlike in previous iterations of hybrid this does *not* move the data immediately
     df_transactions_filter2 = pd.read_snowflake(
-        "SELECT * FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09'"
+        "SELECT Date, SUM(Revenue) AS REVENUE FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09' GROUP BY DATE"
     )
+    # We do not know the size of this data yet, because the query is entirely lazy
+    assert df_transactions_filter2.get_backend() == "Snowflake"
+    # Move to pandas backend
+    df_transactions_filter2.move_to("Pandas", inplace=True)
     assert df_transactions_filter2.get_backend() == "Pandas"
+
+    # Sort and compare the results.
     assert_array_equal(
         # Snowpark handles index objects differently from native pandas, so just check values
-        df_transactions_filter1.to_pandas().values,
-        df_transactions_filter2.groupby("DATE").sum()["REVENUE"].to_pandas().values,
+        # A .head on filter1 will trigger migration to pandas
+        df_transactions_filter1["REVENUE"]
+        .to_pandas()
+        .sort_values(ascending=True)
+        .values,
+        df_transactions_filter2["REVENUE"]
+        .to_pandas()
+        .sort_values(ascending=True)
+        .values,
     )
 
 
-@sql_count_checker(query_count=4)
+@sql_count_checker(query_count=3)
 def test_apply(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS").head(1000)
     assert df_transactions.get_backend() == "Snowflake"
@@ -311,7 +337,7 @@ def test_explain_switch_empty():
     assert new_switch_index_names == empty_switch_index_names
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_explain_switch(init_transaction_tables, us_holidays_data):
     clear_hybrid_switch_log()
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
@@ -369,8 +395,9 @@ def test_tqdm_usage_during_snowflake_to_pandas_switch():
         ("Series", "transform", (lambda x: x * 2,)),  # declared in series_overrides
     ],
 )
+@pytest.mark.parametrize("use_session_param", [True, False])
 @sql_count_checker(query_count=1)
-def test_unimplemented_autoswitches(class_name, method_name, f_args):
+def test_unimplemented_autoswitches(class_name, method_name, f_args, use_session_param):
     # Unimplemented methods declared via register_*_not_implemented should automatically
     # default to local pandas execution.
     # This test needs to be modified if any of the APIs in question are ever natively implemented
@@ -379,6 +406,13 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
     method = getattr(getattr(pd, class_name)(data).move_to("Snowflake"), method_name)
     # Attempting to call the method without switching should raise.
     with config_context(AutoSwitchBackend=False):
+        if use_session_param:
+            from modin.config import AutoSwitchBackend
+
+            AutoSwitchBackend.enable()
+            pd.session.pandas_hybrid_execution_enabled = False
+            assert pd.session.pandas_hybrid_execution_enabled is False
+            assert AutoSwitchBackend.get() is False
         with pytest.raises(
             NotImplementedError, match="Snowpark pandas does not yet support the method"
         ):
@@ -407,14 +441,15 @@ def test_to_datetime():
     assert isinstance(result, DatetimeIndex)
 
 
+@pytest.mark.parametrize("use_session_param", [True, False])
 @sql_count_checker(
-    query_count=12,
+    query_count=11,
     join_count=6,
     udtf_count=2,
     high_count_expected=True,
     high_count_reason="tests queries across different execution modes",
 )
-def test_query_count_no_switch(init_transaction_tables):
+def test_query_count_no_switch(init_transaction_tables, use_session_param):
     """
     Tests that when there is no switching behavior the query count is the
     same under hybrid mode and non-hybrid mode.
@@ -432,11 +467,25 @@ def test_query_count_no_switch(init_transaction_tables):
     hybrid_len = None
     with pd.session.query_history() as query_history_orig:
         with config_context(AutoSwitchBackend=False, NativePandasMaxRows=10):
+            if use_session_param:
+                from modin.config import AutoSwitchBackend
+
+                AutoSwitchBackend.enable()
+                pd.session.pandas_hybrid_execution_enabled = False
+                assert pd.session.pandas_hybrid_execution_enabled is False
+                assert AutoSwitchBackend.get() is False
             df_result = inner_test(df_transactions)
             orig_len = len(df_result)
 
     with pd.session.query_history() as query_history_hybrid:
         with config_context(AutoSwitchBackend=True, NativePandasMaxRows=10):
+            if use_session_param:
+                from modin.config import AutoSwitchBackend
+
+                AutoSwitchBackend.disable()
+                pd.session.pandas_hybrid_execution_enabled = True
+                assert pd.session.pandas_hybrid_execution_enabled is True
+                assert AutoSwitchBackend.get() is True
             df_result = inner_test(df_transactions)
             hybrid_len = len(df_result)
 
@@ -566,3 +615,39 @@ class TestApplySnowparkAndCortexFunctions:
         sentiment = method(pandas_backend_data, Sentiment)
         assert sentiment.get_backend() == "Snowflake"
         sentiment.to_pandas()
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_switch_then_iloc():
+    # Switching backends then calling iloc should be valid.
+    # Prior to fixing SNOW-2331021, discrepancies with the index class caused an AssertionError.
+    df = pd.DataFrame([[0] * 10] * 10)
+    assert df.get_backend() == "Pandas"
+    # Should not error
+    assert_snowpark_pandas_equal_to_pandas(
+        df.move_to("Snowflake").iloc[[1, 3, 9], 1],
+        df.iloc[[1, 3, 9], 1].to_pandas(),
+    )
+    # Setting should similarly not error
+    df.iloc[1, 1] = 100
+    assert df.iloc[1, 1] == 100
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_rename():
+    # SNOW-2333472: Switching backends then performing a rename should be valid.
+    df = pd.DataFrame([[0] * 3] * 3)
+    assert df.get_backend() == "Pandas"
+    assert_snowpark_pandas_equal_to_pandas(
+        df.move_to("Snowflake").rename({0: "a", 1: "b", 2: "c"}),
+        # Perform to_pandas first due to modin issue 7667
+        df.to_pandas().rename({0: "a", 1: "b", 2: "c"}),
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_set_index():
+    s = pd.Series([0]).move_to("Snowflake")
+    # SNOW-2333472: Switching backends then setting the index should be valid.
+    s.index = ["a"]
+    assert_snowpark_pandas_equal_to_pandas(s, native_pd.Series([0], index=["a"]))

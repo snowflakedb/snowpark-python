@@ -41,6 +41,7 @@ from typing import (
     Iterator,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -65,6 +66,7 @@ if TYPE_CHECKING:
         QueryLineInterval,
     )
     from snowflake.snowpark._internal.analyzer.select_statement import Selectable
+    from snowflake.snowpark.types import TimestampTimeZone
 
     try:
         from snowflake.connector.cursor import ResultMetadataV2
@@ -428,6 +430,16 @@ def normalize_path(path: str, is_local: bool) -> str:
     return f"'{path}'"
 
 
+def is_cloud_path(path: str) -> bool:
+    return (
+        path.startswith("s3://")
+        or path.startswith("s3china://")
+        or path.startswith("s3gov://")
+        or path.startswith("azure://")
+        or path.startswith("gcs://")
+    )
+
+
 def warn_session_config_update_in_multithreaded_mode(config: str) -> None:
     if threading.active_count() > 1:
         _logger.warning(
@@ -689,7 +701,9 @@ def create_or_update_statement_params_with_query_tag(
     return ret
 
 
-def get_stage_parts(stage_location: str) -> tuple[str, str]:
+def get_stage_parts(
+    stage_location: str, *, return_full_stage_name: bool = False
+) -> tuple[str, str]:
     normalized = unwrap_stage_location_single_quote(stage_location)
     if not normalized.endswith("/"):
         normalized = f"{normalized}/"
@@ -707,6 +721,9 @@ def get_stage_parts(stage_location: str) -> tuple[str, str]:
             # the path is after it
             full_stage_name = normalized[:i]
             path = normalized[i + 1 :]
+            if return_full_stage_name:
+                return full_stage_name.removeprefix("@"), path
+
             # Find the last match of the first group, which should be the stage name.
             # If not found, the stage name should be invalid
             res = re.findall(SNOWFLAKE_STAGE_NAME_PATTERN, full_stage_name)
@@ -1924,6 +1941,136 @@ def remove_comments(sql_query: str, uuids: List[str]) -> str:
     )
 
 
+class TimeTravelConfig(NamedTuple):
+    """Configuration for time travel operations."""
+
+    time_travel_mode: str  # 'at' or 'before'
+    statement: Optional[str] = None
+    offset: Optional[int] = None
+    timestamp: Optional[str] = None
+    timestamp_type: Optional[str] = None
+    stream: Optional[str] = None
+
+    @staticmethod
+    def validate_and_normalize_params(
+        time_travel_mode: Optional[Literal["at", "before"]] = None,
+        statement: Optional[str] = None,
+        offset: Optional[int] = None,
+        timestamp: Optional[Union[str, datetime.datetime]] = None,
+        timestamp_type: Optional[Union[str, "TimestampTimeZone"]] = None,
+        stream: Optional[str] = None,
+    ) -> Optional["TimeTravelConfig"]:
+        """
+        Validates and normalizes time travel parameters.
+
+        timestamp_type handling:
+            - datetime with timezone + timestamp_type NOT provided → auto-sets to 'TZ'
+            - datetime with timezone + timestamp_type explicitly provided → uses provided timestamp_type
+            - datetime without timezone (naive) + timestamp_type NOT provided → no casting, raw string (timestamp_type=None)
+            - datetime without timezone (naive) + timestamp_type explicitly provided → uses provided timestamp_type
+            - string timestamps + timestamp_type NOT provided → no casting, raw string (timestamp_type=None, Snowflake native handling)
+            - string timestamps + timestamp_type explicitly provided → uses TO_TIMESTAMP_XXX casting
+
+        This behavior preserves timezone information for datetime objects, provides sensible defaults
+        for naive datetime objects, and lets Snowflake handle string timestamp formats natively unless
+        explicit casting is requested.
+
+        Returns:
+            TimeTravelConfig if time travel is specified, None otherwise.
+        Raises:
+            ValueError: If parameters are invalid.
+        """
+        time_travel_arg_count = sum(
+            arg is not None for arg in (statement, offset, timestamp, stream)
+        )
+
+        # Validate mode
+        if time_travel_mode is None:
+            if time_travel_arg_count == 0:
+                return None
+            else:
+                raise ValueError(
+                    "Must specify time travel mode 'at' or 'before' if any other time travel parameter is provided."
+                )
+
+        if time_travel_mode.lower() not in ["at", "before"]:
+            raise ValueError(
+                f"Invalid time travel mode: {time_travel_mode}. Must be 'at' or 'before'."
+            )
+
+        # Validate exactly one parameter is provided
+        if time_travel_arg_count != 1:
+            raise ValueError(
+                "Exactly one of 'statement', 'offset', 'timestamp', or 'stream' must be provided."
+            )
+
+        # Normalize timestamp
+        normalized_timestamp = None
+        if timestamp is not None:
+            normalized_timestamp = str(timestamp).strip()
+            if isinstance(timestamp, datetime.datetime):
+                if timestamp.tzinfo is not None and timestamp_type is None:
+                    timestamp_type = "TZ"
+
+        # Normalize timestamp_type
+        if timestamp_type is not None:
+            if hasattr(timestamp_type, "value"):
+                timestamp_type = (
+                    timestamp_type.value.upper()
+                    if timestamp_type.value != "default"
+                    else "NTZ"
+                )
+            else:
+                timestamp_type = timestamp_type.upper()
+
+            if timestamp_type not in ["NTZ", "LTZ", "TZ"]:
+                raise ValueError(
+                    f"'timestamp_type' value {timestamp_type} must be None or one of 'NTZ', 'LTZ', or 'TZ'."
+                )
+
+        return TimeTravelConfig(
+            time_travel_mode=time_travel_mode,
+            statement=statement,
+            offset=offset,
+            timestamp=normalized_timestamp,
+            timestamp_type=timestamp_type,
+            stream=stream,
+        )
+
+    def generate_sql_clause(self) -> str:
+        """
+        Generates the time travel SQL clause.
+        Args:
+            config: Time travel configuration.
+        Returns:
+            SQL clause like " AT (TIMESTAMP => TO_TIMESTAMP_NTZ('...'))"
+        """
+        clause = f" {self.time_travel_mode.upper()} "
+
+        if self.statement is not None:
+            clause += f"(STATEMENT => '{self.statement}')"
+        elif self.offset is not None:
+            clause += f"(OFFSET => {self.offset})"
+        elif self.stream is not None:
+            clause += f"(STREAM => '{self.stream}')"
+        elif self.timestamp is not None:
+            if self.timestamp_type is not None:
+                timestamp_type = self.timestamp_type.upper()
+                if timestamp_type == "NTZ":
+                    func_name = "TO_TIMESTAMP_NTZ"
+                elif timestamp_type == "LTZ":
+                    func_name = "TO_TIMESTAMP_LTZ"
+                elif timestamp_type == "TZ":
+                    func_name = "TO_TIMESTAMP_TZ"
+                else:
+                    func_name = "TO_TIMESTAMP"
+                clause += f"(TIMESTAMP => {func_name}('{self.timestamp}'))"
+            else:
+                clause += f"(TIMESTAMP => '{self.timestamp}')"
+
+        return clause
+
+
 def get_line_numbers(
     commented_sql_query: str,
     child_uuids: List[str],
@@ -1997,6 +2144,97 @@ def get_line_numbers(
         new_intervals.append(QueryLineInterval(current_pos, idx - 1, parent_uuid))
 
     return new_intervals
+
+
+def create_prompt_column_from_template(
+    template: str,
+    placeholder_to_column: Union[
+        Dict[str, "snowflake.snowpark.Column"], List["snowflake.snowpark.Column"]
+    ],
+    _emit_ast: bool = True,
+) -> "snowflake.snowpark.Column":
+    """
+    Creates a prompt Column object from a template string with placeholders.
+
+    Args:
+        template: A string containing placeholders (either named like {name} or positional like {0})
+        placeholder_to_column: Either:
+            - A dict mapping placeholder names to Column objects
+            - A list of Column objects for positional placeholders
+        _emit_ast: Whether to emit AST
+
+    Returns:
+        A prompt Column object
+    """
+    from snowflake.snowpark.functions import prompt
+
+    if isinstance(placeholder_to_column, dict):
+        # Handle named placeholders
+        # First validate that all provided columns are used in the template
+        named_placeholders = set(re.findall(r"\{([^{}]+)\}", template))
+        provided_keys = set(placeholder_to_column.keys())
+        unused_columns = provided_keys - named_placeholders
+        if unused_columns:
+            raise ValueError(
+                f"The following column placeholders were provided but not used in the template: {unused_columns}"
+            )
+
+        # Track which placeholders we've seen and their order
+        seen_placeholders = []
+        placeholder_positions = {}
+
+        def replace_placeholder(match: "re.Match[str]") -> str:
+            placeholder_name = match.group(1)
+            if placeholder_name not in placeholder_to_column:
+                raise ValueError(
+                    f"Placeholder '{{{placeholder_name}}}' in template not found in provided columns. "
+                    f"Available placeholders: {list(placeholder_to_column.keys())}"
+                )
+
+            # Assign position if not seen before
+            if placeholder_name not in placeholder_positions:
+                placeholder_positions[placeholder_name] = len(seen_placeholders)
+                seen_placeholders.append(placeholder_name)
+
+            return "{" + str(placeholder_positions[placeholder_name]) + "}"
+
+        # Replace all named placeholders with positional ones
+        rewritten_template = re.sub(r"\{([^{}]+)\}", replace_placeholder, template)
+
+        # Build ordered list of columns based on the order they appeared in the template
+        ordered_columns = [placeholder_to_column[name] for name in seen_placeholders]
+
+        # Create and return the prompt Column
+        return prompt(rewritten_template, *ordered_columns, _emit_ast=_emit_ast)
+
+    elif isinstance(placeholder_to_column, list):
+        # Handle positional placeholders
+        # Find all positional placeholders
+        positional_placeholders = re.findall(r"\{(\d+)\}", template)
+        num_placeholders = len(
+            set(positional_placeholders)
+        )  # Count unique placeholders
+        num_columns = len(placeholder_to_column)
+
+        if num_placeholders == 0:
+            # No placeholders found - auto-append them at the end
+            placeholders_to_add = " ".join([f"{{{i}}}" for i in range(num_columns)])
+            template = f"{template} {placeholders_to_add}"
+        elif num_placeholders != num_columns:
+            # Validate that number of placeholders matches number of columns
+            raise ValueError(
+                f"Number of positional placeholders ({num_placeholders}) does not match "
+                f"number of columns provided ({num_columns}). "
+                f"Found placeholders: {{{', '.join(sorted(set(positional_placeholders)))}}}"
+            )
+
+        # Create and return the prompt Column with the list of columns
+        return prompt(template, *placeholder_to_column, _emit_ast=_emit_ast)
+
+    else:
+        raise TypeError(
+            "placeholder_to_column must be a list of Columns or a dict mapping placeholder names to Columns"
+        )
 
 
 def get_plan_from_line_numbers(
