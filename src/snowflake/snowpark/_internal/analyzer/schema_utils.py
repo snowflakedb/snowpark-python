@@ -173,8 +173,5 @@ def run_new_describe(
     # ResultMetadataV2 may not currently be a type, depending on the connector
     # version, so the argument types are pyright ignored
 
-    if hasattr(cursor, "_describe_internal"):
-        # Pyright does not perform narrowing here
-        return cursor._describe_internal(query, params=query_params)  # pyright: ignore
-    else:
-        return cursor.describe(query, params=query_params)
+    # Pyright does not perform narrowing here
+    return cursor._describe_internal(query, params=query_params)  # pyright: ignore
