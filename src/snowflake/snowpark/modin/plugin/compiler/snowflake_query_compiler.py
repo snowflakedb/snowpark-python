@@ -1479,6 +1479,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             table_name_or_query=name_or_query,
             enforce_ordering=enforce_ordering,
             dummy_row_pos_mode=dummy_row_pos_mode,
+            row_count_hint=(
+                relaxed_query_compiler._modin_frame.ordered_dataframe.row_count
+                if relaxed_query_compiler is not None
+                else None
+            ),
         )
         pandas_labels_to_snowflake_quoted_identifiers_map = {
             # pandas labels of resulting Snowpark pandas dataframe will be snowflake identifier
