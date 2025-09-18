@@ -212,11 +212,11 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
-    YearMonthIntervalType,
     _NumericType,
     _FractionalType,
     TimestampType,
     TimestampTimeZone,
+    YearMonthIntervalType,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -5240,24 +5240,65 @@ class DataFrame:
                             return f"{sign}{days}"
                         elif start_field == DayTimeIntervalType.HOUR:
                             total_hours = int(abs_total_seconds) // 3600
-                            return f"{sign}{total_hours:02d}"
+                            return (
+                                f"{sign}{total_hours:02d}"
+                                if total_hours < 10
+                                else f"{sign}{total_hours}"
+                            )
                         elif start_field == DayTimeIntervalType.MINUTE:
                             total_minutes = int(abs_total_seconds) // 60
-                            return f"{sign}{total_minutes}"
+                            return (
+                                f"{sign}{total_minutes:02d}"
+                                if total_minutes < 10
+                                else f"{sign}{total_minutes}"
+                            )
                         elif start_field == DayTimeIntervalType.SECOND:
                             # Handle fractional seconds - use total seconds, not just remainder
                             if abs_total_seconds == int(abs_total_seconds):
-                                return f"{sign}{int(abs_total_seconds)}"
+                                total_secs_int = int(abs_total_seconds)
+                                return (
+                                    f"{sign}{total_secs_int:02d}"
+                                    if total_secs_int < 10
+                                    else f"{sign}{total_secs_int}"
+                                )
                             else:
-                                return f"{sign}{abs_total_seconds:g}"
+                                # For fractional seconds, format with leading zero if < 10
+                                if abs_total_seconds < 10:
+                                    # Format with leading zero: split into integer and fractional parts
+                                    integer_part = int(abs_total_seconds)
+                                    fractional_part = abs_total_seconds - integer_part
+                                    if fractional_part == 0:
+                                        return f"{sign}{integer_part:02d}"
+                                    else:
+                                        # Format fractional part and remove leading '0.'
+                                        frac_str = f"{fractional_part:.6f}"[2:].rstrip(
+                                            "0"
+                                        )
+                                        return f"{sign}{integer_part:02d}.{frac_str}"
+                                else:
+                                    return f"{sign}{abs_total_seconds:g}"
 
                     # For multi-field intervals, format based on start/end fields
                     if start_field == DayTimeIntervalType.DAY:
-                        # DAY TO X format: "D HH:MM:SS"
-                        if seconds == int(seconds):
-                            return f"{sign}{days} {hours:02d}:{minutes:02d}:{int(seconds):02d}"
+                        # DAY TO X format: truncate based on end_field
+                        if end_field == DayTimeIntervalType.HOUR:
+                            # DAY TO HOUR: "D HH"
+                            return (
+                                f"{sign}{days} {hours:02d}"
+                                if hours < 10
+                                else f"{sign}{days} {hours}"
+                            )
+                        elif end_field == DayTimeIntervalType.MINUTE:
+                            # DAY TO MINUTE: "D HH:MM"
+                            hours_str = f"{hours:02d}" if hours < 10 else f"{hours}"
+                            return f"{sign}{days} {hours_str}:{minutes:02d}"
                         else:
-                            return f"{sign}{days} {hours:02d}:{minutes:02d}:{seconds:06.3f}"
+                            # DAY TO SECOND: "D HH:MM:SS"
+                            hours_str = f"{hours:02d}" if hours < 10 else f"{hours}"
+                            if seconds == int(seconds):
+                                return f"{sign}{days} {hours_str}:{minutes:02d}:{int(seconds):02d}"
+                            else:
+                                return f"{sign}{days} {hours_str}:{minutes:02d}:{seconds:06.3f}"
                     elif start_field == DayTimeIntervalType.HOUR:
                         # HOUR TO X format: "HH:MM:SS" (no days)
                         total_hours = int(abs_total_seconds) // 3600
