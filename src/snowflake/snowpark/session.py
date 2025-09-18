@@ -763,10 +763,7 @@ class Session:
                     _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED, AutoSwitchBackend().get()
                 )
             )
-            if pandas_hybrid_execution_enabled:
-                AutoSwitchBackend.enable()
-            else:
-                AutoSwitchBackend.disable()
+            AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
 
         self._thread_store = create_thread_local(
             self._conn._thread_safe_session_enabled
@@ -1046,8 +1043,9 @@ class Session:
         This can significantly improve performance for operations that are more efficient in pandas than in Snowflake.
         """
         if not importlib.util.find_spec("modin"):
-            # If modin is not installed, always return False
-            return False
+            raise ImportError(
+                "The 'modin' package is required to enable this feature. Please install it first."
+            )
 
         from modin.config import AutoSwitchBackend
 
@@ -1232,16 +1230,14 @@ class Session:
     def pandas_hybrid_execution_enabled(self, value: bool) -> None:
         """Set the value for pandas_hybrid_execution_enabled"""
         if not importlib.util.find_spec("modin"):
-            # If modin is not installed, treat this method as a no-op.
-            return
+            raise ImportError(
+                "The 'modin' package is required to enable this feature. Please install it first."
+            )
 
         from modin.config import AutoSwitchBackend
 
         if value in [True, False]:
-            if value:
-                AutoSwitchBackend.enable()
-            else:
-                AutoSwitchBackend.disable()
+            AutoSwitchBackend.put(value)
         else:
             raise ValueError(
                 "value for pandas_hybrid_execution_enabled must be True or False!"

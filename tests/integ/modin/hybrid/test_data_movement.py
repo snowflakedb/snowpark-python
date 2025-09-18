@@ -45,18 +45,6 @@ def test_unsupported_movement(session, pandas_df):
         assert move_from_result is NotImplemented
 
 
-@sql_count_checker(query_count=0)
-def test_unsupported_movement_using_hybrid_session_param(session, pandas_df):
-    with config_context(Backend="Snowflake"):
-        session.pandas_hybrid_execution_enabled = False
-        snow_df = pd.DataFrame(pandas_df)
-        mock_qc = MockQueryCompiler()
-        move_to_result = snow_df._query_compiler.move_to("UnsupportedBackend")
-        move_from_result = SnowflakeQueryCompiler.move_from(mock_qc)
-        assert move_to_result is NotImplemented
-        assert move_from_result is NotImplemented
-
-
 @pytest.mark.skipif(
     sys.version_info.minor >= 12,
     reason="snowflake-ml-python for efficient movement is not installed above python 3.12",
@@ -64,23 +52,6 @@ def test_unsupported_movement_using_hybrid_session_param(session, pandas_df):
 @sql_count_checker(query_count=9)
 def test_move_to_ray(session, pandas_df):
     with config_context(Backend="Snowflake", AutoSwitchBackend=False):
-        snow_df = pd.DataFrame(pandas_df)
-        assert snow_df.get_backend() == "Snowflake"
-        result = snow_df._query_compiler.move_to("Ray")
-        result_df = pd.DataFrame(query_compiler=result)
-        assert result_df.get_backend() == "Ray"
-        assert Backend.get() == "Snowflake"
-        df_equals(result_df, snow_df)
-
-
-@pytest.mark.skipif(
-    sys.version_info.minor >= 12,
-    reason="snowflake-ml-python for efficient movement is not installed above python 3.12",
-)
-@sql_count_checker(query_count=9)
-def test_move_to_ray_using_hybrid_session_param(session, pandas_df):
-    with config_context(Backend="Snowflake"):
-        session.pandas_hybrid_execution_enabled = False
         snow_df = pd.DataFrame(pandas_df)
         assert snow_df.get_backend() == "Snowflake"
         result = snow_df._query_compiler.move_to("Ray")
