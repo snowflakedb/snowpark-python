@@ -10,6 +10,15 @@
 
 #### New Features
 
+- Added support for the following scalar functions in `functions.py`:
+    - `h3_cell_to_children`
+    - `h3_cell_to_children_string`
+    - `h3_int_to_string`
+    - `h3_polygon_to_cells`
+    - `h3_polygon_to_cells_strings`
+    - `h3_string_to_int`
+    - `h3_try_polygon_to_cells_strings`
+
 #### Improvements
 - Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
@@ -52,13 +61,6 @@
 - Added support for the following scalar functions in `functions.py`:
     - `getdate`
     - `getvariable`
-    - `h3_cell_to_children`
-    - `h3_cell_to_children_string`
-    - `h3_int_to_string`
-    - `h3_polygon_to_cells`
-    - `h3_polygon_to_cells_strings`
-    - `h3_string_to_int`
-    - `h3_try_polygon_to_cells_strings`
     - `invoker_role`
     - `invoker_share`
     - `is_application_role_in_session`
