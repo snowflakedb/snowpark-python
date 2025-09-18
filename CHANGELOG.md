@@ -10,6 +10,18 @@
 
 #### New Features
 
+- Added support for the following scalar functions in `functions.py`:
+  - `array_remove_at`
+  - `as_boolean`
+  - `boolor_agg`
+  - `chr`
+  - `div0null`
+  - `dp_interval_high`
+  - `dp_interval_low`
+  - `hex_decode_binary`
+  - `last_query_id`
+  - `last_transaction`
+
 #### Improvements
 - Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
@@ -50,24 +62,14 @@
 - Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 - Added support for the following scalar functions in `functions.py`:
-  - `array_remove_at`
-  - `as_boolean`
-  - `boolor_agg`
-  - `chr`
-  - `div0null`
-  - `dp_interval_high`
-  - `dp_interval_low`
   - `getdate`
   - `getvariable`
-  - `hex_decode_binary`
   - `invoker_role`
   - `invoker_share`
   - `is_application_role_in_session`
   - `is_database_role_in_session`
   - `is_granted_to_invoker_role`
   - `is_role_in_session`
-  - `last_query_id`
-  - `last_transaction`
   - `localtime`
   - `systimestamp`
 
