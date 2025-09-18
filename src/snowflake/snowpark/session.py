@@ -756,14 +756,19 @@ class Session:
         )
 
         if importlib.util.find_spec("modin"):
-            from modin.config import AutoSwitchBackend
+            try:
+                from modin.config import AutoSwitchBackend
 
-            pandas_hybrid_execution_enabled: bool = (
-                self._conn._get_client_side_session_parameter(
-                    _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED, AutoSwitchBackend().get()
+                pandas_hybrid_execution_enabled: bool = (
+                    self._conn._get_client_side_session_parameter(
+                        _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED,
+                        AutoSwitchBackend().get(),
+                    )
                 )
-            )
-            AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
+                AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
+            except Exception:
+                # Continue session initialization even if Modin configuration fails
+                pass
 
         self._thread_store = create_thread_local(
             self._conn._thread_safe_session_enabled

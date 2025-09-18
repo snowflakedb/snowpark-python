@@ -412,6 +412,7 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args, use_session
             AutoSwitchBackend.enable()
             pd.session.pandas_hybrid_execution_enabled = False
             assert pd.session.pandas_hybrid_execution_enabled is False
+            assert AutoSwitchBackend.get() is False
         with pytest.raises(
             NotImplementedError, match="Snowpark pandas does not yet support the method"
         ):
@@ -472,6 +473,7 @@ def test_query_count_no_switch(init_transaction_tables, use_session_param):
                 AutoSwitchBackend.enable()
                 pd.session.pandas_hybrid_execution_enabled = False
                 assert pd.session.pandas_hybrid_execution_enabled is False
+                assert AutoSwitchBackend.get() is False
             df_result = inner_test(df_transactions)
             orig_len = len(df_result)
 
@@ -483,6 +485,7 @@ def test_query_count_no_switch(init_transaction_tables, use_session_param):
                 AutoSwitchBackend.disable()
                 pd.session.pandas_hybrid_execution_enabled = True
                 assert pd.session.pandas_hybrid_execution_enabled is True
+                assert AutoSwitchBackend.get() is True
             df_result = inner_test(df_transactions)
             hybrid_len = len(df_result)
 
