@@ -1,0 +1,292 @@
+## TEST CASE
+
+from snowflake.snowpark.functions import col
+
+df = session.table(tables.table1)
+
+# group_by with a single column, expr as string
+rgdf1 = df.group_by("str")
+df1 = rgdf1.ai_agg("str", "Summarize strings per group")
+
+# group_by with a single column, expr as Column
+df2 = rgdf1.ai_agg(col("str"), "Summarize strings per group using Column")
+
+# group_by with no columns (global aggregation)
+rgdf2 = df.group_by()
+df3 = rgdf2.ai_agg("str", "Summarize strings across all rows")
+
+## EXPECTED UNPARSER OUTPUT
+
+df = session.table("table1")
+
+rgdf1 = df.group_by("str")
+
+df1 = rgdf1.ai_agg("str", task_description="Summarize strings per group")
+
+df2 = rgdf1.ai_agg(col("str"), task_description="Summarize strings per group using Column")
+
+rgdf2 = df.group_by()
+
+df3 = rgdf2.ai_agg("str", task_description="Summarize strings across all rows")
+
+## EXPECTED ENCODED AST
+
+interned_value_table {
+  string_values {
+    key: -1
+  }
+  string_values {
+    key: 2
+    value: "SRC_POSITION_TEST_MODE"
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 27
+          file: 2
+          start_column: 13
+          start_line: 27
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_group_by {
+        cols {
+          args {
+            string_val {
+              src {
+                end_column: 34
+                end_line: 30
+                file: 2
+                start_column: 16
+                start_line: 30
+              }
+              v: "str"
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 34
+          end_line: 30
+          file: 2
+          start_column: 16
+          start_line: 30
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "rgdf1"
+    }
+    uid: 2
+  }
+}
+body {
+  bind {
+    expr {
+      relational_grouped_dataframe_ai_agg {
+        expr {
+          string_val {
+            src {
+              end_column: 64
+              end_line: 31
+              file: 2
+              start_column: 14
+              start_line: 31
+            }
+            v: "str"
+          }
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id: 2
+          }
+        }
+        src {
+          end_column: 64
+          end_line: 31
+          file: 2
+          start_column: 14
+          start_line: 31
+        }
+        task_description: "Summarize strings per group"
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df1"
+    }
+    uid: 3
+  }
+}
+body {
+  bind {
+    expr {
+      relational_grouped_dataframe_ai_agg {
+        expr {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "col"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 37
+                  end_line: 34
+                  file: 2
+                  start_column: 27
+                  start_line: 34
+                }
+                v: "str"
+              }
+            }
+            src {
+              end_column: 37
+              end_line: 34
+              file: 2
+              start_column: 27
+              start_line: 34
+            }
+          }
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id: 2
+          }
+        }
+        src {
+          end_column: 82
+          end_line: 34
+          file: 2
+          start_column: 14
+          start_line: 34
+        }
+        task_description: "Summarize strings per group using Column"
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df2"
+    }
+    uid: 4
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_group_by {
+        cols {
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 29
+          end_line: 37
+          file: 2
+          start_column: 16
+          start_line: 37
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "rgdf2"
+    }
+    uid: 5
+  }
+}
+body {
+  bind {
+    expr {
+      relational_grouped_dataframe_ai_agg {
+        expr {
+          string_val {
+            src {
+              end_column: 70
+              end_line: 38
+              file: 2
+              start_column: 14
+              start_line: 38
+            }
+            v: "str"
+          }
+        }
+        grouped_df {
+          relational_grouped_dataframe_ref {
+            id: 5
+          }
+        }
+        src {
+          end_column: 70
+          end_line: 38
+          file: 2
+          start_column: 14
+          start_line: 38
+        }
+        task_description: "Summarize strings across all rows"
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df3"
+    }
+    uid: 6
+  }
+}
+client_ast_version: 1
+client_language {
+  python_language {
+    version {
+      label: "final"
+      major: 3
+      minor: 9
+      patch: 1
+    }
+  }
+}
+client_version {
+  major: 1
+  minor: 39
+}
+id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

@@ -1553,6 +1553,7 @@ class SnowflakePlanBuilder:
         is_temp: bool,
         comment: Optional[str],
         replace: bool,
+        copy_grants: bool,
         source_plan: Optional[LogicalPlan],
     ) -> SnowflakePlan:
         if len(child.queries) != 1:
@@ -1579,7 +1580,7 @@ class SnowflakePlanBuilder:
 
         return self.build(
             lambda x: create_or_replace_view_statement(
-                name, x, is_temp, comment, replace
+                name, x, is_temp, comment, replace, copy_grants
             ),
             child,
             source_plan,
@@ -1671,6 +1672,7 @@ class SnowflakePlanBuilder:
         child: SnowflakePlan,
         source_plan: Optional[LogicalPlan],
         iceberg_config: Optional[dict] = None,
+        copy_grants: bool = False,
     ) -> SnowflakePlan:
 
         child = self.find_and_update_table_function_plan(child)
@@ -1710,6 +1712,7 @@ class SnowflakePlanBuilder:
                 max_data_extension_time=max_data_extension_time,
                 child=x,
                 iceberg_config=iceberg_config,
+                copy_grants=copy_grants,
             ),
             child,
             source_plan,
