@@ -87,6 +87,12 @@ from snowflake.snowpark.modin.utils import _inherit_docstrings, to_pandas
 from modin.pandas.api.extensions import (
     register_pd_accessor as _register_pd_accessor,
 )
+from snowflake.snowpark.modin.plugin.extensions.base_overrides import (
+    register_base_not_implemented,
+)
+from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+    UnsupportedKwargsRule,
+)
 
 register_pd_accessor = functools.partial(_register_pd_accessor, backend="Snowflake")
 
@@ -751,6 +757,11 @@ def merge_asof(
     )
 
 
+@register_base_not_implemented(
+    unsupported_kwargs=UnsupportedKwargsRule(
+        conditions={"levels": lambda x: x is not None}, default_values={"levels": None}
+    )
+)
 @register_pd_accessor("concat")
 @_inherit_docstrings(pandas.concat)
 def concat(
