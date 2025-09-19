@@ -93,7 +93,6 @@ def test_unsupported_general(general_method, kwargs):
         ["pipe", {"func": ""}],
         ["prod", {}],
         ["product", {}],
-        ["query", {"expr": ""}],
         ["reindex_like", {"other": ""}],
         ["reorder_levels", {"order": ""}],
         ["sem", {}],

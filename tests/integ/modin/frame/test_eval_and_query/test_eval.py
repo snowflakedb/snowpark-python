@@ -7,7 +7,6 @@ import re
 import pytest
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
-    create_test_dfs,
     eval_snowpark_pandas_result,
 )
 import pandas as native_pd
@@ -15,28 +14,15 @@ from tests.integ.utils.sql_counter import sql_count_checker
 import logging
 from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_36_0
 from pytest import param
+from tests.integ.modin.frame.test_eval_and_query.utils import (
+    ENGINE_IGNORED_MESSAGE,
+    engine_parameters,
+)
 import modin.pandas as pd
 
 pytestmark = pytest.mark.skipif(
     not MODIN_IS_AT_LEAST_0_36_0,
     reason="Modin 0.36 had an important performant fix for eval().",
-)
-
-
-ENGINE_IGNORED_MESSAGE = (
-    "The argument `engine` of `eval` has been ignored by Snowpark pandas "
-    + "API:\nSnowpark pandas always uses the python engine in favor of "
-    + "the numexpr engine, even if the numexpr engine is available."
-)
-
-
-engine_parameters = pytest.mark.parametrize(
-    "engine_kwargs",
-    [
-        param({"engine": "python"}, id="engine_python"),
-        param({"engine": "numexpr"}, id="engine_numexpr"),
-        param({}, id="default_engine"),
-    ],
 )
 
 
@@ -56,88 +42,6 @@ def python_eval(df, expr, *, inplace=False, **kwargs):
         return df.eval(expr, inplace=inplace, **kwargs)
     assert isinstance(df, native_pd.DataFrame)
     return df.eval(expr, inplace=inplace, **(kwargs | {"engine": "python"}))
-
-
-@pytest.fixture
-def test_dfs():
-    return create_test_dfs(
-        native_pd.DataFrame(
-            {
-                "CUSTOMER_KEY": [-10, -10, -5, 30, 0, 1, 25],
-                "ACCOUNT_BALANCE": [-101, -101, -51, 30, 0, 53, 105],
-                "MARKET_SEGMENT": [
-                    "AUTOMOBILE",
-                    "AUTOMOBILE",
-                    "FURNITURE",
-                    "AUTOMOBILE",
-                    "FURNITURE",
-                    "MACHINERY",
-                    "HOUSEHOLD",
-                ],
-            },
-            index=["i0", "i1", "i2", "i3", "i4", "i5", "i6"],
-        )
-    )
-
-
-@pytest.fixture
-def test_dfs_with_named_index():
-    return create_test_dfs(
-        native_pd.DataFrame(
-            {
-                "CUSTOMER_KEY": [-10, -10, -5, 30, 0, 1, 25],
-                "ACCOUNT_BALANCE": [-101, -101, -51, 30, 0, 53, 105],
-                "MARKET_SEGMENT": [
-                    "AUTOMOBILE",
-                    "AUTOMOBILE",
-                    "FURNITURE",
-                    "AUTOMOBILE",
-                    "FURNITURE",
-                    "MACHINERY",
-                    "HOUSEHOLD",
-                ],
-            },
-            index=native_pd.Index(
-                ["i0", "i1", "i2", "i3", "i4", "i5", "i6"], name="index_name"
-            ),
-        )
-    )
-
-
-@pytest.fixture
-def test_dfs_multiindex():
-    return create_test_dfs(
-        native_pd.DataFrame(
-            {
-                "CUSTOMER_KEY": [-10, -10, -5, 30, 0, 1, 25],
-                "ACCOUNT_BALANCE": [-101, -101, -51, 30, 0, 53, 105],
-                "MARKET_SEGMENT": [
-                    "AUTOMOBILE",
-                    "AUTOMOBILE",
-                    "FURNITURE",
-                    "AUTOMOBILE",
-                    "FURNITURE",
-                    "MACHINERY",
-                    "HOUSEHOLD",
-                ],
-            },
-            index=native_pd.MultiIndex.from_tuples(
-                [
-                    ("i00", "i01"),
-                    ("i10", "i11"),
-                    ("i20", "i21"),
-                    (
-                        "i30",
-                        "i31",
-                    ),
-                    ("i40", "i41"),
-                    ("i50", "i51"),
-                    ("i60", "i61"),
-                ],
-                names=["level_0_name", "level_1_name"],
-            ),
-        )
-    )
 
 
 global_int = 10
