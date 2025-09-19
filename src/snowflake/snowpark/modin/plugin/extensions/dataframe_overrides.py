@@ -101,6 +101,7 @@ from snowflake.snowpark.modin.plugin.extensions.utils import (
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
     try_convert_index_to_native,
+    update_eval_and_query_engine_kwarg_and_maybe_warn,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -126,6 +127,19 @@ from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides impo
 from modin.pandas.api.extensions import (
     register_dataframe_accessor as _register_dataframe_accessor,
 )
+
+
+# eval() and query() let the user reference variables according to dynamic
+# scope at `level` stack frames below the stack frame that called them. If
+# a snowflake override function here wraps an eval/query implementation
+# that's in another function, the implementation function frame is 4 frames
+# above the override function frame:
+# 1) query_compiler_caster wrapper dispatches to snowflake implementation
+# 2) telemetry wrapper 1
+# 3) telemetry wrapper 2 calls the snowflake implementation.
+# 4) The snowflake implementation calls the implementation function.
+# so we add 4 to the `level` param.
+EVAL_QUERY_EXTRA_STACK_LEVELS = 4
 
 
 register_dataframe_accessor = functools.partial(
@@ -245,32 +259,9 @@ def eval(self, expr, inplace=False, **kwargs):  # noqa: PR01, RT01, D200
 
     inplace = validate_bool_kwarg(inplace, "inplace")
 
-    # numexpr engine is useful for chained operations on numpy-backed
-    # arrays. It doesn't support all the syntax that the python engine
-    # does, and the Snowpark backend doesn't store data in numpy, so the
-    # numexpr performance optimizations are not useful. Ignore the "engine"
-    # requirement, and warn the user that if they explicitly select
-    # engine="numexpr", we will not honor their preference.
-    if kwargs.get("engine", None) == "numexpr":
-        WarningMessage.ignored_argument(
-            operation="eval",
-            argument="engine",
-            message="Snowpark pandas always uses the python engine in "
-            + "favor of the numexpr engine, even if the numexpr engine is "
-            + "available",
-        )
-    kwargs["engine"] = "python"
+    update_eval_and_query_engine_kwarg_and_maybe_warn(kwargs)
 
-    # eval() lets the user reference variables according to dynamic scope
-    # at `level` stack frames below the stack frame that called eval(). The
-    # eval() implementation is 4 stack frames above the frame where we execute
-    # the _eval() implementation:
-    # 1) query_compiler_caster wrapper dispatches to snowflake implementation
-    # 2) telemetry wrapper 1
-    # 3) telemetry wrapper 2 calls this implementation.
-    # 4) This method implementation calls the _eval() implementation
-    # so we add 4 to the `level` param.
-    kwargs["level"] = kwargs.get("level", 0) + 4
+    kwargs["level"] = kwargs.get("level", 0) + EVAL_QUERY_EXTRA_STACK_LEVELS
 
     index_resolvers = self._get_index_resolvers()
     column_resolvers = self._get_cleaned_column_resolvers()
@@ -327,9 +318,37 @@ def prod(
 register_dataframe_accessor("product")(prod)
 
 
-@register_dataframe_not_implemented()
-def query(self, expr, inplace=False, **kwargs):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+@register_dataframe_accessor("query")
+def query(self, expr, inplace=False, **kwargs):
+    if self._query_compiler.nlevels() > 1:
+        # If the rows of this dataframe have a multi-index, we store the index
+        # as a native_pd.MultiIndex, and the usual method of getting index
+        # resolvers with _get_index_resolvers() does not work.
+        ErrorMessage.not_implemented("query() does not support a multi-level index.")
+
+    inplace = validate_bool_kwarg(inplace, "inplace")
+
+    update_eval_and_query_engine_kwarg_and_maybe_warn(kwargs)
+
+    if inplace and "target" not in kwargs:
+        kwargs["target"] = self
+    else:
+        # have to explicitly set target=None to get correct error for
+        # multi-line query.
+        kwargs["target"] = None
+
+    key = self.eval(
+        expr,
+        inplace=False,
+        **(kwargs | {"level": kwargs.get("level", 0) + EVAL_QUERY_EXTRA_STACK_LEVELS}),
+    )
+
+    try:
+        result = self.loc[key]
+    except ValueError:
+        result = self[key]
+
+    return self._create_or_update_from_compiler(result._query_compiler, inplace=inplace)
 
 
 @register_dataframe_not_implemented()
