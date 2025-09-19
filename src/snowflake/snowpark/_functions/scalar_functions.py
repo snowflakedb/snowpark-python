@@ -1297,3 +1297,201 @@ def regr_valx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colum
     y_col = _to_col_if_str(y, "regr_valx")
     x_col = _to_col_if_str(x, "regr_valx")
     return builtin("regr_valx", _emit_ast=_emit_ast)(y_col, x_col)
+
+
+@publicapi
+def h3_polygon_to_cells(
+    geography_polygon: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """Returns the H3 cell IDs contained by the input polygon at the specified resolution.
+
+    Args:
+        geography_polygon (ColumnOrName): A GEOGRAPHY object representing a polygon.
+        target_resolution (ColumnOrName): The H3 resolution (0-15).
+
+    Returns:
+        Column: An array of H3 cell IDs as integers.
+
+    Example::
+        >>> from snowflake.snowpark.functions import to_geography, lit
+        >>> df = session.create_dataframe([
+        ...     ['POLYGON((-122.481889 37.826683,-122.479487 37.808548,-122.474150 37.808904,-122.476510 37.826935,-122.481889 37.826683))']
+        ... ], schema=["polygon_wkt"])
+        >>> df.select(h3_polygon_to_cells(to_geography(df["polygon_wkt"]), lit(9))).collect()
+        [Row(H3_POLYGON_TO_CELLS(TO_GEOGRAPHY("POLYGON_WKT"), 9)='[\\n  617700171177525247,\\n  617700171225497599,\\n  617700171167563775,\\n  617700171167825919,\\n  617700171188011007,\\n  617700171168350207,\\n  617700171168612351,\\n  617700171176476671,\\n  617700171168874495\\n]')]
+    """
+    geography_polygon_c = _to_col_if_str(geography_polygon, "h3_polygon_to_cells")
+    target_resolution_c = _to_col_if_str(target_resolution, "h3_polygon_to_cells")
+    return builtin("h3_polygon_to_cells", _emit_ast=_emit_ast)(
+        geography_polygon_c, target_resolution_c
+    )
+
+
+@publicapi
+def h3_polygon_to_cells_strings(
+    geography_polygon: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns an array of H3 cell IDs (as strings) that cover the given geography polygon at the specified resolution.
+
+    Args:
+        geography_polygon (ColumnOrName): The GEOGRAPHY polygon to convert to H3 cells.
+        target_resolution (ColumnOrName): The H3 resolution level (0-15) for the output cells.
+
+    Returns:
+        Column: An array of H3 cell IDs as strings.
+
+    Example::
+        >>> from snowflake.snowpark.functions import to_geography, lit
+        >>> df = session.create_dataframe([
+        ...     ['POLYGON((-122.481889 37.826683,-122.479487 37.808548,-122.474150 37.808904,-122.476510 37.826935,-122.481889 37.826683))']
+        ... ], schema=['polygon_wkt'])
+        >>> df.select(h3_polygon_to_cells_strings(to_geography(df['polygon_wkt']), lit(9))).collect()
+        [Row(H3_POLYGON_TO_CELLS_STRINGS(TO_GEOGRAPHY("POLYGON_WKT"), 9)='[\\n  "892830870bbffff",\\n  "89283087397ffff",\\n  "89283087023ffff",\\n  "89283087027ffff",\\n  "8928308715bffff",\\n  "8928308702fffff",\\n  "89283087033ffff",\\n  "892830870abffff",\\n  "89283087037ffff"\\n]')]
+    """
+    geography_polygon_c = _to_col_if_str(
+        geography_polygon, "h3_polygon_to_cells_strings"
+    )
+    target_resolution_c = _to_col_if_str(
+        target_resolution, "h3_polygon_to_cells_strings"
+    )
+    return builtin("h3_polygon_to_cells_strings", _emit_ast=_emit_ast)(
+        geography_polygon_c, target_resolution_c
+    )
+
+
+@publicapi
+def h3_string_to_int(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Converts an H3 cell ID from hexadecimal string representation to its integer representation.
+
+    Args:
+        cell_id (ColumnOrName): The H3 cell ID as a hexadecimal string.
+
+    Returns:
+        Column: The H3 cell ID as an integer.
+
+    Example::
+
+        >>> df = session.create_dataframe([['89283087033FFFF']], schema=["cell_id"])
+        >>> df.select(h3_string_to_int(df["cell_id"]).alias("result")).collect()
+        [Row(RESULT=617700171168612351)]
+    """
+    c = _to_col_if_str(cell_id, "h3_string_to_int")
+    return builtin("h3_string_to_int", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def h3_try_polygon_to_cells_strings(
+    geography_polygon: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns an array of H3 cell IDs as strings that cover the given geography polygon
+    at the specified resolution. Returns NULL if the input is invalid.
+
+    Args:
+        geography_polygon (ColumnOrName): The GEOGRAPHY polygon.
+        target_resolution (ColumnOrName): The target H3 resolution (0-15).
+
+    Returns:
+        Column: An array of H3 cell IDs as strings, or NULL if the input is invalid.
+
+    Example::
+        >>> from snowflake.snowpark.functions import to_geography, lit
+
+        >>> df = session.create_dataframe([
+        ...     ['POLYGON((-122.4194 37.7749, -122.4094 37.7749, -122.4094 37.7849, -122.4194 37.7849, -122.4194 37.7749))']
+        ... ], schema=["polygon_wkt"])
+
+        >>> df.select(h3_try_polygon_to_cells_strings(to_geography(df["polygon_wkt"]), lit(9))).collect()
+        [Row(H3_TRY_POLYGON_TO_CELLS_STRINGS(TO_GEOGRAPHY("POLYGON_WKT"), 9)='[\\n  "8928308287bffff",\\n  "8928308280fffff",\\n  "89283082873ffff",\\n  "8928308286bffff",\\n  "89283082847ffff",\\n  "89283082863ffff",\\n  "89283082877ffff",\\n  "8928308280bffff",\\n  "89283082867ffff"\\n]')]
+    """
+    geography_col = _to_col_if_str(geography_polygon, "h3_try_polygon_to_cells_strings")
+    resolution_col = _to_col_if_str(
+        target_resolution, "h3_try_polygon_to_cells_strings"
+    )
+    return builtin("h3_try_polygon_to_cells_strings", _emit_ast=_emit_ast)(
+        geography_col, resolution_col
+    )
+
+
+@publicapi
+def h3_cell_to_children(
+    cell_id: ColumnOrName, target_resolution: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the children of an H3 cell at a specified target resolution.
+
+    Args:
+        cell_id (ColumnOrName): The H3 cell ID to get children for.
+        target_resolution (ColumnOrName): The target resolution for the children cells.
+
+    Returns:
+        Column: A JSON array string containing the children H3 cell IDs.
+
+    Example::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[613036919424548863, 9]], schema=["cell_id", "target_resolution"])
+        >>> df.select(h3_cell_to_children(col("cell_id"), col("target_resolution")).alias("children")).collect()
+        [Row(CHILDREN='[\\n  617540519050084351,\\n  617540519050346495,\\n  617540519050608639,\\n  617540519050870783,\\n  617540519051132927,\\n  617540519051395071,\\n  617540519051657215\\n]')]
+    """
+    cell_id_c = _to_col_if_str(cell_id, "h3_cell_to_children")
+    target_resolution_c = _to_col_if_str(target_resolution, "h3_cell_to_children")
+    return builtin("h3_cell_to_children", _emit_ast=_emit_ast)(
+        cell_id_c, target_resolution_c
+    )
+
+
+@publicapi
+def h3_cell_to_children_string(
+    cell_id: ColumnOrName, target_resolution: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the children of the given H3 cell at the specified target resolution as a JSON array string.
+
+    Args:
+        cell_id (ColumnOrName): Column containing the H3 cell ID.
+        target_resolution (ColumnOrName): Column containing the target resolution for the children cells.
+
+    Returns:
+        Column: A JSON array string containing the children H3 cell IDs.
+
+    Example::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["881F1D4887FFFFF", 9]], schema=["cell_id", "target_resolution"])
+        >>> df.select(h3_cell_to_children_string(col("cell_id"), col("target_resolution"))).collect()
+        [Row(H3_CELL_TO_CHILDREN_STRING("CELL_ID", "TARGET_RESOLUTION")='[\\n  "891f1d48863ffff",\\n  "891f1d48867ffff",\\n  "891f1d4886bffff",\\n  "891f1d4886fffff",\\n  "891f1d48873ffff",\\n  "891f1d48877ffff",\\n  "891f1d4887bffff"\\n]')]
+    """
+    cell_id_col = _to_col_if_str(cell_id, "h3_cell_to_children_string")
+    target_resolution_col = _to_col_if_str(
+        target_resolution, "h3_cell_to_children_string"
+    )
+    return builtin("h3_cell_to_children_string", _emit_ast=_emit_ast)(
+        cell_id_col, target_resolution_col
+    )
+
+
+@publicapi
+def h3_int_to_string(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Converts an H3 cell ID from integer format to string format.
+
+    Args:
+        cell_id (ColumnOrName): The H3 cell ID as an integer.
+
+    Returns:
+        Column: The H3 cell ID as a hexadecimal string.
+
+    Example::
+        >>> df = session.create_dataframe([617700171168612351], schema=["cell_id"])
+        >>> df.select(h3_int_to_string(df["cell_id"]).alias("result")).collect()
+        [Row(RESULT='89283087033ffff')]
+    """
+    c = _to_col_if_str(cell_id, "h3_int_to_string")
+    return builtin("h3_int_to_string", _emit_ast=_emit_ast)(c)
