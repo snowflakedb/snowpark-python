@@ -20,11 +20,17 @@
 - Added support for the following scalar functions in `functions.py`:
   - `array_remove_at`
   - `as_boolean`
+  - `booland`
+  - `boolnot`
+  - `boolor`
   - `boolor_agg`
+  - `boolxor`
   - `chr`
+  - `decode`
   - `div0null`
   - `dp_interval_high`
   - `dp_interval_low`
+  - `greatest_ignore_nulls`
   - `h3_cell_to_boundary`
   - `h3_cell_to_parent`
   - `h3_cell_to_point`
@@ -38,6 +44,11 @@
   - `hex_decode_binary`
   - `last_query_id`
   - `last_transaction`
+  - `least_ignore_nulls`
+  - `nullif`
+  - `nvl2`
+  - `regr_valx`
+
 
 ### Snowpark pandas API Updates
 
@@ -48,17 +59,6 @@
 - Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Added a session parameter `pandas_hybrid_execution_enabled` to enable/disable hybrid execution as an alternative to using `AutoSwitchBackend`.
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
-- Added support for the following scalar functions in `functions.py`:
-  - `booland`
-  - `boolnot`
-  - `boolor`
-  - `boolxor`
-  - `decode`
-  - `greatest_ignore_nulls`
-  - `least_ignore_nulls`
-  - `nullif`
-  - `nvl2`
-  - `regr_valx`
 
 ## 1.39.0 (2025-09-17)
 
