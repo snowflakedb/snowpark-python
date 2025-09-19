@@ -346,6 +346,8 @@ def query(self, expr, inplace=False, **kwargs):
     try:
         result = self.loc[key]
     except ValueError:
+        # when res is multi-dimensional, loc raises an error, but that is
+        # sometimes a valid query.
         result = self[key]
 
     return self._create_or_update_from_compiler(result._query_compiler, inplace=inplace)
