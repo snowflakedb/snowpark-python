@@ -3000,6 +3000,158 @@ def test_show_interval_formatting(session):
         """
     )
 
+    # Additional edge cases to hit missing lines
+
+    # Positive number without dash for single month (lines 5161-5163, 5171-5173)
+    df = session.sql("SELECT INTERVAL '+7' MONTH as positive_single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------+
+        |"POSITIVE_SINGLE_MONTH"|
+        +-----------------------+
+        |INTERVAL '7' MONTH     |
+        +-----------------------+
+        """
+    )
+
+    # Negative number for single month (lines 5165-5166, 5171-5173)
+    df = session.sql("SELECT INTERVAL '-12' MONTH as negative_single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------+
+        |"NEGATIVE_SINGLE_MONTH"|
+        +-----------------------+
+        |INTERVAL '-12' MONTH   |
+        +-----------------------+
+        """
+    )
+
+    # Positive number without dash for single year (lines 5174-5181)
+    df = session.sql("SELECT INTERVAL '+4' YEAR as positive_single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------+
+        |"POSITIVE_SINGLE_YEAR"|
+        +----------------------+
+        |INTERVAL '4' YEAR     |
+        +----------------------+
+        """
+    )
+
+    # Positive number with no sign, single number for fallback (lines 5184-5185)
+    df = session.sql("SELECT INTERVAL '42' MONTH as plain_number_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"PLAIN_NUMBER_MONTH"|
+        +--------------------+
+        |INTERVAL '42' MONTH |
+        +--------------------+
+        """
+    )
+
+    # Edge case: positive single dash for months (lines 5148-5149)
+    df = session.sql("SELECT INTERVAL '+8' MONTH as plus_month_edge")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"PLUS_MONTH_EDGE" |
+        +------------------+
+        |INTERVAL '8' MONTH|
+        +------------------+
+        """
+    )
+
+    # Day-time intervals for missing lines
+
+    # Single minute-only interval to hit line 5326
+    df = session.sql("SELECT INTERVAL '5' MINUTE as single_minute_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"SINGLE_MINUTE_ONLY"|
+        +--------------------+
+        |INTERVAL '05' MINUTE|
+        +--------------------+
+        """
+    )
+
+    # Single hour-only interval to hit line 5310
+    df = session.sql("SELECT INTERVAL '7' HOUR as single_hour_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_HOUR_ONLY"|
+        +------------------+
+        |INTERVAL '07' HOUR|
+        +------------------+
+        """
+    )
+
+    # Single second-only interval to hit lines 5212, 5216-5217
+    df = session.sql("SELECT INTERVAL '8' SECOND as single_second_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"SINGLE_SECOND_ONLY"|
+        +--------------------+
+        |INTERVAL '08' SECOND|
+        +--------------------+
+        """
+    )
+
+    # Single second with fractional part to hit different branches (lines 5216-5217)
+    df = session.sql("SELECT INTERVAL '3.456' SECOND as fractional_second_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"FRACTIONAL_SECOND_ONLY"|
+        +------------------------+
+        |INTERVAL '03.456' SECOND|
+        +------------------------+
+        """
+    )
+
+    # Fractional seconds < 1 to hit line 5271 (single digit second with fractional)
+    df = session.sql("SELECT INTERVAL '0.789' SECOND as sub_second_frac")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"SUB_SECOND_FRAC"       |
+        +------------------------+
+        |INTERVAL '00.789' SECOND|
+        +------------------------+
+        """
+    )
+
+    # Minute to second with fractional to hit lines 5336, 5341
+    df = session.sql(
+        "SELECT INTERVAL '8:45.321' MINUTE TO SECOND as minute_to_second_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------------------+
+        |"MINUTE_TO_SECOND_FRAC"              |
+        +-------------------------------------+
+        |INTERVAL '08:45.321' MINUTE TO SECOND|
+        +-------------------------------------+
+        """
+    )
+
+    # Large minute to second with fractional to hit lines 5336, 5341 with large minutes
+    df = session.sql(
+        "SELECT INTERVAL '123:45.678' MINUTE TO SECOND as large_minute_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------------+
+        |"LARGE_MINUTE_FRAC"                   |
+        +--------------------------------------+
+        |INTERVAL '123:45.678' MINUTE TO SECOND|
+        +--------------------------------------+
+        """
+    )
+
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):

@@ -5143,10 +5143,6 @@ class DataFrame:
                             )  # Split only on first dash: ["1", "6"]
                             years = str(int(parts[0]))
                             months = str(int(parts[1]))
-                        else:
-                            # Single number case, handle in the elif below
-                            years = "0"
-                            months = remaining
                     else:
                         # For positive: "+1-6" -> split on the second dash
                         remaining = cell[1:]  # "1-6"
@@ -5156,10 +5152,6 @@ class DataFrame:
                             )  # Split only on first dash: ["1", "6"]
                             years = str(int(parts[0]))
                             months = str(int(parts[1]))
-                        else:
-                            # Single number case
-                            years = "0"
-                            months = remaining
                 elif cell.startswith("-") or cell.startswith("+") or cell.isdigit():
                     # Format like "-8" or "15" (single number for months-only or years-only)
                     is_negative = cell.startswith("-")
@@ -5179,13 +5171,6 @@ class DataFrame:
                         years_val = int(cell)
                         res = f"INTERVAL '{years_val}' YEAR"
                         return res.replace("\n", "\\n")
-                    else:
-                        # Shouldn't happen, but fallback
-                        res = cell
-                        return res.replace("\n", "\\n")
-                else:
-                    res = cell
-                    return res.replace("\n", "\\n")
 
                 # Format based on start/end field
                 if (
