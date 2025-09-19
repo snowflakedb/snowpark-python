@@ -5326,11 +5326,19 @@ class DataFrame:
                             return f"{sign}{total_minutes}"
                         else:  # TO SECOND
                             if remaining_secs == int(remaining_secs):
-                                return f"{sign}{total_minutes:02d}:{int(remaining_secs):02d}"
-                            else:
-                                return (
-                                    f"{sign}{total_minutes:02d}:{remaining_secs:06.3f}"
+                                minutes_str = (
+                                    f"{total_minutes:02d}"
+                                    if total_minutes < 10
+                                    else f"{total_minutes}"
                                 )
+                                return f"{sign}{minutes_str}:{int(remaining_secs):02d}"
+                            else:
+                                minutes_str = (
+                                    f"{total_minutes:02d}"
+                                    if total_minutes < 10
+                                    else f"{total_minutes}"
+                                )
+                                return f"{sign}{minutes_str}:{remaining_secs:06.3f}"
                     else:
                         # Fallback to basic format
                         if seconds == int(seconds):
