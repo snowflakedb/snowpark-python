@@ -3317,6 +3317,7 @@ class DataFrame(BasePandasDataset):
 
         inplace : bool
             Whether to modify the DataFrame rather than creating a new one.
+
         **kwargs
             See the documentation for :func:`eval` for complete details
             on the keyword arguments accepted by :meth:`DataFrame.query`.
