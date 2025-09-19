@@ -4,7 +4,51 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
+
 #### New Features
+
+- Added a new module `snowflake.snowpark.secrets` that provides Python wrappers for accessing Snowflake Secrets within Python UDFs and stored procedures that execute inside Snowflake.
+  - `get_generic_secret_string`
+  - `get_oauth_access_token`
+  - `get_secret_type`
+  - `get_username_password`
+  - `get_cloud_provider_token`
+
+- Added support for the following scalar functions in `functions.py`:
+  - `array_remove_at`
+  - `as_boolean`
+  - `booland`
+  - `boolnot`
+  - `boolor`
+  - `boolor_agg`
+  - `boolxor`
+  - `chr`
+  - `decode`
+  - `div0null`
+  - `dp_interval_high`
+  - `dp_interval_low`
+  - `greatest_ignore_nulls`
+  - `h3_cell_to_boundary`
+  - `h3_cell_to_parent`
+  - `h3_cell_to_point`
+  - `h3_compact_cells`
+  - `h3_compact_cells_strings`
+  - `h3_coverage`
+  - `h3_coverage_strings`
+  - `h3_get_resolution`
+  - `h3_grid_disk`
+  - `h3_grid_distance`
+  - `hex_decode_binary`
+  - `last_query_id`
+  - `last_transaction`
+  - `least_ignore_nulls`
+  - `nullif`
+  - `nvl2`
+  - `regr_valx`
+
 
 ### Snowpark pandas API Updates
 
@@ -12,7 +56,9 @@
 - Added support for `DataFrame.query()` for dataframes with single-level indexes.
 
 #### Improvements
+
 - Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
+- Added a session parameter `pandas_hybrid_execution_enabled` to enable/disable hybrid execution as an alternative to using `AutoSwitchBackend`.
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
 
 ## 1.39.0 (2025-09-17)

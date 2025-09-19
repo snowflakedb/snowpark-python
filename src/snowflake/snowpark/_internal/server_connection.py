@@ -269,15 +269,22 @@ class ServerConnection:
         rows = result_set_to_rows(self.run_query(query)["data"])
         return rows[0][0] if len(rows) > 0 else None
 
-    def get_result_attributes(self, query: str) -> List[Attribute]:
+    def get_result_attributes(
+        self, query: str, query_params: Optional[Sequence[Any]] = None
+    ) -> List[Attribute]:
         return convert_result_meta_to_attribute(
-            self._run_new_describe(self._cursor, query), self.max_string_size
+            self._run_new_describe(self._cursor, query, query_params=query_params),
+            self.max_string_size,
         )
 
     def _run_new_describe(
-        self, cursor: SnowflakeCursor, query: str, **kwargs: dict
+        self,
+        cursor: SnowflakeCursor,
+        query: str,
+        query_params: Optional[Sequence[Any]] = None,
+        **kwargs: dict,
     ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
-        result_metadata = run_new_describe(cursor, query)
+        result_metadata = run_new_describe(cursor, query, query_params)
 
         with self._lock:
             for listener in filter(
