@@ -1027,6 +1027,279 @@ def last_transaction(_emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def booland(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Computes the Boolean AND of two numeric expressions. In accordance with Boolean semantics:
+        - Non-zero values (including negative numbers) are regarded as True.
+        - Zero values are regarded as False.
+
+    Args:
+        expr1 (ColumnOrName): The first boolean expression.
+        expr2 (ColumnOrName): The second boolean expression.
+
+    Returns:
+        - True if both expressions are non-zero.
+        - False if both expressions are zero or one expression is zero and the other expression is non-zero or NULL.
+        - NULL if both expressions are NULL or one expression is NULL and the other expression is non-zero.
+
+    Example::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[1, -2], [0, 2], [0, 0], [5, 3]], schema=["a", "b"])
+        >>> df.select(booland(col("a"), col("b")).alias("result")).collect()
+        [Row(RESULT=True), Row(RESULT=False), Row(RESULT=False), Row(RESULT=True)]
+    """
+    c1 = _to_col_if_str(expr1, "booland")
+    c2 = _to_col_if_str(expr2, "booland")
+    return builtin("booland", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def boolnot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Computes the Boolean NOT of a single numeric expression. In accordance with Boolean semantics:
+        - Non-zero values (including negative numbers) are regarded as True.
+        - Zero values are regarded as False.
+
+    Args:
+        e (ColumnOrName): A numeric expression to be evaluated.
+
+    Returns:
+        - True if the expression is zero.
+        - False if the expression is non-zero.
+        - NULL if the expression is NULL.
+
+    Example::
+
+        >>> df = session.create_dataframe([0, 10, -5], schema=["a"])
+        >>> df.select(boolnot("a")).collect()
+        [Row(BOOLNOT("A")=True), Row(BOOLNOT("A")=False), Row(BOOLNOT("A")=False)]
+    """
+    c = _to_col_if_str(e, "boolnot")
+    return builtin("boolnot", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def boolor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Computes the Boolean OR of two numeric expressions. In accordance with Boolean semantics:
+        - Non-zero values (including negative numbers) are regarded as True.
+        - Zero values are regarded as False.
+
+    Args:
+        expr1 (ColumnOrName): The first boolean expression.
+        expr2 (ColumnOrName): The second boolean expression.
+
+    Returns:
+        - True if both expressions are non-zero or the first expression is non-zero and the second expression is zero or None.
+        - False if both expressions are zero.
+        - None if both expressions are None or the first expression is None and the second expression is zero.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([
+        ...     [1, 2],
+        ...     [-1, 0],
+        ...     [3, None],
+        ...     [0, 0],
+        ...     [None, 0],
+        ...     [None, None]
+        ... ], schema=["expr1", "expr2"])
+        >>> df.select(boolor(col("expr1"), col("expr2")).alias("result")).collect()
+        [Row(RESULT=True), Row(RESULT=True), Row(RESULT=True), Row(RESULT=False), Row(RESULT=None), Row(RESULT=None)]
+    """
+    c1 = _to_col_if_str(expr1, "boolor")
+    c2 = _to_col_if_str(expr2, "boolor")
+    return builtin("boolor", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def boolxor(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Computes the Boolean XOR of two numeric expressions (i.e. one of the expressions, but not both expressions, is True). In accordance with Boolean semantics:
+        - Non-zero values (including negative numbers) are regarded as True.
+        - Zero values are regarded as False.
+
+    Args:
+        expr1 (ColumnOrName): First numeric expression or a string name of the column.
+        expr2 (ColumnOrName): Second numeric expression or a string name of the column.
+
+    Returns:
+        - True if exactly one of the expressions is non-zero.
+        - False if both expressions are zero or both expressions are non-zero.
+        - None if both expressions are None, or one expression is None and the other expression is zero.
+
+    Example::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[2, 0], [1, -1], [0, 0], [None, 3]], schema=["a", "b"])
+        >>> df.select(boolxor(col("a"), col("b")).alias("result")).collect()
+        [Row(RESULT=True), Row(RESULT=False), Row(RESULT=False), Row(RESULT=None)]
+    """
+    c1 = _to_col_if_str(expr1, "boolxor")
+    c2 = _to_col_if_str(expr2, "boolxor")
+    return builtin("boolxor", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def decode(expr: ColumnOrName, *args: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """Decodes an expression by comparing it with search values and returning corresponding result values.
+
+    Similar to a Case statement, this function compares an expression to one or more search values
+    and returns the corresponding result when a match is found.
+
+    Args:
+        expr (ColumnOrName): The expression to decode.
+        *args (ColumnOrName): Variable length argument list containing pairs of search values and
+            result values, with an optional default value at the end.
+
+
+    Returns:
+        Column: The decoded result.
+
+    Example:
+
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([[1, 1], [2, 4], [16, 24]], schema=["a", "b"])
+        >>> df.select(decode(col("a"), lit(1), lit("one"), lit(2), lit("two"), lit("default")).alias("RESULT")).collect()
+        [Row(RESULT='one'), Row(RESULT='two'), Row(RESULT='default')]
+    """
+    expr_col = _to_col_if_str(expr, "decode")
+    arg_cols = [_to_col_if_str(arg, "decode") for arg in args]
+    return builtin("decode", _emit_ast=_emit_ast)(expr_col, *arg_cols)
+
+
+@publicapi
+def greatest_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the largest value from a list of expressions, ignoring None values.
+    If all argument values are None, the result is None.
+
+    Args:
+        columns (ColumnOrName): The name strings to compare.
+
+    Returns:
+        Column: The greatest value, ignoring None values.
+
+    Examples::
+
+        >>> df = session.create_dataframe([[1, 2, 3, 4.25], [2, 4, -1, None], [3, 6, None, -2.75]], schema=["a", "b", "c", "d"])
+        >>> df.select(greatest_ignore_nulls(df["a"], df["b"], df["c"], df["d"]).alias("greatest_ignore_nulls")).collect()
+        [Row(GREATEST_IGNORE_NULLS=4.25), Row(GREATEST_IGNORE_NULLS=4.0), Row(GREATEST_IGNORE_NULLS=6.0)]
+    """
+    c = [_to_col_if_str(ex, "greatest_ignore_nulls") for ex in columns]
+    return builtin("greatest_ignore_nulls", _emit_ast=_emit_ast)(*c)
+
+
+@publicapi
+def least_ignore_nulls(*columns: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the smallest value from a list of expressions, ignoring None values.
+    If all argument values are None, the result is None.
+
+    Args:
+        columns (ColumnOrName): list of column or column names to compare.
+
+    Returns:
+        Column: The smallest value from the list of expressions, ignoring None values.
+
+    Example::
+
+        >>> df = session.create_dataframe([[1, 2, 3], [2, 4, -1], [3, 6, None]], schema=["a", "b", "c"])
+        >>> df.select(least_ignore_nulls(df["a"], df["b"], df["c"]).alias("least_ignore_nulls")).collect()
+        [Row(LEAST_IGNORE_NULLS=1), Row(LEAST_IGNORE_NULLS=-1), Row(LEAST_IGNORE_NULLS=3)]
+    """
+    c = [_to_col_if_str(ex, "least_ignore_nulls") for ex in columns]
+    return builtin("least_ignore_nulls", _emit_ast=_emit_ast)(*c)
+
+
+@publicapi
+def nullif(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns None if expr1 is equal to expr2, otherwise returns expr1.
+
+    Args:
+        expr1 (ColumnOrName): The first expression to compare.
+        expr2 (ColumnOrName): The second expression to compare.
+
+    Returns:
+        Column: None if expr1 is equal to expr2, otherwise expr1.
+
+    Example::
+
+        >>> df = session.create_dataframe([[0, 0], [0, 1], [1, 0], [1, 1], [None, 0]], schema=["a", "b"])
+        >>> df.select(nullif(df["a"], df["b"]).alias("result")).collect()
+        [Row(RESULT=None), Row(RESULT=0), Row(RESULT=1), Row(RESULT=None), Row(RESULT=None)]
+    """
+    c1 = _to_col_if_str(expr1, "nullif")
+    c2 = _to_col_if_str(expr2, "nullif")
+    return builtin("nullif", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def nvl2(
+    expr1: ColumnOrName,
+    expr2: ColumnOrName,
+    expr3: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns expr2 if expr1 is not None, otherwise returns expr3.
+
+    Args:
+        expr1 (ColumnOrName): The expression to test for None.
+        expr2 (ColumnOrName): The value to return if expr1 is not None.
+        expr3 (ColumnOrName): The value to return if expr1 is None.
+
+    Returns:
+        Column: The result of the nvl2 function.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([
+        ...     [0, 5, 3],
+        ...     [0, 5, None],
+        ...     [0, None, 3],
+        ...     [None, 5, 3],
+        ...     [None, None, 3]
+        ... ], schema=["a", "b", "c"])
+        >>> df.select(nvl2(col("a"), col("b"), col("c")).alias("nvl2_result")).collect()
+        [Row(NVL2_RESULT=5), Row(NVL2_RESULT=5), Row(NVL2_RESULT=None), Row(NVL2_RESULT=3), Row(NVL2_RESULT=3)]
+    """
+    c1 = _to_col_if_str(expr1, "nvl2")
+    c2 = _to_col_if_str(expr2, "nvl2")
+    c3 = _to_col_if_str(expr3, "nvl2")
+    return builtin("nvl2", _emit_ast=_emit_ast)(c1, c2, c3)
+
+
+@publicapi
+def regr_valx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns None if either argument is None; otherwise, returns the second argument.
+    Note that REGR_VALX is a None-preserving function, while the more commonly-used NVL is a None-replacing function.
+
+    Args:
+        y (ColumnOrName): The dependent variable column.
+        x (ColumnOrName): The independent variable column.
+
+    Returns:
+        Column: The result of the regr_valx function.
+
+    Example::
+
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([[2.0, 1.0], [None, 3.0], [6.0, None]], schema=["col_y", "col_x"])
+        >>> result = df.select(regr_valx(df["col_y"], df["col_x"]).alias("result")).collect()
+        >>> assert result == [Row(RESULT=1.0), Row(RESULT=None), Row(RESULT=None)]
+
+        Important: Note the order of the arguments; y precedes x
+    """
+    y_col = _to_col_if_str(y, "regr_valx")
+    x_col = _to_col_if_str(x, "regr_valx")
+    return builtin("regr_valx", _emit_ast=_emit_ast)(y_col, x_col)
+
+
+@publicapi
 def h3_polygon_to_cells(
     geography_polygon: ColumnOrName,
     target_resolution: ColumnOrName,

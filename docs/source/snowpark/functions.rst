@@ -112,6 +112,10 @@ Functions
     bitxor
     bitxor_agg
     boolor_agg
+    booland
+    boolnot
+    boolor
+    boolxor
     build_stage_file_url
     builtin
     bround
@@ -184,6 +188,7 @@ Functions
     dayofmonth
     dayofweek
     dayofyear
+    decode
     degrees
     dense_rank
     desc
@@ -229,6 +234,7 @@ Functions
     getdate
     getvariable
     greatest
+    greatest_ignore_nulls
     grouping
     grouping_id
     hash
@@ -294,6 +300,7 @@ Functions
     last_value
     lead
     least
+    least_ignore_nulls
     left
     length
     listagg
@@ -334,8 +341,10 @@ Functions
     not_
     nth_value
     ntile
+    nullif
     nullifzero
     nvl
+    nvl2
     object_agg
     object_construct
     object_construct_keep_null
@@ -372,6 +381,7 @@ Functions
     regr_sxx
     regr_sxy
     regr_syy
+    regr_valx
     repeat
     replace
     right

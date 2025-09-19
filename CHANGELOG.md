@@ -20,11 +20,17 @@
 - Added support for the following scalar functions in `functions.py`:
   - `array_remove_at`
   - `as_boolean`
+  - `booland`
+  - `boolnot`
+  - `boolor`
   - `boolor_agg`
+  - `boolxor`
   - `chr`
+  - `decode`
   - `div0null`
   - `dp_interval_high`
   - `dp_interval_low`
+  - `greatest_ignore_nulls`
   - `h3_cell_to_boundary`
   - `h3_cell_to_parent`
   - `h3_cell_to_point`
@@ -38,6 +44,11 @@
   - `hex_decode_binary`
   - `last_query_id`
   - `last_transaction`
+  - `least_ignore_nulls`
+  - `nullif`
+  - `nvl2`
+  - `regr_valx`
+
 
 ### Snowpark pandas API Updates
 
