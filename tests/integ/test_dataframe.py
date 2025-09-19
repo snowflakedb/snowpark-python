@@ -2708,6 +2708,298 @@ def test_show_interval_formatting(session):
         """
     )
 
+    # Year-month intervals with dash format
+    df = session.sql("SELECT INTERVAL '1-6' YEAR TO MONTH as year_to_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"YEAR_TO_MONTH"             |
+        +----------------------------+
+        |INTERVAL '1-6' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    # Negative year-month intervals
+    df = session.sql("SELECT INTERVAL '-2-3' YEAR TO MONTH as negative_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------+
+        |"NEGATIVE_YEAR_MONTH"        |
+        +-----------------------------+
+        |INTERVAL '-2-3' YEAR TO MONTH|
+        +-----------------------------+
+        """
+    )
+
+    # Single year intervals (not YEAR TO MONTH)
+    df = session.sql("SELECT INTERVAL '5' YEAR as single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------+
+        |"SINGLE_YEAR"    |
+        +-----------------+
+        |INTERVAL '5' YEAR|
+        +-----------------+
+        """
+    )
+
+    # Single month intervals (not YEAR TO MONTH)
+    df = session.sql("SELECT INTERVAL '8' MONTH as single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_MONTH"    |
+        +------------------+
+        |INTERVAL '8' MONTH|
+        +------------------+
+        """
+    )
+
+    # Zero year-month intervals
+    df = session.sql("SELECT INTERVAL '0-0' YEAR TO MONTH as zero_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"ZERO_YEAR_MONTH"           |
+        +----------------------------+
+        |INTERVAL '0-0' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    # Very large day intervals
+    df = session.sql("SELECT INTERVAL '999' DAY as large_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"LARGE_DAY"       |
+        +------------------+
+        |INTERVAL '999' DAY|
+        +------------------+
+        """
+    )
+
+    # Minute to second with large minutes
+    df = session.sql(
+        "SELECT INTERVAL '150:30' MINUTE TO SECOND as large_minute_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"LARGE_MINUTE_TO_SECOND"          |
+        +----------------------------------+
+        |INTERVAL '150:30' MINUTE TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Day to second with fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '5 10:20:30.123' DAY TO SECOND as day_to_second_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------------+
+        |"DAY_TO_SECOND_FRAC"                   |
+        +---------------------------------------+
+        |INTERVAL '5 10:20:30.123' DAY TO SECOND|
+        +---------------------------------------+
+        """
+    )
+
+    # Hour to second with zero padding in multi-field
+    df = session.sql("SELECT INTERVAL '05:00:00' HOUR TO SECOND as hour_zero_padded")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"HOUR_ZERO_PADDED"                |
+        +----------------------------------+
+        |INTERVAL '05:00:00' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Negative day-time intervals
+    df = session.sql("SELECT INTERVAL '-3 05:30:45' DAY TO SECOND as negative_complex")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------+
+        |"NEGATIVE_COMPLEX"                  |
+        +------------------------------------+
+        |INTERVAL '-3 05:30:45' DAY TO SECOND|
+        +------------------------------------+
+        """
+    )
+
+    # Additional edge cases for complete coverage based on actual Snowflake output
+
+    # Year-month compound intervals
+    df = session.sql("SELECT INTERVAL '1-6' YEAR TO MONTH as year_to_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"YEAR_TO_MONTH"             |
+        +----------------------------+
+        |INTERVAL '1-6' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-2-3' YEAR TO MONTH as negative_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------+
+        |"NEGATIVE_YEAR_MONTH"        |
+        +-----------------------------+
+        |INTERVAL '-2-3' YEAR TO MONTH|
+        +-----------------------------+
+        """
+    )
+
+    # Single field intervals
+    df = session.sql("SELECT INTERVAL '5' YEAR as single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------+
+        |"SINGLE_YEAR"    |
+        +-----------------+
+        |INTERVAL '5' YEAR|
+        +-----------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '8' MONTH as single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_MONTH"    |
+        +------------------+
+        |INTERVAL '8' MONTH|
+        +------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '0-0' YEAR TO MONTH as zero_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"ZERO_YEAR_MONTH"           |
+        +----------------------------+
+        |INTERVAL '0-0' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    # Large day interval
+    df = session.sql("SELECT INTERVAL '999' DAY as large_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"LARGE_DAY"       |
+        +------------------+
+        |INTERVAL '999' DAY|
+        +------------------+
+        """
+    )
+
+    # Large minute to second interval (tests the bug we just fixed)
+    df = session.sql(
+        "SELECT INTERVAL '150:30' MINUTE TO SECOND as large_minute_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"LARGE_MINUTE_TO_SECOND"          |
+        +----------------------------------+
+        |INTERVAL '150:30' MINUTE TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Day to second with fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '5 10:20:30.123' DAY TO SECOND as day_to_second_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------------+
+        |"DAY_TO_SECOND_FRAC"                   |
+        +---------------------------------------+
+        |INTERVAL '5 10:20:30.123' DAY TO SECOND|
+        +---------------------------------------+
+        """
+    )
+
+    # Hour to second with zero padding
+    df = session.sql("SELECT INTERVAL '05:00:00' HOUR TO SECOND as hour_zero_padded")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"HOUR_ZERO_PADDED"                |
+        +----------------------------------+
+        |INTERVAL '05:00:00' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Negative complex interval
+    df = session.sql("SELECT INTERVAL '-3 05:30:45' DAY TO SECOND as negative_complex")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------+
+        |"NEGATIVE_COMPLEX"                  |
+        +------------------------------------+
+        |INTERVAL '-3 05:30:45' DAY TO SECOND|
+        +------------------------------------+
+        """
+    )
+
+    # Positive prefix intervals
+    df = session.sql("SELECT INTERVAL '+2-5' YEAR TO MONTH as positive_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"POSITIVE_YEAR_MONTH"       |
+        +----------------------------+
+        |INTERVAL '2-5' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '+3' YEAR as positive_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------+
+        |"POSITIVE_YEAR"  |
+        +-----------------+
+        |INTERVAL '3' YEAR|
+        +-----------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '+15' MONTH as positive_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"POSITIVE_MONTH"   |
+        +-------------------+
+        |INTERVAL '15' MONTH|
+        +-------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-5' YEAR as negative_single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------+
+        |"NEGATIVE_SINGLE_YEAR"|
+        +----------------------+
+        |INTERVAL '-5' YEAR    |
+        +----------------------+
+        """
+    )
+
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
