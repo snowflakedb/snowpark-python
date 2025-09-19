@@ -181,6 +181,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ListAgg,
     Literal,
     ModelExpression,
+    ServiceExpression,
     MultipleExpression,
     Star,
     NamedFunctionExpression,
@@ -10746,6 +10747,30 @@ def _call_model(
     )
 
 
+def _call_service(
+    service_name: str,
+    method_name: str,
+    *args,
+    _emit_ast: bool = True,
+) -> Column:
+    if _emit_ast:
+        _ast = build_function_expr("service", [service_name, method_name, *args])
+    else:
+        _ast = None
+
+    args_list = parse_positional_args_to_list(*args)
+    expressions = [Column._to_expr(arg) for arg in args_list]
+    return Column(
+        ServiceExpression(
+            service_name,
+            method_name,
+            expressions,
+        ),
+        _ast=_ast,
+        _emit_ast=_emit_ast,
+    )
+
+
 @publicapi
 def model(
     model_name: str,
@@ -10772,6 +10797,29 @@ def model(
     """
     return lambda method_name: lambda *args: _call_model(
         model_name, version_or_alias_name, method_name, *args, _emit_ast=_emit_ast
+    )
+
+
+@publicapi
+def service(
+    service_name: str,
+    _emit_ast: bool = True,
+) -> Callable:
+    """
+    Creates a service function that can be used to call a service method.
+
+    Args:
+        service_name: The name of the service to call.
+
+    Example::
+
+        >>> df = session.table("MYDB.MYSCHEMA.MYTABLE")
+        >>> svc = service("MYDB.MYSCHEMA.MY_SERVICE")
+        >>> result_df = df.select(svc("predict")(col("A"), col("B")))
+        >>> result_df.count()
+    """
+    return lambda method_name: lambda *args: _call_service(
+        service_name, method_name, *args, _emit_ast=_emit_ast
     )
 
 
