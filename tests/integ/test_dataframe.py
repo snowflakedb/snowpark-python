@@ -3138,7 +3138,7 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Large minute to second with fractional to hit lines 5336, 5341 with large minutes
+    # Large minute to second with fractional
     df = session.sql(
         "SELECT INTERVAL '123:45.678' MINUTE TO SECOND as large_minute_frac"
     )
@@ -3199,6 +3199,17 @@ def test_show_interval_formatting(session):
         +----------------------------------+
         |INTERVAL '02:30:45' HOUR TO SECOND|
         +----------------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '5.000' SECOND as zero_frac_test")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"ZERO_FRAC_TEST"    |
+        +--------------------+
+        |INTERVAL '05' SECOND|
+        +--------------------+
         """
     )
 

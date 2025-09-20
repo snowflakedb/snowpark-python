@@ -5268,9 +5268,7 @@ class DataFrame:
                         mins = int(remaining_after_hours) // 60
                         secs = remaining_after_hours - (mins * 60)
 
-                        if end_field == DayTimeIntervalType.HOUR:
-                            return f"{sign}{total_hours:02d}"
-                        elif end_field == DayTimeIntervalType.MINUTE:
+                        if end_field == DayTimeIntervalType.MINUTE:
                             return f"{sign}{total_hours:02d}:{mins:02d}"
                         else:  # TO SECOND
                             if secs == int(secs):
@@ -5284,23 +5282,20 @@ class DataFrame:
                         total_minutes = int(abs_total_seconds) // 60
                         remaining_secs = abs_total_seconds - (total_minutes * 60)
 
-                        if end_field == DayTimeIntervalType.MINUTE:
-                            return f"{sign}{total_minutes}"
-                        else:  # TO SECOND
-                            if remaining_secs == int(remaining_secs):
-                                minutes_str = (
-                                    f"{total_minutes:02d}"
-                                    if total_minutes < 10
-                                    else f"{total_minutes}"
-                                )
-                                return f"{sign}{minutes_str}:{int(remaining_secs):02d}"
-                            else:
-                                minutes_str = (
-                                    f"{total_minutes:02d}"
-                                    if total_minutes < 10
-                                    else f"{total_minutes}"
-                                )
-                                return f"{sign}{minutes_str}:{remaining_secs:06.3f}"
+                        if remaining_secs == int(remaining_secs):
+                            minutes_str = (
+                                f"{total_minutes:02d}"
+                                if total_minutes < 10
+                                else f"{total_minutes}"
+                            )
+                            return f"{sign}{minutes_str}:{int(remaining_secs):02d}"
+                        else:
+                            minutes_str = (
+                                f"{total_minutes:02d}"
+                                if total_minutes < 10
+                                else f"{total_minutes}"
+                            )
+                            return f"{sign}{minutes_str}:{remaining_secs:06.3f}"
                     else:
                         # Fallback to basic format
                         if seconds == int(seconds):
