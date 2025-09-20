@@ -5152,25 +5152,6 @@ class DataFrame:
                             )  # Split only on first dash: ["1", "6"]
                             years = str(int(parts[0]))
                             months = str(int(parts[1]))
-                elif cell.startswith("-") or cell.startswith("+") or cell.isdigit():
-                    # Format like "-8" or "15" (single number for months-only or years-only)
-                    is_negative = cell.startswith("-")
-                    if (
-                        start_field == YearMonthIntervalType.MONTH
-                        and end_field == YearMonthIntervalType.MONTH
-                    ):
-                        # This is a month-only interval, treat the number as total months
-                        total_months = int(cell)
-                        res = f"INTERVAL '{total_months}' MONTH"
-                        return res.replace("\n", "\\n")
-                    elif (
-                        start_field == YearMonthIntervalType.YEAR
-                        and end_field == YearMonthIntervalType.YEAR
-                    ):
-                        # This is a year-only interval
-                        years_val = int(cell)
-                        res = f"INTERVAL '{years_val}' YEAR"
-                        return res.replace("\n", "\\n")
 
                 # Format based on start/end field
                 if (
@@ -5196,10 +5177,6 @@ class DataFrame:
                     if is_negative:
                         total_months = -total_months
                     res = f"INTERVAL '{total_months}' MONTH"
-                else:
-                    # Fallback to full format
-                    sign_prefix = "-" if is_negative else ""
-                    res = f"INTERVAL '{sign_prefix}{years}-{months}' YEAR TO MONTH"
             elif isinstance(cell, (str, datetime.timedelta)) and isinstance(
                 datatype, DayTimeIntervalType
             ):

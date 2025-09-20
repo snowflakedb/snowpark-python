@@ -3000,9 +3000,9 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Additional edge cases to hit missing lines
+    # Additional edge cases for comprehensive coverage
 
-    # Positive number without dash for single month (lines 5161-5163, 5171-5173)
+    # Positive number without dash for single month
     df = session.sql("SELECT INTERVAL '+7' MONTH as positive_single_month")
     assert df._show_string_spark(truncate=False) == dedent(
         """\
@@ -3014,7 +3014,7 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Negative number for single month (lines 5165-5166, 5171-5173)
+    # Negative number for single month
     df = session.sql("SELECT INTERVAL '-12' MONTH as negative_single_month")
     assert df._show_string_spark(truncate=False) == dedent(
         """\
@@ -3026,7 +3026,7 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Positive number without dash for single year (lines 5174-5181)
+    # Positive number without dash for single year
     df = session.sql("SELECT INTERVAL '+4' YEAR as positive_single_year")
     assert df._show_string_spark(truncate=False) == dedent(
         """\
@@ -3038,7 +3038,7 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Positive number with no sign, single number for fallback (lines 5184-5185)
+    # Positive number with no sign, single number for fallback
     df = session.sql("SELECT INTERVAL '42' MONTH as plain_number_month")
     assert df._show_string_spark(truncate=False) == dedent(
         """\
@@ -3050,7 +3050,7 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Edge case: positive single dash for months (lines 5148-5149)
+    # Edge case: positive single dash for months
     df = session.sql("SELECT INTERVAL '+8' MONTH as plus_month_edge")
     assert df._show_string_spark(truncate=False) == dedent(
         """\
@@ -3062,9 +3062,9 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Day-time intervals for missing lines
+    # Day-time intervals for additional coverage
 
-    # Single minute-only interval to hit line 5326
+    # Single minute-only interval
     df = session.sql("SELECT INTERVAL '5' MINUTE as single_minute_only")
     assert df._show_string_spark(truncate=False) == dedent(
         """\
@@ -3076,7 +3076,7 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Single hour-only interval to hit line 5310
+    # Single hour-only interval
     df = session.sql("SELECT INTERVAL '7' HOUR as single_hour_only")
     assert df._show_string_spark(truncate=False) == dedent(
         """\
@@ -3088,7 +3088,7 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Single second-only interval to hit lines 5212, 5216-5217
+    # Single second-only interval
     df = session.sql("SELECT INTERVAL '8' SECOND as single_second_only")
     assert df._show_string_spark(truncate=False) == dedent(
         """\
@@ -3112,7 +3112,7 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Fractional seconds < 1 to hit line 5271 (single digit second with fractional)
+    # Fractional seconds < 1
     df = session.sql("SELECT INTERVAL '0.789' SECOND as sub_second_frac")
     assert df._show_string_spark(truncate=False) == dedent(
         """\
@@ -3124,7 +3124,7 @@ def test_show_interval_formatting(session):
         """
     )
 
-    # Minute to second with fractional to hit lines 5336, 5341
+    # Minute to second with fractional
     df = session.sql(
         "SELECT INTERVAL '8:45.321' MINUTE TO SECOND as minute_to_second_frac"
     )
@@ -3149,6 +3149,56 @@ def test_show_interval_formatting(session):
         +--------------------------------------+
         |INTERVAL '123:45.678' MINUTE TO SECOND|
         +--------------------------------------+
+        """
+    )
+
+    # Additional test cases for interval formatting coverage
+
+    # Test DAY TO MINUTE formatting
+    df = session.sql("SELECT INTERVAL '2 05:30' DAY TO MINUTE as day_to_minute")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------+
+        |"DAY_TO_MINUTE"                 |
+        +--------------------------------+
+        |INTERVAL '2 05:30' DAY TO MINUTE|
+        +--------------------------------+
+        """
+    )
+
+    # Test MINUTE TO SECOND with integer seconds
+    df = session.sql("SELECT INTERVAL '15:30' MINUTE TO SECOND as minute_to_second_int")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------+
+        |"MINUTE_TO_SECOND_INT"           |
+        +---------------------------------+
+        |INTERVAL '15:30' MINUTE TO SECOND|
+        +---------------------------------+
+        """
+    )
+
+    # Test single field interval
+    df = session.sql("SELECT INTERVAL '5' HOUR as single_hour_field")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"SINGLE_HOUR_FIELD"|
+        +-------------------+
+        |INTERVAL '05' HOUR |
+        +-------------------+
+        """
+    )
+
+    # Test multi-field interval
+    df = session.sql("SELECT INTERVAL '2:30:45' HOUR TO SECOND as multi_field")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"MULTI_FIELD"                     |
+        +----------------------------------+
+        |INTERVAL '02:30:45' HOUR TO SECOND|
+        +----------------------------------+
         """
     )
 
