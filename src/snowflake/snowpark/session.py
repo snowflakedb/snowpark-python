@@ -301,6 +301,10 @@ _PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES = (
     "PYTHON_SNOWPARK_GENERATE_MULTILINE_QUERIES"
 )
 _PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED = "ENABLE_SNOWPARK_FIRST_PARTY_TELEMETRY"
+_SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED = (
+    "SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED"
+)
+_SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED = "SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED"
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -745,6 +749,27 @@ class Session:
             _PYTHON_SNOWPARK_DATAFRAME_JOIN_ALIAS_FIX_VERSION
         )
 
+        self._dummy_row_pos_optimization_enabled: bool = (
+            self._conn._get_client_side_session_parameter(
+                _SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED, True
+            )
+        )
+
+        if importlib.util.find_spec("modin"):
+            try:
+                from modin.config import AutoSwitchBackend
+
+                pandas_hybrid_execution_enabled: bool = (
+                    self._conn._get_client_side_session_parameter(
+                        _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED,
+                        AutoSwitchBackend().get(),
+                    )
+                )
+                AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
+            except Exception:
+                # Continue session initialization even if Modin configuration fails
+                pass
+
         self._thread_store = create_thread_local(
             self._conn._thread_safe_session_enabled
         )
@@ -1010,6 +1035,28 @@ class Session:
         return self._reduce_describe_query_enabled
 
     @property
+    def dummy_row_pos_optimization_enabled(self) -> bool:
+        """Set to ``True`` to enable the dummy row position optimization (defaults to ``True``).
+        The generated SQLs from pandas transformations would potentially have fewer expensive window functions to compute the row position column.
+        """
+        return self._dummy_row_pos_optimization_enabled
+
+    @property
+    def pandas_hybrid_execution_enabled(self) -> bool:
+        """Set to ``True`` to enable hybrid execution mode (has the same default as AutoSwitchBackend).
+        When enabled, certain operations on smaller data will automatically execute in native pandas in-memory.
+        This can significantly improve performance for operations that are more efficient in pandas than in Snowflake.
+        """
+        if not importlib.util.find_spec("modin"):
+            raise ImportError(
+                "The 'modin' package is required to enable this feature. Please install it first."
+            )
+
+        from modin.config import AutoSwitchBackend
+
+        return AutoSwitchBackend().get()
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -1172,6 +1219,33 @@ class Session:
         else:
             raise ValueError(
                 "value for reduce_describe_query_enabled must be True or False!"
+            )
+
+    @dummy_row_pos_optimization_enabled.setter
+    def dummy_row_pos_optimization_enabled(self, value: bool) -> None:
+        """Set the value for dummy_row_pos_optimization_enabled"""
+        if value in [True, False]:
+            self._dummy_row_pos_optimization_enabled = value
+        else:
+            raise ValueError(
+                "value for dummy_row_pos_optimization_enabled must be True or False!"
+            )
+
+    @pandas_hybrid_execution_enabled.setter
+    def pandas_hybrid_execution_enabled(self, value: bool) -> None:
+        """Set the value for pandas_hybrid_execution_enabled"""
+        if not importlib.util.find_spec("modin"):
+            raise ImportError(
+                "The 'modin' package is required to enable this feature. Please install it first."
+            )
+
+        from modin.config import AutoSwitchBackend
+
+        if value in [True, False]:
+            AutoSwitchBackend.put(value)
+        else:
+            raise ValueError(
+                "value for pandas_hybrid_execution_enabled must be True or False!"
             )
 
     @custom_package_usage_config.setter
@@ -2955,8 +3029,10 @@ class Session:
             _statement_params=statement_params,
         )["data"]
 
-    def _get_result_attributes(self, query: str) -> List[Attribute]:
-        return self._conn.get_result_attributes(query)
+    def _get_result_attributes(
+        self, query: str, query_params: Optional[Sequence[Any]] = None
+    ) -> List[Attribute]:
+        return self._conn.get_result_attributes(query, query_params)
 
     def get_session_stage(
         self,

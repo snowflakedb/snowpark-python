@@ -450,6 +450,8 @@ df351 = df.select(function("avg")("B"))
 
 df352 = df.select(interval_year_month_from_parts("A", "B"))
 
+df353 = df.select(interval_day_time_from_parts("A", "B", "C", "D"))
+
 ## EXPECTED UNPARSER OUTPUT
 
 df = session.table("table1")
@@ -899,6 +901,8 @@ df350 = df.select(call_function("avg", col("B")))
 df351 = df.select(call_function("avg", "B"))
 
 df352 = df.select(interval_year_month_from_parts("A", "B"))
+
+df353 = df.select(interval_day_time_from_parts("A", "B", "C", "D"))
 
 ## EXPECTED ENCODED AST
 
@@ -29253,6 +29257,104 @@ body {
     uid: 224
   }
 }
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            apply_expr {
+              fn {
+                builtin_fn {
+                  name {
+                    name {
+                      name_flat {
+                        name: "interval_day_time_from_parts"
+                      }
+                    }
+                  }
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 74
+                    end_line: 475
+                    file: 2
+                    start_column: 26
+                    start_line: 475
+                  }
+                  v: "A"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 74
+                    end_line: 475
+                    file: 2
+                    start_column: 26
+                    start_line: 475
+                  }
+                  v: "B"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 74
+                    end_line: 475
+                    file: 2
+                    start_column: 26
+                    start_line: 475
+                  }
+                  v: "C"
+                }
+              }
+              pos_args {
+                string_val {
+                  src {
+                    end_column: 74
+                    end_line: 475
+                    file: 2
+                    start_column: 26
+                    start_line: 475
+                  }
+                  v: "D"
+                }
+              }
+              src {
+                end_column: 74
+                end_line: 475
+                file: 2
+                start_column: 26
+                start_line: 475
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 1
+          }
+        }
+        src {
+          end_column: 75
+          end_line: 475
+          file: 2
+          start_column: 16
+          start_line: 475
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df353"
+    }
+    uid: 225
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -29266,6 +29368,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 38
+  minor: 39
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
