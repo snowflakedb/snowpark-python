@@ -1701,7 +1701,7 @@ def test_error_in_upload_is_raised(session):
 
 def test_base_driver_udtf_class_builder():
     with tempfile.TemporaryDirectory() as temp_dir:
-        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        dbpath = os.path.join(temp_dir, "sqlite3udtf.db")
         table_name, columns, example_data, _ = sqlite3_db(dbpath)
         # Create the driver with the real connection function
         driver = BaseDriver(
