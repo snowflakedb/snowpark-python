@@ -856,7 +856,8 @@ class ServerConnection:
         )
         if query_tag:
             self.execute_and_notify_query_listener("alter session unset query_tag")
-        logger.debug("Execute batch insertion query %s", query)
+        import time
+        logger.debug(f"Execute batch insertion query %s done at {time.time()}", query)
 
     def _get_client_side_session_parameter(self, name: str, default_value: Any) -> Any:
         """It doesn't go to Snowflake to retrieve the session parameter.

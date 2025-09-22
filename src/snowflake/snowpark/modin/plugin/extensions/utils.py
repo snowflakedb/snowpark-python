@@ -592,10 +592,15 @@ def _make_non_snowflake_accessor(method: str) -> Callable:
     Returns:
         A method that moves the object to Snowflake and calls the method.
     """
-    return lambda self, *args, **kwargs: getattr(self.move_to("Snowflake"), method)(
-        *args, **kwargs
-    )
-
+    import time
+    def accessor(self, *args, **kwargs):
+        print(f'started move to snowflake at {time.time()}')        
+        snowflake_self = self.move_to("Snowflake")        
+        print(f'done with move to snowflake at {time.time()}')
+        result = getattr(snowflake_self, method)( *args, **kwargs)
+        print(f'done running snowflake method at {time.time()}')
+        return result
+    return accessor
 
 def _make_non_snowflake_not_implemented_accessor(
     backend: str, method: str, object_type: str
