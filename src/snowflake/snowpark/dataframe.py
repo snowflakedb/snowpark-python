@@ -5130,6 +5130,11 @@ class DataFrame:
                     cell.startswith("+") or cell.startswith("-")
                 ) and "-" in cell[1:]
 
+                # Default initialization
+                years = "0"
+                months = "0"
+                is_negative = False
+
                 if has_internal_dash:
                     # Format like "+1-03" or "-1-03" or "-1-6" (compound year-month)
                     is_negative = cell.startswith("-")
@@ -5296,12 +5301,6 @@ class DataFrame:
                                 else f"{total_minutes}"
                             )
                             return f"{sign}{minutes_str}:{remaining_secs:06.3f}"
-                    else:
-                        # Fallback to basic format
-                        if seconds == int(seconds):
-                            return f"{sign}{days} {hours:02d}:{minutes:02d}:{int(seconds):02d}"
-                        else:
-                            return f"{sign}{days} {hours:02d}:{minutes:02d}:{seconds:06.3f}"
 
                 if isinstance(cell, datetime.timedelta):
                     total_seconds_float = cell.total_seconds()
