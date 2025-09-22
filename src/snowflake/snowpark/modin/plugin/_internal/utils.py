@@ -1188,6 +1188,8 @@ def create_ordered_dataframe_from_pandas(
     # and should be mapped to None in Snowpark input, and eventually be mapped to NULL
     # in snowflake. Here we do one process to the data to replace all na values with None
     # according to the isna_data of the original input dataframe.
+    import time 
+    print(f'create_ordered_dataframe_from_pandas starting for loop at {time.time()}')
     data: list[list[Union[np.generic, Scalar]]] = df.to_numpy().tolist()
     for x in range(len(data)):
         for y in range(len(data[x])):
@@ -1200,7 +1202,7 @@ def create_ordered_dataframe_from_pandas(
                     else ensure_snowpark_python_type(data[x][y])
                 )
             )
-
+    print(f'create_ordered_dataframe_from_pandas finished for loop at {time.time()}')
     snowpark_df = pd.session.create_dataframe(
         data,
         schema=StructType(
@@ -1212,6 +1214,7 @@ def create_ordered_dataframe_from_pandas(
             ]
         ),
     )
+    print(f'create_ordered_dataframe_from_pandas finished create_dataframe() at {time.time()}')    
     ordered_df = OrderedDataFrame(
         DataFrameReference(snowpark_df, snowflake_quoted_identifiers),
         projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
