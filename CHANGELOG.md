@@ -32,6 +32,8 @@
   - `dp_interval_low`
   - `greatest_ignore_nulls`
   - `h3_cell_to_boundary`
+  - `h3_cell_to_children`
+  - `h3_cell_to_children_string`
   - `h3_cell_to_parent`
   - `h3_cell_to_point`
   - `h3_compact_cells`
@@ -41,6 +43,11 @@
   - `h3_get_resolution`
   - `h3_grid_disk`
   - `h3_grid_distance`
+  - `h3_int_to_string`
+  - `h3_polygon_to_cells`
+  - `h3_polygon_to_cells_strings`
+  - `h3_string_to_int`
+  - `h3_try_polygon_to_cells_strings`
   - `hex_decode_binary`
   - `last_query_id`
   - `last_transaction`
