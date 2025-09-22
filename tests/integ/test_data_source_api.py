@@ -1699,6 +1699,10 @@ def test_error_in_upload_is_raised(session):
             )
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
 def test_base_driver_udtf_class_builder():
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "sqlite3udtf.db")
