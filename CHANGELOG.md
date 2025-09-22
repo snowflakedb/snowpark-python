@@ -1,16 +1,106 @@
 # Release History
 
-## 1.39.0 (YYYY-MM-DD)
+## 1.40.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
+
+#### New Features
+
+- Added a new module `snowflake.snowpark.secrets` that provides Python wrappers for accessing Snowflake Secrets within Python UDFs and stored procedures that execute inside Snowflake.
+  - `get_generic_secret_string`
+  - `get_oauth_access_token`
+  - `get_secret_type`
+  - `get_username_password`
+  - `get_cloud_provider_token`
+
+- Added support for the following scalar functions in `functions.py`:
+  - `array_remove_at`
+  - `as_boolean`
+  - `booland`
+  - `boolnot`
+  - `boolor`
+  - `boolor_agg`
+  - `boolxor`
+  - `chr`
+  - `decode`
+  - `div0null`
+  - `dp_interval_high`
+  - `dp_interval_low`
+  - `greatest_ignore_nulls`
+  - `h3_cell_to_boundary`
+  - `h3_cell_to_children`
+  - `h3_cell_to_children_string`
+  - `h3_cell_to_parent`
+  - `h3_cell_to_point`
+  - `h3_compact_cells`
+  - `h3_compact_cells_strings`
+  - `h3_coverage`
+  - `h3_coverage_strings`
+  - `h3_get_resolution`
+  - `h3_grid_disk`
+  - `h3_grid_distance`
+  - `h3_int_to_string`
+  - `h3_polygon_to_cells`
+  - `h3_polygon_to_cells_strings`
+  - `h3_string_to_int`
+  - `h3_try_polygon_to_cells_strings`
+  - `hex_decode_binary`
+  - `last_query_id`
+  - `last_transaction`
+  - `least_ignore_nulls`
+  - `nullif`
+  - `nvl2`
+  - `regr_valx`
+
+
+### Snowpark pandas API Updates
+
+#### New Features
+- Added support for `DataFrame.query` for dataframes with single-level indexes.
+
+#### Improvements
+
+- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
+- Added a session parameter `pandas_hybrid_execution_enabled` to enable/disable hybrid execution as an alternative to using `AutoSwitchBackend`.
+- Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
+
+## 1.39.0 (2025-09-17)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
+- Added support for unstructured data engineering in Snowpark, powered by Snowflake AISQL and Cortex functions:
+  - `DataFrame.ai.complete`: Generate per-row LLM completions from prompts built over columns and files.
+  - `DataFrame.ai.filter`: Keep rows where an AI classifier returns TRUE for the given predicate.
+  - `DataFrame.ai.agg`: Reduce a text column into one result using a natural-language task description.
+  - `RelationalGroupedDataFrame.ai_agg`: Perform the same natural-language aggregation per group.
+  - `DataFrame.ai.classify`: Assign single or multiple labels from given categories to text or images.
+  - `DataFrame.ai.similarity`: Compute cosine-based similarity scores between two columns via embeddings.
+  - `DataFrame.ai.sentiment`: Extract overall and aspect-level sentiment from text into JSON.
+  - `DataFrame.ai.embed`: Generate VECTOR embeddings for text or images using configurable models.
+  - `DataFrame.ai.summarize_agg`: Aggregate and produce a single comprehensive summary over many rows.
+  - `DataFrame.ai.transcribe`: Transcribe audio files to text with optional timestamps and speaker labels.
+  - `DataFrame.ai.parse_document`: OCR/layout-parse documents or images into structured JSON.
+  - `DataFrame.ai.extract`: Pull structured fields from text or files using a response schema.
+  - `DataFrame.ai.count_tokens`: Estimate token usage for a given model and input text per row.
+  - `DataFrame.ai.split_text_markdown_header`: Split Markdown into hierarchical header-aware chunks.
+  - `DataFrame.ai.split_text_recursive_character`: Split text into size-bounded chunks using recursive separators.
+  - `DataFrameReader.file`: Create a DataFrame containing all files from a stage as FILE data type for downstream unstructured data processing.
 - Added a new datatype `YearMonthIntervalType` that allows users to create intervals for datetime operations.
 - Added a new function `interval_year_month_from_parts` that allows users to easily create `YearMonthIntervalType` without using SQL.
 - Added a new datatype `DayTimeIntervalType` that allows users to create intervals for datetime operations.
+- Added a new function `interval_day_time_from_parts` that allows users to easily create `DayTimeIntervalType` without using SQL.
 - Added support for `FileOperation.list` to list files in a stage with metadata.
 - Added support for `FileOperation.remove` to remove files in a stage.
+- Added an option to specify `copy_grants` for the following `DataFrame` APIs:
+  - `create_or_replace_view`
+  - `create_or_replace_temp_view`
+  - `create_or_replace_dynamic_table`
 - Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 - Added support for the following scalar functions in `functions.py`:
@@ -29,6 +119,8 @@
 
 #### Deprecations
 
+- Deprecated warnings will be triggered when using snowpark-python with Python 3.9. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
+
 #### Dependency Updates
 
 #### Improvements
@@ -38,12 +130,12 @@
 - Added a new option `cacheResult` to `DataFrameReader.xml` that allows users to cache the result of the XML reader to a temporary table after calling `xml`. It helps improve performance when subsequent operations are performed on the same DataFrame.
 
 ### Snowpark pandas API Updates
+- Added support for `DataFrame.eval()` for dataframes with single-level indexes.
 
 #### New Features
 
 #### Improvements
 
-- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Downgraded to level `logging.DEBUG - 1` the log message saying that the
   Snowpark `DataFrame` reference of an internal `DataFrameReference` object
   has changed.
@@ -54,6 +146,7 @@
   - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
   - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 - Updated the error message for when Snowpark pandas is referenced within apply.
+- Added a session parameter `dummy_row_pos_optimization_enabled` to enable/disable dummy row position optimization in faster pandas.
 
 #### Dependency Updates
 
