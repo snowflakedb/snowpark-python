@@ -60,6 +60,7 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+- Added support for `DataFrame.query` for dataframes with single-level indexes.
 
 #### Improvements
 
