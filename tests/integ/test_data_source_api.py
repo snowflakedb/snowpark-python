@@ -1697,3 +1697,29 @@ def test_error_in_upload_is_raised(session):
                 create_connection=sql_server_create_connection,
                 table=SQL_SERVER_TABLE_NAME,
             )
+
+
+def test_base_driver_udtf_class_builder():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "testsqlite3.db")
+        table_name, columns, example_data, _ = sqlite3_db(dbpath)
+        # Create the driver with the real connection function
+        driver = BaseDriver(
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            DBMS_TYPE.UNKNOWN,
+        )
+
+        # Get the UDTF class with a small fetch size to test batching
+        UDTFClass = driver.udtf_class_builder(
+            fetch_size=2, session_init_statement=["select 1"]
+        )
+
+        # Instantiate the UDTF class
+        udtf_instance = UDTFClass()
+
+        # Test with a simple query that should return a few rows
+        test_query = f"SELECT * FROM {table_name}"
+        result_rows = list(udtf_instance.process(test_query))
+
+        # Verify we got some data back (we know the test table has data from other tests)
+        assert len(result_rows) > 0
