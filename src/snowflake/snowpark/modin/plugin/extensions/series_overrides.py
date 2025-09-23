@@ -172,6 +172,7 @@ def argsort(self, axis=0, kind="quicksort", order=None):  # noqa: PR01, RT01, D2
     pass  # pragma: no cover
 
 
+@register_series_not_implemented()
 def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
