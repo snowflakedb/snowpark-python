@@ -25,19 +25,20 @@ def test_kwargs_based_auto_switching():
 
         from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
             SnowflakeQueryCompiler,
-            HYBRID_SWITCH_FOR_UNSUPPORTED_KWARGS,
+            HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS,
         )
 
         session = Session.builder.configs(CONNECTION_PARAMETERS).create()
         pd.session = session
 
         # Verify kwargs rule registration
-        cumsum_rule = HYBRID_SWITCH_FOR_UNSUPPORTED_KWARGS.get(
+        cumsum_rule = HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS.get(
             ("BasePandasDataset", "cumsum")
         )
         assert cumsum_rule is not None, "cumsum rule should be registered"
-        assert "axis" in cumsum_rule.conditions, "axis condition should be registered"
-        assert cumsum_rule.default_values["axis"] == 0, "default axis should be 0"
+        assert (
+            len(cumsum_rule.unsupported_conditions) > 0
+        ), "axis condition should be registered"
 
         # Test kwargs detection logic
         args_axis0 = MappingProxyType({"axis": 0, "skipna": True})
@@ -96,6 +97,22 @@ def test_kwargs_based_auto_switching():
             stay_cost_axis1 == QCCoercionCost.COST_IMPOSSIBLE
         ), "Should prevent staying on Snowflake"
 
+        # Test error message when auto-switching is disabled
+        with config_context(AutoSwitchBackend=False):
+            try:
+                snow_df.cumsum(axis=1)
+                raise AssertionError("Should have raised NotImplementedError")
+            except NotImplementedError as e:
+                error_msg = str(e)
+
+                assert (
+                    "is not supported" in error_msg
+                ), f"Error should mention 'is not supported': {error_msg}"
+                assert (
+                    "axis=1" in error_msg
+                ), f"Error should mention 'axis=1': {error_msg}"
+
+        # Test auto-switching behavior when enabled
         with config_context(AutoSwitchBackend=True):
             result_axis1 = snow_df.cumsum(axis=1)
             expected_axis1 = [[1, 5], [2, 7], [3, 9]]
