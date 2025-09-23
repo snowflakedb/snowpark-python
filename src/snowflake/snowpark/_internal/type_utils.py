@@ -1450,7 +1450,9 @@ def format_year_month_interval_for_display(
         return f"INTERVAL '{total_months}' MONTH"
 
 
-def format_day_time_interval_for_display(cell, start_field: int, end_field: int) -> str:
+def format_day_time_interval_for_display(
+    cell: Union[str, datetime.timedelta], start_field: int, end_field: int
+) -> str:
     """
     Format a DayTimeIntervalType value for display in _show_string_spark().
 
@@ -1462,8 +1464,6 @@ def format_day_time_interval_for_display(cell, start_field: int, end_field: int)
     Returns:
         Formatted interval string (e.g., "INTERVAL '01:30:45' HOUR TO SECOND")
     """
-    import datetime
-
     if isinstance(cell, datetime.timedelta):
         total_seconds_float = cell.total_seconds()
         interval_str = format_day_time_interval(
@@ -1557,17 +1557,16 @@ def format_day_time_interval(
 
     # For multi-field intervals, format based on start/end fields
     if start_field == DayTimeIntervalType.DAY:
+        hours_str = format_with_leading_zero(hours)
         # DAY TO X format: truncate based on end_field
         if end_field == DayTimeIntervalType.HOUR:
             # DAY TO HOUR: "D HH"
-            return f"{sign}{days} {format_with_leading_zero(hours)}"
+            return f"{sign}{days} {hours_str}"
         elif end_field == DayTimeIntervalType.MINUTE:
             # DAY TO MINUTE: "D HH:MM"
-            hours_str = format_with_leading_zero(hours)
             return f"{sign}{days} {hours_str}:{minutes:02d}"
         else:
             # DAY TO SECOND: "D HH:MM:SS"
-            hours_str = format_with_leading_zero(hours)
             if seconds == int(seconds):
                 return f"{sign}{days} {hours_str}:{minutes:02d}:{int(seconds):02d}"
             else:
