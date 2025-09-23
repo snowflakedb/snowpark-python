@@ -68,6 +68,7 @@
 - Added a session parameter `pandas_hybrid_execution_enabled` to enable/disable hybrid execution as an alternative to using `AutoSwitchBackend`.
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
 - Add non-retryable failure in `DataFrameReader.dbapi`(PuPr), such as syntax error in external data source SQL.
+
 ## 1.39.0 (2025-09-17)
 
 ### Snowpark Python API Updates
