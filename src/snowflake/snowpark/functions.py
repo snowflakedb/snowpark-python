@@ -10813,10 +10813,29 @@ def service(
 
     Example::
 
-        >>> df = session.table("MYDB.MYSCHEMA.MYTABLE")
-        >>> svc = service("MYDB.MYSCHEMA.MY_SERVICE")
-        >>> result_df = df.select(svc("predict")(col("A"), col("B")))
-        >>> result_df.count()
+        >>> original_role = session.get_current_role()
+        >>> original_db = session.get_current_database()
+        >>> original_schema = session.get_current_schema()
+        >>> try:
+        ...     session.use_role("test_role")
+        ...     session.use_database("tutorial_db")
+        ...     session.use_schema("data_schema")
+        ...     svc = service("tutorial_2_job_service")
+        ...     result_df = session.range(1).select(svc("SPCS_CANCEL_JOB")())
+        ...     result_df.show()
+        ... finally:
+        ...     if original_role:
+        ...         session.use_role(original_role)
+        ...     if original_db:
+        ...         session.use_database(original_db)
+        ...     if original_schema:
+        ...         session.use_schema(original_schema)
+        ------------------------------------------------------
+        |"TUTORIAL_2_JOB_SERVICE!SPCS_CANCEL_JOB()"          |
+        ------------------------------------------------------
+        |Job TUTORIAL_2_JOB_SERVICE is already canceled ...  |
+        ------------------------------------------------------
+        <BLANKLINE>
     """
     return lambda method_name: lambda *args: _call_service(
         service_name, method_name, *args, _emit_ast=_emit_ast

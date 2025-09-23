@@ -55,7 +55,7 @@
   - `nullif`
   - `nvl2`
   - `regr_valx`
-
+  - `service`
 
 ### Snowpark pandas API Updates
 

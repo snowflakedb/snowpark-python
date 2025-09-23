@@ -209,7 +209,6 @@ NEW_LINE = "\n"
 TAB = "    "
 UUID_COMMENT = "-- {}"
 MODEL = "MODEL"
-SERVICE = "SERVICE"
 EXCLAMATION_MARK = "!"
 HAVING = " HAVING "
 STORAGE_INTEGRATION = " STORAGE_INTEGRATION "
@@ -284,7 +283,7 @@ def service_expression(
     method_name: str,
     children: List[str],
 ) -> str:
-    return f"{SERVICE}{LEFT_PARENTHESIS}{service_name}{RIGHT_PARENTHESIS}{EXCLAMATION_MARK}{method_name}{LEFT_PARENTHESIS}{COMMA.join(children)}{RIGHT_PARENTHESIS}"
+    return f"{service_name}{EXCLAMATION_MARK}{method_name}{LEFT_PARENTHESIS}{COMMA.join(children)}{RIGHT_PARENTHESIS}"
 
 
 def function_expression(name: str, children: List[str], is_distinct: bool) -> str:
