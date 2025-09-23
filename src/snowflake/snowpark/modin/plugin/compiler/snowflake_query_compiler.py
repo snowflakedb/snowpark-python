@@ -33,6 +33,7 @@ from typing import (
 )
 
 import modin.pandas as pd
+from modin.config import AutoSwitchBackend
 from modin.pandas import Series, DataFrame
 from modin.pandas.base import BasePandasDataset
 import numpy as np
@@ -511,20 +512,94 @@ HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS: Set[Tuple[str, str]] = set()
 class UnsupportedKwargsRule:
     """Rule defining which kwargs should trigger auto-switching."""
 
-    # Parameters with custom conditions for switching
-    conditions: dict[str, Callable[[Any], bool]] = field(default_factory=dict)
-
-    # Default values to check against (for sentinel values like no_default)
-    default_values: dict[str, Any] = field(default_factory=dict)
+    # List of (condition_function, reason) tuples
+    unsupported_conditions: list[tuple[Callable, str]] = field(default_factory=list)
 
 
 # Global registry for kwargs-based switching rules
 # Format: {(class_name, method_name): UnsupportedKwargsRule}
-HYBRID_SWITCH_FOR_UNSUPPORTED_KWARGS: dict[
+HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS: dict[
     tuple[Optional[str], str], UnsupportedKwargsRule
 ] = {}
 
 # POC: concat method rule will be registered via enhanced decorator in general_overrides.py
+
+
+def register_query_compiler_method_not_implemented(
+    api_cls_name: str,
+    method_name: str,
+    unsupported_kwargs: Optional["UnsupportedKwargsRule"] = None,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """
+    Decorator for SnowflakeQueryCompiler methods with kwargs-based auto-switching.
+
+    Registers pre-op switching and (when auto-switching is disabled) raises a
+    NotImplementedError if any unsupported-parameter predicate evaluates True.
+
+    Args:
+        api_cls_name: Frontend class name (e.g., "BasePandasDataset", "Series", "DataFrame", "None").
+        method_name: Method name to register.
+        unsupported_kwargs: UnsupportedKwargsRule for kwargs-based auto-switching.
+                            If None, method is treated as completely unimplemented.
+    """
+    reg_key: Tuple[str, str] = (api_cls_name, method_name)
+
+    # register the method in the hybrid switch for unsupported params
+    if unsupported_kwargs is None:
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(reg_key)
+    else:
+        HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS[reg_key] = unsupported_kwargs
+
+    # Local import to avoid import cycles (as in original)
+    from modin.core.storage_formats.pandas.query_compiler_caster import (
+        register_function_for_pre_op_switch,
+    )
+
+    register_function_for_pre_op_switch(
+        class_name=api_cls_name, backend="Snowflake", method=method_name
+    )
+
+    def decorator(query_compiler_method: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(query_compiler_method)
+        def wrapper(self: "SnowflakeQueryCompiler", *args: Any, **kwargs: Any) -> Any:
+            # Fast path: if auto-switching is enabled or there are no rules, call directly.
+            if AutoSwitchBackend.get() or unsupported_kwargs is None:
+                return query_compiler_method(self, *args, **kwargs)
+
+            # Present kwargs as a read-only mapping to predicates.
+            arguments = MappingProxyType(kwargs)
+
+            # Check if any condition triggers unsupported behavior
+            if SnowflakeQueryCompiler._has_unsupported_kwargs(
+                api_cls_name, method_name, arguments
+            ):
+                # Get specific reason and build error
+                reason = SnowflakeQueryCompiler._get_unsupported_kwargs_reason(
+                    api_cls_name, method_name, arguments
+                )
+                if reason:
+                    ErrorMessage.not_implemented_with_reason(method_name, reason)
+                else:
+                    # Fallback to generic error
+                    params_str = (
+                        ", ".join(f"{k}={repr(v)}" for k, v in arguments.items())
+                        or "provided arguments"
+                    )
+                    raise NotImplementedError(
+                        f"Snowpark pandas doesn't support '{method_name}' with the parameter combination: {params_str}. "
+                        f"This combination of parameters is not supported in Snowflake and requires pandas execution. "
+                        f"However, auto-switching is disabled, so this operation cannot fall back to pandas. Enable "
+                        f"auto-switching with "
+                        f"'from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()' "
+                        f"to use pandas for unsupported operations."
+                    )
+
+            return query_compiler_method(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
 
 T = TypeVar("T", bound=Callable[..., Any])
 
@@ -915,21 +990,56 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not operation:
             return False
 
-        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_KWARGS.get((api_cls_name, operation))
+        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS.get((api_cls_name, operation))
         if rule is None:
             return False
 
-        # Check custom conditions
-        for param_name, condition_func in rule.conditions.items():
-            if param_name in arguments:
-                param_value = arguments[param_name]
-                default_value = rule.default_values.get(param_name)
-
-                # Only check condition if value differs from default
-                if param_value != default_value and condition_func(param_value):
+        # Check custom conditions (all conditions now only require kwargs)
+        for condition_func, _ in rule.unsupported_conditions:
+            try:
+                if condition_func(arguments):
                     return True
+            except Exception:
+                # Any error - skip this condition
+                continue
 
         return False
+
+    @classmethod
+    def _get_unsupported_kwargs_reason(
+        cls,
+        api_cls_name: Optional[str],
+        operation: Optional[str],
+        arguments: MappingProxyType[str, Any],
+    ) -> Optional[str]:
+        """
+        Get the specific reason why kwargs are unsupported.
+
+        Args:
+            api_cls_name: Class name (DataFrame, Series, BasePandasDataset, None for top-level functions)
+            operation: Method name
+            arguments: Method arguments including kwargs
+
+        Returns:
+            The specific reason string if unsupported kwargs detected, None otherwise
+        """
+        if not operation:
+            return None
+
+        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS.get((api_cls_name, operation))
+        if rule is None:
+            return None
+
+        # Check custom conditions and return the specific reason (all conditions now only require kwargs)
+        for condition_func, reason in rule.unsupported_conditions:
+            try:
+                if condition_func(arguments):
+                    return reason
+            except Exception:
+                # Any error - skip this condition
+                continue
+
+        return None
 
     @classmethod
     def _transfer_threshold(cls) -> int:
@@ -981,7 +1091,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return QCCoercionCost.COST_IMPOSSIBLE
 
         # POC: Check for unsupported kwargs that require pandas backend
-        if arguments and self._has_unsupported_kwargs(
+        if arguments and SnowflakeQueryCompiler._has_unsupported_kwargs(
             api_cls_name, operation, arguments
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
@@ -2029,6 +2139,56 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             col_mapper=rename_mapper
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="BasePandasDataset",
+        method_name="to_csv",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: "float_format" in kwargs
+                    and kwargs.get("float_format")
+                    is not TO_CSV_DEFAULTS["float_format"],
+                    "custom float_format is not supported",
+                ),
+                (
+                    lambda kwargs: "mode" in kwargs
+                    and kwargs.get("mode") is not TO_CSV_DEFAULTS["mode"],
+                    "non-default mode is not supported",
+                ),
+                (
+                    lambda kwargs: "encoding" in kwargs
+                    and kwargs.get("encoding") is not TO_CSV_DEFAULTS["encoding"],
+                    "custom encoding is not supported",
+                ),
+                (
+                    lambda kwargs: "quoting" in kwargs
+                    and kwargs.get("quoting") is not TO_CSV_DEFAULTS["quoting"],
+                    "custom quoting is not supported",
+                ),
+                (
+                    lambda kwargs: "quotechar" in kwargs
+                    and kwargs.get("quotechar") is not TO_CSV_DEFAULTS["quotechar"],
+                    "custom quotechar is not supported",
+                ),
+                (
+                    lambda kwargs: "lineterminator" in kwargs
+                    and kwargs.get("lineterminator")
+                    is not TO_CSV_DEFAULTS["lineterminator"],
+                    "custom lineterminator is not supported",
+                ),
+                (
+                    lambda kwargs: "doublequote" in kwargs
+                    and kwargs.get("doublequote") is not TO_CSV_DEFAULTS["doublequote"],
+                    "custom doublequote is not supported",
+                ),
+                (
+                    lambda kwargs: "decimal" in kwargs
+                    and kwargs.get("decimal") is not TO_CSV_DEFAULTS["decimal"],
+                    "custom decimal is not supported",
+                ),
+            ]
+        ),
+    )
     def to_csv_with_snowflake(self, **kwargs: Any) -> None:
         """
         Write data to a csv file in snowflake stage.
@@ -2433,6 +2593,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # TODO: SNOW-1023324, implement shifting index only.
         ErrorMessage.not_implemented("shifting index values not yet supported.")
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="BasePandasDataset",
+        method_name="shift",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("suffix") is not None,
+                    "suffix parameter is not supported",
+                ),
+                (
+                    lambda kwargs: "periods" in kwargs
+                    and not isinstance(kwargs.get("periods"), int),
+                    "non-integer periods are not supported",
+                ),
+            ]
+        ),
+    )
     def shift(
         self,
         periods: Union[int, Sequence[int]] = 1,
@@ -2835,6 +3012,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="BasePandasDataset",
+        method_name="binary_op",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("level") is not None,
+                    "level parameter is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("fill_value") is not None
+                    and not is_scalar(kwargs.get("fill_value")),
+                    "non-scalar fill_value is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("squeeze_self") is not False,
+                    "squeeze_self=True is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("op") is not None
+                    and not BinaryOp.is_binary_op_supported(kwargs.get("op")),
+                    "unsupported binary operation",
+                ),
+            ]
+        ),
+    )
     def _binary_op_internal(
         self,
         op: str,
@@ -3093,6 +3296,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             False, "any", axis=axis, _bool_only=bool_only, skipna=skipna
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="BasePandasDataset",
+        method_name="reindex",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: "axis" in kwargs and kwargs.get("axis") != 0,
+                    "axis=1 (column reindexing) is not supported",
+                ),
+            ]
+        ),
+    )
     def reindex(
         self,
         axis: int,
@@ -4020,6 +4235,30 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         return None
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="BasePandasDataset",
+        method_name="sort_index",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: "axis" in kwargs and kwargs.get("axis") != 0,
+                    "axis=1 (column sorting) is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("key") is not None,
+                    "key parameter for custom sorting is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("level") is not None,
+                    "level parameter for multiindex sorting is not supported",
+                ),
+                (
+                    lambda kwargs, self: self._modin_frame.is_multiindex(),
+                    "multiindex operations are not supported",
+                ),
+            ]
+        ),
+    )
     def sort_index(
         self,
         *,
@@ -4110,23 +4349,35 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self, rows: IndexLabel, ascending: bool = True, **kwargs: Any
     ) -> None:
         """
-        Reorder the columns based on the lexicographic order of the given rows.
+                Reorder the columns based on the lexicographic order of the given rows.
 
-        Args:
-            rows : label or list of labels
-                The row or rows to sort by.
-            ascending : bool, default: True
-                Sort in ascending order (True) or descending order (False).
-            **kwargs : dict
-                Serves the compatibility purpose. Does not affect the result.
-
-        Returns:
-            New QueryCompiler that contains result of the sort.
+                Args:
+                    rows : label or list of labels
+                        The row or rows to sort by.
+                    ascending : bool, default: True
+                        Sort in ascending order (True) or descending order (False).
+                    **kwargs : dict
+                        Serves the compatibility purpose. Does not affect the result.
+        o
+                Returns:
+                    New QueryCompiler that contains result of the sort.
         """
         ErrorMessage.not_implemented(
             "Snowpark pandas sort_values API doesn't yet support axis == 1"
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="BasePandasDataset",
+        method_name="sort_rows_by_column_values",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("key") is not None,
+                    "key parameter is not supported",
+                ),
+            ]
+        ),
+    )
     def sort_rows_by_column_values(
         self,
         columns: list[Hashable],
@@ -7840,6 +8091,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="Series",
+        method_name="to_timedelta",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("errors") != "raise",
+                    "only errors='raise' is supported, not 'ignore' or 'coerce'",
+                ),
+            ]
+        ),
+    )
     def to_timedelta(
         self,
         unit: str = "ns",
@@ -8214,6 +8477,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             qc._attrs = copy.deepcopy(self._attrs)
         return qc
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="BasePandasDataset",
+        method_name="cumsum",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (lambda kwargs: kwargs.get("axis") == 1, "axis=1 is not supported"),
+            ]
+        ),
+    )
     def cumsum(
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
@@ -8232,10 +8504,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler instance with cumulative sum of Series or DataFrame.
         """
         self._raise_not_implemented_error_for_timedelta()
-
-        # POC: Temporarily removed NotImplementedError to test cost-based auto-switching
-        # if axis == 1:
-        #     ErrorMessage.not_implemented("cumsum with axis=1 is not supported yet")
+        # POC: axis=1 is now handled by the decorator's kwargs-based switching system
 
         cumagg_col_to_expr_map = get_cumagg_col_to_expr_map_axis0(self, sum_, skipna)
         return SnowflakeQueryCompiler(
@@ -8331,10 +8600,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Notes:
             melt does not yet handle multiindex or ignore index
         """
-        if col_level is not None:
-            raise NotImplementedError(
-                "Snowpark Pandas doesn't support 'col_level' argument in melt API"
-            )
+        # Note: col_level parameter handling is managed by the decorator's unsupported_if condition
         if self._modin_frame.is_multiindex(axis=1):
             raise NotImplementedError(
                 "Snowpark Pandas doesn't support multiindex columns in melt API"
@@ -10021,6 +10287,70 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             sort=True,
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="BasePandasDataset",
+        method_name="pivot_table",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("observed", False) is not False,
+                    "observed=True is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("sort", True) is not True,
+                    "sort=False is not supported",
+                ),
+                (
+                    lambda kwargs: bool(
+                        kwargs.get("index")
+                        and (
+                            not isinstance(kwargs.get("index"), str)
+                            and not all(
+                                [isinstance(v, str) for v in kwargs.get("index")]
+                            )
+                            and None not in kwargs.get("index")
+                        )
+                    ),
+                    "non-string index values are not supported",
+                ),
+                (
+                    lambda kwargs: bool(
+                        kwargs.get("columns")
+                        and (
+                            not isinstance(kwargs.get("columns"), str)
+                            and not all(
+                                [isinstance(v, str) for v in kwargs.get("columns")]
+                            )
+                            and None not in kwargs.get("columns")
+                        )
+                    ),
+                    "non-string column values are not supported",
+                ),
+                (
+                    lambda kwargs: bool(
+                        kwargs.get("values")
+                        and (
+                            not isinstance(kwargs.get("values"), str)
+                            and not all(
+                                [isinstance(v, str) for v in kwargs.get("values")]
+                            )
+                            and None not in kwargs.get("values")
+                        )
+                    ),
+                    "non-string values parameter is not supported",
+                ),
+                (
+                    lambda kwargs: isinstance(kwargs.get("aggfunc"), dict)
+                    and any(
+                        not isinstance(af, str)
+                        for af in kwargs.get("aggfunc", {}).values()
+                    )
+                    and kwargs.get("index") is None,
+                    "complex aggfunc dictionary with no index is not supported",
+                ),
+            ]
+        ),
+    )
     def pivot_table(
         self,
         index: Any,
@@ -10142,10 +10472,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 raise ValueError(
                     "Margins not supported if list of aggregation functions"
                 )
-            elif index is None:
-                raise NotImplementedError(
-                    "Not implemented index is None and list of aggregation functions."
-                )
+            # The case where index is None is now handled by the decorator's unsupported_if_kwargs
 
         # Duplicate pivot column and index are not allowed, but duplicate aggregation values are supported.
         index_and_data_column_pandas_labels = (
@@ -10555,6 +10882,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             .iloc[0, 0]
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="BasePandasDataset",
+        method_name="nunique",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("axis") == 1,
+                    "axis=1 (column-wise unique count) is not supported",
+                ),
+            ]
+        ),
+    )
     def nunique(
         self, axis: Axis, dropna: bool, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
@@ -15291,6 +15630,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             agg_kwargs=dict(numeric_only=numeric_only),
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="BasePandasDataset",
+        method_name="rolling_corr",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("other") is None,
+                    "other parameter is required",
+                ),
+                (
+                    lambda kwargs: kwargs.get("pairwise") is True,
+                    "pairwise=True is not supported",
+                ),
+            ]
+        ),
+    )
     def rolling_corr(
         self,
         fold_axis: Union[int, str],
@@ -19058,6 +19413,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             "Snowpark pandas doesn't yet support the method 'Series.dt.to_timestamp'"
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="Series",
+        method_name="dt_tz_localize",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("ambiguous") != "raise",
+                    "only ambiguous='raise' is supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("nonexistent") != "raise",
+                    "only nonexistent='raise' is supported",
+                ),
+            ]
+        ),
+    )
     def dt_tz_localize(
         self,
         tz: Union[str, tzinfo],
@@ -19131,6 +19502,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="Series",
+        method_name="dt_ceil",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("ambiguous") != "raise",
+                    "only ambiguous='raise' is supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("nonexistent") != "raise",
+                    "only nonexistent='raise' is supported",
+                ),
+            ]
+        ),
+    )
     def dt_ceil(
         self,
         freq: Frequency,
@@ -19214,6 +19601,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="Series",
+        method_name="dt_round",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("ambiguous") != "raise",
+                    "only ambiguous='raise' is supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("nonexistent") != "raise",
+                    "only nonexistent='raise' is supported",
+                ),
+            ]
+        ),
+    )
     def dt_round(
         self,
         freq: Frequency,
@@ -19375,6 +19778,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="Series",
+        method_name="dt_floor",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("ambiguous") != "raise",
+                    "only ambiguous='raise' is supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("nonexistent") != "raise",
+                    "only nonexistent='raise' is supported",
+                ),
+            ]
+        ),
+    )
     def dt_floor(
         self,
         freq: Frequency,
@@ -19473,6 +19892,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="Series",
+        method_name="dt_month_name",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("locale") is not None,
+                    "locale parameter is not supported",
+                ),
+            ]
+        ),
+    )
     def dt_month_name(
         self, locale: Optional[str] = None, include_index: bool = False
     ) -> "SnowflakeQueryCompiler":
@@ -19507,6 +19938,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="Series",
+        method_name="dt_day_name",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("locale") is not None,
+                    "locale parameter is not supported",
+                ),
+            ]
+        ),
+    )
     def dt_day_name(
         self, locale: Optional[str] = None, include_index: bool = False
     ) -> "SnowflakeQueryCompiler":
@@ -21090,6 +21533,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="Series",
+        method_name="hist",
+        unsupported_kwargs=UnsupportedKwargsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("by") is not None,
+                    "by parameter is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("xlabelsize") is not None,
+                    "xlabelsize parameter is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("xrot") is not None,
+                    "xrot parameter is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("ylabelsize") is not None,
+                    "ylabelsize parameter is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("yrot") is not None,
+                    "yrot parameter is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("figsize") is not None,
+                    "figsize parameter is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("backend") is not None,
+                    "backend parameter is not supported",
+                ),
+                (
+                    lambda kwargs: kwargs.get("legend") is True,
+                    "legend=True is not supported",
+                ),
+            ]
+        ),
+    )
     def hist_on_series(
         self,
         by: object = None,
