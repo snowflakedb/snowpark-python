@@ -94,13 +94,9 @@ register_series_accessor = functools.partial(
 )
 
 
-def register_series_not_implemented(unsupported_kwargs=None):
+def register_series_not_implemented():
     """
-    POC: Enhanced decorator for Series methods with kwargs-based auto-switching.
-
-    Args:
-        unsupported_kwargs: UnsupportedKwargsRule for kwargs-based auto-switching.
-                           If None, method is completely unimplemented (original behavior).
+    Decorator for Series methods that are not implemented in Snowpark pandas.
     """
 
     def decorator(base_method: Any):
@@ -111,17 +107,7 @@ def register_series_not_implemented(unsupported_kwargs=None):
             else base_method.__name__
         )
 
-        if unsupported_kwargs is None:
-            # Original behavior - completely unimplemented method
-            HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("Series", name))
-        else:
-            # POC: New behavior - kwargs-based switching
-            from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-                HYBRID_SWITCH_FOR_UNSUPPORTED_KWARGS,
-            )
-
-            HYBRID_SWITCH_FOR_UNSUPPORTED_KWARGS[("Series", name)] = unsupported_kwargs
-
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("Series", name))
         register_function_for_pre_op_switch(
             class_name="Series", backend="Snowflake", method=name
         )
