@@ -103,6 +103,7 @@
   - `create_or_replace_dynamic_table`
 - Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
+- Added support for parameter `session_init_statement` in udtf ingestion of `DataFrameReader.jdbc`(PrPr).
 - Added support for the following scalar functions in `functions.py`:
   - `getdate`
   - `getvariable`
@@ -116,6 +117,8 @@
   - `systimestamp`
 
 #### Bug Fixes
+
+- Fixed a bug that `query_timeout` does not work in udtf ingestion of `DataFrameReader.jdbc`(PrPr).
 
 #### Deprecations
 
