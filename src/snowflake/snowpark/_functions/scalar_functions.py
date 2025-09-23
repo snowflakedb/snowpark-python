@@ -1497,30 +1497,31 @@ def h3_int_to_string(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin("h3_int_to_string", _emit_ast=_emit_ast)(c)
 
 
-@publicapi
-def h3_try_grid_path(
+def h3_grid_path(
     cell_id_1: ColumnOrName, cell_id_2: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
     """
-    Returns the grid path between two H3 cell IDs. Returns None if no path exists
-    or if the input cell IDs are invalid.
+    Returns the grid path between two H3 cell IDs as a JSON array of H3 cell IDs.
 
     Args:
-        cell_id_1 (ColumnOrName): The first H3 cell ID.
-        cell_id_2 (ColumnOrName): The second H3 cell ID.
+        cell_id_1 (ColumnOrName): The starting H3 cell ID.
+        cell_id_2 (ColumnOrName): The ending H3 cell ID.
 
     Returns:
-        Column: An array of H3 cell IDs representing the grid path, or None if no path exists or if inputs are invalid.
+        Column: A JSON array of H3 cell IDs representing the grid path.
 
-    Example::
+    Examples::
 
-        >>> df = session.create_dataframe([['813d7ffffffffff', '81343ffffffffff']], schema=["cell1", "cell2"])
-        >>> df.select(h3_try_grid_path(df["cell1"], df["cell2"]).alias("grid_path")).collect()
-        [Row(GRID_PATH=None)]
+        >>> df = session.create_dataframe([
+        ...     [617540519103561727, 617540519052967935],
+        ...     [617540519046414335, 617540519047462911]
+        ... ], schema=["cell_id_1", "cell_id_2"])
+        >>> df.select(h3_grid_path("cell_id_1", "cell_id_2").alias("grid_path")).collect()
+        [Row(GRID_PATH='[\\n  617540519103561727,\\n  617540519046414335,\\n  617540519047462911,\\n  617540519044055039,\\n  617540519045103615,\\n  617540519052967935\\n]'), Row(GRID_PATH='[\\n  617540519046414335,\\n  617540519047462911\\n]')]
     """
-    c1 = _to_col_if_str(cell_id_1, "h3_try_grid_path")
-    c2 = _to_col_if_str(cell_id_2, "h3_try_grid_path")
-    return builtin("h3_try_grid_path", _emit_ast=_emit_ast)(c1, c2)
+    c1 = _to_col_if_str(cell_id_1, "h3_grid_path")
+    c2 = _to_col_if_str(cell_id_2, "h3_grid_path")
+    return builtin("h3_grid_path", _emit_ast=_emit_ast)(c1, c2)
 
 
 @publicapi
