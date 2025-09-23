@@ -104,6 +104,7 @@ def test_kwargs_based_auto_switching():
                 raise AssertionError("Should have raised NotImplementedError")
             except NotImplementedError as e:
                 error_msg = str(e)
+                # print(f"Error message when auto-switching disabled: {error_msg}")
 
                 assert (
                     "is not supported" in error_msg
