@@ -6,6 +6,7 @@ import logging
 import math
 import sys
 from collections import namedtuple
+
 import pytest
 
 from snowflake.snowpark import Row
