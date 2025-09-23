@@ -6,7 +6,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in local environment.
 
 #### New Features
 
