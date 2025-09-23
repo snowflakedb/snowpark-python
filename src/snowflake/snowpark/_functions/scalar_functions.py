@@ -1639,6 +1639,7 @@ def h3_point_to_cell(
         target_resolution (ColumnOrName): The target H3 resolution (0-15).
 
     Example::
+        >>> from snowflake.snowpark.functions import col
         >>> df = session.sql("SELECT ST_POINT(13.377704, 52.516262) as geography_point, 8 as resolution")
         >>> df.select(h3_point_to_cell(col("geography_point"), col("resolution"))).collect()
         [Row(H3_POINT_TO_CELL("GEOGRAPHY_POINT", "RESOLUTION")=613036919424548863)]
@@ -1663,6 +1664,7 @@ def h3_point_to_cell_string(
         target_resolution (ColumnOrName): The target H3 resolution (0-15).
 
     Example::
+        >>> from snowflake.snowpark.functions import col
         >>> df = session.sql("SELECT ST_POINT(13.377704, 52.516262) as point, 8 as resolution")
         >>> df.select(h3_point_to_cell_string(col("point"), col("resolution"))).collect()
         [Row(H3_POINT_TO_CELL_STRING("POINT", "RESOLUTION")='881f1d4887fffff')]
