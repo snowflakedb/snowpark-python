@@ -1495,3 +1495,273 @@ def h3_int_to_string(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = _to_col_if_str(cell_id, "h3_int_to_string")
     return builtin("h3_int_to_string", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def h3_try_grid_path(
+    cell_id_1: ColumnOrName, cell_id_2: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the grid path between two H3 cell IDs. Returns None if no path exists
+    or if the input cell IDs are invalid.
+
+    Args:
+        cell_id_1 (ColumnOrName): The first H3 cell ID.
+        cell_id_2 (ColumnOrName): The second H3 cell ID.
+
+    Returns:
+        Column: An array of H3 cell IDs representing the grid path, or None if no path exists or if inputs are invalid.
+
+    Example::
+
+        >>> df = session.create_dataframe([['813d7ffffffffff', '81343ffffffffff']], schema=["cell1", "cell2"])
+        >>> df.select(h3_try_grid_path(df["cell1"], df["cell2"]).alias("grid_path")).collect()
+        [Row(GRID_PATH=None)]
+    """
+    c1 = _to_col_if_str(cell_id_1, "h3_try_grid_path")
+    c2 = _to_col_if_str(cell_id_2, "h3_try_grid_path")
+    return builtin("h3_try_grid_path", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def h3_is_pentagon(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns true if the given H3 cell ID is a pentagon.
+
+    Args:
+        cell_id (ColumnOrName): The H3 cell IDs.
+
+    Returns:
+        Column: Whether each H3 cell ID is a pentagon.
+
+    Example::
+        >>> df = session.create_dataframe([613036919424548863], schema=["cell_id"])
+        >>> df.select(h3_is_pentagon(df["cell_id"]).alias("is_pentagon")).collect()
+        [Row(IS_PENTAGON=False)]
+        >>> df = session.create_dataframe(['804dfffffffffff'], schema=["cell_id"])
+        >>> df.select(h3_is_pentagon(df["cell_id"]).alias("is_pentagon")).collect()
+        [Row(IS_PENTAGON=True)]
+    """
+    c = _to_col_if_str(cell_id, "h3_is_pentagon")
+    return builtin("h3_is_pentagon", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def h3_is_valid_cell(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Checks if the given H3 cell ID is valid.
+
+    Args:
+        cell_id (ColumnOrName): The H3 cell IDs to validate.
+
+    Returns:
+        Column: Whether each H3 cell ID is valid, returns True for valid H3 cell IDs, False for invalid ones, and None for None inputs.
+
+    Example::
+
+        >>> df = session.create_dataframe([613036919424548863, 123456789, None], schema=["cell_id"])
+        >>> df.select(h3_is_valid_cell(df["cell_id"]).alias("is_valid")).collect()
+        [Row(IS_VALID=True), Row(IS_VALID=False), Row(IS_VALID=None)]
+    """
+    c = _to_col_if_str(cell_id, "h3_is_valid_cell")
+    return builtin("h3_is_valid_cell", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def h3_latlng_to_cell(
+    latitude: ColumnOrName,
+    longitude: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the H3 cell ID for the given latitude, longitude, and resolution.
+
+    Args:
+        latitude (ColumnOrName): The latitude values.
+        longitude (ColumnOrName): The longitude values.
+        target_resolution (ColumnOrName): The target H3 resolution.
+
+    Returns:
+        Column: H3 cell ID for the given latitude, longitude, and resolution.
+
+    Example::
+
+        >>> df = session.create_dataframe([[52.516262, 13.377704, 8]], schema=["lat", "lng", "res"])
+        >>> df.select(h3_latlng_to_cell(df["lat"], df["lng"], df["res"])).collect()
+        [Row(H3_LATLNG_TO_CELL("LAT", "LNG", "RES")=613036919424548863)]
+    """
+    lat_col = _to_col_if_str(latitude, "h3_latlng_to_cell")
+    lng_col = _to_col_if_str(longitude, "h3_latlng_to_cell")
+    res_col = _to_col_if_str(target_resolution, "h3_latlng_to_cell")
+    return builtin("h3_latlng_to_cell", _emit_ast=_emit_ast)(lat_col, lng_col, res_col)
+
+
+@publicapi
+def h3_latlng_to_cell_string(
+    latitude: ColumnOrName,
+    longitude: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the H3 cell ID string for the given latitude, longitude, and resolution.
+
+    Args:
+        latitude (ColumnOrName): The latitude values.
+        longitude (ColumnOrName): The longitude values.
+        target_resolution (ColumnOrName): The H3 resolution values (0-15).
+
+    Example::
+
+        >>> df = session.create_dataframe([[52.516262, 13.377704, 8]], schema=["lat", "lng", "res"])
+        >>> df.select(h3_latlng_to_cell_string("lat", "lng", "res")).collect()
+        [Row(H3_LATLNG_TO_CELL_STRING("LAT", "LNG", "RES")='881f1d4887fffff')]
+    """
+    lat = _to_col_if_str(latitude, "h3_latlng_to_cell_string")
+    lng = _to_col_if_str(longitude, "h3_latlng_to_cell_string")
+    res = _to_col_if_str(target_resolution, "h3_latlng_to_cell_string")
+    return builtin("h3_latlng_to_cell_string", _emit_ast=_emit_ast)(lat, lng, res)
+
+
+@publicapi
+def h3_point_to_cell(
+    geography_point: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the H3 cell ID for a given geography point at the specified resolution.
+
+    Args:
+        geography_point (ColumnOrName): The geography points.
+        target_resolution (ColumnOrName): The target H3 resolution (0-15).
+
+    Example::
+        >>> df = session.sql("SELECT ST_POINT(13.377704, 52.516262) as geography_point, 8 as resolution")
+        >>> df.select(h3_point_to_cell(col("geography_point"), col("resolution"))).collect()
+        [Row(H3_POINT_TO_CELL("GEOGRAPHY_POINT", "RESOLUTION")=613036919424548863)]
+    """
+    geography_point_c = _to_col_if_str(geography_point, "h3_point_to_cell")
+    target_resolution_c = _to_col_if_str(target_resolution, "h3_point_to_cell")
+    return builtin("h3_point_to_cell", _emit_ast=_emit_ast)(
+        geography_point_c, target_resolution_c
+    )
+
+
+@publicapi
+def h3_point_to_cell_string(
+    geography_point: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """Returns the H3 cell ID string for a given geography point at the specified resolution.
+
+    Args:
+        geography_point (ColumnOrName): The geography point to convert to H3 cell.
+        target_resolution (ColumnOrName): The target H3 resolution (0-15).
+
+    Example::
+        >>> df = session.sql("SELECT ST_POINT(13.377704, 52.516262) as point, 8 as resolution")
+        >>> df.select(h3_point_to_cell_string(col("point"), col("resolution"))).collect()
+        [Row(H3_POINT_TO_CELL_STRING("POINT", "RESOLUTION")='881f1d4887fffff')]
+    """
+    geography_point_col = _to_col_if_str(geography_point, "h3_point_to_cell_string")
+    target_resolution_col = _to_col_if_str(target_resolution, "h3_point_to_cell_string")
+    return builtin("h3_point_to_cell_string", _emit_ast=_emit_ast)(
+        geography_point_col, target_resolution_col
+    )
+
+
+@publicapi
+def h3_try_coverage(
+    geography_expression: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns an array of H3 cell IDs that cover the given geography at the specified resolution.
+    This function attempts to provide coverage of the geography using H3 cells, returning None
+    if the operation cannot be performed.
+
+    Args:
+        geography_expression (ColumnOrName): The geography object to cover with H3 cells.
+        target_resolution (ColumnOrName): The H3 resolution level (0-15) for the coverage.
+
+    Returns:
+        Column: An array of H3 cell IDs covering the geography or None if the operation cannot be performed.
+
+    Example::
+        >>> from snowflake.snowpark.functions import to_geography, lit
+        >>> df = session.create_dataframe([
+        ...     ("POLYGON((-122.4194 37.7749, -122.4094 37.7749, -122.4094 37.7849, -122.4194 37.7849, -122.4194 37.7749))",)
+        ... ], schema=["geog"])
+        >>> df.select(h3_try_coverage(to_geography(df["geog"]), lit(9)).alias("coverage")).collect()
+        [Row(COVERAGE='[\\n  617700169957507071,\\n  617700169958031359,\\n  617700169958293503,\\n  617700169961701375,\\n  617700169961963519,\\n  617700169962487807,\\n  617700169963012095,\\n  617700169963798527,\\n  617700169964060671,\\n  617700169964322815,\\n  617700169964584959,\\n  617700169964847103,\\n  617700169965109247,\\n  617700169965371391,\\n  617700170001809407,\\n  617700170002857983,\\n  617700170017800191\\n]')]
+    """
+    geography_col = _to_col_if_str(geography_expression, "h3_try_coverage")
+    resolution_col = _to_col_if_str(target_resolution, "h3_try_coverage")
+    return builtin("h3_try_coverage", _emit_ast=_emit_ast)(
+        geography_col, resolution_col
+    )
+
+
+@publicapi
+def h3_try_coverage_strings(
+    geography_expression: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns an array of H3 cell IDs as strings that cover the given geography at the specified resolution.
+    This function attempts to provide coverage of the geography using H3 cells, returning the cell IDs as strings.
+
+    Args:
+        geography_expression (ColumnOrName): A geography expression to be covered by H3 cells
+        target_resolution (ColumnOrName): The H3 resolution level for the coverage, ranging from 0 to 15
+
+    Returns:
+        Column: An array of H3 cell ID strings that cover the input geography
+
+    Examples::
+
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     "POLYGON((-122.4194 37.7749, -122.4094 37.7749, -122.4094 37.7849, -122.4194 37.7849, -122.4194 37.7749))"
+        ... ], schema=["geog"])
+        >>> df.select(h3_try_coverage_strings(to_geography(df["geog"]), lit(9)).alias("coverage")).collect()
+        [Row(COVERAGE='[\\n  "89283082803ffff",\\n  "8928308280bffff",\\n  "8928308280fffff",\\n  "89283082843ffff",\\n  "89283082847ffff",\\n  "8928308284fffff",\\n  "89283082857ffff",\\n  "89283082863ffff",\\n  "89283082867ffff",\\n  "8928308286bffff",\\n  "8928308286fffff",\\n  "89283082873ffff",\\n  "89283082877ffff",\\n  "8928308287bffff",\\n  "89283082aa7ffff",\\n  "89283082ab7ffff",\\n  "89283082b9bffff"\\n]')]"""
+    from snowflake.snowpark.functions import builtin, lit
+
+    g = _to_col_if_str(geography_expression, "h3_try_coverage_strings")
+    r = (
+        target_resolution
+        if isinstance(target_resolution, Column)
+        else lit(target_resolution)
+    )
+    return builtin("h3_try_coverage_strings", _emit_ast=_emit_ast)(g, r)
+
+
+@publicapi
+def h3_try_grid_distance(
+    cell_id_1: ColumnOrName, cell_id_2: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the grid distance between two H3 cell IDs. Returns None if the input is invalid.
+
+    Args:
+        cell_id_1 (ColumnOrName): First H3 cell ID.
+        cell_id_2 (ColumnOrName): Second H3 cell ID.
+
+    Returns:
+        Column: The grid distance between the two H3 cell IDs or None if the input is invalid.
+
+    Example::
+
+        >>> df = session.create_dataframe([[582046271372525567, 581883543651614719]], schema=["cell_id_1", "cell_id_2"])
+        >>> df.select(h3_try_grid_distance(df["cell_id_1"], df["cell_id_2"]).alias("result")).collect()
+        [Row(RESULT=None)]
+    """
+    cell_id_1 = _to_col_if_str(cell_id_1, "h3_try_grid_distance")
+    cell_id_2 = _to_col_if_str(cell_id_2, "h3_try_grid_distance")
+    return builtin("h3_try_grid_distance", _emit_ast=_emit_ast)(cell_id_1, cell_id_2)

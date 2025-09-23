@@ -48,6 +48,16 @@
   - `h3_polygon_to_cells_strings`
   - `h3_string_to_int`
   - `h3_try_polygon_to_cells_strings`
+  - `h3_grid_path`
+  - `h3_is_pentagon`
+  - `h3_is_valid_cell`
+  - `h3_latlng_to_cell`
+  - `h3_latlng_to_cell_string`
+  - `h3_point_to_cell`
+  - `h3_point_to_cell_string`
+  - `h3_try_coverage`
+  - `h3_try_coverage_strings`
+  - `h3_try_grid_distance`
   - `hex_decode_binary`
   - `last_query_id`
   - `last_transaction`
