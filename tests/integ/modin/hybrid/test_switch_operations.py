@@ -390,7 +390,6 @@ def test_tqdm_usage_during_snowflake_to_pandas_switch():
     "class_name, method_name, f_args",
     [
         ("DataFrame", "to_json", ()),  # declared in base_overrides
-        ("Series", "to_json", ()),  # declared in base_overrides
         ("DataFrame", "dot", ([6],)),  # declared in dataframe_overrides
         ("Series", "transform", (lambda x: x * 2,)),  # declared in series_overrides
     ],
@@ -424,13 +423,7 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args, use_session
         assert snow_result.get_backend() == "Pandas"
         assert_array_equal(snow_result.to_numpy(), pandas_result.to_numpy())
     else:
-        # Series.to_json will output an extraneous level for the __reduced__ column, but that's OK
-        # since we don't officially support the method.
-        # See modin bug: https://github.com/modin-project/modin/issues/7624
-        if class_name == "Series" and method_name == "to_json":
-            assert snow_result == '{"__reduced__":{"0":1,"1":2,"2":3}}'
-        else:
-            assert snow_result == pandas_result
+        assert snow_result == pandas_result
 
 
 @sql_count_checker(query_count=0)
