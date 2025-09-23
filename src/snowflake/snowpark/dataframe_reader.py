@@ -1860,6 +1860,8 @@ class DataFrameReader:
                 fetch_size=fetch_size,
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
+                session_init_statement=session_init_statement,
+                query_timeout=query_timeout,
                 _emit_ast=_emit_ast,
             )
             end_time = time.perf_counter()

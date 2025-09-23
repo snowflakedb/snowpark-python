@@ -81,7 +81,11 @@ class DatabricksDriver(BaseDriver):
         return False
 
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
 
@@ -89,6 +93,9 @@ class DatabricksDriver(BaseDriver):
             def process(self, query: str):
                 conn = create_connection()
                 cursor = conn.cursor()
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
 
                 # First get schema information
                 describe_query = f"DESCRIBE QUERY SELECT * FROM ({query})"

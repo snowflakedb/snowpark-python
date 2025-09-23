@@ -417,7 +417,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os:
+          - download_name: macos
+            image_name: macos-latest
+          - download_name: windows
+            image_name: windows-latest
+          - download_name: ubuntu
+            image_name: ubuntu-latest
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         cloud-provider: [azure]
     steps:

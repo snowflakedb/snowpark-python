@@ -10,7 +10,6 @@ import inspect
 import itertools
 import json
 import logging
-import os
 import re
 from collections import Counter, defaultdict
 import typing
@@ -351,6 +350,7 @@ from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     unpivot_empty_df,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
+    new_snow_series,
     INDEX_LABEL,
     ROW_COUNT_COLUMN_LABEL,
     ROW_POSITION_COLUMN_LABEL,
@@ -1205,7 +1205,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             delta = end.value * 1.0 - start.value  # type: ignore[union-attr]
             if div == 0:
                 # Only 1 period, just return the start value
-                ns_values = pd.Series([start.value])._query_compiler  # type: ignore[union-attr]
+                ns_values = new_snow_series([start.value])._query_compiler  # type: ignore[union-attr]
             else:
                 stride = delta / div
                 # Make sure end is included in this case
@@ -1213,7 +1213,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ns_values = generator_utils.generate_range(start.value, e, stride)  # type: ignore[union-attr]
             dt_values = ns_values.series_to_datetime()
 
-        dt_series = pd.Series(query_compiler=dt_values)
+        dt_series = new_snow_series(query_compiler=dt_values)
         if remove_non_business_days:
             dt_series = dt_series[dt_series.dt.dayofweek < 5]
         if not left_inclusive or not right_inclusive:
@@ -1454,15 +1454,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         See detailed docstring and examples in ``read_snowflake`` in frontend layer:
         src/snowflake/snowpark/modin/plugin/pd_extensions.py
         """
-        dummy_row_pos_optimization_enabled = (
-            os.environ.get(
-                "SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED", "true"
-            ).lower()
-            == "true"
-        )
         relaxed_query_compiler = None
         if (
-            dummy_row_pos_optimization_enabled
+            pd.session.dummy_row_pos_optimization_enabled
             and not enforce_ordering
             and not dummy_row_pos_mode
         ):
@@ -1485,6 +1479,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             table_name_or_query=name_or_query,
             enforce_ordering=enforce_ordering,
             dummy_row_pos_mode=dummy_row_pos_mode,
+            row_count_hint=(
+                relaxed_query_compiler._modin_frame.ordered_dataframe.row_count
+                if relaxed_query_compiler is not None
+                else None
+            ),
         )
         pandas_labels_to_snowflake_quoted_identifiers_map = {
             # pandas labels of resulting Snowpark pandas dataframe will be snowflake identifier
@@ -3266,7 +3265,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if isinstance(labels, pd.Index):
                 new_index_qc = labels.to_series()._query_compiler
             else:
-                new_index_qc = pd.Series(labels)._query_compiler
+                new_index_qc = new_snow_series(labels)._query_compiler
 
         new_index_modin_frame = new_index_qc._modin_frame
         modin_frame = self._modin_frame
@@ -6857,7 +6856,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         if len(query_compiler.columns) == 0:
-            return pd.Series()._query_compiler
+            return new_snow_series()._query_compiler
 
         internal_frame = query_compiler._modin_frame
 
@@ -8883,7 +8882,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # materially slow down CI or individual groupby.apply() calls.
         # TODO(SNOW-1345395): Investigate why and to what extent the cache_result
         # is useful.
-        ordered_dataframe = cache_result(udtf_dataframe)
+        try:
+            ordered_dataframe = cache_result(udtf_dataframe)
+        except SnowparkSQLException as e:
+            if "No module named 'snowflake'" in str(
+                e
+            ) or "Modin is not installed" in str(e):
+                raise SnowparkSQLException(
+                    "modin.pandas cannot be referenced within a Snowpark pandas apply() function. "
+                    "You can only use native pandas inside apply(). Please check developer guide for details "
+                    "https://docs.snowflake.com/developer-guide/snowpark/python/pandas-on-snowflake#limitations."
+                )
+            else:
+                # retry the try-block logic
+                ordered_dataframe = cache_result(udtf_dataframe)
 
         # After applying the udtf, the underlying Snowpark DataFrame becomes
         # -------------------------------------------------------------------------------------------
@@ -10663,13 +10675,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             if is_scalar(index):
                 index = (index,)
         elif is_scalar(index):
-            # SNOW-2084670
-            # Force this query compiler to be an SFQC, since with auto-switch behavior
-            # it may become a NativeQueryCompiler.
-            index = pd.Series([index]).set_backend("Snowflake")._query_compiler
+            index = new_snow_series([index])._query_compiler
         # convert list like to series
         elif is_list_like(index):
-            index = pd.Series(index).set_backend("Snowflake")
+            index = new_snow_series(index)
             if index.dtype == "bool":
                 # boolean list like indexer is always select rows by row position
                 return SnowflakeQueryCompiler(
@@ -12070,7 +12079,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             not self_is_series and isinstance(value, pd.DataFrame)
         ):
             if isinstance(value, dict):
-                value = pd.Series(value)
+                value = new_snow_series(value)
             return self.where(cond=self.notna(), other=value._query_compiler)
 
         # case 2: fillna with a method
@@ -12370,7 +12379,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     )
 
             # create series out of key and insert
-            value = pd.Series(value)._query_compiler
+            value = new_snow_series(value)._query_compiler
 
         return self.insert(loc, key, value, True, replace=True)
 

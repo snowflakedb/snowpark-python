@@ -38,6 +38,8 @@ df = df.select(col("A").cast(VectorType(float, 42)))
 
 df = df.select(col("A").cast(YearMonthIntervalType(0, 1)))
 
+df = df.select(col("A").cast(DayTimeIntervalType(0, 1)))
+
 struct = StructType()
 struct.fields = None
 
@@ -108,6 +110,8 @@ df = df.select(col("A").cast(MapType(StringType(), StringType(), structured=Fals
 df = df.select(col("A").cast(VectorType(FloatType(), 42)))
 
 df = df.select(col("A").cast(YearMonthIntervalType(0, 1)))
+
+df = df.select(col("A").cast(DayTimeIntervalType(0, 1)))
 
 df = df.select(col("A").cast(StructType(structured=False)))
 
@@ -1608,32 +1612,33 @@ body {
                     string_val {
                       src {
                         end_column: 31
-                        end_line: 66
+                        end_line: 63
                         file: 2
                         start_column: 23
-                        start_line: 66
+                        start_line: 63
                       }
                       v: "A"
                     }
                   }
                   src {
                     end_column: 31
-                    end_line: 66
+                    end_line: 63
                     file: 2
                     start_column: 23
-                    start_line: 66
+                    start_line: 63
                   }
                 }
               }
               src {
-                end_column: 44
-                end_line: 66
+                end_column: 63
+                end_line: 63
                 file: 2
                 start_column: 23
-                start_line: 66
+                start_line: 63
               }
               to {
-                struct_type {
+                day_time_interval_type {
+                  end_field: 1
                 }
               }
             }
@@ -1646,11 +1651,11 @@ body {
           }
         }
         src {
-          end_column: 45
-          end_line: 66
+          end_column: 64
+          end_line: 63
           file: 2
           start_column: 13
-          start_line: 66
+          start_line: 63
         }
       }
     }
@@ -1703,7 +1708,7 @@ body {
                 }
               }
               src {
-                end_column: 52
+                end_column: 44
                 end_line: 68
                 file: 2
                 start_column: 23
@@ -1723,7 +1728,7 @@ body {
           }
         }
         src {
-          end_column: 53
+          end_column: 45
           end_line: 68
           file: 2
           start_column: 13
@@ -1780,7 +1785,7 @@ body {
                 }
               }
               src {
-                end_column: 83
+                end_column: 52
                 end_line: 70
                 file: 2
                 start_column: 23
@@ -1788,17 +1793,6 @@ body {
               }
               to {
                 struct_type {
-                  fields {
-                    column_identifier {
-                      column_name {
-                        name: "B"
-                      }
-                    }
-                    data_type {
-                      integer_type: true
-                    }
-                    nullable: true
-                  }
                 }
               }
             }
@@ -1811,7 +1805,7 @@ body {
           }
         }
         src {
-          end_column: 84
+          end_column: 53
           end_line: 70
           file: 2
           start_column: 13
@@ -1868,14 +1862,26 @@ body {
                 }
               }
               src {
-                end_column: 47
+                end_column: 83
                 end_line: 72
                 file: 2
                 start_column: 23
                 start_line: 72
               }
               to {
-                variant_type: true
+                struct_type {
+                  fields {
+                    column_identifier {
+                      column_name {
+                        name: "B"
+                      }
+                    }
+                    data_type {
+                      integer_type: true
+                    }
+                    nullable: true
+                  }
+                }
               }
             }
           }
@@ -1887,7 +1893,7 @@ body {
           }
         }
         src {
-          end_column: 48
+          end_column: 84
           end_line: 72
           file: 2
           start_column: 13
@@ -1944,14 +1950,14 @@ body {
                 }
               }
               src {
-                end_column: 49
+                end_column: 47
                 end_line: 74
                 file: 2
                 start_column: 23
                 start_line: 74
               }
               to {
-                geography_type: true
+                variant_type: true
               }
             }
           }
@@ -1963,7 +1969,7 @@ body {
           }
         }
         src {
-          end_column: 50
+          end_column: 48
           end_line: 74
           file: 2
           start_column: 13
@@ -2020,14 +2026,14 @@ body {
                 }
               }
               src {
-                end_column: 48
+                end_column: 49
                 end_line: 76
                 file: 2
                 start_column: 23
                 start_line: 76
               }
               to {
-                geometry_type: true
+                geography_type: true
               }
             }
           }
@@ -2039,7 +2045,7 @@ body {
           }
         }
         src {
-          end_column: 49
+          end_column: 50
           end_line: 76
           file: 2
           start_column: 13
@@ -2096,14 +2102,14 @@ body {
                 }
               }
               src {
-                end_column: 43
+                end_column: 48
                 end_line: 78
                 file: 2
                 start_column: 23
                 start_line: 78
               }
               to {
-                integer_type: true
+                geometry_type: true
               }
             }
           }
@@ -2115,7 +2121,7 @@ body {
           }
         }
         src {
-          end_column: 44
+          end_column: 49
           end_line: 78
           file: 2
           start_column: 13
@@ -2172,14 +2178,14 @@ body {
                 }
               }
               src {
-                end_column: 48
+                end_column: 43
                 end_line: 80
                 file: 2
                 start_column: 23
                 start_line: 80
               }
               to {
-                short_type: true
+                integer_type: true
               }
             }
           }
@@ -2191,7 +2197,7 @@ body {
           }
         }
         src {
-          end_column: 49
+          end_column: 44
           end_line: 80
           file: 2
           start_column: 13
@@ -2248,14 +2254,14 @@ body {
                 }
               }
               src {
-                end_column: 47
+                end_column: 48
                 end_line: 82
                 file: 2
                 start_column: 23
                 start_line: 82
               }
               to {
-                byte_type: true
+                short_type: true
               }
             }
           }
@@ -2267,7 +2273,7 @@ body {
           }
         }
         src {
-          end_column: 48
+          end_column: 49
           end_line: 82
           file: 2
           start_column: 13
@@ -2324,14 +2330,14 @@ body {
                 }
               }
               src {
-                end_column: 46
+                end_column: 47
                 end_line: 84
                 file: 2
                 start_column: 23
                 start_line: 84
               }
               to {
-                long_type: true
+                byte_type: true
               }
             }
           }
@@ -2343,7 +2349,7 @@ body {
           }
         }
         src {
-          end_column: 47
+          end_column: 48
           end_line: 84
           file: 2
           start_column: 13
@@ -2407,9 +2413,7 @@ body {
                 start_line: 86
               }
               to {
-                decimal_type {
-                  precision: 38
-                }
+                long_type: true
               }
             }
           }
@@ -2478,7 +2482,7 @@ body {
                 }
               }
               src {
-                end_column: 47
+                end_column: 46
                 end_line: 88
                 file: 2
                 start_column: 23
@@ -2499,7 +2503,7 @@ body {
           }
         }
         src {
-          end_column: 48
+          end_column: 47
           end_line: 88
           file: 2
           start_column: 13
@@ -2556,26 +2560,15 @@ body {
                 }
               }
               src {
-                end_column: 46
+                end_column: 47
                 end_line: 90
                 file: 2
                 start_column: 23
                 start_line: 90
               }
               to {
-                map_type {
-                  key_ty {
-                    string_type {
-                      length {
-                      }
-                    }
-                  }
-                  value_ty {
-                    string_type {
-                      length {
-                      }
-                    }
-                  }
+                decimal_type {
+                  precision: 38
                 }
               }
             }
@@ -2588,7 +2581,7 @@ body {
           }
         }
         src {
-          end_column: 47
+          end_column: 48
           end_line: 90
           file: 2
           start_column: 13
@@ -2645,14 +2638,27 @@ body {
                 }
               }
               src {
-                end_column: 44
+                end_column: 46
                 end_line: 92
                 file: 2
                 start_column: 23
                 start_line: 92
               }
               to {
-                file_type: true
+                map_type {
+                  key_ty {
+                    string_type {
+                      length {
+                      }
+                    }
+                  }
+                  value_ty {
+                    string_type {
+                      length {
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -2664,7 +2670,7 @@ body {
           }
         }
         src {
-          end_column: 45
+          end_column: 47
           end_line: 92
           file: 2
           start_column: 13
@@ -2677,6 +2683,82 @@ body {
       value: "df"
     }
     uid: 33
+  }
+}
+body {
+  bind {
+    expr {
+      dataframe_select {
+        cols {
+          args {
+            column_cast {
+              col {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 31
+                        end_line: 94
+                        file: 2
+                        start_column: 23
+                        start_line: 94
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 31
+                    end_line: 94
+                    file: 2
+                    start_column: 23
+                    start_line: 94
+                  }
+                }
+              }
+              src {
+                end_column: 44
+                end_line: 94
+                file: 2
+                start_column: 23
+                start_line: 94
+              }
+              to {
+                file_type: true
+              }
+            }
+          }
+          variadic: true
+        }
+        df {
+          dataframe_ref {
+            id: 33
+          }
+        }
+        src {
+          end_column: 45
+          end_line: 94
+          file: 2
+          start_column: 13
+          start_line: 94
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 34
   }
 }
 client_ast_version: 1
@@ -2692,6 +2774,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 38
+  minor: 39
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

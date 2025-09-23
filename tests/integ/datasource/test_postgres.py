@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkDataSourceNonRetryableException,
+    SnowparkSQLException,
 )
 from snowflake.snowpark.types import (
     DecimalType,
@@ -105,10 +106,10 @@ def test_error_case(session, input_type, input_value, error_message):
         session.read.dbapi(create_postgres_connection, **input_dict)
 
 
-def test_query_timeout(session):
+def test_query_timeout_and_session_init(session):
     with pytest.raises(
         SnowparkDataframeReaderException,
-        match=r"due to exception 'QueryCanceled\('canceling statement due to statement timeout",
+        match="canceling statement due to statement timeout",
     ):
         session.read.dbapi(
             create_postgres_connection,
@@ -116,6 +117,27 @@ def test_query_timeout(session):
             query_timeout=1,
             session_init_statement=["SELECT pg_sleep(5)"],
         )
+
+
+def test_query_timeout_and_session_init_udtf(session):
+    udtf_configs = {
+        "external_access_integration": POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION
+    }
+
+    def create_postgres_udtf_connection():
+        return psycopg2.connect(**POSTGRES_CONNECTION_PARAMETERS)
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="canceling statement due to statement timeout",
+    ):
+        session.read.dbapi(
+            create_postgres_udtf_connection,
+            table=POSTGRES_TABLE_NAME,
+            query_timeout=1,
+            session_init_statement=["SELECT pg_sleep(5)"],
+            udtf_configs=udtf_configs,
+        ).collect()
 
 
 def test_external_access_integration_not_set(session):
@@ -189,7 +211,9 @@ def test_psycopg2_driver_udtf_class_builder():
     driver = Psycopg2Driver(create_postgres_connection, DBMS_TYPE.POSTGRES_DB)
 
     # Get the UDTF class with a small fetch size to test batching
-    UDTFClass = driver.udtf_class_builder(fetch_size=2)
+    UDTFClass = driver.udtf_class_builder(
+        fetch_size=2, session_init_statement=["SELECT pg_sleep(1)"]
+    )
 
     # Instantiate the UDTF class
     udtf_instance = UDTFClass()

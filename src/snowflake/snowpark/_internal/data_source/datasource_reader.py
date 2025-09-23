@@ -63,7 +63,7 @@ class DataSourceReader:
                         cursor.execute(statement)
                     except BaseException as exc:
                         raise SnowparkDataframeReaderException(
-                            f"Failed to execute session init statement: '{statement}' due to exception '{exc!r}'"
+                            f"Failed to execute session init statement: '{statement}' due to exception '{exc}'"
                         )
             # use server side cursor to fetch data if supported by the driver
             # some drivers do not support execute twice on server side cursor (e.g. psycopg2)
