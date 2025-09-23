@@ -49,6 +49,12 @@ class FakeConnection:
     def close(self):
         pass
 
+    def get_output_converter(self, type):
+        pass
+
+    def add_output_converter(self, type1, type2):
+        pass
+
     @property
     def description(self):
         return self.schema
