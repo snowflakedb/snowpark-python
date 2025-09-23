@@ -4696,7 +4696,7 @@ def test_limit_offset(session):
 )
 @pytest.mark.skipif(
     IS_NOT_ON_GITHUB,
-    reason="Not on server",
+    reason="SNOW-2356885: this is not fixed on server yet",
 )
 def test_limit_param_binding(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
