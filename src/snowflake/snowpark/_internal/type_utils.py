@@ -1470,12 +1470,8 @@ def format_day_time_interval_for_display(
             total_seconds_float, start_field, end_field
         )
     elif isinstance(cell, str):
-        if "INTERVAL" not in cell:
-            # Raw string that needs to be formatted
-            interval_str = cell
-        else:
-            # This is already a formatted interval string, use as-is
-            return cell.replace("\n", "\\n")
+        # Raw string that needs to be formatted (e.g., "1 01:01:01.7878")
+        interval_str = cell
     else:
         return str(cell).replace("\n", "\\n")
 
