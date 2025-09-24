@@ -1776,13 +1776,18 @@ def test_snow_2360274_repro(
 ):
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
+    nested_field_name = (
+        "value" if context._should_use_structured_type_semantics() else '"value"'
+    )
     expected_schema = StructType(
         [
             StructField("ID", LongType(), nullable=False),
             StructField(
                 "VALS",
                 ArrayType(
-                    StructType([StructField('"value"', StringType(), nullable=True)])
+                    StructType(
+                        [StructField(nested_field_name, StringType(), nullable=True)]
+                    )
                 ),
                 nullable=True,
             ),
@@ -1792,7 +1797,7 @@ def test_snow_2360274_repro(
 
     def inner():
         agged = structured_type_session.sql(
-            """
+            f"""
         WITH SRC(ID, VALUE) AS (
             SELECT
                 $1,
@@ -1806,7 +1811,7 @@ def test_snow_2360274_repro(
         SELECT
             ID,
             CAST(
-                ARRAY_AGG(OBJECT_CONSTRUCT('value', VALUE)) AS ARRAY(OBJECT("value" STRING))
+                ARRAY_AGG(OBJECT_CONSTRUCT('value', VALUE)) AS ARRAY(OBJECT({nested_field_name} STRING))
             ) AS VALS
         FROM
             SRC
