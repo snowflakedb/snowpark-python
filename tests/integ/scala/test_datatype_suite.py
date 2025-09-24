@@ -1783,12 +1783,22 @@ def test_snow_2360274_repro(
         [
             StructField("ID", LongType(), nullable=False),
             StructField(
-                "VALS",
+                "VALS_OBJ",
                 ArrayType(
                     StructType(
                         [StructField(nested_field_name, StringType(), nullable=True)]
                     )
                 ),
+                nullable=True,
+            ),
+            StructField(
+                "VALS_MAP",
+                ArrayType(MapType(StringType(), StringType())),
+                nullable=True,
+            ),
+            StructField(
+                "VALS_ARR",
+                ArrayType(ArrayType(StringType())),
                 nullable=True,
             ),
             StructField("TAG", StringType(2), nullable=False),
@@ -1812,7 +1822,13 @@ def test_snow_2360274_repro(
             ID,
             CAST(
                 ARRAY_AGG(OBJECT_CONSTRUCT('value', VALUE)) AS ARRAY(OBJECT({nested_field_name} STRING))
-            ) AS VALS
+            ) AS VALS_OBJ,
+            CAST(
+                ARRAY_AGG(OBJECT_CONSTRUCT('value', VALUE)) AS ARRAY(MAP(STRING, STRING))
+            ) AS VALS_MAP,
+            CAST(
+                ARRAY_AGG(ARRAY_CONSTRUCT('value', VALUE)) AS ARRAY(ARRAY(STRING))
+            ) AS VALS_ARR,
         FROM
             SRC
         GROUP BY
@@ -1826,7 +1842,7 @@ def test_snow_2360274_repro(
         )
 
         joined = agged.join(reference, on=agged.id == reference.id, how="inner").select(
-            agged.id.alias("ID"), "VALS", "TAG"
+            agged.id.alias("ID"), "VALS_OBJ", "VALS_MAP", "VALS_ARR", "TAG"
         )
         Utils.is_schema_same(joined.schema, expected_schema, case_sensitive=False)
 
