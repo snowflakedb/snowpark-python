@@ -512,8 +512,12 @@ HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS: Set[Tuple[str, str]] = set()
 class UnsupportedKwargsRule:
     """Rule defining which kwargs should trigger auto-switching."""
 
-    # List of (condition_function, reason) tuples
-    unsupported_conditions: list[tuple[Callable, str]] = field(default_factory=list)
+    # List of conditions that can be either:
+    # - tuple[Callable, str]: (condition_function, reason) for complex conditions
+    # - tuple[str, Any]: (argument_name, unsupported_value) for simple value checks
+    unsupported_conditions: List[Union[Tuple[Callable, str], Tuple[str, Any]]] = field(
+        default_factory=list
+    )
 
 
 # Global registry for kwargs-based switching rules
@@ -994,11 +998,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if rule is None:
             return False
 
-        # Check custom conditions (all conditions now only require kwargs)
-        for condition_func, _ in rule.unsupported_conditions:
+        # Check custom conditions
+        for condition in rule.unsupported_conditions:
             try:
-                if condition_func(arguments):
-                    return True
+                if callable(condition[0]):
+                    # tuple[Callable, str]: (condition_function, reason)
+                    condition_func, _ = condition
+                    if condition_func(arguments):
+                        return True
+                else:
+                    # tuple[str, Any]: (argument_name, unsupported_value)
+                    arg_name, unsupported_value = condition
+                    if arguments.get(arg_name) == unsupported_value:
+                        return True
             except Exception:
                 # Any error - skip this condition
                 continue
@@ -1030,11 +1042,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if rule is None:
             return None
 
-        # Check custom conditions and return the specific reason (all conditions now only require kwargs)
-        for condition_func, reason in rule.unsupported_conditions:
+        # Check custom conditions and return the specific reason
+        for condition in rule.unsupported_conditions:
             try:
-                if condition_func(arguments):
-                    return reason
+                if len(condition) == 2 and callable(condition[0]):
+                    # tuple[Callable, str]: (condition_function, reason)
+                    condition_func, reason = condition
+                    if condition_func(arguments):
+                        return reason
+                elif len(condition) == 2:
+                    # tuple[str, Any]: (argument_name, unsupported_value)
+                    arg_name, unsupported_value = condition
+                    if (
+                        isinstance(arg_name, str)
+                        and arguments.get(arg_name) == unsupported_value
+                    ):
+                        # Auto-generate error message for simple value checks
+                        return f"{arg_name}={repr(unsupported_value)} is not supported"
             except Exception:
                 # Any error - skip this condition
                 continue
@@ -8482,7 +8506,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method_name="cumsum",
         unsupported_kwargs=UnsupportedKwargsRule(
             unsupported_conditions=[
-                (lambda kwargs: kwargs.get("axis") == 1, "axis=1 is not supported"),
+                (
+                    "axis",
+                    1,
+                ),  # Simple value check - auto-generates "axis=1 is not supported"
             ]
         ),
     )
@@ -10292,10 +10319,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method_name="pivot_table",
         unsupported_kwargs=UnsupportedKwargsRule(
             unsupported_conditions=[
-                (
-                    lambda kwargs: kwargs.get("observed", False) is not False,
-                    "observed=True is not supported",
-                ),
+                ("observed", True),  # Simple value check
                 (
                     lambda kwargs: kwargs.get("sort", True) is not True,
                     "sort=False is not supported",
