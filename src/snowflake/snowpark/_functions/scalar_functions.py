@@ -1613,6 +1613,9 @@ def h3_latlng_to_cell_string(
         longitude (ColumnOrName): The longitude values.
         target_resolution (ColumnOrName): The H3 resolution values (0-15).
 
+    Returns:
+        Column: H3 cell ID string for the given latitude, longitude, and resolution.
+
     Example::
 
         >>> df = session.create_dataframe([[52.516262, 13.377704, 8]], schema=["lat", "lng", "res"])
@@ -1638,6 +1641,9 @@ def h3_point_to_cell(
         geography_point (ColumnOrName): The geography points.
         target_resolution (ColumnOrName): The target H3 resolution (0-15).
 
+    Returns:
+        Column: H3 cell ID for the given geography point at the specified resolution.
+
     Example::
         >>> from snowflake.snowpark.functions import col
         >>> df = session.sql("SELECT ST_POINT(13.377704, 52.516262) as geography_point, 8 as resolution")
@@ -1662,6 +1668,9 @@ def h3_point_to_cell_string(
     Args:
         geography_point (ColumnOrName): The geography point to convert to H3 cell.
         target_resolution (ColumnOrName): The target H3 resolution (0-15).
+
+    Returns:
+        Column: H3 cell ID string for the given geography point at the specified resolution.
 
     Example::
         >>> from snowflake.snowpark.functions import col
