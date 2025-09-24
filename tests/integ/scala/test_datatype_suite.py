@@ -1771,7 +1771,9 @@ def test_lob_collect_max_size(session, server_side_max_string, type_string, data
     reason="Structured types are not supported in Local Testing",
 )
 @pytest.mark.parametrize("fix_enabled", [True, False])
-def test_snow_2360274_repro(session, fix_enabled):
+def test_snow_2360274_repro(
+    structured_type_session, structured_type_support, fix_enabled
+):
     if not structured_type_support:
         pytest.skip("Test requires structured type support.")
     expected_schema = StructType(
@@ -1789,7 +1791,7 @@ def test_snow_2360274_repro(session, fix_enabled):
     )
 
     def inner():
-        agged = session.sql(
+        agged = structured_type_session.sql(
             """
         WITH SRC(ID, VALUE) AS (
             SELECT
@@ -1812,7 +1814,7 @@ def test_snow_2360274_repro(session, fix_enabled):
             ID"""
         )
 
-        reference = session.sql(
+        reference = structured_type_session.sql(
             """
         SELECT $1 AS ID, $2 AS TAG FROM VALUES (1, 'AB'), (2, 'B')
         """

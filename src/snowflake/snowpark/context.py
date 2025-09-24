@@ -39,6 +39,7 @@ _debug_eager_schema_validation = False
 # This is an internal-only global flag, used to determine whether to enable query line tracking for tracing sql compilation errors.
 _enable_trace_sql_errors_to_dataframe = False
 
+# SNOW-2362050: Enable this fix by default.
 # Global flag for fix 2360274. When enabled schema queries will use NULL as a place holder for any values inside structured objects
 _enable_fix_2360274 = False
 
