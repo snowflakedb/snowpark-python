@@ -533,12 +533,12 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             # Key values can never be null
             key = schema_expression(data_type.key_type, False)
             if context._enable_fix_2360274:
+                value = "NULL"
+            else:
                 # Value nullability is variable. Defaults to True
                 value = schema_expression(
                     data_type.value_type, data_type.value_contains_null
                 )
-            else:
-                value = "NULL"
             return f"object_construct_keep_null({key}, {value}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_object(parse_json('0'))"
     if isinstance(data_type, StructType):
