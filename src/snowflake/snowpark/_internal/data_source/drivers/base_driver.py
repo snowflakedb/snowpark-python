@@ -259,7 +259,10 @@ class BaseDriver:
             res_df[field.name].cast(field.datatype).alias(field.name)
             for field in schema.fields
         ]
-        return res_df.select(cols, _emit_ast=_emit_ast)
+        selected_df = res_df.select(cols, _emit_ast=_emit_ast)
+        for attr, source_field in zip(selected_df._plan.attributes, schema.fields):
+            attr.nullable = source_field.nullable
+        return selected_df
 
     def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
         """
