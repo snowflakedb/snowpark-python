@@ -3213,6 +3213,166 @@ def test_show_interval_formatting(session):
         """
     )
 
+    # === Edge Cases for Decimal Precision and Large Values ===
+
+    # Large positive DAY TO HOUR intervals
+    df = session.sql("SELECT INTERVAL '106751991 04' DAY TO HOUR as large_day_to_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------+
+        |"LARGE_DAY_TO_HOUR"                |
+        +-----------------------------------+
+        |INTERVAL '106751991 04' DAY TO HOUR|
+        +-----------------------------------+
+        """
+    )
+
+    # Large positive DAY TO MINUTE intervals
+    df = session.sql(
+        "SELECT INTERVAL '106751991 04:00' DAY TO MINUTE as large_day_to_minute"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------------+
+        |"LARGE_DAY_TO_MINUTE"                   |
+        +----------------------------------------+
+        |INTERVAL '106751991 04:00' DAY TO MINUTE|
+        +----------------------------------------+
+        """
+    )
+
+    # Large positive DAY TO SECOND intervals with high precision fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '106751991 04:00:54.775807' DAY TO SECOND as large_day_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------------------------+
+        |"LARGE_DAY_TO_SECOND"                             |
+        +--------------------------------------------------+
+        |INTERVAL '106751991 04:00:54.775807' DAY TO SECOND|
+        +--------------------------------------------------+
+        """
+    )
+
+    # Large negative DAY TO HOUR intervals
+    df = session.sql(
+        "SELECT INTERVAL '-106751991 04' DAY TO HOUR as large_negative_day_to_hour"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------+
+        |"LARGE_NEGATIVE_DAY_TO_HOUR"        |
+        +------------------------------------+
+        |INTERVAL '-106751991 04' DAY TO HOUR|
+        +------------------------------------+
+        """
+    )
+
+    # Large negative DAY TO MINUTE intervals
+    df = session.sql(
+        "SELECT INTERVAL '-106751991 04:00' DAY TO MINUTE as large_negative_day_to_minute"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------------+
+        |"LARGE_NEGATIVE_DAY_TO_MINUTE"           |
+        +-----------------------------------------+
+        |INTERVAL '-106751991 04:00' DAY TO MINUTE|
+        +-----------------------------------------+
+        """
+    )
+
+    # Large negative DAY TO SECOND intervals with high precision fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '-106751991 04:00:54.775808' DAY TO SECOND as large_negative_day_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------------------------+
+        |"LARGE_NEGATIVE_DAY_TO_SECOND"                     |
+        +---------------------------------------------------+
+        |INTERVAL '-106751991 04:00:54.775808' DAY TO SECOND|
+        +---------------------------------------------------+
+        """
+    )
+
+    # Extremely large positive YEAR intervals
+    df = session.sql("SELECT INTERVAL '178956970' YEAR as extremely_large_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------+
+        |"EXTREMELY_LARGE_YEAR"   |
+        +-------------------------+
+        |INTERVAL '178956970' YEAR|
+        +-------------------------+
+        """
+    )
+
+    # Extremely large negative YEAR intervals
+    df = session.sql(
+        "SELECT INTERVAL '-178956970' YEAR as extremely_large_negative_year"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------------+
+        |"EXTREMELY_LARGE_NEGATIVE_YEAR"|
+        +-------------------------------+
+        |INTERVAL '-178956970' YEAR     |
+        +-------------------------------+
+        """
+    )
+
+    # Large positive DAY intervals
+    df = session.sql("SELECT INTERVAL '106751991' DAY as extremely_large_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"EXTREMELY_LARGE_DAY"   |
+        +------------------------+
+        |INTERVAL '106751991' DAY|
+        +------------------------+
+        """
+    )
+
+    # Large negative DAY intervals
+    df = session.sql("SELECT INTERVAL '-106751991' DAY as extremely_large_negative_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------+
+        |"EXTREMELY_LARGE_NEGATIVE_DAY"|
+        +------------------------------+
+        |INTERVAL '-106751991' DAY     |
+        +------------------------------+
+        """
+    )
+
+    # High precision positive fractional SECOND intervals
+    df = session.sql("SELECT INTERVAL '54.775807' SECOND as high_precision_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"HIGH_PRECISION_SECOND"    |
+        +---------------------------+
+        |INTERVAL '54.775807' SECOND|
+        +---------------------------+
+        """
+    )
+
+    # High precision negative fractional SECOND intervals
+    df = session.sql(
+        "SELECT INTERVAL '-54.775807' SECOND as high_precision_negative_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------+
+        |"HIGH_PRECISION_NEGATIVE_SECOND"|
+        +--------------------------------+
+        |INTERVAL '-54.775807' SECOND    |
+        +--------------------------------+
+        """
+    )
+
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):

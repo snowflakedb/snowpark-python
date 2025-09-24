@@ -1465,9 +1465,27 @@ def format_day_time_interval_for_display(
         Formatted interval string (e.g., "INTERVAL '01:30:45' HOUR TO SECOND")
     """
     if isinstance(cell, datetime.timedelta):
-        total_seconds_float = cell.total_seconds()
+        # Heuristic: Use Decimal for extreme values near 64-bit boundary, float for normal values
+        total_seconds_approx = cell.total_seconds()
+
+        # Check if we're approaching values where float precision becomes problematic
+        # Be conservative: use Decimal for large values to ensure precision
+        # This corresponds to roughly 3 million years - normal use cases are well below this
+        if (
+            abs(total_seconds_approx) > 1e11
+        ):  # ~100 gigaseconds, very conservative threshold
+            # Use Decimal arithmetic for precise conversion to avoid floating-point precision loss
+            total_seconds_value = (
+                decimal.Decimal(cell.days) * decimal.Decimal(86400)
+                + decimal.Decimal(cell.seconds)
+                + decimal.Decimal(cell.microseconds) / decimal.Decimal(1_000_000)
+            )
+        else:
+            # Use fast float path for normal values
+            total_seconds_value = cell.total_seconds()
+
         interval_str = format_day_time_interval(
-            total_seconds_float, start_field, end_field
+            total_seconds_value, start_field, end_field
         )
     elif isinstance(cell, str):
         # Raw string that needs to be formatted (e.g., "1 01:01:01.7878")
@@ -1492,34 +1510,95 @@ def format_day_time_interval_for_display(
 
 
 def format_day_time_interval(
-    total_seconds_float: float, start_field: int, end_field: int
+    total_seconds_value: Union[float, decimal.Decimal], start_field: int, end_field: int
 ) -> str:
     """
     Format a DayTimeIntervalType value for display in _show_string_spark().
 
     Args:
-        total_seconds_float: Total seconds as a float (can be negative)
+        total_seconds_value: Total seconds as either float or Decimal (can be negative)
         start_field: Start field constant from DayTimeIntervalType (DAY=0, HOUR=1, MINUTE=2, SECOND=3)
         end_field: End field constant from DayTimeIntervalType (DAY=0, HOUR=1, MINUTE=2, SECOND=3)
 
     Returns:
         Formatted interval string (e.g., "01:30:45", "2 12:30", "05", etc.)
     """
-    is_negative = total_seconds_float < 0
-    abs_total_seconds = abs(total_seconds_float)
+    is_negative = total_seconds_value < 0
+    abs_total_seconds = abs(total_seconds_value)
+
+    # Determine if we're working with Decimal for high-precision arithmetic
+    use_decimal = isinstance(total_seconds_value, decimal.Decimal)
 
     days = int(abs_total_seconds) // 86400
     remaining_seconds = abs_total_seconds - (days * 86400)
     hours = int(remaining_seconds) // 3600
     remaining_after_hours = remaining_seconds - (hours * 3600)
     minutes = int(remaining_after_hours) // 60
-    seconds = remaining_after_hours - (minutes * 60)
+
+    # Calculate seconds more precisely to avoid floating-point accumulation errors
+    # Use the original total and subtract the calculated day/hour/minute components
+    if use_decimal:
+        total_non_second_time = (
+            decimal.Decimal(days * 86400)
+            + decimal.Decimal(hours * 3600)
+            + decimal.Decimal(minutes * 60)
+        )
+    else:
+        total_non_second_time = (days * 86400) + (hours * 3600) + (minutes * 60)
+    seconds = abs_total_seconds - total_non_second_time
 
     sign = "-" if is_negative else ""
 
     def format_with_leading_zero(value: int) -> str:
         """Format integer with leading zero if < 10, otherwise as-is"""
         return f"{value:02d}" if value < 10 else f"{value}"
+
+    def format_seconds_with_precision(
+        seconds_value: Union[float, decimal.Decimal]
+    ) -> str:
+        """Format seconds with full precision, preserving trailing zeros for proper padding"""
+        if isinstance(seconds_value, decimal.Decimal):
+            # Use Decimal precision formatting
+            if seconds_value == int(seconds_value):
+                return f"{int(seconds_value):02d}"
+            else:
+                # For fractional seconds, ensure proper leading zero padding
+                integer_part = int(seconds_value)
+                if integer_part < 10:
+                    # Format with leading zero for the integer part
+                    formatted = f"{seconds_value:.6f}".rstrip("0")
+                    if formatted.endswith("."):
+                        return f"{integer_part:02d}"
+                    # Replace the integer part with zero-padded version
+                    decimal_part = formatted.split(".", 1)[1]
+                    return f"{integer_part:02d}.{decimal_part}"
+                else:
+                    # For >= 10, use normal formatting
+                    formatted = f"{seconds_value:.6f}".rstrip("0")
+                    if formatted.endswith("."):
+                        return f"{integer_part}"
+                    return formatted
+        else:
+            # Float precision formatting (original logic)
+            if seconds_value == int(seconds_value):
+                return f"{int(seconds_value):02d}"
+            else:
+                # For fractional seconds, ensure proper leading zero padding
+                integer_part = int(seconds_value)
+                if integer_part < 10:
+                    # Format with leading zero for the integer part
+                    formatted = f"{seconds_value:.6f}".rstrip("0")
+                    if formatted.endswith("."):
+                        return f"{integer_part:02d}"
+                    # Replace the integer part with zero-padded version
+                    decimal_part = formatted.split(".", 1)[1]
+                    return f"{integer_part:02d}.{decimal_part}"
+                else:
+                    # For >= 10, use normal formatting
+                    formatted = f"{seconds_value:.6f}".rstrip("0")
+                    if formatted.endswith("."):
+                        return f"{integer_part}"
+                    return formatted
 
     # For single field intervals, extract just that component
     if start_field == end_field:
@@ -1537,19 +1616,8 @@ def format_day_time_interval(
                 total_secs_int = int(abs_total_seconds)
                 return f"{sign}{format_with_leading_zero(total_secs_int)}"
             else:
-                # For fractional seconds, format with leading zero if < 10
-                if abs_total_seconds < 10:
-                    # Format with leading zero: split into integer and fractional parts
-                    integer_part = int(abs_total_seconds)
-                    fractional_part = abs_total_seconds - integer_part
-                    if fractional_part == 0:
-                        return f"{sign}{integer_part:02d}"
-                    else:
-                        # Format fractional part and remove leading '0.'
-                        frac_str = f"{fractional_part:.6f}"[2:].rstrip("0")
-                        return f"{sign}{integer_part:02d}.{frac_str}"
-                else:
-                    return f"{sign}{abs_total_seconds:g}"
+                # Use unified formatting that handles both float and Decimal
+                return f"{sign}{format_seconds_with_precision(abs_total_seconds)}"
 
     # For multi-field intervals, format based on start/end fields
     if start_field == DayTimeIntervalType.DAY:
@@ -1566,7 +1634,7 @@ def format_day_time_interval(
             if seconds == int(seconds):
                 return f"{sign}{days} {hours_str}:{minutes:02d}:{int(seconds):02d}"
             else:
-                return f"{sign}{days} {hours_str}:{minutes:02d}:{seconds:06.3f}"
+                return f"{sign}{days} {hours_str}:{minutes:02d}:{format_seconds_with_precision(seconds)}"
     elif start_field == DayTimeIntervalType.HOUR:
         # HOUR TO X format: "HH:MM:SS" (no days)
         total_hours = int(abs_total_seconds) // 3600
@@ -1580,7 +1648,7 @@ def format_day_time_interval(
             if secs == int(secs):
                 return f"{sign}{format_with_leading_zero(total_hours)}:{mins:02d}:{int(secs):02d}"
             else:
-                return f"{sign}{format_with_leading_zero(total_hours)}:{mins:02d}:{secs:06.3f}"
+                return f"{sign}{format_with_leading_zero(total_hours)}:{mins:02d}:{format_seconds_with_precision(secs)}"
     elif start_field == DayTimeIntervalType.MINUTE:
         # MINUTE TO X format: "MM:SS" (no days or hours)
         total_minutes = int(abs_total_seconds) // 60
@@ -1590,7 +1658,9 @@ def format_day_time_interval(
         if remaining_secs == int(remaining_secs):
             return f"{sign}{minutes_str}:{int(remaining_secs):02d}"
         else:
-            return f"{sign}{minutes_str}:{remaining_secs:06.3f}"
+            return (
+                f"{sign}{minutes_str}:{format_seconds_with_precision(remaining_secs)}"
+            )
 
 
 # Type hints
