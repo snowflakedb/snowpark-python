@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import logging
 import pytest
+from unittest import mock
 
 import snowflake.snowpark.context as context
 from snowflake.connector.options import installed_pandas
@@ -1763,3 +1764,70 @@ def test_lob_collect_max_size(session, server_side_max_string, type_string, data
     )
     assert df.schema == StructType([StructField("DATA", datatype, nullable=False)])
     assert len(df.collect()[0][0]) >= server_side_max_string - 16
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
+)
+@pytest.mark.parametrize("fix_enabled", [True, False])
+def test_snow_2360274_repro(session, fix_enabled):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+    expected_schema = StructType(
+        [
+            StructField("ID", LongType(), nullable=False),
+            StructField(
+                "VALS",
+                ArrayType(
+                    StructType([StructField('"value"', StringType(), nullable=True)])
+                ),
+                nullable=True,
+            ),
+            StructField("TAG", StringType(2), nullable=False),
+        ]
+    )
+
+    def inner():
+        agged = session.sql(
+            """
+        WITH SRC(ID, VALUE) AS (
+            SELECT
+                $1,
+                $2
+            FROM
+            VALUES
+                (1, 'A'),
+                (1, 'B'),
+                (2, 'A')
+        )
+        SELECT
+            ID,
+            CAST(
+                ARRAY_AGG(OBJECT_CONSTRUCT('value', VALUE)) AS ARRAY(OBJECT("value" STRING))
+            ) AS VALS
+        FROM
+            SRC
+        GROUP BY
+            ID"""
+        )
+
+        reference = session.sql(
+            """
+        SELECT $1 AS ID, $2 AS TAG FROM VALUES (1, 'AB'), (2, 'B')
+        """
+        )
+
+        joined = agged.join(reference, on=agged.id == reference.id, how="inner").select(
+            agged.id.alias("ID"), "VALS", "TAG"
+        )
+        Utils.is_schema_same(joined.schema, expected_schema, case_sensitive=False)
+
+    with mock.patch.object(context, "_enable_fix_2360274", fix_enabled):
+        if fix_enabled:
+            inner()
+        else:
+            with pytest.raises(
+                SnowparkSQLException, match="Unsupported data type 'STRUCTURED_OBJECT'"
+            ):
+                inner()

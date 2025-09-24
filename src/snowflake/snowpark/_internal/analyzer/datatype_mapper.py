@@ -12,6 +12,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
+import snowflake.snowpark.context as context
 import snowflake.snowpark._internal.analyzer.analyzer_utils as analyzer_utils
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import (
@@ -518,7 +519,12 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
     if isinstance(data_type, ArrayType):
         if data_type.structured:
             assert data_type.element_type is not None
-            element = schema_expression(data_type.element_type, data_type.contains_null)
+            if context._enable_fix_2360274:
+                element = "NULL"
+            else:
+                element = schema_expression(
+                    data_type.element_type, data_type.contains_null
+                )
             return f"to_array({element}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_array(0)"
     if isinstance(data_type, MapType):
@@ -526,10 +532,13 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
             assert data_type.key_type is not None and data_type.value_type is not None
             # Key values can never be null
             key = schema_expression(data_type.key_type, False)
-            # Value nullability is variable. Defaults to True
-            value = schema_expression(
-                data_type.value_type, data_type.value_contains_null
-            )
+            if context._enable_fix_2360274:
+                # Value nullability is variable. Defaults to True
+                value = schema_expression(
+                    data_type.value_type, data_type.value_contains_null
+                )
+            else:
+                value = "NULL"
             return f"object_construct_keep_null({key}, {value}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_object(parse_json('0'))"
     if isinstance(data_type, StructType):
@@ -539,7 +548,9 @@ def schema_expression(data_type: DataType, is_nullable: bool) -> str:
                 # Even if nulls are allowed the cast will fail due to schema mismatch when passed a null field.
                 schema_strings += [
                     f"'{field.name}'",
-                    schema_expression(field.datatype, is_nullable=False),
+                    "NULL"
+                    if context._enable_fix_2360274
+                    else schema_expression(field.datatype, is_nullable=False),
                 ]
             return f"object_construct_keep_null({', '.join(schema_strings)}) :: {convert_sp_to_sf_type(data_type)}"
         return "to_object(parse_json('{}'))"
