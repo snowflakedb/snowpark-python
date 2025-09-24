@@ -431,9 +431,6 @@ def __sizeof__(self):
     pass  # pragma: no cover
 
 
-# === ENHANCED DECORATOR EXAMPLE ===
-
-
 # === OVERRIDDEN METHODS ===
 # The below methods have their frontend implementations overridden compared to the version present
 # in base.py. This is usually for one of the following reasons:

@@ -95,10 +95,6 @@ register_series_accessor = functools.partial(
 
 
 def register_series_not_implemented():
-    """
-    Decorator for Series methods that are not implemented in Snowpark pandas.
-    """
-
     def decorator(base_method: Any):
         func = series_not_implemented()(base_method)
         name = (
@@ -106,7 +102,6 @@ def register_series_not_implemented():
             if isinstance(base_method, property)
             else base_method.__name__
         )
-
         HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("Series", name))
         register_function_for_pre_op_switch(
             class_name="Series", backend="Snowflake", method=name
@@ -177,6 +172,7 @@ def argsort(self, axis=0, kind="quicksort", order=None):  # noqa: PR01, RT01, D2
     pass  # pragma: no cover
 
 
+@register_series_not_implemented()
 def transform(self, func, axis=0, *args, **kwargs):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
