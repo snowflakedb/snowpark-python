@@ -13,7 +13,7 @@ from snowflake.snowpark._internal.data_source.drivers.psycopg2_driver import (
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
-    SnowparkDataSourceNonRetryableException,
+    _SnowparkDataSourceNonRetryableException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.types import (
@@ -512,7 +512,7 @@ def test_server_side_cursor(session):
 
 def test_postgres_non_retryable_error(session):
     with pytest.raises(
-        SnowparkDataSourceNonRetryableException,
+        _SnowparkDataSourceNonRetryableException,
         match="syntax error",
     ):
         session.read.dbapi(

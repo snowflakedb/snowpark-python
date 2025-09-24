@@ -14,7 +14,7 @@ from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import (
     PymysqlTypeCode,
 )
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
-from snowflake.snowpark.exceptions import SnowparkDataSourceNonRetryableException
+from snowflake.snowpark.exceptions import _SnowparkDataSourceNonRetryableException
 from snowflake.snowpark.types import StructType, StructField, StringType
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
@@ -308,7 +308,7 @@ def test_unsupported_type():
 
 def test_mysql_non_retryable_error(session):
     with pytest.raises(
-        SnowparkDataSourceNonRetryableException,
+        _SnowparkDataSourceNonRetryableException,
         match="You have an error in your SQL syntax",
     ):
         session.read.dbapi(

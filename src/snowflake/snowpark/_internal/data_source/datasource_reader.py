@@ -11,7 +11,7 @@ from snowflake.snowpark._internal.data_source.datasource_typing import Connectio
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
-    SnowparkDataSourceNonRetryableException,
+    _SnowparkDataSourceNonRetryableException,
 )
 from snowflake.snowpark.types import StructType
 from snowflake.connector.options import pandas as pd
@@ -90,7 +90,7 @@ class DataSourceReader:
                 raise ValueError("fetch size cannot be smaller than 0")
         except Exception as exc:
             if self.driver.non_retryable_error_checker(exc):
-                raise SnowparkDataSourceNonRetryableException(exc)
+                raise _SnowparkDataSourceNonRetryableException(exc)
             else:
                 raise
         finally:

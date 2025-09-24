@@ -83,7 +83,7 @@ from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
     SnowparkDataframeReaderException,
-    SnowparkDataSourceNonRetryableException,
+    _SnowparkDataSourceNonRetryableException,
 )
 from snowflake.snowpark.functions import sql_expr, col, concat, lit, to_file
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -2008,7 +2008,7 @@ class DataFrameReader:
                 exc,
                 (
                     SnowparkDataframeReaderException,
-                    SnowparkDataSourceNonRetryableException,
+                    _SnowparkDataSourceNonRetryableException,
                 ),
             ):
                 raise exc

@@ -53,7 +53,7 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.dataframe_reader import _MAX_RETRY_TIME
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
-    SnowparkDataSourceNonRetryableException,
+    _SnowparkDataSourceNonRetryableException,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -217,11 +217,13 @@ def test_dbapi_retry(session, fetch_with_process):
 def test_dbapi_non_retryable_error(session, fetch_with_process):
     with mock.patch(
         "snowflake.snowpark._internal.data_source.utils._task_fetch_data_from_source",
-        side_effect=SnowparkDataSourceNonRetryableException(Exception("mock error")),
+        side_effect=_SnowparkDataSourceNonRetryableException(Exception("mock error")),
     ) as mock_task:
         mock_task.__name__ = "_task_fetch_from_data_source"
         parquet_queue = multiprocessing.Queue() if fetch_with_process else queue.Queue()
-        with pytest.raises(SnowparkDataSourceNonRetryableException, match="mock error"):
+        with pytest.raises(
+            _SnowparkDataSourceNonRetryableException, match="mock error"
+        ):
             _task_fetch_data_from_source_with_retry(
                 worker=DataSourceReader(
                     PyodbcDriver,

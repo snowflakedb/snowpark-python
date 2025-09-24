@@ -34,7 +34,7 @@ import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
-    SnowparkDataSourceNonRetryableException,
+    _SnowparkDataSourceNonRetryableException,
 )
 
 logger = logging.getLogger(__name__)
@@ -284,7 +284,7 @@ def _retry_run(func: Callable, *args, **kwargs) -> Any:
         except SnowparkDataframeReaderException:
             # SnowparkDataframeReaderException is a non-retryable exception
             raise
-        except SnowparkDataSourceNonRetryableException:
+        except _SnowparkDataSourceNonRetryableException:
             # SnowparkDataSourceNonRetryableException is a non-retryable exception
             raise
         except Exception as e:

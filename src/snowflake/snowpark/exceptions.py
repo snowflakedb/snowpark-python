@@ -285,7 +285,7 @@ class SnowparkInvalidObjectNameException(SnowparkGeneralException):
     pass
 
 
-class SnowparkDataSourceNonRetryableException(SnowparkGeneralException):
+class _SnowparkDataSourceNonRetryableException(SnowparkGeneralException):
     """Exception for data source non-retryable error."""
 
     def __init__(
