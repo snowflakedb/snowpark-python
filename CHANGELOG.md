@@ -61,6 +61,7 @@
 
 #### New Features
 - Added support for `DataFrame.query` for dataframes with single-level indexes.
+- Added support for `DataFrameGroupby.__len__` and `SeriesGroupBy.__len__`.
 
 #### Improvements
 
