@@ -181,6 +181,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ListAgg,
     Literal,
     ModelExpression,
+    ServiceExpression,
     MultipleExpression,
     Star,
     NamedFunctionExpression,
@@ -10746,6 +10747,30 @@ def _call_model(
     )
 
 
+def _call_service(
+    service_name: str,
+    method_name: str,
+    *args,
+    _emit_ast: bool = True,
+) -> Column:
+    if _emit_ast:
+        _ast = build_function_expr("service", [service_name, method_name, *args])
+    else:
+        _ast = None
+
+    args_list = parse_positional_args_to_list(*args)
+    expressions = [Column._to_expr(arg) for arg in args_list]
+    return Column(
+        ServiceExpression(
+            service_name,
+            method_name,
+            expressions,
+        ),
+        _ast=_ast,
+        _emit_ast=_emit_ast,
+    )
+
+
 @publicapi
 def model(
     model_name: str,
@@ -10772,6 +10797,48 @@ def model(
     """
     return lambda method_name: lambda *args: _call_model(
         model_name, version_or_alias_name, method_name, *args, _emit_ast=_emit_ast
+    )
+
+
+@publicapi
+def service(
+    service_name: str,
+    _emit_ast: bool = True,
+) -> Callable:
+    """
+    Creates a service function that can be used to call a service method.
+
+    Args:
+        service_name: The name of the service to call.
+
+    Example::
+
+        >>> original_role = session.get_current_role()
+        >>> original_db = session.get_current_database()
+        >>> original_schema = session.get_current_schema()
+        >>> try:
+        ...     session.use_role("test_role")
+        ...     session.use_database("tutorial_db")
+        ...     session.use_schema("data_schema")
+        ...     svc = service("tutorial_2_job_service")
+        ...     result_df = session.range(1).select(svc("SPCS_CANCEL_JOB")())
+        ...     result_df.show()
+        ... finally:
+        ...     if original_role:
+        ...         session.use_role(original_role)
+        ...     if original_db:
+        ...         session.use_database(original_db)
+        ...     if original_schema:
+        ...         session.use_schema(original_schema)
+        ------------------------------------------------------
+        |"TUTORIAL_2_JOB_SERVICE!SPCS_CANCEL_JOB()"          |
+        ------------------------------------------------------
+        |Job TUTORIAL_2_JOB_SERVICE is already canceled ...  |
+        ------------------------------------------------------
+        <BLANKLINE>
+    """
+    return lambda method_name: lambda *args: _call_service(
+        service_name, method_name, *args, _emit_ast=_emit_ast
     )
 
 

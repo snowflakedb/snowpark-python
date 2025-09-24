@@ -395,6 +395,7 @@ Functions
     seq4
     seq8
     sequence
+    service
     sha1
     sha2
     sin
