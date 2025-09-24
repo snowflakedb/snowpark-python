@@ -13,6 +13,7 @@ from snowflake.snowpark.column import (
 )
 from snowflake.snowpark._functions.general_functions import (
     builtin,
+    _to_lit_if_not_column,
     lit,
 )
 
@@ -1743,14 +1744,10 @@ def h3_try_coverage_strings(
         ... ], schema=["geog"])
         >>> df.select(h3_try_coverage_strings(to_geography(df["geog"]), lit(9)).alias("coverage")).collect()
         [Row(COVERAGE='[\\n  "89283082803ffff",\\n  "8928308280bffff",\\n  "8928308280fffff",\\n  "89283082843ffff",\\n  "89283082847ffff",\\n  "8928308284fffff",\\n  "89283082857ffff",\\n  "89283082863ffff",\\n  "89283082867ffff",\\n  "8928308286bffff",\\n  "8928308286fffff",\\n  "89283082873ffff",\\n  "89283082877ffff",\\n  "8928308287bffff",\\n  "89283082aa7ffff",\\n  "89283082ab7ffff",\\n  "89283082b9bffff"\\n]')]"""
-    from snowflake.snowpark.functions import builtin, lit
+    from snowflake.snowpark.functions import builtin
 
     g = _to_col_if_str(geography_expression, "h3_try_coverage_strings")
-    r = (
-        target_resolution
-        if isinstance(target_resolution, Column)
-        else lit(target_resolution)
-    )
+    r = _to_lit_if_not_column(target_resolution)
     return builtin("h3_try_coverage_strings", _emit_ast=_emit_ast)(g, r)
 
 

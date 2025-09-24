@@ -16,6 +16,7 @@ from snowflake.snowpark._internal.ast.utils import (
 )
 from snowflake.snowpark._internal.type_utils import (
     ColumnOrLiteral,
+    ColumnOrName,
 )
 from snowflake.snowpark._internal.utils import (
     parse_positional_args_to_list,
@@ -67,6 +68,12 @@ def lit(
         return literal
 
     return Column(Literal(literal, datatype=datatype), _ast=None, _emit_ast=False)
+
+
+def _to_lit_if_not_column(literal: ColumnOrName) -> "Column":
+    if not isinstance(literal, Column):
+        return lit(literal)
+    return literal
 
 
 def _call_function(
