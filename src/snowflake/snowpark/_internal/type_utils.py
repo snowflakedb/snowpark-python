@@ -1490,8 +1490,6 @@ def format_day_time_interval_for_display(
     elif isinstance(cell, str):
         # Raw string that needs to be formatted (e.g., "1 01:01:01.7878")
         interval_str = cell
-    else:
-        return str(cell).replace("\n", "\\n")
 
     field_names = {
         DayTimeIntervalType.DAY: "DAY",
@@ -1557,48 +1555,26 @@ def format_day_time_interval(
         seconds_value: Union[float, decimal.Decimal]
     ) -> str:
         """Format seconds with full precision, preserving trailing zeros for proper padding"""
-        if isinstance(seconds_value, decimal.Decimal):
-            # Use Decimal precision formatting
-            if seconds_value == int(seconds_value):
-                return f"{int(seconds_value):02d}"
-            else:
-                # For fractional seconds, ensure proper leading zero padding
-                integer_part = int(seconds_value)
-                if integer_part < 10:
-                    # Format with leading zero for the integer part
-                    formatted = f"{seconds_value:.6f}".rstrip("0")
-                    if formatted.endswith("."):
-                        return f"{integer_part:02d}"
-                    # Replace the integer part with zero-padded version
-                    decimal_part = formatted.split(".", 1)[1]
-                    return f"{integer_part:02d}.{decimal_part}"
-                else:
-                    # For >= 10, use normal formatting
-                    formatted = f"{seconds_value:.6f}".rstrip("0")
-                    if formatted.endswith("."):
-                        return f"{integer_part}"
-                    return formatted
+        # Unified formatting logic for both Decimal and float types
+        if seconds_value == int(seconds_value):
+            return f"{int(seconds_value):02d}"
         else:
-            # Float precision formatting (original logic)
-            if seconds_value == int(seconds_value):
-                return f"{int(seconds_value):02d}"
+            # For fractional seconds, ensure proper leading zero padding
+            integer_part = int(seconds_value)
+            if integer_part < 10:
+                # Format with leading zero for the integer part
+                formatted = f"{seconds_value:.6f}".rstrip("0")
+                if formatted.endswith("."):
+                    return f"{integer_part:02d}"
+                # Replace the integer part with zero-padded version
+                decimal_part = formatted.split(".", 1)[1]
+                return f"{integer_part:02d}.{decimal_part}"
             else:
-                # For fractional seconds, ensure proper leading zero padding
-                integer_part = int(seconds_value)
-                if integer_part < 10:
-                    # Format with leading zero for the integer part
-                    formatted = f"{seconds_value:.6f}".rstrip("0")
-                    if formatted.endswith("."):
-                        return f"{integer_part:02d}"
-                    # Replace the integer part with zero-padded version
-                    decimal_part = formatted.split(".", 1)[1]
-                    return f"{integer_part:02d}.{decimal_part}"
-                else:
-                    # For >= 10, use normal formatting
-                    formatted = f"{seconds_value:.6f}".rstrip("0")
-                    if formatted.endswith("."):
-                        return f"{integer_part}"
-                    return formatted
+                # For >= 10, use normal formatting
+                formatted = f"{seconds_value:.6f}".rstrip("0")
+                if formatted.endswith("."):
+                    return f"{integer_part}"
+                return formatted
 
     # For single field intervals, extract just that component
     if start_field == end_field:

@@ -3373,6 +3373,88 @@ def test_show_interval_formatting(session):
         """
     )
 
+    # === Targeted Tests to Hit Remaining Missing Lines ===
+
+    # Very large interval to trigger Decimal path with integer seconds
+    df = session.sql("SELECT INTERVAL '2000000' DAY as decimal_large_int")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------+
+        |"DECIMAL_LARGE_INT"   |
+        +----------------------+
+        |INTERVAL '2000000' DAY|
+        +----------------------+
+        """
+    )
+
+    # Very large interval with fractional seconds < 10 to trigger Decimal path
+    df = session.sql(
+        "SELECT INTERVAL '2000000 00:00:05.123456' DAY TO SECOND as decimal_small_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------------------+
+        |"DECIMAL_SMALL_FRAC"                            |
+        +------------------------------------------------+
+        |INTERVAL '2000000 00:00:05.123456' DAY TO SECOND|
+        +------------------------------------------------+
+        """
+    )
+
+    # Very large interval with fractional seconds >= 10 to trigger Decimal path
+    df = session.sql(
+        "SELECT INTERVAL '2000000 00:00:15.123456' DAY TO SECOND as decimal_large_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------------------+
+        |"DECIMAL_LARGE_FRAC"                            |
+        +------------------------------------------------+
+        |INTERVAL '2000000 00:00:15.123456' DAY TO SECOND|
+        +------------------------------------------------+
+        """
+    )
+
+    # Normal interval with integer seconds to trigger float path
+    df = session.sql("SELECT INTERVAL '00:00:05' HOUR TO SECOND as float_int_test")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"FLOAT_INT_TEST"                  |
+        +----------------------------------+
+        |INTERVAL '00:00:05' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Normal interval with fractional seconds < 10 for float path
+    df = session.sql(
+        "SELECT INTERVAL '00:00:05.123456' HOUR TO SECOND as float_small_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------------+
+        |"FLOAT_SMALL_FRAC"                       |
+        +-----------------------------------------+
+        |INTERVAL '00:00:05.123456' HOUR TO SECOND|
+        +-----------------------------------------+
+        """
+    )
+
+    # Normal interval with fractional seconds >= 10 for float path
+    df = session.sql(
+        "SELECT INTERVAL '00:00:15.123456' HOUR TO SECOND as float_large_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------------+
+        |"FLOAT_LARGE_FRAC"                       |
+        +-----------------------------------------+
+        |INTERVAL '00:00:15.123456' HOUR TO SECOND|
+        +-----------------------------------------+
+        """
+    )
+
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
