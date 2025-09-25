@@ -20,6 +20,10 @@ from snowflake.snowpark._internal.data_source.utils import (
     DBMS_TYPE,
 )
 from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkSQLException,
+)
 from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 from tests.resources.test_data_source_dir.test_data_source_data import (
     OracleDBType,
@@ -248,3 +252,85 @@ def test_unsupported_type():
         create_connection_oracledb, DBMS_TYPE.ORACLE_DB
     ).to_snow_type([MockDescription("test_col", invalid_type, 0, 0, True)])
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_query_timeout_and_session_init(session):
+    statement = """
+    BEGIN
+        DBMS_LOCK.SLEEP(5);
+    END;
+"""
+    with pytest.raises(SnowparkDataframeReaderException) as error:
+        session.read.dbapi(
+            create_connection_oracledb,
+            table=ORACLEDB_TABLE_NAME,
+            query_timeout=1,
+            session_init_statement=[statement],
+        )
+    assert "socket timed out while recovering from previous socket timeout" in str(
+        error.value
+    ) or "call timeout of 1000 ms exceeded" in str(error.value)
+
+
+def test_query_timeout_and_session_init_udtf(session):
+    udtf_configs = {
+        "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION
+    }
+    statement = """
+        BEGIN
+            DBMS_LOCK.SLEEP(5);
+        END;
+    """
+
+    def create_connection_udtf_oracledb():
+        import oracledb
+
+        host = ORACLEDB_CONNECTION_PARAMETERS["host"]
+        port = ORACLEDB_CONNECTION_PARAMETERS["port"]
+        service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
+        username = ORACLEDB_CONNECTION_PARAMETERS["username"]
+        password = ORACLEDB_CONNECTION_PARAMETERS["password"]
+        dsn = f"{host}:{port}/{service_name}"
+        connection = oracledb.connect(user=username, password=password, dsn=dsn)
+        return connection
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="call timeout of 1000 ms exceeded",
+    ):
+        session.read.dbapi(
+            create_connection_udtf_oracledb,
+            table=ORACLEDB_TABLE_NAME,
+            query_timeout=1,
+            session_init_statement=[statement],
+            udtf_configs=udtf_configs,
+        ).collect()
+
+
+def test_oracledb_driver_udtf_class_builder():
+    """Test the UDTF class builder in OracledbDriver using a real Oracledb connection"""
+    # Create the driver with the real connection function
+    driver = OracledbDriver(create_connection_oracledb, DBMS_TYPE.ORACLE_DB)
+
+    # Get the UDTF class with a small fetch size to test batching
+    UDTFClass = driver.udtf_class_builder(
+        fetch_size=2, session_init_statement=["select 1 from dual"], query_timeout=1
+    )
+
+    # Instantiate the UDTF class
+    udtf_instance = UDTFClass()
+
+    # Test with a simple query that should return a few rows
+    test_query = f"SELECT * FROM {ORACLEDB_TABLE_NAME}"
+    result_rows = list(udtf_instance.process(test_query))
+
+    # Verify we got some data back (we know the test table has data from other tests)
+    assert len(result_rows) > 0
+
+    # Test with a query that returns specific columns
+    test_columns_query = f"SELECT ID, NUMBER_COL FROM {ORACLEDB_TABLE_NAME}"
+    column_result_rows = list(udtf_instance.process(test_columns_query))
+
+    # Verify we got data with the right structure (2 columns)
+    assert len(column_result_rows) > 0
+    assert len(column_result_rows[0]) == 2  # Two columns
