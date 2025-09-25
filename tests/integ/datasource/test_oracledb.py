@@ -6,6 +6,7 @@ import logging
 import math
 import sys
 from collections import namedtuple
+from unittest.mock import patch
 
 import pytest
 
@@ -334,3 +335,32 @@ def test_oracledb_driver_udtf_class_builder():
     # Verify we got data with the right structure (2 columns)
     assert len(column_result_rows) > 0
     assert len(column_result_rows[0]) == 2  # Two columns
+
+
+def test_dbapi_no_hang_on_exit_when_worker_error(session):
+    """
+    Test that the dbapi reader does not hang on exit when a worker raises an error
+
+    Ideally the test should be put in test_data_source_api.py,
+    however, reproducing using SQLite is hard to achieve while pure mocking gets the test code too complex.
+    Hence, we use Oracledb here which can repro the issue reliably without the fix.
+    """
+    with patch(
+        "snowflake.snowpark._internal.data_source.drivers.base_driver.BaseDriver.data_source_data_to_pandas_df"
+    ) as mock_data_source_data_to_pandas_df:
+        # Mock the data_source_data_to_pandas_df method to raise RuntimeError
+        mock_data_source_data_to_pandas_df.side_effect = RuntimeError(
+            "conversion error"
+        )
+
+        # Expect the dbapi call to raise a SnowparkDataframeReaderException due to the worker error
+        with pytest.raises(SnowparkDataframeReaderException, match="conversion error"):
+            session.read.dbapi(
+                create_connection_oracledb,
+                table=ORACLEDB_TABLE_NAME,
+                column="ID",
+                lower_bound=0,
+                upper_bound=100,
+                num_partitions=10,
+                max_workers=2,
+            )

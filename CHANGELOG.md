@@ -57,6 +57,9 @@
   - `nvl2`
   - `regr_valx`
 
+#### Bug Fixes
+
+- Fixed a bug that caused `DataFrameReader.dbapi` (PuPr) to hang during parquet data ingestion in multithreading mode and a data fetching error occurred.
 
 ### Snowpark pandas API Updates
 
