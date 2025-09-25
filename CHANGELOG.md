@@ -7,6 +7,7 @@
 #### Bug Fixes
 
 - Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
+- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be genrated when using nested structured types.
 
 #### New Features
 
