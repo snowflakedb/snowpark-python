@@ -4,7 +4,9 @@
 
 ### Snowpark Python API Updates
 
-#### New Features
+#### Bug Fixes
+
+- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be genrated when using nested structured types.
 
 ## 1.39.0 (2025-09-17)
 
