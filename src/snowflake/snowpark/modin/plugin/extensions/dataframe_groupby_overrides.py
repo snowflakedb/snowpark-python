@@ -1230,6 +1230,7 @@ def __getitem__(self, key):
         )
 
 
+@register_dataframe_groupby_accessor("__len__")
 def __len__(self):
     return self.ngroups
 
