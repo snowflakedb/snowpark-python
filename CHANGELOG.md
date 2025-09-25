@@ -6,7 +6,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in local environment.
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
 - Added an experimental fix for a bug in schema query generation that could cause invalid sql to be genrated when using nested structured types.
 
 #### New Features
