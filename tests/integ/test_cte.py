@@ -566,6 +566,85 @@ def test_same_duplicate_subtree(session):
         assert count_number_of_ctes(df_result2.queries["queries"][-1]) == 3
 
 
+@pytest.mark.parametrize("use_different_df", [True, False])
+def test_cte_preserves_join_suffix_aliases(session, use_different_df):
+    df_ad_group = session.create_dataframe(
+        [["1048771", "group_1", "campaign_1"]],
+        schema=["ACCOUNT_ID", "AD_GROUP_ID", "CAMPAIGN_ID"],
+    )
+
+    df_ad_group_excv = session.create_dataframe(
+        [["1048771", "group_1", "device", "8308"]],
+        schema=["ACCOUNT_ID", "AD_GROUP_ID", "DEVICE", "EXTERNAL_CONVERSION_ID"],
+    )
+
+    df_ad_group_excv = df_ad_group_excv.join(
+        df_ad_group,
+        df_ad_group.col("AD_GROUP_ID") == df_ad_group_excv.col("AD_GROUP_ID"),
+        rsuffix="_WITH_AD_GROUP",
+    ).select(
+        col("ACCOUNT_ID"),
+        col("CAMPAIGN_ID"),
+        col("AD_GROUP_ID"),
+        lit(None).as_("AD_ID"),
+    )
+
+    if use_different_df:
+        df_ad_group = session.create_dataframe(
+            [["1048771", "group_1", "campaign_1"]],
+            schema=["ACCOUNT_ID", "AD_GROUP_ID", "CAMPAIGN_ID"],
+        )
+
+    df_ad_group_ad = session.create_dataframe(
+        [["1048771", "ad_1", "group_1"]],
+        schema=["ACCOUNT_ID", "AD_ID", "AD_GROUP_ID"],
+    )
+
+    df_ad_excv = session.create_dataframe(
+        [["1048771", "group_1", "ad_1", "device", "8308"]],
+        schema=[
+            "ACCOUNT_ID",
+            "AD_GROUP_ID",
+            "AD_ID",
+            "DEVICE",
+            "EXTERNAL_CONVERSION_ID",
+        ],
+    )
+
+    df_ad_excv = (
+        df_ad_excv.join(
+            df_ad_group_ad,
+            df_ad_group_ad.col("AD_ID") == df_ad_excv.col("AD_ID"),
+            rsuffix="_WITH_AD_GROUP_AD",
+        )
+        .join(
+            df_ad_group,
+            df_ad_group.col("AD_GROUP_ID") == df_ad_group_ad.col("AD_GROUP_ID"),
+            rsuffix="_WITH_AD_GROUP",
+        )
+        .select(
+            col("ACCOUNT_ID"),
+            col("CAMPAIGN_ID"),
+            col("AD_GROUP_ID"),
+            col("AD_ID"),
+        )
+    )
+
+    df_union = df_ad_group_excv.union_all(df_ad_excv)
+    union_sql = df_union.queries["queries"][-1]
+
+    # the second one is incorrect join condition as we have rsuffix for join alias
+    assert 'ON ("AD_GROUP_ID_WITH_AD_GROUP" = "AD_GROUP_ID")' in union_sql
+    assert 'ON ("AD_GROUP_ID" = "AD_GROUP_ID")' not in union_sql
+    # when using different df_ad_group, because rsuffix in join, they have different alias map (expr_to_alias),
+    # so they are considered different and we can't convert them to a CTE
+    assert (
+        count_number_of_ctes(Utils.normalize_sql(union_sql)) == 0
+        if use_different_df
+        else 1
+    )
+
+
 @pytest.mark.parametrize(
     "mode", ["append", "truncate", "overwrite", "errorifexists", "ignore"]
 )
@@ -736,12 +815,12 @@ def test_sql_simplifier(session):
         describe_count_for_optimized=1 if session._join_alias_fix else None,
     )
     with SqlCounter(query_count=0, describe_count=0):
-        # When adding a lsuffix, the columns of right dataframe don't need to be renamed,
-        # so we will get a common CTE with filter
+        # When adding a lsuffix, expr alias map will be updated, so df2 and df3 are considered
+        # different and have different ids. So only df1 and df will be converted to a CTE
         assert (
-            count_number_of_ctes(Utils.normalize_sql(df6.queries["queries"][-1])) == 2
+            count_number_of_ctes(Utils.normalize_sql(df6.queries["queries"][-1])) == 1
         )
-        assert Utils.normalize_sql(df6.queries["queries"][-1]).count(filter_clause) == 2
+        assert Utils.normalize_sql(df6.queries["queries"][-1]).count(filter_clause) == 3
 
     df7 = df1.with_column("c", lit(1))
     df8 = df1.with_column("c", lit(1)).with_column("d", lit(1))
