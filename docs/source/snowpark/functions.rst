@@ -238,6 +238,7 @@ Functions
     grouping
     grouping_id
     hash
+    haversine
     hex
     hex_decode_binary
     hex_encode
@@ -259,6 +260,10 @@ Functions
     h3_cell_to_children
     h3_cell_to_children_string
     h3_int_to_string
+    h3_try_grid_path
+    h3_try_polygon_to_cells
+    h3_uncompact_cells
+    h3_uncompact_cells_strings
     h3_grid_path
     h3_is_pentagon
     h3_is_valid_cell
@@ -426,6 +431,11 @@ Functions
     strip_null_value
     strtok_to_array
     struct
+    st_area
+    st_asewkb
+    st_asewkt
+    st_asgeojson
+    st_aswkb
     substr
     substring
     sum

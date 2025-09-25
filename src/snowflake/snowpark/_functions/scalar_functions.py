@@ -1498,6 +1498,297 @@ def h3_int_to_string(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def h3_try_grid_path(
+    cell_id_1: ColumnOrName, cell_id_2: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the grid path between two H3 cell IDs. Returns None if no path exists
+    or if the input cell IDs are invalid.
+
+    Args:
+        cell_id_1 (ColumnOrName): The first H3 cell ID.
+        cell_id_2 (ColumnOrName): The second H3 cell ID.
+
+    Returns:
+        Column: An array of H3 cell IDs representing the grid path, or None if no path exists or if inputs are invalid.
+
+    Example::
+
+        >>> df = session.create_dataframe([['813d7ffffffffff', '81343ffffffffff']], schema=["cell1", "cell2"])
+        >>> df.select(h3_try_grid_path(df["cell1"], df["cell2"]).alias("grid_path")).collect()
+        [Row(GRID_PATH=None)]
+    """
+    c1 = _to_col_if_str(cell_id_1, "h3_try_grid_path")
+    c2 = _to_col_if_str(cell_id_2, "h3_try_grid_path")
+    return builtin("h3_try_grid_path", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def h3_try_polygon_to_cells(
+    geography_polygon: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns an array of H3 cell IDs that cover the given geography polygon at the specified resolution.
+    This is a "try" version that returns None instead of raising an error if the conversion fails.
+
+    Args:
+        geography_polygon (ColumnOrName): The GEOGRAPHY polygon object.
+        target_resolution (ColumnOrName): The H3 resolution level (0-15).
+
+    Returns:
+        Column: An array of H3 cell IDs as BIGINT values, or None if conversion fails.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import to_geography, lit
+        >>> df = session.create_dataframe([
+        ...     ['POLYGON((-122.4 37.8, -122.4 37.7, -122.3 37.7, -122.3 37.8, -122.4 37.8))']
+        ... ], schema=['polygon_wkt'])
+        >>> df.select(
+        ...     h3_try_polygon_to_cells(to_geography(df['polygon_wkt']), lit(5))
+        ... ).collect()
+        [Row(H3_TRY_POLYGON_TO_CELLS(TO_GEOGRAPHY("POLYGON_WKT"), 5)='[\\n  599685771850416127\\n]')]
+    """
+    geography_polygon_c = _to_col_if_str(geography_polygon, "h3_try_polygon_to_cells")
+    target_resolution_c = _to_col_if_str(target_resolution, "h3_try_polygon_to_cells")
+    return builtin("h3_try_polygon_to_cells", _emit_ast=_emit_ast)(
+        geography_polygon_c, target_resolution_c
+    )
+
+
+@publicapi
+def h3_uncompact_cells(
+    array_of_cell_ids: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns an array of H3 cell IDs at the specified target resolution that are contained within the input array of H3 cell IDs.
+    This function performs the opposite operation of H3_COMPACT_CELLS by expanding compacted cells to their constituent cells at a finer resolution.
+
+    Args:
+        array_of_cell_ids (ColumnOrName): Column containing an array of H3 cell IDs to uncompact
+        target_resolution (ColumnOrName): Column containing the target H3 resolution level for the uncompacted cells
+
+    Returns:
+        Column: An array of H3 cell IDs at the target resolution
+
+    Examples::
+        >>> from snowflake.snowpark.functions import lit
+        >>> df = session.create_dataframe([[[622236750558396415, 617733150935089151]]], schema=["cell_ids"])
+        >>> df.select(h3_uncompact_cells(df["cell_ids"], lit(10)).alias("uncompacted")).collect()
+        [Row(UNCOMPACTED='[\\n  622236750558396415,\\n  622236750562230271,\\n  622236750562263039,\\n  622236750562295807,\\n  622236750562328575,\\n  622236750562361343,\\n  622236750562394111,\\n  622236750562426879\\n]')]
+    """
+    array_col = _to_col_if_str(array_of_cell_ids, "h3_uncompact_cells")
+    resolution_col = _to_col_if_str(target_resolution, "h3_uncompact_cells")
+    return builtin("h3_uncompact_cells", _emit_ast=_emit_ast)(array_col, resolution_col)
+
+
+@publicapi
+def h3_uncompact_cells_strings(
+    array_of_cell_ids: ColumnOrName,
+    target_resolution: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns an array of H3 cell IDs at the specified target resolution that are contained within
+    the input array of H3 cell IDs. This function uncompacts H3 cells to a finer resolution.
+
+    Args:
+        array_of_cell_ids (ColumnOrName): An array of H3 cell ID strings.
+        target_resolution (ColumnOrName): The target H3 resolution (0-15).
+
+    Returns:
+        Column: An array of H3 cell ID strings at the target resolution.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import array_construct, lit
+        >>> df = session.create_dataframe([
+        ...     [['8a2a1072339ffff', '892a1072377ffff']],
+        ...     [['8a2a1072339ffff']]
+        ... ], schema=["cell_ids"])
+        >>> df.select(h3_uncompact_cells_strings(df["cell_ids"], lit(10)).alias("uncompacted")).collect()
+        [Row(UNCOMPACTED='[\\n  "8a2a1072339ffff",\\n  "8a2a10723747fff",\\n  "8a2a1072374ffff",\\n  "8a2a10723757fff",\\n  "8a2a1072375ffff",\\n  "8a2a10723767fff",\\n  "8a2a1072376ffff",\\n  "8a2a10723777fff"\\n]'), Row(UNCOMPACTED='[\\n  "8a2a1072339ffff"\\n]')]
+    """
+    array_col = _to_col_if_str(array_of_cell_ids, "h3_uncompact_cells_strings")
+    resolution_col = _to_col_if_str(target_resolution, "h3_uncompact_cells_strings")
+    return builtin("h3_uncompact_cells_strings", _emit_ast=_emit_ast)(
+        array_col, resolution_col
+    )
+
+
+@publicapi
+def haversine(
+    lat1: ColumnOrName,
+    lon1: ColumnOrName,
+    lat2: ColumnOrName,
+    lon2: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Calculates the great circle distance in kilometers between two points on Earth
+    using the Haversine formula.
+
+    Args:
+        lat1 (ColumnOrName): The latitude of the first point in degrees.
+        lon1 (ColumnOrName): The longitude of the first point in degrees.
+        lat2 (ColumnOrName): The latitude of the second point in degrees.
+        lon2 (ColumnOrName): The longitude of the second point in degrees.
+
+    Returns:
+        Column: The distance in kilometers between the two points.
+
+    Example::
+
+        >>> df = session.create_dataframe([[40.7127, -74.0059, 34.0500, -118.2500]], schema=["lat1", "lon1", "lat2", "lon2"])
+        >>> df.select(haversine(df["lat1"], df["lon1"], df["lat2"], df["lon2"]).alias("distance")).collect()
+        [Row(DISTANCE=3936.3850963892937)]
+    """
+    lat1_col = _to_col_if_str(lat1, "haversine")
+    lon1_col = _to_col_if_str(lon1, "haversine")
+    lat2_col = _to_col_if_str(lat2, "haversine")
+    lon2_col = _to_col_if_str(lon2, "haversine")
+    return builtin("haversine", _emit_ast=_emit_ast)(
+        lat1_col, lon1_col, lat2_col, lon2_col
+    )
+
+
+@publicapi
+def st_area(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the area of a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object
+
+    Returns:
+        Column: The area of the input geography or geometry object
+
+    Examples:
+        >>> from snowflake.snowpark.functions import to_geometry
+        >>> df = session.create_dataframe([
+        ...     ['POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))'],
+        ...     ['POINT(1 1)'],
+        ...     ['LINESTRING(0 0, 1 1)']
+        ... ], schema=["geom"])
+        >>> df.select(st_area(to_geometry(df["geom"])).alias("area")).collect()
+        [Row(AREA=1.0), Row(AREA=0.0), Row(AREA=0.0)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_area")
+    return builtin("st_area", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_asewkb(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the Extended Well-Known Binary (EWKB) representation of a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): The GEOGRAPHY or GEOMETRY objects to convert to EWKB format
+
+    Returns:
+        Column: The EWKB representation as binary data
+
+    Examples:
+        >>> from snowflake.snowpark.functions import to_geography, col
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([
+        ...     ['POINT(-122.35 37.55)'],
+        ...     ['LINESTRING(-124.20 42.00, -120.01 41.99)']
+        ... ], schema=["g"])
+        >>> df.select(st_asewkb(to_geography(col("g"))).alias("ewkb")).collect()
+        [Row(EWKB=bytearray(b'\\x01\\x01\\x00\\x00 \\xe6\\x10\\x00\\x00fffff\\x96^\\xc0fffff\\xc6B@')), Row(EWKB=bytearray(b'\\x01\\x02\\x00\\x00 \\xe6\\x10\\x00\\x00\\x02\\x00\\x00\\x00\\xcd\\xcc\\xcc\\xcc\\xcc\\x0c_\\xc0\\x00\\x00\\x00\\x00\\x00\\x00E@q=\\n\\xd7\\xa3\\x00^\\xc0\\x1f\\x85\\xebQ\\xb8\\xfeD@'))]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_asewkb")
+    return builtin("st_asewkb", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_asewkt(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the Extended Well-Known Text (EWKT) representation of a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY objects to convert to EWKT format
+
+    Returns:
+        Column: The EWKT representation as a string
+
+    Examples:
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> from snowflake.snowpark import Row
+        >>> df = session.create_dataframe([
+        ...     ['POINT(-122.35 37.55)'],
+        ...     ['LINESTRING(-124.20 42.00, -120.01 41.99)']
+        ... ], schema=["g"])
+        >>> result = df.select(st_asewkt(to_geography(df["g"])).alias("result")).collect()
+        >>> assert result == [Row(RESULT='SRID=4326;POINT(-122.35 37.55)'), Row(RESULT='SRID=4326;LINESTRING(-124.2 42,-120.01 41.99)')]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_asewkt")
+    return builtin("st_asewkt", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_asgeojson(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the GeoJSON representation of a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): The GEOGRAPHY or GEOMETRY data.
+
+    Returns:
+        Column: The GeoJSON representation as a string.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import col, to_geography
+        >>> df = session.create_dataframe(['POINT(-122.35 37.55)', 'LINESTRING(-124.20 42.00, -120.01 41.99)'], schema=['g'])
+        >>> df = df.select(to_geography(col("g")).alias("geography"))
+        >>> df.select(st_asgeojson(col("geography"))).collect()
+        [Row(ST_ASGEOJSON("GEOGRAPHY")='{\\n  "coordinates": [\\n    -122.35,\\n    37.55\\n  ],\\n  "type": "Point"\\n}'), Row(ST_ASGEOJSON("GEOGRAPHY")='{\\n  "coordinates": [\\n    [\\n      -124.2,\\n      42\\n    ],\\n    [\\n      -120.01,\\n      41.99\\n    ]\\n  ],\\n  "type": "LineString"\\n}')]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_asgeojson")
+    return builtin("st_asgeojson", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_aswkb(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the Well-Known Binary (WKB) representation of a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): The GEOGRAPHY or GEOMETRY object.
+
+    Returns:
+        Column: The WKB representation as binary data.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, to_geography
+        >>> df = session.create_dataframe([
+        ...     'POINT(-122.35 37.55)',
+        ...     'LINESTRING(-124.20 42.00, -120.01 41.99)'
+        ... ], schema=["g"])
+        >>> df.select(st_aswkb(to_geography(col("g")))).collect()
+        [Row(ST_ASWKB(TO_GEOGRAPHY("G"))=bytearray(b'\\x01\\x01\\x00\\x00\\x00fffff\\x96^\\xc0fffff\\xc6B@')), Row(ST_ASWKB(TO_GEOGRAPHY("G"))=bytearray(b'\\x01\\x02\\x00\\x00\\x00\\x02\\x00\\x00\\x00\\xcd\\xcc\\xcc\\xcc\\xcc\\x0c_\\xc0\\x00\\x00\\x00\\x00\\x00\\x00E@q=\\n\\xd7\\xa3\\x00^\\xc0\\x1f\\x85\\xebQ\\xb8\\xfeD@'))]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_aswkb")
+    return builtin("st_aswkb", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
 def h3_grid_path(
     cell_id_1: ColumnOrName, cell_id_2: ColumnOrName, _emit_ast: bool = True
 ) -> Column:

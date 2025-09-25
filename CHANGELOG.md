@@ -48,7 +48,12 @@
   - `h3_polygon_to_cells`
   - `h3_polygon_to_cells_strings`
   - `h3_string_to_int`
+  - `h3_try_grid_path`
+  - `h3_try_polygon_to_cells`
   - `h3_try_polygon_to_cells_strings`
+  - `h3_uncompact_cells`
+  - `h3_uncompact_cells_strings`
+  - `haversine`
   - `h3_grid_path`
   - `h3_is_pentagon`
   - `h3_is_valid_cell`
@@ -66,6 +71,11 @@
   - `nullif`
   - `nvl2`
   - `regr_valx`
+  - `st_area`
+  - `st_asewkb`
+  - `st_asewkt`
+  - `st_asgeojson`
+  - `st_aswkb`
 
 
 ### Snowpark pandas API Updates
