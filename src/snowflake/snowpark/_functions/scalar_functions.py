@@ -1497,6 +1497,7 @@ def h3_int_to_string(cell_id: ColumnOrName, _emit_ast: bool = True) -> Column:
     return builtin("h3_int_to_string", _emit_ast=_emit_ast)(c)
 
 
+@publicapi
 def h3_grid_path(
     cell_id_1: ColumnOrName, cell_id_2: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
