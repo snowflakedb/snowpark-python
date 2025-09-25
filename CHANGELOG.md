@@ -56,10 +56,10 @@
 
 - Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
 - Added an experimental fix for a bug in schema query generation that could cause invalid sql to be genrated when using nested structured types.
-- Fixed the following bugs in `DataFrameReader.dbapi`(PuPr):
-  - udtf ingestion does not work for `pyodbc` driver.
-  - query input does not work for SQL Server.
-  - nullability of output schema of udft ingestion is not preserved.
+- Fixed multiple bugs in `DataFrameReader.dbapi` (PuPr):
+  - Fixed UDTF ingestion failure with `pyodbc` driver caused by unprocessed row data.
+  - Fixed SQL Server query input failure due to incorrect select query generation.
+  - Fixed UDTF ingestion not preserving column nullability in the output schema.
 
 #### Improvements
 
