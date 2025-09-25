@@ -636,13 +636,10 @@ def test_cte_preserves_join_suffix_aliases(session, use_different_df):
     # the second one is incorrect join condition as we have rsuffix for join alias
     assert 'ON ("AD_GROUP_ID_WITH_AD_GROUP" = "AD_GROUP_ID")' in union_sql
     assert 'ON ("AD_GROUP_ID" = "AD_GROUP_ID")' not in union_sql
-    # when using different df_ad_group, because rsuffix in join, they have different alias map (expr_to_alias),
-    # so they are considered different and we can't convert them to a CTE
-    assert (
-        count_number_of_ctes(Utils.normalize_sql(union_sql)) == 0
-        if use_different_df
-        else 1
-    )
+    # when using different df_ad_group with disambiguation, because rsuffix in join,
+    # they have different alias map (expr_to_alias), so they are considered different and we can't convert them to a CTE
+    # However there is still a CTE for create_dataframe call
+    assert count_number_of_ctes(Utils.normalize_sql(union_sql)) == 1
 
 
 @pytest.mark.parametrize(
