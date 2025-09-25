@@ -252,16 +252,24 @@ def encode_query_id(node: "TreeNode") -> Optional[str]:
         # to avoid being detected as a common subquery.
         return None
 
+    def stringify(d):
+        if isinstance(d, dict):
+            key_value_pairs = list(d.items())
+            key_value_pairs.sort(key=lambda x: x[0])
+            return str(key_value_pairs)
+        else:
+            return str(d)
+
     string = query
     if query_params:
         string = f"{string}#{query_params}"
     if hasattr(node, "expr_to_alias") and node.expr_to_alias:
-        string = f"{string}#{node.expr_to_alias}"
+        string = f"{string}#{stringify(node.expr_to_alias)}"
     if (
         hasattr(node, "df_aliased_col_name_to_real_col_name")
         and node.df_aliased_col_name_to_real_col_name
     ):
-        string = f"{string}#{node.df_aliased_col_name_to_real_col_name}"
+        string = f"{string}#{stringify(node.df_aliased_col_name_to_real_col_name)}"
 
     try:
         return hashlib.sha256(string.encode()).hexdigest()[:10]
