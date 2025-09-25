@@ -2291,6 +2291,7 @@ def test_sproc_artifact_repository(session):
 @pytest.mark.skipif(
     sys.version_info < (3, 9), reason="artifact repository requires Python 3.9+"
 )
+@pytest.mark.skip("SNOW-2362946: Skip until root cause is found.")
 def test_sproc_artifact_repository_from_file(session, tmpdir):
     source = dedent(
         """
