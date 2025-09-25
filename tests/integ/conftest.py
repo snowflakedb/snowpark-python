@@ -33,7 +33,7 @@ test_dir = os.path.dirname(__file__)
 test_data_dir = os.path.join(test_dir, "cassettes")
 
 _logger = getLogger(__name__)
-
+# os.environ["AWS_EC2_METADATA_DISABLED"] = "true"
 SNOWFLAKE_CREDENTIAL_HEADER_FIELDS = [
     "Authorization",
     "x-amz-server-side-encryption-customer-key-MD5",
