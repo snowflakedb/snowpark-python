@@ -110,8 +110,8 @@ ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_oracledb_test_integr
     "input_type, input_value",
     [
         ("table", SQL_SERVER_TABLE_NAME),
-        # ("query", f"SELECT * FROM {SQL_SERVER_TABLE_NAME}"),
-        # ("query", f"(SELECT * FROM {SQL_SERVER_TABLE_NAME})"),
+        ("query", f"SELECT * FROM {SQL_SERVER_TABLE_NAME}"),
+        ("query", f"(SELECT * FROM {SQL_SERVER_TABLE_NAME})"),
     ],
 )
 @pytest.mark.parametrize("fetch_with_process", [True, False])
@@ -422,8 +422,6 @@ def test_telemetry(session, fetch_with_process):
         assert "parquet_id" in entry
         assert "thread_id" in entry
         assert "duration" in entry
-
-    print(telemetry_json)
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
