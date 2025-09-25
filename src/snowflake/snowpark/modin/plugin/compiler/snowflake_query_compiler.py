@@ -1118,6 +1118,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if arguments and SnowflakeQueryCompiler._has_unsupported_kwargs(
             api_cls_name, operation, arguments
         ):
+            WarningMessage.single_warning(
+                f"Method '{operation}' with specified parameters requires pandas backend. "
+                f"Automatically switching for execution."
+            )
+
             return QCCoercionCost.COST_IMPOSSIBLE
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
