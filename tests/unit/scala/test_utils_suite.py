@@ -365,7 +365,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_data_source_dir/test_databricks_data.py",
                 "resources/test_data_source_dir/test_jdbc_data.py",
                 "resources/test_data_source_dir/test_mysql_data.py",
-                "resources/test_data_source_dir/test_pyodbc_data.py",
+                "resources/test_data_source_dir/test_sql_server_data.py",
                 "resources/test_debug_utils_dir/",
                 "resources/test_debug_utils_dir/dataframe_generator1.py",
                 "resources/test_debug_utils_dir/dataframe_generator2.py",
