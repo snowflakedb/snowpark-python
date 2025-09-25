@@ -20,7 +20,7 @@ from tests.resources.test_data_source_dir.test_sql_server_data import (
 )
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
-    SnowparkSQLException,
+    SnowparkClientException,
 )
 
 DEPENDENCIES_PACKAGE_UNAVAILABLE = True
@@ -354,7 +354,9 @@ def test_session_init_statement(session, udtf_configs):
     if udtf_configs:
         dbapi_kwargs["udtf_configs"] = udtf_configs
 
-    with pytest.raises(SnowparkSQLException, match="Must declare the scalar variable"):
+    with pytest.raises(
+        SnowparkClientException, match="Must declare the scalar variable"
+    ):
         # TODO: 2362041, UDTF error experience is different from parquet ingestion
         # 1. UDTF needs .collect() to trigger the error while parquet ingestion triggers on .dbapi()
         # 2. error exception is different
