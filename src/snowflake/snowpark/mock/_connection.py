@@ -840,7 +840,7 @@ def _fix_pandas_df_fixed_type(table_res: TableEmulator) -> "pandas.DataFrame":
                         table_res[col_name].tolist(), downcast="integer"
                     )
                 else:
-                    pd_df[pd_df_col_name] = table_res[col_name].astype("int64")
+                    pd_df[pd_df_col_name] = table_res[col_name].astype("int64").tolist()
             except OverflowError:
                 pd_df[pd_df_col_name] = pandas.to_numeric(
                     table_res[col_name].tolist(), downcast="integer"
