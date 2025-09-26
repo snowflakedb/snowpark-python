@@ -17,7 +17,6 @@
   - `get_secret_type`
   - `get_username_password`
   - `get_cloud_provider_token`
-
 - Added support for the following scalar functions in `functions.py`:
   - `array_remove_at`
   - `as_boolean`
@@ -76,6 +75,10 @@
   - `st_asewkt`
   - `st_asgeojson`
   - `st_aswkb`
+
+#### Bug Fixes
+
+- Fixed an issue where DataFrame joins would fail when CTE optimization was enabled and one of the DataFrames was created using the `DataFrame.alias()` method.
 
 
 ### Snowpark pandas API Updates
@@ -167,7 +170,7 @@
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
 - Added support for applying Snowflake Cortex function `Complete`.
-- Introduce faster pandas: Improved performance by deferring row position computation. 
+- Introduce faster pandas: Improved performance by deferring row position computation.
   - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
   - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 - Updated the error message for when Snowpark pandas is referenced within apply.
