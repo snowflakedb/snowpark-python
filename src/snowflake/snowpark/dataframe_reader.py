@@ -1959,8 +1959,6 @@ class DataFrameReader:
                 fetch_to_local_end_time,
                 upload_to_sf_start_time,
                 upload_to_sf_end_time,
-                fetch_to_local_workers_telemetry,
-                upload_to_sf_workers_telemetry,
             ) = process_parquet_queue_with_threads(
                 session=self._session,
                 parquet_queue=parquet_queue,
@@ -2025,12 +2023,6 @@ class DataFrameReader:
             self, snowflake_table_name, struct_schema, _emit_ast=_emit_ast
         )
         telemetry_json_string["schema"] = res_df.schema.simple_string()
-        telemetry_json_string["fetch_to_local_workers_telemetries"] = [
-            json.loads(telemetry) for telemetry in fetch_to_local_workers_telemetry
-        ]
-        telemetry_json_string["upload_to_sf_workers_telemetries"] = [
-            json.loads(telemetry) for telemetry in upload_to_sf_workers_telemetry
-        ]
         self._session._conn._telemetry_client.send_data_source_perf_telemetry(
             telemetry_json_string
         )
