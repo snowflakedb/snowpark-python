@@ -416,3 +416,15 @@ def test_read_xml_row_validation_xsd_path(session):
     assert result[0]["'price'"] == '"44.95"'
     assert result[0]["'publish_date'"] == '"2000-10-01"'
     assert result[0]["'_id'"] == '"bk101"'
+
+
+def test_read_xml_row_validation_xsd_path_failfast(session):
+    row_tag = "book"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}")
+        .option("mode", "failfast")
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    with pytest.raises(SnowparkSQLException, match="XML record string:"):
+        df.collect()
