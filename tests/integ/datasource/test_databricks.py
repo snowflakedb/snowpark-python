@@ -19,7 +19,6 @@ from snowflake.snowpark._internal.utils import (
 )
 from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
-    _SnowparkDataSourceNonRetryableException,
     SnowparkSQLException,
 )
 from snowflake.snowpark.types import (
@@ -268,7 +267,7 @@ def test_unsupported_type():
 
 def test_databricks_non_retryable_error(session):
     with pytest.raises(
-        _SnowparkDataSourceNonRetryableException,
+        SnowparkDataframeReaderException,
         match="PARSE_SYNTAX_ERROR",
     ):
         session.read.dbapi(

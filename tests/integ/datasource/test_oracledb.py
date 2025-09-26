@@ -21,7 +21,6 @@ from snowflake.snowpark._internal.data_source.utils import (
 )
 from snowflake.snowpark.types import StructType, StructField, StringType
 from snowflake.snowpark.exceptions import (
-    _SnowparkDataSourceNonRetryableException,
     SnowparkDataframeReaderException,
     SnowparkSQLException,
 )
@@ -257,7 +256,7 @@ def test_unsupported_type():
 
 def test_oracledb_non_retryable_error(session):
     with pytest.raises(
-        _SnowparkDataSourceNonRetryableException,
+        SnowparkDataframeReaderException,
         match="ORA-00920: invalid relational operator",
     ):
         session.read.dbapi(
