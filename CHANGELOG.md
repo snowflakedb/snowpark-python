@@ -40,7 +40,7 @@
       - `map_pick`
       - `map_size`
 
-    - String & binary functions
+    - String & binary functions:
       - `chr`
       - `hex_decode_binary`
       
@@ -55,7 +55,7 @@
       - `last_query_id`
       - `last_transaction`
 
-    - Geospatial functoins:
+    - Geospatial functions:
       - `h3_cell_to_boundary`
       - `h3_cell_to_children`
       - `h3_cell_to_children_string`
