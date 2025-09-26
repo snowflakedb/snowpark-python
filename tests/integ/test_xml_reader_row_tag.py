@@ -420,11 +420,7 @@ def test_read_xml_row_validation_xsd_path(session):
 
 def test_read_xml_row_validation_xsd_path_failfast(session):
     row_tag = "book"
-    df = (
-        session.read.option("rowTag", row_tag)
-        .option("rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}")
-        .option("mode", "failfast")
-        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
-    )
     with pytest.raises(SnowparkSQLException, match="XML record string:"):
-        df.collect()
+        session.read.option("rowTag", row_tag).option(
+            "rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}"
+        ).option("mode", "failfast").xml(f"@{tmp_stage_name}/{test_file_books_xml}")
