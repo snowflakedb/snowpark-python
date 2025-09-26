@@ -6,7 +6,7 @@
 
 #### Bug Fixes
 
-- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
 - Added an experimental fix for a bug in schema query generation that could cause invalid sql to be genrated when using nested structured types.
 
 #### New Features
@@ -48,7 +48,22 @@
   - `h3_polygon_to_cells`
   - `h3_polygon_to_cells_strings`
   - `h3_string_to_int`
+  - `h3_try_grid_path`
+  - `h3_try_polygon_to_cells`
   - `h3_try_polygon_to_cells_strings`
+  - `h3_uncompact_cells`
+  - `h3_uncompact_cells_strings`
+  - `haversine`
+  - `h3_grid_path`
+  - `h3_is_pentagon`
+  - `h3_is_valid_cell`
+  - `h3_latlng_to_cell`
+  - `h3_latlng_to_cell_string`
+  - `h3_point_to_cell`
+  - `h3_point_to_cell_string`
+  - `h3_try_coverage`
+  - `h3_try_coverage_strings`
+  - `h3_try_grid_distance`
   - `hex_decode_binary`
   - `last_query_id`
   - `last_transaction`
@@ -56,10 +71,23 @@
   - `nullif`
   - `nvl2`
   - `regr_valx`
+  - `st_area`
+  - `st_asewkb`
+  - `st_asewkt`
+  - `st_asgeojson`
+  - `st_aswkb`
 
 #### Bug Fixes
 
-- Fixed a bug that caused `DataFrameReader.dbapi` (PuPr) to hang during parquet data ingestion in multithreading mode and a data fetching error occurred.
+- Fixed multiple bugs in `DataFrameReader.dbapi` (PuPr):
+  - Fixed UDTF ingestion failure with `pyodbc` driver caused by unprocessed row data.
+  - Fixed SQL Server query input failure due to incorrect select query generation.
+  - Fixed UDTF ingestion not preserving column nullability in the output schema.
+  - Fixed an issue that caused the program to hang during multithreaded Parquet based ingestion when a data fetching error occurred.
+
+#### Improvements
+
+- Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 100000.
 
 ### Snowpark pandas API Updates
 
