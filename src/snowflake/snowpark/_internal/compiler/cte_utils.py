@@ -224,8 +224,8 @@ def get_duplicated_node_complexity_distribution(
 
 def encode_query_id(node: "TreeNode") -> Optional[str]:
     """
-    Encode the query and its query parameter into an id using sha256.
-
+    Encode the query, its query parameter, expr_to_alias and df_aliased_col_name_to_real_col_name
+    into an id using sha256.
 
     Returns:
         If encode succeed, return the first 10 encoded value.
@@ -252,7 +252,25 @@ def encode_query_id(node: "TreeNode") -> Optional[str]:
         # to avoid being detected as a common subquery.
         return None
 
-    string = f"{query}#{query_params}" if query_params else query
+    def stringify(d):
+        if isinstance(d, dict):
+            key_value_pairs = list(d.items())
+            key_value_pairs.sort(key=lambda x: x[0])
+            return str(key_value_pairs)
+        else:
+            return str(d)
+
+    string = query
+    if query_params:
+        string = f"{string}#{query_params}"
+    if hasattr(node, "expr_to_alias") and node.expr_to_alias:
+        string = f"{string}#{stringify(node.expr_to_alias)}"
+    if (
+        hasattr(node, "df_aliased_col_name_to_real_col_name")
+        and node.df_aliased_col_name_to_real_col_name
+    ):
+        string = f"{string}#{stringify(node.df_aliased_col_name_to_real_col_name)}"
+
     try:
         return hashlib.sha256(string.encode()).hexdigest()[:10]
     except Exception as ex:
