@@ -36,7 +36,7 @@
       - `array_remove_at`
       - `as_boolean`
       - `map_delete`
-      - `_map_insert`
+      - `map_insert`
       - `map_pick`
       - `map_size`
 
