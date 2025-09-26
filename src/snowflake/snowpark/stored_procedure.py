@@ -955,6 +955,7 @@ class StoredProcedureRegistration:
             is_permanent=is_permanent,
             force_inline_code=force_inline_code,
             artifact_repository=artifact_repository,
+            **kwargs,
         )
 
         runtime_version_from_requirement = None

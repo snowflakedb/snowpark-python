@@ -275,6 +275,35 @@ def test_resolve_packages_side_effect(mock_server_connection):
     assert len(existing_packages) == 1, existing_packages
 
 
+def test_resolve_packages_suppresses_internal_warning(mock_server_connection, caplog):
+    session = Session(mock_server_connection)
+
+    def mock_get_information_schema_packages(table_name: str, _emit_ast: bool = True):
+        result = MagicMock()
+        result.filter().group_by().agg()._internal_collect_with_tag.return_value = [
+            ("snowflake-snowpark-python", json.dumps(["1.0.0"]))
+        ]
+        return result
+
+    caplog.clear()
+    with mock.patch.object(
+        session, "table", side_effect=mock_get_information_schema_packages
+    ), mock.patch("importlib.metadata.version", return_value="0.0.1"), mock.patch(
+        "snowflake.snowpark.session._logger"
+    ) as mock_logger, caplog.at_level(
+        logging.WARNING
+    ):
+        session._resolve_packages(
+            ["snowflake-snowpark-python"],
+            validate_package=True,
+            include_pandas=False,
+            _suppress_local_package_warnings=True,
+        )
+
+    mock_logger.warning.assert_not_called()
+    assert caplog.text == ""
+
+
 @pytest.mark.skipif(not is_pandas_available, reason="requires pandas for write_pandas")
 def test_write_pandas_wrong_table_type(mock_server_connection):
     session = Session(mock_server_connection)

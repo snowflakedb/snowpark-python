@@ -799,6 +799,7 @@ class UDAFRegistration:
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
             artifact_repository=artifact_repository,
+            **kwargs,
         )
 
         runtime_version_from_requirement = None
