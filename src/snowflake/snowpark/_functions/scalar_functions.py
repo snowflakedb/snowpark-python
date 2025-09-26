@@ -2064,3 +2064,129 @@ def h3_try_grid_distance(
     cell_id_1 = _to_col_if_str(cell_id_1, "h3_try_grid_distance")
     cell_id_2 = _to_col_if_str(cell_id_2, "h3_try_grid_distance")
     return builtin("h3_try_grid_distance", _emit_ast=_emit_ast)(cell_id_1, cell_id_2)
+
+
+@publicapi
+def map_delete(
+    map_col: ColumnOrName,
+    key1: ColumnOrName,
+    *keys: ColumnOrName,
+    _emit_ast: bool = True
+) -> Column:
+    """Returns a map consisting of the input map with one or more keys removed.
+
+    Args:
+        map_col (ColumnOrName): The map used to remove keys.
+        key1 (ColumnOrName): The first key to remove.
+        *key (ColumnOrName): Additional keys to remove.
+
+    Returns:
+        Column: A map with the specified keys removed.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import col, lit, to_variant
+        >>> df = session.sql(\"""
+        ... SELECT {'a':1,'b':2,'c':3}::MAP(VARCHAR,NUMBER) as map_col
+        ... union all
+        ... SELECT {'c':3,'d':4,'e':5}::MAP(VARCHAR,NUMBER) as map_col
+        ... \""")
+        >>> df.select(to_variant(map_delete(col("map_col"), lit("c"), lit("d"))).alias("result")).collect()
+        [Row(RESULT='{\\n  "a": 1,\\n  "b": 2\\n}'), Row(RESULT='{\\n  "e": 5\\n}')]
+
+    """
+    m = _to_col_if_str(map_col, "map_delete")
+    k1 = _to_col_if_str(key1, "map_delete")
+    ks = [_to_col_if_str(k, "map_delete") for k in keys]
+    return builtin("map_delete", _emit_ast=_emit_ast)(m, k1, *ks)
+
+
+@publicapi
+def map_insert(
+    map_col: ColumnOrName,
+    key: ColumnOrName,
+    value: ColumnOrName,
+    update_flag: Optional[ColumnOrName] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns a map containing all key-value pairs from the source map as well as the new key-value pair.
+    If the key already exists in the map, the value is updated with the new value unless update_flag is False.
+
+    Args:
+        map_col (ColumnOrName): Column containing the source map
+        key (ColumnOrName): Column containing the key to insert or update
+        value (ColumnOrName): Column containing the value to associate with the key
+        update_flag (Optional[ColumnOrName]): Column containing a boolean flag indicating whether to update existing keys. If None or True, existing keys are updated. If False, existing keys are not updated.
+
+    Returns:
+        Column: A new map with the key-value pair inserted or updated
+
+    Examples:
+        >>> from snowflake.snowpark.functions import lit, to_variant, col
+        >>> df = session.sql("SELECT {'a': 1, 'b': 2}::MAP(VARCHAR, NUMBER) as MAP_COL")
+        >>> df.select(to_variant(map_insert(col("MAP_COL"), lit("c"), lit(3))).alias("RESULT")).collect()
+        [Row(RESULT='{\\n  "a": 1,\\n  "b": 2,\\n  "c": 3\\n}')]
+    """
+    m = _to_col_if_str(map_col, "map_insert")
+    k = _to_col_if_str(key, "map_insert")
+    v = _to_col_if_str(value, "map_insert")
+    uf = _to_col_if_str(update_flag, "map_insert") if update_flag is not None else None
+    if uf is not None:
+        return builtin("map_insert", _emit_ast=_emit_ast)(m, k, v, uf)
+    else:
+        return builtin("map_insert", _emit_ast=_emit_ast)(m, k, v)
+
+
+@publicapi
+def map_pick(
+    map_col: ColumnOrName,
+    key1: ColumnOrName,
+    *keys: ColumnOrName,
+    _emit_ast: bool = True
+) -> Column:
+    """
+    Returns a new map containing some of the key-value pairs from an existing map.
+
+    To identify the key-value pairs to include in the new map, pass in the keys as arguments.
+    If a specified key is not present in the input map, the key is ignored.
+
+    Args:
+        map_col (ColumnOrName): The map column to pick from
+        key1 (ColumnOrName): The first key to pick
+        *keys (ColumnOrName): Additional keys to pick
+
+    Returns:
+        Column: A new map containing the selected key-value pairs
+
+    Examples:
+        >>> from snowflake.snowpark.functions import  lit, to_variant, col
+        >>> df = session.sql("SELECT {'a':1,'b':2,'c':3}::MAP(VARCHAR,NUMBER) as map_col")
+        >>> df.select(to_variant(map_pick(df["map_col"], lit("a"), lit("b"))).alias("result")).collect()
+        [Row(RESULT='{\\n  "a": 1,\\n  "b": 2\\n}')]
+    """
+    m = _to_col_if_str(map_col, "map_pick")
+    k1 = _to_col_if_str(key1, "map_pick")
+    ks = [_to_col_if_str(k, "map_pick") for k in keys]
+    return builtin("map_pick", _emit_ast=_emit_ast)(m, k1, *ks)
+
+
+@publicapi
+def map_size(map_col: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the size of the input MAP. Returns None if the input column is not a MAP type.
+
+    Args:
+        map_col (ColumnOrName): The map values.
+
+    Returns:
+        Column: The size of the map.
+
+    Examples:
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.sql("SELECT {'a': 1, 'b': 2}::MAP(VARCHAR, NUMBER) as MAP_COL")
+        >>> df.select(map_size(col("MAP_COL")).alias("MAP_SIZE")).collect()
+        [Row(MAP_SIZE=2)]
+    """
+    c = _to_col_if_str(map_col, "map_size")
+    return builtin("map_size", _emit_ast=_emit_ast)(c)

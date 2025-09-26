@@ -336,6 +336,10 @@ Functions
     map_concat
     map_contains_key
     map_keys
+    map_delete
+    map_insert
+    map_insert
+    map_size
     max
     max_by
     md5
