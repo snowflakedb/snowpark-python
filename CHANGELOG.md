@@ -63,7 +63,7 @@
 
 #### Improvements
 
-- Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 10000.
+- Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 100000.
 
 ### Snowpark pandas API Updates
 
