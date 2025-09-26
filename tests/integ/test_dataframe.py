@@ -4694,6 +4694,10 @@ def test_limit_offset(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Not supported in local testing ",
 )
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2356885: this is not fixed on sp/udxf",
+)
 def test_limit_param_binding(session):
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe(
