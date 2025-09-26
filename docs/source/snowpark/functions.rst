@@ -59,6 +59,7 @@ Functions
     array_position
     array_prepend
     array_remove
+    array_remove_at
     array_reverse
     array_size
     array_slice
@@ -70,6 +71,7 @@ Functions
     arrays_zip
     as_array
     as_binary
+    as_boolean
     as_char
     as_date
     as_decimal
@@ -109,6 +111,11 @@ Functions
     bitshiftright
     bitxor
     bitxor_agg
+    boolor_agg
+    booland
+    boolnot
+    boolor
+    boolxor
     build_stage_file_url
     builtin
     bround
@@ -123,6 +130,7 @@ Functions
     charindex
     check_json
     check_xml
+    chr
     coalesce
     col
     collate
@@ -180,6 +188,7 @@ Functions
     dayofmonth
     dayofweek
     dayofyear
+    decode
     degrees
     dense_rank
     desc
@@ -187,6 +196,8 @@ Functions
     desc_nulls_last
     div0
     divnull
+    dp_interval_high
+    dp_interval_low
     editdistance
     endswith
     equal_nan
@@ -223,12 +234,36 @@ Functions
     getdate
     getvariable
     greatest
+    greatest_ignore_nulls
     grouping
     grouping_id
     hash
+    haversine
     hex
+    hex_decode_binary
     hex_encode
     hour
+    h3_cell_to_boundary
+    h3_cell_to_parent
+    h3_cell_to_point
+    h3_compact_cells
+    h3_compact_cells_strings
+    h3_coverage
+    h3_coverage_strings
+    h3_get_resolution
+    h3_grid_disk
+    h3_grid_distance
+    h3_polygon_to_cells
+    h3_polygon_to_cells_strings
+    h3_string_to_int
+    h3_try_polygon_to_cells_strings
+    h3_cell_to_children
+    h3_cell_to_children_string
+    h3_int_to_string
+    h3_try_grid_path
+    h3_try_polygon_to_cells
+    h3_uncompact_cells
+    h3_uncompact_cells_strings
     iff
     ifnull
     in_
@@ -265,9 +300,12 @@ Functions
     kurtosis
     lag
     last_day
+    last_query_id
+    last_transaction
     last_value
     lead
     least
+    least_ignore_nulls
     left
     length
     listagg
@@ -308,8 +346,10 @@ Functions
     not_
     nth_value
     ntile
+    nullif
     nullifzero
     nvl
+    nvl2
     object_agg
     object_construct
     object_construct_keep_null
@@ -346,6 +386,7 @@ Functions
     regr_sxx
     regr_sxy
     regr_syy
+    regr_valx
     repeat
     replace
     right
@@ -380,6 +421,11 @@ Functions
     strip_null_value
     strtok_to_array
     struct
+    st_area
+    st_asewkb
+    st_asewkt
+    st_asgeojson
+    st_aswkb
     substr
     substring
     sum
