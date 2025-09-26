@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.38.0" %}
+{% set version = "1.39.1" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 {% set build_number = os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) %}
 
