@@ -86,6 +86,7 @@
 
 #### Improvements
 
+- Removed unnecessary warnings about local package version mismatch when using `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)` or `xpath` functions.
 - Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 100000.
 
 ### Snowpark pandas API Updates
