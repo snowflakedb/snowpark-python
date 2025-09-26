@@ -3029,8 +3029,10 @@ class Session:
             _statement_params=statement_params,
         )["data"]
 
-    def _get_result_attributes(self, query: str) -> List[Attribute]:
-        return self._conn.get_result_attributes(query)
+    def _get_result_attributes(
+        self, query: str, query_params: Optional[Sequence[Any]] = None
+    ) -> List[Attribute]:
+        return self._conn.get_result_attributes(query, query_params)
 
     def get_session_stage(
         self,
