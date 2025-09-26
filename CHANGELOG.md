@@ -77,6 +77,9 @@
   - `st_asgeojson`
   - `st_aswkb`
 
+#### Improvements
+
+- Improve `DataFrameReader.dbapi`(PuPr) that dbapi will not retry on non-retryable error such as SQL syntax error on external data source query.
 
 ### Snowpark pandas API Updates
 

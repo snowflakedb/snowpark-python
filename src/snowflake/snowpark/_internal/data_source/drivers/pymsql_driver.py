@@ -183,6 +183,18 @@ class PymysqlDriver(BaseDriver):
             fields.append(StructField(name, data_type, null_ok))
         return StructType(fields)
 
+    def non_retryable_error_checker(self, error: Exception) -> bool:
+        import pymysql
+
+        if isinstance(error, pymysql.err.ProgrammingError):
+            syntax_error_codes = [
+                "1064",  # syntax error
+            ]
+            for error_code in syntax_error_codes:
+                if error_code in str(error):
+                    return True
+        return False
+
     def udtf_class_builder(
         self,
         fetch_size: int = 1000,
