@@ -114,7 +114,7 @@ class PyodbcDriver(BaseDriver):
                     rows = cursor.fetchmany(fetch_size)
                     if not rows:
                         break
-                    yield from rows
+                    yield from map(tuple, rows)
 
         return UDTFIngestion
 
