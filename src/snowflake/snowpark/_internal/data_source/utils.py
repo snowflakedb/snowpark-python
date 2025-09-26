@@ -34,6 +34,7 @@ import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 
+
 logger = logging.getLogger(__name__)
 
 _MAX_RETRY_TIME = 3
