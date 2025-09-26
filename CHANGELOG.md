@@ -77,6 +77,16 @@
   - `st_asgeojson`
   - `st_aswkb`
 
+#### Bug Fixes
+
+- Fixed multiple bugs in `DataFrameReader.dbapi` (PuPr):
+  - Fixed UDTF ingestion failure with `pyodbc` driver caused by unprocessed row data.
+  - Fixed SQL Server query input failure due to incorrect select query generation.
+  - Fixed UDTF ingestion not preserving column nullability in the output schema.
+
+#### Improvements
+
+- Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 100000.
 
 ### Snowpark pandas API Updates
 
