@@ -23,7 +23,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -50,7 +50,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: 3.10
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -80,7 +80,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: 3.10
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -105,7 +105,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: 3.10
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -136,7 +136,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.9
+          python-version: 3.10
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -171,7 +171,7 @@ jobs:
             download_name: macos
           - image_name: windows-latest-64-cores
             download_name: windows
-        python-version: ["3.9", "3.10"]
+        python-version: ["3.10", "3.12"]
         cloud-provider: [aws, azure, gcp]
     steps:
       - name: Checkout Code
@@ -418,7 +418,7 @@ jobs:
             python-version: "3.10"
             cloud-provider: gcp
           - os: ubuntu-latest-64-cores
-            python-version: "3.9"
+            python-version: "3.10"
             cloud-provider: aws
     steps:
       - name: Checkout Code
@@ -509,7 +509,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -564,7 +564,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
