@@ -97,8 +97,17 @@ register_base_override = functools.partial(register_base_accessor, backend="Snow
 
 
 def register_base_not_implemented():
+    """
+    POC: Enhanced decorator for BasePandasDataset methods with kwargs-based auto-switching.
+
+    Args:
+        unsupported_kwargs: UnsupportedKwargsRule for kwargs-based auto-switching.
+                           If None, method is completely unimplemented (original behavior).
+    """
+
     def decorator(base_method: Any):
         name = base_method.__name__
+
         HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("BasePandasDataset", name))
         register_function_for_pre_op_switch(
             class_name="BasePandasDataset", backend="Snowflake", method=name
