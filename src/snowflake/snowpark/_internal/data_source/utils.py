@@ -308,6 +308,9 @@ def worker_process(
 ):
     """Worker process that fetches data from multiple partitions"""
     while True:
+        if stop_event and stop_event.is_set():
+            # other worker has set the stop event signalling me to stop, exit gracefully
+            break
         try:
             # Get item from queue with timeout
             partition_idx, query = partition_queue.get(timeout=1.0)
