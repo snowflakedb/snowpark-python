@@ -127,3 +127,39 @@ def test_groupby_rolling_series_negative():
         match="Snowpark pandas does not yet support the method GroupBy.rolling for Series",
     ):
         snow_ser.groupby(snow_ser.index).rolling(2).sum()
+
+
+@sql_count_checker(query_count=0)
+def test_groupby_rolling_min_periods_greater_than_window_negative():
+    """Test that min_periods > window raises ValueError"""
+    native_df = native_pd.DataFrame(
+        {"A": [1, 1, 2, 2], "B": [1, 2, 3, 4], "C": [0.362, 0.227, 1.267, -0.562]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    with pytest.raises(
+        ValueError,
+        match="min_periods 5 must be <= window 2",
+    ):
+        snow_df.groupby("A").rolling(2, min_periods=5).sum()
+
+
+@pytest.mark.parametrize(
+    "function",
+    [
+        lambda df: df.groupby("A").rolling(2, on="B").sum(),
+        lambda df: df.groupby("A").rolling(2, closed="left").sum(),
+        lambda df: df.groupby("A").rolling([1, 2]).sum(),
+        lambda df: df.groupby("A").rolling(2, method="table").sum(),
+        lambda df: df.groupby("A").rolling(2, win_type="hamming").sum(),
+        lambda df: df.groupby("A").rolling(2, axis=1).sum(),
+        lambda df: df.groupby("A").rolling(0, min_periods=0).sum(),
+        lambda df: df.groupby("A").rolling(0).quantile(),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_rolling_params_unsupported(function):
+    snow_df = pd.DataFrame(
+        {"A": [1, 1, 2, 2], "B": [1, 2, 3, 4], "C": [0.362, 0.227, 1.267, -0.562]}
+    )
+    with pytest.raises(NotImplementedError):
+        function(snow_df)

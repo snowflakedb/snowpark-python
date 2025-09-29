@@ -36,6 +36,8 @@ from snowflake.snowpark.modin.plugin.utils.error_message import (
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from .series_overrides import register_series_accessor
+from pandas._libs import lib
+from pandas._typing import AnyArrayLike
 
 
 class RollingGroupby(metaclass=TelemetryMeta):
@@ -81,11 +83,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
     def _series_not_implemented(self):
         """
-        When the caller object is Series (ndim == 1), it is not valid to call aggregation
-        method with numeric_only = True.
-
-        Raises:
-            NotImplementedError if the above condition is encountered.
+        Raises NotImplementedError if Groupby.rolling is called with a Series.
         """
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         if self._dataframe.ndim == 1:
@@ -317,3 +315,19 @@ class RollingGroupby(metaclass=TelemetryMeta):
                 agg_kwargs,
             )
         )
+
+    def quantile(
+        self,
+        q: Union[float, AnyArrayLike] = 0.5,
+        **kwargs: Any,
+    ):
+        self._method_not_implemented("quantile")
+
+    def prod(
+        self,
+        numeric_only: Union[bool, lib.NoDefault] = lib.no_default,
+        min_count: int = 0,
+        *args: Any,
+        **kwargs: Any,
+    ):
+        self._method_not_implemented("prod")
