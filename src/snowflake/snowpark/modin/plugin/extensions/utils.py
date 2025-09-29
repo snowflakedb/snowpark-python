@@ -639,13 +639,20 @@ def register_non_snowflake_accessors(
         )
 
         # Register methods that move to Snowflake backend
-        # TODO(SNOW-2288765): Improve performance of to_snowflake() by writing
-        # to a Snowflake table directly instead of going through Snowpark
-        # pandas.
         for method in ("to_snowflake", "to_snowpark", "to_iceberg"):
-            register_accessor_func(name=method, backend=backend)(
-                _make_non_snowflake_accessor(method=method)
-            )
+            # We have a proper implementation of to_snowflake() for dataframes
+            # on the pandas backend, but the rest of SNOW-2288765 still remains.
+            # TODO(SNOW-2288765): Improve performance of to_snowflake() by writing
+            # to a Snowflake table directly instead of going through Snowpark
+            # pandas.
+            if not (
+                method == "to_snowflake"
+                and backend == "Pandas"
+                and object_type == "DataFrame"
+            ):
+                register_accessor_func(name=method, backend=backend)(
+                    _make_non_snowflake_accessor(method=method)
+                )
 
         # Register methods that are not implemented on non-Snowflake backends
         for method in (

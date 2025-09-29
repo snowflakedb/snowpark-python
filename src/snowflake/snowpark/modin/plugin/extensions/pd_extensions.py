@@ -413,6 +413,34 @@ _READ_SNOWFLAKE_DOC = """
         `SELECT * FROM TABLE` or `DESCRIBE TABLE` to see the column names.
 """
 
+_TO_SNOWFLAKE_DOC = """
+    Save the Snowpark pandas DataFrame or Series as a Snowflake table.
+
+    Args:
+        obj: Either a Snowpark pandas DataFrame or Series
+        name:
+            Name of the SQL table or fully-qualified object identifier
+        if_exists:
+            How to behave if table already exists. default 'fail'
+                - fail: Raise ValueError.
+                - replace: Drop the table before inserting new values.
+                - append: Insert new values to the existing table. The order of insertion is not guaranteed.
+        index: default True
+            If true, save DataFrame index columns as table columns.
+        index_label:
+            Column label for index column(s). If None is given (default) and index is True,
+            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
+        table_type:
+            The table type of table to be created. The supported values are: ``temp``, ``temporary``,
+            and ``transient``. An empty string means to create a permanent table. Learn more about table
+            types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
+
+    See also:
+        - :func:`DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
+        - :func:`Series.to_snowflake <modin.pandas.Series.to_snowflake>`
+        - :func:`read_snowflake <modin.pandas.read_snowflake>`
+"""
+
 
 @register_snowflake_accessor("read_snowflake")
 @doc(
@@ -477,7 +505,8 @@ def _read_snowflake_ray_backend(
     return df.set_backend("Ray")
 
 
-@_register_pd_accessor("to_snowflake")
+@_register_pd_accessor("to_snowflake", backend="Pandas")
+@doc(_TO_SNOWFLAKE_DOC)
 def to_snowflake(
     obj: Union[DataFrame, Series],
     name: Union[str, Iterable[str]],
@@ -486,33 +515,49 @@ def to_snowflake(
     index_label: Optional[IndexLabel] = None,
     table_type: Literal["", "temp", "temporary", "transient"] = "",
 ) -> None:
-    """
-    Save the Snowpark pandas DataFrame or Series as a Snowflake table.
+    _snowpark_pandas_obj_check(obj)
+    # We have a DataFrame.to_snowflake() implementation for the pandas backend
+    return (
+        obj.to_snowflake(
+            name=name,
+            if_exists=if_exists,
+            index=index,
+            index_label=index_label,
+            table_type=table_type,
+        )
+        if isinstance(obj, DataFrame)
+        else _check_obj_and_set_backend_to_snowflake(obj)._query_compiler.to_snowflake(
+            name, if_exists, index, index_label, table_type
+        )
+    )
 
-    Args:
-        obj: Either a Snowpark pandas DataFrame or Series
-        name:
-            Name of the SQL table or fully-qualified object identifier
-        if_exists:
-            How to behave if table already exists. default 'fail'
-                - fail: Raise ValueError.
-                - replace: Drop the table before inserting new values.
-                - append: Insert new values to the existing table. The order of insertion is not guaranteed.
-        index: default True
-            If true, save DataFrame index columns as table columns.
-        index_label:
-            Column label for index column(s). If None is given (default) and index is True,
-            then the index names are used. A sequence should be given if the DataFrame uses MultiIndex.
-        table_type:
-            The table type of table to be created. The supported values are: ``temp``, ``temporary``,
-            and ``transient``. An empty string means to create a permanent table. Learn more about table
-            types `here <https://docs.snowflake.com/en/user-guide/tables-temp-transient.html>`_.
 
-    See also:
-        - :func:`DataFrame.to_snowflake <modin.pandas.DataFrame.to_snowflake>`
-        - :func:`Series.to_snowflake <modin.pandas.Series.to_snowflake>`
-        - :func:`read_snowflake <modin.pandas.read_snowflake>`
-    """
+@_register_pd_accessor("to_snowflake", backend="Snowflake")
+@doc(_TO_SNOWFLAKE_DOC)
+def to_snowflake(  # noqa: F811
+    obj: Union[DataFrame, Series],
+    name: Union[str, Iterable[str]],
+    if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
+    table_type: Literal["", "temp", "temporary", "transient"] = "",
+) -> None:
+    _snowpark_pandas_obj_check(obj)
+    return obj._query_compiler.to_snowflake(
+        name, if_exists, index, index_label, table_type
+    )
+
+
+@_register_pd_accessor("to_snowflake", backend="Ray")
+@doc(_TO_SNOWFLAKE_DOC)
+def to_snowflake(  # noqa: F811
+    obj: Union[DataFrame, Series],
+    name: Union[str, Iterable[str]],
+    if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
+    table_type: Literal["", "temp", "temporary", "transient"] = "",
+) -> None:
     return _check_obj_and_set_backend_to_snowflake(obj)._query_compiler.to_snowflake(
         name, if_exists, index, index_label, table_type
     )

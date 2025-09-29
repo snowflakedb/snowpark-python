@@ -11,6 +11,14 @@ from collections.abc import Iterable
 import functools
 from typing import Any, List, Literal, Optional, Union
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    quote_name_without_upper_casing,
+)
+from snowflake.snowpark.modin.config.envvars import (
+    PandasToSnowflakeParquetThresholdBytes,
+)
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+
 import modin.pandas as pd
 from modin.pandas.api.extensions import (
     register_dataframe_accessor as _register_dataframe_accessor,
@@ -21,6 +29,15 @@ from pandas._typing import IndexLabel
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
+)
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    extract_and_validate_index_labels_for_to_snowflake,
+    handle_if_exists_for_to_snowflake,
+    is_all_label_components_none,
+    validate_column_labels_for_to_snowflake,
+)
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     add_cache_result_docstring,
     register_non_snowflake_accessors,
@@ -40,9 +57,96 @@ register_non_snowflake_accessors(_register_dataframe_accessor, "DataFrame")
 # Snowflake specific dataframe methods
 # We use extensions, as we want to make clear that a Snowpark pandas DataFrame is NOT a
 # pandas DataFrame.
+@_register_dataframe_accessor("to_snowflake", backend="Pandas")
+def to_snowflake(  # noqa: F811
+    self,
+    name: Union[str, Iterable[str]],
+    if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
+    table_type: Literal["", "temp", "temporary", "transient"] = "",
+) -> None:
+    if (
+        # Shallow memory usage may underestimate the memory usage of the
+        # dataframe, but deep memory usage can be expensive to compute.
+        # Since this threshold uses shallow memory usage, it may sometimes
+        # not use the parquet method in cases where the parquet method would be
+        # faster, especially if this frame contains deep data like Python
+        # strings.
+        self.memory_usage(deep=False).sum()
+        <= PandasToSnowflakeParquetThresholdBytes.get()
+    ):
+        return self.set_backend("snowflake").to_snowflake(
+            name=name,
+            if_exists=if_exists,
+            index=index,
+            index_label=index_label,
+            table_type=table_type,
+        )
+
+    handle_if_exists_for_to_snowflake(if_exists=if_exists, name=name)
+
+    pandas_frame = self._query_compiler._modin_frame
+    num_index_columns = pandas_frame.index.nlevels
+    if index:
+        if index_label:
+            index_column_labels = extract_and_validate_index_labels_for_to_snowflake(
+                index_label_param=index_label,
+                num_index_columns=num_index_columns,
+            )
+        else:
+            index_column_labels = list(pandas_frame.index.names)
+
+        if any(is_all_label_components_none(label) for label in index_column_labels):
+            # It's common to have index level named None, in which case we
+            # follow the naming convention that pandas would follow if we
+            # were to convert the index to a data column with reset_index()
+            # and then skip writing the new index.
+            index = False
+            pandas_frame = pandas_frame.reset_index(drop=False, names=None)
+            index_column_labels = []
+    else:
+        index_column_labels = []
+    validate_column_labels_for_to_snowflake(
+        index_column_labels=index_column_labels,
+        data_column_labels=list(pandas_frame.columns),
+    )
+    if index:
+        # write_pandas() will always drop the index, so we move the index into
+        # the data columns with reset_index().
+        pandas_frame = pandas_frame.reset_index(drop=False, names=index_column_labels)
+
+    unsupported_types = list(
+        SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(dtype)
+        for dtype in pandas_frame.dtypes
+        if SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(dtype)
+        is not None
+    )
+    if len(unsupported_types) > 0:
+        WarningMessage.lost_type_warning(
+            "to_snowflake", ", ".join(type(t).__name__ for t in unsupported_types)
+        )
+
+    pd.session.write_pandas(
+        pandas_frame.rename(
+            lambda identifier: quote_name_without_upper_casing(str(identifier)), axis=1
+        ),
+        table_name=name,
+        auto_create_table=True,
+        overwrite=if_exists != "append",
+        table_type=table_type,
+        # We want to pass table_name as is, but quote column names. This is
+        # undocumented behavior of to_snowflake() on the "Snoflake" backend, so
+        # we mimic it here.
+        quote_identifiers=False,
+    )
+
+    return None
+
+
 # Implementation note: Arguments names and types are kept consistent with pandas.DataFrame.to_sql
 @register_dataframe_accessor("to_snowflake")
-def to_snowflake(
+def to_snowflake(  # noqa: F811
     self,
     name: Union[str, Iterable[str]],
     if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
