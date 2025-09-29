@@ -100,6 +100,7 @@
   - Fixed UDTF ingestion failure with `pyodbc` driver caused by unprocessed row data.
   - Fixed SQL Server query input failure due to incorrect select query generation.
   - Fixed UDTF ingestion not preserving column nullability in the output schema.
+  - Fixed an issue that caused the program to hang during multithreaded Parquet based ingestion when a data fetching error occurred.
 
 #### Improvements
 
