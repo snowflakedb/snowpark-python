@@ -1669,7 +1669,7 @@ def st_area(
     Returns:
         Column: The area of the input geography or geometry object
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import to_geometry
         >>> df = session.create_dataframe([
         ...     ['POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))'],
@@ -1696,7 +1696,7 @@ def st_asewkb(
     Returns:
         Column: The EWKB representation as binary data
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import to_geography, col
         >>> from snowflake.snowpark import Row
         >>> df = session.create_dataframe([
@@ -1723,7 +1723,7 @@ def st_asewkt(
     Returns:
         Column: The EWKT representation as a string
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import to_geography
         >>> from snowflake.snowpark import Row
         >>> df = session.create_dataframe([
@@ -2117,7 +2117,7 @@ def map_insert(
     Returns:
         Column: A new map with the key-value pair inserted or updated
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import lit, to_variant, col
         >>> df = session.sql("SELECT {'a': 1, 'b': 2}::MAP(VARCHAR, NUMBER) as MAP_COL")
         >>> df.select(to_variant(map_insert(col("MAP_COL"), lit("c"), lit(3))).alias("RESULT")).collect()
@@ -2156,7 +2156,7 @@ def map_pick(
     Returns:
         Column: A new map containing the selected key-value pairs
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import  lit, to_variant, col
         >>> df = session.sql("SELECT {'a':1,'b':2,'c':3}::MAP(VARCHAR,NUMBER) as map_col")
         >>> df.select(to_variant(map_pick(df["map_col"], lit("a"), lit("b"))).alias("result")).collect()
@@ -2184,7 +2184,7 @@ def map_size(map_col: ColumnOrName, _emit_ast: bool = True) -> Column:
     Returns:
         Column: The size of the map.
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import col
         >>> df = session.sql("SELECT {'a': 1, 'b': 2}::MAP(VARCHAR, NUMBER) as MAP_COL")
         >>> df.select(map_size(col("MAP_COL")).alias("MAP_SIZE")).collect()
@@ -2323,7 +2323,7 @@ def st_collect(
     Returns:
         Column: The collected GEOGRAPHY objects as a single GEOGRAPHY object
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import col, to_geography
         >>> df = session.create_dataframe([
         ...     ['POINT(-180 -90)', 'POINT(-45 -45)'],
@@ -2332,6 +2332,15 @@ def st_collect(
         ... ], schema=["g1", "g2"])
         >>> df.select(st_collect(to_geography(col("g1")), to_geography(col("g2"))).alias("collected")).collect()
         [Row(COLLECTED='{\\n  "coordinates": [\\n    [\\n      -180,\\n      -90\\n    ],\\n    [\\n      -45,\\n      -45\\n    ]\\n  ],\\n  "type": "MultiPoint"\\n}'), Row(COLLECTED='{\\n  "coordinates": [\\n    [\\n      0,\\n      0\\n    ],\\n    [\\n      -60,\\n      -60\\n    ]\\n  ],\\n  "type": "MultiPoint"\\n}'), Row(COLLECTED='{\\n  "coordinates": [\\n    [\\n      180,\\n      90\\n    ],\\n    [\\n      45,\\n      45\\n    ]\\n  ],\\n  "type": "MultiPoint"\\n}')]
+
+        # Example with a single argument
+        >>> df2 = session.create_dataframe([
+        ...     ['POINT(10 20)'],
+        ...     ['POINT(30 40)'],
+        ...     ['POINT(50 60)']
+        ... ], schema=["g1"])
+        >>> df2.select(st_collect(to_geography(col("g1"))).alias("COLLECTED")).collect()
+        [Row(COLLECTED='{\\n  "coordinates": [\\n    [\\n      10,\\n      20\\n    ],\\n    [\\n      30,\\n      40\\n    ],\\n    [\\n      50,\\n      60\\n    ]\\n  ],\\n  "type": "MultiPoint"\\n}')]
     """
     c1 = _to_col_if_str(geography_expression_1, "st_collect")
 
@@ -2358,7 +2367,7 @@ def st_contains(
     Returns:
         Column: A boolean column indicating whether the first geography contains the second
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import col, to_geography
         >>> df = session.create_dataframe([
         ...     ['POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))', 'POLYGON((1 1, 2 1, 2 2, 1 2, 1 1))'],
@@ -2388,7 +2397,7 @@ def st_coveredby(
     Returns:
         Column: A boolean column indicating whether the first geography is covered by the second
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import col, to_geography
         >>> df = session.create_dataframe([
         ...     ['POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))', 'POLYGON((1 1, 2 1, 2 2, 1 2, 1 1))'],
@@ -2418,7 +2427,7 @@ def st_covers(
     Returns:
         Column: A boolean column indicating whether the first geography covers the second
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import col, to_geography
         >>> df = session.create_dataframe([
         ...     ('POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))', 'POLYGON((1 1, 2 1, 2 2, 1 2, 1 1))'),
@@ -2475,7 +2484,7 @@ def st_dimension(
     Returns:
         Column: The dimension of the input object (0 for points, 1 for lines, 2 for polygons)
 
-    Examples:
+    Examples::
         >>> from snowflake.snowpark.functions import to_geometry
         >>> df = session.create_dataframe([
         ...     ['POINT(-122.35 37.55)'],
