@@ -730,17 +730,6 @@ jobs:
           SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
-      - name: Run tests (excluding doctests and udf tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --join_alias_fix
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
-          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
-          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
-        shell: bash
       - name: Combine coverages
         run: python -m tox -e coverage --skip-missing-interpreters false
         shell: bash
