@@ -8,7 +8,6 @@ import pytest
 @pytest.mark.parametrize(
     "func, func_name",
     [
-        (lambda se: se.groupby("A").__len__(), "__len__"),
         (lambda se: se.groupby("A").__bytes__(), "__bytes__"),
         (lambda se: se.groupby("A").corrwith, "corrwith"),
         (lambda se: se.groupby("A").dtypes, "dtypes"),
@@ -49,7 +48,6 @@ def test_series_groupby_unsupported_methods_raises(
 @pytest.mark.parametrize(
     "func, func_name",
     [
-        (lambda df: df.groupby("A").__len__(), "__len__"),
         (lambda df: df.groupby("A").__bytes__(), "__bytes__"),
         (lambda df: df.groupby("A").corrwith, "corrwith"),
         (lambda df: df.groupby("A").dtypes, "dtypes"),

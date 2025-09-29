@@ -503,7 +503,8 @@ def process_xml_range(
                     yield {column_name_of_corrupt_record: record_str}
                 elif mode == "FAILFAST":
                     raise RuntimeError(
-                        f"Malformed XML record at bytes {record_start}-{record_end}: {e}"
+                        f"Malformed XML record at bytes {record_start}-{record_end}: {e}\n"
+                        f"XML record string: {record_str}"
                     )
 
             if record_end > approx_end:

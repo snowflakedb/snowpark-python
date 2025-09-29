@@ -20,6 +20,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     clear_session_udf_and_udtf_caches,
 )
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.modin.pandas_api_coverage import PandasAPICoverageGenerator
 from tests.integ.utils.sql_counter import (
     SqlCounter,
@@ -857,3 +858,12 @@ def testing_dfs_from_read_snowflake(
         auto_create_table=True,
     )
     return pd.read_snowflake(test_table_name), pandas_df
+
+
+@pytest.fixture(autouse=True)
+def clear_printed_warnings() -> Generator[None, None, None]:
+    # Preserve a copy of the warnings printed before the test.
+    warnings = set(WarningMessage.printed_warnings)
+    WarningMessage.printed_warnings.clear()
+    yield
+    WarningMessage.printed_warnings = warnings

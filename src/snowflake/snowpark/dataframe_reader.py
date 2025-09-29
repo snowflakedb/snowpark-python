@@ -1695,7 +1695,7 @@ class DataFrameReader:
         num_partitions: Optional[int] = None,
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
-        fetch_size: Optional[int] = 1000,
+        fetch_size: Optional[int] = 100000,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
@@ -1859,6 +1859,8 @@ class DataFrameReader:
                 fetch_size=fetch_size,
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
+                session_init_statement=session_init_statement,
+                query_timeout=query_timeout,
                 _emit_ast=_emit_ast,
             )
             end_time = time.perf_counter()

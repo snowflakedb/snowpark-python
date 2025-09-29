@@ -1257,10 +1257,9 @@ def __getitem__(self, key):
         )
 
 
-@register_df_groupby_override("__len__")
+@register_dataframe_groupby_accessor("__len__")
 def __len__(self):
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    ErrorMessage.method_not_implemented_error(name="__len__", class_="GroupBy")
+    return self.ngroups
 
 
 # expanding and rolling are unique cases and need to likely be handled

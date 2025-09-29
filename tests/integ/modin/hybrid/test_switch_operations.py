@@ -395,8 +395,9 @@ def test_tqdm_usage_during_snowflake_to_pandas_switch():
         ("Series", "transform", (lambda x: x * 2,)),  # declared in series_overrides
     ],
 )
+@pytest.mark.parametrize("use_session_param", [True, False])
 @sql_count_checker(query_count=1)
-def test_unimplemented_autoswitches(class_name, method_name, f_args):
+def test_unimplemented_autoswitches(class_name, method_name, f_args, use_session_param):
     # Unimplemented methods declared via register_*_not_implemented should automatically
     # default to local pandas execution.
     # This test needs to be modified if any of the APIs in question are ever natively implemented
@@ -405,6 +406,13 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
     method = getattr(getattr(pd, class_name)(data).move_to("Snowflake"), method_name)
     # Attempting to call the method without switching should raise.
     with config_context(AutoSwitchBackend=False):
+        if use_session_param:
+            from modin.config import AutoSwitchBackend
+
+            AutoSwitchBackend.enable()
+            pd.session.pandas_hybrid_execution_enabled = False
+            assert pd.session.pandas_hybrid_execution_enabled is False
+            assert AutoSwitchBackend.get() is False
         with pytest.raises(
             NotImplementedError, match="Snowpark pandas does not yet support the method"
         ):
@@ -433,6 +441,7 @@ def test_to_datetime():
     assert isinstance(result, DatetimeIndex)
 
 
+@pytest.mark.parametrize("use_session_param", [True, False])
 @sql_count_checker(
     query_count=11,
     join_count=6,
@@ -440,7 +449,7 @@ def test_to_datetime():
     high_count_expected=True,
     high_count_reason="tests queries across different execution modes",
 )
-def test_query_count_no_switch(init_transaction_tables):
+def test_query_count_no_switch(init_transaction_tables, use_session_param):
     """
     Tests that when there is no switching behavior the query count is the
     same under hybrid mode and non-hybrid mode.
@@ -458,11 +467,25 @@ def test_query_count_no_switch(init_transaction_tables):
     hybrid_len = None
     with pd.session.query_history() as query_history_orig:
         with config_context(AutoSwitchBackend=False, NativePandasMaxRows=10):
+            if use_session_param:
+                from modin.config import AutoSwitchBackend
+
+                AutoSwitchBackend.enable()
+                pd.session.pandas_hybrid_execution_enabled = False
+                assert pd.session.pandas_hybrid_execution_enabled is False
+                assert AutoSwitchBackend.get() is False
             df_result = inner_test(df_transactions)
             orig_len = len(df_result)
 
     with pd.session.query_history() as query_history_hybrid:
         with config_context(AutoSwitchBackend=True, NativePandasMaxRows=10):
+            if use_session_param:
+                from modin.config import AutoSwitchBackend
+
+                AutoSwitchBackend.disable()
+                pd.session.pandas_hybrid_execution_enabled = True
+                assert pd.session.pandas_hybrid_execution_enabled is True
+                assert AutoSwitchBackend.get() is True
             df_result = inner_test(df_transactions)
             hybrid_len = len(df_result)
 
@@ -608,3 +631,23 @@ def test_switch_then_iloc():
     # Setting should similarly not error
     df.iloc[1, 1] = 100
     assert df.iloc[1, 1] == 100
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_rename():
+    # SNOW-2333472: Switching backends then performing a rename should be valid.
+    df = pd.DataFrame([[0] * 3] * 3)
+    assert df.get_backend() == "Pandas"
+    assert_snowpark_pandas_equal_to_pandas(
+        df.move_to("Snowflake").rename({0: "a", 1: "b", 2: "c"}),
+        # Perform to_pandas first due to modin issue 7667
+        df.to_pandas().rename({0: "a", 1: "b", 2: "c"}),
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_set_index():
+    s = pd.Series([0]).move_to("Snowflake")
+    # SNOW-2333472: Switching backends then setting the index should be valid.
+    s.index = ["a"]
+    assert_snowpark_pandas_equal_to_pandas(s, native_pd.Series([0], index=["a"]))

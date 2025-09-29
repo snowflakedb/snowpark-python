@@ -340,11 +340,11 @@ def test_patch_unsupported_function(session):
     df = session.create_dataframe([[3, 1], [3, 2], [4, 3]], schema=["a", "b"])
     with pytest.raises(NotImplementedError):
         df.select(
-            call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+            call_function("my_function", df["a"], df["b"]).alias("greatest")
         ).collect()
 
-    @patch("greatest_ignore_nulls")
-    def mock_greatest_ignore_nulls(
+    @patch("my_mocked_function")
+    def mock_my_mocked_function(
         *columns: Iterable[ColumnEmulator],
     ) -> ColumnEmulator:
         return ColumnEmulator(
@@ -352,10 +352,10 @@ def test_patch_unsupported_function(session):
         )
 
     assert df.select(
-        call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+        call_function("my_mocked_function", df["a"], df["b"]).alias("greatest")
     ).collect() == [Row(1), Row(1), Row(1)]
 
-    @patch("greatest_ignore_nulls")
+    @patch("my_mocked_function_2")
     def mock_wrong_patch(columns: Iterable[ColumnEmulator]) -> ColumnEmulator:
         return ColumnEmulator(
             [1] * len(columns[0]), sf_type=ColumnType(IntegerType(), False)
@@ -363,7 +363,7 @@ def test_patch_unsupported_function(session):
 
     with pytest.raises(SnowparkLocalTestingException) as exc:
         df.select(
-            call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+            call_function("my_mocked_function_2", df["a"], df["b"]).alias("greatest")
         ).collect()
     assert "Please ensure the implementation follows specifications" in str(exc.value)
 
