@@ -2425,7 +2425,7 @@ def st_covers(
         ...     ('POLYGON((-2 0, 0 2, 2 0, -2 0))', 'POLYGON((-1 0, 0 1, 1 0, -1 0))')
         ... ], schema=["g1", "g2"])
         >>> df.select(st_covers(to_geography(col("g1")), to_geography(col("g2"))).alias("result")).collect()
-        [Row(RESULT=True), Row(RESULT=True)]
+        [Row(RESULT=True), Row(RESULT=False)]
     """
     c1 = _to_col_if_str(geography_expression_1, "st_covers")
     c2 = _to_col_if_str(geography_expression_2, "st_covers")
@@ -2450,7 +2450,7 @@ def st_difference(
         Column: GEOGRAPHY objects representing the difference between the two input geographies
 
     Examples::
-        >>> from snowflake.snowpark.functions import to_geography
+        >>> from snowflake.snowpark.functions import to_geography, col
         >>> df = session.create_dataframe([
         ...     ["POLYGON((0 0, 1 0, 2 1, 1 2, 2 3, 1 4, 0 4, 0 0))", "POLYGON((3 0, 3 4, 2 4, 1 3, 2 2, 1 1, 2 0, 3 0))"]
         ... ], schema=["geog1", "geog2"])
