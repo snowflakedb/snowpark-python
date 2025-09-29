@@ -198,7 +198,7 @@ jobs:
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
       - name: Install MS ODBC Driver (Ubuntu only)
-        if: ${{ contains(matrix.os, 'ubuntu') }}
+        if: ${{ matrix.os.download_name == 'linux' }}
         run: |
           curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
           curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
