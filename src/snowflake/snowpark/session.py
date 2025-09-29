@@ -6,12 +6,15 @@
 import atexit
 import datetime
 import decimal
+import functools
 import inspect
 import json
+import logging
 import os
 import re
 import sys
 import tempfile
+import time
 import warnings
 from array import array
 from collections import defaultdict
@@ -149,6 +152,7 @@ from snowflake.snowpark._internal.utils import (
     is_ast_enabled,
     AstFlagSource,
     AstMode,
+    parse_table_name,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
@@ -809,6 +813,14 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
+
+        self._tracer_provider = None
+        self._span_processor = None
+        self._logger_provider = None
+        self._log_processor = None
+        self._log_handler = None
+        self._attestation = None
+        self._WIF_token_refresh_timestamp = None
 
         self._ast_batch = AstBatch(self)
 
@@ -4922,12 +4934,23 @@ class Session:
 
     def enable_external_telemetry(
         self,
-        event_table: str = None,
+        event_table: str = "snowflake.telemetry.events",
         enable_log_level: bool = False,
         enable_trace_level: bool = False,
     ):
         try:
-            import opentelemetry  # noqa: F401
+            from opentelemetry import trace
+            from opentelemetry.sdk.resources import Resource
+            from opentelemetry.sdk.trace import TracerProvider
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+                OTLPSpanExporter,
+            )
+            from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+            from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+            from opentelemetry.exporter.otlp.proto.http._log_exporter import (
+                OTLPLogExporter,
+            )
         except ImportError as e:
             _logger.debug(
                 f"failed with:{str(e)}, opentelemetry is required to use external telemetry"
@@ -4941,22 +4964,11 @@ class Session:
             return
 
         try:
-            attestation = create_attestation(
-                self.connection.auth_class.provider,
-                self.connection.auth_class.entra_resource,
-                self.connection.auth_class.token,
-                session_manager=(
-                    self.connection._session_manager.clone(max_retries=0)
-                    if self.connection
-                    else None
-                ),
-            )
 
             url = f"https://{self.connection.host}:{self.connection.port}/observability/event-table/hostname"
-            headers = {
-                "Authorization": f"Bearer WIF.AWS.{attestation.credential}",
-            }
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=self._WIF_auth_token())
+            if response.status_code != 200:
+                response.raise_for_status()
             endpoint = response.text
         except Exception as e:
             _logger.debug(
@@ -4964,20 +4976,87 @@ class Session:
             )
             return
 
-        headers = {
-            "Authorization": f"Bearer WIF.AWS.{attestation.credential}",
-            "Event-Table": f"{self.get_current_database()}.{self.get_current_schema()}.{event_table}"
-            if event_table is not None
-            else "snowflake.telemetry.events",
-        }
+        if len(parse_table_name(event_table)) != 3:
+            event_table = self.get_fully_qualified_name_if_possible(event_table)
 
-        if enable_log_level:
-            url = f"https://{endpoint}/v1/logs"
-            pass
+        resource = Resource.create(
+            {"service.name": "snowflake-snowpark-python-external-telemetry"}
+        )
 
         if enable_trace_level:
             url = f"https://{endpoint}/v1/traces"
-            pass
+
+            with self._lock:
+                self._tracer_provider = TracerProvider(resource=resource)
+                trace.set_tracer_provider(self._tracer_provider)
+
+                exporter = OTLPSpanExporter(
+                    endpoint=url,
+                    headers=functools.partial(self._WIF_auth_token, event_table),
+                )
+                self._span_processor = BatchSpanProcessor(exporter)
+                self._tracer_provider.add_span_processor(self._span_processor)
+
+        if enable_log_level:
+            url = f"https://{endpoint}/v1/logs"
+            with self._lock:
+                self._logger_provider = LoggerProvider(resource=resource)
+
+                exporter = OTLPLogExporter(
+                    endpoint=url,
+                    headers=functools.partial(self._WIF_auth_token, event_table),
+                )
+                self._log_processor = BatchLogRecordProcessor(exporter)
+                self._logger_provider.add_log_record_processor(self._log_processor)
+
+                self._log_handler = LoggingHandler(
+                    logger_provider=self._logger_provider
+                )
+                logging.getLogger().addHandler(self._log_handler)
 
     def disable_external_telemetry(self):
-        pass
+        with self._lock:
+            if self._tracer_provider:
+                self._tracer_provider.shutdown()
+                self._tracer_provider = None
+                self._span_processor = None
+
+            if self._logger_provider:
+                self._logger_provider.shutdown()
+                self._logger_provider = None
+                self._log_processor = None
+            if self._log_handler:
+                logging.getLogger().removeHandler(self._log_handler)
+                self._log_handler = None
+
+    def _WIF_auth_token(self, event_table: str = None):
+        def is_credential_expired():
+            current_timestamp = time.time()
+            if self._WIF_token_refresh_timestamp is None:
+                return True
+            elif current_timestamp - self._WIF_token_refresh_timestamp > 60 * 10:
+                return True
+            else:
+                return False
+
+        if self._attestation is None or is_credential_expired():
+            with self._lock:
+                self._attestation = create_attestation(
+                    self.connection.auth_class.provider,
+                    self.connection.auth_class.entra_resource,
+                    self.connection.auth_class.token,
+                    session_manager=(
+                        self.connection._session_manager.clone(max_retries=0)
+                        if self.connection
+                        else None
+                    ),
+                )
+                self._WIF_token_refresh_timestamp = time.time()
+
+        headers = {
+            "Authorization": f"Bearer WIF.AWS.{self._attestation.credential}",
+        }
+        if event_table is not None:
+            headers["Event-Table"] = event_table
+
+        return headers
