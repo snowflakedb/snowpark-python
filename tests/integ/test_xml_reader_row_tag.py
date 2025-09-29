@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 import json
 import pytest
 
@@ -396,6 +397,19 @@ def test_read_xml_ignore_surrounding_whitespace(
         .xml(f"@{tmp_stage_name}/{test_file_null_value_xml}")
     )
     Utils.check_answer(df, [expected_row])
+
+
+def test_read_xml_warning_local_package(session, caplog):
+    row_tag = "book"
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        session.read.option("rowTag", row_tag).xml(
+            f"@{tmp_stage_name}/{test_file_books_xml}"
+        )
+    assert (
+        "Your UDF might not work when the package version is different between the server and your local environment"
+        not in caplog.text
+    )
 
 
 def test_read_xml_row_validation_xsd_path(session):

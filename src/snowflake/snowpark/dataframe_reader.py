@@ -1407,11 +1407,6 @@ class DataFrameReader:
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
-            warning(
-                "rowTag",
-                "rowTag for reading XML file is in private preview since 1.31.0. Do not use it in production.",
-            )
-
             if is_in_stored_procedure():  # pragma: no cover
                 # create a temp stage for udtf import files
                 # we have to use "temp" object instead of "scoped temp" object in stored procedure
@@ -1447,6 +1442,7 @@ class DataFrameReader:
                 input_types=input_types,
                 packages=["snowflake-snowpark-python", "lxml<6"],
                 replace=True,
+                _suppress_local_package_warnings=True,
             )
         else:
             xml_reader_udtf = None
