@@ -1635,6 +1635,10 @@ def test_dataframe_join_and_select_same_column_name_from_one_df(session):
     ).collect() == [Row(2)]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1373887: The join alias fix is not supported in Local Testing",
+)
 def test_dataframe_alias_map_unmodified(session):
     origin = session._join_alias_fix
     try:
