@@ -295,3 +295,6 @@ class BaseDriver:
          and if they do support, the way to get the server cursor may vary across different DBMS. we need to document pyodbc.
         """
         return conn.cursor()
+
+    def add_trace_to_external_data_source(self):
+        pass
