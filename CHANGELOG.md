@@ -60,6 +60,11 @@
 
 ### Snowpark pandas API Updates
 
+#### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.36.0 and <0.38.0 (was previously >= 0.35.0 and <0.37.0).
+
+
 #### New Features
 - Added support for `DataFrame.query` for dataframes with single-level indexes.
 
@@ -68,6 +73,7 @@
 - Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Added a session parameter `pandas_hybrid_execution_enabled` to enable/disable hybrid execution as an alternative to using `AutoSwitchBackend`.
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
+- When hybrid execution is enabled, `pd.merge`, `pd.concat`, and `DataFrame.merge` may now move arguments to backends other than those among the function arguments.
 
 ## 1.39.0 (2025-09-17)
 

@@ -122,7 +122,6 @@ _logger = logging.getLogger(__name__)
 # Flag guarding certain features available only in newer modin versions.
 # Snowpark pandas supports the newest two released versions of modin; update this flag and remove legacy
 # code as needed when we bump dependency versions.
-MODIN_IS_AT_LEAST_0_36_0 = version.parse(pd.__version__) >= version.parse("0.36.0")
 MODIN_IS_AT_LEAST_0_37_0 = version.parse(pd.__version__) >= version.parse("0.37.0")
 
 
