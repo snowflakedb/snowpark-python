@@ -1635,7 +1635,7 @@ def test_dataframe_join_and_select_same_column_name_from_one_df(session):
     ).collect() == [Row(2)]
 
 
-def test_dataframe_join_with_alias_fix(session):
+def test_dataframe_alias_map_unmodified(session):
     origin = session._join_alias_fix
     try:
         session._join_alias_fix = True
