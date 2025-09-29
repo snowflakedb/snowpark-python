@@ -2068,17 +2068,13 @@ def h3_try_grid_distance(
 
 @publicapi
 def map_delete(
-    map_col: ColumnOrName,
-    key1: ColumnOrName,
-    *keys: ColumnOrName,
-    _emit_ast: bool = True
+    map_col: ColumnOrName, *keys: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
     """Returns a map consisting of the input map with one or more keys removed.
 
     Args:
         map_col (ColumnOrName): The map used to remove keys.
-        key1 (ColumnOrName): The first key to remove.
-        *key (ColumnOrName): Additional keys to remove.
+        *keys (ColumnOrName): Keys to remove.
 
     Returns:
         Column: A map with the specified keys removed.
@@ -2096,9 +2092,8 @@ def map_delete(
 
     """
     m = _to_col_if_str(map_col, "map_delete")
-    k1 = _to_col_if_str(key1, "map_delete")
     ks = [_to_col_if_str(k, "map_delete") for k in keys]
-    return builtin("map_delete", _emit_ast=_emit_ast)(m, k1, *ks)
+    return builtin("map_delete", _emit_ast=_emit_ast)(m, *ks)
 
 
 @publicapi
@@ -2114,10 +2109,10 @@ def map_insert(
     If the key already exists in the map, the value is updated with the new value unless update_flag is False.
 
     Args:
-        map_col (ColumnOrName): Column containing the source map
-        key (ColumnOrName): Column containing the key to insert or update
-        value (ColumnOrName): Column containing the value to associate with the key
-        update_flag (Optional[ColumnOrName]): Column containing a boolean flag indicating whether to update existing keys. If None or True, existing keys are updated. If False, existing keys are not updated.
+        map_col (ColumnOrName): The source map
+        key (ColumnOrName): The key to insert or update
+        value (ColumnOrName): The value to associate with the key
+        update_flag (Optional[ColumnOrName]): A boolean flag indicating whether to update existing keys. If None or True, existing keys are updated. If False, existing keys are not updated.
 
     Returns:
         Column: A new map with the key-value pair inserted or updated
@@ -2127,6 +2122,12 @@ def map_insert(
         >>> df = session.sql("SELECT {'a': 1, 'b': 2}::MAP(VARCHAR, NUMBER) as MAP_COL")
         >>> df.select(to_variant(map_insert(col("MAP_COL"), lit("c"), lit(3))).alias("RESULT")).collect()
         [Row(RESULT='{\\n  "a": 1,\\n  "b": 2,\\n  "c": 3\\n}')]
+
+        # Example using update flag
+        >>> from snowflake.snowpark.functions import lit, to_variant, col
+        >>> df = session.sql("SELECT {'a': 1, 'b': 2}::MAP(VARCHAR, NUMBER) as MAP_COL")
+        >>> df.select(to_variant(map_insert(col("MAP_COL"), lit("a"), lit(20), lit(True))).alias("RESULT")).collect()
+        [Row(RESULT='{\\n  "a": 20,\\n  "b": 2\\n}')]
     """
     m = _to_col_if_str(map_col, "map_insert")
     k = _to_col_if_str(key, "map_insert")
@@ -2140,10 +2141,7 @@ def map_insert(
 
 @publicapi
 def map_pick(
-    map_col: ColumnOrName,
-    key1: ColumnOrName,
-    *keys: ColumnOrName,
-    _emit_ast: bool = True
+    map_col: ColumnOrName, *keys: ColumnOrName, _emit_ast: bool = True
 ) -> Column:
     """
     Returns a new map containing some of the key-value pairs from an existing map.
@@ -2153,7 +2151,6 @@ def map_pick(
 
     Args:
         map_col (ColumnOrName): The map column to pick from
-        key1 (ColumnOrName): The first key to pick
         *keys (ColumnOrName): Additional keys to pick
 
     Returns:
@@ -2164,11 +2161,16 @@ def map_pick(
         >>> df = session.sql("SELECT {'a':1,'b':2,'c':3}::MAP(VARCHAR,NUMBER) as map_col")
         >>> df.select(to_variant(map_pick(df["map_col"], lit("a"), lit("b"))).alias("result")).collect()
         [Row(RESULT='{\\n  "a": 1,\\n  "b": 2\\n}')]
+
+        # Examlpe sending an array of keys
+        >>> from snowflake.snowpark.functions import map_pick, to_variant, col
+        >>> df = session.sql("SELECT {'a':1,'b':2,'c':3}::MAP(VARCHAR,NUMBER) as map_col, ARRAY_CONSTRUCT('a','b') as keys_arr")
+        >>> df.select(to_variant(map_pick(col("map_col"), col("keys_arr"))).alias("RESULT")).collect()
+        [Row(RESULT='{\\n  "a": 1,\\n  "b": 2\\n}')]
     """
     m = _to_col_if_str(map_col, "map_pick")
-    k1 = _to_col_if_str(key1, "map_pick")
     ks = [_to_col_if_str(k, "map_pick") for k in keys]
-    return builtin("map_pick", _emit_ast=_emit_ast)(m, k1, *ks)
+    return builtin("map_pick", _emit_ast=_emit_ast)(m, *ks)
 
 
 @publicapi

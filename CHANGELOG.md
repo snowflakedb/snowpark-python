@@ -155,17 +155,16 @@
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
 - Added support for parameter `session_init_statement` in udtf ingestion of `DataFrameReader.jdbc`(PrPr).
 - Added support for the following scalar functions in `functions.py`:
-  - Context functions:
-    - `getdate`
-    - `getvariable`
-    - `invoker_role`
-    - `invoker_share`
-    - `is_application_role_in_session`
-    - `is_database_role_in_session`
-    - `is_granted_to_invoker_role`
-    - `is_role_in_session`
-    - `localtime`
-    - `systimestamp`
+  - `getdate`
+  - `getvariable`
+  - `invoker_role`
+  - `invoker_share`
+  - `is_application_role_in_session`
+  - `is_database_role_in_session`
+  - `is_granted_to_invoker_role`
+  - `is_role_in_session`
+  - `localtime`
+  - `systimestamp`
 
 #### Bug Fixes
 
@@ -240,25 +239,22 @@
 - Added support for `DataFrameReader.jdbc`(PrPr) that allows ingesting external data source with jdbc driver.
 - Added support for `FileOperation.copy_files` to copy files from a source location to an output stage.
 - Added support for the following scalar functions in `functions.py`:
-  - Context functions:
-    - `all_user_names`
-    - `current_account_name`
-    - `current_client`
-    - `current_ip_address`
-    - `current_role_type`
-    - `current_organization_name`
-    - `current_organization_user`
-    - `current_secondary_roles`
-    - `current_transaction`
-
-  - Bitwise expression functions:
-    - `bitand`
-    - `bitand_agg`
-    - `bitor`
-    - `bitor_agg`
-    - `bitxor`
-    - `bitxor_agg`
-    - `getbit`
+  - `all_user_names`
+  - `bitand`
+  - `bitand_agg`
+  - `bitor`
+  - `bitor_agg`
+  - `bitxor`
+  - `bitxor_agg`
+  - `current_account_name`
+  - `current_client`
+  - `current_ip_address`
+  - `current_role_type`
+  - `current_organization_name`
+  - `current_organization_user`
+  - `current_secondary_roles`
+  - `current_transaction`
+  - `getbit`
 
 #### Bug Fixes
 
