@@ -125,8 +125,8 @@ class PandasToSnowflakeParquetThresholdBytes(EnvironmentVariable, type=int):
 
     varname = "SNOWFLAKE_PANDAS_MAX_TO_SNOWFLAKE_MEMORY_BYTES"
     # This default comes from experimentation on integer data. At about this
-    # point, insertion
-    default = 100_000
+    # point, insertion via parquet appears to be faster on a 3XL warehouse.
+    default = 3_000_000
 
 
 # have to monkey patch these variables into modin right now to use config
