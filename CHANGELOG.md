@@ -6,7 +6,8 @@
 
 #### Bug Fixes
 
-- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
+- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be genrated when using nested structured types.
 
 #### New Features
 
@@ -47,7 +48,22 @@
   - `h3_polygon_to_cells`
   - `h3_polygon_to_cells_strings`
   - `h3_string_to_int`
+  - `h3_try_grid_path`
+  - `h3_try_polygon_to_cells`
   - `h3_try_polygon_to_cells_strings`
+  - `h3_uncompact_cells`
+  - `h3_uncompact_cells_strings`
+  - `haversine`
+  - `h3_grid_path`
+  - `h3_is_pentagon`
+  - `h3_is_valid_cell`
+  - `h3_latlng_to_cell`
+  - `h3_latlng_to_cell_string`
+  - `h3_point_to_cell`
+  - `h3_point_to_cell_string`
+  - `h3_try_coverage`
+  - `h3_try_coverage_strings`
+  - `h3_try_grid_distance`
   - `hex_decode_binary`
   - `last_query_id`
   - `last_transaction`
@@ -55,15 +71,30 @@
   - `nullif`
   - `nvl2`
   - `regr_valx`
+  - `st_area`
+  - `st_asewkb`
+  - `st_asewkt`
+  - `st_asgeojson`
+  - `st_aswkb`
+
+#### Bug Fixes
+
+- Fixed multiple bugs in `DataFrameReader.dbapi` (PuPr):
+  - Fixed UDTF ingestion failure with `pyodbc` driver caused by unprocessed row data.
+  - Fixed SQL Server query input failure due to incorrect select query generation.
+  - Fixed UDTF ingestion not preserving column nullability in the output schema.
 
 #### Improvements
 
-- Improve `DataFrameReader.dbapi`(PuPr) that dbapi will not retry on non-retryable error such as SQL syntax error on external data source query.
+- Improved `DataFrameReader.dbapi`(PuPr) that dbapi will not retry on non-retryable error such as SQL syntax error on external data source query.
+- Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 100000.
+- Improved error message for XSD validation failure when reading XML files using `session.read.option('rowValidationXSDPath', <xsd_path>).xml(<stage_file_path>)`.
 
 ### Snowpark pandas API Updates
 
 #### New Features
 - Added support for `DataFrame.query` for dataframes with single-level indexes.
+- Added support for `DataFrameGroupby.__len__` and `SeriesGroupBy.__len__`.
 
 #### Improvements
 

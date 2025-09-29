@@ -281,10 +281,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             15,
             4,
             [
-                "SELECT ID FROM fake_table WHERE ID < '8' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '10'",
-                "SELECT ID FROM fake_table WHERE ID >= '10' AND ID < '12'",
-                "SELECT ID FROM fake_table WHERE ID >= '12'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '8' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '8' AND ID < '10'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '10' AND ID < '12'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '12'",
             ],
         ),
         (
@@ -295,10 +295,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             5,
             4,
             [
-                "SELECT ID FROM fake_table WHERE ID < '-2' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '-2' AND ID < '0'",
-                "SELECT ID FROM fake_table WHERE ID >= '0' AND ID < '2'",
-                "SELECT ID FROM fake_table WHERE ID >= '2'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '-2' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '-2' AND ID < '0'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '0' AND ID < '2'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '2'",
             ],
         ),
         (
@@ -309,16 +309,16 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             15,
             10,
             [
-                "SELECT ID FROM fake_table WHERE ID < '6' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '6' AND ID < '7'",
-                "SELECT ID FROM fake_table WHERE ID >= '7' AND ID < '8'",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '9'",
-                "SELECT ID FROM fake_table WHERE ID >= '9' AND ID < '10'",
-                "SELECT ID FROM fake_table WHERE ID >= '10' AND ID < '11'",
-                "SELECT ID FROM fake_table WHERE ID >= '11' AND ID < '12'",
-                "SELECT ID FROM fake_table WHERE ID >= '12' AND ID < '13'",
-                "SELECT ID FROM fake_table WHERE ID >= '13' AND ID < '14'",
-                "SELECT ID FROM fake_table WHERE ID >= '14'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '6' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '6' AND ID < '7'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '7' AND ID < '8'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '8' AND ID < '9'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '9' AND ID < '10'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '10' AND ID < '11'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '11' AND ID < '12'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '12' AND ID < '13'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '13' AND ID < '14'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '14'",
             ],
         ),
         (
@@ -329,9 +329,9 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             15,
             3,
             [
-                "SELECT ID FROM fake_table WHERE ID < '8' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '11'",
-                "SELECT ID FROM fake_table WHERE ID >= '11'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '8' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '8' AND ID < '11'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '11'",
             ],
         ),
         (
@@ -342,10 +342,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             str(datetime.date(2020, 12, 15)),
             4,
             [
-                "SELECT DATE FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-10-30 06:00:00+00:00'",
             ],
         ),
         (
@@ -356,10 +356,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             str(datetime.datetime(2020, 12, 15, 7, 8, 20)),
             4,
             [
-                "SELECT DATE FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-10-30 14:27:37+00:00'",
             ],
         ),
     ],
@@ -544,9 +544,9 @@ def test_predicates():
         mock_schema.return_value = StructType([StructField("ID", IntegerType(), False)])
         queries = partitioner.partitions
         expected_result = [
-            "SELECT ID FROM fake_table WHERE id > 1 AND id <= 1000",
-            "SELECT ID FROM fake_table WHERE id > 1001 AND id <= 2000",
-            "SELECT ID FROM fake_table WHERE id > 2001",
+            'SELECT "ID" FROM fake_table  WHERE id > 1 AND id <= 1000',
+            'SELECT "ID" FROM fake_table  WHERE id > 1001 AND id <= 2000',
+            'SELECT "ID" FROM fake_table  WHERE id > 2001',
         ]
         assert queries == expected_result
 
