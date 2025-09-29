@@ -36,8 +36,11 @@ from typing import (
 
 import cloudpickle
 import importlib.metadata
+
+import requests
 from packaging.requirements import Requirement
 from packaging.version import parse as parse_version
+from snowflake.connector.wif_util import create_attestation
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
@@ -4916,3 +4919,65 @@ class Session:
             _ast_stmt=stmt,
             _emit_ast=_emit_ast,
         )
+
+    def enable_external_telemetry(
+        self,
+        event_table: str = None,
+        enable_log_level: bool = False,
+        enable_trace_level: bool = False,
+    ):
+        try:
+            import opentelemetry  # noqa: F401
+        except ImportError as e:
+            _logger.debug(
+                f"failed with:{str(e)}, opentelemetry is required to use external telemetry"
+            )
+            return
+
+        if not enable_log_level and not enable_trace_level:
+            _logger.warning(
+                "Both log_level and trace_level are not enabled, no external telemetry will be collected."
+            )
+            return
+
+        try:
+            attestation = create_attestation(
+                self.connection.auth_class.provider,
+                self.connection.auth_class.entra_resource,
+                self.connection.auth_class.token,
+                session_manager=(
+                    self.connection._session_manager.clone(max_retries=0)
+                    if self.connection
+                    else None
+                ),
+            )
+
+            url = f"https://{self.connection.host}:{self.connection.port}/observability/event-table/hostname"
+            headers = {
+                "Authorization": f"Bearer WIF.AWS.{attestation.credential}",
+            }
+            response = requests.get(url, headers=headers)
+            endpoint = response.text
+        except Exception as e:
+            _logger.debug(
+                f"failed to acquire event table endpoint with:{str(e)}, no external telemetry will be collected"
+            )
+            return
+
+        headers = {
+            "Authorization": f"Bearer WIF.AWS.{attestation.credential}",
+            "Event-Table": f"{self.get_current_database()}.{self.get_current_schema()}.{event_table}"
+            if event_table is not None
+            else "snowflake.telemetry.events",
+        }
+
+        if enable_log_level:
+            url = f"https://{endpoint}/v1/logs"
+            pass
+
+        if enable_trace_level:
+            url = f"https://{endpoint}/v1/traces"
+            pass
+
+    def disable_external_telemetry(self):
+        pass
