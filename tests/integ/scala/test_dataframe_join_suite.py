@@ -17,7 +17,14 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkSQLInvalidIdException,
 )
-from snowflake.snowpark.functions import coalesce, col, count, is_null, lit
+from snowflake.snowpark.functions import (
+    coalesce,
+    col,
+    count,
+    is_null,
+    lit,
+    sum as sp_sum,
+)
 from snowflake.snowpark.types import (
     IntegerType,
     StringType,
@@ -1626,3 +1633,33 @@ def test_dataframe_join_and_select_same_column_name_from_one_df(session):
     assert df1.join(df2,).select(
         df2.col("a")
     ).collect() == [Row(2)]
+
+
+def test_dataframe_join_with_alias_fix(session):
+    origin = session._join_alias_fix
+    try:
+        session._join_alias_fix = True
+        df = session.create_dataframe([None], ["__DUMMY"])
+
+        cols = [lit("James"), lit(3000)]
+        df = (
+            df.with_columns(["name", "salary"], cols)
+            .select(*cols)
+            .toDF(*["name", "salary"])
+        )
+
+        def aggregate(input):
+            source_expr_to_alias = input._plan.expr_to_alias
+            ret_df = input.group_by(input.col("name").alias("new_name")).agg(
+                sp_sum(input.col("salary"))
+            )
+            assert (
+                source_expr_to_alias == input._plan.expr_to_alias
+            )  # ensure the original df alias map is not changed
+            return ret_df
+
+        Utils.check_answer(aggregate(df), [Row("James", 3000)])
+        # execute twice to make sure no side effect
+        Utils.check_answer(aggregate(df), [Row("James", 3000)])
+    finally:
+        session._join_alias_fix = origin
