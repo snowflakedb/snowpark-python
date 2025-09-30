@@ -12,18 +12,12 @@ from tests.integ.modin.utils import (
 import pandas as native_pd
 from tests.integ.utils.sql_counter import sql_count_checker
 import logging
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_36_0
 from pytest import param
 from tests.integ.modin.frame.test_eval_and_query.utils import (
     ENGINE_IGNORED_MESSAGE,
     engine_parameters,
 )
 import modin.pandas as pd
-
-pytestmark = pytest.mark.skipif(
-    not MODIN_IS_AT_LEAST_0_36_0,
-    reason="Modin 0.36 had an important performant fix for eval().",
-)
 
 
 def python_eval(df, expr, *, inplace=False, **kwargs):
