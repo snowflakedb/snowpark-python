@@ -2220,17 +2220,23 @@ def st_aswkt(
     return builtin("st_aswkt", _emit_ast=_emit_ast)(c)
 
 
+# Alias for st_aswkt
+st_astext = st_aswkt
+
+
 @publicapi
 def st_azimuth(
-    origin: ColumnOrName, target: ColumnOrName, _emit_ast: bool = True
+    geography_or_geometry_origin: ColumnOrName,
+    geography_or_geometry_target: ColumnOrName,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Calculates the azimuth (bearing) in radians from the origin point to the target point.
     The azimuth is measured clockwise from north and returned as a value between 0 and 2π.
 
     Args:
-        origin (ColumnOrName): The origin point as a geography column or string
-        target (ColumnOrName): The target point as a geography column or string
+        geography_or_geometry_origin (ColumnOrName): The origin point as a GEOGRAPHY or GEOMETRY object
+        geography_or_geometry_target (ColumnOrName): The target point as a GEOGRAPHY or GEOMETRY object
 
     Returns:
         Column: The azimuth in radians from origin to target point
@@ -2250,8 +2256,8 @@ def st_azimuth(
         ... ).collect()
         [Row(AZIMUTH=3.141592653589793), Row(AZIMUTH=0.785017383892913)]
     """
-    origin_col = _to_col_if_str(origin, "st_azimuth")
-    target_col = _to_col_if_str(target, "st_azimuth")
+    origin_col = _to_col_if_str(geography_or_geometry_origin, "st_azimuth")
+    target_col = _to_col_if_str(geography_or_geometry_target, "st_azimuth")
     return builtin("st_azimuth", _emit_ast=_emit_ast)(origin_col, target_col)
 
 
@@ -2353,16 +2359,16 @@ def st_collect(
 
 @publicapi
 def st_contains(
-    geography_expression_1: ColumnOrName,
-    geography_expression_2: ColumnOrName,
+    geography_or_geometry_expression_1: ColumnOrName,
+    geography_or_geometry_expression_2: ColumnOrName,
     _emit_ast: bool = True,
 ) -> Column:
     """
     Returns True if the first geography expression completely contains the second geography expression.
 
     Args:
-        geography_expression_1 (ColumnOrName): The geography expression that potentially contains the second expression
-        geography_expression_2 (ColumnOrName): The geography expression to test for containment within the first expression
+        geography_or_geometry_expression_1 (ColumnOrName): The geography expression that potentially contains the second expression
+        geography_or_geometry_expression_2 (ColumnOrName): The geography expression to test for containment within the first expression
 
     Returns:
         Column: A boolean column indicating whether the first geography contains the second
@@ -2376,23 +2382,23 @@ def st_contains(
         >>> df.select(st_contains(to_geography(col("g1")), to_geography(col("g2"))).alias("contains_result")).collect()
         [Row(CONTAINS_RESULT=True), Row(CONTAINS_RESULT=False)]
     """
-    c1 = _to_col_if_str(geography_expression_1, "st_contains")
-    c2 = _to_col_if_str(geography_expression_2, "st_contains")
+    c1 = _to_col_if_str(geography_or_geometry_expression_1, "st_contains")
+    c2 = _to_col_if_str(geography_or_geometry_expression_2, "st_contains")
     return builtin("st_contains", _emit_ast=_emit_ast)(c1, c2)
 
 
 @publicapi
 def st_coveredby(
-    geography_expression_1: ColumnOrName,
-    geography_expression_2: ColumnOrName,
+    geography_or_geometry_expression_1: ColumnOrName,
+    geography_or_geometry_expression_2: ColumnOrName,
     _emit_ast: bool = True,
 ) -> Column:
     """
     Returns TRUE if geography_expression_1 is completely covered by geography_expression_2.
 
     Args:
-        geography_expression_1 (ColumnOrName): A column or name representing the first geography expression
-        geography_expression_2 (ColumnOrName): A column or name representing the second geography expression
+        geography_or_geometry_expression_1 (ColumnOrName): A column or name representing the first geography expression
+        geography_or_geometry_expression_2 (ColumnOrName): A column or name representing the second geography expression
 
     Returns:
         Column: A boolean column indicating whether the first geography is covered by the second
@@ -2406,23 +2412,23 @@ def st_coveredby(
         >>> df.select(st_coveredby(to_geography(col("g1")), to_geography(col("g2"))).alias("covered_by")).collect()
         [Row(COVERED_BY=False), Row(COVERED_BY=True)]
     """
-    c1 = _to_col_if_str(geography_expression_1, "st_coveredby")
-    c2 = _to_col_if_str(geography_expression_2, "st_coveredby")
+    c1 = _to_col_if_str(geography_or_geometry_expression_1, "st_coveredby")
+    c2 = _to_col_if_str(geography_or_geometry_expression_2, "st_coveredby")
     return builtin("st_coveredby", _emit_ast=_emit_ast)(c1, c2)
 
 
 @publicapi
 def st_covers(
-    geography_expression_1: ColumnOrName,
-    geography_expression_2: ColumnOrName,
+    geography_or_geometry_expression_1: ColumnOrName,
+    geography_or_geometry_expression_2: ColumnOrName,
     _emit_ast: bool = True,
 ) -> Column:
     """
     Returns TRUE if the first geography completely covers the second geography.
 
     Args:
-        geography_expression_1 (ColumnOrName): A column containing the first geography object
-        geography_expression_2 (ColumnOrName): A column containing the second geography object that may be covered by the first
+        geography_or_geometry_expression_1 (ColumnOrName): A column containing the first geography object
+        geography_or_geometry_expression_2 (ColumnOrName): A column containing the second geography object that may be covered by the first
 
     Returns:
         Column: A boolean column indicating whether the first geography covers the second
@@ -2436,8 +2442,8 @@ def st_covers(
         >>> df.select(st_covers(to_geography(col("g1")), to_geography(col("g2"))).alias("result")).collect()
         [Row(RESULT=True), Row(RESULT=False)]
     """
-    c1 = _to_col_if_str(geography_expression_1, "st_covers")
-    c2 = _to_col_if_str(geography_expression_2, "st_covers")
+    c1 = _to_col_if_str(geography_or_geometry_expression_1, "st_covers")
+    c2 = _to_col_if_str(geography_or_geometry_expression_2, "st_covers")
     return builtin("st_covers", _emit_ast=_emit_ast)(c1, c2)
 
 
