@@ -505,8 +505,6 @@ def _read_snowflake_ray_backend(
     return df.set_backend("Ray")
 
 
-@_register_pd_accessor("to_snowflake", backend="Pandas")
-@doc(_TO_SNOWFLAKE_DOC)
 def to_snowflake(
     obj: Union[DataFrame, Series],
     name: Union[str, Iterable[str]],
@@ -525,32 +523,9 @@ def to_snowflake(
     )
 
 
-@_register_pd_accessor("to_snowflake", backend="Snowflake")
-@doc(_TO_SNOWFLAKE_DOC)
-def to_snowflake(  # noqa: F811
-    obj: Union[DataFrame, Series],
-    name: Union[str, Iterable[str]],
-    if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
-    index: bool = True,
-    index_label: Optional[IndexLabel] = None,
-    table_type: Literal["", "temp", "temporary", "transient"] = "",
-) -> None:
-    _snowpark_pandas_obj_check(obj)
-    return obj.to_snowflake(name, if_exists, index, index_label, table_type)
-
-
-@_register_pd_accessor("to_snowflake", backend="Ray")
-@doc(_TO_SNOWFLAKE_DOC)
-def to_snowflake(  # noqa: F811
-    obj: Union[DataFrame, Series],
-    name: Union[str, Iterable[str]],
-    if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
-    index: bool = True,
-    index_label: Optional[IndexLabel] = None,
-    table_type: Literal["", "temp", "temporary", "transient"] = "",
-) -> None:
-    _snowpark_pandas_obj_check(obj)
-    return obj.to_snowflake(name, if_exists, index, index_label, table_type)
+_register_pd_accessor(name="to_snowflake", backend="Snowflake")(to_snowflake)
+_register_pd_accessor(name="to_snowflake", backend="Ray")(to_snowflake)
+_register_pd_accessor(name="to_snowflake", backend="Pandas")(to_snowflake)
 
 
 @_register_pd_accessor("to_snowpark")

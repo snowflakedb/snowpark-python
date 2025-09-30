@@ -65,17 +65,20 @@ def valid_unquoted_identifier_table_name(session):
     Utils.drop_table(session, name)
 
 
-@pytest.fixture(params=("pandas", "snowflake"), autouse=True)
-def starting_backend(request) -> str:
-    with config_context(Backend=request.param):
-        yield
-
-
 @pytest.fixture(
-    params=[0, int(1e9)], autouse=True, ids=lambda param: f"parquet_threshold_{param}"
+    params=[
+        ("pandas", 0),
+        ("pandas", int(1e9)),
+        ("snowflake", 0),
+    ],
+    autouse=True,
+    ids=lambda param: f"backend_{param[0]}-parquet_threshold_{param[1]}",
 )
-def parquet_threshold(request):
-    with config_context(PandasToSnowflakeParquetThresholdBytes=request.param):
+def starting_backend_and_parquet_threshold(request):
+    with config_context(
+        Backend=request.param[0],
+        PandasToSnowflakeParquetThresholdBytes=request.param[1],
+    ):
         yield
 
 

@@ -80,7 +80,7 @@ def _convert_to_snowflake_table_name_to_write_pandas_table_name(name: str) -> st
 # We use extensions, as we want to make clear that a Snowpark pandas DataFrame is NOT a
 # pandas DataFrame.
 @_register_dataframe_accessor("to_snowflake", backend="Pandas")
-def to_snowflake(  # noqa: F811
+def pandas_to_snowflake(
     self,
     name: Union[str, Iterable[str]],
     if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
@@ -169,7 +169,7 @@ def to_snowflake(  # noqa: F811
 
 # Implementation note: Arguments names and types are kept consistent with pandas.DataFrame.to_sql
 @register_dataframe_accessor("to_snowflake")
-def to_snowflake(  # noqa: F811
+def to_snowflake(
     self,
     name: Union[str, Iterable[str]],
     if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
