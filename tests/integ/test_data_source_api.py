@@ -210,6 +210,29 @@ def test_dbapi_retry(session, fetch_with_process):
         assert mock_task.call_count == _MAX_RETRY_TIME
 
 
+@pytest.mark.parametrize("fetch_with_process", [True, False])
+def test_dbapi_non_retryable_error(session, fetch_with_process):
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source.utils._task_fetch_data_from_source",
+        side_effect=SnowparkDataframeReaderException("mock error"),
+    ) as mock_task:
+        mock_task.__name__ = "_task_fetch_from_data_source"
+        parquet_queue = multiprocessing.Queue() if fetch_with_process else queue.Queue()
+        with pytest.raises(SnowparkDataframeReaderException, match="mock error"):
+            _task_fetch_data_from_source_with_retry(
+                worker=DataSourceReader(
+                    PyodbcDriver,
+                    sql_server_create_connection,
+                    StructType([StructField("col1", IntegerType(), False)]),
+                    DBMS_TYPE.SQL_SERVER_DB,
+                ),
+                partition="SELECT * FROM test_table",
+                partition_idx=0,
+                parquet_queue=parquet_queue,
+            )
+        assert mock_task.call_count == 1
+
+
 @pytest.mark.skipif(
     IS_WINDOWS,
     reason="sqlite3 file can not be shared across processes on windows",
