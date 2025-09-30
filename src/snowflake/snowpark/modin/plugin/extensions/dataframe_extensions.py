@@ -11,9 +11,6 @@ from collections.abc import Iterable
 import functools
 from typing import Any, List, Literal, Optional, Union
 
-from snowflake.snowpark._internal.analyzer.analyzer_utils import (
-    quote_name_without_upper_casing,
-)
 from snowflake.snowpark.modin.config.envvars import (
     PandasToSnowflakeParquetThresholdBytes,
 )
@@ -36,6 +33,8 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     extract_and_validate_index_labels_for_to_snowflake,
     handle_if_exists_for_to_snowflake,
     is_all_label_components_none,
+    is_valid_snowflake_quoted_identifier,
+    unquote_name_if_quoted,
     validate_column_labels_for_to_snowflake,
 )
 from snowflake.snowpark.modin.plugin.extensions.utils import (
@@ -52,6 +51,29 @@ register_dataframe_accessor = functools.partial(
 )
 
 register_non_snowflake_accessors(_register_dataframe_accessor, "DataFrame")
+
+
+def _convert_to_snowflake_table_name_to_write_pandas_table_name(name: str) -> str:
+    """
+    Convert the user's to_snowflake() table name to the name we need for write_pandas().
+
+    We call write_pandas() with quote_identifiers=True, so we need to strip
+    quotes from quoted identifiers and convert unquoted identifiers to
+    uppercase.
+
+    Parameters:
+        name: The name that the user passed to to_snowflake().
+
+    Returns:
+        The name we will pass to write_pandas().
+    """
+    if is_valid_snowflake_quoted_identifier(name):
+        # quoted -> strip quotes. e.g. '"CUSTOMER"' -> 'CUSTOMER'
+        return unquote_name_if_quoted(name)
+    else:
+        # unquoted identifier -> convert to uppercase
+        # e.g. 'ab$ab' -> 'AB$AB', 'customer' -> 'CUSTOMER'
+        return name.upper()
 
 
 # Snowflake specific dataframe methods
@@ -128,17 +150,18 @@ def to_snowflake(  # noqa: F811
         )
 
     pd.session.write_pandas(
-        pandas_frame.rename(
-            lambda identifier: quote_name_without_upper_casing(str(identifier)), axis=1
-        ),
-        table_name=name,
+        pandas_frame.rename(str, axis=1),
+        # We want to pass table_name as is, but quote column names. This is
+        # undocumented behavior of to_snowflake() on the "Snowflake" backend, so
+        # we mimic it here.
+        # Note that if we try to use quote_identifiers=False and quote the
+        # column identifiers ourselves, we get the correct column names and we
+        # don't have to modify the table name, but the snowflake connector seems
+        # to incorrectly insert null data.
+        table_name=_convert_to_snowflake_table_name_to_write_pandas_table_name(name),
         auto_create_table=True,
         overwrite=if_exists != "append",
         table_type=table_type,
-        # We want to pass table_name as is, but quote column names. This is
-        # undocumented behavior of to_snowflake() on the "Snoflake" backend, so
-        # we mimic it here.
-        quote_identifiers=False,
     )
 
     return None

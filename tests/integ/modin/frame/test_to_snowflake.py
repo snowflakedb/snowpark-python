@@ -13,7 +13,11 @@ import pytest
 from modin.config import context as config_context
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
-from tests.integ.modin.utils import VALID_PANDAS_LABELS, VALID_SNOWFLAKE_COLUMN_NAMES
+from tests.integ.modin.utils import (
+    VALID_PANDAS_LABELS,
+    VALID_SNOWFLAKE_COLUMN_NAMES,
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+)
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from modin.config import PandasToSnowflakeParquetThresholdBytes
 
@@ -50,6 +54,13 @@ def upper_case_table_name_quoted(session):
 @pytest.fixture
 def upper_case_table_name_with_space_quoted(session):
     name = '" ' + _generate_lower_case_table_name_unquoted().upper() + ' "'
+    yield name
+    Utils.drop_table(session, name)
+
+
+@pytest.fixture
+def valid_unquoted_identifier_table_name(session):
+    name = _generate_lower_case_table_name_unquoted() + "$n"
     yield name
     Utils.drop_table(session, name)
 
@@ -367,24 +378,78 @@ def test_timedelta_to_snowflake_with_read_snowflake(test_table_name, caplog):
         with to_snowflake_counter(df=df, if_exists=if_exists):
             df.to_snowflake(test_table_name, index=False, if_exists=if_exists)
         df = pd.read_snowflake(test_table_name)
-        assert df.dtypes[-1] == "float64"
+        # dytpe may be float64 or int64 depending on how we wrote to snowflake,
+        # but it's not timedelta either way.
+        assert df.dtypes[-1] in ("float64", "int64")
         assert "`TimedeltaType` may be lost in `to_snowflake`'s result" in caplog.text
 
 
-@pytest.mark.parametrize(
-    "table_name_fixture",
-    (
-        "lower_case_table_name_unquoted",
-        "lower_case_table_name_quoted",
-        "upper_case_table_name_quoted",
-        "upper_case_table_name_with_space_quoted",
-    ),
-)
-def test_table_name(request, table_name_fixture):
-    name = request.getfixturevalue(table_name_fixture)
-    native_df = native_pd.DataFrame({"a": [1]})
-    df = pd.DataFrame(native_df)
-    if_exists = "replace"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
-        df.to_snowflake(name, if_exists=if_exists, index=False)
-    pd.read_snowflake(name)
+class TestTableName:
+    def test_lower_case_unquoted(self, lower_case_table_name_unquoted):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        if_exists = "replace"
+        with to_snowflake_counter(df=df, if_exists=if_exists):
+            df.to_snowflake(
+                lower_case_table_name_unquoted, if_exists=if_exists, index=False
+            )
+        written = pd.read_snowflake(lower_case_table_name_unquoted)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_lower_case_quoted(self, lower_case_table_name_quoted):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        if_exists = "replace"
+        with to_snowflake_counter(df=df, if_exists=if_exists):
+            df.to_snowflake(
+                lower_case_table_name_quoted, if_exists=if_exists, index=False
+            )
+        written = pd.read_snowflake(lower_case_table_name_quoted)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_upper_case_quoted(self, upper_case_table_name_quoted):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        if_exists = "replace"
+        with to_snowflake_counter(df=df, if_exists=if_exists):
+            df.to_snowflake(
+                upper_case_table_name_quoted, if_exists=if_exists, index=False
+            )
+        written = pd.read_snowflake(upper_case_table_name_quoted)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_upper_case_with_space_quoted(
+        self, upper_case_table_name_with_space_quoted
+    ):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        if_exists = "replace"
+        with to_snowflake_counter(df=df, if_exists=if_exists):
+            df.to_snowflake(
+                upper_case_table_name_with_space_quoted,
+                if_exists=if_exists,
+                index=False,
+            )
+        written = pd.read_snowflake(upper_case_table_name_with_space_quoted)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )
+
+    def test_special_chars_unquoted(self, valid_unquoted_identifier_table_name):
+        native_df = native_pd.DataFrame({"a": [1]})
+        df = pd.DataFrame(native_df)
+        if_exists = "replace"
+        with to_snowflake_counter(df=df, if_exists=if_exists):
+            df.to_snowflake(
+                valid_unquoted_identifier_table_name, if_exists=if_exists, index=False
+            )
+        written = pd.read_snowflake(valid_unquoted_identifier_table_name)
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            written, native_df.rename(str, axis=1)
+        )

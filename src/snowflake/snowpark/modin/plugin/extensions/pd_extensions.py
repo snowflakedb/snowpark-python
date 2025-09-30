@@ -516,19 +516,12 @@ def to_snowflake(
     table_type: Literal["", "temp", "temporary", "transient"] = "",
 ) -> None:
     _snowpark_pandas_obj_check(obj)
-    # We have a DataFrame.to_snowflake() implementation for the pandas backend
-    return (
-        obj.to_snowflake(
-            name=name,
-            if_exists=if_exists,
-            index=index,
-            index_label=index_label,
-            table_type=table_type,
-        )
-        if isinstance(obj, DataFrame)
-        else _check_obj_and_set_backend_to_snowflake(obj)._query_compiler.to_snowflake(
-            name, if_exists, index, index_label, table_type
-        )
+    return obj.to_snowflake(
+        name=name,
+        if_exists=if_exists,
+        index=index,
+        index_label=index_label,
+        table_type=table_type,
     )
 
 
@@ -543,9 +536,7 @@ def to_snowflake(  # noqa: F811
     table_type: Literal["", "temp", "temporary", "transient"] = "",
 ) -> None:
     _snowpark_pandas_obj_check(obj)
-    return obj._query_compiler.to_snowflake(
-        name, if_exists, index, index_label, table_type
-    )
+    return obj.to_snowflake(name, if_exists, index, index_label, table_type)
 
 
 @_register_pd_accessor("to_snowflake", backend="Ray")
@@ -558,9 +549,8 @@ def to_snowflake(  # noqa: F811
     index_label: Optional[IndexLabel] = None,
     table_type: Literal["", "temp", "temporary", "transient"] = "",
 ) -> None:
-    return _check_obj_and_set_backend_to_snowflake(obj)._query_compiler.to_snowflake(
-        name, if_exists, index, index_label, table_type
-    )
+    _snowpark_pandas_obj_check(obj)
+    return obj.to_snowflake(name, if_exists, index, index_label, table_type)
 
 
 @_register_pd_accessor("to_snowpark")
