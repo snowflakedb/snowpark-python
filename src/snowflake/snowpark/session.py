@@ -324,6 +324,9 @@ DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
+# wif token refresh time in minutes
+_WIF_TOKEN_REFRESH_TIME: int = 10
+
 
 def _get_active_session() -> "Session":
     with _session_management_lock:
@@ -5044,7 +5047,10 @@ class Session:
             current_timestamp = time.time()
             if self._WIF_token_refresh_timestamp is None:
                 return True
-            elif current_timestamp - self._WIF_token_refresh_timestamp > 60 * 10:
+            elif (
+                current_timestamp - self._WIF_token_refresh_timestamp
+                > 60 * _WIF_TOKEN_REFRESH_TIME
+            ):
                 return True
             else:
                 return False
