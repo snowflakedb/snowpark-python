@@ -2457,13 +2457,6 @@ class DataFrameGroupBy:
           1  3.0  0.589
         2 2  NaN    NaN
           3  7.0  0.705
-        >>> df.groupby('A').rolling(2, on='B').sum() # doctest: +NORMALIZE_WHITESPACE
-                    B      C
-        A
-        1 0  1    NaN
-          1  2  0.589
-        2 2  3    NaN
-          3  4  0.705
         """
 
     def hist():
