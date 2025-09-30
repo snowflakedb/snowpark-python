@@ -305,6 +305,18 @@ def test_unsupported_type():
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
 
 
+def test_mysql_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="You have an error in your SQL syntax",
+    ):
+        session.read.dbapi(
+            create_connection_mysql,
+            table=TEST_TABLE_NAME,
+            predicates=["invalid syntax"],
+        )
+
+
 def test_session_init(session):
     with pytest.raises(
         SnowparkDataframeReaderException,

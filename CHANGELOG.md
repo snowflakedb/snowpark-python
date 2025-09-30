@@ -104,6 +104,7 @@
 
 #### Improvements
 
+- Improved `DataFrameReader.dbapi`(PuPr) that dbapi will not retry on non-retryable error such as SQL syntax error on external data source query.
 - Removed unnecessary warnings about local package version mismatch when using `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)` or `xpath` functions.
 - Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 100000.
 - Improved error message for XSD validation failure when reading XML files using `session.read.option('rowValidationXSDPath', <xsd_path>).xml(<stage_file_path>)`.
