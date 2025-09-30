@@ -211,6 +211,7 @@ pre_op_switch_points: list[dict[str, Union[str, None]]] = [
     {"class_name": None, "method": "concat"},
     {"class_name": None, "method": "merge"},
     {"class_name": "DataFrame", "method": "merge"},
+    {"class_name": "DataFrame", "method": "join"},
 ]
 
 # Always auto-switch for aggregations, since if they return a 1-D frame/series it will be much smaller
