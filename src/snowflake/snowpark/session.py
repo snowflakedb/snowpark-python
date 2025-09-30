@@ -6,7 +6,6 @@
 import atexit
 import datetime
 import decimal
-import functools
 import inspect
 import json
 import logging
@@ -824,6 +823,9 @@ class Session:
         self._log_handler = None
         self._attestation = None
         self._WIF_token_refresh_timestamp = None
+        self._event_table = None
+        self._tracer_provider_enabled = False
+        self._logger_provider_enabled = False
 
         self._ast_batch = AstBatch(self)
 
@@ -4951,6 +4953,8 @@ class Session:
             )
             return
 
+        self._event_table = event_table
+
         try:
             from opentelemetry import trace
             from opentelemetry.sdk.resources import Resource
@@ -4993,32 +4997,47 @@ class Session:
 
         resource = Resource.create({"service.name": "snow.snowpark.external"})
 
-        if enable_trace_level and self._tracer_provider is None:
-            url = f"https://{endpoint}/v1/traces"
-            with self._lock:
+        def get_auth_headers():
+            """Get fresh auth headers for each request"""
+            return self._get_external_telemetry_auth_token()
+
+        class AuthRefreshAdapter(requests.adapters.HTTPAdapter):
+            def send(self, request, **kwargs):
+                request.headers.update(get_auth_headers())
+                return super().send(request, **kwargs)
+
+        with self._lock:
+            if enable_trace_level and self._tracer_provider is None:
+                url = f"https://{endpoint}/v1/traces"
                 self._tracer_provider = TracerProvider(resource=resource)
                 trace.set_tracer_provider(self._tracer_provider)
 
-                exporter = OTLPSpanExporter(
-                    endpoint=url,
-                    headers=functools.partial(
-                        self._get_external_telemetry_auth_token, event_table
-                    ),
-                )
+                trace_session = requests.Session()
+                trace_session.headers.update(get_auth_headers())
+                trace_session.mount("https://", AuthRefreshAdapter())
+                trace_session.mount("http://", AuthRefreshAdapter())
+
+                exporter = OTLPSpanExporter(endpoint=url, session=trace_session)
                 self._span_processor = BatchSpanProcessor(exporter)
                 self._tracer_provider.add_span_processor(self._span_processor)
+                self._tracer_provider_enabled = True
+            elif (
+                enable_trace_level
+                and self._tracer_provider
+                and not self._tracer_provider_enabled
+            ):
+                self._enable_tracer_provider()
 
-        if enable_log_level and self._log_handler is None:
-            url = f"https://{endpoint}/v1/logs"
-            with self._lock:
+            if enable_log_level and self._log_handler is None:
+                url = f"https://{endpoint}/v1/logs"
                 self._logger_provider = LoggerProvider(resource=resource)
 
-                exporter = OTLPLogExporter(
-                    endpoint=url,
-                    headers=functools.partial(
-                        self._get_external_telemetry_auth_token, event_table
-                    ),
-                )
+                log_session = requests.Session()
+                log_session.headers.update(get_auth_headers())
+                log_session.mount("https://", AuthRefreshAdapter())
+                log_session.mount("http://", AuthRefreshAdapter())
+
+                exporter = OTLPLogExporter(endpoint=url, session=log_session)
                 self._log_processor = BatchLogRecordProcessor(exporter)
                 self._logger_provider.add_log_record_processor(self._log_processor)
 
@@ -5027,22 +5046,23 @@ class Session:
                 )
                 logging.getLogger().addHandler(self._log_handler)
 
+                self._logger_provider_enabled = True
+            elif (
+                enable_log_level
+                and self._logger_provider
+                and not self._logger_provider_enabled
+            ):
+                self._enable_logger_provider()
+
     def disable_external_telemetry(self):
         with self._lock:
             if self._tracer_provider:
-                self._tracer_provider.shutdown()
-                self._tracer_provider = None
-                self._span_processor = None
+                self._disable_tracer_provider()
 
             if self._logger_provider:
-                self._logger_provider.shutdown()
-                self._logger_provider = None
-                self._log_processor = None
-            if self._log_handler:
-                logging.getLogger().removeHandler(self._log_handler)
-                self._log_handler = None
+                self._disable_logger_provider()
 
-    def _get_external_telemetry_auth_token(self, event_table: str = None):
+    def _get_external_telemetry_auth_token(self):
         def is_credential_expired():
             current_timestamp = time.time()
             if self._WIF_token_refresh_timestamp is None:
@@ -5072,7 +5092,32 @@ class Session:
         headers = {
             "Authorization": f"Bearer WIF.AWS.{self._attestation.credential}",
         }
-        if event_table is not None:
-            headers["event-table"] = event_table
+        with self._lock:
+            if self._event_table is not None:
+                headers["event-table"] = self._event_table
 
         return headers
+
+    def _disable_tracer_provider(self):
+        if self._tracer_provider and self._tracer_provider_enabled:
+            if self._span_processor:
+                self._tracer_provider.remove_span_processor(self._span_processor)
+            self._tracer_provider_enabled = False
+
+    def _enable_tracer_provider(self):
+        if self._tracer_provider and not self._tracer_provider_enabled:
+            if self._span_processor:
+                self._tracer_provider.add_span_processor(self._span_processor)
+            self._tracer_provider_enabled = True
+
+    def _disable_logger_provider(self):
+        if self._logger_provider and self._logger_provider_enabled:
+            if self._log_processor:
+                self._logger_provider.remove_log_record_processor(self._log_processor)
+            self._logger_provider_enabled = False
+
+    def _enable_logger_provider(self):
+        if self._logger_provider and not self._logger_provider_enabled:
+            if self._log_processor:
+                self._logger_provider.add_log_record_processor(self._log_processor)
+            self._logger_provider_enabled = True
