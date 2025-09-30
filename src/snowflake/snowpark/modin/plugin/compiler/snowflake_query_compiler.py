@@ -989,7 +989,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     if MODIN_IS_AT_LEAST_0_37_0:
 
         @classmethod
-        def max_cost(cls) -> int:  # type: ignore[misc]
+        def max_cost(cls) -> int:  # type: ignore[misc] # pragma: no cover
             """
             Return the max coercion cost allowed for switching to this engine.
 
