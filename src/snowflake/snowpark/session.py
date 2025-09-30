@@ -13,7 +13,6 @@ import os
 import re
 import sys
 import tempfile
-import time
 import warnings
 from array import array
 from collections import defaultdict
@@ -83,6 +82,7 @@ from snowflake.snowpark._internal.ast.utils import (
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.external_telemetry import RetryWithTokenRefreshAdapter
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
@@ -822,7 +822,6 @@ class Session:
         self._log_processor = None
         self._log_handler = None
         self._attestation = None
-        self._WIF_token_refresh_timestamp = None
         self._event_table = None
         self._tracer_provider_enabled = False
         self._logger_provider_enabled = False
@@ -4997,14 +4996,7 @@ class Session:
 
         resource = Resource.create({"service.name": "snow.snowpark.external"})
 
-        def get_auth_headers():
-            """Get fresh auth headers for each request"""
-            return self._get_external_telemetry_auth_token()
-
-        class AuthRefreshAdapter(requests.adapters.HTTPAdapter):
-            def send(self, request, **kwargs):
-                request.headers.update(get_auth_headers())
-                return super().send(request, **kwargs)
+        header = self._get_external_telemetry_auth_token()
 
         with self._lock:
             if enable_trace_level and self._tracer_provider is None:
@@ -5013,9 +5005,13 @@ class Session:
                 trace.set_tracer_provider(self._tracer_provider)
 
                 trace_session = requests.Session()
-                trace_session.headers.update(get_auth_headers())
-                trace_session.mount("https://", AuthRefreshAdapter())
-                trace_session.mount("http://", AuthRefreshAdapter())
+                trace_session.headers.update(header)
+                trace_session.mount(
+                    "https://", RetryWithTokenRefreshAdapter(self, header)
+                )
+                trace_session.mount(
+                    "http://", RetryWithTokenRefreshAdapter(self, header)
+                )
 
                 exporter = OTLPSpanExporter(endpoint=url, session=trace_session)
                 self._span_processor = BatchSpanProcessor(exporter)
@@ -5033,9 +5029,11 @@ class Session:
                 self._logger_provider = LoggerProvider(resource=resource)
 
                 log_session = requests.Session()
-                log_session.headers.update(get_auth_headers())
-                log_session.mount("https://", AuthRefreshAdapter())
-                log_session.mount("http://", AuthRefreshAdapter())
+                log_session.headers.update(header)
+                log_session.mount(
+                    "https://", RetryWithTokenRefreshAdapter(self, header)
+                )
+                log_session.mount("http://", RetryWithTokenRefreshAdapter(self, header))
 
                 exporter = OTLPLogExporter(endpoint=url, session=log_session)
                 self._log_processor = BatchLogRecordProcessor(exporter)
@@ -5063,36 +5061,20 @@ class Session:
                 self._disable_logger_provider()
 
     def _get_external_telemetry_auth_token(self):
-        def is_credential_expired():
-            current_timestamp = time.time()
-            if self._WIF_token_refresh_timestamp is None:
-                return True
-            elif (
-                current_timestamp - self._WIF_token_refresh_timestamp
-                > 60 * _WIF_TOKEN_REFRESH_TIME
-            ):
-                return True
-            else:
-                return False
-
         with self._lock:
-            if self._attestation is None or is_credential_expired():
-                self._attestation = create_attestation(
-                    self.connection.auth_class.provider,
-                    self.connection.auth_class.entra_resource,
-                    self.connection.auth_class.token,
-                    session_manager=(
-                        self.connection._session_manager.clone(max_retries=0)
-                        if self.connection
-                        else None
-                    ),
-                )
-                self._WIF_token_refresh_timestamp = time.time()
-
-        headers = {
-            "Authorization": f"Bearer WIF.AWS.{self._attestation.credential}",
-        }
-        with self._lock:
+            self._attestation = create_attestation(
+                self.connection.auth_class.provider,
+                self.connection.auth_class.entra_resource,
+                self.connection.auth_class.token,
+                session_manager=(
+                    self.connection._session_manager.clone(max_retries=0)
+                    if self.connection
+                    else None
+                ),
+            )
+            headers = {
+                "Authorization": f"Bearer WIF.AWS.{self._attestation.credential}",
+            }
             if self._event_table is not None:
                 headers["event-table"] = self._event_table
 
