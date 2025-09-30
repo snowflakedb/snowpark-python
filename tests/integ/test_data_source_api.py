@@ -387,7 +387,7 @@ def test_partition_unsupported_type(session):
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
-def test_telemetry(session, fetch_with_process):
+def test_telemetry(session, fetch_with_process, caplog):
     with patch(
         "snowflake.snowpark._internal.telemetry.TelemetryClient.send_data_source_perf_telemetry"
     ) as mock_telemetry:
@@ -405,6 +405,14 @@ def test_telemetry(session, fetch_with_process):
     assert "fetch_to_local_duration" in telemetry_json
     assert "upload_and_copy_into_sf_table_duration" in telemetry_json
     assert "end_to_end_duration" in telemetry_json
+
+    assert "upload and copy into table start" in caplog.text
+    if not fetch_with_process:
+        assert "fetch start" in caplog.text
+
+    assert "upload and copy into table finished, used" in caplog.text
+    if not fetch_with_process:
+        assert "fetch finished, used" in caplog.text
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
