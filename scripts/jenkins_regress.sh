@@ -18,7 +18,7 @@ exit_code_decorator(){
 gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/parameters.py" scripts/parameters.py.gpg
 
 # Install protoc
-pip install protoc-wheel-0==21.1 mypy-protobuf "pandas<=2.3.2"
+pip install protoc-wheel-0==21.1 mypy-protobuf
 
 # Run linter, Python test and code coverage jobs
 exit_code_decorator "python -m tox -c $WORKING_DIR" -e notdoctest-pyarrowcap
