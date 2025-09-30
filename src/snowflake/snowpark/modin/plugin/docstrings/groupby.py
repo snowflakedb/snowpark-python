@@ -2444,27 +2444,20 @@ class DataFrameGroupBy:
         Examples
         --------
         >>> df = pd.DataFrame({'A': [1, 1, 2, 2], 'B': [1, 2, 3, 4], 'C': [0.362, 0.227, 1.267, -0.562]})
-        >>> df # doctest: +SKIP +NORMALIZE_WHITESPACE
+        >>> df
            A  B      C
         0  1  1  0.362
         1  1  2  0.227
         2  2  3  1.267
         3  2  4 -0.562
-        >>> df.groupby('A').rolling(2).sum() # doctest: +SKIP +NORMALIZE_WHITESPACE
+        >>> df.groupby('A').rolling(2).sum() # doctest: +NORMALIZE_WHITESPACE
                B      C
         A
         1 0  NaN    NaN
           1  3.0  0.589
         2 2  NaN    NaN
           3  7.0  0.705
-        >>> df.groupby('A').rolling(2, min_periods=1).sum() # doctest: +SKIP +NORMALIZE_WHITESPACE
-             B      C
-        A
-        1 0  1  0.362
-          1  3  0.589
-        2 2  3  1.267
-          3  7  0.705
-        >>> df.groupby('A').rolling(2, on='B').sum() # doctest: +SKIP +NORMALIZE_WHITESPACE
+        >>> df.groupby('A').rolling(2, on='B').sum() # doctest: +NORMALIZE_WHITESPACE
                     B      C
         A
         1 0  1    NaN
