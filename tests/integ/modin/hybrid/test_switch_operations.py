@@ -154,18 +154,23 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
         df_incompatible.move_to("Snowflake")
 
 
-@sql_count_checker(query_count=2)
+# Newer version of modin switches before the merge
+@sql_count_checker(query_count=2 if MODIN_IS_AT_LEAST_0_37_0 else 0)
 def test_merge(init_transaction_tables, us_holidays_data):
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
     assert df_transactions.get_backend() == "Snowflake"
     assert df_us_holidays.get_backend() == "Pandas"
-    # Because the result of the merge is small enough to be faster to execute in native pandas,
-    # we move the Snowflake data to pandas.
     combined = pd.merge(
         df_us_holidays, df_transactions, left_on="Date", right_on="DATE"
     )
-    assert combined.get_backend() == "Pandas"
+    if MODIN_IS_AT_LEAST_0_37_0:
+        # Because the result of the merge is small enough to be faster to execute in native pandas,
+        # we move the Snowflake data to pandas.
+        assert combined.get_backend() == "Pandas"
+    else:
+        # Older version of modin moves to Snowflake because df_us_holidays is small.
+        assert combined.get_backend() == "Snowflake"
 
 
 @sql_count_checker(query_count=2)
@@ -337,7 +342,8 @@ def test_explain_switch_empty():
     assert new_switch_index_names == empty_switch_index_names
 
 
-@sql_count_checker(query_count=2)
+# Newer version of modin switches before the merge
+@sql_count_checker(query_count=2 if MODIN_IS_AT_LEAST_0_37_0 else 0)
 def test_explain_switch(init_transaction_tables, us_holidays_data):
     clear_hybrid_switch_log()
     df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
