@@ -40,6 +40,10 @@ pytestmark = [
         RUNNING_ON_GH and (IS_WINDOWS or IS_MACOS),
         reason="ODBC Driver 18 for SQL Server is not installed",
     ),
+    pytest.mark.skipif(
+        not RUNNING_ON_GH,
+        reason="Only run on GitHub action since it has the driver and access to SQL Server",
+    ),
 ]
 
 
