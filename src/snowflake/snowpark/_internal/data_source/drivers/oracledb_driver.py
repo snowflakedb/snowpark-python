@@ -111,6 +111,30 @@ class OracledbDriver(BaseDriver):
             conn.outputtypehandler = output_type_handler
         return conn
 
+    def non_retryable_error_checker(self, error: Exception) -> bool:
+        import oracledb
+
+        if isinstance(error, oracledb.DatabaseError):
+            syntax_error_codes = [
+                "ORA-00900",  # invalid SQL statement
+                "ORA-00901",  # invalid CREATE command
+                "ORA-00904",  # invalid identifier
+                "ORA-00905",  # missing keyword
+                "ORA-00906",  # missing left parenthesis
+                "ORA-00907",  # missing right parenthesis
+                "ORA-00911",  # invalid character
+                "ORA-00920",  # invalid relational operator
+                "ORA-00921",  # unexpected end of SQL command
+                "ORA-00923",  # FROM keyword not found where expected
+                "ORA-00933",  # SQL command not properly ended
+                "ORA-00936",  # missing expression
+                "ORA-00942",  # table or view does not exist
+            ]
+            for error_code in syntax_error_codes:
+                if error_code in str(error):
+                    return True
+        return False
+
     def udtf_class_builder(
         self,
         fetch_size: int = 1000,
