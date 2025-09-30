@@ -350,6 +350,7 @@ from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     unpivot_empty_df,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
+    MODIN_IS_AT_LEAST_0_37_0,
     new_snow_series,
     INDEX_LABEL,
     ROW_COUNT_COLUMN_LABEL,
@@ -978,24 +979,41 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # so that regardless of the value of move_to_cost() and stay_cost(),
             # we switch to Snowflake. Cost 0 does not force the switch.
             return -3 * QCCoercionCost.COST_IMPOSSIBLE
-
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
             return QCCoercionCost.COST_HIGH
 
         return super().move_to_me_cost(other_qc, api_cls_name, operation, arguments)
 
-    def max_cost(self) -> int:
-        """
-        Return the max coercion cost allowed for switching to this engine.
+    # This method was changed from an instance method to class method in 0.37.0
+    if MODIN_IS_AT_LEAST_0_37_0:
 
-        Returns
-        -------
-        int
-            Max cost allowed for migrating the data to this qc.
-        """
-        # We should have a way to express "no max"
-        return QCCoercionCost.COST_IMPOSSIBLE * 10_000_000_000
+        @classmethod
+        def max_cost(cls) -> int:  # type: ignore[misc] # pragma: no cover
+            """
+            Return the max coercion cost allowed for switching to this engine.
+
+            Returns
+            -------
+            int
+                Max cost allowed for migrating the data to this qc.
+            """
+            # We should have a way to express "no max"
+            return QCCoercionCost.COST_IMPOSSIBLE * 10_000_000_000
+
+    else:
+
+        def max_cost(self) -> int:  # type: ignore[misc]
+            """
+            Return the max coercion cost allowed for switching to this engine.
+
+            Returns
+            -------
+            int
+                Max cost allowed for migrating the data to this qc.
+            """
+            # We should have a way to express "no max"
+            return QCCoercionCost.COST_IMPOSSIBLE * 10_000_000_000
 
     # END: hybrid auto-switching helpers
 

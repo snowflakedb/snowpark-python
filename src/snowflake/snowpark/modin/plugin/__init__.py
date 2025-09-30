@@ -18,7 +18,7 @@ if sys.version_info.major == 3 and sys.version_info.minor == 8:
 # since modin may raise its own warnings/errors on the wrong pandas version
 import pandas  # isort: skip  # noqa: E402
 
-recommended_supported_modin_version = "0.36.0"
+recommended_supported_modin_version = "0.37.0"
 
 install_modin_msg = (
     f"Please set the modin version as {recommended_supported_modin_version} in the Packages menu at the top of your notebook."
@@ -33,8 +33,8 @@ except ModuleNotFoundError:  # pragma: no cover
         "Modin is not installed. " + install_modin_msg
     )  # pragma: no cover
 
-modin_min_supported_version = version.parse("0.35.0")
-modin_max_supported_version = version.parse("0.37.0")  # non-inclusive
+modin_min_supported_version = version.parse("0.36.0")
+modin_max_supported_version = version.parse("0.38.0")  # non-inclusive
 actual_modin_version = version.parse(modin.__version__)
 if not (
     modin_min_supported_version <= actual_modin_version < modin_max_supported_version
@@ -210,6 +210,8 @@ pre_op_switch_points: list[dict[str, Union[str, None]]] = [
     {"class_name": None, "method": "read_json"},
     {"class_name": None, "method": "concat"},
     {"class_name": None, "method": "merge"},
+    {"class_name": "DataFrame", "method": "merge"},
+    {"class_name": "DataFrame", "method": "join"},
 ]
 
 # Always auto-switch for aggregations, since if they return a 1-D frame/series it will be much smaller

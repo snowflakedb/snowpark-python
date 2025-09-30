@@ -2536,6 +2536,926 @@ def test_show_dataframe_spark(session):
         )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Interval types not fully supported in local testing",
+)
+def test_show_interval_formatting(session):
+    df = session.sql("SELECT INTERVAL '1' HOUR as hour_single")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"HOUR_SINGLE"     |
+        +------------------+
+        |INTERVAL '01' HOUR|
+        +------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '5' MINUTE as minute_single")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"MINUTE_SINGLE"     |
+        +--------------------+
+        |INTERVAL '05' MINUTE|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '5' SECOND as second_integer")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"SECOND_INTEGER"    |
+        +--------------------+
+        |INTERVAL '05' SECOND|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '1.000001' SECOND as second_microseconds")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"SECOND_MICROSECONDS"      |
+        +---------------------------+
+        |INTERVAL '01.000001' SECOND|
+        +---------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '24' HOUR as hour_full_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"HOUR_FULL_DAY"   |
+        +------------------+
+        |INTERVAL '24' HOUR|
+        +------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '90' MINUTE as minute_over_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"MINUTE_OVER_HOUR"  |
+        +--------------------+
+        |INTERVAL '90' MINUTE|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '0' SECOND as zero_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"ZERO_SECOND"       |
+        +--------------------+
+        |INTERVAL '00' SECOND|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '0.000001' SECOND as microsecond")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"MICROSECOND"              |
+        +---------------------------+
+        |INTERVAL '00.000001' SECOND|
+        +---------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '2 12' DAY TO HOUR as day_to_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"DAY_TO_HOUR"              |
+        +---------------------------+
+        |INTERVAL '2 12' DAY TO HOUR|
+        +---------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '1 08:30' DAY TO MINUTE as day_to_minute")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------+
+        |"DAY_TO_MINUTE"                 |
+        +--------------------------------+
+        |INTERVAL '1 08:30' DAY TO MINUTE|
+        +--------------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '08:30' HOUR TO MINUTE as hour_to_minute")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------------+
+        |"HOUR_TO_MINUTE"               |
+        +-------------------------------+
+        |INTERVAL '08:30' HOUR TO MINUTE|
+        +-------------------------------+
+        """
+    )
+
+    df = session.sql(
+        "SELECT INTERVAL '01:00:00.456' HOUR TO SECOND as hour_to_second_fractional"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------------+
+        |"HOUR_TO_SECOND_FRACTIONAL"           |
+        +--------------------------------------+
+        |INTERVAL '01:00:00.456' HOUR TO SECOND|
+        +--------------------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-2' HOUR as negative_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"NEGATIVE_HOUR"    |
+        +-------------------+
+        |INTERVAL '-02' HOUR|
+        +-------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-15.5' SECOND as negative_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------+
+        |"NEGATIVE_SECOND"      |
+        +-----------------------+
+        |INTERVAL '-15.5' SECOND|
+        +-----------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '999999' SECOND as large_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"LARGE_SECOND"          |
+        +------------------------+
+        |INTERVAL '999999' SECOND|
+        +------------------------+
+        """
+    )
+
+    # Year-month intervals with dash format
+    df = session.sql("SELECT INTERVAL '1-6' YEAR TO MONTH as year_to_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"YEAR_TO_MONTH"             |
+        +----------------------------+
+        |INTERVAL '1-6' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    # Negative year-month intervals
+    df = session.sql("SELECT INTERVAL '-2-3' YEAR TO MONTH as negative_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------+
+        |"NEGATIVE_YEAR_MONTH"        |
+        +-----------------------------+
+        |INTERVAL '-2-3' YEAR TO MONTH|
+        +-----------------------------+
+        """
+    )
+
+    # Single year intervals (not YEAR TO MONTH)
+    df = session.sql("SELECT INTERVAL '5' YEAR as single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------+
+        |"SINGLE_YEAR"    |
+        +-----------------+
+        |INTERVAL '5' YEAR|
+        +-----------------+
+        """
+    )
+
+    # Single month intervals (not YEAR TO MONTH)
+    df = session.sql("SELECT INTERVAL '8' MONTH as single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_MONTH"    |
+        +------------------+
+        |INTERVAL '8' MONTH|
+        +------------------+
+        """
+    )
+
+    # Zero year-month intervals
+    df = session.sql("SELECT INTERVAL '0-0' YEAR TO MONTH as zero_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"ZERO_YEAR_MONTH"           |
+        +----------------------------+
+        |INTERVAL '0-0' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    # Very large day intervals
+    df = session.sql("SELECT INTERVAL '999' DAY as large_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"LARGE_DAY"       |
+        +------------------+
+        |INTERVAL '999' DAY|
+        +------------------+
+        """
+    )
+
+    # Minute to second with large minutes
+    df = session.sql(
+        "SELECT INTERVAL '150:30' MINUTE TO SECOND as large_minute_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"LARGE_MINUTE_TO_SECOND"          |
+        +----------------------------------+
+        |INTERVAL '150:30' MINUTE TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Day to second with fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '5 10:20:30.123' DAY TO SECOND as day_to_second_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------------+
+        |"DAY_TO_SECOND_FRAC"                   |
+        +---------------------------------------+
+        |INTERVAL '5 10:20:30.123' DAY TO SECOND|
+        +---------------------------------------+
+        """
+    )
+
+    # Hour to second with zero padding in multi-field
+    df = session.sql("SELECT INTERVAL '05:00:00' HOUR TO SECOND as hour_zero_padded")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"HOUR_ZERO_PADDED"                |
+        +----------------------------------+
+        |INTERVAL '05:00:00' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Negative day-time intervals
+    df = session.sql("SELECT INTERVAL '-3 05:30:45' DAY TO SECOND as negative_complex")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------+
+        |"NEGATIVE_COMPLEX"                  |
+        +------------------------------------+
+        |INTERVAL '-3 05:30:45' DAY TO SECOND|
+        +------------------------------------+
+        """
+    )
+
+    # Additional edge cases for complete coverage based on actual Snowflake output
+
+    # Year-month compound intervals
+    df = session.sql("SELECT INTERVAL '1-6' YEAR TO MONTH as year_to_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"YEAR_TO_MONTH"             |
+        +----------------------------+
+        |INTERVAL '1-6' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-2-3' YEAR TO MONTH as negative_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------+
+        |"NEGATIVE_YEAR_MONTH"        |
+        +-----------------------------+
+        |INTERVAL '-2-3' YEAR TO MONTH|
+        +-----------------------------+
+        """
+    )
+
+    # Single field intervals
+    df = session.sql("SELECT INTERVAL '5' YEAR as single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------+
+        |"SINGLE_YEAR"    |
+        +-----------------+
+        |INTERVAL '5' YEAR|
+        +-----------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '8' MONTH as single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_MONTH"    |
+        +------------------+
+        |INTERVAL '8' MONTH|
+        +------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '0-0' YEAR TO MONTH as zero_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"ZERO_YEAR_MONTH"           |
+        +----------------------------+
+        |INTERVAL '0-0' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    # Large day interval
+    df = session.sql("SELECT INTERVAL '999' DAY as large_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"LARGE_DAY"       |
+        +------------------+
+        |INTERVAL '999' DAY|
+        +------------------+
+        """
+    )
+
+    # Large minute to second interval (tests the bug we just fixed)
+    df = session.sql(
+        "SELECT INTERVAL '150:30' MINUTE TO SECOND as large_minute_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"LARGE_MINUTE_TO_SECOND"          |
+        +----------------------------------+
+        |INTERVAL '150:30' MINUTE TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Day to second with fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '5 10:20:30.123' DAY TO SECOND as day_to_second_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------------+
+        |"DAY_TO_SECOND_FRAC"                   |
+        +---------------------------------------+
+        |INTERVAL '5 10:20:30.123' DAY TO SECOND|
+        +---------------------------------------+
+        """
+    )
+
+    # Hour to second with zero padding
+    df = session.sql("SELECT INTERVAL '05:00:00' HOUR TO SECOND as hour_zero_padded")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"HOUR_ZERO_PADDED"                |
+        +----------------------------------+
+        |INTERVAL '05:00:00' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Negative complex interval
+    df = session.sql("SELECT INTERVAL '-3 05:30:45' DAY TO SECOND as negative_complex")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------+
+        |"NEGATIVE_COMPLEX"                  |
+        +------------------------------------+
+        |INTERVAL '-3 05:30:45' DAY TO SECOND|
+        +------------------------------------+
+        """
+    )
+
+    # Positive prefix intervals
+    df = session.sql("SELECT INTERVAL '+2-5' YEAR TO MONTH as positive_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"POSITIVE_YEAR_MONTH"       |
+        +----------------------------+
+        |INTERVAL '2-5' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '+3' YEAR as positive_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------+
+        |"POSITIVE_YEAR"  |
+        +-----------------+
+        |INTERVAL '3' YEAR|
+        +-----------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '+15' MONTH as positive_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"POSITIVE_MONTH"   |
+        +-------------------+
+        |INTERVAL '15' MONTH|
+        +-------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-5' YEAR as negative_single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------+
+        |"NEGATIVE_SINGLE_YEAR"|
+        +----------------------+
+        |INTERVAL '-5' YEAR    |
+        +----------------------+
+        """
+    )
+
+    # Additional edge cases for comprehensive coverage
+
+    # Positive number without dash for single month
+    df = session.sql("SELECT INTERVAL '+7' MONTH as positive_single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------+
+        |"POSITIVE_SINGLE_MONTH"|
+        +-----------------------+
+        |INTERVAL '7' MONTH     |
+        +-----------------------+
+        """
+    )
+
+    # Negative number for single month
+    df = session.sql("SELECT INTERVAL '-12' MONTH as negative_single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------+
+        |"NEGATIVE_SINGLE_MONTH"|
+        +-----------------------+
+        |INTERVAL '-12' MONTH   |
+        +-----------------------+
+        """
+    )
+
+    # Positive number without dash for single year
+    df = session.sql("SELECT INTERVAL '+4' YEAR as positive_single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------+
+        |"POSITIVE_SINGLE_YEAR"|
+        +----------------------+
+        |INTERVAL '4' YEAR     |
+        +----------------------+
+        """
+    )
+
+    # Positive number with no sign, single number for fallback
+    df = session.sql("SELECT INTERVAL '42' MONTH as plain_number_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"PLAIN_NUMBER_MONTH"|
+        +--------------------+
+        |INTERVAL '42' MONTH |
+        +--------------------+
+        """
+    )
+
+    # Edge case: positive single dash for months
+    df = session.sql("SELECT INTERVAL '+8' MONTH as plus_month_edge")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"PLUS_MONTH_EDGE" |
+        +------------------+
+        |INTERVAL '8' MONTH|
+        +------------------+
+        """
+    )
+
+    # Day-time intervals for additional coverage
+
+    # Single minute-only interval
+    df = session.sql("SELECT INTERVAL '5' MINUTE as single_minute_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"SINGLE_MINUTE_ONLY"|
+        +--------------------+
+        |INTERVAL '05' MINUTE|
+        +--------------------+
+        """
+    )
+
+    # Single hour-only interval
+    df = session.sql("SELECT INTERVAL '7' HOUR as single_hour_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_HOUR_ONLY"|
+        +------------------+
+        |INTERVAL '07' HOUR|
+        +------------------+
+        """
+    )
+
+    # Single second-only interval
+    df = session.sql("SELECT INTERVAL '8' SECOND as single_second_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"SINGLE_SECOND_ONLY"|
+        +--------------------+
+        |INTERVAL '08' SECOND|
+        +--------------------+
+        """
+    )
+
+    # Single second with fractional part to hit different branches (lines 5216-5217)
+    df = session.sql("SELECT INTERVAL '3.456' SECOND as fractional_second_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"FRACTIONAL_SECOND_ONLY"|
+        +------------------------+
+        |INTERVAL '03.456' SECOND|
+        +------------------------+
+        """
+    )
+
+    # Fractional seconds < 1
+    df = session.sql("SELECT INTERVAL '0.789' SECOND as sub_second_frac")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"SUB_SECOND_FRAC"       |
+        +------------------------+
+        |INTERVAL '00.789' SECOND|
+        +------------------------+
+        """
+    )
+
+    # Minute to second with fractional
+    df = session.sql(
+        "SELECT INTERVAL '8:45.321' MINUTE TO SECOND as minute_to_second_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------------------+
+        |"MINUTE_TO_SECOND_FRAC"              |
+        +-------------------------------------+
+        |INTERVAL '08:45.321' MINUTE TO SECOND|
+        +-------------------------------------+
+        """
+    )
+
+    # Large minute to second with fractional
+    df = session.sql(
+        "SELECT INTERVAL '123:45.678' MINUTE TO SECOND as large_minute_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------------+
+        |"LARGE_MINUTE_FRAC"                   |
+        +--------------------------------------+
+        |INTERVAL '123:45.678' MINUTE TO SECOND|
+        +--------------------------------------+
+        """
+    )
+
+    # Additional test cases for interval formatting coverage
+
+    # Test DAY TO MINUTE formatting
+    df = session.sql("SELECT INTERVAL '2 05:30' DAY TO MINUTE as day_to_minute")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------+
+        |"DAY_TO_MINUTE"                 |
+        +--------------------------------+
+        |INTERVAL '2 05:30' DAY TO MINUTE|
+        +--------------------------------+
+        """
+    )
+
+    # Test MINUTE TO SECOND with integer seconds
+    df = session.sql("SELECT INTERVAL '15:30' MINUTE TO SECOND as minute_to_second_int")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------+
+        |"MINUTE_TO_SECOND_INT"           |
+        +---------------------------------+
+        |INTERVAL '15:30' MINUTE TO SECOND|
+        +---------------------------------+
+        """
+    )
+
+    # Test single field interval
+    df = session.sql("SELECT INTERVAL '5' HOUR as single_hour_field")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"SINGLE_HOUR_FIELD"|
+        +-------------------+
+        |INTERVAL '05' HOUR |
+        +-------------------+
+        """
+    )
+
+    # Test multi-field interval
+    df = session.sql("SELECT INTERVAL '2:30:45' HOUR TO SECOND as multi_field")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"MULTI_FIELD"                     |
+        +----------------------------------+
+        |INTERVAL '02:30:45' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '5.000' SECOND as zero_frac_test")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"ZERO_FRAC_TEST"    |
+        +--------------------+
+        |INTERVAL '05' SECOND|
+        +--------------------+
+        """
+    )
+
+    # === Edge Cases for Decimal Precision and Large Values ===
+
+    # Large positive DAY TO HOUR intervals
+    df = session.sql("SELECT INTERVAL '106751991 04' DAY TO HOUR as large_day_to_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------+
+        |"LARGE_DAY_TO_HOUR"                |
+        +-----------------------------------+
+        |INTERVAL '106751991 04' DAY TO HOUR|
+        +-----------------------------------+
+        """
+    )
+
+    # Large positive DAY TO MINUTE intervals
+    df = session.sql(
+        "SELECT INTERVAL '106751991 04:00' DAY TO MINUTE as large_day_to_minute"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------------+
+        |"LARGE_DAY_TO_MINUTE"                   |
+        +----------------------------------------+
+        |INTERVAL '106751991 04:00' DAY TO MINUTE|
+        +----------------------------------------+
+        """
+    )
+
+    # Large positive DAY TO SECOND intervals with high precision fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '106751991 04:00:54.775807' DAY TO SECOND as large_day_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------------------------+
+        |"LARGE_DAY_TO_SECOND"                             |
+        +--------------------------------------------------+
+        |INTERVAL '106751991 04:00:54.775807' DAY TO SECOND|
+        +--------------------------------------------------+
+        """
+    )
+
+    # Large negative DAY TO HOUR intervals
+    df = session.sql(
+        "SELECT INTERVAL '-106751991 04' DAY TO HOUR as large_negative_day_to_hour"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------+
+        |"LARGE_NEGATIVE_DAY_TO_HOUR"        |
+        +------------------------------------+
+        |INTERVAL '-106751991 04' DAY TO HOUR|
+        +------------------------------------+
+        """
+    )
+
+    # Large negative DAY TO MINUTE intervals
+    df = session.sql(
+        "SELECT INTERVAL '-106751991 04:00' DAY TO MINUTE as large_negative_day_to_minute"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------------+
+        |"LARGE_NEGATIVE_DAY_TO_MINUTE"           |
+        +-----------------------------------------+
+        |INTERVAL '-106751991 04:00' DAY TO MINUTE|
+        +-----------------------------------------+
+        """
+    )
+
+    # Large negative DAY TO SECOND intervals with high precision fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '-106751991 04:00:54.775808' DAY TO SECOND as large_negative_day_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------------------------+
+        |"LARGE_NEGATIVE_DAY_TO_SECOND"                     |
+        +---------------------------------------------------+
+        |INTERVAL '-106751991 04:00:54.775808' DAY TO SECOND|
+        +---------------------------------------------------+
+        """
+    )
+
+    # Extremely large positive YEAR intervals
+    df = session.sql("SELECT INTERVAL '178956970' YEAR as extremely_large_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------+
+        |"EXTREMELY_LARGE_YEAR"   |
+        +-------------------------+
+        |INTERVAL '178956970' YEAR|
+        +-------------------------+
+        """
+    )
+
+    # Extremely large negative YEAR intervals
+    df = session.sql(
+        "SELECT INTERVAL '-178956970' YEAR as extremely_large_negative_year"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------------+
+        |"EXTREMELY_LARGE_NEGATIVE_YEAR"|
+        +-------------------------------+
+        |INTERVAL '-178956970' YEAR     |
+        +-------------------------------+
+        """
+    )
+
+    # Large positive DAY intervals
+    df = session.sql("SELECT INTERVAL '106751991' DAY as extremely_large_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"EXTREMELY_LARGE_DAY"   |
+        +------------------------+
+        |INTERVAL '106751991' DAY|
+        +------------------------+
+        """
+    )
+
+    # Large negative DAY intervals
+    df = session.sql("SELECT INTERVAL '-106751991' DAY as extremely_large_negative_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------+
+        |"EXTREMELY_LARGE_NEGATIVE_DAY"|
+        +------------------------------+
+        |INTERVAL '-106751991' DAY     |
+        +------------------------------+
+        """
+    )
+
+    # High precision positive fractional SECOND intervals
+    df = session.sql("SELECT INTERVAL '54.775807' SECOND as high_precision_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"HIGH_PRECISION_SECOND"    |
+        +---------------------------+
+        |INTERVAL '54.775807' SECOND|
+        +---------------------------+
+        """
+    )
+
+    # High precision negative fractional SECOND intervals
+    df = session.sql(
+        "SELECT INTERVAL '-54.775807' SECOND as high_precision_negative_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------+
+        |"HIGH_PRECISION_NEGATIVE_SECOND"|
+        +--------------------------------+
+        |INTERVAL '-54.775807' SECOND    |
+        +--------------------------------+
+        """
+    )
+
+    # === Targeted Tests to Hit Remaining Missing Lines ===
+
+    # Very large interval to trigger Decimal path with integer seconds
+    df = session.sql("SELECT INTERVAL '2000000' DAY as decimal_large_int")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------+
+        |"DECIMAL_LARGE_INT"   |
+        +----------------------+
+        |INTERVAL '2000000' DAY|
+        +----------------------+
+        """
+    )
+
+    # Very large interval with fractional seconds < 10 to trigger Decimal path
+    df = session.sql(
+        "SELECT INTERVAL '2000000 00:00:05.123456' DAY TO SECOND as decimal_small_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------------------+
+        |"DECIMAL_SMALL_FRAC"                            |
+        +------------------------------------------------+
+        |INTERVAL '2000000 00:00:05.123456' DAY TO SECOND|
+        +------------------------------------------------+
+        """
+    )
+
+    # Very large interval with fractional seconds >= 10 to trigger Decimal path
+    df = session.sql(
+        "SELECT INTERVAL '2000000 00:00:15.123456' DAY TO SECOND as decimal_large_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------------------+
+        |"DECIMAL_LARGE_FRAC"                            |
+        +------------------------------------------------+
+        |INTERVAL '2000000 00:00:15.123456' DAY TO SECOND|
+        +------------------------------------------------+
+        """
+    )
+
+    # Normal interval with integer seconds to trigger float path
+    df = session.sql("SELECT INTERVAL '00:00:05' HOUR TO SECOND as float_int_test")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"FLOAT_INT_TEST"                  |
+        +----------------------------------+
+        |INTERVAL '00:00:05' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Normal interval with fractional seconds < 10 for float path
+    df = session.sql(
+        "SELECT INTERVAL '00:00:05.123456' HOUR TO SECOND as float_small_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------------+
+        |"FLOAT_SMALL_FRAC"                       |
+        +-----------------------------------------+
+        |INTERVAL '00:00:05.123456' HOUR TO SECOND|
+        +-----------------------------------------+
+        """
+    )
+
+    # Normal interval with fractional seconds >= 10 for float path
+    df = session.sql(
+        "SELECT INTERVAL '00:00:15.123456' HOUR TO SECOND as float_large_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------------+
+        |"FLOAT_LARGE_FRAC"                       |
+        +-----------------------------------------+
+        |INTERVAL '00:00:15.123456' HOUR TO SECOND|
+        +-----------------------------------------+
+        """
+    )
+
+
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
 def test_create_dataframe_with_single_value(session, data):
     expected_names = ["_1"]
