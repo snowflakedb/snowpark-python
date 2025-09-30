@@ -98,7 +98,7 @@ def to_snowflake(  # noqa: F811
         self.memory_usage(deep=False).sum()
         <= PandasToSnowflakeParquetThresholdBytes.get()
     ):
-        return self.set_backend("snowflake").to_snowflake(
+        return self.set_backend("Snowflake").to_snowflake(
             name=name,
             if_exists=if_exists,
             index=index,
