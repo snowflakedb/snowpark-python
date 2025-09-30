@@ -4988,7 +4988,7 @@ class Session:
             )
             return
 
-        resource = Resource.create({"service.name": "external.snowpark_python"})
+        resource = Resource.create({"service.name": "snow.snowpark.external"})
 
         if enable_trace_level and self._tracer_provider is None:
             url = f"https://{endpoint}/v1/traces"
