@@ -292,11 +292,7 @@ class TestInplace:
             param({"inplace": False}, id="inplace_False"),
         ],
     )
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason="https://github.com/modin-project/modin/issues/7669",
-    )
+    @sql_count_checker(query_count=2)
     def test_inplace_false_with_assignment_does_not_mutate_df(
         self, test_dfs, engine_kwargs, inplace_kwargs
     ):
