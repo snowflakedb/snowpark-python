@@ -10,15 +10,26 @@ Each method measures timing and prints results.
 
 import time
 from snowflake.snowpark import Session
-from .connections import get_connection_factory
-from . import config
+
+# Support both direct execution and module import
+try:
+    from .connections import get_connection_factory
+    from . import config
+except ImportError:
+    from connections import get_connection_factory
+    import config
 
 
-def run_local_ingestion(session, create_connection, table, target_table, dbapi_params):
+def run_local_ingestion(
+    session, create_connection, source_type, source_value, target_table, dbapi_params
+):
     """
     Method 1: Local ingestion using session.read.dbapi()
 
     Data is fetched locally and uploaded to Snowflake.
+    Args:
+        source_type: "table" or "query"
+        source_value: Table name or SQL query string
     """
     print(f"\n{'='*60}")
     print("Running: LOCAL INGESTION")
@@ -26,9 +37,13 @@ def run_local_ingestion(session, create_connection, table, target_table, dbapi_p
 
     start_time = time.time()
 
+    # Build source kwargs: {source_type: source_value}
+    # e.g., {"table": "DBAPI_TEST_TABLE"} or {"query": "SELECT * FROM ..."}
+    source_kwargs = {source_type: source_value}
+
     # Read from source database
     df = session.read.dbapi(
-        create_connection=create_connection, table=table, **dbapi_params
+        create_connection=create_connection, **source_kwargs, **dbapi_params
     )
 
     # Write to Snowflake
@@ -42,12 +57,21 @@ def run_local_ingestion(session, create_connection, table, target_table, dbapi_p
 
 
 def run_udtf_ingestion(
-    session, create_connection, table, target_table, dbapi_params, udtf_configs
+    session,
+    create_connection,
+    source_type,
+    source_value,
+    target_table,
+    dbapi_params,
+    udtf_configs,
 ):
     """
     Method 2: UDTF ingestion using session.read.dbapi() with udtf_configs
 
     Data is fetched via UDTF running on Snowflake.
+    Args:
+        source_type: "table" or "query"
+        source_value: Table name or SQL query string
     """
     print(f"\n{'='*60}")
     print("Running: UDTF INGESTION")
@@ -55,11 +79,14 @@ def run_udtf_ingestion(
 
     start_time = time.time()
 
+    # Build source kwargs
+    source_kwargs = {source_type: source_value}
+
     # Read using UDTF
     df = session.read.dbapi(
         create_connection=create_connection,
-        table=table,
         udtf_configs=udtf_configs,
+        **source_kwargs,
         **dbapi_params,
     )
 
@@ -74,43 +101,63 @@ def run_udtf_ingestion(
 
 
 def run_local_ingestion_in_sproc(
-    session, create_connection, table, target_table, dbapi_params
+    session,
+    create_connection,
+    source_type,
+    source_value,
+    target_table,
+    dbapi_params,
+    udtf_configs,
+    dbms,
 ):
     """
     Method 3: Local ingestion inside a stored procedure
 
     The local ingestion logic runs inside a Snowflake stored procedure.
+    Args:
+        source_type: "table" or "query"
+        source_value: Table name or SQL query string
+        udtf_configs: External access integration configs (needed for sproc to access external DB)
+        dbms: DBMS type (for getting correct packages)
     """
     print(f"\n{'='*60}")
     print("Running: LOCAL INGESTION IN STORED PROCEDURE")
     print(f"{'='*60}")
 
-    start_time = time.time()
+    source_dict = {source_type: source_value}
+    params = dbapi_params
+    target = target_table
+    external_access_integrations = [udtf_configs.get("external_access_integration")]
+    packages = config.SPROC_PACKAGES.get(dbms.lower(), [])
 
     # Define the ingestion function
     def ingestion_sproc(
         _session: Session,
-        create_connection_func,
-        table_name: str,
-        target: str,
-        params: dict,
     ):
         df = _session.read.dbapi(
-            create_connection=create_connection_func, table=table_name, **params
+            create_connection=create_connection, **source_dict, **params
         )
         df.write.save_as_table(target, mode="overwrite")
         return "Success"
 
-    # Register as stored procedure
+    # Register as stored procedure with external access integration
+    from snowflake.snowpark.types import StringType
+
     sproc = session.sproc.register(
         func=ingestion_sproc,
         name="temp_local_ingestion_sproc",
+        return_type=StringType(),
+        input_types=None,
         replace=True,
         is_permanent=False,
+        packages=packages,
+        external_access_integrations=external_access_integrations,
     )
 
+    start_time = time.time()
+
     # Call the stored procedure
-    result = sproc(create_connection, table, target_table, dbapi_params)
+    result = sproc()
 
     end_time = time.time()
     elapsed = end_time - start_time
@@ -121,47 +168,64 @@ def run_local_ingestion_in_sproc(
 
 
 def run_udtf_ingestion_in_sproc(
-    session, create_connection, table, target_table, dbapi_params, udtf_configs
+    session,
+    create_connection,
+    source_type,
+    source_value,
+    target_table,
+    dbapi_params,
+    udtf_configs,
+    dbms,
 ):
     """
     Method 4: UDTF ingestion inside a stored procedure
 
     The UDTF ingestion logic runs inside a Snowflake stored procedure.
+    Args:
+        source_type: "table" or "query"
+        source_value: Table name or SQL query string
+        udtf_configs: External access integration configs
+        dbms: DBMS type (for getting correct packages)
     """
     print(f"\n{'='*60}")
     print("Running: UDTF INGESTION IN STORED PROCEDURE")
     print(f"{'='*60}")
 
-    start_time = time.time()
+    source_dict = {source_type: source_value}
+    external_access_integrations = [udtf_configs.get("external_access_integration")]
+    packages = config.SPROC_PACKAGES.get(dbms.lower(), [])
 
     # Define the ingestion function
     def ingestion_sproc(
         _session: Session,
-        create_connection_func,
-        table_name: str,
-        target: str,
-        params: dict,
-        udtf_cfg: dict,
     ):
         df = _session.read.dbapi(
-            create_connection=create_connection_func,
-            table=table_name,
-            udtf_configs=udtf_cfg,
-            **params,
+            create_connection=create_connection,
+            udtf_configs=udtf_configs,
+            **source_dict,
+            **dbapi_params,
         )
-        df.write.save_as_table(target, mode="overwrite")
+        df.write.save_as_table(target_table, mode="overwrite")
         return "Success"
 
-    # Register as stored procedure
+    # Register as stored procedure with external access integration
+    from snowflake.snowpark.types import StringType
+
     sproc = session.sproc.register(
         func=ingestion_sproc,
         name="temp_udtf_ingestion_sproc",
+        return_type=StringType(),
+        input_types=None,
         replace=True,
         is_permanent=False,
+        packages=packages,
+        external_access_integrations=external_access_integrations,
     )
 
+    start_time = time.time()
+
     # Call the stored procedure
-    result = sproc(create_connection, table, target_table, dbapi_params, udtf_configs)
+    result = sproc()
 
     end_time = time.time()
     elapsed = end_time - start_time
@@ -187,12 +251,34 @@ def run_test(test_config):
         Elapsed time in seconds
     """
     dbms = test_config["dbms"]
-    table = test_config["table"]
     method = test_config["ingestion_method"]
+
+    # Get source configuration - supports both old and new format
+    if "source" in test_config:
+        # New format: {"source": {"type": "table|query", "value": "..."}}
+        source_config = test_config["source"]
+        source_type = source_config["type"]
+        source_value = source_config["value"]
+    else:
+        # Legacy format: {"table": "..."} or {"query": "..."}
+        if "table" in test_config:
+            source_type = "table"
+            source_value = test_config["table"]
+        elif "query" in test_config:
+            source_type = "query"
+            source_value = test_config["query"]
+        else:
+            raise ValueError(
+                "Test config must specify 'source' or legacy 'table'/'query'"
+            )
+
+    if source_type not in ("table", "query"):
+        raise ValueError(f"source.type must be 'table' or 'query', got: {source_type}")
 
     print(f"\n{'#'*60}")
     print(f"TEST: {dbms.upper()} - {method.upper()}")
-    print(f"Source Table: {table}")
+    print(f"Source Type: {source_type.upper()}")
+    print(f"Source Value: {source_value}")
     print(f"{'#'*60}")
 
     # Get connection parameters based on DBMS type
@@ -223,11 +309,9 @@ def run_test(test_config):
         udtf_configs = test_config["udtf_configs"]
     elif dbms_key in config.UDTF_CONFIGS:
         udtf_configs = config.UDTF_CONFIGS[dbms_key].copy()
-    else:
-        # Fallback to generic if DBMS not found
-        udtf_configs = {
-            "external_access_integration": "YOUR_EXTERNAL_ACCESS_INTEGRATION"
-        }
+
+    if not udtf_configs:
+        raise ValueError(f"UDTF configs not found for {dbms}")
 
     # Create Snowflake session
     session = Session.builder.configs(config.SNOWFLAKE_PARAMS).create()
@@ -237,16 +321,23 @@ def run_test(test_config):
         target_table = f"TEST_{dbms.upper()}_{method.upper()}_{int(time.time())}"
 
         # Run appropriate ingestion method
+        # Pass source_type and source_value separately
         if method == "local":
             elapsed = run_local_ingestion(
-                session, create_connection, table, target_table, dbapi_params
+                session,
+                create_connection,
+                source_type,
+                source_value,
+                target_table,
+                dbapi_params,
             )
 
         elif method == "udtf":
             elapsed = run_udtf_ingestion(
                 session,
                 create_connection,
-                table,
+                source_type,
+                source_value,
                 target_table,
                 dbapi_params,
                 udtf_configs,
@@ -254,26 +345,64 @@ def run_test(test_config):
 
         elif method == "local_sproc":
             elapsed = run_local_ingestion_in_sproc(
-                session, create_connection, table, target_table, dbapi_params
+                session,
+                create_connection,
+                source_type,
+                source_value,
+                target_table,
+                dbapi_params,
+                udtf_configs,
+                dbms,
             )
 
         elif method == "udtf_sproc":
             elapsed = run_udtf_ingestion_in_sproc(
                 session,
                 create_connection,
-                table,
+                source_type,
+                source_value,
                 target_table,
                 dbapi_params,
                 udtf_configs,
+                dbms,
             )
 
         else:
             raise ValueError(f"Unknown ingestion method: {method}")
 
+        # Show target table info if configured
+        if config.SHOW_TARGET_TABLE_INFO:
+            try:
+                print(f"\n{'='*60}")
+                print("TARGET TABLE INFO")
+                print(f"{'='*60}")
+
+                # Get row count
+                row_count = session.table(target_table).count()
+                print(f"Row count: {row_count}")
+
+                # Show first row
+                print("\nFirst row:")
+                session.table(target_table).show(n=1)
+
+            except Exception as info_error:
+                print(f"\n⚠ Warning: Could not retrieve table info: {info_error}")
+
+        # Cleanup target table if configured
+        if config.CLEANUP_TARGET_TABLES:
+            try:
+                session.sql(f"DROP TABLE IF EXISTS {target_table}").collect()
+                print(f"\n✓ Cleaned up target table: {target_table}")
+            except Exception as cleanup_error:
+                print(
+                    f"\n⚠ Warning: Could not clean up table {target_table}: {cleanup_error}"
+                )
+
         return {
             "dbms": dbms,
             "method": method,
-            "table": table,
+            "source_type": source_type,
+            "source_value": source_value,
             "target_table": target_table,
             "elapsed_time": elapsed,
             "status": "success",
@@ -281,10 +410,19 @@ def run_test(test_config):
 
     except Exception as e:
         print(f"\n✗ ERROR: {str(e)}")
+        # Try cleanup even on failure if configured
+        if config.CLEANUP_TARGET_TABLES and "target_table" in locals():
+            try:
+                session.sql(f"DROP TABLE IF EXISTS {target_table}").collect()
+                print(f"\n✓ Cleaned up target table: {target_table}")
+            except Exception:
+                pass  # Silently ignore cleanup errors on failure
+
         return {
             "dbms": dbms,
             "method": method,
-            "table": table,
+            "source_type": source_type if "source_type" in locals() else None,
+            "source_value": source_value if "source_value" in locals() else None,
             "elapsed_time": None,
             "status": "failed",
             "error": str(e),
@@ -316,20 +454,30 @@ def run_test_matrix(test_matrix):
         results.append(result)
 
     # Print summary
-    print(f"\n\n{'='*60}")
+    print(f"\n\n{'='*80}")
     print("TEST SUMMARY")
-    print(f"{'='*60}")
+    print(f"{'='*80}")
+    print(
+        f"{'Status':^8} {'DBMS':^12} {'Method':^15} {'Source':^8} {'Value':^25} {'Time':^10}"
+    )
+    print("-" * 80)
 
     for result in results:
         status_symbol = "✓" if result["status"] == "success" else "✗"
         time_str = f"{result['elapsed_time']:.2f}s" if result["elapsed_time"] else "N/A"
+        source_type = result.get("source_type", "N/A")
+        source_value = result.get("source_value", "N/A")
+        # Truncate long values for display
+        if len(source_value) > 25:
+            source_value = source_value[:22] + "..."
         print(
-            f"{status_symbol} {result['dbms']:12} {result['method']:15} {time_str:>10}"
+            f"{status_symbol:^8} {result['dbms']:^12} {result['method']:^15} {source_type:^8} {source_value:^25} {time_str:^10}"
         )
 
     successful = sum(1 for r in results if r["status"] == "success")
+    print("-" * 80)
     print(
-        f"\nTotal: {len(results)} | Success: {successful} | Failed: {len(results) - successful}"
+        f"Total: {len(results)} | Success: {successful} | Failed: {len(results) - successful}"
     )
 
     return results

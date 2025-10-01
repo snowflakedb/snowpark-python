@@ -14,8 +14,14 @@ Usage:
 """
 
 import sys
-from . import config
-from .runner import run_test, run_test_matrix
+
+# Support both direct execution and module import
+try:
+    from . import config
+    from .runner import run_test, run_test_matrix
+except ImportError:
+    import config
+    from runner import run_test, run_test_matrix
 
 
 def main():
@@ -24,8 +30,7 @@ def main():
     # Check if running test matrix
     if "--matrix" in sys.argv:
         # Run all tests in TEST_MATRIX
-        results = run_test_matrix(config.TEST_MATRIX)
-        print(results)
+        run_test_matrix(config.TEST_MATRIX)
     else:
         # Run single test
         result = run_test(config.SINGLE_TEST_CONFIG)

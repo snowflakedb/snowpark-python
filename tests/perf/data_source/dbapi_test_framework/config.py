@@ -12,69 +12,150 @@ Define your test matrix here by specifying:
 - fetch_size, max_workers: DBAPI parameters
 """
 
+import os
+
+# Load environment variables from .env file in the same directory if it exists and dotenv is installed
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 # Snowflake connection parameters
-SNOWFLAKE_PARAMS = {}
+SNOWFLAKE_PARAMS = {
+    "account": os.getenv("SNOWFLAKE_ACCOUNT"),
+    "user": os.getenv("SNOWFLAKE_USER"),
+    "password": os.getenv("SNOWFLAKE_PASSWORD"),
+    "database": os.getenv("SNOWFLAKE_DATABASE"),
+    "schema": os.getenv("SNOWFLAKE_SCHEMA"),
+    "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
+    "role": os.getenv("SNOWFLAKE_ROLE"),
+    "host": os.getenv("SNOWFLAKE_HOST"),
+    "port": int(os.getenv("SNOWFLAKE_PORT", 443)),
+    "protocol": os.getenv("SNOWFLAKE_PROTOCOL", "https"),
+}
 
 # Source database connection parameters
-MYSQL_PARAMS = {}
+MYSQL_PARAMS = {
+    "host": os.getenv("MYSQL_HOST"),
+    "port": int(os.getenv("MYSQL_PORT", 3306)),
+    "user": os.getenv("MYSQL_USERNAME"),  # Connection function expects 'user'
+    "password": os.getenv("MYSQL_PASSWORD"),
+    "database": os.getenv("MYSQL_DATABASE"),
+}
 
-POSTGRES_PARAMS = {}
+POSTGRES_PARAMS = {
+    "host": os.getenv("POSTGRES_HOST"),
+    "port": int(os.getenv("POSTGRES_PORT", 5432)),
+    "user": os.getenv("POSTGRES_USER"),
+    "password": os.getenv("POSTGRES_PASSWORD"),
+    "database": os.getenv("POSTGRES_DBNAME"),  # Connection function expects 'database'
+}
 
-MSSQL_PARAMS = {}
+MSSQL_PARAMS = {
+    "host": os.getenv("MSSQL_SERVER"),
+    "port": int(os.getenv("MSSQL_PORT", 1433)),
+    "user": os.getenv("MSSQL_UID"),
+    "password": os.getenv("MSSQL_PWD"),
+    "database": os.getenv("MSSQL_DATABASE", "test_db"),  # Default to test_db
+    "driver": os.getenv("MSSQL_DRIVER", "{ODBC Driver 18 for SQL Server}"),
+}
 
-ORACLE_PARAMS = {}
+ORACLE_PARAMS = {
+    "host": os.getenv("ORACLEDB_HOST"),
+    "port": int(os.getenv("ORACLEDB_PORT", 1521)),
+    "user": os.getenv("ORACLEDB_USERNAME"),  # Connection function expects 'user'
+    "password": os.getenv("ORACLEDB_PASSWORD"),
+    "service_name": os.getenv("ORACLEDB_SERVICE_NAME"),
+}
 
-DATABRICKS_PARAMS = {}
+DATABRICKS_PARAMS = {
+    "server_hostname": os.getenv("DATABRICKS_SERVER_HOSTNAME"),
+    "http_path": os.getenv("DATABRICKS_HTTP_PATH"),
+    "access_token": os.getenv("DATABRICKS_ACCESS_TOKEN"),
+}
 
 # DBAPI ingestion parameters
 DBAPI_PARAMS = {}
 
+# Cleanup configuration
+# Set to False to keep target tables for debugging
+CLEANUP_TARGET_TABLES = False
+
+# Show target table info before cleanup (first row + count)
+# Set to False to skip showing table info
+SHOW_TARGET_TABLE_INFO = True
+
+# Package requirements for stored procedures by DBMS type
+SPROC_PACKAGES = {
+    "mysql": ["pymysql"],
+    "postgres": ["psycopg2"],
+    "mssql": ["pyodbc", "msodbcsql"],
+    "oracle": ["oracledb"],
+    "databricks": ["databricks-sql-connector"],
+}
+
 # UDTF configuration (for udtf and udtf_sproc methods)
 # Each DBMS needs its own external access integration
+# Names match the existing test integrations in tests/resources/test_data_source_dir/
 UDTF_CONFIGS = {
     "mysql": {
-        "external_access_integration": "MYSQL_EXTERNAL_ACCESS_INTEGRATION",
+        "external_access_integration": "snowpark_dbapi_mysql_test_integration",
     },
     "postgres": {
-        "external_access_integration": "POSTGRES_EXTERNAL_ACCESS_INTEGRATION",
+        "external_access_integration": "snowpark_dbapi_postgres_test_integration",
     },
     "mssql": {
-        "external_access_integration": "MSSQL_EXTERNAL_ACCESS_INTEGRATION",
+        "external_access_integration": "snowpark_dbapi_sql_server_test_integration",
     },
     "oracle": {
-        "external_access_integration": "ORACLE_EXTERNAL_ACCESS_INTEGRATION",
+        "external_access_integration": "snowpark_dbapi_oracledb_test_integration",
     },
     "databricks": {
-        "external_access_integration": "DATABRICKS_EXTERNAL_ACCESS_INTEGRATION",
+        "external_access_integration": "snowpark_dbapi_databricks_test_integration",
     },
 }
 
 # Test matrix - define which tests to run
-# Each test config is a dict with: dbms, table, ingestion_method, and optional params
+# Each test config format:
+# {
+#     "dbms": "mysql",
+#     "source": {"type": "table|query", "value": "..."},
+#     "ingestion_method": "local|udtf|local_sproc|udtf_sproc"
+# }
+_DBMS_LIST = ["mysql", "postgres", "mssql", "oracle", "databricks"]
+# _DBMS_LIST = ['mysql']
+_METHODS = ["local", "udtf"]
+_METHODS = ["local_sproc", "udtf_sproc"]
+
+# Generate test matrix: table-based and query-based tests
 TEST_MATRIX = [
-    # MySQL tests
-    {
-        "dbms": "mysql",
-        "table": "test_table",
-        "ingestion_method": "local",
-    },
-    {
-        "dbms": "mysql",
-        "table": "test_table",
-        "ingestion_method": "udtf",
-    },
-    # Postgres tests
-    {
-        "dbms": "postgres",
-        "table": "test_table",
-        "ingestion_method": "local",
-    },
-    # Add more test configurations as needed
+    # Table-based tests
+    *[
+        {
+            "dbms": dbms,
+            "source": {"type": "table", "value": "DBAPI_TEST_TABLE"},
+            "ingestion_method": method,
+        }
+        for dbms in _DBMS_LIST
+        for method in _METHODS
+    ],
+    # Query-based tests
+    *[
+        {
+            "dbms": dbms,
+            "source": {"type": "query", "value": "SELECT * FROM DBAPI_TEST_TABLE"},
+            "ingestion_method": method,
+        }
+        for dbms in _DBMS_LIST
+        for method in _METHODS
+    ],
 ]
 
 # Simple single test config (used by main.py if TEST_MATRIX is not used)
 SINGLE_TEST_CONFIG = {
-    "dbms": "mysql",
-    "table": "test_table",
-    "ingestion_method": "local",
+    "dbms": "mssql",
+    "source": {"type": "query", "value": "SELECT * FROM DBAPI_TEST_TABLE"},
+    "ingestion_method": "local_sproc",
 }

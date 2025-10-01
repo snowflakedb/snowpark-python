@@ -12,10 +12,10 @@ This callable is passed to session.read.dbapi().
 
 def create_mysql_connection(host, port, user, password, database, **kwargs):
     """Create MySQL connection factory."""
-    import mysql.connector
+    import pymysql
 
     def _connect():
-        return mysql.connector.connect(
+        return pymysql.connect(
             host=host,
             port=port,
             user=user,
