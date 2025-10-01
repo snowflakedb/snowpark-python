@@ -422,7 +422,7 @@ def to_json(
     storage_options: StorageOptions = None,
     mode="w",
 ) -> str | None:  # noqa: PR01, RT01, D200
-    pass
+    pass  # pragma: no cover
 
 
 @register_series_not_implemented()
