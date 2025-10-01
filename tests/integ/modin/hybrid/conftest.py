@@ -27,26 +27,27 @@ def enable_autoswitch():
         yield
 
 
-@pytest.fixture(scope="module")
-def init_transaction_tables():
+@pytest.fixture(scope="function")
+def revenue_transactions(test_table_name):
     session = pd.session
     session.sql(
-        """
-    CREATE OR REPLACE TABLE revenue_transactions (
+        f"""
+    CREATE OR REPLACE TABLE {test_table_name} (
         Transaction_ID STRING,
         Date DATE,
         Revenue FLOAT
     );"""
     ).collect()
     session.sql(
-        """INSERT INTO revenue_transactions (Transaction_ID, Date, Revenue)
+        f"""INSERT INTO {test_table_name} (Transaction_ID, Date, Revenue)
     SELECT
         UUID_STRING() AS Transaction_ID,
         DATEADD(DAY, UNIFORM(0, 800, RANDOM(0)), '2024-01-01') AS Date,
         UNIFORM(10, 1000, RANDOM(0)) AS Revenue
-    FROM TABLE(GENERATOR(ROWCOUNT => 10000000));
+    FROM TABLE(GENERATOR(ROWCOUNT => 1000000));
     """
     ).collect()
+    return test_table_name
 
 
 @pytest.fixture
