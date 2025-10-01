@@ -69,6 +69,7 @@ from pandas.util._validators import (
 from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
+    MethodKey,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import new_snow_series
 from snowflake.snowpark.modin.plugin.extensions.utils import (
@@ -108,7 +109,9 @@ def register_base_not_implemented():
     def decorator(base_method: Any):
         name = base_method.__name__
 
-        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("BasePandasDataset", name))
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(
+            MethodKey("BasePandasDataset", name)
+        )
         register_function_for_pre_op_switch(
             class_name="BasePandasDataset", backend="Snowflake", method=name
         )
