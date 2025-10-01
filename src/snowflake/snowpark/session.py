@@ -82,7 +82,6 @@ from snowflake.snowpark._internal.ast.utils import (
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.external_telemetry import RetryWithTokenRefreshAdapter
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
@@ -818,6 +817,7 @@ class Session:
 
         self._tracer_provider = None
         self._span_processor = None
+        self._proxy_tracer_provider = None
         self._logger_provider = None
         self._log_processor = None
         self._log_handler = None
@@ -4967,6 +4967,10 @@ class Session:
             from opentelemetry.exporter.otlp.proto.http._log_exporter import (
                 OTLPLogExporter,
             )
+            from snowflake.snowpark._internal.external_telemetry import (
+                RetryWithTokenRefreshAdapter,
+                ProxyTracerProvider,
+            )
         except ImportError as e:
             _logger.debug(
                 f"failed with:{str(e)}, opentelemetry is required to use external telemetry service"
@@ -4999,10 +5003,13 @@ class Session:
         header = self._get_external_telemetry_auth_token()
 
         with self._lock:
-            if enable_trace_level and self._tracer_provider is None:
+            if enable_trace_level and self._proxy_tracer_provider is None:
                 url = f"https://{endpoint}/v1/traces"
+
+                self._proxy_tracer_provider = ProxyTracerProvider()
+                trace.set_tracer_provider(self._proxy_tracer_provider)
+
                 self._tracer_provider = TracerProvider(resource=resource)
-                trace.set_tracer_provider(self._tracer_provider)
 
                 trace_session = requests.Session()
                 trace_session.headers.update(header)
@@ -5016,10 +5023,13 @@ class Session:
                 exporter = OTLPSpanExporter(endpoint=url, session=trace_session)
                 self._span_processor = BatchSpanProcessor(exporter)
                 self._tracer_provider.add_span_processor(self._span_processor)
+                self._proxy_tracer_provider.set_real_provider(self._tracer_provider)
+                self._proxy_tracer_provider.enable()
+
                 self._tracer_provider_enabled = True
             elif (
                 enable_trace_level
-                and self._tracer_provider
+                and self._proxy_tracer_provider
                 and not self._tracer_provider_enabled
             ):
                 self._enable_tracer_provider()
@@ -5081,15 +5091,13 @@ class Session:
         return headers
 
     def _disable_tracer_provider(self):
-        if self._tracer_provider and self._tracer_provider_enabled:
-            if self._span_processor:
-                self._tracer_provider.remove_span_processor(self._span_processor)
+        if self._proxy_tracer_provider and self._tracer_provider_enabled:
+            self._proxy_tracer_provider.disable()
             self._tracer_provider_enabled = False
 
     def _enable_tracer_provider(self):
-        if self._tracer_provider and not self._tracer_provider_enabled:
-            if self._span_processor:
-                self._tracer_provider.add_span_processor(self._span_processor)
+        if self._proxy_tracer_provider and not self._tracer_provider_enabled:
+            self._proxy_tracer_provider.enable()
             self._tracer_provider_enabled = True
 
     def _disable_logger_provider(self):
