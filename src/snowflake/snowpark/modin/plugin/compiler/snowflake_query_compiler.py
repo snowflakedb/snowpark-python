@@ -95,7 +95,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
-    parse_table_name,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
@@ -350,7 +349,8 @@ from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     unpivot_empty_df,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
-    MODIN_IS_AT_LEAST_0_37_0,
+    extract_and_validate_index_labels_for_to_snowflake,
+    handle_if_exists_for_to_snowflake,
     new_snow_series,
     INDEX_LABEL,
     ROW_COUNT_COLUMN_LABEL,
@@ -366,7 +366,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     create_frame_with_data_columns,
     create_ordered_dataframe_from_pandas,
     create_initial_ordered_dataframe,
-    extract_all_duplicates,
     extract_pandas_label_from_snowflake_quoted_identifier,
     fill_missing_levels_for_pandas_label,
     fill_none_in_index_labels,
@@ -383,6 +382,8 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
     unquote_name_if_quoted,
+    validate_column_labels_for_to_snowflake,
+    MODIN_IS_AT_LEAST_0_37_0,
 )
 from snowflake.snowpark.modin.plugin._internal.where_utils import (
     validate_expected_boolean_data_columns,
@@ -1896,12 +1897,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Include index columns
             if index_label:
                 index_column_labels = (
-                    index_label if isinstance(index_label, list) else [index_label]
-                )
-                if len(index_column_labels) != self._modin_frame.num_index_columns:
-                    raise ValueError(
-                        f"Length of 'index_label' should match number of levels, which is {self._modin_frame.num_index_columns}"
+                    extract_and_validate_index_labels_for_to_snowflake(
+                        index_label_param=index_label,
+                        num_index_columns=self._modin_frame.num_index_columns,
                     )
+                )
             else:
                 index_column_labels = frame.index_column_pandas_labels
 
@@ -1920,23 +1920,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # label for the data column, set the label to be None
             data_column_labels = [None]
 
-        # check if there is any data column label is none
-        if any(is_all_label_components_none(label) for label in data_column_labels):
-            raise ValueError(
-                f"Label None is found in the data columns {data_column_labels}, which is invalid in Snowflake. "
-                "Please give it a name by set the dataframe columns like df.columns=['A', 'B'],"
-                " or set the series name if it is a series like series.name='A'."
-            )
-
-        # perform a column name duplication check
-        index_and_data_columns = data_column_labels + index_column_labels
-        duplicates = extract_all_duplicates(index_and_data_columns)
-        if duplicates:
-            raise ValueError(
-                f"Duplicated labels {duplicates} found in index columns {index_column_labels} and data columns {data_column_labels}. "
-                f"Snowflake does not allow duplicated identifiers, please rename to make sure there is no duplication "
-                f"among both index and data columns."
-            )
+        validate_column_labels_for_to_snowflake(
+            index_column_labels=index_column_labels,
+            data_column_labels=data_column_labels,
+        )
 
         # rename snowflake quoted identifiers for the retained index columns and data columns to
         # be the same as quoted pandas labels.
@@ -2038,23 +2025,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> None:
         self._warn_lost_snowpark_pandas_type()
+        handle_if_exists_for_to_snowflake(if_exists=if_exists, name=name)
 
-        if if_exists not in ("fail", "replace", "append"):
-            # Same error message as native pandas.
-            raise ValueError(f"'{if_exists}' is not valid for if_exists")
         if if_exists == "fail":
             mode = "errorifexists"
         elif if_exists == "replace":
             mode = "overwrite"
         else:
             mode = "append"
-
-        if mode == "errorifexists" and pd.session._table_exists(
-            parse_table_name(name) if isinstance(name, str) else name
-        ):
-            raise ValueError(
-                f"Table '{name}' already exists. Set 'if_exists' parameter as 'replace' to override existing table."
-            )
 
         self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
             index, index_label
