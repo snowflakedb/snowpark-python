@@ -2321,7 +2321,9 @@ def st_dwithin(
 
 
 @publicapi
-def st_endpoint(geography_or_geometry_expression, _emit_ast: bool = True) -> Column:
+def st_endpoint(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """
     Returns the last point of a LINESTRING or MULTILINESTRING geometry or geography object.
 
@@ -2342,7 +2344,7 @@ def st_endpoint(geography_or_geometry_expression, _emit_ast: bool = True) -> Col
 
 
 @publicapi
-def st_envelope(geography_or_geometry_expression, _emit_ast=True):
+def st_envelope(geography_or_geometry_expression: ColumnOrName, _emit_ast=True):
     """
     Returns the minimum bounding box (envelope) that contains the input GEOGRAPHY or GEOMETRY object.
 
@@ -2369,7 +2371,9 @@ def st_envelope(geography_or_geometry_expression, _emit_ast=True):
 
 @publicapi
 def st_geohash(
-    geography_or_geometry_expression, precision=None, _emit_ast: bool = True
+    geography_or_geometry_expression: ColumnOrName,
+    precision=None,
+    _emit_ast: bool = True,
 ):
     """
     Returns the geohash for a GEOGRAPHY or GEOMETRY object.
