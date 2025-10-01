@@ -89,6 +89,7 @@ from snowflake.snowpark.modin.plugin._typing import ListLike
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
     HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
+    MethodKey,
 )
 from snowflake.snowpark.modin.plugin.extensions.index import Index
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
@@ -136,7 +137,7 @@ def register_dataframe_not_implemented():
     def decorator(base_method: Any):
         func = dataframe_not_implemented()(base_method)
         name = base_method.__name__
-        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("DataFrame", name))
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(MethodKey("DataFrame", name))
         register_function_for_pre_op_switch(
             class_name="DataFrame", backend="Snowflake", method=name
         )

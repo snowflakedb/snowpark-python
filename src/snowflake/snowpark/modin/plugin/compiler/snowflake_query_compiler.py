@@ -24,6 +24,7 @@ from typing import (
     Callable,
     List,
     Literal,
+    NamedTuple,
     Optional,
     TypeVar,
     Union,
@@ -501,11 +502,13 @@ HYBRID_ITERATIVE_STYLE_METHODS = ["iterrows", "itertuples", "items", "plot"]
 HYBRID_ALL_EXPENSIVE_METHODS = (
     HYBRID_HIGH_OVERHEAD_METHODS + HYBRID_ITERATIVE_STYLE_METHODS
 )
-# Set of (class name, method name) tuples for methods that are wholly unimplemented by
-# Snowpark pandas. This list is populated by the register_*_not_implemented decorators.
-HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS: Set[Tuple[str, str]] = set()
 
-# POC: Add kwargs-based auto-switching infrastructure
+
+class MethodKey(NamedTuple):
+    """Named tuple for method registry keys."""
+
+    api_cls_name: Optional[str]
+    method_name: str
 
 
 @dataclass
@@ -520,11 +523,13 @@ class UnsupportedKwargsRule:
     )
 
 
+# Set of MethodKey objects for methods that are wholly unimplemented by
+# Snowpark pandas. This list is populated by the register_*_not_implemented decorators.
+HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS: Set[MethodKey] = set()
+
 # Global registry for kwargs-based switching rules
-# Format: {(class_name, method_name): UnsupportedKwargsRule}
-HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS: dict[
-    tuple[Optional[str], str], UnsupportedKwargsRule
-] = {}
+# Format: {MethodKey(class_name, method_name): UnsupportedKwargsRule}
+HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS: dict[MethodKey, UnsupportedKwargsRule] = {}
 
 # POC: concat method rule will be registered via enhanced decorator in general_overrides.py
 
@@ -546,7 +551,7 @@ def register_query_compiler_method_not_implemented(
         unsupported_kwargs: UnsupportedKwargsRule for kwargs-based auto-switching.
                             If None, method is treated as completely unimplemented.
     """
-    reg_key: Tuple[str, str] = (api_cls_name, method_name)
+    reg_key = MethodKey(api_cls_name, method_name)
 
     # register the method in the hybrid switch for unsupported params
     if unsupported_kwargs is None:
@@ -560,7 +565,10 @@ def register_query_compiler_method_not_implemented(
     )
 
     register_function_for_pre_op_switch(
-        class_name=api_cls_name, backend="Snowflake", method=method_name
+        class_name=api_cls_name,
+        backend="Snowflake",
+        method=method_name,
+        arg_based=unsupported_kwargs is not None,
     )
 
     def decorator(query_compiler_method: Callable[..., Any]) -> Callable[..., Any]:
@@ -994,7 +1002,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not operation:
             return False
 
-        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS.get((api_cls_name, operation))
+        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS.get(
+            MethodKey(api_cls_name, operation)
+        )
         if rule is None:
             return False
 
@@ -1038,7 +1048,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if not operation:
             return None
 
-        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS.get((api_cls_name, operation))
+        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS.get(
+            MethodKey(api_cls_name, operation)
+        )
         if rule is None:
             return None
 
@@ -1110,7 +1122,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     ) -> Optional[int]:
         if (
             self._is_in_memory_init(api_cls_name, operation, arguments)
-            or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
+            or MethodKey(api_cls_name, operation)
+            in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
 
@@ -1158,7 +1171,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if (
             cls._is_in_memory_init(api_cls_name, operation, arguments)
             or not cls._are_dtypes_compatible_with_snowflake(other_qc)
-            or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
+            or (
+                operation is not None
+                and MethodKey(api_cls_name, operation)
+                in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
+            )
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
 
@@ -1175,6 +1192,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Automatically switching for execution."
             )
             return QCCoercionCost.COST_IMPOSSIBLE
+
+        if (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS:
+            return QCCoercionCost.COST_ZERO
 
         if arguments is not None and (
             (
