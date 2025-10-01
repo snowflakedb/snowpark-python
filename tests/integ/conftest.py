@@ -286,7 +286,7 @@ def test_schema(connection, local_testing_mode) -> None:
             cursor.execute(f"DROP SCHEMA IF EXISTS {TEST_SCHEMA}")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def session(
     db_parameters,
     resources_path,
@@ -425,7 +425,7 @@ def temp_schema(connection, session, local_testing_mode) -> None:
             cursor.execute(f"DROP SCHEMA IF EXISTS {temp_schema_name}")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def temp_stage(session, resources_path, local_testing_mode):
     tmp_stage_name = Utils.random_stage_name()
     test_files = TestFiles(resources_path)

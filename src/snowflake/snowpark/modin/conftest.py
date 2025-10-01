@@ -11,7 +11,7 @@ import pytest  # pragma: no cover
 import snowflake.snowpark.modin.plugin  # pragma: no cover # noqa: F401
 
 
-@pytest.fixture(autouse=True, scope="module")  # pragma: no cover
+@pytest.fixture(autouse=True, scope="session")  # pragma: no cover
 def add_doctest_imports(doctest_namespace) -> None:  # pragma: no cover
     """
     Make `np` and `pd` names available for doctests.
@@ -20,7 +20,7 @@ def add_doctest_imports(doctest_namespace) -> None:  # pragma: no cover
     doctest_namespace["pd"] = pd  # pragma: no cover
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True, scope="session")
 def toggle_multiline_queries() -> None:
     pd.session._disable_multiline_queries()
     yield
