@@ -2209,7 +2209,7 @@ def st_makepoint(
         Column: A GEOGRAPHY objects representing points.
 
     Example::
-
+        >>> from snowflake.snowpark.functions import col
         >>> df = session.create_dataframe([[37.5, 45.5], [-122.35, 37.55]], schema=["longitude", "latitude"])
         >>> df.select(st_makepoint(col("longitude"), col("latitude")).alias("point")).collect()
         [Row(POINT='{\\n  "coordinates": [\\n    3.750000000000000e+01,\\n    4.550000000000000e+01\\n  ],\\n  "type": "Point"\\n}'), Row(POINT='{\\n  "coordinates": [\\n    -1.223500000000000e+02,\\n    3.755000000000000e+01\\n  ],\\n  "type": "Point"\\n}')]
@@ -2415,6 +2415,7 @@ def st_geomfromgeohash(
         Column: A GEOMETRY object representing the polygon area covered by the geohash
 
     Examples::
+        >>> from snowflake.snowpark.functions import col, lit
         >>> df = session.create_dataframe([["9q9j8ue2v71y5zzy0s4q"], ["9q9j8u"]], schema=["geohash"])
         >>> df.select(st_geomfromgeohash(col("geohash")).alias("geometry")).collect()
         [Row(GEOMETRY='{\\n  "coordinates": [\\n    [\\n      [\\n        -1.223061000000001e+02,\\n        3.755416199999996e+01\\n      ],\\n      [\\n        -1.223061000000001e+02,\\n        3.755416200000012e+01\\n      ],\\n      [\\n        -1.223060999999998e+02,\\n        3.755416200000012e+01\\n      ],\\n      [\\n        -1.223060999999998e+02,\\n        3.755416199999996e+01\\n      ],\\n      [\\n        -1.223061000000001e+02,\\n        3.755416199999996e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}'), Row(GEOMETRY='{\\n  "coordinates": [\\n    [\\n      [\\n        -1.223107910156250e+02,\\n        3.755126953125000e+01\\n      ],\\n      [\\n        -1.223107910156250e+02,\\n        3.755676269531250e+01\\n      ],\\n      [\\n        -1.222998046875000e+02,\\n        3.755676269531250e+01\\n      ],\\n      [\\n        -1.222998046875000e+02,\\n        3.755126953125000e+01\\n      ],\\n      [\\n        -1.223107910156250e+02,\\n        3.755126953125000e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}')]
