@@ -91,11 +91,15 @@ DBAPI_PARAMS_WITH_PARTITION = (
 
 # Cleanup configuration
 # Set to False to keep target tables for debugging
-CLEANUP_TARGET_TABLES = False
+CLEANUP_TARGET_TABLES = True
 
 # Show target table info before cleanup (first row + count)
 # Set to False to skip showing table info
 SHOW_TARGET_TABLE_INFO = True
+
+# Export test results to CSV file
+# Set to False to skip CSV export
+EXPORT_RESULTS_TO_CSV = True
 
 # Package requirements for stored procedures by DBMS type
 SPROC_PACKAGES = {

@@ -107,24 +107,6 @@ CROSS JOIN (SELECT explode(sequence(1, {k})) AS n)
     return query.strip()
 
 
-def generate_validation_query(dbms, table_name="DBAPI_TEST_TABLE"):
-    """
-    Generate a query to get baseline schema and row count.
-
-    Args:
-        dbms: Database type
-        table_name: Base table name
-
-    Returns:
-        Dict with count query and sample query
-    """
-    return {
-        "count": f"SELECT COUNT(*) as row_count FROM {table_name}",
-        "sample": f"SELECT * FROM {table_name} LIMIT 1",
-        "columns": f"SELECT * FROM {table_name} WHERE 1=0",  # Get schema only
-    }
-
-
 def print_all_queries(k=100):
     """Print queries for all DBMS types."""
     dbms_list = ["mysql", "postgres", "mssql", "oracle", "databricks"]

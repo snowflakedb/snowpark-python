@@ -9,6 +9,10 @@ Each method measures timing and prints results.
 """
 
 import time
+import csv
+import json
+from datetime import datetime
+from pathlib import Path
 from snowflake.snowpark import Session
 
 # Support both direct execution and module import
@@ -405,6 +409,7 @@ def run_test(test_config):
             "source_value": source_value,
             "target_table": target_table,
             "elapsed_time": elapsed,
+            "dbapi_params": dbapi_params,
             "status": "success",
         }
 
@@ -423,6 +428,7 @@ def run_test(test_config):
             "method": method,
             "source_type": source_type if "source_type" in locals() else None,
             "source_value": source_value if "source_value" in locals() else None,
+            "dbapi_params": dbapi_params if "dbapi_params" in locals() else {},
             "elapsed_time": None,
             "status": "failed",
             "error": str(e),
@@ -454,35 +460,114 @@ def run_test_matrix(test_matrix):
         results.append(result)
 
     # Print summary
-    print(f"\n\n{'='*80}")
+    print(f"\n\n{'='*110}")
     print("TEST SUMMARY")
-    print(f"{'='*80}")
+    print(f"{'='*110}")
     print(
-        f"{'Status':^8} {'DBMS':^12} {'Method':^15} {'Source':^8} {'Value':^25} {'Time':^10}"
+        f"{'Status':^8} {'DBMS':^12} {'Method':^15} {'Source':^8} {'Value':^20} {'Params':^25} {'Time':^10}"
     )
-    print("-" * 80)
+    print("-" * 110)
 
     for result in results:
         status_symbol = "✓" if result["status"] == "success" else "✗"
         time_str = f"{result['elapsed_time']:.2f}s" if result["elapsed_time"] else "N/A"
         source_type = result.get("source_type", "N/A")
         source_value = result.get("source_value", "N/A")
+        dbapi_params = result.get("dbapi_params", {})
 
         # Clean up multi-line queries and truncate
         source_value = " ".join(
             source_value.split()
         )  # Collapse whitespace to single spaces
-        if len(source_value) > 25:
-            source_value = source_value[:22] + "..."
+        if len(source_value) > 20:
+            source_value = source_value[:17] + "..."
+
+        # Format dbapi_params compactly
+        if dbapi_params:
+            params_str = json.dumps(dbapi_params, separators=(",", ":"))
+            if len(params_str) > 25:
+                params_str = params_str[:22] + "..."
+        else:
+            params_str = "{}"
 
         print(
-            f"{status_symbol:^8} {result['dbms']:^12} {result['method']:^15} {source_type:^8} {source_value:^25} {time_str:^10}"
+            f"{status_symbol:^8} {result['dbms']:^12} {result['method']:^15} {source_type:^8} {source_value:^20} {params_str:^25} {time_str:^10}"
         )
 
     successful = sum(1 for r in results if r["status"] == "success")
-    print("-" * 80)
+    print("-" * 110)
     print(
         f"Total: {len(results)} | Success: {successful} | Failed: {len(results) - successful}"
     )
 
+    # Export results to CSV if configured
+    if config.EXPORT_RESULTS_TO_CSV:
+        csv_path = export_results_to_csv(results)
+        print(f"\n✓ Results exported to: {csv_path}")
+
     return results
+
+
+def export_results_to_csv(results, output_dir=None):
+    """
+    Export test results to CSV file.
+
+    Args:
+        results: List of test result dicts
+        output_dir: Output directory (defaults to current directory)
+
+    Returns:
+        Path to CSV file
+    """
+    if output_dir is None:
+        output_dir = Path(__file__).parent / "results"
+    else:
+        output_dir = Path(output_dir)
+
+    # Create results directory if it doesn't exist
+    output_dir.mkdir(exist_ok=True)
+
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_filename = f"dbapi_test_results_{timestamp}.csv"
+    csv_path = output_dir / csv_filename
+
+    # Define CSV columns
+    fieldnames = [
+        "timestamp",
+        "dbms",
+        "ingestion_method",
+        "source_type",
+        "source_value",
+        "target_table",
+        "elapsed_time_seconds",
+        "dbapi_params",
+        "status",
+        "error",
+    ]
+
+    # Write to CSV
+    with open(csv_path, "w", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for result in results:
+            # Convert dbapi_params to JSON string
+            dbapi_params_json = json.dumps(result.get("dbapi_params", {}))
+
+            writer.writerow(
+                {
+                    "timestamp": timestamp,
+                    "dbms": result.get("dbms", ""),
+                    "ingestion_method": result.get("method", ""),
+                    "source_type": result.get("source_type", ""),
+                    "source_value": result.get("source_value", ""),
+                    "target_table": result.get("target_table", ""),
+                    "elapsed_time_seconds": result.get("elapsed_time", ""),
+                    "dbapi_params": dbapi_params_json,
+                    "status": result.get("status", ""),
+                    "error": result.get("error", ""),
+                }
+            )
+
+    return str(csv_path)

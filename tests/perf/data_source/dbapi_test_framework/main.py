@@ -37,6 +37,13 @@ def main():
         result = run_test(config.SINGLE_TEST_CONFIG)
         print(f"\nTest completed: {result['status']}")
 
+        # Export single result to CSV if configured
+        if config.EXPORT_RESULTS_TO_CSV:
+            from runner import export_results_to_csv
+
+            csv_path = export_results_to_csv([result])
+            print(f"✓ Results exported to: {csv_path}")
+
     print("\nDone!")
 
 
