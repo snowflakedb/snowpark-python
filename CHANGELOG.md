@@ -93,6 +93,16 @@
       - `st_asewkt`
       - `st_asgeojson`
       - `st_aswkb`
+      - `st_aswkt`
+      - `st_azimuth`
+      - `st_buffer`
+      - `st_centroid`
+      - `st_collect`
+      - `st_contains`
+      - `st_coveredby`
+      - `st_covers`
+      - `st_difference`
+      - `st_dimension`
 
 #### Bug Fixes
 
