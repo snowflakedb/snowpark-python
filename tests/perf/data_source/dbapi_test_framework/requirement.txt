@@ -1,0 +1,15 @@
+# DBAPI Test Framework Requirements
+
+# Environment variable management
+python-dotenv
+
+# Database drivers
+pymysql                     # MySQL
+psycopg2-binary             # PostgreSQL
+pyodbc                      # SQL Server (requires system ODBC driver)
+oracledb                    # Oracle
+databricks-sql-connector    # Databricks
+
+# Note: For SQL Server, you also need the system-level ODBC driver:
+# - Windows/macOS/Linux: Install "ODBC Driver 18 for SQL Server" or "msodbcsql"
+# - See: https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server
