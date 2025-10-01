@@ -134,6 +134,19 @@ All scripts use the same seed (42) to generate deterministic data. This means:
 
 This is crucial for testing data consistency across different DBAPI implementations.
 
+## Large Query Generation
+
+For performance testing with larger datasets, see the `large_query_generation/` subdirectory.
+
+These utilities generate SQL queries that multiply the 10k base table by factor k without storing additional data:
+- k=100 → 1M rows
+- k=1000 → 10M rows
+- k=100000 → 1B rows
+
+Pre-built templates available for: 100k, 1M, 10M, 100M, 1B, 10B rows.
+
+See `large_query_generation/README.md` for details.
+
 ## Customization
 
 ### Change Number of Rows

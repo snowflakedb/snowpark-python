@@ -26,11 +26,12 @@ except ImportError:
 
 def main():
     """Main entry point."""
-
     # Check if running test matrix
     if "--matrix" in sys.argv:
-        # Run all tests in TEST_MATRIX
-        run_test_matrix(config.TEST_MATRIX)
+        # Run all tests in TEST_MATRIX/TEST_MATRIX_LARGE_QUERY
+        run_test_matrix(
+            config.TEST_MATRIX_LARGE_QUERY
+        )  # CHANGE ME TO RUN THE TEST MATRIX YOU WANT, full list: TEST_MATRIX, TEST_MATRIX_LARGE_QUERY
     else:
         # Run single test
         result = run_test(config.SINGLE_TEST_CONFIG)

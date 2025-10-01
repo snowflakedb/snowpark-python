@@ -467,9 +467,14 @@ def run_test_matrix(test_matrix):
         time_str = f"{result['elapsed_time']:.2f}s" if result["elapsed_time"] else "N/A"
         source_type = result.get("source_type", "N/A")
         source_value = result.get("source_value", "N/A")
-        # Truncate long values for display
+
+        # Clean up multi-line queries and truncate
+        source_value = " ".join(
+            source_value.split()
+        )  # Collapse whitespace to single spaces
         if len(source_value) > 25:
             source_value = source_value[:22] + "..."
+
         print(
             f"{status_symbol:^8} {result['dbms']:^12} {result['method']:^15} {source_type:^8} {source_value:^25} {time_str:^10}"
         )

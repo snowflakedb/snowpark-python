@@ -22,6 +22,8 @@ try:
 except ImportError:
     pass
 
+from db_setup_util.large_query_generation import get_large_query
+
 # Snowflake connection parameters
 SNOWFLAKE_PARAMS = {
     "account": os.getenv("SNOWFLAKE_ACCOUNT"),
@@ -77,7 +79,15 @@ DATABRICKS_PARAMS = {
 }
 
 # DBAPI ingestion parameters
-DBAPI_PARAMS = {}
+DBAPI_PARAMS = {}  # CHANGE ME TO RUN THE DBAPI PARAMETERS YOU WANT
+DBAPI_PARAMS_WITH_PARTITION = (
+    {  # CHANGE ME TO RUN THE DBAPI PARAMETERS WITH PARTITION YOU WANT
+        "column": "id",
+        "lower_bound": 1000,
+        "upper_bound": 9000,
+        "num_partitions": 10,
+    }
+)
 
 # Cleanup configuration
 # Set to False to keep target tables for debugging
@@ -124,10 +134,17 @@ UDTF_CONFIGS = {
 #     "source": {"type": "table|query", "value": "..."},
 #     "ingestion_method": "local|udtf|local_sproc|udtf_sproc"
 # }
-_DBMS_LIST = ["mysql", "postgres", "mssql", "oracle", "databricks"]
-# _DBMS_LIST = ['mysql']
-_METHODS = ["local", "udtf"]
-_METHODS = ["local_sproc", "udtf_sproc"]
+DBMS_LIST = [
+    "mysql",
+    "postgres",
+    "mssql",
+    "oracle",
+    "databricks",
+]  # CHANGE ME TO RUN THE DBMS YOU WANT, full list: mysql, postgres, mssql, oracle, databricks
+METHODS = [
+    "local",
+    "udtf",
+]  # CHANGE ME TO RUN THE METHODS YOU WANT, full list: local, udtf, local_sproc, udtf_sproc
 
 # Generate test matrix: table-based and query-based tests
 TEST_MATRIX = [
@@ -138,8 +155,8 @@ TEST_MATRIX = [
             "source": {"type": "table", "value": "DBAPI_TEST_TABLE"},
             "ingestion_method": method,
         }
-        for dbms in _DBMS_LIST
-        for method in _METHODS
+        for dbms in DBMS_LIST
+        for method in METHODS
     ],
     # Query-based tests
     *[
@@ -148,14 +165,31 @@ TEST_MATRIX = [
             "source": {"type": "query", "value": "SELECT * FROM DBAPI_TEST_TABLE"},
             "ingestion_method": method,
         }
-        for dbms in _DBMS_LIST
-        for method in _METHODS
+        for dbms in DBMS_LIST
+        for method in METHODS
     ],
 ]
 
+# large query test matrix
+TEST_MATRIX_LARGE_QUERY = [
+    {
+        "dbms": dbms,
+        "source": {
+            "type": "query",
+            "value": get_large_query(dbms, "100k"),
+        },  # other options: "1m", "10m", "100m", "1b", "10b"
+        "ingestion_method": method,
+        "dbapi_params": DBAPI_PARAMS_WITH_PARTITION,  # CHANGE ME TO RUN THE DBAPI PARAMETERS WITH PARTITION YOU WANT
+    }
+    for dbms in DBMS_LIST
+    for method in METHODS
+]
+
+
 # Simple single test config (used by main.py if TEST_MATRIX is not used)
 SINGLE_TEST_CONFIG = {
-    "dbms": "mssql",
+    "dbms": "databricks",
     "source": {"type": "query", "value": "SELECT * FROM DBAPI_TEST_TABLE"},
-    "ingestion_method": "local_sproc",
+    "ingestion_method": "udtf",
+    "dbapi_params": DBAPI_PARAMS,  # CHANGE ME TO SETTINGS YOU WANT
 }
