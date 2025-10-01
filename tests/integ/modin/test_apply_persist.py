@@ -52,7 +52,7 @@ def check_udf_exists(session, name):
     assert len(session.sql(f"SHOW USER FUNCTIONS LIKE '{name}'").collect()) > 0
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def stage_name(session):
     # Create a temporary stage for testing and clean it up after tests complete.
     stage_name = "test_apply_persist"

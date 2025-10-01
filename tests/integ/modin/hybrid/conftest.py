@@ -27,8 +27,8 @@ def enable_autoswitch():
         yield
 
 
-@pytest.fixture(scope="module")
-def init_transaction_tables():
+@pytest.fixture(scope="session")
+def init_transaction_tables(session):
     session = pd.session
     session.sql(
         """
