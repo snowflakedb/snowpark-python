@@ -980,6 +980,38 @@ def extract_all_duplicates(elements: Sequence[Hashable]) -> Sequence[Hashable]:
     return unique_duplicated_elements
 
 
+def validate_column_labels_for_to_snowflake(
+    index_column_labels: Sequence[Hashable], data_column_labels: Sequence[Hashable]
+) -> None:
+    """
+    Validate column labels for to_snowflake.
+
+    Check that the column labels are not duplicated, and that the data column
+    labels are not None.
+
+    Args:
+        index_column_labels: index column labels
+        data_column_labels: data column labels
+
+    Returns:
+        None
+    """
+    duplicates = extract_all_duplicates((*index_column_labels, *data_column_labels))
+    if len(duplicates) > 0:
+        raise ValueError(
+            f"Duplicated labels {duplicates} found in index columns {index_column_labels} and data columns {data_column_labels}. "
+            f"Snowflake does not allow duplicated identifiers, please rename to make sure there is no duplication "
+            f"among both index and data columns."
+        )
+
+    if any(is_all_label_components_none(label) for label in data_column_labels):
+        raise ValueError(
+            f"Label None is found in the data columns {data_column_labels}, which is invalid in Snowflake. "
+            "Please give it a name by set the dataframe columns like df.columns=['A', 'B'],"
+            " or set the series name if it is a series like series.name='A'."
+        )
+
+
 def is_duplicate_free(names: Sequence[Hashable]) -> bool:
     """
     check whether names contains duplicates
@@ -2300,3 +2332,52 @@ def new_snow_df(*args: Any, **kwargs: Any) -> pd.DataFrame:
     """
     with config_context(AutoSwitchBackend=False):
         return pd.DataFrame(*args, **kwargs)
+
+
+def extract_and_validate_index_labels_for_to_snowflake(
+    index_label_param: Any, num_index_columns: int
+) -> list[Hashable]:
+    """
+    Extract and validate index labels for read snowflake.
+
+    Args:
+        index_label_param: index_label parameter
+        num_index_columns: number of index columns
+    Returns:
+        list of index column labels
+    """
+    index_column_labels = (
+        index_label_param
+        if isinstance(index_label_param, list)
+        else [index_label_param]
+    )
+    if len(index_column_labels) != num_index_columns:
+        raise ValueError(
+            f"Length of 'index_label' should match number of levels, which is {num_index_columns}"
+        )
+    return index_column_labels
+
+
+def handle_if_exists_for_to_snowflake(
+    if_exists: str, name: Union[str, Iterable[str]]
+) -> None:
+    """
+    Handle if_exists for to_snowflake.
+
+    Validate if_exists for to_snowflake and raise an error if the table
+    already exists and if_exists == "fail".
+
+    Args:
+        if_exists: if_exists parameter
+        name: name parameter
+    Returns:
+        None
+    """
+    if if_exists not in ("fail", "replace", "append"):
+        raise ValueError(f"'{if_exists}' is not valid for if_exists")
+    if if_exists == "fail" and pd.session._table_exists(
+        parse_table_name(name) if isinstance(name, str) else name
+    ):
+        raise ValueError(
+            f"Table '{name}' already exists. Set 'if_exists' parameter as 'replace' to override existing table."
+        )

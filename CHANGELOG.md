@@ -93,6 +93,16 @@
       - `st_asewkt`
       - `st_asgeojson`
       - `st_aswkb`
+      - `st_aswkt`
+      - `st_azimuth`
+      - `st_buffer`
+      - `st_centroid`
+      - `st_collect`
+      - `st_contains`
+      - `st_coveredby`
+      - `st_covers`
+      - `st_difference`
+      - `st_dimension`
 
 #### Bug Fixes
 
@@ -126,6 +136,7 @@
 - Added a session parameter `pandas_hybrid_execution_enabled` to enable/disable hybrid execution as an alternative to using `AutoSwitchBackend`.
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
 - When hybrid execution is enabled, `pd.merge`, `pd.concat`, `DataFrame.merge`, and `DataFrame.join` may now move arguments to backends other than those among the function arguments.
+- Improved performance of `DataFrame.to_snowflake` and `pd.to_snowflake(dataframe)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
 
 ## 1.39.0 (2025-09-17)
 
