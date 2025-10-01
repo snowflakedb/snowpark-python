@@ -5094,12 +5094,12 @@ class Session:
 
     def _disable_logger_provider(self):
         if self._logger_provider and self._logger_provider_enabled:
-            if self._log_processor:
-                self._logger_provider.remove_log_record_processor(self._log_processor)
+            if self._log_handler:
+                logging.getLogger().removeHandler(self._log_handler)
             self._logger_provider_enabled = False
 
     def _enable_logger_provider(self):
         if self._logger_provider and not self._logger_provider_enabled:
-            if self._log_processor:
-                self._logger_provider.add_log_record_processor(self._log_processor)
+            if self._log_handler:
+                logging.getLogger().addHandler(self._log_handler)
             self._logger_provider_enabled = True
