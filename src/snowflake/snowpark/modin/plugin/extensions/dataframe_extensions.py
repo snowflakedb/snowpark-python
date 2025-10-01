@@ -11,6 +11,11 @@ from collections.abc import Iterable
 import functools
 from typing import Any, List, Literal, Optional, Union
 
+from snowflake.snowpark.modin.config.envvars import (
+    PandasToSnowflakeParquetThresholdBytes,
+)
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
+
 import modin.pandas as pd
 from modin.pandas.api.extensions import (
     register_dataframe_accessor as _register_dataframe_accessor,
@@ -21,6 +26,17 @@ from pandas._typing import IndexLabel
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
+from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
+    SnowparkPandasType,
+)
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    extract_and_validate_index_labels_for_to_snowflake,
+    handle_if_exists_for_to_snowflake,
+    is_all_label_components_none,
+    is_valid_snowflake_quoted_identifier,
+    unquote_name_if_quoted,
+    validate_column_labels_for_to_snowflake,
+)
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     add_cache_result_docstring,
     register_non_snowflake_accessors,
@@ -37,9 +53,120 @@ register_dataframe_accessor = functools.partial(
 register_non_snowflake_accessors(_register_dataframe_accessor, "DataFrame")
 
 
+def _convert_to_snowflake_table_name_to_write_pandas_table_name(name: str) -> str:
+    """
+    Convert the user's to_snowflake() table name to the name we need for write_pandas().
+
+    We call write_pandas() with quote_identifiers=True, so we need to strip
+    quotes from quoted identifiers and convert unquoted identifiers to
+    uppercase.
+
+    Parameters:
+        name: The name that the user passed to to_snowflake().
+
+    Returns:
+        The name we will pass to write_pandas().
+    """
+    if is_valid_snowflake_quoted_identifier(name):
+        # quoted -> strip quotes. e.g. '"CUSTOMER"' -> 'CUSTOMER'
+        return unquote_name_if_quoted(name)
+    else:
+        # unquoted identifier -> convert to uppercase
+        # e.g. 'ab$ab' -> 'AB$AB', 'customer' -> 'CUSTOMER'
+        return name.upper()
+
+
 # Snowflake specific dataframe methods
 # We use extensions, as we want to make clear that a Snowpark pandas DataFrame is NOT a
 # pandas DataFrame.
+@_register_dataframe_accessor("to_snowflake", backend="Pandas")
+def pandas_to_snowflake(
+    self,
+    name: Union[str, Iterable[str]],
+    if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+    index: bool = True,
+    index_label: Optional[IndexLabel] = None,
+    table_type: Literal["", "temp", "temporary", "transient"] = "",
+) -> None:
+    if (
+        # Shallow memory usage may underestimate the memory usage of the
+        # dataframe, but deep memory usage can be expensive to compute.
+        # Since this threshold uses shallow memory usage, it may sometimes
+        # not use the parquet method in cases where the parquet method would be
+        # faster, especially if this frame contains deep data like Python
+        # strings.
+        self.memory_usage(deep=False).sum()
+        <= PandasToSnowflakeParquetThresholdBytes.get()
+    ):
+        return self.set_backend("Snowflake").to_snowflake(
+            name=name,
+            if_exists=if_exists,
+            index=index,
+            index_label=index_label,
+            table_type=table_type,
+        )
+
+    handle_if_exists_for_to_snowflake(if_exists=if_exists, name=name)
+
+    pandas_frame = self._query_compiler._modin_frame
+    num_index_columns = pandas_frame.index.nlevels
+    if index:
+        if index_label:
+            index_column_labels = extract_and_validate_index_labels_for_to_snowflake(
+                index_label_param=index_label,
+                num_index_columns=num_index_columns,
+            )
+        else:
+            index_column_labels = list(pandas_frame.index.names)
+
+        if any(is_all_label_components_none(label) for label in index_column_labels):
+            # It's common to have index level named None, in which case we
+            # follow the naming convention that pandas would follow if we
+            # were to convert the index to a data column with reset_index()
+            # and then skip writing the new index.
+            index = False
+            pandas_frame = pandas_frame.reset_index(drop=False, names=None)
+            index_column_labels = []
+    else:
+        index_column_labels = []
+    validate_column_labels_for_to_snowflake(
+        index_column_labels=index_column_labels,
+        data_column_labels=list(pandas_frame.columns),
+    )
+    if index:
+        # write_pandas() will always drop the index, so we move the index into
+        # the data columns with reset_index().
+        pandas_frame = pandas_frame.reset_index(drop=False, names=index_column_labels)
+
+    unsupported_types = list(
+        SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(dtype)
+        for dtype in pandas_frame.dtypes
+        if SnowparkPandasType.get_snowpark_pandas_type_for_pandas_type(dtype)
+        is not None
+    )
+    if len(unsupported_types) > 0:
+        WarningMessage.lost_type_warning(
+            "to_snowflake", ", ".join(type(t).__name__ for t in unsupported_types)
+        )
+
+    pd.session.write_pandas(
+        pandas_frame.rename(str, axis=1),
+        # We want to pass table_name as is, but quote column names. This is
+        # undocumented behavior of to_snowflake() on the "Snowflake" backend, so
+        # we mimic it here.
+        # Note that if we try to use quote_identifiers=False and quote the
+        # column identifiers ourselves, we get the correct column names and we
+        # don't have to modify the table name, but the snowflake connector seems
+        # to incorrectly insert null data.
+        table_name=_convert_to_snowflake_table_name_to_write_pandas_table_name(name),
+        auto_create_table=True,
+        overwrite=if_exists != "append",
+        table_type=table_type,
+    )
+
+    return None
+
+
 # Implementation note: Arguments names and types are kept consistent with pandas.DataFrame.to_sql
 @register_dataframe_accessor("to_snowflake")
 def to_snowflake(
