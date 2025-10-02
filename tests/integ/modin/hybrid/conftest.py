@@ -7,7 +7,7 @@ import pytest
 import modin.pandas as pd
 from modin.config import context as config_context
 
-from tests.utils import IS_WINDOWS, Utils
+from tests.utils import IS_WINDOWS
 
 
 if IS_WINDOWS:
@@ -27,28 +27,19 @@ def enable_autoswitch():
         yield
 
 
-@pytest.fixture(scope="module")
-def module_scoped_test_table_name(session) -> str:
-    test_table_name = f"{Utils.random_table_name()}TESTTABLENAME"
-    try:
-        yield test_table_name
-    finally:
-        Utils.drop_table(session, test_table_name)
-
-
-@pytest.fixture(scope="module")
-def revenue_transactions(module_scoped_test_table_name):
+@pytest.fixture(scope="function")
+def revenue_transactions(test_table_name):
     session = pd.session
     session.sql(
         f"""
-    CREATE OR REPLACE TEMP TABLE {module_scoped_test_table_name} (
+    CREATE OR REPLACE TABLE {test_table_name} (
         Transaction_ID STRING,
         Date DATE,
         Revenue FLOAT
     );"""
     ).collect()
     session.sql(
-        f"""INSERT INTO {module_scoped_test_table_name} (Transaction_ID, Date, Revenue)
+        f"""INSERT INTO {test_table_name} (Transaction_ID, Date, Revenue)
     SELECT
         UUID_STRING() AS Transaction_ID,
         DATEADD(DAY, UNIFORM(0, 800, RANDOM(0)), '2024-01-01') AS Date,
@@ -56,7 +47,7 @@ def revenue_transactions(module_scoped_test_table_name):
     FROM TABLE(GENERATOR(ROWCOUNT => 1000000));
     """
     ).collect()
-    return module_scoped_test_table_name
+    return test_table_name
 
 
 @pytest.fixture
