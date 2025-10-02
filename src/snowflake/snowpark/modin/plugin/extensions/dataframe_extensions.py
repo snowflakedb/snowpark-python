@@ -150,7 +150,11 @@ def pandas_to_snowflake(
         )
 
     pd.session.write_pandas(
-        pandas_frame.rename(str, axis=1),
+        # use set_axis() this way so that we can also flatten the tuple column
+        # labels of a column multi-index, e.g. if `pandas_frame` has columns
+        # pd.MultiIndex.from_tuples([('a', 0), ('b', 'c')]), then this will
+        # rename the columns to ["('a', 0)", "('b', 'c')"]
+        pandas_frame.set_axis([str(column) for column in pandas_frame.columns], axis=1),
         # We want to pass table_name as is, but quote column names. This is
         # undocumented behavior of to_snowflake() on the "Snowflake" backend, so
         # we mimic it here.
