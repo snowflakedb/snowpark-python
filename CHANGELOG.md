@@ -4,11 +4,6 @@
 
 ### Snowpark Python API Updates
 
-#### Bug Fixes
-
-- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
-- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be genrated when using nested structured types.
-
 #### New Features
 
 - Added a new module `snowflake.snowpark.secrets` that provides Python wrappers for accessing Snowflake Secrets within Python UDFs and stored procedures that execute inside Snowflake.
@@ -106,6 +101,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
+- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be generated when using nested structured types.
 - Fixed multiple bugs in `DataFrameReader.dbapi` (PuPr):
   - Fixed UDTF ingestion failure with `pyodbc` driver caused by unprocessed row data.
   - Fixed SQL Server query input failure due to incorrect select query generation.
