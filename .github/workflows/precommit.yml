@@ -577,8 +577,11 @@ jobs:
         run: uv pip install tox --system
       - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
         name: Check AutoSwitchBackend default value
-        # SNOW-2389912: ensure hybrid is correctly enabled by default
-        run: python -m tox -e "py${PYTHON_VERSION}-snowparkpandashybridcheck-modin-ci"
+        # SNOW-2389912: Ensure hybrid is correctly enabled by default. We can't use pytest because
+        # our test suite sets the AutoSwitchBackend variable explicitly.
+        run: |
+          python -m tox -e "py${PYTHON_VERSION}-snowparkpandashybridcheck_sessionfirst-modin-ci" \
+          && python -m tox -e "py${PYTHON_VERSION}-snowparkpandashybridcheck_pluginfirst-modin-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
