@@ -119,6 +119,10 @@
 - Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 100000.
 - Improved error message for XSD validation failure when reading XML files using `session.read.option('rowValidationXSDPath', <xsd_path>).xml(<stage_file_path>)`.
 
+#### Dependency Updates
+
+- Updated the supported `snowflake-connector-python` versions to >=3.17.0 and <5.0.0 (was previously >= 3.17.0 and <4.0.0).
+
 ### Snowpark pandas API Updates
 
 #### Dependency Updates
