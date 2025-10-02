@@ -1,6 +1,6 @@
 # Release History
 
-## 1.40.0 (YYYY-MM-DD)
+## 1.40.0 (2025-10-02)
 
 ### Snowpark Python API Updates
 
@@ -126,7 +126,6 @@
 #### Dependency Updates
 
 - Updated the supported `modin` versions to >=0.36.0 and <0.38.0 (was previously >= 0.35.0 and <0.37.0).
-
 
 #### New Features
 - Added support for `DataFrame.query` for dataframes with single-level indexes.
