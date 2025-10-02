@@ -197,6 +197,14 @@ jobs:
           SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
+      - name: Install MS ODBC Driver (Ubuntu only)
+        if: ${{ matrix.os.download_name == 'linux' }}
+        run: |
+          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
+        shell: bash
       - name: Run data source tests
         # psycopg2 is not supported on macos 3.9
         if: ${{ !(contains('macos', matrix.os.download_name) && matrix.python-version == '3.9') }}
@@ -417,7 +425,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os:
+          - download_name: macos
+            image_name: macos-latest
+          - download_name: windows
+            image_name: windows-latest
+          - download_name: ubuntu
+            image_name: ubuntu-latest
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         cloud-provider: [azure]
     steps:
@@ -641,7 +655,7 @@ jobs:
             .tox/coverage.xml
 
   test-enable-fix-join-alias:
-    name: Test Fixing Join Alias py-${{ matrix.os }}-${{ matrix.python-version }}
+    name: Test Fixing Join Alias py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -693,7 +707,7 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
       # we only run doctest on macos
-      - if: ${{ matrix.os == 'macos-latest' && matrix.python-version != '3.12'}}
+      - if: ${{ matrix.os == 'macos-latest'}}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -705,7 +719,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.12' }}
+      - if: ${{ matrix.os != 'macos-latest'}}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
@@ -713,18 +727,6 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --join_alias_fix
           TOX_PARALLEL_NO_SPINNER: 1
-          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
-          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
-        shell: bash
-      - if: ${{ matrix.python-version == '3.12' }}
-        name: Run tests (excluding doctests and udf tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --join_alias_fix
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
           SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash

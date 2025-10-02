@@ -15,6 +15,10 @@ from snowflake.snowpark._internal.data_source.drivers.pymsql_driver import (
 )
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
 from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkSQLException,
+)
 from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_real_data,
     MysqlType,
@@ -261,7 +265,9 @@ def test_pymysql_driver_udtf_class_builder():
     driver = PymysqlDriver(create_connection_mysql, DBMS_TYPE.MYSQL_DB)
 
     # Get the UDTF class with a small fetch size to test batching
-    UDTFClass = driver.udtf_class_builder(fetch_size=2)
+    UDTFClass = driver.udtf_class_builder(
+        fetch_size=2, session_init_statement=["select 1"]
+    )
 
     # Instantiate the UDTF class
     udtf_instance = UDTFClass()
@@ -297,3 +303,59 @@ def test_unsupported_type():
         [("test_col", "unsupported_type", None, None, 0, 0, True)]
     )
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_mysql_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="You have an error in your SQL syntax",
+    ):
+        session.read.dbapi(
+            create_connection_mysql,
+            table=TEST_TABLE_NAME,
+            predicates=["invalid syntax"],
+        )
+
+
+def test_session_init(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="Mock error to test init_statement",
+    ):
+        session.read.dbapi(
+            create_connection_mysql,
+            table=TEST_TABLE_NAME,
+            session_init_statement=[
+                "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Mock error to test init_statement'"
+            ],
+        )
+
+
+def test_session_init_udtf(session):
+    udtf_configs = {
+        "external_access_integration": MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION
+    }
+
+    def create_connection_udtf_mysql():
+        import pymysql  # noqa: F811
+
+        conn = pymysql.connect(
+            user=MYSQL_CONNECTION_PARAMETERS["username"],
+            password=MYSQL_CONNECTION_PARAMETERS["password"],
+            host=MYSQL_CONNECTION_PARAMETERS["host"],
+            database=MYSQL_CONNECTION_PARAMETERS["database"],
+        )
+        return conn
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="Mock error to test init_statement",
+    ):
+        session.read.dbapi(
+            create_connection_udtf_mysql,
+            table=TEST_TABLE_NAME,
+            session_init_statement=[
+                "SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Mock error to test init_statement'"
+            ],
+            udtf_configs=udtf_configs,
+        ).collect()

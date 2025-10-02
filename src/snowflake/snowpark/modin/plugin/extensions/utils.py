@@ -13,6 +13,7 @@ from typing import Any, Callable, NoReturn
 
 import modin.pandas as pd
 import numpy as np
+from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 import pandas
 from modin.core.storage_formats import BaseQueryCompiler  # pragma: no cover
 from pandas._libs import lib
@@ -638,13 +639,20 @@ def register_non_snowflake_accessors(
         )
 
         # Register methods that move to Snowflake backend
-        # TODO(SNOW-2288765): Improve performance of to_snowflake() by writing
-        # to a Snowflake table directly instead of going through Snowpark
-        # pandas.
         for method in ("to_snowflake", "to_snowpark", "to_iceberg"):
-            register_accessor_func(name=method, backend=backend)(
-                _make_non_snowflake_accessor(method=method)
-            )
+            # We have a proper implementation of to_snowflake() for dataframes
+            # on the pandas backend, but the rest of SNOW-2288765 still remains.
+            # TODO(SNOW-2288765): Improve performance of to_snowflake() by writing
+            # to a Snowflake table directly instead of going through Snowpark
+            # pandas.
+            if not (
+                method == "to_snowflake"
+                and backend == "Pandas"
+                and object_type == "DataFrame"
+            ):
+                register_accessor_func(name=method, backend=backend)(
+                    _make_non_snowflake_accessor(method=method)
+                )
 
         # Register methods that are not implemented on non-Snowflake backends
         for method in (
@@ -659,3 +667,27 @@ def register_non_snowflake_accessors(
                     backend=backend, method=method, object_type=object_type
                 )
             )
+
+
+def update_eval_and_query_engine_kwarg_and_maybe_warn(kwargs: dict[str, Any]) -> None:
+    """
+    Update the engine kwarg and warn if the user tries to use numexpr.
+
+    Args:
+        kwargs: The keyword arguments to eval() or query().
+    """
+    # numexpr engine is useful for chained operations on numpy-backed
+    # arrays. It doesn't support all the syntax that the python engine
+    # does, and the Snowpark backend doesn't store data in numpy, so the
+    # numexpr performance optimizations are not useful. Ignore the "engine"
+    # requirement, and warn the user that if they explicitly select
+    # engine="numexpr", we will not honor their preference.
+    if kwargs.get("engine", None) == "numexpr":
+        WarningMessage.ignored_argument(
+            operation="eval",
+            argument="engine",
+            message="Snowpark pandas always uses the python engine in "
+            + "favor of the numexpr engine, even if the numexpr engine is "
+            + "available",
+        )
+    kwargs["engine"] = "python"

@@ -119,6 +119,11 @@ _MAX_IDENTIFIER_LENGTH = 32
 
 _logger = logging.getLogger(__name__)
 
+# Flag guarding certain features available only in newer modin versions.
+# Snowpark pandas supports the newest two released versions of modin; update this flag and remove legacy
+# code as needed when we bump dependency versions.
+MODIN_IS_AT_LEAST_0_37_0 = version.parse(pd.__version__) >= version.parse("0.37.0")
+
 
 # This is the default statement parameters for queries from Snowpark pandas API. It provides the fine grain metric for
 # the server to track all pandas API usage.
@@ -322,7 +327,9 @@ def _create_read_only_table(
 def create_initial_ordered_dataframe(
     table_name_or_query: Union[str, Iterable[str]],
     enforce_ordering: bool,
+    *,
     dummy_row_pos_mode: bool = False,
+    row_count_hint: Optional[int] = None,
 ) -> tuple[OrderedDataFrame, str]:
     """
     create read only temp table on top of the existing table or Snowflake query if required, and create a OrderedDataFrame
@@ -334,6 +341,11 @@ def create_initial_ordered_dataframe(
         enforce_ordering: If True, create a read only temp table on top of the existing table or Snowflake query,
             and create the OrderedDataFrame using the read only temp table created.
             Otherwise, directly using the existing table.
+        dummy_row_pos_mode: If True, uses "dummy" row position columns to avoid a potentially
+            expensive ROW_NUMBER() query.
+        row_count_hint: An optional hint for the exact row count of the frame. This is used in scenarios
+            where we have already performed a query for the size of the underlying data, and can re-use
+            the value.
 
     Returns:
         OrderedDataFrame with row position column.
@@ -502,8 +514,10 @@ def create_initial_ordered_dataframe(
             ordered_dataframe.row_position_snowflake_quoted_identifier
         )
 
-    materialized_row_count = None
-    if not is_query:
+    if row_count_hint is not None:
+        ordered_dataframe.row_count = row_count_hint
+        ordered_dataframe.row_count_upper_bound = row_count_hint
+    elif not is_query:
         materialized_row_count = get_object_metadata_row_count(table_name_or_query)
         ordered_dataframe.row_count = materialized_row_count
         ordered_dataframe.row_count_upper_bound = materialized_row_count
@@ -964,6 +978,38 @@ def extract_all_duplicates(elements: Sequence[Hashable]) -> Sequence[Hashable]:
     unique_duplicated_elements = list(dict.fromkeys(duplicated_elements))
 
     return unique_duplicated_elements
+
+
+def validate_column_labels_for_to_snowflake(
+    index_column_labels: Sequence[Hashable], data_column_labels: Sequence[Hashable]
+) -> None:
+    """
+    Validate column labels for to_snowflake.
+
+    Check that the column labels are not duplicated, and that the data column
+    labels are not None.
+
+    Args:
+        index_column_labels: index column labels
+        data_column_labels: data column labels
+
+    Returns:
+        None
+    """
+    duplicates = extract_all_duplicates((*index_column_labels, *data_column_labels))
+    if len(duplicates) > 0:
+        raise ValueError(
+            f"Duplicated labels {duplicates} found in index columns {index_column_labels} and data columns {data_column_labels}. "
+            f"Snowflake does not allow duplicated identifiers, please rename to make sure there is no duplication "
+            f"among both index and data columns."
+        )
+
+    if any(is_all_label_components_none(label) for label in data_column_labels):
+        raise ValueError(
+            f"Label None is found in the data columns {data_column_labels}, which is invalid in Snowflake. "
+            "Please give it a name by set the dataframe columns like df.columns=['A', 'B'],"
+            " or set the series name if it is a series like series.name='A'."
+        )
 
 
 def is_duplicate_free(names: Sequence[Hashable]) -> bool:
@@ -2286,3 +2332,52 @@ def new_snow_df(*args: Any, **kwargs: Any) -> pd.DataFrame:
     """
     with config_context(AutoSwitchBackend=False):
         return pd.DataFrame(*args, **kwargs)
+
+
+def extract_and_validate_index_labels_for_to_snowflake(
+    index_label_param: Any, num_index_columns: int
+) -> list[Hashable]:
+    """
+    Extract and validate index labels for read snowflake.
+
+    Args:
+        index_label_param: index_label parameter
+        num_index_columns: number of index columns
+    Returns:
+        list of index column labels
+    """
+    index_column_labels = (
+        index_label_param
+        if isinstance(index_label_param, list)
+        else [index_label_param]
+    )
+    if len(index_column_labels) != num_index_columns:
+        raise ValueError(
+            f"Length of 'index_label' should match number of levels, which is {num_index_columns}"
+        )
+    return index_column_labels
+
+
+def handle_if_exists_for_to_snowflake(
+    if_exists: str, name: Union[str, Iterable[str]]
+) -> None:
+    """
+    Handle if_exists for to_snowflake.
+
+    Validate if_exists for to_snowflake and raise an error if the table
+    already exists and if_exists == "fail".
+
+    Args:
+        if_exists: if_exists parameter
+        name: name parameter
+    Returns:
+        None
+    """
+    if if_exists not in ("fail", "replace", "append"):
+        raise ValueError(f"'{if_exists}' is not valid for if_exists")
+    if if_exists == "fail" and pd.session._table_exists(
+        parse_table_name(name) if isinstance(name, str) else name
+    ):
+        raise ValueError(
+            f"Table '{name}' already exists. Set 'if_exists' parameter as 'replace' to override existing table."
+        )

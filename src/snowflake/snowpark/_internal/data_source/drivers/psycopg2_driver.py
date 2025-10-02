@@ -211,6 +211,18 @@ class Psycopg2Driver(BaseDriver):
             fields.append(StructField(name, data_type, True))
         return StructType(fields)
 
+    def non_retryable_error_checker(self, error: Exception) -> bool:
+        import psycopg2
+
+        if isinstance(error, psycopg2.errors.SyntaxError):
+            syntax_error_codes = [
+                "42601",  # syntax error
+            ]
+            for error_code in syntax_error_codes:
+                if error_code == str(error.pgcode):
+                    return True
+        return False
+
     @staticmethod
     def to_result_snowpark_df(
         session: "Session", table_name, schema, _emit_ast: bool = True
@@ -253,7 +265,11 @@ class Psycopg2Driver(BaseDriver):
         return conn
 
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
 
@@ -275,10 +291,15 @@ class Psycopg2Driver(BaseDriver):
 
         class UDTFIngestion:
             def process(self, query: str):
-                conn = prepare_connection_in_udtf(create_connection())
+                conn = prepare_connection_in_udtf(create_connection(), query_timeout)
                 cursor = conn.cursor(
                     f"SNOWPARK_CURSOR_{generate_random_alphanumeric(5)}"
                 )
+                if session_init_statement is not None:
+                    session_init_cur = conn.cursor()
+                    for statement in session_init_statement:
+                        session_init_cur.execute(statement)
+                        session_init_cur.fetchall()
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
