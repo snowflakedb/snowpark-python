@@ -1,13 +1,5 @@
 # Release History
 
-## 1.40.1 (YYY-MM-DD)
-
-### Snowpark pandas API Updates
-
-### Bug Fixes
-
-- Fixed a bug where `AutoSwitchBackend` would be inappropriately disabled if a Snowpark session was created before running `import snowflake.snowpark.modin.plugin`.
-
 ## 1.40.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
