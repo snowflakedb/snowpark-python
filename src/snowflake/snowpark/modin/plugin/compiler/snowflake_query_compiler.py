@@ -531,8 +531,6 @@ HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS: Set[MethodKey] = set()
 # Format: {MethodKey(class_name, method_name): UnsupportedKwargsRule}
 HYBRID_SWITCH_FOR_UNSUPPORTED_PARAMS: dict[MethodKey, UnsupportedKwargsRule] = {}
 
-# POC: concat method rule will be registered via enhanced decorator in general_overrides.py
-
 
 def register_query_compiler_method_not_implemented(
     api_cls_name: str,
@@ -1127,7 +1125,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
 
-        # POC: Check for unsupported kwargs that require pandas backend
         if arguments and SnowflakeQueryCompiler._has_unsupported_kwargs(
             api_cls_name, operation, arguments
         ):
@@ -1179,7 +1176,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
 
-        # POC: Check for unsupported kwargs that require pandas backend
         if arguments and cls._has_unsupported_kwargs(
             api_cls_name, operation, arguments
         ):
@@ -8556,7 +8552,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler instance with cumulative sum of Series or DataFrame.
         """
         self._raise_not_implemented_error_for_timedelta()
-        # POC: axis=1 is now handled by the decorator's kwargs-based switching system
+
+        if axis == 1:
+            ErrorMessage.not_implemented("cumsum with axis=1 is not supported yet")
 
         cumagg_col_to_expr_map = get_cumagg_col_to_expr_map_axis0(self, sum_, skipna)
         return SnowflakeQueryCompiler(
