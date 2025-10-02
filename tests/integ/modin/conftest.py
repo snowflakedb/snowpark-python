@@ -114,7 +114,7 @@ def pytest_runtest_setup(item):
         pytest.skip(f"Skipped for Hybrid: {msg}")
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def f(session):
     # create a snowpark pandas dataframe so that modin keeps an empty query compiler
     pd.DataFrame()
@@ -371,7 +371,7 @@ def indices_dict():
     }
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def session(session):
     session._disable_multiline_queries()
     return session
