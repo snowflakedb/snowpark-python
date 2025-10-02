@@ -1633,6 +1633,10 @@ class TestFiles:
 
     @property
     def test_requirements_file(self):
+        if sys.version_info >= (3, 13):
+            return os.path.join(
+                self.resources_path, "test_requirements_greater_than_python_3_12.txt"
+            )
         return os.path.join(self.resources_path, "test_requirements.txt")
 
     @property
