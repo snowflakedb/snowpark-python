@@ -36,6 +36,7 @@ from pandas.core.interchange.dataframe_protocol import DataFrame as InterchangeD
 from modin.pandas.base import BasePandasDataset
 from modin.pandas.io import from_pandas
 from modin.pandas.utils import is_scalar
+from modin.core.computation.eval import eval as _eval
 from modin.core.storage_formats.pandas.query_compiler_caster import (
     register_function_for_pre_op_switch,
 )
@@ -101,6 +102,7 @@ from snowflake.snowpark.modin.plugin.extensions.utils import (
     replace_external_data_keys_with_empty_pandas_series,
     replace_external_data_keys_with_query_compiler,
     try_convert_index_to_native,
+    update_eval_and_query_engine_kwarg_and_maybe_warn,
 )
 from snowflake.snowpark.modin.plugin.utils.error_message import (
     ErrorMessage,
@@ -126,6 +128,19 @@ from snowflake.snowpark.modin.plugin.extensions.dataframe_groupby_overrides impo
 from modin.pandas.api.extensions import (
     register_dataframe_accessor as _register_dataframe_accessor,
 )
+
+
+# eval() and query() let the user reference variables according to dynamic
+# scope at `level` stack frames below the stack frame that called them. If
+# a snowflake override function here wraps an eval/query implementation
+# that's in another function, the implementation function frame is 4 frames
+# above the override function frame:
+# 1) query_compiler_caster wrapper dispatches to snowflake implementation
+# 2) telemetry wrapper 1
+# 3) telemetry wrapper 2 calls the snowflake implementation.
+# 4) The snowflake implementation calls the implementation function.
+# so we add 4 to the `level` param.
+EVAL_QUERY_EXTRA_STACK_LEVELS = 4
 
 
 register_dataframe_accessor = functools.partial(
@@ -227,9 +242,40 @@ def dot(self, other):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 
 
-@register_dataframe_not_implemented()
+# Override eval because
+# 1) we treat the "engine" parameter differently
+# 2) We have to update the level parameter to reflect this method's place in
+#    the function stack. Modin can't do that for us since it doesn't know our
+#    place in the stack.
+@register_dataframe_accessor("eval")
 def eval(self, expr, inplace=False, **kwargs):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+    """
+    Evaluate a string describing operations on ``DataFrame`` columns.
+    """
+    if self._query_compiler.nlevels() > 1:
+        # If the rows of this dataframe have a multi-index, we store the index
+        # as a native_pd.MultiIndex, and the usual method of getting index
+        # resolvers with _get_index_resolvers() does not work.
+        ErrorMessage.not_implemented("eval() does not support a multi-level index.")
+
+    inplace = validate_bool_kwarg(inplace, "inplace")
+
+    update_eval_and_query_engine_kwarg_and_maybe_warn(kwargs)
+
+    kwargs["level"] = kwargs.get("level", 0) + EVAL_QUERY_EXTRA_STACK_LEVELS
+
+    index_resolvers = self._get_index_resolvers()
+    column_resolvers = self._get_cleaned_column_resolvers()
+    kwargs["resolvers"] = (
+        *kwargs.get("resolvers", ()),
+        index_resolvers,
+        column_resolvers,
+    )
+
+    if "target" not in kwargs:
+        kwargs["target"] = self
+
+    return _eval(expr, inplace=inplace, **kwargs)
 
 
 @register_dataframe_not_implemented()
@@ -273,9 +319,39 @@ def prod(
 register_dataframe_accessor("product")(prod)
 
 
-@register_dataframe_not_implemented()
-def query(self, expr, inplace=False, **kwargs):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
+@register_dataframe_accessor("query")
+def query(self, expr, inplace=False, **kwargs):
+    if self._query_compiler.nlevels() > 1:
+        # If the rows of this dataframe have a multi-index, we store the index
+        # as a native_pd.MultiIndex, and the usual method of getting index
+        # resolvers with _get_index_resolvers() does not work.
+        ErrorMessage.not_implemented("query() does not support a multi-level index.")
+
+    inplace = validate_bool_kwarg(inplace, "inplace")
+
+    update_eval_and_query_engine_kwarg_and_maybe_warn(kwargs)
+
+    if inplace and "target" not in kwargs:
+        kwargs["target"] = self
+    else:
+        # have to explicitly set target=None to get correct error for
+        # multi-line query.
+        kwargs["target"] = None
+
+    key = self.eval(
+        expr,
+        inplace=False,
+        **(kwargs | {"level": kwargs.get("level", 0) + EVAL_QUERY_EXTRA_STACK_LEVELS}),
+    )
+
+    try:
+        result = self.loc[key]
+    except ValueError:
+        # when res is multi-dimensional, loc raises an error, but that is
+        # sometimes a valid query.
+        result = self[key]
+
+    return self._create_or_update_from_compiler(result._query_compiler, inplace=inplace)
 
 
 @register_dataframe_not_implemented()

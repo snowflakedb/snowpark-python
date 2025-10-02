@@ -407,6 +407,26 @@ def to_excel(
 
 
 @register_series_not_implemented()
+def to_json(
+    self,
+    path_or_buf=None,
+    orient=None,
+    date_format=None,
+    double_precision=10,
+    force_ascii=True,
+    date_unit="ms",
+    default_handler=None,
+    lines=False,
+    compression="infer",
+    index=None,
+    indent=None,
+    storage_options: StorageOptions = None,
+    mode="w",
+) -> str | None:  # noqa: PR01, RT01, D200
+    pass  # pragma: no cover
+
+
+@register_series_not_implemented()
 def to_period(self, freq=None, copy=True):  # noqa: PR01, RT01, D200
     pass  # pragma: no cover
 

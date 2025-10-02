@@ -304,6 +304,7 @@ _PYTHON_SNOWPARK_INTERNAL_TELEMETRY_ENABLED = "ENABLE_SNOWPARK_FIRST_PARTY_TELEM
 _SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED = (
     "SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED"
 )
+_SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED = "SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED"
 
 # AST encoding.
 _PYTHON_SNOWPARK_USE_AST = "PYTHON_SNOWPARK_USE_AST"
@@ -754,6 +755,21 @@ class Session:
             )
         )
 
+        if importlib.util.find_spec("modin"):
+            try:
+                from modin.config import AutoSwitchBackend
+
+                pandas_hybrid_execution_enabled: bool = (
+                    self._conn._get_client_side_session_parameter(
+                        _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED,
+                        AutoSwitchBackend().get(),
+                    )
+                )
+                AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
+            except Exception:
+                # Continue session initialization even if Modin configuration fails
+                pass
+
         self._thread_store = create_thread_local(
             self._conn._thread_safe_session_enabled
         )
@@ -1026,6 +1042,21 @@ class Session:
         return self._dummy_row_pos_optimization_enabled
 
     @property
+    def pandas_hybrid_execution_enabled(self) -> bool:
+        """Set to ``True`` to enable hybrid execution mode (has the same default as AutoSwitchBackend).
+        When enabled, certain operations on smaller data will automatically execute in native pandas in-memory.
+        This can significantly improve performance for operations that are more efficient in pandas than in Snowflake.
+        """
+        if not importlib.util.find_spec("modin"):
+            raise ImportError(
+                "The 'modin' package is required to enable this feature. Please install it first."
+            )
+
+        from modin.config import AutoSwitchBackend
+
+        return AutoSwitchBackend().get()
+
+    @property
     def custom_package_usage_config(self) -> Dict:
         """Get or set configuration parameters related to usage of custom Python packages in Snowflake.
 
@@ -1198,6 +1229,23 @@ class Session:
         else:
             raise ValueError(
                 "value for dummy_row_pos_optimization_enabled must be True or False!"
+            )
+
+    @pandas_hybrid_execution_enabled.setter
+    def pandas_hybrid_execution_enabled(self, value: bool) -> None:
+        """Set the value for pandas_hybrid_execution_enabled"""
+        if not importlib.util.find_spec("modin"):
+            raise ImportError(
+                "The 'modin' package is required to enable this feature. Please install it first."
+            )
+
+        from modin.config import AutoSwitchBackend
+
+        if value in [True, False]:
+            AutoSwitchBackend.put(value)
+        else:
+            raise ValueError(
+                "value for pandas_hybrid_execution_enabled must be True or False!"
             )
 
     @custom_package_usage_config.setter
@@ -1836,6 +1884,7 @@ class Session:
         package_table: str,
         current_packages: Dict[str, str],
         statement_params: Optional[Dict[str, str]] = None,
+        suppress_local_package_warnings: bool = False,
     ) -> List[Requirement]:
         # Keep track of any package errors
         errors = []
@@ -1931,24 +1980,27 @@ class Session:
                         if not is_valid_version(
                             package_name, package_client_version, valid_packages
                         ):
-                            _logger.warning(
-                                f"The version of package '{package_name}' in the local environment is "
-                                f"{package_client_version}, which does not fit the criteria for the "
-                                f"requirement '{package}'. Your UDF might not work when the package version "
-                                f"is different between the server and your local environment."
-                            )
+                            if not suppress_local_package_warnings:
+                                _logger.warning(
+                                    f"The version of package '{package_name}' in the local environment is "
+                                    f"{package_client_version}, which does not fit the criteria for the "
+                                    f"requirement '{package}'. Your UDF might not work when the package version "
+                                    f"is different between the server and your local environment."
+                                )
                     except importlib.metadata.PackageNotFoundError:
-                        _logger.warning(
-                            f"Package '{package_name}' is not installed in the local environment. "
-                            f"Your UDF might not work when the package is installed on the server "
-                            f"but not on your local environment."
-                        )
+                        if not suppress_local_package_warnings:
+                            _logger.warning(
+                                f"Package '{package_name}' is not installed in the local environment. "
+                                f"Your UDF might not work when the package is installed on the server "
+                                f"but not on your local environment."
+                            )
                     except Exception as ex:  # pragma: no cover
-                        _logger.warning(
-                            "Failed to get the local distribution of package %s: %s",
-                            package_name,
-                            ex,
-                        )
+                        if not suppress_local_package_warnings:
+                            _logger.warning(
+                                "Failed to get the local distribution of package %s: %s",
+                                package_name,
+                                ex,
+                            )
 
             if package_name in current_packages:
                 if current_packages[package_name] != package:
@@ -2023,6 +2075,7 @@ class Session:
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         artifact_repository: Optional[str] = None,
+        **kwargs,
     ) -> List[str]:
         """
         Given a list of packages to add, this method will
@@ -2106,6 +2159,9 @@ class Session:
                 package_table,
                 result_dict,
                 statement_params=statement_params,
+                suppress_local_package_warnings=kwargs.get(
+                    "_suppress_local_package_warnings", False
+                ),
             )
 
             # Add dependency packages
@@ -2981,8 +3037,10 @@ class Session:
             _statement_params=statement_params,
         )["data"]
 
-    def _get_result_attributes(self, query: str) -> List[Attribute]:
-        return self._conn.get_result_attributes(query)
+    def _get_result_attributes(
+        self, query: str, query_params: Optional[Sequence[Any]] = None
+    ) -> List[Attribute]:
+        return self._conn.get_result_attributes(query, query_params)
 
     def get_session_stage(
         self,
@@ -4752,6 +4810,7 @@ class Session:
                     packages=["snowflake-snowpark-python", "lxml<6"],
                     replace=True,
                     _emit_ast=False,
+                    _suppress_local_package_warnings=True,
                 )
 
                 self._xpath_udf_cache[cache_key] = xpath_udf

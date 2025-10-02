@@ -4,9 +4,143 @@
 
 ### Snowpark Python API Updates
 
+#### Bug Fixes
+
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
+- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be genrated when using nested structured types.
+
 #### New Features
 
-## 1.39.0 (YYYY-MM-DD)
+- Added a new module `snowflake.snowpark.secrets` that provides Python wrappers for accessing Snowflake Secrets within Python UDFs and stored procedures that execute inside Snowflake.
+  - `get_generic_secret_string`
+  - `get_oauth_access_token`
+  - `get_secret_type`
+  - `get_username_password`
+  - `get_cloud_provider_token`
+
+- Added support for the following scalar functions in `functions.py`:
+    - Conditional expression functions:
+      - `booland`
+      - `boolnot`
+      - `boolor`
+      - `boolxor`
+      - `boolor_agg`
+      - `decode`
+      - `greatest_ignore_nulls`
+      - `least_ignore_nulls`
+      - `nullif`
+      - `nvl2`
+      - `regr_valx`
+      
+    - Semi-structured and structured date functions:
+      - `array_remove_at`
+      - `as_boolean`
+      - `map_delete`
+      - `map_insert`
+      - `map_pick`
+      - `map_size`
+
+    - String & binary functions:
+      - `chr`
+      - `hex_decode_binary`
+      
+    - Numeric functions:
+      - `div0null`
+
+    - Differential privacy functions:
+      - `dp_interval_high`
+      - `dp_interval_low`
+      
+    - Context functions:
+      - `last_query_id`
+      - `last_transaction`
+
+    - Geospatial functions:
+      - `h3_cell_to_boundary`
+      - `h3_cell_to_children`
+      - `h3_cell_to_children_string`
+      - `h3_cell_to_parent`
+      - `h3_cell_to_point`
+      - `h3_compact_cells`
+      - `h3_compact_cells_strings`
+      - `h3_coverage`
+      - `h3_coverage_strings`
+      - `h3_get_resolution`
+      - `h3_grid_disk`
+      - `h3_grid_distance`
+      - `h3_int_to_string`
+      - `h3_polygon_to_cells`
+      - `h3_polygon_to_cells_strings`
+      - `h3_string_to_int`
+      - `h3_try_grid_path`
+      - `h3_try_polygon_to_cells`
+      - `h3_try_polygon_to_cells_strings`
+      - `h3_uncompact_cells`
+      - `h3_uncompact_cells_strings`
+      - `haversine`
+      - `h3_grid_path`
+      - `h3_is_pentagon`
+      - `h3_is_valid_cell`
+      - `h3_latlng_to_cell`
+      - `h3_latlng_to_cell_string`
+      - `h3_point_to_cell`
+      - `h3_point_to_cell_string`
+      - `h3_try_coverage`
+      - `h3_try_coverage_strings`
+      - `h3_try_grid_distance`
+      - `st_area`
+      - `st_asewkb`
+      - `st_asewkt`
+      - `st_asgeojson`
+      - `st_aswkb`
+      - `st_aswkt`
+      - `st_azimuth`
+      - `st_buffer`
+      - `st_centroid`
+      - `st_collect`
+      - `st_contains`
+      - `st_coveredby`
+      - `st_covers`
+      - `st_difference`
+      - `st_dimension`
+
+#### Bug Fixes
+
+- Fixed multiple bugs in `DataFrameReader.dbapi` (PuPr):
+  - Fixed UDTF ingestion failure with `pyodbc` driver caused by unprocessed row data.
+  - Fixed SQL Server query input failure due to incorrect select query generation.
+  - Fixed UDTF ingestion not preserving column nullability in the output schema.
+  - Fixed an issue that caused the program to hang during multithreaded Parquet based ingestion when a data fetching error occurred.
+  - Fixed a bug in schema parsing when custom schema strings used upper-cased data type names (NUMERIC, NUMBER, DECIMAL, VARCHAR, STRING, TEXT).
+- Fixed a bug in `Session.create_dataframe` where schema string parsing failed when using upper-cased data type names (e.g., NUMERIC, NUMBER, DECIMAL, VARCHAR, STRING, TEXT).
+
+#### Improvements
+
+- Improved `DataFrameReader.dbapi`(PuPr) that dbapi will not retry on non-retryable error such as SQL syntax error on external data source query.
+- Removed unnecessary warnings about local package version mismatch when using `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)` or `xpath` functions.
+- Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 100000.
+- Improved error message for XSD validation failure when reading XML files using `session.read.option('rowValidationXSDPath', <xsd_path>).xml(<stage_file_path>)`.
+
+### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.36.0 and <0.38.0 (was previously >= 0.35.0 and <0.37.0).
+
+
+#### New Features
+- Added support for `DataFrame.query` for dataframes with single-level indexes.
+- Added support for `DataFrameGroupby.__len__` and `SeriesGroupBy.__len__`.
+
+#### Improvements
+
+- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
+- Added a session parameter `pandas_hybrid_execution_enabled` to enable/disable hybrid execution as an alternative to using `AutoSwitchBackend`.
+- Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
+- When hybrid execution is enabled, `pd.merge`, `pd.concat`, `DataFrame.merge`, and `DataFrame.join` may now move arguments to backends other than those among the function arguments.
+- Improved performance of `DataFrame.to_snowflake` and `pd.to_snowflake(dataframe)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+
+## 1.39.0 (2025-09-17)
 
 ### Snowpark Python API Updates
 
@@ -41,6 +175,7 @@
   - `create_or_replace_dynamic_table`
 - Added a new function `snowflake.snowpark.functions.vectorized` that allows users to mark a function as vectorized UDF.
 - Added support for parameter `use_vectorized_scanner` in function `Session.write_pandas()`.
+- Added support for parameter `session_init_statement` in udtf ingestion of `DataFrameReader.jdbc`(PrPr).
 - Added support for the following scalar functions in `functions.py`:
   - `getdate`
   - `getvariable`
@@ -55,6 +190,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug that `query_timeout` does not work in udtf ingestion of `DataFrameReader.jdbc`(PrPr).
+
 #### Deprecations
 
 - Deprecated warnings will be triggered when using snowpark-python with Python 3.9. For more details, please refer to https://docs.snowflake.com/en/developer-guide/python-runtime-support-policy.
@@ -68,12 +205,12 @@
 - Added a new option `cacheResult` to `DataFrameReader.xml` that allows users to cache the result of the XML reader to a temporary table after calling `xml`. It helps improve performance when subsequent operations are performed on the same DataFrame.
 
 ### Snowpark pandas API Updates
+- Added support for `DataFrame.eval()` for dataframes with single-level indexes.
 
 #### New Features
 
 #### Improvements
 
-- Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Downgraded to level `logging.DEBUG - 1` the log message saying that the
   Snowpark `DataFrame` reference of an internal `DataFrameReference` object
   has changed.

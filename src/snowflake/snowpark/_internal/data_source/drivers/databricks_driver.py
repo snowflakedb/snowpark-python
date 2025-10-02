@@ -68,8 +68,24 @@ class DatabricksDriver(BaseDriver):
             all_columns.append(StructField(column_name, data_type, True))
         return StructType(all_columns)
 
+    def non_retryable_error_checker(self, error: Exception) -> bool:
+        import databricks.sql
+
+        if isinstance(error, databricks.sql.ServerOperationError):
+            syntax_error_codes = [
+                "PARSE_SYNTAX_ERROR",  # syntax error
+            ]
+            for error_code in syntax_error_codes:
+                if error_code in str(error):
+                    return True
+        return False
+
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
 
@@ -77,6 +93,9 @@ class DatabricksDriver(BaseDriver):
             def process(self, query: str):
                 conn = create_connection()
                 cursor = conn.cursor()
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
 
                 # First get schema information
                 describe_query = f"DESCRIBE QUERY SELECT * FROM ({query})"

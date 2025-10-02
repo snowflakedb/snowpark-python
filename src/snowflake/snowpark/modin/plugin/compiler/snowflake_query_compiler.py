@@ -98,7 +98,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
 from snowflake.snowpark._internal.type_utils import ColumnOrName
 from snowflake.snowpark._internal.utils import (
     generate_random_alphanumeric,
-    parse_table_name,
     random_name_for_temp_object,
 )
 from snowflake.snowpark.column import CaseExpr, Column as SnowparkColumn
@@ -353,6 +352,8 @@ from snowflake.snowpark.modin.plugin._internal.unpivot_utils import (
     unpivot_empty_df,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
+    extract_and_validate_index_labels_for_to_snowflake,
+    handle_if_exists_for_to_snowflake,
     new_snow_series,
     INDEX_LABEL,
     ROW_COUNT_COLUMN_LABEL,
@@ -368,7 +369,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     create_frame_with_data_columns,
     create_ordered_dataframe_from_pandas,
     create_initial_ordered_dataframe,
-    extract_all_duplicates,
     extract_pandas_label_from_snowflake_quoted_identifier,
     fill_missing_levels_for_pandas_label,
     fill_none_in_index_labels,
@@ -385,6 +385,8 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     parse_object_construct_snowflake_quoted_identifier_and_extract_pandas_label,
     parse_snowflake_object_construct_identifier_to_map,
     unquote_name_if_quoted,
+    validate_column_labels_for_to_snowflake,
+    MODIN_IS_AT_LEAST_0_37_0,
 )
 from snowflake.snowpark.modin.plugin._internal.where_utils import (
     validate_expected_boolean_data_columns,
@@ -1213,24 +1215,41 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # so that regardless of the value of move_to_cost() and stay_cost(),
             # we switch to Snowflake. Cost 0 does not force the switch.
             return -3 * QCCoercionCost.COST_IMPOSSIBLE
-
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
             return QCCoercionCost.COST_HIGH
 
         return super().move_to_me_cost(other_qc, api_cls_name, operation, arguments)
 
-    def max_cost(self) -> int:
-        """
-        Return the max coercion cost allowed for switching to this engine.
+    # This method was changed from an instance method to class method in 0.37.0
+    if MODIN_IS_AT_LEAST_0_37_0:
 
-        Returns
-        -------
-        int
-            Max cost allowed for migrating the data to this qc.
-        """
-        # We should have a way to express "no max"
-        return QCCoercionCost.COST_IMPOSSIBLE * 10_000_000_000
+        @classmethod
+        def max_cost(cls) -> int:  # type: ignore[misc] # pragma: no cover
+            """
+            Return the max coercion cost allowed for switching to this engine.
+
+            Returns
+            -------
+            int
+                Max cost allowed for migrating the data to this qc.
+            """
+            # We should have a way to express "no max"
+            return QCCoercionCost.COST_IMPOSSIBLE * 10_000_000_000
+
+    else:
+
+        def max_cost(self) -> int:  # type: ignore[misc]
+            """
+            Return the max coercion cost allowed for switching to this engine.
+
+            Returns
+            -------
+            int
+                Max cost allowed for migrating the data to this qc.
+            """
+            # We should have a way to express "no max"
+            return QCCoercionCost.COST_IMPOSSIBLE * 10_000_000_000
 
     # END: hybrid auto-switching helpers
 
@@ -1714,6 +1733,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             table_name_or_query=name_or_query,
             enforce_ordering=enforce_ordering,
             dummy_row_pos_mode=dummy_row_pos_mode,
+            row_count_hint=(
+                relaxed_query_compiler._modin_frame.ordered_dataframe.row_count
+                if relaxed_query_compiler is not None
+                else None
+            ),
         )
         pandas_labels_to_snowflake_quoted_identifiers_map = {
             # pandas labels of resulting Snowpark pandas dataframe will be snowflake identifier
@@ -2108,12 +2132,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # Include index columns
             if index_label:
                 index_column_labels = (
-                    index_label if isinstance(index_label, list) else [index_label]
-                )
-                if len(index_column_labels) != self._modin_frame.num_index_columns:
-                    raise ValueError(
-                        f"Length of 'index_label' should match number of levels, which is {self._modin_frame.num_index_columns}"
+                    extract_and_validate_index_labels_for_to_snowflake(
+                        index_label_param=index_label,
+                        num_index_columns=self._modin_frame.num_index_columns,
                     )
+                )
             else:
                 index_column_labels = frame.index_column_pandas_labels
 
@@ -2132,23 +2155,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # label for the data column, set the label to be None
             data_column_labels = [None]
 
-        # check if there is any data column label is none
-        if any(is_all_label_components_none(label) for label in data_column_labels):
-            raise ValueError(
-                f"Label None is found in the data columns {data_column_labels}, which is invalid in Snowflake. "
-                "Please give it a name by set the dataframe columns like df.columns=['A', 'B'],"
-                " or set the series name if it is a series like series.name='A'."
-            )
-
-        # perform a column name duplication check
-        index_and_data_columns = data_column_labels + index_column_labels
-        duplicates = extract_all_duplicates(index_and_data_columns)
-        if duplicates:
-            raise ValueError(
-                f"Duplicated labels {duplicates} found in index columns {index_column_labels} and data columns {data_column_labels}. "
-                f"Snowflake does not allow duplicated identifiers, please rename to make sure there is no duplication "
-                f"among both index and data columns."
-            )
+        validate_column_labels_for_to_snowflake(
+            index_column_labels=index_column_labels,
+            data_column_labels=data_column_labels,
+        )
 
         # rename snowflake quoted identifiers for the retained index columns and data columns to
         # be the same as quoted pandas labels.
@@ -2300,23 +2310,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> None:
         self._warn_lost_snowpark_pandas_type()
+        handle_if_exists_for_to_snowflake(if_exists=if_exists, name=name)
 
-        if if_exists not in ("fail", "replace", "append"):
-            # Same error message as native pandas.
-            raise ValueError(f"'{if_exists}' is not valid for if_exists")
         if if_exists == "fail":
             mode = "errorifexists"
         elif if_exists == "replace":
             mode = "overwrite"
         else:
             mode = "append"
-
-        if mode == "errorifexists" and pd.session._table_exists(
-            parse_table_name(name) if isinstance(name, str) else name
-        ):
-            raise ValueError(
-                f"Table '{name}' already exists. Set 'if_exists' parameter as 'replace' to override existing table."
-            )
 
         self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
             index, index_label
