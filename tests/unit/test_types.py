@@ -1685,55 +1685,85 @@ def test_maptype_alias():
     assert tpe.keyType == tpe.key_type
 
 
-def test_type_string_to_type_object_basic_int():
-    dt = type_string_to_type_object("int")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_basic_int(upper_case):
+    base_string = "int"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, IntegerType), f"Expected IntegerType, got {dt}"
 
 
-def test_type_string_to_type_object_smallint():
-    dt = type_string_to_type_object("smallint")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_smallint(upper_case):
+    base_string = "smallint"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, ShortType), f"Expected ShortType, got {dt}"
 
 
-def test_type_string_to_type_object_byteint():
-    dt = type_string_to_type_object("byteint")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_byteint(upper_case):
+    base_string = "byteint"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, ByteType), f"Expected ByteType, got {dt}"
 
 
-def test_type_string_to_type_object_bigint():
-    dt = type_string_to_type_object("bigint")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_bigint(upper_case):
+    base_string = "bigint"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, LongType), f"Expected LongType, got {dt}"
 
 
-def test_type_string_to_type_object_number_decimal():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_number_decimal(upper_case):
     # For number(precision, scale) => DecimalType
-    dt = type_string_to_type_object("number(10,2)")
+    base_string = "number(10,2)"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
     assert dt.precision == 10, f"Expected precision=10, got {dt.precision}"
     assert dt.scale == 2, f"Expected scale=2, got {dt.scale}"
-    dt = type_string_to_type_object("decimal")
+
+
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_decimal(upper_case):
+    base_string = "decimal"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
     assert dt.precision == 38, f"Expected precision=38, got {dt.precision}"
     assert dt.scale == 0, f"Expected scale=0, got {dt.scale}"
 
 
-def test_type_string_to_type_object_numeric_decimal():
-    dt = type_string_to_type_object("numeric(20, 5)")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_numeric_decimal(upper_case):
+    base_string = "numeric(20, 5)"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
     assert dt.precision == 20, f"Expected precision=20, got {dt.precision}"
     assert dt.scale == 5, f"Expected scale=5, got {dt.scale}"
 
 
-def test_type_string_to_type_object_decimal_spaces():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_decimal_spaces(upper_case):
     # Check spaces inside parentheses
-    dt = type_string_to_type_object("  decimal  (  2  ,  1  )  ")
+    base_string = "  decimal  (  2  ,  1  )  "
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, DecimalType), f"Expected DecimalType, got {dt}"
     assert dt.precision == 2, f"Expected precision=2, got {dt.precision}"
     assert dt.scale == 1, f"Expected scale=1, got {dt.scale}"
 
 
-def test_type_string_to_type_object_string_with_length():
-    dt = type_string_to_type_object("string(50)")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_string_with_length(upper_case):
+    base_string = "string(50)"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, StringType), f"Expected StringType, got {dt}"
     # Snowpark's StringType typically doesn't store length internally,
     # but here, you're returning StringType(50) in your code, so let's check
@@ -1741,48 +1771,95 @@ def test_type_string_to_type_object_string_with_length():
         assert dt.length == 50, f"Expected length=50, got {dt.length}"
 
 
-def test_type_string_to_type_object_text_with_length():
-    dt = type_string_to_type_object("text(100)")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_text_with_length(upper_case):
+    base_string = "text(100)"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, StringType), f"Expected StringType, got {dt}"
     if hasattr(dt, "length"):
         assert dt.length == 100, f"Expected length=100, got {dt.length}"
 
 
-def test_type_string_to_type_object_timestamp():
-    dt = type_string_to_type_object("timestamp")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_varchar_with_length(upper_case):
+    base_string = "varchar(150)"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
+    assert isinstance(dt, StringType), f"Expected StringType, got {dt}"
+    if hasattr(dt, "length"):
+        assert dt.length == 150, f"Expected length=150, got {dt.length}"
+
+
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_varchar_no_length(upper_case):
+    base_string = "varchar"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
+    assert isinstance(dt, StringType), f"Expected StringType, got {dt}"
+    if hasattr(dt, "length"):
+        assert not dt.length, f"Expected length is None, got {dt.length}"
+
+
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_timestamp(upper_case):
+    base_string = "timestamp"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, TimestampType)
     assert dt.tz == TimestampTimeZone.DEFAULT
-    dt = type_string_to_type_object("timestamp_ntz")
+
+    base_string = "timestamp_ntz"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, TimestampType)
     assert dt.tz == TimestampTimeZone.NTZ
-    dt = type_string_to_type_object("timestamp_tz")
+
+    base_string = "timestamp_tz"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, TimestampType)
     assert dt.tz == TimestampTimeZone.TZ
-    dt = type_string_to_type_object("timestamp_ltz")
+
+    base_string = "timestamp_ltz"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, TimestampType)
     assert dt.tz == TimestampTimeZone.LTZ
 
 
-def test_type_string_to_type_object_year_month_interval():
-    dt = type_string_to_type_object("yearmonthinterval")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_year_month_interval(upper_case):
+    base_string = "yearmonthinterval"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, YearMonthIntervalType)
 
 
-def test_type_string_to_type_object_daytimeinterval():
-    dt = type_string_to_type_object("daytimeinterval")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_daytimeinterval(upper_case):
+    base_string = "daytimeinterval"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, DayTimeIntervalType)
 
 
-def test_type_string_to_type_object_array_of_int():
-    dt = type_string_to_type_object("array<int>")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_array_of_int(upper_case):
+    base_string = "array<int>"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, ArrayType), f"Expected ArrayType, got {dt}"
     assert isinstance(
         dt.element_type, IntegerType
     ), f"Expected element_type=IntegerType, got {dt.element_type}"
 
 
-def test_type_string_to_type_object_array_of_decimal():
-    dt = type_string_to_type_object("array<decimal(10,2)>")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_array_of_decimal(upper_case):
+    base_string = "array<decimal(10,2)>"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, ArrayType), f"Expected ArrayType, got {dt}"
     assert isinstance(
         dt.element_type, DecimalType
@@ -1799,8 +1876,11 @@ def test_type_string_to_type_object_array_of_decimal():
         ), f"Expected not a supported type, got: {ex}"
 
 
-def test_type_string_to_type_object_map_of_int_string():
-    dt = type_string_to_type_object("map<int, string>")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_map_of_int_string(upper_case):
+    base_string = "map<int, string>"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, MapType), f"Expected MapType, got {dt}"
     assert isinstance(
         dt.key_type, IntegerType
@@ -1810,8 +1890,11 @@ def test_type_string_to_type_object_map_of_int_string():
     ), f"Expected value_type=StringType, got {dt.value_type}"
 
 
-def test_type_string_to_type_object_map_of_array_decimal():
-    dt = type_string_to_type_object("map< array<int>, decimal(12,5)>")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_map_of_array_decimal(upper_case):
+    base_string = "map< array<int>, decimal(12,5)>"
+    type_string = base_string.upper() if upper_case else base_string
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, MapType), f"Expected MapType, got {dt}"
     assert isinstance(
         dt.key_type, ArrayType
@@ -1826,8 +1909,14 @@ def test_type_string_to_type_object_map_of_array_decimal():
     assert dt.value_type.scale == 5
 
 
-def test_type_string_to_type_object_explicit_struct_simple():
-    dt = type_string_to_type_object("struct<a: int, b: string>")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_explicit_struct_simple(upper_case):
+    # Only uppercase the types, not the field names
+    if upper_case:
+        type_string = "STRUCT<a: INT, b: STRING>"
+    else:
+        type_string = "struct<a: int, b: string>"
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
     assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
 
@@ -1842,10 +1931,14 @@ def test_type_string_to_type_object_explicit_struct_simple():
     ), f"Expected {expected_field_b}, got {dt.fields[1]}"
 
 
-def test_type_string_to_type_object_explicit_struct_nested():
-    dt = type_string_to_type_object(
-        "struct<x: array<int>, y: map<string, decimal(5,2)>>"
-    )
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_explicit_struct_nested(upper_case):
+    # Only uppercase the types, not the field names
+    if upper_case:
+        type_string = "STRUCT<x: ARRAY<INT>, y: MAP<STRING, DECIMAL(5,2)>>"
+    else:
+        type_string = "struct<x: array<int>, y: map<string, decimal(5,2)>>"
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
     assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
 
@@ -1863,19 +1956,25 @@ def test_type_string_to_type_object_explicit_struct_nested():
     ), f"Expected {expected_field_y}, got {dt.fields[1]}"
 
 
-def test_type_string_to_type_object_unknown_type():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_unknown_type(upper_case):
+    base_string = "unknown_type"
+    type_string = base_string.upper() if upper_case else base_string
     try:
-        type_string_to_type_object("unknown_type")
+        type_string_to_type_object(type_string)
         raise AssertionError("Expected ValueError for unknown type")
     except ValueError as ex:
-        assert "unknown_type" in str(
+        assert base_string in str(
             ex
-        ), f"Error message doesn't mention 'unknown_type': {ex}"
+        ), f"Error message doesn't mention '{type_string}': {ex}"
 
 
-def test_type_string_to_type_object_mismatched_bracket_array():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_mismatched_bracket_array(upper_case):
+    base_string = "array<int"
+    type_string = base_string.upper() if upper_case else base_string
     try:
-        type_string_to_type_object("array<int")
+        type_string_to_type_object(type_string)
         raise AssertionError("Expected ValueError for mismatched bracket")
     except ValueError as ex:
         assert "Missing closing" in str(ex) or "Mismatched" in str(
@@ -1883,9 +1982,12 @@ def test_type_string_to_type_object_mismatched_bracket_array():
         ), f"Expected bracket mismatch error, got: {ex}"
 
 
-def test_type_string_to_type_object_mismatched_bracket_map():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_mismatched_bracket_map(upper_case):
+    base_string = "map<int, string>>"
+    type_string = base_string.upper() if upper_case else base_string
     try:
-        print(type_string_to_type_object("map<int, string>>"))
+        print(type_string_to_type_object(type_string))
         raise AssertionError("Expected ValueError for mismatched bracket")
     except ValueError as ex:
         assert "Unexpected characters after closing '>' in" in str(
@@ -1893,18 +1995,27 @@ def test_type_string_to_type_object_mismatched_bracket_map():
         ), f"Expected Unexpected characters after closing '>' error, got: {ex}"
 
 
-def test_type_string_to_type_object_bad_decimal():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_bad_decimal(upper_case):
+    base_string = "decimal(10,2,5)"
+    type_string = base_string.upper() if upper_case else base_string
     try:
-        type_string_to_type_object("decimal(10,2,5)")
+        type_string_to_type_object(type_string)
         raise AssertionError("Expected ValueError for a malformed decimal argument")
     except ValueError:
         # "decimal(10,2,5)" doesn't match the DECIMAL_RE regex => unknown type => ValueError
         pass
 
 
-def test_type_string_to_type_object_bad_struct_syntax():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_bad_struct_syntax(upper_case):
+    # Only uppercase the types, not field names
+    if upper_case:
+        type_string = "struct<x INT, y: STRING"
+    else:
+        type_string = "struct<x int, y: string"
     try:
-        type_string_to_type_object("struct<x int, y: string")
+        type_string_to_type_object(type_string)
         raise AssertionError(
             "Expected ValueError for mismatched bracket or parse error"
         )
@@ -1916,12 +2027,18 @@ def test_type_string_to_type_object_bad_struct_syntax():
         ), f"Expected bracket or parse syntax error, got: {ex}"
 
 
-def test_type_string_to_type_object_implicit_struct_simple():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_implicit_struct_simple(upper_case):
     """
     Verify that a comma-separated list of 'name: type' fields parses as a StructType,
     even without 'struct<...>'.
     """
-    dt = type_string_to_type_object("a: int, b: string")
+    # Only uppercase the types, not the field names
+    if upper_case:
+        type_string = "a: INT, b: STRING"
+    else:
+        type_string = "a: int, b: string"
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
     assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
 
@@ -1936,12 +2053,18 @@ def test_type_string_to_type_object_implicit_struct_simple():
     ), f"Expected {expected_field_b}, got {dt.fields[1]}"
 
 
-def test_type_string_to_type_object_implicit_struct_single_field():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_implicit_struct_single_field(upper_case):
     """
     Even a single 'name: type' with no commas should parse to StructType
     if your parser logic treats it as an implicit struct.
     """
-    dt = type_string_to_type_object("c: decimal(10,2)")
+    # Only uppercase the type, not the field name
+    if upper_case:
+        type_string = "c: DECIMAL(10,2)"
+    else:
+        type_string = "c: decimal(10,2)"
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
     assert len(dt.fields) == 1, f"Expected 1 field, got {len(dt.fields)}"
 
@@ -1951,12 +2074,18 @@ def test_type_string_to_type_object_implicit_struct_single_field():
     ), f"Expected {expected_field_c}, got {dt.fields[0]}"
 
 
-def test_type_string_to_type_object_implicit_struct_nested():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_implicit_struct_nested(upper_case):
     """
     Test an implicit struct with multiple fields,
     including nested array/map types.
     """
-    dt = type_string_to_type_object("arr: array<int>, kv: map<string, decimal(5,2)>")
+    # Only uppercase the types, not the field names
+    if upper_case:
+        type_string = "arr: ARRAY<INT>, kv: MAP<STRING, DECIMAL(5,2)>"
+    else:
+        type_string = "arr: array<int>, kv: map<string, decimal(5,2)>"
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
     assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
 
@@ -1973,13 +2102,17 @@ def test_type_string_to_type_object_implicit_struct_nested():
     ), f"Expected {expected_field_kv}, got {dt.fields[1]}"
 
 
-def test_type_string_to_type_object_implicit_struct_with_spaces():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_implicit_struct_with_spaces(upper_case):
     """
     Test spacing variations. E.g. "  col1  :   int  ,  col2  :  map< string , decimal(5,2) >  ".
     """
-    dt = type_string_to_type_object(
-        "  col1 :  int  ,  col2 :   map< string , decimal( 5 , 2 ) > "
-    )
+    # Only uppercase the types, not the field names
+    if upper_case:
+        type_string = "  col1 :  INT  ,  col2 :   MAP< STRING , DECIMAL( 5 , 2 ) > "
+    else:
+        type_string = "  col1 :  int  ,  col2 :   map< string , decimal( 5 , 2 ) > "
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
     assert len(dt.fields) == 2, f"Expected 2 fields, got {len(dt.fields)}"
 
@@ -1996,8 +2129,14 @@ def test_type_string_to_type_object_implicit_struct_with_spaces():
     ), f"Expected {expected_field_col2}, got {dt.fields[1]}"
 
 
-def test_type_string_to_type_object_implicit_struct_inner_colon():
-    dt = type_string_to_type_object("struct struct<i: integer not null>")
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_implicit_struct_inner_colon(upper_case):
+    # Only uppercase the types, not the field names
+    if upper_case:
+        type_string = "struct STRUCT<i: INTEGER NOT NULL>"
+    else:
+        type_string = "struct struct<i: integer not null>"
+    dt = type_string_to_type_object(type_string)
     assert isinstance(dt, StructType), f"Expected StructType, got {dt}"
     assert len(dt.fields) == 1, f"Expected 1 field, got {len(dt.fields)}"
     expected_field_i = StructField(
@@ -2010,13 +2149,22 @@ def test_type_string_to_type_object_implicit_struct_inner_colon():
     ), f"Expected {expected_field_i}, got {dt.fields[0]}"
 
 
-def test_type_string_to_type_object_implicit_struct_error():
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_type_string_to_type_object_implicit_struct_error(upper_case):
     """
     Check a malformed implicit struct that should raise ValueError
     (e.g. trailing comma or missing bracket for nested).
     """
+    # Only uppercase the types, not field names
+    if upper_case:
+        type_string1 = "a: INT, b:"
+        type_string2 = "arr: ARRAY<INT, b: STRING"
+    else:
+        type_string1 = "a: int, b:"
+        type_string2 = "arr: array<int, b: string"
+
     try:
-        type_string_to_type_object("a: int, b:")
+        type_string_to_type_object(type_string1)
         raise AssertionError("Expected ValueError for malformed struct (b: )")
     except ValueError as ex:
         # We expect an error message about Empty type string
@@ -2025,7 +2173,7 @@ def test_type_string_to_type_object_implicit_struct_error():
         ), f"Expected error 'Empty type string', got: {ex}"
 
     try:
-        type_string_to_type_object("arr: array<int, b: string")
+        type_string_to_type_object(type_string2)
         raise AssertionError("Expected ValueError for mismatched bracket")
     except ValueError as ex:
         # We expect an error about bracket mismatch or missing '>'
