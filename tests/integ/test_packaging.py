@@ -445,10 +445,10 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     session, resources_path
 ):
     test_files = TestFiles(resources_path)
-
+    expected_numpy_ver = "2.3.1" if sys.version_info >= (3, 13) else "1.26.3"
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.26.3",
+        "numpy": f"numpy=={expected_numpy_ver}",
         "pandas": "pandas==2.2.3",
     }
 
