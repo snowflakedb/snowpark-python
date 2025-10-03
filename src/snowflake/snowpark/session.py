@@ -1733,8 +1733,10 @@ class Session:
             >>> from snowflake.snowpark.functions import udf
             >>> import numpy
             >>> import pandas
+            >>> import sys
             >>> # test_requirements.txt contains "numpy" and "pandas"
-            >>> session.add_requirements("tests/resources/test_requirements.txt")
+            >>> file = "test_requirements.txt" if sys.version_info < (3, 13) else "test_requirements_py313.txt"
+            >>> session.add_requirements(f"tests/resources/{file}")
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
