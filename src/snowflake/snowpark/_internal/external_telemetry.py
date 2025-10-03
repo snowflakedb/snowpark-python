@@ -130,14 +130,14 @@ class ProxyLogProvider(LoggerProvider):
         attributes: Optional[Attributes] = None,
     ) -> "opentelemetry._log.Logger":
         if self._enabled and self._real_provider:
-            return self._real_provider.get_tracer(
+            return self._real_provider.get_logger(
                 instrumenting_module_name,
                 instrumenting_library_version,
                 schema_url,
                 attributes,
             )
         else:
-            # Return a no-op tracer when disabled
+            # Return a no-op logger when disabled
             return NoOpLogger()
 
     def shutdown(self):
