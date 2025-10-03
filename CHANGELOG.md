@@ -1,5 +1,13 @@
 # Release History
 
+## 1.41.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
+
 ## 1.40.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
