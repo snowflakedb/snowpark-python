@@ -1704,18 +1704,24 @@ class DataFrameReader:
         Reads data from a database table or query into a DataFrame using a DBAPI connection,
         with support for optional partitioning, parallel processing, and query customization.
 
-        There are multiple methods to partition data and accelerate ingestion.
-        These methods can be combined to achieve optimal performance:
-
-        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
-        These must all be specified together, otherwise error will be raised.
-        2.Set max_workers to a proper positive integer.
-        This defines the maximum number of processes and threads used for parallel execution.
-        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
-        4.Use predicates to defining WHERE conditions for partitions,
-        predicates will be ignored if column is specified to generate partition.
-        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
-        column name with table in external data source.
+        Usage Notes:
+            - Ingestion performance tuning:
+                - **Partitioning**: Use ``column``, ``lower_bound``, ``upper_bound``, and ``num_partitions``
+                  together to split large tables into smaller partitions for parallel processing.
+                  All four parameters must be specified together, otherwise an error will be raised.
+                - **Parallel execution**: Set ``max_workers`` to control the maximum number of processes
+                  and threads used for parallel execution.
+                - **Fetch optimization**: Adjust ``fetch_size`` to optimize performance by reducing
+                  the number of round trips to the database.
+                - **Partition filtering**: Use ``predicates`` to define WHERE conditions for partitions.
+                  Note that ``predicates`` will be ignored if ``column`` is specified for partitioning.
+                - **Schema specification**: Set ``custom_schema`` to skip schema inference. The custom schema
+                  must have matching column names with the table in the external data source.
+            - Execution timing and error handling:
+                - **UDTF Ingestion**: Uses lazy evaluation. Errors are reported as ``SnowparkSQLException``
+                  during DataFrame actions (e.g., ``DataFrame.collect()``).
+                - **Local Ingestion**: Uses eager execution. Errors are reported immediately as
+                  ``SnowparkDataFrameReaderException`` when this method is called.
 
         Args:
             create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.

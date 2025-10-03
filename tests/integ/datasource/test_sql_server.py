@@ -339,9 +339,6 @@ def test_session_init_statement(session, udtf_configs):
     with pytest.raises(
         SnowparkClientException, match="Must declare the scalar variable"
     ):
-        # TODO: 2362041, UDTF error experience is different from parquet ingestion
-        # 1. UDTF needs .collect() to trigger the error while parquet ingestion triggers on .dbapi()
-        # 2. error exception is different
         session.read.dbapi(connection_func, **dbapi_kwargs).collect()
 
 
