@@ -185,16 +185,19 @@ def test_patch_on_get_available_versions_for_packages(session):
     reason="numpy and pandas are required",
 )
 def test_add_packages(session, local_testing_mode):
+    # Use numpy 2.3.1 for Python 3.13+, numpy 1.26.3 doesn't support Python 3.13
+    numpy_version = "numpy==2.3.1" if sys.version_info >= (3, 13) else "numpy==1.26.3"
+
     session.add_packages(
         [
-            "numpy==1.26.3",
+            numpy_version,
             "pandas==2.2.3",
             "matplotlib",
             "pyyaml",
         ]
     )
     assert session.get_packages() == {
-        "numpy": "numpy==1.26.3",
+        "numpy": numpy_version,
         "pandas": "pandas==2.2.3",
         "matplotlib": "matplotlib",
         "pyyaml": "pyyaml",
@@ -210,8 +213,9 @@ def test_add_packages(session, local_testing_mode):
     df = session.create_dataframe([None]).to_df("a")
     res = df.select(call_udf(udf_name)).collect()[0][0]
     # don't need to check the version of dateutil, as it can be changed on the server side
+    expected_numpy_ver = "2.3.1" if sys.version_info >= (3, 13) else "1.26.3"
     assert (
-        res.startswith("1.26.3/2.2.3")
+        res.startswith(f"{expected_numpy_ver}/2.2.3")
         if not local_testing_mode
         else res == get_numpy_pandas_dateutil_version()
     )
@@ -284,7 +288,7 @@ def test_add_packages(session, local_testing_mode):
 
 @pytest.mark.udf
 def test_add_packages_with_underscore(session):
-    packages = ["spacy-model-en_core_web_sm", "typing_extensions"]
+    packages = ["huggingface_hub", "typing_extensions"]
     count = (
         session.table("information_schema.packages")
         .where(col("package_name").in_(packages))
@@ -299,10 +303,9 @@ def test_add_packages_with_underscore(session):
     @udf(name=udf_name, packages=packages)
     def check_if_package_installed() -> bool:
         try:
-            import spacy
+            import huggingface_hub  # noqa: F401
             import typing_extensions  # noqa: F401
 
-            spacy.load("en_core_web_sm")
             return True
         except Exception:
             return False
@@ -417,7 +420,7 @@ def test_add_requirements(session, resources_path, local_testing_mode):
 
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.26.3",
+        "numpy": "numpy==2.3.1" if sys.version_info >= (3, 13) else "numpy==1.26.3",
         "pandas": "pandas==2.2.3",
     }
 
@@ -429,9 +432,10 @@ def test_add_requirements(session, resources_path, local_testing_mode):
 
     df = session.create_dataframe([None]).to_df("a")
     res = df.select(call_udf(udf_name))
+    expected_numpy_ver = "2.3.1" if sys.version_info >= (3, 13) else "1.26.3"
     Utils.check_answer(
         res,
-        [Row("1.26.3/2.2.3")]
+        [Row(f"{expected_numpy_ver}/2.2.3")]
         if not local_testing_mode
         else [Row(f"{numpy.__version__}/{pandas.__version__}")],
     )
@@ -441,10 +445,10 @@ def test_add_requirements_twice_should_fail_if_packages_are_different(
     session, resources_path
 ):
     test_files = TestFiles(resources_path)
-
+    expected_numpy_ver = "2.3.1" if sys.version_info >= (3, 13) else "1.26.3"
     session.add_requirements(test_files.test_requirements_file)
     assert session.get_packages() == {
-        "numpy": "numpy==1.26.3",
+        "numpy": f"numpy=={expected_numpy_ver}",
         "pandas": "pandas==2.2.3",
     }
 
@@ -690,7 +694,7 @@ def test_add_packages_with_native_dependency_without_force_push(session):
         with pytest.raises(
             RuntimeError, match="Your code depends on packages that contain native code"
         ):
-            session.add_packages(["catboost==1.2.3"])
+            session.add_packages(["catboost==1.2.8"])
 
 
 @pytest.fixture(scope="function")
@@ -911,29 +915,30 @@ def test_add_requirements_with_empty_stage_as_cache_path(
     }
 
     session.add_requirements(test_files.test_requirements_file)
+    expected_numpy_ver = "2.3.1" if sys.version_info >= (3, 13) else "1.26.3"
     assert session.get_packages() == {
-        "numpy": "numpy==1.26.3",
+        "numpy": f"numpy=={expected_numpy_ver}",
         "pandas": "pandas==2.2.3",
     }
 
     udf_name = Utils.random_name_for_temp_object(TempObjectType.FUNCTION)
 
     # use a newer snowpark to create an old snowpark udf could lead to conflict cloudpickle.
-    # e.g. using snowpark 1.27 with cloudpickle 3.0 to create udf using snowpark 1.8, this will leads to
+    # e.g. using snowpark 1.39 with cloudpickle 3.0 to create udf using snowpark 1.8, this will leads to
     # error as cloudpickle 3.0 is specified in udf creation but unsupported in snowpark 1.8
     # the solution is to downgrade to cloudpickle 2.2.1 in the env
     # TODO: SNOW-1951792, improve error experience
-    # pin cloudpickle as 1.27.0 snowpark upper bounds it to <=3.0.0
+    # pin cloudpickle as 1.39.0 snowpark upper bounds it to <=3.0.0
     @udf(
         name=udf_name,
-        packages=["snowflake-snowpark-python==1.27.0", "cloudpickle==3.0.0"],
+        packages=["snowflake-snowpark-python==1.39.0", "cloudpickle==3.0.0"],
     )
     def get_numpy_pandas_version() -> str:
         import snowflake.snowpark as snowpark
 
         return f"{snowpark.__version__}"
 
-    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.27.0")])
+    Utils.check_answer(session.sql(f"select {udf_name}()"), [Row("1.39.0")])
 
 
 @pytest.mark.udf
