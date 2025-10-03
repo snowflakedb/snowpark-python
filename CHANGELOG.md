@@ -1,5 +1,15 @@
 # Release History
 
+## 1.41.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameReader.dbapi` (PuPr) UDTF ingestion to correctly use the default `StringType` length (16777216).
+
 ## 1.40.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
