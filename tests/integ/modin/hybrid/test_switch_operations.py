@@ -8,6 +8,8 @@ import pytest
 from unittest.mock import patch
 import tqdm.auto
 
+from dataclasses import dataclass
+from typing import Optional, Any, Dict
 import pandas as native_pd
 import numpy as np
 from numpy.testing import assert_array_equal
@@ -16,6 +18,7 @@ from modin.config import context as config_context, Backend
 import modin.pandas as pd
 import snowflake.snowpark.functions as snowpark_functions
 from tests.utils import running_on_jenkins
+from types import MappingProxyType
 import re
 from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -35,7 +38,7 @@ from snowflake.snowpark.modin.plugin.extensions.datetime_index import DatetimeIn
 from snowflake.snowpark.modin.plugin._internal.utils import (
     MODIN_IS_AT_LEAST_0_37_0,
 )
-from tests.integ.utils.sql_counter import sql_count_checker
+from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 # snowflake-ml-python, which provides snowflake.cortex, may not be available in
@@ -661,3 +664,311 @@ def test_set_index():
     # SNOW-2333472: Switching backends then setting the index should be valid.
     s.index = ["a"]
     assert_snowpark_pandas_equal_to_pandas(s, native_pd.Series([0], index=["a"]))
+
+
+def _test_stay_cost(data_obj, api_cls_name, method_name, args, expected_cost):
+    stay_cost = data_obj._query_compiler.stay_cost(
+        api_cls_name, method_name, MappingProxyType(args)
+    )
+    assert stay_cost == expected_cost
+
+
+def _test_move_to_me_cost(pandas_qc, api_cls_name, method_name, args, expected_cost):
+    move_to_me_cost = SnowflakeQueryCompiler.move_to_me_cost(
+        pandas_qc, api_cls_name, method_name, MappingProxyType(args)
+    )
+    assert move_to_me_cost == expected_cost
+
+
+def _test_expected_backend(
+    data_obj, method_name, args, expected_backend, is_top_level=False
+):
+    if is_top_level:
+        result = getattr(pd, method_name)(data_obj, **args)
+    else:
+        result = getattr(data_obj, method_name)(**args)
+
+    if hasattr(result, "get_backend"):
+        assert result.get_backend() == expected_backend
+
+    return result
+
+
+@dataclass(frozen=True)
+class AutoSwitchCase:
+    # Test case for auto-switch on unsupported args functionality
+    api_cls_name: Optional[str]
+    method: str
+    args: Dict[str, Any]
+    test_data: Dict[str, Any]
+    expected_query_count: int
+    is_supported: bool
+    skip_backend_check: bool = (
+        False  # skip backend behavior checks due to post-operation switching
+    )
+    test_series: bool = True  # some methods/args are not supported on Series
+
+
+SUPPORTED_CASES = [
+    AutoSwitchCase(
+        api_cls_name=None,
+        method="get_dummies",
+        args={},
+        test_data={"A": ["x", "y", "z"], "B": [1, 2, 3]},
+        expected_query_count=1,
+        is_supported=True,
+    ),
+    AutoSwitchCase(
+        api_cls_name="BasePandasDataset",
+        method="skew",
+        args={"numeric_only": True},
+        test_data={"A": [1, 2, 3], "B": [4, 5, 6]},
+        expected_query_count=3,
+        is_supported=True,
+    ),
+    AutoSwitchCase(
+        api_cls_name="BasePandasDataset",
+        method="round",
+        args={"decimals": 2},
+        test_data={"A": [1.234, 2.567], "B": [3.891, 4.123]},
+        expected_query_count=2,
+        is_supported=True,
+    ),
+    AutoSwitchCase(
+        api_cls_name="BasePandasDataset",
+        method="cumsum",
+        args={"axis": 0},
+        test_data={"A": [1, 2, 3], "B": [4, 5, 6]},
+        expected_query_count=2,
+        skip_backend_check=True,
+        is_supported=True,
+    ),
+    AutoSwitchCase(
+        api_cls_name="BasePandasDataset",
+        method="cummin",
+        args={"axis": 0},
+        test_data={"A": [1, 2, 3], "B": [4, 5, 6]},
+        expected_query_count=2,
+        skip_backend_check=True,
+        is_supported=True,
+    ),
+    AutoSwitchCase(
+        api_cls_name="BasePandasDataset",
+        method="cummax",
+        args={"axis": 0},
+        test_data={"A": [1, 2, 3], "B": [4, 5, 6]},
+        expected_query_count=2,
+        skip_backend_check=True,
+        is_supported=True,
+    ),
+]
+
+UNSUPPORTED_CASES = [
+    AutoSwitchCase(
+        api_cls_name=None,
+        method="get_dummies",
+        args={"dummy_na": True},
+        test_data={"A": ["x", "y", "z"], "B": [1, 2, 3]},
+        expected_query_count=1,
+        is_supported=False,
+    ),
+    AutoSwitchCase(
+        api_cls_name=None,
+        method="get_dummies",
+        args={"drop_first": True},
+        test_data={"A": ["x", "y", "z"], "B": [1, 2, 3]},
+        expected_query_count=1,
+        is_supported=False,
+    ),
+    AutoSwitchCase(
+        api_cls_name=None,
+        method="get_dummies",
+        args={"dtype": int},
+        test_data={"A": ["x", "y", "z"], "B": [1, 2, 3]},
+        expected_query_count=1,
+        is_supported=False,
+    ),
+    AutoSwitchCase(
+        api_cls_name="BasePandasDataset",
+        method="skew",
+        args={"axis": 1},
+        test_data={"A": [1, 2, 3], "B": [4, 5, 6]},
+        expected_query_count=1,
+        is_supported=False,
+        test_series=False,
+    ),
+    AutoSwitchCase(
+        api_cls_name="BasePandasDataset",
+        method="skew",
+        args={"numeric_only": False},
+        test_data={"A": [1, 2, 3], "B": [4, 5, 6]},
+        expected_query_count=2,
+        is_supported=False,
+    ),
+    AutoSwitchCase(
+        api_cls_name="BasePandasDataset",
+        method="cumsum",
+        args={"axis": 1},
+        test_data={"A": [1, 2, 3], "B": [4, 5, 6]},
+        expected_query_count=1,
+        is_supported=False,
+        test_series=False,
+    ),
+    AutoSwitchCase(
+        api_cls_name="BasePandasDataset",
+        method="cummin",
+        args={"axis": 1},
+        test_data={"A": [1, 2, 3], "B": [4, 5, 6]},
+        expected_query_count=1,
+        is_supported=False,
+        test_series=False,
+    ),
+    AutoSwitchCase(
+        api_cls_name="BasePandasDataset",
+        method="cummax",
+        args={"axis": 1},
+        test_data={"A": [1, 2, 3], "B": [4, 5, 6]},
+        expected_query_count=1,
+        is_supported=False,
+        test_series=False,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "case", SUPPORTED_CASES + UNSUPPORTED_CASES, ids=lambda c: f"{c.method}({c.args})"
+)
+def test_auto_switch(case: AutoSwitchCase):
+    """Test auto-switch functionality for both supported and unsupported args."""
+    with SqlCounter(query_count=case.expected_query_count):
+        # Create test objects
+        df = series = None
+        if case.api_cls_name in [None, "DataFrame", "BasePandasDataset"]:
+            df = pd.DataFrame(case.test_data).move_to("Snowflake")
+        if case.api_cls_name in ["Series", "BasePandasDataset"]:
+            series = pd.Series(list(case.test_data.values())[0]).move_to("Snowflake")
+
+        # Test costs
+        expected_cost = (
+            QCCoercionCost.COST_ZERO
+            if case.is_supported
+            else QCCoercionCost.COST_IMPOSSIBLE
+        )
+        if df is not None:
+            _test_stay_cost(
+                df, case.api_cls_name, case.method, case.args, expected_cost
+            )
+        if series is not None:
+            _test_stay_cost(
+                series, case.api_cls_name, case.method, case.args, expected_cost
+            )
+
+        if not case.is_supported:
+            pandas_df = pd.DataFrame(case.test_data)
+            _test_move_to_me_cost(
+                pandas_df._query_compiler,
+                case.api_cls_name,
+                case.method,
+                case.args,
+                QCCoercionCost.COST_IMPOSSIBLE,
+            )
+
+        # Test expected backend
+        if not case.skip_backend_check:
+            expected_backend = "Snowflake" if case.is_supported else "Pandas"
+            if df is not None:
+                _test_expected_backend(
+                    df,
+                    case.method,
+                    case.args,
+                    expected_backend,
+                    case.api_cls_name is None,
+                )
+            if series is not None and case.test_series:
+                _test_expected_backend(
+                    series, case.method, case.args, expected_backend, False
+                )
+
+        # Test result equality
+        if df is not None:
+            if case.api_cls_name is None:
+                actual = getattr(pd, case.method)(df, **case.args)
+                expected = getattr(native_pd, case.method)(
+                    native_pd.DataFrame(case.test_data), **case.args
+                )
+            else:
+                actual = getattr(df, case.method)(**case.args)
+                expected = getattr(native_pd.DataFrame(case.test_data), case.method)(
+                    **case.args
+                )
+
+            if hasattr(actual, "get_backend"):
+                assert_snowpark_pandas_equal_to_pandas(actual, expected)
+            else:
+                assert actual == expected
+
+        if series is not None and case.test_series:
+            series_data = list(case.test_data.values())[0]
+            actual = getattr(series, case.method)(**case.args)
+            expected = getattr(native_pd.Series(series_data), case.method)(**case.args)
+
+            if hasattr(actual, "get_backend"):
+                assert_snowpark_pandas_equal_to_pandas(actual, expected)
+            else:
+                assert actual == expected
+
+
+@sql_count_checker(query_count=2)
+def test_round_with_series_decimals():
+    # Test round with Series decimals (unsupported case). round requires a different implementation so we make a separate test.
+    round_series_decimals = pd.Series([1, 2], index=["A", "B"])
+    test_data = {"A": [1.234, 2.567], "B": [3.891, 4.123]}
+
+    df = pd.DataFrame(test_data).move_to("Snowflake")
+    series = pd.Series(list(test_data.values())[0]).move_to("Snowflake")
+    args = {"decimals": round_series_decimals}
+
+    _test_stay_cost(
+        df, "BasePandasDataset", "round", args, QCCoercionCost.COST_IMPOSSIBLE
+    )
+    _test_stay_cost(
+        series, "BasePandasDataset", "round", args, QCCoercionCost.COST_IMPOSSIBLE
+    )
+
+    pandas_df = pd.DataFrame(test_data)
+    _test_move_to_me_cost(
+        pandas_df._query_compiler,
+        "BasePandasDataset",
+        "round",
+        args,
+        QCCoercionCost.COST_IMPOSSIBLE,
+    )
+
+    _test_expected_backend(df, "round", args, "Pandas", False)
+    _test_expected_backend(series, "round", args, "Pandas", False)
+
+
+@sql_count_checker(query_count=0)
+def test_error_handling_when_auto_switch_disabled():
+    # Test that unsupported args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        for case in UNSUPPORTED_CASES:
+            df = series = None
+
+            if case.api_cls_name in [None, "DataFrame", "BasePandasDataset"]:
+                df = pd.DataFrame(case.test_data).move_to("Snowflake")
+            if case.api_cls_name in ["Series", "BasePandasDataset"]:
+                series = pd.Series(list(case.test_data.values())[0]).move_to(
+                    "Snowflake"
+                )
+
+            if df is not None:
+                with pytest.raises(NotImplementedError):
+                    if case.api_cls_name is None:
+                        getattr(pd, case.method)(df, **case.args)
+                    else:
+                        getattr(df, case.method)(**case.args)
+
+            if series is not None and case.test_series:
+                with pytest.raises(NotImplementedError):
+                    getattr(series, case.method)(**case.args)
