@@ -5061,7 +5061,8 @@ class Session:
                 self._log_handler = LoggingHandler(
                     logger_provider=self._proxy_log_provider
                 )
-                logging.basicConfig(handlers=[self._log_handler])
+                # TODO: update docstring that you need to use getLogger() instead of basicConfig()
+                logging.getLogger().addHandler(self._log_handler)
 
                 self._logger_provider_enabled = True
             elif (
