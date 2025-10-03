@@ -1720,7 +1720,7 @@ class DataFrameReader:
 
         Args:
             create_connection: A callable that returns a DB-API compatible database connection.
-                The callable can optionally accept keyword arguments via **kwargs.
+                The callable can optionally accept keyword arguments via `**kwargs`.
                 If connection_parameters is provided, those will be passed as keyword arguments to this callable.
                 The callable must be picklable, as it will be passed to and executed in child processes.
             table: The name of the table in the external data source.
@@ -1782,7 +1782,7 @@ class DataFrameReader:
                 This parameter has no effect in UDFT ingestion.
             connection_parameters: Optional dictionary of parameters to pass to the create_connection callable.
                 If provided, these parameters will be unpacked and passed as keyword arguments
-                to create_connection(**connection_parameters).
+                to create_connection(`**connection_parameters`).
                 This allows for flexible connection configuration without hardcoding values in the callable.
                 Example: {"timeout": 30, "isolation_level": "READ_UNCOMMITTED"}
 
