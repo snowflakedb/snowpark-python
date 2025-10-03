@@ -124,6 +124,7 @@
   - `get_dummies()` with `dummy_na=True`, `drop_first=True`, or custom `dtype` parameters
   - `cumsum()`, `cummin()`, `cummax()` with `axis=1` (column-wise operations)
   - `skew()` with `axis=1` or `numeric_only=False` parameters
+  - `round()` with `decimals` parameter as a Series
 
 ### Snowpark pandas API Updates
 
