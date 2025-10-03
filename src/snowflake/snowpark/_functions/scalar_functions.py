@@ -2791,7 +2791,8 @@ def st_hausdorffdistance(
         ...     ("POINT(0 0)", "POINT(0 1)"),
         ...     ("POLYGON((-1 0, 0 1, 1 0, 0 -1, -1 0))", "POLYGON((-1 0, 0 1, 2 0, 0 -1, -1 0))")
         ... ], schema=["geog1", "geog2"])
-        >>> df.select(st_hausdorffdistance(to_geography(df["geog1"]), to_geography(df["geog2"]))).collect()  # doctest: +SKIP
+        >>> df.select(st_hausdorffdistance(to_geography(df["geog1"]), to_geography(df["geog2"]))).collect()
+        [Row(ST_HAUSDORFFDISTANCE(TO_GEOGRAPHY("GEOG1"), TO_GEOGRAPHY("GEOG2"))=1.0), Row(ST_HAUSDORFFDISTANCE(TO_GEOGRAPHY("GEOG1"), TO_GEOGRAPHY("GEOG2"))=1.0)]
     """
     c1 = _to_col_if_str(geography_expression_1, "st_hausdorffdistance")
     c2 = _to_col_if_str(geography_expression_2, "st_hausdorffdistance")
