@@ -1810,7 +1810,6 @@ class DataFrameReader:
             .. code-block:: python
 
                 import sqlite3
-
                 def create_sqlite_connection(timeout=5.0, isolation_level=None, **kwargs):
                     connection = sqlite3.connect(
                         database=":memory:",
@@ -1825,6 +1824,7 @@ class DataFrameReader:
                     table=...,
                     connection_parameters=connection_params
                 )
+
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(

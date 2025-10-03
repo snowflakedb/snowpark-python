@@ -389,25 +389,30 @@ def test_pyodbc_driver_class_builder():
     "udtf_configs",
     [
         None,
-        {
-            "external_access_integration": SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
-        },
+        SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
     ],
 )
 def test_sql_server_with_connection_parameters(session, udtf_configs):
     """Test connection_parameters with local/default ingestion and UDTF ingestion."""
 
-    def create_connection_with_params(connection_string=None, **kwargs):
+    def create_connection_with_params(**kwargs):
         if kwargs.get("extra_param") != "extra_value":
             raise ValueError("extra_param should be extra_value")
         import pyodbc
 
-        return pyodbc.connect(connection_string)
+        return pyodbc.connect(
+            "DRIVER=" + kwargs["DRIVER"] + ";"
+            "SERVER=" + kwargs["SERVER"] + ";"
+            "UID=" + kwargs["UID"] + ";"
+            "PWD=" + kwargs["PWD"] + ";"
+            "TrustServerCertificate=" + kwargs["TrustServerCertificate"] + ";"
+            "Encrypt=" + kwargs["Encrypt"] + ";"
+        )
 
-    connection_params = {
-        "connection_string": SQL_SERVER_CONNECTION_PARAMETERS["connection_string"],
-        "extra_param": "extra_value",  # Extra param to verify arbitrary params are passed
-    }
+    connection_params = SQL_SERVER_CONNECTION_PARAMETERS.copy()
+    connection_params[
+        "extra_param"
+    ] = "extra_value"  # Extra param to verify arbitrary params are passed
 
     df = session.read.dbapi(
         create_connection_with_params,
@@ -416,5 +421,4 @@ def test_sql_server_with_connection_parameters(session, udtf_configs):
         connection_parameters=connection_params,
         udtf_configs=udtf_configs,
     )
-    result = df.order_by("ID").collect()
-    Utils.assert_rows_count(result, len(EXPECTED_TEST_DATA))
+    Utils.check_answer(df.order_by("ID"), EXPECTED_TEST_DATA)

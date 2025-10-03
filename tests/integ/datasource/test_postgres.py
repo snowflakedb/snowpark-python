@@ -541,7 +541,7 @@ def test_postgres_with_connection_parameters(session, udtf_configs):
         return psycopg2.connect(
             host=kwargs["host"],
             port=kwargs["port"],
-            database=kwargs["database"],
+            dbname=kwargs["dbname"],
             user=kwargs["user"],
             password=kwargs["password"],
         )
