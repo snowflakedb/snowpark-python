@@ -22,6 +22,28 @@ def snow_df():
         {"col1": ["one", "two", "three", pd.NA], "col2": ["abc", "pqr", "xyz", None]}
     )
 
+@sql_count_checker(query_count=4)
+def test_replace_mauricio():
+    test_sdf = pd.DataFrame(
+        {"col1": ["one", "two", "two", "three", "two", "four"], "col2": ["abc", "pqr", "xyz", None, "pqr", "xyz",]}
+    )
+    test_ndf = test_sdf.to_pandas()  
+    eval_snowpark_pandas_result(
+        test_sdf,
+        test_ndf,
+        lambda x : x
+    )  
+    test_sdf["col1"] = test_sdf["col1"].replace(["two"], ["a"])
+    print(test_sdf)
+    
+    # Fails in native pandas HERE
+    test_ndf["col1"] = test_ndf["col1"].replace(["two"], ["a"])
+    print(test_ndf)
+    eval_snowpark_pandas_result(
+        test_sdf,
+        test_ndf,
+        lambda x : x
+    )
 
 @pytest.mark.parametrize(
     "to_replace, value",
