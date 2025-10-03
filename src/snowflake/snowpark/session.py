@@ -759,13 +759,16 @@ class Session:
             try:
                 from modin.config import AutoSwitchBackend
 
-                pandas_hybrid_execution_enabled: bool = (
-                    self._conn._get_client_side_session_parameter(
-                        _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED,
-                        AutoSwitchBackend().get(),
-                    )
+                pandas_hybrid_execution_enabled: Union[
+                    bool, None
+                ] = self._conn._get_client_side_session_parameter(
+                    _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED, None
                 )
-                AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
+                # Only set AutoSwitchBackend if the session parameter was already set.
+                # snowflake.snowpark.modin.plugin sets AutoSwitchBackend to True if it was
+                # not already set, so we should not change the variable if it's in its default state.
+                if pandas_hybrid_execution_enabled is not None:
+                    AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
             except Exception:
                 # Continue session initialization even if Modin configuration fails
                 pass
