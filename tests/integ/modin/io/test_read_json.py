@@ -156,7 +156,7 @@ def setup(session, json_data):
     temp_dir.cleanup()
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def json_data():
     return {"A": "snowpark!", "B": 3, "C": np.float64(12.33)}
 
