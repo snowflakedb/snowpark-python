@@ -3,7 +3,7 @@
 #
 import logging
 from enum import Enum
-from typing import Callable, List, Any, TYPE_CHECKING
+from typing import List, Any, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
@@ -167,11 +167,6 @@ BASE_POSTGRES_TYPE_TO_SNOW_TYPE = {
 
 
 class Psycopg2Driver(BaseDriver):
-    def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
-    ) -> None:
-        super().__init__(create_connection, dbms_type)
-
     def to_snow_type(self, schema: List[Any]) -> StructType:
         # The psycopg2 spec is defined in the following links:
         # https://www.psycopg.org/docs/cursor.html#cursor.description
