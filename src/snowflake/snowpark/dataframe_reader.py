@@ -1681,7 +1681,7 @@ class DataFrameReader:
     @publicapi
     def dbapi(
         self,
-        create_connection: Callable[[], "Connection"],
+        create_connection: Callable[..., "Connection"],
         *,
         table: Optional[str] = None,
         query: Optional[str] = None,
@@ -1698,6 +1698,7 @@ class DataFrameReader:
         udtf_configs: Optional[dict] = None,
         fetch_merge_count: int = 1,
         fetch_with_process: bool = False,
+        connection_parameters: Optional[dict] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1718,7 +1719,9 @@ class DataFrameReader:
         column name with table in external data source.
 
         Args:
-            create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
+            create_connection: A callable that returns a DB-API compatible database connection.
+                The callable can optionally accept keyword arguments via **kwargs.
+                If connection_parameters is provided, those will be passed as keyword arguments to this callable.
                 The callable must be picklable, as it will be passed to and executed in child processes.
             table: The name of the table in the external data source.
                 This parameter cannot be used together with the `query` parameter.
@@ -1777,6 +1780,11 @@ class DataFrameReader:
                 like Parquet file generation. When using multiprocessing, guard your script with
                 `if __name__ == "__main__":` and call `multiprocessing.freeze_support()` on Windows if needed.
                 This parameter has no effect in UDFT ingestion.
+            connection_parameters: Optional dictionary of parameters to pass to the create_connection callable.
+                If provided, these parameters will be unpacked and passed as keyword arguments
+                to create_connection(**connection_parameters).
+                This allows for flexible connection configuration without hardcoding values in the callable.
+                Example: {"timeout": 30, "isolation_level": "READ_UNCOMMITTED"}
 
         Example::
             .. code-block:: python
@@ -1796,8 +1804,27 @@ class DataFrameReader:
                     connection = oracledb.connect(...)
                     return connection
 
-                if __name__ == "__main__":
-                    df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
+                df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
+
+        Example with connection_parameters::
+            .. code-block:: python
+
+                import sqlite3
+
+                def create_sqlite_connection(timeout=5.0, isolation_level=None, **kwargs):
+                    connection = sqlite3.connect(
+                        database=":memory:",
+                        timeout=timeout,
+                        isolation_level=isolation_level
+                    )
+                    return connection
+
+                connection_params = {"timeout": 30.0, "isolation_level": "DEFERRED"}
+                df = session.read.dbapi(
+                    create_sqlite_connection,
+                    table=...,
+                    connection_parameters=connection_params
+                )
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
@@ -1831,6 +1858,7 @@ class DataFrameReader:
             predicates,
             session_init_statement,
             fetch_merge_count,
+            connection_parameters,
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions

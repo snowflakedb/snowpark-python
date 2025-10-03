@@ -272,6 +272,7 @@ class Psycopg2Driver(BaseDriver):
         query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
+        connection_parameters = self.connection_parameters
 
         # TODO: SNOW-2101485 use class method to prepare connection
         # ideally we should use the same function as prepare_connection
@@ -291,7 +292,12 @@ class Psycopg2Driver(BaseDriver):
 
         class UDTFIngestion:
             def process(self, query: str):
-                conn = prepare_connection_in_udtf(create_connection(), query_timeout)
+                conn_result = (
+                    create_connection(**connection_parameters)
+                    if connection_parameters
+                    else create_connection()
+                )
+                conn = prepare_connection_in_udtf(conn_result, query_timeout)
                 cursor = conn.cursor(
                     f"SNOWPARK_CURSOR_{generate_random_alphanumeric(5)}"
                 )

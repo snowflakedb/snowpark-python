@@ -21,18 +21,22 @@ class DataSourceReader:
     def __init__(
         self,
         driver_class: Type[BaseDriver],
-        create_connection: Callable[[], "Connection"],
+        create_connection: Callable[..., "Connection"],
         schema: StructType,
         dbms_type: Enum,
         fetch_size: Optional[int] = 0,
         query_timeout: Optional[int] = 0,
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
+        connection_parameters: Optional[dict] = None,
     ) -> None:
         # we use cloudpickle to pickle the callback function so that local function and function defined in
         # __main__ can be pickled and unpickled in subprocess
         self.pickled_create_connection_callback = cloudpickle.dumps(
             create_connection, protocol=pickle.HIGHEST_PROTOCOL
+        )
+        self.pickled_connection_parameters = cloudpickle.dumps(
+            connection_parameters, protocol=pickle.HIGHEST_PROTOCOL
         )
         self.driver = None
         self.driver_class = driver_class
@@ -44,14 +48,19 @@ class DataSourceReader:
         self.fetch_merge_count = fetch_merge_count
 
     def read(self, partition: str) -> Iterator[List[Any]]:
+        connection_parameters = cloudpickle.loads(self.pickled_connection_parameters)
         self.driver = self.driver_class(
             cloudpickle.loads(self.pickled_create_connection_callback),
             self.dbms_type,
+            connection_parameters,
         )
 
-        conn = self.driver.prepare_connection(
-            self.driver.create_connection(), self.query_timeout
+        create_conn_result = (
+            self.driver.create_connection(**connection_parameters)
+            if connection_parameters
+            else self.driver.create_connection()
         )
+        conn = self.driver.prepare_connection(create_conn_result, self.query_timeout)
         try:
             cursor = conn.cursor()
             if self.session_init_statement:
