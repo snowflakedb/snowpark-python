@@ -2327,7 +2327,7 @@ def test_sproc_artifact_repository_from_file(session, tmpdir):
 @pytest.mark.parametrize(
     "version_override, expect_warning",
     [
-        ("1.27.1", False),  # Bugfix version - no warning
+        ("1.39.1", False),  # Bugfix version - no warning
         ("999.999.999", True),  # Major version change - expect warning
     ],
 )
@@ -2350,8 +2350,8 @@ def test_snowpark_python_bugfix_version_warning(
                 plus1,
                 return_type=IntegerType(),
                 input_types=[IntegerType()],
-                # pin cloudpickle as 1.27.0 snowpark upper bounds it to <=3.0.0
-                packages=["snowflake-snowpark-python==1.27.0", "cloudpickle==3.0.0"],
+                # pin cloudpickle as 1.39.0 snowpark upper bounds it to <=3.0.0
+                packages=["snowflake-snowpark-python==1.39.0", "cloudpickle==3.0.0"],
             )
             assert plus1_sp(lit(6)) == 7
 
