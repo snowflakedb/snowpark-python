@@ -21,7 +21,7 @@ def add_doctest_imports(doctest_namespace) -> None:  # pragma: no cover
 
 
 @pytest.fixture(autouse=True, scope="module")
-def toggle_multiline_queries() -> None:
+def toggle_multiline_queries(session) -> None:
     pd.session._disable_multiline_queries()
     yield
     pd.session._enable_multiline_queries()
