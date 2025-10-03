@@ -1089,11 +1089,11 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["varchar"] = StringType
 
 
 DECIMAL_RE = re.compile(
-    r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
+    r"(?i)^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
-STRING_RE = re.compile(r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
+STRING_RE = re.compile(r"(?i)^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
 # support type string format like "  string  (  23  )  "
 
 ARRAY_RE = re.compile(r"(?i)^\s*array\s*<")
