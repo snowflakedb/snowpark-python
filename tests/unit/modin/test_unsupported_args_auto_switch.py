@@ -554,10 +554,7 @@ class TestMalformedConditions:
             )
             assert reason == "param2='value2' is not supported"
 
-            # Should log warnings for malformed conditions during evaluation, not during instantiation
-            assert (
-                mock_warning.call_count >= 4
-            )  # At least 4 malformed conditions during evaluation
+            assert mock_warning.call_count >= 4
 
     def test_none_conditions(self):
         empty_rule = UnsupportedArgsRule(
@@ -581,8 +578,8 @@ class TestMalformedConditions:
         # None values in condition tuple
         none_rule = UnsupportedArgsRule(
             unsupported_conditions=[
-                (None, "reason_for_none"),  # None as first element
-                ("param_name", None),  # None as second element
+                (None, "reason_for_none"),
+                ("param_name", None),
             ]
         )
         HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[
@@ -595,12 +592,11 @@ class TestMalformedConditions:
             result = SnowflakeQueryCompiler._has_unsupported_args(
                 "DataFrame", "none_test", args
             )
-            assert result  # Should match the None value condition
+            assert result
 
             reason = SnowflakeQueryCompiler._get_unsupported_args_reason(
                 "DataFrame", "none_test", args
             )
             assert reason == "param_name=None is not supported"
 
-            # Should log warning for the None as first element condition during evaluation
             assert mock_warning.call_count >= 1
