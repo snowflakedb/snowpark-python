@@ -1806,7 +1806,7 @@ class DataFrameReader:
 
                 df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
 
-        Example with connection_parameters::
+        Example::
             .. code-block:: python
 
                 import sqlite3
