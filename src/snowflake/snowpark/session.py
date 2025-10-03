@@ -82,6 +82,7 @@ from snowflake.snowpark._internal.ast.utils import (
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.external_telemetry import ProxyLogProvider
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
@@ -818,6 +819,7 @@ class Session:
         self._tracer_provider = None
         self._span_processor = None
         self._proxy_tracer_provider = None
+        self._proxy_log_provider = None
         self._logger_provider = None
         self._log_processor = None
         self._log_handler = None
@@ -4962,6 +4964,7 @@ class Session:
             from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
                 OTLPSpanExporter,
             )
+            from opentelemetry._logs import set_logger_provider
             from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
             from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
             from opentelemetry.exporter.otlp.proto.http._log_exporter import (
@@ -5036,6 +5039,9 @@ class Session:
 
             if enable_log_level and self._log_handler is None:
                 url = f"https://{endpoint}/v1/logs"
+                self._proxy_log_provider = ProxyLogProvider()
+                set_logger_provider(self._proxy_log_provider)
+
                 self._logger_provider = LoggerProvider(resource=resource)
 
                 log_session = requests.Session()
@@ -5049,10 +5055,13 @@ class Session:
                 self._log_processor = BatchLogRecordProcessor(exporter)
                 self._logger_provider.add_log_record_processor(self._log_processor)
 
+                self._proxy_log_provider.set_real_provider(self._logger_provider)
+                self._proxy_log_provider.enable()
+
                 self._log_handler = LoggingHandler(
-                    logger_provider=self._logger_provider
+                    logger_provider=self._proxy_log_provider
                 )
-                logging.getLogger().addHandler(self._log_handler)
+                logging.basicConfig(handlers=[self._log_handler])
 
                 self._logger_provider_enabled = True
             elif (
@@ -5102,12 +5111,10 @@ class Session:
 
     def _disable_logger_provider(self):
         if self._logger_provider and self._logger_provider_enabled:
-            if self._log_handler:
-                logging.getLogger().removeHandler(self._log_handler)
+            self._proxy_log_provider.disable()
             self._logger_provider_enabled = False
 
     def _enable_logger_provider(self):
         if self._logger_provider and not self._logger_provider_enabled:
-            if self._log_handler:
-                logging.getLogger().addHandler(self._log_handler)
+            self._proxy_log_provider.enable()
             self._logger_provider_enabled = True
