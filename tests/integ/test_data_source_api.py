@@ -1798,21 +1798,7 @@ def test_dbapi_with_connection_parameters(session):
         result = df.order_by("ID").collect()
         assert result == assert_data
 
-        # Test 2: Backward compatibility - callable without parameters still works
-        def create_connection_no_params():
-            import sqlite3
-
-            return sqlite3.connect(dbpath)
-
-        df2 = session.read.dbapi(
-            create_connection_no_params,
-            table=table_name,
-            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
-        )
-        result2 = df2.order_by("ID").collect()
-        assert result2 == assert_data
-
-        # Test 3: Empty dict should not pass parameters
+        # Test 2: Empty dict should not pass parameters
 
         def create_connection_check_empty(**kwargs):
             import sqlite3

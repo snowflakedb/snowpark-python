@@ -383,3 +383,38 @@ def test_pyodbc_driver_class_builder():
     ingestion = udtf_class()
     results = list(ingestion.process(f"SELECT * FROM {SQL_SERVER_TABLE_NAME}"))
     assert len(results) == len(EXPECTED_TEST_DATA)
+
+
+@pytest.mark.parametrize(
+    "udtf_configs",
+    [
+        None,
+        {
+            "external_access_integration": SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        },
+    ],
+)
+def test_sql_server_with_connection_parameters(session, udtf_configs):
+    """Test connection_parameters with local/default ingestion and UDTF ingestion."""
+
+    def create_connection_with_params(connection_string=None, **kwargs):
+        if kwargs.get("extra_param") != "extra_value":
+            raise ValueError("extra_param should be extra_value")
+        import pyodbc
+
+        return pyodbc.connect(connection_string)
+
+    connection_params = {
+        "connection_string": SQL_SERVER_CONNECTION_PARAMETERS["connection_string"],
+        "extra_param": "extra_value",  # Extra param to verify arbitrary params are passed
+    }
+
+    df = session.read.dbapi(
+        create_connection_with_params,
+        table=SQL_SERVER_TABLE_NAME,
+        custom_schema=SQL_SERVER_SCHEMA,
+        connection_parameters=connection_params,
+        udtf_configs=udtf_configs,
+    )
+    result = df.order_by("ID").collect()
+    Utils.assert_rows_count(result, len(EXPECTED_TEST_DATA))

@@ -519,3 +519,43 @@ def test_postgres_non_retryable_error(session):
             table=POSTGRES_TABLE_NAME,
             predicates=["invalid syntax"],
         ).collect()
+
+
+@pytest.mark.parametrize(
+    "udtf_configs",
+    [
+        None,
+        {
+            "external_access_integration": POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        },
+    ],
+)
+def test_postgres_with_connection_parameters(session, udtf_configs):
+    """Test connection_parameters with local/default ingestion and UDTF ingestion."""
+
+    def create_connection_with_params(**kwargs):
+        if kwargs.get("extra_param") != "extra_value":
+            raise ValueError("extra_param should be extra_value")
+        import psycopg2
+
+        return psycopg2.connect(
+            host=kwargs["host"],
+            port=kwargs["port"],
+            database=kwargs["database"],
+            user=kwargs["user"],
+            password=kwargs["password"],
+        )
+
+    connection_params = POSTGRES_CONNECTION_PARAMETERS.copy()
+    connection_params[
+        "extra_param"
+    ] = "extra_value"  # Extra param to verify arbitrary params are passed
+
+    df = session.read.dbapi(
+        create_connection_with_params,
+        table=POSTGRES_TABLE_NAME,
+        custom_schema=postgres_schema,
+        connection_parameters=connection_params,
+        udtf_configs=udtf_configs,
+    )
+    assert df.collect() == EXPECTED_TEST_DATA
