@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
     Cursor,
 )
+from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
     get_sorted_key_for_version,
     measure_time,
@@ -27,6 +28,7 @@ from snowflake.snowpark.types import (
     BinaryType,
     DateType,
     BooleanType,
+    StringType,
 )
 import snowflake.snowpark
 import logging
@@ -273,10 +275,15 @@ class BaseDriver:
         schema: StructType,
         _emit_ast: bool = True,
     ):
-        cols = [
-            res_df[field.name].cast(field.datatype).alias(field.name)
-            for field in schema.fields
-        ]
+        cols = []
+        for field in schema.fields:
+            cast_type = (
+                StringType(field.datatype.length or DEFAULT_STRING_SIZE)
+                if isinstance(field.datatype, StringType)
+                else field.datatype
+            )
+            cols.append(res_df[field.name].cast(cast_type).alias(field.name))
+
         selected_df = res_df.select(cols, _emit_ast=_emit_ast)
         for attr, source_field in zip(selected_df._plan.attributes, schema.fields):
             attr.nullable = source_field.nullable

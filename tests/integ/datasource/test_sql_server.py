@@ -5,7 +5,6 @@
 import pytest
 
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
-from snowflake.snowpark.types import StringType
 
 from tests.parameters import SQL_SERVER_CONNECTION_PARAMETERS
 from tests.utils import IS_IN_STORED_PROC, Utils, IS_WINDOWS, IS_MACOS, RUNNING_ON_GH
@@ -63,30 +62,7 @@ def verify_save_table_result(
         df = df.order_by("ID")
 
     Utils.check_answer(df, expected_data)
-
-    def verify_schemas(df, expected_schema, ignore_string_size):
-        # TODO: SNOW-2362041
-        # - UDTF ingestion returning StringType 128 MB (due to variant default to 128MB)
-        # - parquet based ingestion returning StringType 16 MB
-        # we should align the two
-        for field, expected_field in zip(df.schema.fields, expected_schema.fields):
-            if isinstance(field.datatype, StringType):
-                assert isinstance(field.datatype, type(expected_field.datatype))
-                if ignore_string_size:
-                    assert (
-                        field.datatype.length == expected_field.datatype.length
-                        or field.datatype.length == 134217728
-                    )
-                else:
-                    assert field.datatype.length == expected_field.datatype.length
-            else:
-                assert field.datatype == expected_field.datatype
-            assert field.name == expected_field.name
-            assert field.nullable == expected_field.nullable
-
-    verify_schemas(df, expected_schema, ignore_string_size)
-    # after the fix SNOW-2362041, we should be able to enable this assertion
-    # assert df.schema == expected_schema
+    assert df.schema == expected_schema
 
     table_name = Utils.random_table_name()
     # save and read
@@ -97,9 +73,7 @@ def verify_save_table_result(
         read_table = read_table.order_by("ID")
 
     Utils.check_answer(read_table, expected_data)
-    verify_schemas(read_table, expected_schema, ignore_string_size)
-    # after the fix SNOW-2362041, we should be able to enable this assertion
-    # assert read_table.schema == expected_schema
+    assert read_table.schema == expected_schema
 
 
 def create_connection_sql_server():

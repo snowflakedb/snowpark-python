@@ -7,6 +7,7 @@ from typing import Callable, List, Any, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
+from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.functions import to_variant, parse_json, column
 from snowflake.snowpark.types import (
@@ -249,6 +250,12 @@ class Psycopg2Driver(BaseDriver):
         for field in schema.fields:
             if isinstance(field.datatype, VariantType):
                 cols.append(to_variant(parse_json(column(field.name))).as_(field.name))
+            elif isinstance(field.datatype, StringType):
+                cols.append(
+                    res_df[field.name]
+                    .cast(StringType(field.datatype.length or DEFAULT_STRING_SIZE))
+                    .alias(field.name)
+                )
             else:
                 cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
         return res_df.select(cols, _emit_ast=_emit_ast)

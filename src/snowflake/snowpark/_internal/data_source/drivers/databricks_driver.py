@@ -8,6 +8,7 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Cursor,
 )
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
+from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark.functions import column, to_variant, parse_json
 from snowflake.snowpark.types import (
@@ -143,6 +144,12 @@ class DatabricksDriver(BaseDriver):
                 field.datatype, (MapType, ArrayType, StructType, VariantType)
             ):
                 project_columns.append(to_variant(column(field.name)).as_(field.name))
+            elif isinstance(field.datatype, StringType):
+                project_columns.append(
+                    column(field.name)
+                    .cast(StringType(field.datatype.length or DEFAULT_STRING_SIZE))
+                    .alias(field.name)
+                )
             else:
                 project_columns.append(
                     column(field.name).cast(field.datatype).alias(field.name)
@@ -163,6 +170,12 @@ class DatabricksDriver(BaseDriver):
                 field.datatype, (MapType, ArrayType, StructType, VariantType)
             ):
                 cols.append(to_variant(parse_json(column(field.name))).as_(field.name))
+            elif isinstance(field.datatype, StringType):
+                cols.append(
+                    res_df[field.name]
+                    .cast(StringType(field.datatype.length or DEFAULT_STRING_SIZE))
+                    .alias(field.name)
+                )
             else:
                 cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
         return res_df.select(cols, _emit_ast=_emit_ast)
