@@ -75,7 +75,7 @@ def test_column_multiindex(test_table_name):
     )
     snow_df = pd.DataFrame(native_df)
     if_exists = "replace"
-    with to_snowflake_counter(df=snow_df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=snow_df, if_exists=if_exists):
         snow_df.to_snowflake(test_table_name, if_exists=if_exists, index=False)
     verify_columns(test_table_name, [str(column) for column in native_df.columns])
 
