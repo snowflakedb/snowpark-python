@@ -183,7 +183,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.13' }}
+      - if: ${{ matrix.os != 'macos-latest' }}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
@@ -193,19 +193,6 @@ jobs:
           TOX_PARALLEL_NO_SPINNER: 1
           SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
-        shell: bash
-      # SNOW-2213578 : Remove the test below and run udf tests for 3.13
-      # for 3.13, skip udf, doctest
-      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version == '3.13' }}
-        name: Run tests (excluding udf, doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
-          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
-          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
-          TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
       - name: Install MS ODBC Driver (Ubuntu only)
         if: ${{ contains(matrix.os, 'ubuntu') }}
@@ -217,8 +204,7 @@ jobs:
         shell: bash
       - name: Run data source tests
         # psycopg2 is not supported on macos 3.9
-        # SNOW-2213578: Re-enable the test for 3.13
-        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') && !(matrix.python-version == '3.13') }}
+        if: ${{ !(matrix.os == 'macos-latest' && matrix.python-version == '3.9') }}
         run: python -m tox -e datasource
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -575,6 +561,16 @@ jobs:
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
         run: uv pip install tox --system
+      - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
+        name: Check AutoSwitchBackend default value
+        # SNOW-2389912: Ensure hybrid is correctly enabled by default. We can't use pytest because
+        # our test suite sets the AutoSwitchBackend variable explicitly.
+        run: |
+          python -m tox -e "py${PYTHON_VERSION}-snowparkpandashybridcheck_sessionfirst-modin-ci" \
+          && python -m tox -e "py${PYTHON_VERSION}-snowparkpandashybridcheck_pluginfirst-modin-ci"
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          cloud_provider: ${{ matrix.cloud-provider }}
         # only run doctest for macos on aws
       - if: ${{ matrix.os == 'macos-latest' && matrix.cloud-provider == 'aws' }}
         name: Run Snowpark pandas API doctests

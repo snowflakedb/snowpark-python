@@ -23,6 +23,7 @@ from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     add_cache_result_docstring,
+    pandas_to_snowflake,
     register_non_snowflake_accessors,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
@@ -66,7 +67,7 @@ def _set_axis_name(
         return renamed
 
 
-@register_series_accessor("to_snowflake")
+@register_series_accessor("to_snowflake", backend="Snowflake")
 def to_snowflake(
     self,
     name: Union[str, Iterable[str]],
@@ -102,6 +103,9 @@ def to_snowflake(
         - :func:`read_snowflake <modin.pandas.read_snowflake>`
     """
     self._query_compiler.to_snowflake(name, if_exists, index, index_label, table_type)
+
+
+register_series_accessor("to_snowflake", backend="Pandas")(pandas_to_snowflake)
 
 
 @register_series_accessor("to_snowpark")
