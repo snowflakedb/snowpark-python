@@ -7,7 +7,6 @@
 #### Bug Fixes
 
 - Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
-- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be genrated when using nested structured types.
 
 #### New Features
 
@@ -113,6 +112,7 @@
   - Fixed an issue that caused the program to hang during multithreaded Parquet based ingestion when a data fetching error occurred.
   - Fixed a bug in schema parsing when custom schema strings used upper-cased data type names (NUMERIC, NUMBER, DECIMAL, VARCHAR, STRING, TEXT).
 - Fixed a bug in `Session.create_dataframe` where schema string parsing failed when using upper-cased data type names (e.g., NUMERIC, NUMBER, DECIMAL, VARCHAR, STRING, TEXT).
+- Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 
 #### Improvements
 
@@ -139,6 +139,17 @@
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
 - When hybrid execution is enabled, `pd.merge`, `pd.concat`, `DataFrame.merge`, and `DataFrame.join` may now move arguments to backends other than those among the function arguments.
 - Improved performance of `DataFrame.to_snowflake` and `pd.to_snowflake(dataframe)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+- Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+
+## 1.39.1 (2025-09-25)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+
+- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be generated when using nested structured types.
+
 
 ## 1.39.0 (2025-09-17)
 
