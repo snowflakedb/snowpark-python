@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
     Cursor,
 )
+from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
     get_sorted_key_for_version,
     measure_time,
@@ -27,6 +28,7 @@ from snowflake.snowpark.types import (
     BinaryType,
     DateType,
     BooleanType,
+    StringType,
 )
 import snowflake.snowpark
 import logging
@@ -214,6 +216,22 @@ class BaseDriver:
             return False
         return True
 
+    @staticmethod
+    def get_cast_type_with_default_string_length(datatype):
+        """
+        Returns the appropriate cast type for a given datatype.
+        For StringType, ensures a default length is set if not already specified.
+
+        Args:
+            datatype: A Snowpark DataType object
+
+        Returns:
+            The same datatype, or StringType with default length if applicable
+        """
+        if isinstance(datatype, StringType):
+            return StringType(datatype.length or DEFAULT_STRING_SIZE)
+        return datatype
+
     # convert timestamp and date to string to work around SNOW-1911989
     # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.map.html
     # 'map' is introduced in pandas 2.1.0, before that it is 'applymap'
@@ -273,10 +291,13 @@ class BaseDriver:
         schema: StructType,
         _emit_ast: bool = True,
     ):
-        cols = [
-            res_df[field.name].cast(field.datatype).alias(field.name)
-            for field in schema.fields
-        ]
+        cols = []
+        for field in schema.fields:
+            cast_type = BaseDriver.get_cast_type_with_default_string_length(
+                field.datatype
+            )
+            cols.append(res_df[field.name].cast(cast_type).alias(field.name))
+
         selected_df = res_df.select(cols, _emit_ast=_emit_ast)
         for attr, source_field in zip(selected_df._plan.attributes, schema.fields):
             attr.nullable = source_field.nullable
