@@ -163,6 +163,23 @@ class ErrorMessage:
         raise NotImplementedError(message)
 
     @classmethod
+    def not_implemented_with_reason(cls, method_name: str, reason: str) -> NoReturn:
+        """
+        Raise NotImplementedError with specific reason.
+        Args:
+            method_name: Name of the method that's not implemented
+            reason: Specific reason why the parameters are not supported
+        """
+        message = (
+            f"Snowpark pandas {method_name} does not yet support the parameter combination because {reason}. "
+            f"Enable auto-switching with 'from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()' "
+            f"to use pandas for unsupported operations."
+        )
+
+        logger.debug(f"NotImplementedError: {message}")
+        raise NotImplementedError(message)
+
+    @classmethod
     def not_implemented_for_timedelta(cls, method: str) -> NoReturn:
         ErrorMessage.not_implemented(
             f"SnowflakeQueryCompiler::{method} is not yet implemented for Timedelta Type"
