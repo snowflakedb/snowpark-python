@@ -203,12 +203,17 @@ class PymysqlDriver(BaseDriver):
         query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
+        connection_parameters = self.connection_parameters
 
         class UDTFIngestion:
             def process(self, query: str):
                 import pymysql
 
-                conn = create_connection()
+                conn = (
+                    create_connection(**connection_parameters)
+                    if connection_parameters
+                    else create_connection()
+                )
                 cursor = pymysql.cursors.SSCursor(conn)
                 if session_init_statement is not None:
                     for statement in session_init_statement:

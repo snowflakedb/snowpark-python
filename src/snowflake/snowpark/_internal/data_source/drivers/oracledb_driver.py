@@ -143,6 +143,7 @@ class OracledbDriver(BaseDriver):
         query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
+        connection_parameters = self.connection_parameters
 
         def oracledb_output_type_handler(cursor, metadata):
             from oracledb import (
@@ -166,7 +167,11 @@ class OracledbDriver(BaseDriver):
 
         class UDTFIngestion:
             def process(self, query: str):
-                conn = create_connection()
+                conn = (
+                    create_connection(**connection_parameters)
+                    if connection_parameters
+                    else create_connection()
+                )
                 if query_timeout > 0:
                     conn.call_timeout = query_timeout * 1000
                 if conn.outputtypehandler is None:

@@ -3,7 +3,7 @@
 #
 import logging
 from enum import Enum
-from typing import Callable, List, Any, TYPE_CHECKING
+from typing import List, Any, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
@@ -167,11 +167,6 @@ BASE_POSTGRES_TYPE_TO_SNOW_TYPE = {
 
 
 class Psycopg2Driver(BaseDriver):
-    def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
-    ) -> None:
-        super().__init__(create_connection, dbms_type)
-
     def to_snow_type(self, schema: List[Any]) -> StructType:
         # The psycopg2 spec is defined in the following links:
         # https://www.psycopg.org/docs/cursor.html#cursor.description
@@ -272,6 +267,7 @@ class Psycopg2Driver(BaseDriver):
         query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
+        connection_parameters = self.connection_parameters
 
         # TODO: SNOW-2101485 use class method to prepare connection
         # ideally we should use the same function as prepare_connection
@@ -291,7 +287,12 @@ class Psycopg2Driver(BaseDriver):
 
         class UDTFIngestion:
             def process(self, query: str):
-                conn = prepare_connection_in_udtf(create_connection(), query_timeout)
+                conn_result = (
+                    create_connection(**connection_parameters)
+                    if connection_parameters
+                    else create_connection()
+                )
+                conn = prepare_connection_in_udtf(conn_result, query_timeout)
                 cursor = conn.cursor(
                     f"SNOWPARK_CURSOR_{generate_random_alphanumeric(5)}"
                 )

@@ -86,6 +86,7 @@ class PyodbcDriver(BaseDriver):
     ) -> type:
         create_connection = self.create_connection
         prepare_connection = self.prepare_connection
+        connection_parameters = self.connection_parameters
 
         def binary_converter(value):
             return value.hex() if value is not None else None
@@ -94,7 +95,12 @@ class PyodbcDriver(BaseDriver):
             def process(self, query: str):
                 import pyodbc
 
-                conn = prepare_connection(create_connection(), query_timeout)
+                conn_result = (
+                    create_connection(**connection_parameters)
+                    if connection_parameters
+                    else create_connection()
+                )
+                conn = prepare_connection(conn_result, query_timeout)
                 if (
                     conn.get_output_converter(pyodbc.SQL_BINARY) is None
                     and conn.get_output_converter(pyodbc.SQL_VARBINARY) is None

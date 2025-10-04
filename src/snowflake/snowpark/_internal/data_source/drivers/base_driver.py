@@ -43,12 +43,20 @@ if TYPE_CHECKING:
 class BaseDriver:
     def __init__(
         self,
-        create_connection: Callable[[], "Connection"],
+        create_connection: Callable[..., "Connection"],
         dbms_type: Enum,
+        connection_parameters: Optional[dict] = None,
     ) -> None:
         self.create_connection = create_connection
         self.dbms_type = dbms_type
+        self.connection_parameters = connection_parameters
         self.raw_schema = None
+
+    def _call_create_connection(self) -> "Connection":
+        """Call create_connection with connection_parameters if provided."""
+        if self.connection_parameters:
+            return self.create_connection(**self.connection_parameters)
+        return self.create_connection()
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         raise NotImplementedError(
@@ -100,7 +108,7 @@ class BaseDriver:
     def infer_schema_from_description_with_error_control(
         self, table_or_query: str, is_query: bool, query_input_alias: str
     ) -> StructType:
-        conn = self.create_connection()
+        conn = self._call_create_connection()
         cursor = conn.cursor()
         try:
             return self.infer_schema_from_description(
@@ -184,10 +192,16 @@ class BaseDriver:
     ) -> type:
         create_connection = self.create_connection
         prepare_connection = self.prepare_connection
+        connection_parameters = self.connection_parameters
 
         class UDTFIngestion:
             def process(self, query: str):
-                conn = prepare_connection(create_connection(), query_timeout)
+                conn_result = (
+                    create_connection(**connection_parameters)
+                    if connection_parameters
+                    else create_connection()
+                )
+                conn = prepare_connection(conn_result, query_timeout)
                 cursor = conn.cursor()
                 if session_init_statement is not None:
                     for statement in session_init_statement:
