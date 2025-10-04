@@ -8,6 +8,7 @@ import datetime
 import decimal
 import inspect
 import json
+import logging
 import os
 import re
 import sys
@@ -36,8 +37,11 @@ from typing import (
 
 import cloudpickle
 import importlib.metadata
+
+import requests
 from packaging.requirements import Requirement
 from packaging.version import parse as parse_version
+from snowflake.connector.wif_util import create_attestation
 
 import snowflake.snowpark._internal.proto.generated.ast_pb2 as proto
 import snowflake.snowpark.context as context
@@ -78,6 +82,7 @@ from snowflake.snowpark._internal.ast.utils import (
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.external_telemetry import ProxyLogProvider
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
@@ -146,6 +151,7 @@ from snowflake.snowpark._internal.utils import (
     is_ast_enabled,
     AstFlagSource,
     AstMode,
+    parse_table_name,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
@@ -316,6 +322,9 @@ DEFAULT_COMPLEXITY_SCORE_LOWER_BOUND = 10_000_000
 DEFAULT_COMPLEXITY_SCORE_UPPER_BOUND = 12_000_000
 WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
+
+# wif token refresh time in minutes
+_WIF_TOKEN_REFRESH_TIME: int = 10
 
 
 def _get_active_session() -> "Session":
@@ -809,6 +818,18 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
+
+        self._tracer_provider = None
+        self._span_processor = None
+        self._proxy_tracer_provider = None
+        self._proxy_log_provider = None
+        self._logger_provider = None
+        self._log_processor = None
+        self._log_handler = None
+        self._attestation = None
+        self._event_table = None
+        self._tracer_provider_enabled = False
+        self._logger_provider_enabled = False
 
         self._ast_batch = AstBatch(self)
 
@@ -4930,3 +4951,185 @@ class Session:
             _ast_stmt=stmt,
             _emit_ast=_emit_ast,
         )
+
+    def enable_external_telemetry(
+        self,
+        event_table: str = "snowflake.telemetry.events",
+        enable_log_level: bool = False,
+        enable_trace_level: bool = False,
+    ):
+        if len(parse_table_name(event_table)) != 3:
+            event_table = self.get_fully_qualified_name_if_possible(event_table)
+
+        # abort the process if event table is not a fully qualified name
+        if len(parse_table_name(event_table)) != 3:
+            _logger.warning(
+                f"Event table name must be fully qualified to collect telemetry into event table: {event_table}."
+            )
+            return
+
+        self._event_table = event_table
+
+        try:
+            from opentelemetry import trace
+            from opentelemetry.sdk.resources import Resource
+            from opentelemetry.sdk.trace import TracerProvider
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+                OTLPSpanExporter,
+            )
+            from opentelemetry._logs import set_logger_provider
+            from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+            from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+            from opentelemetry.exporter.otlp.proto.http._log_exporter import (
+                OTLPLogExporter,
+            )
+            from snowflake.snowpark._internal.external_telemetry import (
+                RetryWithTokenRefreshAdapter,
+                ProxyTracerProvider,
+            )
+        except ImportError as e:
+            _logger.debug(
+                f"failed with:{str(e)}, opentelemetry is required to use external telemetry service"
+            )
+            return
+
+        if not enable_log_level and not enable_trace_level:
+            _logger.warning(
+                f"Snowpark python log_level and trace_level are not enabled to collect telemetry into event table: {event_table}."
+            )
+            return
+
+        try:
+
+            url = f"https://{self.connection.host}:{self.connection.port}/observability/event-table/hostname"
+            response = requests.get(
+                url, headers=self._get_external_telemetry_auth_token()
+            )
+            if response.status_code != 200:
+                response.raise_for_status()
+            endpoint = response.text
+        except Exception as e:
+            _logger.debug(
+                f"failed to acquire event table endpoint with:{str(e)}, no external telemetry will be collected"
+            )
+            return
+
+        resource = Resource.create({"service.name": "snow.snowpark.external"})
+
+        header = self._get_external_telemetry_auth_token()
+
+        with self._lock:
+            if enable_trace_level and self._proxy_tracer_provider is None:
+                url = f"https://{endpoint}/v1/traces"
+
+                self._proxy_tracer_provider = ProxyTracerProvider()
+                trace.set_tracer_provider(self._proxy_tracer_provider)
+
+                self._tracer_provider = TracerProvider(resource=resource)
+
+                trace_session = requests.Session()
+                trace_session.headers.update(header)
+                trace_session.mount(
+                    "https://", RetryWithTokenRefreshAdapter(self, header)
+                )
+                trace_session.mount(
+                    "http://", RetryWithTokenRefreshAdapter(self, header)
+                )
+
+                exporter = OTLPSpanExporter(endpoint=url, session=trace_session)
+                self._span_processor = BatchSpanProcessor(exporter)
+                self._tracer_provider.add_span_processor(self._span_processor)
+                self._proxy_tracer_provider.set_real_provider(self._tracer_provider)
+                self._proxy_tracer_provider.enable()
+
+                self._tracer_provider_enabled = True
+            elif (
+                enable_trace_level
+                and self._proxy_tracer_provider
+                and not self._tracer_provider_enabled
+            ):
+                self._enable_tracer_provider()
+
+            if enable_log_level and self._log_handler is None:
+                url = f"https://{endpoint}/v1/logs"
+                self._proxy_log_provider = ProxyLogProvider()
+                set_logger_provider(self._proxy_log_provider)
+
+                self._logger_provider = LoggerProvider(resource=resource)
+
+                log_session = requests.Session()
+                log_session.headers.update(header)
+                log_session.mount(
+                    "https://", RetryWithTokenRefreshAdapter(self, header)
+                )
+                log_session.mount("http://", RetryWithTokenRefreshAdapter(self, header))
+
+                exporter = OTLPLogExporter(endpoint=url, session=log_session)
+                self._log_processor = BatchLogRecordProcessor(exporter)
+                self._logger_provider.add_log_record_processor(self._log_processor)
+
+                self._proxy_log_provider.set_real_provider(self._logger_provider)
+                self._proxy_log_provider.enable()
+
+                self._log_handler = LoggingHandler(
+                    logger_provider=self._proxy_log_provider
+                )
+                # TODO: update docstring that you need to use getLogger() instead of basicConfig()
+                logging.getLogger().addHandler(self._log_handler)
+
+                self._logger_provider_enabled = True
+            elif (
+                enable_log_level
+                and self._logger_provider
+                and not self._logger_provider_enabled
+            ):
+                self._enable_logger_provider()
+
+    def disable_external_telemetry(self):
+        with self._lock:
+            if self._tracer_provider:
+                self._disable_tracer_provider()
+
+            if self._logger_provider:
+                self._disable_logger_provider()
+
+    def _get_external_telemetry_auth_token(self):
+        with self._lock:
+            self._attestation = create_attestation(
+                self.connection.auth_class.provider,
+                self.connection.auth_class.entra_resource,
+                self.connection.auth_class.token,
+                session_manager=(
+                    self.connection._session_manager.clone(max_retries=0)
+                    if self.connection
+                    else None
+                ),
+            )
+            headers = {
+                "Authorization": f"Bearer WIF.AWS.{self._attestation.credential}",
+            }
+            if self._event_table is not None:
+                headers["event-table"] = self._event_table
+
+        return headers
+
+    def _disable_tracer_provider(self):
+        if self._proxy_tracer_provider and self._tracer_provider_enabled:
+            self._proxy_tracer_provider.disable()
+            self._tracer_provider_enabled = False
+
+    def _enable_tracer_provider(self):
+        if self._proxy_tracer_provider and not self._tracer_provider_enabled:
+            self._proxy_tracer_provider.enable()
+            self._tracer_provider_enabled = True
+
+    def _disable_logger_provider(self):
+        if self._logger_provider and self._logger_provider_enabled:
+            self._proxy_log_provider.disable()
+            self._logger_provider_enabled = False
+
+    def _enable_logger_provider(self):
+        if self._logger_provider and not self._logger_provider_enabled:
+            self._proxy_log_provider.enable()
+            self._logger_provider_enabled = True
