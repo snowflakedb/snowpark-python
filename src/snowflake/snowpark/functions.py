@@ -10813,27 +10813,25 @@ def service(
 
     Example::
 
-        >>> original_role = session.get_current_role()
-        >>> original_db = session.get_current_database()
-        >>> original_schema = session.get_current_schema()
-        >>> try:
-        ...     session.use_role("test_role")
-        ...     session.use_database("tutorial_db")
-        ...     session.use_schema("data_schema")
-        ...     svc = service("tutorial_2_job_service")
-        ...     result_df = session.range(1).select(svc("SPCS_CANCEL_JOB")())
-        ...     result_df.show()
-        ... finally:
-        ...     if original_role:
-        ...         session.use_role(original_role)
-        ...     if original_db:
-        ...         session.use_database(original_db)
-        ...     if original_schema:
-        ...         session.use_schema(original_schema)
+        >>> service_instance = service("FORECAST_MODEL_SERVICE")
+        >>> # Prepare a DataFrame with the ten expected features
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         (0.038076, 0.050680, 0.061696, 0.021872, -0.044223, -0.034821, -0.043401, -0.002592, 0.019907, -0.017646),
+        ...         (-0.001882, -0.044642, -0.051474, -0.026328, -0.008449, -0.019163, 0.074412, -0.039493, -0.068332, -0.092204),
+        ...     ],
+        ...     schema=["age", "sex", "bmi", "bp", "s1", "s2", "s3", "s4", "s5", "s6"],
+        ... )
+        >>> # Invoke the model's predict method exposed by the service
+        >>> result_df = df.select(
+        ...     service_instance("predict")(col("age"), col("sex"), col("bmi"), col("bp"), col("s1"), col("s2"), col("s3"), col("s4"), col("s5"), col("s6"))["output_feature_0"]
+        ... )
+        >>> result_df.show()
         ------------------------------------------------------
-        |"TUTORIAL_2_JOB_SERVICE!SPCS_CANCEL_JOB()"          |
+        |"FORECAST_MODEL_SERVICE!PREDICT(""AGE"", ""SEX"...  |
         ------------------------------------------------------
-        |Job TUTORIAL_2_JOB_SERVICE is already canceled ...  |
+        |82.31314086914062                                   |
+        |220.2223358154297                                   |
         ------------------------------------------------------
         <BLANKLINE>
     """
