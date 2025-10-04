@@ -102,6 +102,16 @@
       - `st_covers`
       - `st_difference`
       - `st_dimension`
+      - `st_disjoint`
+      - `st_distance`
+      - `st_dwithin`
+      - `st_endpoint`
+      - `st_envelope`
+      - `st_geohash`
+      - `st_geomfromgeohash`
+      - `st_geompointfromgeohash`
+      - `st_hausdorffdistance`
+      - `st_makepoint`
 
 #### Bug Fixes
 
