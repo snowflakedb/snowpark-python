@@ -1,0 +1,2 @@
+# This directory stores CSV export files from test runs
+# Files are named: dbapi_test_results_<timestamp>.csv
