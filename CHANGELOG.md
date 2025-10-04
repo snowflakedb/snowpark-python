@@ -1,5 +1,13 @@
 # Release History
 
+## 1.41.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+
 ## 1.40.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates

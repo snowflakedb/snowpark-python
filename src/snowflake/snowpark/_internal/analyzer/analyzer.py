@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     like_expression,
     list_agg,
     model_expression,
+    service_expression,
     named_arguments_function,
     order_expression,
     range_statement,
@@ -74,6 +75,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ListAgg,
     Literal,
     ModelExpression,
+    ServiceExpression,
     MultipleExpression,
     NamedExpression,
     NamedFunctionExpression,
@@ -423,6 +425,16 @@ class Analyzer:
             return model_expression(
                 expr.model_name,
                 expr.version_or_alias_name,
+                expr.method_name,
+                [
+                    self.to_sql_try_avoid_cast(c, df_aliased_col_name_to_real_col_name)
+                    for c in expr.children
+                ],
+            )
+
+        if isinstance(expr, ServiceExpression):
+            return service_expression(
+                expr.service_name,
                 expr.method_name,
                 [
                     self.to_sql_try_avoid_cast(c, df_aliased_col_name_to_real_col_name)
