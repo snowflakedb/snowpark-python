@@ -59,6 +59,7 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
 )
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
+    MethodKey,
 )
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
@@ -102,7 +103,7 @@ def register_series_not_implemented():
             if isinstance(base_method, property)
             else base_method.__name__
         )
-        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(("Series", name))
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(MethodKey("Series", name))
         register_function_for_pre_op_switch(
             class_name="Series", backend="Snowflake", method=name
         )
