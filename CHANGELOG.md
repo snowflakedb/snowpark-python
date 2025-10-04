@@ -120,11 +120,6 @@
 - Removed unnecessary warnings about local package version mismatch when using `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)` or `xpath` functions.
 - Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 100000.
 - Improved error message for XSD validation failure when reading XML files using `session.read.option('rowValidationXSDPath', <xsd_path>).xml(<stage_file_path>)`.
-- Enhanced autoswitching functionality from Snowflake to native Pandas for methods with unsupported argument combinations:
-  - `get_dummies()` with `dummy_na=True`, `drop_first=True`, or custom `dtype` parameters
-  - `cumsum()`, `cummin()`, `cummax()` with `axis=1` (column-wise operations)
-  - `skew()` with `axis=1` or `numeric_only=False` parameters
-  - `round()` with `decimals` parameter as a Series
 
 ### Snowpark pandas API Updates
 
@@ -145,7 +140,11 @@
 - When hybrid execution is enabled, `pd.merge`, `pd.concat`, `DataFrame.merge`, and `DataFrame.join` may now move arguments to backends other than those among the function arguments.
 - Improved performance of `DataFrame.to_snowflake` and `pd.to_snowflake(dataframe)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
 - Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
-- Enabled autoswitching from Snowflake to native Pandas for 
+- Enhanced autoswitching functionality from Snowflake to native Pandas for methods with unsupported argument combinations:
+  - `get_dummies()` with `dummy_na=True`, `drop_first=True`, or custom `dtype` parameters
+  - `cumsum()`, `cummin()`, `cummax()` with `axis=1` (column-wise operations)
+  - `skew()` with `axis=1` or `numeric_only=False` parameters
+  - `round()` with `decimals` parameter as a Series
 
 ## 1.39.1 (2025-09-25)
 
