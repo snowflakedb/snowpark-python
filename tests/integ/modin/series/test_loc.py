@@ -94,7 +94,7 @@ def use_default_index(request):
     return request.param
 
 
-@pytest.fixture(params=["series", "list", "array", "index"], scope="module")
+@pytest.fixture(params=["series", "list", "array", "index"])
 def key_type(request):
     return request.param
 
