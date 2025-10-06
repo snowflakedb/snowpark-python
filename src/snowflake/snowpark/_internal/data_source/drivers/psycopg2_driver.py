@@ -237,7 +237,9 @@ class Psycopg2Driver(BaseDriver):
                 cast_type = BaseDriver.get_cast_type_with_default_string_length(
                     field.datatype
                 )
-                project_columns.append(column(field.name).cast(cast_type))
+                project_columns.append(
+                    column(field.name).cast(cast_type).alias(field.name)
+                )
             else:
                 project_columns.append(column(field.name))
         return session.table(table_name, _emit_ast=_emit_ast).select(
