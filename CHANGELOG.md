@@ -13,6 +13,7 @@
 #### Improvements
 
 - Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+- Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 
 ## 1.40.0 (2025-10-06)
 
