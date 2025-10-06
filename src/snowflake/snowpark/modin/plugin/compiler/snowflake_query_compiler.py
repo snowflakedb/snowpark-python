@@ -600,13 +600,11 @@ class UnsupportedArgsRule:
         Returns:
             The specific reason string if unsupported args detected, None otherwise
         """
-        if args is None:
-            return None
-
         rule = HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS.get(
             MethodKey(api_cls_name, operation)
         )
-        if rule is None:
+
+        if args is None or rule is None:
             return None
 
         # Check custom conditions and return the specific reason
