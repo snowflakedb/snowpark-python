@@ -544,7 +544,7 @@ def register_query_compiler_method_not_implemented(
     """
     Decorator for SnowflakeQueryCompiler methods with args-based auto-switching.
 
-    Registers pre-op switching and raises a NotImplementedError if any unsupported-parameter predicate evaluates True.
+    Registers pre-op switching for the specified API-layer method, replacing the decorated query compiler method with a version that raises a NotImplementedError if any unsupported parameter predicate evaluates True.
 
     Args:
         api_cls_name: Frontend class name (e.g., "BasePandasDataset", "Series", "DataFrame", "None").
@@ -576,9 +576,8 @@ def register_query_compiler_method_not_implemented(
             )
             bound_arguments.apply_defaults()
             # Extract parameters excluding 'self'
-            arguments = MappingProxyType(
-                {k: v for k, v in bound_arguments.arguments.items() if k != "self"}
-            )
+            arguments = bound_arguments.arguments
+            del arguments["self"]
 
             # Check if any condition triggers unsupported behavior
             if SnowflakeQueryCompiler._has_unsupported_args(
@@ -988,31 +987,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         args: Optional[MappingProxyType[Any, Any]],
     ) -> bool:
         """
-        Check if method call contains unsupported args that require pandas backend.
+        Check if method call contains unsupported args that can only be run on the native pandas backend.
 
         This method evaluates registered UnsupportedArgsRule conditions to determine
         if the provided arguments are not supported by Snowpark pandas and should
-        trigger an auto-switch to pandas backend.
+        trigger an auto-switch to the native pandas backend.
 
         Args:
             api_cls_name: Class name (DataFrame, Series, BasePandasDataset, None for top-level functions)
             operation: Method name
-            args: Method arguments including args
+            args: Method arguments, including *args and **kwargs
 
         Returns:
-            True if unsupported args detected and auto-switch should occur
+            True if unsupported args are detected and an auto-switch should occur.
         """
-        if not operation:
+        if not operation or args is None or rule not in HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS:
             return False
 
-        if args is None:
-            return False
-
-        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS.get(
+        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[
             MethodKey(api_cls_name, operation)
-        )
-        if rule is None:
-            return False
+        ]
 
         # Check custom conditions
         for condition in rule.unsupported_conditions:
@@ -1158,7 +1152,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         operation: str,
         arguments: MappingProxyType[str, Any],
     ) -> Optional[int]:
-
         if (
             self._is_in_memory_init(api_cls_name, operation, arguments)
             or MethodKey(api_cls_name, operation)
