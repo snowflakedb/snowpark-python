@@ -1,5 +1,13 @@
 # Release History
 
+## 1.41.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
+
 ## 1.40.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -288,7 +296,6 @@
   - `current_secondary_roles`
   - `current_transaction`
   - `getbit`
-- Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 
 #### Bug Fixes
 
