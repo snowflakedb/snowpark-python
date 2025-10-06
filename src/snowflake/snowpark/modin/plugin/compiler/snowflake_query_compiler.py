@@ -46,6 +46,9 @@ import pandas.io.parsers.readers
 import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
 from modin.core.storage_formats.base.query_compiler import QCCoercionCost
+from modin.core.storage_formats.pandas.query_compiler_caster import (
+    register_function_for_pre_op_switch,
+)
 from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -544,13 +547,21 @@ def register_query_compiler_method_not_implemented(
     """
     Decorator for SnowflakeQueryCompiler methods with args-based auto-switching.
 
-    Registers pre-op switching for the specified API-layer method, replacing the decorated query compiler method with a version that raises a NotImplementedError if any unsupported parameter predicate evaluates True.
+    Registers pre-op switching for the specified API-layer method, replacing the decorated query
+    compiler method with a version that raises a NotImplementedError if any unsupported parameter predicate evaluates True.
+
+    This decorator is applied at the query compiler level rather than the frontend to avoid
+    creating unnecessary frontend overrides. Frontend decorators in Modin must attach to an
+    existing method for dispatch, but many functions already rely on Modin's default frontend
+    implementations and delegate directly to the query compiler. Adding frontend decorators
+    would require redundant overrides solely as attachment points, increasing code complexity
+    without meaningful benefit.
 
     Args:
         api_cls_name: Frontend class name (e.g., "BasePandasDataset", "Series", "DataFrame", "None").
         method_name: Method name to register.
         unsupported_args: UnsupportedArgsRule for args-based auto-switching.
-                            If None, method is treated as completely unimplemented.
+                          If None, method is treated as completely unimplemented.
     """
     reg_key = MethodKey(api_cls_name, method_name)
 
@@ -559,10 +570,6 @@ def register_query_compiler_method_not_implemented(
         HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(reg_key)
     else:
         HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[reg_key] = unsupported_args
-
-    from modin.core.storage_formats.pandas.query_compiler_caster import (
-        register_function_for_pre_op_switch,
-    )
 
     register_function_for_pre_op_switch(
         class_name=api_cls_name, backend="Snowflake", method=method_name
@@ -575,9 +582,11 @@ def register_query_compiler_method_not_implemented(
                 self, *args, **kwargs
             )
             bound_arguments.apply_defaults()
+
             # Extract parameters excluding 'self'
-            arguments = bound_arguments.arguments
-            del arguments["self"]
+            arguments = MappingProxyType(
+                {k: v for k, v in bound_arguments.arguments.items() if k != "self"}
+            )
 
             # Check if any condition triggers unsupported behavior
             if SnowflakeQueryCompiler._has_unsupported_args(
@@ -999,14 +1008,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             args: Method arguments, including *args and **kwargs
 
         Returns:
-            True if unsupported args are detected and an auto-switch should occur.
+            True if unsupported args detected and auto-switch should occur
         """
-        if not operation or args is None or rule not in HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS:
+        if not operation or args is None:
             return False
 
-        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[
-            MethodKey(api_cls_name, operation)
-        ]
+        method_key = MethodKey(api_cls_name, operation)
+        if method_key not in HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS:
+            return False
+
+        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[method_key]
 
         # Check custom conditions
         for condition in rule.unsupported_conditions:
