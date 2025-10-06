@@ -175,7 +175,10 @@ class BaseDriver:
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
             """
         res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
-        return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
+        return BaseDriver.keep_nullable_attributes(
+            self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast),
+            schema,
+        )
 
     def udtf_class_builder(
         self,
@@ -284,6 +287,14 @@ class BaseDriver:
         session: "Session", table_name: str, schema: StructType, _emit_ast: bool = True
     ) -> "DataFrame":
         return session.table(table_name, _emit_ast=_emit_ast)
+
+    @staticmethod
+    def keep_nullable_attributes(
+        selected_df: "DataFrame", schema: StructType
+    ) -> "DataFrame":
+        for attr, source_field in zip(selected_df._plan.attributes, schema.fields):
+            attr.nullable = source_field.nullable
+        return selected_df
 
     @staticmethod
     def to_result_snowpark_df_udtf(
