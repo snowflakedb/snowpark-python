@@ -694,7 +694,7 @@ def test_add_packages_with_native_dependency_without_force_push(session):
         with pytest.raises(
             RuntimeError, match="Your code depends on packages that contain native code"
         ):
-            session.add_packages(["catboost==1.2.8"])
+            session.add_packages(["pymupdf==1.24.10"])
 
 
 @pytest.fixture(scope="function")
