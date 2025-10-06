@@ -10813,7 +10813,7 @@ def service(
 
     Example::
 
-        >>> service_instance = service("FORECAST_MODEL_SERVICE")
+        >>> service_instance = service("TESTSCHEMA_SNOWPARK_PYTHON.FORECAST_MODEL_SERVICE")
         >>> # Prepare a DataFrame with the ten expected features
         >>> df = session.create_dataframe(
         ...     [
@@ -10827,7 +10827,7 @@ def service(
         ... )
         >>> result_df.show()
         ------------------------------------------------------
-        |"FORECAST_MODEL_SERVICE!PREDICT(""AGE"", ""SEX"...  |
+        |"TESTSCHEMA_SNOWPARK_PYTHON.FORECAST_MODEL_SERV...  |
         ------------------------------------------------------
         |220.2223358154297                                   |
         ------------------------------------------------------
