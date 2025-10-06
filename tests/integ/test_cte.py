@@ -809,7 +809,6 @@ def test_sql_simplifier(session):
         describe_count=0,
         union_count=0,
         join_count=2,
-        describe_count_for_optimized=1 if session._join_alias_fix else None,
     )
     with SqlCounter(query_count=0, describe_count=0):
         # When adding a lsuffix, expr alias map will be updated, so df2 and df3 are considered

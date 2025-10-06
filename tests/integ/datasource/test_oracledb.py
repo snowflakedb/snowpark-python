@@ -255,6 +255,18 @@ def test_unsupported_type():
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
 
 
+def test_oracledb_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="ORA-00920: invalid relational operator",
+    ):
+        session.read.dbapi(
+            create_connection_oracledb,
+            table=ORACLEDB_TABLE_NAME,
+            predicates=["invalid syntax"],
+        ).collect()
+
+
 def test_query_timeout_and_session_init(session):
     statement = """
     BEGIN
