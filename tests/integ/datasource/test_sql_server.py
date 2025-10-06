@@ -8,7 +8,7 @@ from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
 from snowflake.snowpark.types import StringType
 
 from tests.parameters import SQL_SERVER_CONNECTION_PARAMETERS
-from tests.utils import IS_IN_STORED_PROC, Utils
+from tests.utils import IS_IN_STORED_PROC, Utils, IS_WINDOWS, IS_MACOS, RUNNING_ON_GH
 from tests.resources.test_data_source_dir.test_sql_server_data import (
     SQL_SERVER_TABLE_NAME,
     EXPECTED_TEST_DATA,
@@ -36,6 +36,14 @@ except ImportError:
 pytestmark = [
     pytest.mark.skipif(DEPENDENCIES_PACKAGE_UNAVAILABLE, reason="Missing 'pyodbc'"),
     pytest.mark.skipif(IS_IN_STORED_PROC, reason="Need External Access Integration"),
+    pytest.mark.skipif(
+        RUNNING_ON_GH and (IS_WINDOWS or IS_MACOS),
+        reason="ODBC Driver 18 for SQL Server is not installed",
+    ),
+    pytest.mark.skipif(
+        not RUNNING_ON_GH,
+        reason="Only run on GitHub action since it has the driver and access to SQL Server",
+    ),
 ]
 
 

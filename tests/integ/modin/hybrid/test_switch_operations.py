@@ -32,6 +32,9 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.plugin.extensions.datetime_index import DatetimeIndex
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    MODIN_IS_AT_LEAST_0_37_0,
+)
 from tests.integ.utils.sql_counter import sql_count_checker
 from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
@@ -151,27 +154,29 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
         df_incompatible.move_to("Snowflake")
 
 
-# There is no query count because the Snowflake->Pandas migration
-# of the small dataset is not counted and there is no actual materialization
-# of the merge
-@sql_count_checker(query_count=0)
-def test_merge(init_transaction_tables, us_holidays_data):
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+# Newer version of modin switches before the merge
+@sql_count_checker(query_count=2 if MODIN_IS_AT_LEAST_0_37_0 else 0)
+def test_merge(revenue_transactions, us_holidays_data):
+    df_transactions = pd.read_snowflake(revenue_transactions)
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
     assert df_transactions.get_backend() == "Snowflake"
     assert df_us_holidays.get_backend() == "Pandas"
-    # Since `df_us_holidays` is much smaller than `df_transactions`, we moved `df_us_holidays`
-    # to Snowflake where `df_transactions` is, to perform the operation.
     combined = pd.merge(
         df_us_holidays, df_transactions, left_on="Date", right_on="DATE"
     )
-    assert combined.get_backend() == "Snowflake"
+    if MODIN_IS_AT_LEAST_0_37_0:
+        # Because the result of the merge is small enough to be faster to execute in native pandas,
+        # we move the Snowflake data to pandas.
+        assert combined.get_backend() == "Pandas"
+    else:
+        # Older version of modin moves to Snowflake because df_us_holidays is small.
+        assert combined.get_backend() == "Snowflake"
 
 
 @sql_count_checker(query_count=2)
-def test_filtered_data(init_transaction_tables):
+def test_filtered_data(revenue_transactions):
     # When data is filtered, the engine should change when it is sufficiently small.
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    df_transactions = pd.read_snowflake(revenue_transactions)
     assert df_transactions.get_backend() == "Snowflake"
     # in-place operations that do not change the backend
     # TODO: the following will result in an align which will grow the
@@ -198,7 +203,7 @@ def test_filtered_data(init_transaction_tables):
     # The SQL here is functionatly the same as above
     # Unlike in previous iterations of hybrid this does *not* move the data immediately
     df_transactions_filter2 = pd.read_snowflake(
-        "SELECT Date, SUM(Revenue) AS REVENUE FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09' GROUP BY DATE"
+        f"SELECT Date, SUM(Revenue) AS REVENUE FROM {revenue_transactions} WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09' GROUP BY DATE"
     )
     # We do not know the size of this data yet, because the query is entirely lazy
     assert df_transactions_filter2.get_backend() == "Snowflake"
@@ -222,8 +227,8 @@ def test_filtered_data(init_transaction_tables):
 
 
 @sql_count_checker(query_count=3)
-def test_apply(init_transaction_tables, us_holidays_data):
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS").head(1000)
+def test_apply(revenue_transactions, us_holidays_data):
+    df_transactions = pd.read_snowflake(revenue_transactions).head(1000)
     assert df_transactions.get_backend() == "Snowflake"
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
     df_us_holidays["Date"] = pd.to_datetime(df_us_holidays["Date"])
@@ -337,10 +342,11 @@ def test_explain_switch_empty():
     assert new_switch_index_names == empty_switch_index_names
 
 
-@sql_count_checker(query_count=0)
-def test_explain_switch(init_transaction_tables, us_holidays_data):
+# Newer version of modin switches before the merge
+@sql_count_checker(query_count=2 if MODIN_IS_AT_LEAST_0_37_0 else 0)
+def test_explain_switch(revenue_transactions, us_holidays_data):
     clear_hybrid_switch_log()
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    df_transactions = pd.read_snowflake(revenue_transactions)
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
     pd.merge(df_us_holidays, df_transactions, left_on="Date", right_on="DATE")
     assert "decision" in str(pd.explain_switch())
@@ -427,7 +433,11 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args, use_session
         # Series.to_json will output an extraneous level for the __reduced__ column, but that's OK
         # since we don't officially support the method.
         # See modin bug: https://github.com/modin-project/modin/issues/7624
-        if class_name == "Series" and method_name == "to_json":
+        if (
+            not MODIN_IS_AT_LEAST_0_37_0
+            and class_name == "Series"
+            and method_name == "to_json"
+        ):
             assert snow_result == '{"__reduced__":{"0":1,"1":2,"2":3}}'
         else:
             assert snow_result == pandas_result
@@ -449,7 +459,7 @@ def test_to_datetime():
     high_count_expected=True,
     high_count_reason="tests queries across different execution modes",
 )
-def test_query_count_no_switch(init_transaction_tables, use_session_param):
+def test_query_count_no_switch(revenue_transactions, use_session_param):
     """
     Tests that when there is no switching behavior the query count is the
     same under hybrid mode and non-hybrid mode.
@@ -461,7 +471,7 @@ def test_query_count_no_switch(init_transaction_tables, use_session_param):
         df_result["COUNT"] = df_result.groupby("DATE")["REVENUE"].transform("count")
         return df_result
 
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    df_transactions = pd.read_snowflake(revenue_transactions)
     inner_test(df_transactions)
     orig_len = None
     hybrid_len = None

@@ -85,6 +85,11 @@ class DataSourceReader:
                         batch = []
             else:
                 raise ValueError("fetch size cannot be smaller than 0")
+        except Exception as exc:
+            if self.driver.non_retryable_error_checker(exc):
+                raise SnowparkDataframeReaderException(message=str(exc))
+            else:
+                raise
         finally:
             try:
                 cursor.close()

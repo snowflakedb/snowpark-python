@@ -137,6 +137,8 @@ from snowflake.snowpark._internal.type_utils import (
     ColumnOrName,
     ColumnOrSqlExpr,
     LiteralType,
+    format_day_time_interval_for_display,
+    format_year_month_interval_for_display,
     snow_type_to_dtype_str,
     type_string_to_type_object,
 )
@@ -206,6 +208,7 @@ from snowflake.snowpark.table_function import (
 from snowflake.snowpark.types import (
     ArrayType,
     DataType,
+    DayTimeIntervalType,
     MapType,
     PandasDataFrameType,
     StringType,
@@ -215,6 +218,7 @@ from snowflake.snowpark.types import (
     _FractionalType,
     TimestampType,
     TimestampTimeZone,
+    YearMonthIntervalType,
 )
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -5115,6 +5119,20 @@ class DataFrame:
                     res = "-Infinity"
                 else:
                     res = str(cell).replace("e+", "E").replace("e-", "E-")
+            elif isinstance(cell, str) and isinstance(datatype, YearMonthIntervalType):
+                start_field = getattr(
+                    datatype, "start_field", YearMonthIntervalType.YEAR
+                )
+                end_field = getattr(datatype, "end_field", YearMonthIntervalType.MONTH)
+                res = format_year_month_interval_for_display(
+                    cell, start_field, end_field
+                )
+            elif isinstance(cell, (str, datetime.timedelta)) and isinstance(
+                datatype, DayTimeIntervalType
+            ):
+                start_field = getattr(datatype, "start_field", DayTimeIntervalType.DAY)
+                end_field = getattr(datatype, "end_field", DayTimeIntervalType.SECOND)
+                res = format_day_time_interval_for_display(cell, start_field, end_field)
             else:
                 res = str(cell)
             return res.replace("\n", "\\n")
