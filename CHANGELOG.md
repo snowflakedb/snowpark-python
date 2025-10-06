@@ -1,5 +1,19 @@
 # Release History
 
+## 1.41.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+- Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
+
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+
 ## 1.40.0 (2025-10-06)
 
 ### Snowpark Python API Updates
