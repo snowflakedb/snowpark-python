@@ -5,6 +5,8 @@
 import logging
 import math
 import sys
+from collections import namedtuple
+from unittest.mock import patch
 
 import pytest
 
@@ -17,6 +19,11 @@ from snowflake.snowpark._internal.data_source.drivers import (
 )
 from snowflake.snowpark._internal.data_source.utils import (
     DBMS_TYPE,
+)
+from snowflake.snowpark.types import StructType, StructField, StringType
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkSQLException,
 )
 from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 from tests.resources.test_data_source_dir.test_data_source_data import (
@@ -135,14 +142,6 @@ def test_dbapi_batch_fetch(
         assert df.order_by("ID").collect() == expected_result
 
 
-def test_type_conversion():
-    invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
-    with pytest.raises(NotImplementedError, match="oracledb type not supported"):
-        OracledbDriver(create_connection_oracledb, DBMS_TYPE.ORACLE_DB).to_snow_type(
-            [invalid_type]
-        )
-
-
 def test_oracledb_driver_coverage(caplog):
     oracledb_driver = OracledbDriver(create_connection_oracledb, DBMS_TYPE.ORACLE_DB)
     conn = oracledb_driver.prepare_connection(oracledb_driver.create_connection(), 0)
@@ -242,3 +241,138 @@ def test_double_quoted_column_name_oracledb(session, custom_schema):
         )
     ]
     assert df.schema == oracledb_double_quoted_schema
+
+
+def test_unsupported_type():
+    invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
+    MockDescription = namedtuple(
+        "mock_description", ["name", "type_code", "precision", "scale", "null_ok"]
+    )
+
+    schema = OracledbDriver(
+        create_connection_oracledb, DBMS_TYPE.ORACLE_DB
+    ).to_snow_type([MockDescription("test_col", invalid_type, 0, 0, True)])
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_oracledb_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="ORA-00920: invalid relational operator",
+    ):
+        session.read.dbapi(
+            create_connection_oracledb,
+            table=ORACLEDB_TABLE_NAME,
+            predicates=["invalid syntax"],
+        ).collect()
+
+
+def test_query_timeout_and_session_init(session):
+    statement = """
+    BEGIN
+        DBMS_LOCK.SLEEP(5);
+    END;
+"""
+    with pytest.raises(SnowparkDataframeReaderException) as error:
+        session.read.dbapi(
+            create_connection_oracledb,
+            table=ORACLEDB_TABLE_NAME,
+            query_timeout=1,
+            session_init_statement=[statement],
+        )
+    assert "socket timed out while recovering from previous socket timeout" in str(
+        error.value
+    ) or "call timeout of 1000 ms exceeded" in str(error.value)
+
+
+def test_query_timeout_and_session_init_udtf(session):
+    udtf_configs = {
+        "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION
+    }
+    statement = """
+        BEGIN
+            DBMS_LOCK.SLEEP(5);
+        END;
+    """
+
+    def create_connection_udtf_oracledb():
+        import oracledb
+
+        host = ORACLEDB_CONNECTION_PARAMETERS["host"]
+        port = ORACLEDB_CONNECTION_PARAMETERS["port"]
+        service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
+        username = ORACLEDB_CONNECTION_PARAMETERS["username"]
+        password = ORACLEDB_CONNECTION_PARAMETERS["password"]
+        dsn = f"{host}:{port}/{service_name}"
+        connection = oracledb.connect(user=username, password=password, dsn=dsn)
+        return connection
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="call timeout of 1000 ms exceeded",
+    ):
+        session.read.dbapi(
+            create_connection_udtf_oracledb,
+            table=ORACLEDB_TABLE_NAME,
+            query_timeout=1,
+            session_init_statement=[statement],
+            udtf_configs=udtf_configs,
+        ).collect()
+
+
+def test_oracledb_driver_udtf_class_builder():
+    """Test the UDTF class builder in OracledbDriver using a real Oracledb connection"""
+    # Create the driver with the real connection function
+    driver = OracledbDriver(create_connection_oracledb, DBMS_TYPE.ORACLE_DB)
+
+    # Get the UDTF class with a small fetch size to test batching
+    UDTFClass = driver.udtf_class_builder(
+        fetch_size=2, session_init_statement=["select 1 from dual"], query_timeout=1
+    )
+
+    # Instantiate the UDTF class
+    udtf_instance = UDTFClass()
+
+    # Test with a simple query that should return a few rows
+    test_query = f"SELECT * FROM {ORACLEDB_TABLE_NAME}"
+    result_rows = list(udtf_instance.process(test_query))
+
+    # Verify we got some data back (we know the test table has data from other tests)
+    assert len(result_rows) > 0
+
+    # Test with a query that returns specific columns
+    test_columns_query = f"SELECT ID, NUMBER_COL FROM {ORACLEDB_TABLE_NAME}"
+    column_result_rows = list(udtf_instance.process(test_columns_query))
+
+    # Verify we got data with the right structure (2 columns)
+    assert len(column_result_rows) > 0
+    assert len(column_result_rows[0]) == 2  # Two columns
+
+
+def test_dbapi_no_hang_on_exit_when_worker_error(session):
+    """
+    Test that the dbapi reader does not hang on exit when a worker raises an error
+
+    Ideally the test should be put in test_data_source_api.py,
+    however, reproducing using SQLite is hard to achieve while pure mocking gets the test code too complex.
+    Hence, we use Oracledb here which can repro the issue reliably without the fix.
+    """
+    with patch(
+        "snowflake.snowpark._internal.data_source.drivers.base_driver.BaseDriver.data_source_data_to_pandas_df"
+    ) as mock_data_source_data_to_pandas_df:
+        # Mock the data_source_data_to_pandas_df method to raise RuntimeError
+        mock_data_source_data_to_pandas_df.side_effect = RuntimeError(
+            "conversion error"
+        )
+
+        # Expect the dbapi call to raise a SnowparkDataframeReaderException due to the worker error
+        with pytest.raises(SnowparkDataframeReaderException, match="conversion error"):
+            session.read.dbapi(
+                create_connection_oracledb,
+                table=ORACLEDB_TABLE_NAME,
+                column="ID",
+                lower_bound=0,
+                upper_bound=100,
+                num_partitions=10,
+                max_workers=2,
+            )

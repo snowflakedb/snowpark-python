@@ -81,6 +81,7 @@ from snowflake.snowpark.types import (
     BooleanType,
     ByteType,
     DateType,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -1793,6 +1794,117 @@ def test_create_dataframe_with_year_month_interval_type(session):
     assert interval_sql_result[0][2] == "-1-06"
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
+def test_create_dataframe_with_day_time_interval_type(session):
+    schema = StructType([StructField("interval_col", DayTimeIntervalType())])
+    data = [["1 12:30:45"], ["-2 08:15:30"]]
+    df = session.create_dataframe(data, schema=schema)
+
+    assert isinstance(df.schema.fields[0].datatype, DayTimeIntervalType)
+    result = df.collect()
+    assert len(result) == 2
+    assert result[0][0] == datetime.timedelta(days=1, seconds=45045)
+    assert result[1][0] == datetime.timedelta(days=-3, seconds=56670)
+
+    test_schema = StructType(
+        [
+            StructField("test_date", DateType()),
+            StructField("interval_col", DayTimeIntervalType()),
+        ]
+    )
+
+    test_data = [["2023-01-15", "1 06:30:00"], ["2022-06-30", "-0 03:15:45"]]
+
+    test_df = session.create_dataframe(test_data, schema=test_schema)
+
+    addition_result = test_df.select(
+        (test_df.test_date + test_df.interval_col).alias("date_plus_interval")
+    ).collect()
+
+    subtraction_result = test_df.select(
+        (test_df.test_date - test_df.interval_col).alias("date_minus_interval")
+    ).collect()
+
+    assert len(addition_result) == 2
+    assert addition_result[0][0] == datetime.datetime(2023, 1, 16, 6, 30)
+    assert addition_result[1][0] == datetime.datetime(2022, 6, 29, 20, 44, 15)
+
+    assert len(subtraction_result) == 2
+    assert subtraction_result[0][0] == datetime.datetime(2023, 1, 13, 17, 30)
+    assert subtraction_result[1][0] == datetime.datetime(2022, 6, 30, 3, 15, 45)
+
+    interval_arithmetic_df = session.sql(
+        """
+        SELECT
+            DATE '2023-01-01' + INTERVAL '1 12:00:00' DAY TO SECOND as addition_result,
+            DATE '2023-12-31' - INTERVAL '0 06:30:15' DAY TO SECOND as subtraction_result
+    """
+    )
+
+    arithmetic_result = interval_arithmetic_df.collect()
+    assert len(arithmetic_result) == 1
+    assert arithmetic_result[0][0] == datetime.datetime(2023, 1, 2, 12, 0)
+    assert arithmetic_result[0][1] == datetime.datetime(2023, 12, 30, 17, 29, 45)
+
+    interval_schema = StructType(
+        [
+            StructField("interval1", DayTimeIntervalType()),
+            StructField("interval2", DayTimeIntervalType()),
+        ]
+    )
+
+    interval_data = [
+        ["2 12:30:45", "1 06:15:30"],
+        ["1 00:00:00", "-0 12:30:00"],
+        ["-1 08:45:15", "2 04:30:45"],
+    ]
+
+    interval_df = session.create_dataframe(interval_data, schema=interval_schema)
+
+    interval_addition_result = interval_df.select(
+        (interval_df.interval1 + interval_df.interval2).alias("interval_sum")
+    ).collect()
+
+    interval_subtraction_result = interval_df.select(
+        (interval_df.interval1 - interval_df.interval2).alias("interval_diff")
+    ).collect()
+
+    assert len(interval_addition_result) == 3
+    assert interval_addition_result[0][0] == datetime.timedelta(days=3, seconds=67575)
+    assert interval_addition_result[1][0] == datetime.timedelta(seconds=41400)
+    assert interval_addition_result[2][0] == datetime.timedelta(seconds=71130)
+
+    assert len(interval_subtraction_result) == 3
+    assert interval_subtraction_result[0][0] == datetime.timedelta(
+        days=1, seconds=22515
+    )
+    assert interval_subtraction_result[1][0] == datetime.timedelta(
+        days=1, seconds=45000
+    )
+    assert interval_subtraction_result[2][0] == datetime.timedelta(
+        days=-4, seconds=38640
+    )
+
+    interval_sql_df = session.sql(
+        """
+        SELECT
+            INTERVAL '2 12:30:45' DAY TO SECOND + INTERVAL '1 06:15:30' DAY TO SECOND as interval_addition,
+            INTERVAL '3 00:00:00' DAY TO SECOND - INTERVAL '1 12:30:00' DAY TO SECOND as interval_subtraction,
+            INTERVAL '1 06:30:00' DAY TO SECOND - INTERVAL '2 12:45:30' DAY TO SECOND as interval_subtraction_2,
+    """
+    )
+
+    interval_sql_result = interval_sql_df.collect()
+    assert len(interval_sql_result) == 1
+    assert len(interval_sql_result[0]) == 3
+    assert interval_sql_result[0][0] == datetime.timedelta(days=3, seconds=67575)
+    assert interval_sql_result[0][1] == datetime.timedelta(days=1, seconds=41400)
+    assert interval_sql_result[0][2] == datetime.timedelta(days=-2, seconds=63870)
+
+
 def test_create_dataframe_with_semi_structured_data_types(session):
     data = [
         [
@@ -2422,6 +2534,926 @@ def test_show_dataframe_spark(session):
             """
             ),
         )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Interval types not fully supported in local testing",
+)
+def test_show_interval_formatting(session):
+    df = session.sql("SELECT INTERVAL '1' HOUR as hour_single")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"HOUR_SINGLE"     |
+        +------------------+
+        |INTERVAL '01' HOUR|
+        +------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '5' MINUTE as minute_single")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"MINUTE_SINGLE"     |
+        +--------------------+
+        |INTERVAL '05' MINUTE|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '5' SECOND as second_integer")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"SECOND_INTEGER"    |
+        +--------------------+
+        |INTERVAL '05' SECOND|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '1.000001' SECOND as second_microseconds")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"SECOND_MICROSECONDS"      |
+        +---------------------------+
+        |INTERVAL '01.000001' SECOND|
+        +---------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '24' HOUR as hour_full_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"HOUR_FULL_DAY"   |
+        +------------------+
+        |INTERVAL '24' HOUR|
+        +------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '90' MINUTE as minute_over_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"MINUTE_OVER_HOUR"  |
+        +--------------------+
+        |INTERVAL '90' MINUTE|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '0' SECOND as zero_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"ZERO_SECOND"       |
+        +--------------------+
+        |INTERVAL '00' SECOND|
+        +--------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '0.000001' SECOND as microsecond")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"MICROSECOND"              |
+        +---------------------------+
+        |INTERVAL '00.000001' SECOND|
+        +---------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '2 12' DAY TO HOUR as day_to_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"DAY_TO_HOUR"              |
+        +---------------------------+
+        |INTERVAL '2 12' DAY TO HOUR|
+        +---------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '1 08:30' DAY TO MINUTE as day_to_minute")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------+
+        |"DAY_TO_MINUTE"                 |
+        +--------------------------------+
+        |INTERVAL '1 08:30' DAY TO MINUTE|
+        +--------------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '08:30' HOUR TO MINUTE as hour_to_minute")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------------+
+        |"HOUR_TO_MINUTE"               |
+        +-------------------------------+
+        |INTERVAL '08:30' HOUR TO MINUTE|
+        +-------------------------------+
+        """
+    )
+
+    df = session.sql(
+        "SELECT INTERVAL '01:00:00.456' HOUR TO SECOND as hour_to_second_fractional"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------------+
+        |"HOUR_TO_SECOND_FRACTIONAL"           |
+        +--------------------------------------+
+        |INTERVAL '01:00:00.456' HOUR TO SECOND|
+        +--------------------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-2' HOUR as negative_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"NEGATIVE_HOUR"    |
+        +-------------------+
+        |INTERVAL '-02' HOUR|
+        +-------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-15.5' SECOND as negative_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------+
+        |"NEGATIVE_SECOND"      |
+        +-----------------------+
+        |INTERVAL '-15.5' SECOND|
+        +-----------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '999999' SECOND as large_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"LARGE_SECOND"          |
+        +------------------------+
+        |INTERVAL '999999' SECOND|
+        +------------------------+
+        """
+    )
+
+    # Year-month intervals with dash format
+    df = session.sql("SELECT INTERVAL '1-6' YEAR TO MONTH as year_to_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"YEAR_TO_MONTH"             |
+        +----------------------------+
+        |INTERVAL '1-6' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    # Negative year-month intervals
+    df = session.sql("SELECT INTERVAL '-2-3' YEAR TO MONTH as negative_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------+
+        |"NEGATIVE_YEAR_MONTH"        |
+        +-----------------------------+
+        |INTERVAL '-2-3' YEAR TO MONTH|
+        +-----------------------------+
+        """
+    )
+
+    # Single year intervals (not YEAR TO MONTH)
+    df = session.sql("SELECT INTERVAL '5' YEAR as single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------+
+        |"SINGLE_YEAR"    |
+        +-----------------+
+        |INTERVAL '5' YEAR|
+        +-----------------+
+        """
+    )
+
+    # Single month intervals (not YEAR TO MONTH)
+    df = session.sql("SELECT INTERVAL '8' MONTH as single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_MONTH"    |
+        +------------------+
+        |INTERVAL '8' MONTH|
+        +------------------+
+        """
+    )
+
+    # Zero year-month intervals
+    df = session.sql("SELECT INTERVAL '0-0' YEAR TO MONTH as zero_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"ZERO_YEAR_MONTH"           |
+        +----------------------------+
+        |INTERVAL '0-0' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    # Very large day intervals
+    df = session.sql("SELECT INTERVAL '999' DAY as large_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"LARGE_DAY"       |
+        +------------------+
+        |INTERVAL '999' DAY|
+        +------------------+
+        """
+    )
+
+    # Minute to second with large minutes
+    df = session.sql(
+        "SELECT INTERVAL '150:30' MINUTE TO SECOND as large_minute_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"LARGE_MINUTE_TO_SECOND"          |
+        +----------------------------------+
+        |INTERVAL '150:30' MINUTE TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Day to second with fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '5 10:20:30.123' DAY TO SECOND as day_to_second_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------------+
+        |"DAY_TO_SECOND_FRAC"                   |
+        +---------------------------------------+
+        |INTERVAL '5 10:20:30.123' DAY TO SECOND|
+        +---------------------------------------+
+        """
+    )
+
+    # Hour to second with zero padding in multi-field
+    df = session.sql("SELECT INTERVAL '05:00:00' HOUR TO SECOND as hour_zero_padded")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"HOUR_ZERO_PADDED"                |
+        +----------------------------------+
+        |INTERVAL '05:00:00' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Negative day-time intervals
+    df = session.sql("SELECT INTERVAL '-3 05:30:45' DAY TO SECOND as negative_complex")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------+
+        |"NEGATIVE_COMPLEX"                  |
+        +------------------------------------+
+        |INTERVAL '-3 05:30:45' DAY TO SECOND|
+        +------------------------------------+
+        """
+    )
+
+    # Additional edge cases for complete coverage based on actual Snowflake output
+
+    # Year-month compound intervals
+    df = session.sql("SELECT INTERVAL '1-6' YEAR TO MONTH as year_to_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"YEAR_TO_MONTH"             |
+        +----------------------------+
+        |INTERVAL '1-6' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-2-3' YEAR TO MONTH as negative_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------+
+        |"NEGATIVE_YEAR_MONTH"        |
+        +-----------------------------+
+        |INTERVAL '-2-3' YEAR TO MONTH|
+        +-----------------------------+
+        """
+    )
+
+    # Single field intervals
+    df = session.sql("SELECT INTERVAL '5' YEAR as single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------+
+        |"SINGLE_YEAR"    |
+        +-----------------+
+        |INTERVAL '5' YEAR|
+        +-----------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '8' MONTH as single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_MONTH"    |
+        +------------------+
+        |INTERVAL '8' MONTH|
+        +------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '0-0' YEAR TO MONTH as zero_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"ZERO_YEAR_MONTH"           |
+        +----------------------------+
+        |INTERVAL '0-0' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    # Large day interval
+    df = session.sql("SELECT INTERVAL '999' DAY as large_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"LARGE_DAY"       |
+        +------------------+
+        |INTERVAL '999' DAY|
+        +------------------+
+        """
+    )
+
+    # Large minute to second interval (tests the bug we just fixed)
+    df = session.sql(
+        "SELECT INTERVAL '150:30' MINUTE TO SECOND as large_minute_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"LARGE_MINUTE_TO_SECOND"          |
+        +----------------------------------+
+        |INTERVAL '150:30' MINUTE TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Day to second with fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '5 10:20:30.123' DAY TO SECOND as day_to_second_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------------+
+        |"DAY_TO_SECOND_FRAC"                   |
+        +---------------------------------------+
+        |INTERVAL '5 10:20:30.123' DAY TO SECOND|
+        +---------------------------------------+
+        """
+    )
+
+    # Hour to second with zero padding
+    df = session.sql("SELECT INTERVAL '05:00:00' HOUR TO SECOND as hour_zero_padded")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"HOUR_ZERO_PADDED"                |
+        +----------------------------------+
+        |INTERVAL '05:00:00' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Negative complex interval
+    df = session.sql("SELECT INTERVAL '-3 05:30:45' DAY TO SECOND as negative_complex")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------+
+        |"NEGATIVE_COMPLEX"                  |
+        +------------------------------------+
+        |INTERVAL '-3 05:30:45' DAY TO SECOND|
+        +------------------------------------+
+        """
+    )
+
+    # Positive prefix intervals
+    df = session.sql("SELECT INTERVAL '+2-5' YEAR TO MONTH as positive_year_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------+
+        |"POSITIVE_YEAR_MONTH"       |
+        +----------------------------+
+        |INTERVAL '2-5' YEAR TO MONTH|
+        +----------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '+3' YEAR as positive_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------+
+        |"POSITIVE_YEAR"  |
+        +-----------------+
+        |INTERVAL '3' YEAR|
+        +-----------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '+15' MONTH as positive_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"POSITIVE_MONTH"   |
+        +-------------------+
+        |INTERVAL '15' MONTH|
+        +-------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '-5' YEAR as negative_single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------+
+        |"NEGATIVE_SINGLE_YEAR"|
+        +----------------------+
+        |INTERVAL '-5' YEAR    |
+        +----------------------+
+        """
+    )
+
+    # Additional edge cases for comprehensive coverage
+
+    # Positive number without dash for single month
+    df = session.sql("SELECT INTERVAL '+7' MONTH as positive_single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------+
+        |"POSITIVE_SINGLE_MONTH"|
+        +-----------------------+
+        |INTERVAL '7' MONTH     |
+        +-----------------------+
+        """
+    )
+
+    # Negative number for single month
+    df = session.sql("SELECT INTERVAL '-12' MONTH as negative_single_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------+
+        |"NEGATIVE_SINGLE_MONTH"|
+        +-----------------------+
+        |INTERVAL '-12' MONTH   |
+        +-----------------------+
+        """
+    )
+
+    # Positive number without dash for single year
+    df = session.sql("SELECT INTERVAL '+4' YEAR as positive_single_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------+
+        |"POSITIVE_SINGLE_YEAR"|
+        +----------------------+
+        |INTERVAL '4' YEAR     |
+        +----------------------+
+        """
+    )
+
+    # Positive number with no sign, single number for fallback
+    df = session.sql("SELECT INTERVAL '42' MONTH as plain_number_month")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"PLAIN_NUMBER_MONTH"|
+        +--------------------+
+        |INTERVAL '42' MONTH |
+        +--------------------+
+        """
+    )
+
+    # Edge case: positive single dash for months
+    df = session.sql("SELECT INTERVAL '+8' MONTH as plus_month_edge")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"PLUS_MONTH_EDGE" |
+        +------------------+
+        |INTERVAL '8' MONTH|
+        +------------------+
+        """
+    )
+
+    # Day-time intervals for additional coverage
+
+    # Single minute-only interval
+    df = session.sql("SELECT INTERVAL '5' MINUTE as single_minute_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"SINGLE_MINUTE_ONLY"|
+        +--------------------+
+        |INTERVAL '05' MINUTE|
+        +--------------------+
+        """
+    )
+
+    # Single hour-only interval
+    df = session.sql("SELECT INTERVAL '7' HOUR as single_hour_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------+
+        |"SINGLE_HOUR_ONLY"|
+        +------------------+
+        |INTERVAL '07' HOUR|
+        +------------------+
+        """
+    )
+
+    # Single second-only interval
+    df = session.sql("SELECT INTERVAL '8' SECOND as single_second_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"SINGLE_SECOND_ONLY"|
+        +--------------------+
+        |INTERVAL '08' SECOND|
+        +--------------------+
+        """
+    )
+
+    # Single second with fractional part to hit different branches (lines 5216-5217)
+    df = session.sql("SELECT INTERVAL '3.456' SECOND as fractional_second_only")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"FRACTIONAL_SECOND_ONLY"|
+        +------------------------+
+        |INTERVAL '03.456' SECOND|
+        +------------------------+
+        """
+    )
+
+    # Fractional seconds < 1
+    df = session.sql("SELECT INTERVAL '0.789' SECOND as sub_second_frac")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"SUB_SECOND_FRAC"       |
+        +------------------------+
+        |INTERVAL '00.789' SECOND|
+        +------------------------+
+        """
+    )
+
+    # Minute to second with fractional
+    df = session.sql(
+        "SELECT INTERVAL '8:45.321' MINUTE TO SECOND as minute_to_second_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------------------+
+        |"MINUTE_TO_SECOND_FRAC"              |
+        +-------------------------------------+
+        |INTERVAL '08:45.321' MINUTE TO SECOND|
+        +-------------------------------------+
+        """
+    )
+
+    # Large minute to second with fractional
+    df = session.sql(
+        "SELECT INTERVAL '123:45.678' MINUTE TO SECOND as large_minute_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------------+
+        |"LARGE_MINUTE_FRAC"                   |
+        +--------------------------------------+
+        |INTERVAL '123:45.678' MINUTE TO SECOND|
+        +--------------------------------------+
+        """
+    )
+
+    # Additional test cases for interval formatting coverage
+
+    # Test DAY TO MINUTE formatting
+    df = session.sql("SELECT INTERVAL '2 05:30' DAY TO MINUTE as day_to_minute")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------+
+        |"DAY_TO_MINUTE"                 |
+        +--------------------------------+
+        |INTERVAL '2 05:30' DAY TO MINUTE|
+        +--------------------------------+
+        """
+    )
+
+    # Test MINUTE TO SECOND with integer seconds
+    df = session.sql("SELECT INTERVAL '15:30' MINUTE TO SECOND as minute_to_second_int")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------+
+        |"MINUTE_TO_SECOND_INT"           |
+        +---------------------------------+
+        |INTERVAL '15:30' MINUTE TO SECOND|
+        +---------------------------------+
+        """
+    )
+
+    # Test single field interval
+    df = session.sql("SELECT INTERVAL '5' HOUR as single_hour_field")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------+
+        |"SINGLE_HOUR_FIELD"|
+        +-------------------+
+        |INTERVAL '05' HOUR |
+        +-------------------+
+        """
+    )
+
+    # Test multi-field interval
+    df = session.sql("SELECT INTERVAL '2:30:45' HOUR TO SECOND as multi_field")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"MULTI_FIELD"                     |
+        +----------------------------------+
+        |INTERVAL '02:30:45' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    df = session.sql("SELECT INTERVAL '5.000' SECOND as zero_frac_test")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------+
+        |"ZERO_FRAC_TEST"    |
+        +--------------------+
+        |INTERVAL '05' SECOND|
+        +--------------------+
+        """
+    )
+
+    # === Edge Cases for Decimal Precision and Large Values ===
+
+    # Large positive DAY TO HOUR intervals
+    df = session.sql("SELECT INTERVAL '106751991 04' DAY TO HOUR as large_day_to_hour")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------+
+        |"LARGE_DAY_TO_HOUR"                |
+        +-----------------------------------+
+        |INTERVAL '106751991 04' DAY TO HOUR|
+        +-----------------------------------+
+        """
+    )
+
+    # Large positive DAY TO MINUTE intervals
+    df = session.sql(
+        "SELECT INTERVAL '106751991 04:00' DAY TO MINUTE as large_day_to_minute"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------------+
+        |"LARGE_DAY_TO_MINUTE"                   |
+        +----------------------------------------+
+        |INTERVAL '106751991 04:00' DAY TO MINUTE|
+        +----------------------------------------+
+        """
+    )
+
+    # Large positive DAY TO SECOND intervals with high precision fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '106751991 04:00:54.775807' DAY TO SECOND as large_day_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------------------------+
+        |"LARGE_DAY_TO_SECOND"                             |
+        +--------------------------------------------------+
+        |INTERVAL '106751991 04:00:54.775807' DAY TO SECOND|
+        +--------------------------------------------------+
+        """
+    )
+
+    # Large negative DAY TO HOUR intervals
+    df = session.sql(
+        "SELECT INTERVAL '-106751991 04' DAY TO HOUR as large_negative_day_to_hour"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------+
+        |"LARGE_NEGATIVE_DAY_TO_HOUR"        |
+        +------------------------------------+
+        |INTERVAL '-106751991 04' DAY TO HOUR|
+        +------------------------------------+
+        """
+    )
+
+    # Large negative DAY TO MINUTE intervals
+    df = session.sql(
+        "SELECT INTERVAL '-106751991 04:00' DAY TO MINUTE as large_negative_day_to_minute"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------------+
+        |"LARGE_NEGATIVE_DAY_TO_MINUTE"           |
+        +-----------------------------------------+
+        |INTERVAL '-106751991 04:00' DAY TO MINUTE|
+        +-----------------------------------------+
+        """
+    )
+
+    # Large negative DAY TO SECOND intervals with high precision fractional seconds
+    df = session.sql(
+        "SELECT INTERVAL '-106751991 04:00:54.775808' DAY TO SECOND as large_negative_day_to_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------------------------------+
+        |"LARGE_NEGATIVE_DAY_TO_SECOND"                     |
+        +---------------------------------------------------+
+        |INTERVAL '-106751991 04:00:54.775808' DAY TO SECOND|
+        +---------------------------------------------------+
+        """
+    )
+
+    # Extremely large positive YEAR intervals
+    df = session.sql("SELECT INTERVAL '178956970' YEAR as extremely_large_year")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------+
+        |"EXTREMELY_LARGE_YEAR"   |
+        +-------------------------+
+        |INTERVAL '178956970' YEAR|
+        +-------------------------+
+        """
+    )
+
+    # Extremely large negative YEAR intervals
+    df = session.sql(
+        "SELECT INTERVAL '-178956970' YEAR as extremely_large_negative_year"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-------------------------------+
+        |"EXTREMELY_LARGE_NEGATIVE_YEAR"|
+        +-------------------------------+
+        |INTERVAL '-178956970' YEAR     |
+        +-------------------------------+
+        """
+    )
+
+    # Large positive DAY intervals
+    df = session.sql("SELECT INTERVAL '106751991' DAY as extremely_large_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------+
+        |"EXTREMELY_LARGE_DAY"   |
+        +------------------------+
+        |INTERVAL '106751991' DAY|
+        +------------------------+
+        """
+    )
+
+    # Large negative DAY intervals
+    df = session.sql("SELECT INTERVAL '-106751991' DAY as extremely_large_negative_day")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------+
+        |"EXTREMELY_LARGE_NEGATIVE_DAY"|
+        +------------------------------+
+        |INTERVAL '-106751991' DAY     |
+        +------------------------------+
+        """
+    )
+
+    # High precision positive fractional SECOND intervals
+    df = session.sql("SELECT INTERVAL '54.775807' SECOND as high_precision_second")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +---------------------------+
+        |"HIGH_PRECISION_SECOND"    |
+        +---------------------------+
+        |INTERVAL '54.775807' SECOND|
+        +---------------------------+
+        """
+    )
+
+    # High precision negative fractional SECOND intervals
+    df = session.sql(
+        "SELECT INTERVAL '-54.775807' SECOND as high_precision_negative_second"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +--------------------------------+
+        |"HIGH_PRECISION_NEGATIVE_SECOND"|
+        +--------------------------------+
+        |INTERVAL '-54.775807' SECOND    |
+        +--------------------------------+
+        """
+    )
+
+    # === Targeted Tests to Hit Remaining Missing Lines ===
+
+    # Very large interval to trigger Decimal path with integer seconds
+    df = session.sql("SELECT INTERVAL '2000000' DAY as decimal_large_int")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------+
+        |"DECIMAL_LARGE_INT"   |
+        +----------------------+
+        |INTERVAL '2000000' DAY|
+        +----------------------+
+        """
+    )
+
+    # Very large interval with fractional seconds < 10 to trigger Decimal path
+    df = session.sql(
+        "SELECT INTERVAL '2000000 00:00:05.123456' DAY TO SECOND as decimal_small_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------------------+
+        |"DECIMAL_SMALL_FRAC"                            |
+        +------------------------------------------------+
+        |INTERVAL '2000000 00:00:05.123456' DAY TO SECOND|
+        +------------------------------------------------+
+        """
+    )
+
+    # Very large interval with fractional seconds >= 10 to trigger Decimal path
+    df = session.sql(
+        "SELECT INTERVAL '2000000 00:00:15.123456' DAY TO SECOND as decimal_large_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +------------------------------------------------+
+        |"DECIMAL_LARGE_FRAC"                            |
+        +------------------------------------------------+
+        |INTERVAL '2000000 00:00:15.123456' DAY TO SECOND|
+        +------------------------------------------------+
+        """
+    )
+
+    # Normal interval with integer seconds to trigger float path
+    df = session.sql("SELECT INTERVAL '00:00:05' HOUR TO SECOND as float_int_test")
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +----------------------------------+
+        |"FLOAT_INT_TEST"                  |
+        +----------------------------------+
+        |INTERVAL '00:00:05' HOUR TO SECOND|
+        +----------------------------------+
+        """
+    )
+
+    # Normal interval with fractional seconds < 10 for float path
+    df = session.sql(
+        "SELECT INTERVAL '00:00:05.123456' HOUR TO SECOND as float_small_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------------+
+        |"FLOAT_SMALL_FRAC"                       |
+        +-----------------------------------------+
+        |INTERVAL '00:00:05.123456' HOUR TO SECOND|
+        +-----------------------------------------+
+        """
+    )
+
+    # Normal interval with fractional seconds >= 10 for float path
+    df = session.sql(
+        "SELECT INTERVAL '00:00:15.123456' HOUR TO SECOND as float_large_frac"
+    )
+    assert df._show_string_spark(truncate=False) == dedent(
+        """\
+        +-----------------------------------------+
+        |"FLOAT_LARGE_FRAC"                       |
+        +-----------------------------------------+
+        |INTERVAL '00:00:15.123456' HOUR TO SECOND|
+        +-----------------------------------------+
+        """
+    )
 
 
 @pytest.mark.parametrize("data", [[0, 1, 2, 3], ["", "a"], [False, True], [None]])
@@ -4242,7 +5274,7 @@ def test_df_columns(session):
             df.select(df['"A B"']).collect()
         assert (
             sce.value.message
-            == 'The DataFrame does not contain the column named "A B".'
+            == 'The DataFrame does not contain the column named "A B". Available columns: "a b", "a""b", "a", "A"'
         )
     finally:
         Utils.drop_table(session, temp_table)
@@ -4576,6 +5608,30 @@ def test_limit_offset(session):
     df = session.create_dataframe([[1, 2, 3], [4, 5, 6]], schema=["a", "b", "c"])
     assert df.limit(1).collect() == [Row(A=1, B=2, C=3)]
     assert df.limit(1, offset=1).collect() == [Row(A=4, B=5, C=6)]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Not supported in local testing ",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC,
+    reason="SNOW-2356885: this is not fixed on sp/udxf",
+)
+def test_limit_param_binding(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        [[{"name": "Alice"}]], schema=StructType([StructField("col", VariantType())])
+    ).write.save_as_table(table_name, table_type="temp")
+    result = session.sql(
+        f"""
+            SELECT col:name as Name
+            FROM {table_name}
+            WHERE GET_PATH(col, cast(? as VARCHAR)) IS NOT NULL
+            """,
+        ["name"],
+    ).limit(1)
+    Utils.check_answer(result, [Row(NAME='"Alice"')])
 
 
 def test_df_join_how_on_overwrite(session):
@@ -5788,7 +6844,8 @@ def test_create_dataframe_implicit_struct_not_null_single(session):
     assert result == expected_rows
 
 
-def test_create_dataframe_implicit_struct_not_null_multiple(session):
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_create_dataframe_implicit_struct_not_null_multiple(session, upper_case):
     """
     Test a schema with multiple fields, one of which is NOT NULL.
     """
@@ -5796,7 +6853,11 @@ def test_create_dataframe_implicit_struct_not_null_multiple(session):
         [10, "foo"],
         [20, "bar"],
     ]
-    schema_str = "col1: int not null, col2: string"
+    # Only uppercase the types, not field names
+    if upper_case:
+        schema_str = "col1: INT NOT NULL, col2: STRING(100)"
+    else:
+        schema_str = "col1: int not null, col2: string(100)"
 
     df = session.create_dataframe(data, schema=schema_str)
     # Verify schema
@@ -5804,7 +6865,7 @@ def test_create_dataframe_implicit_struct_not_null_multiple(session):
 
     expected_fields = [
         StructField("COL1", LongType(), nullable=False),
-        StructField("COL2", StringType(2**24), nullable=True),
+        StructField("COL2", StringType(100), nullable=True),
     ]
     assert df.schema.fields == expected_fields
 
@@ -5817,7 +6878,8 @@ def test_create_dataframe_implicit_struct_not_null_multiple(session):
     assert result == expected_rows
 
 
-def test_create_dataframe_implicit_struct_not_null_nested(session):
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_create_dataframe_implicit_struct_not_null_nested(session, upper_case):
     """
     Test a schema with nested array and a NOT NULL decimal field.
     """
@@ -5825,7 +6887,11 @@ def test_create_dataframe_implicit_struct_not_null_nested(session):
         [["1", "2"], Decimal("3.14")],
         [["5", "6"], Decimal("2.72")],
     ]
-    schema_str = "arr: array<string>, val: decimal(10,2) NOT NULL"
+    # Only uppercase the types, not field names
+    if upper_case:
+        schema_str = "arr: ARRAY<STRING>, val: DECIMAL(10,2) NOT NULL"
+    else:
+        schema_str = "arr: array<string>, val: decimal(10,2) NOT NULL"
 
     df = session.create_dataframe(data, schema=schema_str)
     # Verify schema
@@ -6070,69 +7136,83 @@ def test_time_travel_core_functionality(session):
         Utils.check_answer(df_reader_at_stmt, df_at_stmt)
 
         # ==============Test 2: BEFORE/AT with offset ==============
-        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
-            0
-        ]
-        offset_seconds = (
-            int((ts_after_update - ts_before_update).total_seconds()) + 1
-        )  # round up
-        df_at_offset = session.table(
-            table_name, time_travel_mode="at", offset=-offset_seconds
+        # Test offset validation: use -3600 seconds (1 hour ago) to trigger expected error
+        # since table was created moments ago, avoiding timestamp capture flakiness
+        with pytest.raises(
+            SnowparkSQLException, match="Time travel data is not available"
+        ):
+            session.table(table_name, time_travel_mode="at", offset=-3600).collect()
+
+        time.sleep(1)
+        df_before_offset = session.table(
+            table_name, time_travel_mode="before", offset=-1
+        ).collect()
+        Utils.check_answer(df_before_offset, expected_after_update)
+
+        df_at_offset = (
+            session.read.option("time_travel_mode", "at")
+            .option("offset", -1)
+            .table(table_name)
+            .collect()
         )
-        Utils.check_answer(df_at_offset, expected_before_update)
+        Utils.check_answer(df_at_offset, expected_after_update)
 
         # ==============Test 3: BEFORE/AT with timestamp ==============
         # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
         # in current session's timezone context, preventing timezone mismatches that could
         # cause time travel to resolve to a future point or before table creation (which would fail).
-        df_before_ts = session.table(
-            table_name,
-            time_travel_mode="before",
-            timestamp=ts_before_update,
-            timestamp_type=TimestampTimeZone.LTZ,
-        )
-        Utils.check_answer(df_before_ts, expected_before_update)
+        if not IS_IN_STORED_PROC:
+            df_before_ts = session.table(
+                table_name,
+                time_travel_mode="before",
+                timestamp=ts_before_update,
+                timestamp_type=TimestampTimeZone.LTZ,
+            )
+            Utils.check_answer(df_before_ts, expected_before_update)
 
-        df_at_ts = session.table(
-            table_name,
-            time_travel_mode="at",
-            timestamp=ts_before_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_at_ts, expected_before_update)
+            df_at_ts = session.table(
+                table_name,
+                time_travel_mode="at",
+                timestamp=ts_before_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_at_ts, expected_before_update)
 
-        df_reader_before_ts = session.read.table(
-            table_name,
-            time_travel_mode="before",
-            timestamp=ts_before_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_before_ts, df_reader_before_ts)
+            df_reader_before_ts = session.read.table(
+                table_name,
+                time_travel_mode="before",
+                timestamp=ts_before_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_before_ts, df_reader_before_ts)
 
-        # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
-        df_before_ts_after_update = session.table(
-            table_name,
-            time_travel_mode="before",
-            timestamp=ts_after_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_before_ts_after_update, expected_after_update)
+            # ==============Test 4: BEFORE/AT with timestamp (after update) ==============
+            ts_after_update = session.sql("select current_timestamp() as CT").collect()[
+                0
+            ][0]
+            df_before_ts_after_update = session.table(
+                table_name,
+                time_travel_mode="before",
+                timestamp=ts_after_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_before_ts_after_update, expected_after_update)
 
-        df_at_ts_after_update = session.table(
-            table_name,
-            time_travel_mode="at",
-            timestamp=ts_after_update,
-            timestamp_type="LTZ",
-        )
-        Utils.check_answer(df_at_ts_after_update, expected_after_update)
+            df_at_ts_after_update = session.table(
+                table_name,
+                time_travel_mode="at",
+                timestamp=ts_after_update,
+                timestamp_type="LTZ",
+            )
+            Utils.check_answer(df_at_ts_after_update, expected_after_update)
 
-        # ==============Test 5: PySpark as-of-timestamp compatibility ==============
-        df_as_of = (
-            session.read.option("as-of-timestamp", ts_before_update)
-            .option("timestamp_type", TimestampTimeZone.LTZ)
-            .table(table_name)
-        )
-        Utils.check_answer(df_as_of, expected_before_update)
+            # ==============Test 5: PySpark as-of-timestamp compatibility ==============
+            df_as_of = (
+                session.read.option("as-of-timestamp", ts_before_update)
+                .option("timestamp_type", TimestampTimeZone.LTZ)
+                .table(table_name)
+            )
+            Utils.check_answer(df_as_of, expected_before_update)
 
     finally:
         Utils.drop_table(session, table_name)
@@ -6162,7 +7242,6 @@ def test_time_travel_comprehensive_coverage(session):
     time.sleep(2)
 
     ts_before_update = session.sql("select current_timestamp() as CT").collect()[0][0]
-
     with session.query_history() as query_history:
         session.sql(
             f"UPDATE {table1_name} SET price = price * 1.1 WHERE id <= 2"
@@ -6243,56 +7322,57 @@ def test_time_travel_comprehensive_coverage(session):
         # timestamp_type=LTZ ensures the captured timestamp (ts_before_update) is interpreted
         # in current session's timezone context, preventing timezone mismatches that could
         # cause time travel to resolve to a future point or before table creation (which would fail).
-        df_join_before = (
-            session.table(
-                table1_name,
-                time_travel_mode="before",
-                timestamp=ts_before_update,
-                timestamp_type="LTZ",
+        if not IS_IN_STORED_PROC:
+            df_join_before = (
+                session.table(
+                    table1_name,
+                    time_travel_mode="before",
+                    timestamp=ts_before_update,
+                    timestamp_type="LTZ",
+                )
+                .join(session.table(table2_name), "id")
+                .select("id", "name", "category", "price")
+                .sort("id")
             )
-            .join(session.table(table2_name), "id")
-            .select("id", "name", "category", "price")
-            .sort("id")
-        )
-        expected_join_before = [
-            Row(1, "product_a", "electronics", 100.50),
-            Row(2, "product_b", "clothing", 200.75),
-            Row(3, "product_c", "automotive", 300.25),
-        ]
-        Utils.check_answer(df_join_before, expected_join_before)
+            expected_join_before = [
+                Row(1, "product_a", "electronics", 100.50),
+                Row(2, "product_b", "clothing", 200.75),
+                Row(3, "product_c", "automotive", 300.25),
+            ]
+            Utils.check_answer(df_join_before, expected_join_before)
 
-        # Test session.read.option().table() with timestamp and timezone options
-        df_reader_join_before = (
-            session.read.option("time_travel_mode", "before")
-            .option("timestamp", ts_before_update)
-            .option("timestamp_type", "LTZ")
-            .table(table1_name)
-            .join(session.table(table2_name), "id")
-            .select("id", "name", "category", "price")
-            .sort("id")
-        )
-        Utils.check_answer(df_join_before, df_reader_join_before)
-
-        ts_after_update = session.sql("select current_timestamp() as CT").collect()[0][
-            0
-        ]
-        df_join_after = (
-            session.table(
-                table1_name,
-                time_travel_mode="at",
-                timestamp=ts_after_update,
-                timestamp_type=TimestampTimeZone.LTZ,
+            # Test session.read.option().table() with timestamp and timezone options
+            df_reader_join_before = (
+                session.read.option("time_travel_mode", "before")
+                .option("timestamp", ts_before_update)
+                .option("timestamp_type", "LTZ")
+                .table(table1_name)
+                .join(session.table(table2_name), "id")
+                .select("id", "name", "category", "price")
+                .sort("id")
             )
-            .join(session.table(table2_name), "id")
-            .select("id", "name", "category", "price")
-            .sort("id")
-        )
-        expected_join_after = [
-            Row(1, "product_a", "electronics", 110.55),
-            Row(2, "product_b", "clothing", 220.825),
-            Row(3, "product_c", "automotive", 300.25),
-        ]
-        Utils.check_answer(df_join_after, expected_join_after)
+            Utils.check_answer(df_join_before, df_reader_join_before)
+
+            ts_after_update = session.sql("select current_timestamp() as CT").collect()[
+                0
+            ][0]
+            df_join_after = (
+                session.table(
+                    table1_name,
+                    time_travel_mode="at",
+                    timestamp=ts_after_update,
+                    timestamp_type=TimestampTimeZone.LTZ,
+                )
+                .join(session.table(table2_name), "id")
+                .select("id", "name", "category", "price")
+                .sort("id")
+            )
+            expected_join_after = [
+                Row(1, "product_a", "electronics", 110.55),
+                Row(2, "product_b", "clothing", 220.825),
+                Row(3, "product_c", "automotive", 300.25),
+            ]
+            Utils.check_answer(df_join_after, expected_join_after)
 
         # ==============Test 3: DataFrame chained operations with time travel ==============
         df_chained_before = (
@@ -6360,12 +7440,13 @@ def test_time_travel_comprehensive_coverage(session):
         Utils.check_answer(table_before.sort("id"), option_table.sort("id"))
 
         # as-of-timestamp equivalence test
-        as_of_table = (
-            session.read.option("as-of-timestamp", ts_before_update)
-            .option("timestamp_type", "LTZ")
-            .table(table1_name)
-        )
-        Utils.check_answer(table_before.sort("id"), as_of_table.sort("id"))
+        if not IS_IN_STORED_PROC:
+            as_of_table = (
+                session.read.option("as-of-timestamp", ts_before_update)
+                .option("timestamp_type", "LTZ")
+                .table(table1_name)
+            )
+            Utils.check_answer(table_before.sort("id"), as_of_table.sort("id"))
 
         # ==============Test 5: Table copy operations with time travel ==============
         time_travel_table = session.table(
@@ -6399,17 +7480,17 @@ def test_time_travel_comprehensive_coverage(session):
         ]
         Utils.check_answer(copied_with_ops, expected_copied)
 
-        # Test as-of-timestamp with chained operations and string format
-        ts_string = ts_before_update.strftime("%Y-%m-%d %H:%M:%S")
-        as_of_chained = (
-            session.read.option("as-of-timestamp", ts_string)
-            .option("timestamp_type", "LTZ")
-            .table(table1_name)
-            .select("id", "name", "price")
-            .filter(col("price") > 150)
-            .sort("id")
-        )
-        Utils.check_answer(as_of_chained, expected_copied)
+        # Test as-of-timestamp with chained operations
+        if not IS_IN_STORED_PROC:
+            as_of_chained = (
+                session.read.option("as-of-timestamp", ts_before_update)
+                .option("timestamp_type", "LTZ")
+                .table(table1_name)
+                .select("id", "name", "price")
+                .filter(col("price") > 150)
+                .sort("id")
+            )
+            Utils.check_answer(as_of_chained, expected_copied)
 
         time_travel_table.show()
 

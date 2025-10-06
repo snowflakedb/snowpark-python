@@ -67,7 +67,7 @@ class OracledbDriver(BaseDriver):
             oracledb.DB_TYPE_XMLTYPE: StringType,
             oracledb.DB_TYPE_OBJECT: VariantType,
             oracledb.DB_TYPE_VECTOR: VectorType,
-            oracledb.DB_TYPE_CURSOR: None,  # NOT SUPPORTED
+            # oracledb.DB_TYPE_CURSOR: None,  # NOT SUPPORTED
         }
 
         fields = []
@@ -77,10 +77,7 @@ class OracledbDriver(BaseDriver):
             precision = column.precision
             scale = column.scale
             null_ok = column.null_ok
-            snow_type = convert_map_to_use.get(type_code, None)
-            if snow_type is None:
-                # TODO: SNOW-1912068 support types that we don't have now
-                raise NotImplementedError(f"oracledb type not supported: {type_code}")
+            snow_type = convert_map_to_use.get(type_code, StringType)
             if type_code == oracledb.DB_TYPE_TIMESTAMP_TZ:
                 data_type = snow_type(TimestampTimeZone.TZ)
             elif type_code == oracledb.DB_TYPE_TIMESTAMP_LTZ:
@@ -108,13 +105,42 @@ class OracledbDriver(BaseDriver):
         conn: "Connection",
         query_timeout: int = 0,
     ) -> "Connection":
-        conn.call_timeout = query_timeout * 1000
+        if query_timeout > 0:
+            conn.call_timeout = query_timeout * 1000
         if conn.outputtypehandler is None:
             conn.outputtypehandler = output_type_handler
         return conn
 
+    def non_retryable_error_checker(self, error: Exception) -> bool:
+        import oracledb
+
+        if isinstance(error, oracledb.DatabaseError):
+            syntax_error_codes = [
+                "ORA-00900",  # invalid SQL statement
+                "ORA-00901",  # invalid CREATE command
+                "ORA-00904",  # invalid identifier
+                "ORA-00905",  # missing keyword
+                "ORA-00906",  # missing left parenthesis
+                "ORA-00907",  # missing right parenthesis
+                "ORA-00911",  # invalid character
+                "ORA-00920",  # invalid relational operator
+                "ORA-00921",  # unexpected end of SQL command
+                "ORA-00923",  # FROM keyword not found where expected
+                "ORA-00933",  # SQL command not properly ended
+                "ORA-00936",  # missing expression
+                "ORA-00942",  # table or view does not exist
+            ]
+            for error_code in syntax_error_codes:
+                if error_code in str(error):
+                    return True
+        return False
+
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
 
@@ -141,9 +167,14 @@ class OracledbDriver(BaseDriver):
         class UDTFIngestion:
             def process(self, query: str):
                 conn = create_connection()
+                if query_timeout > 0:
+                    conn.call_timeout = query_timeout * 1000
                 if conn.outputtypehandler is None:
                     conn.outputtypehandler = oracledb_output_type_handler
                 cursor = conn.cursor()
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

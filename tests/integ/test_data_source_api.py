@@ -210,6 +210,29 @@ def test_dbapi_retry(session, fetch_with_process):
         assert mock_task.call_count == _MAX_RETRY_TIME
 
 
+@pytest.mark.parametrize("fetch_with_process", [True, False])
+def test_dbapi_non_retryable_error(session, fetch_with_process):
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source.utils._task_fetch_data_from_source",
+        side_effect=SnowparkDataframeReaderException("mock error"),
+    ) as mock_task:
+        mock_task.__name__ = "_task_fetch_from_data_source"
+        parquet_queue = multiprocessing.Queue() if fetch_with_process else queue.Queue()
+        with pytest.raises(SnowparkDataframeReaderException, match="mock error"):
+            _task_fetch_data_from_source_with_retry(
+                worker=DataSourceReader(
+                    PyodbcDriver,
+                    sql_server_create_connection,
+                    StructType([StructField("col1", IntegerType(), False)]),
+                    DBMS_TYPE.SQL_SERVER_DB,
+                ),
+                partition="SELECT * FROM test_table",
+                partition_idx=0,
+                parquet_queue=parquet_queue,
+            )
+        assert mock_task.call_count == 1
+
+
 @pytest.mark.skipif(
     IS_WINDOWS,
     reason="sqlite3 file can not be shared across processes on windows",
@@ -253,10 +276,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             15,
             4,
             [
-                "SELECT ID FROM fake_table WHERE ID < '8' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '10'",
-                "SELECT ID FROM fake_table WHERE ID >= '10' AND ID < '12'",
-                "SELECT ID FROM fake_table WHERE ID >= '12'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '8' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '8' AND ID < '10'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '10' AND ID < '12'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '12'",
             ],
         ),
         (
@@ -267,10 +290,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             5,
             4,
             [
-                "SELECT ID FROM fake_table WHERE ID < '-2' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '-2' AND ID < '0'",
-                "SELECT ID FROM fake_table WHERE ID >= '0' AND ID < '2'",
-                "SELECT ID FROM fake_table WHERE ID >= '2'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '-2' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '-2' AND ID < '0'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '0' AND ID < '2'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '2'",
             ],
         ),
         (
@@ -281,16 +304,16 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             15,
             10,
             [
-                "SELECT ID FROM fake_table WHERE ID < '6' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '6' AND ID < '7'",
-                "SELECT ID FROM fake_table WHERE ID >= '7' AND ID < '8'",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '9'",
-                "SELECT ID FROM fake_table WHERE ID >= '9' AND ID < '10'",
-                "SELECT ID FROM fake_table WHERE ID >= '10' AND ID < '11'",
-                "SELECT ID FROM fake_table WHERE ID >= '11' AND ID < '12'",
-                "SELECT ID FROM fake_table WHERE ID >= '12' AND ID < '13'",
-                "SELECT ID FROM fake_table WHERE ID >= '13' AND ID < '14'",
-                "SELECT ID FROM fake_table WHERE ID >= '14'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '6' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '6' AND ID < '7'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '7' AND ID < '8'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '8' AND ID < '9'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '9' AND ID < '10'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '10' AND ID < '11'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '11' AND ID < '12'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '12' AND ID < '13'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '13' AND ID < '14'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '14'",
             ],
         ),
         (
@@ -301,9 +324,9 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             15,
             3,
             [
-                "SELECT ID FROM fake_table WHERE ID < '8' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '11'",
-                "SELECT ID FROM fake_table WHERE ID >= '11'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '8' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '8' AND ID < '11'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '11'",
             ],
         ),
         (
@@ -314,10 +337,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             str(datetime.date(2020, 12, 15)),
             4,
             [
-                "SELECT DATE FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-10-30 06:00:00+00:00'",
             ],
         ),
         (
@@ -328,10 +351,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             str(datetime.datetime(2020, 12, 15, 7, 8, 20)),
             4,
             [
-                "SELECT DATE FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-10-30 14:27:37+00:00'",
             ],
         ),
     ],
@@ -387,7 +410,7 @@ def test_partition_unsupported_type(session):
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
-def test_telemetry(session, fetch_with_process):
+def test_telemetry(session, fetch_with_process, caplog):
     with patch(
         "snowflake.snowpark._internal.telemetry.TelemetryClient.send_data_source_perf_telemetry"
     ) as mock_telemetry:
@@ -405,6 +428,14 @@ def test_telemetry(session, fetch_with_process):
     assert "fetch_to_local_duration" in telemetry_json
     assert "upload_and_copy_into_sf_table_duration" in telemetry_json
     assert "end_to_end_duration" in telemetry_json
+
+    assert "upload and copy into table start" in caplog.text
+    if not fetch_with_process:
+        assert "fetch start" in caplog.text
+
+    assert "upload and copy into table finished, used" in caplog.text
+    if not fetch_with_process:
+        assert "fetch finished, used" in caplog.text
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
@@ -516,9 +547,9 @@ def test_predicates():
         mock_schema.return_value = StructType([StructField("ID", IntegerType(), False)])
         queries = partitioner.partitions
         expected_result = [
-            "SELECT ID FROM fake_table WHERE id > 1 AND id <= 1000",
-            "SELECT ID FROM fake_table WHERE id > 1001 AND id <= 2000",
-            "SELECT ID FROM fake_table WHERE id > 2001",
+            'SELECT "ID" FROM fake_table  WHERE id > 1 AND id <= 1000',
+            'SELECT "ID" FROM fake_table  WHERE id > 1001 AND id <= 2000',
+            'SELECT "ID" FROM fake_table  WHERE id > 2001',
         ]
         assert queries == expected_result
 
@@ -558,7 +589,7 @@ def test_session_init_statement(session, fetch_with_process):
 
         with pytest.raises(
             SnowparkDataframeReaderException,
-            match=r'Failed to execute session init statement: \'SELECT FROM NOTHING;\' due to exception \'OperationalError\(\'near "FROM": syntax error\'\)\'',
+            match="Failed to execute session init statement:",
         ):
             session.read.dbapi(
                 functools.partial(create_connection_to_sqlite3_db, dbpath),
@@ -706,12 +737,13 @@ def test_database_detector():
         assert result == (DBMS_TYPE.UNKNOWN, DRIVER_TYPE.PYODBC)
 
 
-def test_type_conversion():
+def test_unsupported_type():
     invalid_type = OracleDBType("ID", "UNKNOWN", None, None, False)
-    with pytest.raises(NotImplementedError, match="sql server type not supported"):
-        PyodbcDriver(
-            sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB
-        ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
+
+    schema = PyodbcDriver(
+        sql_server_create_connection, DBMS_TYPE.SQL_SERVER_DB
+    ).to_snow_type([("test_col", invalid_type, None, None, 0, 0, True)])
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
@@ -1017,7 +1049,7 @@ def test_sql_server_udtf_ingestion(session):
         driver.to_snow_type(raw_schema),
         partitions_table,
         "",
-        packages=["pyodbc"],
+        packages=["pyodbc", "snowflake-snowpark-python"],
     )
     Utils.check_answer(df, sql_server_udtf_ingestion_data)
 
@@ -1696,3 +1728,33 @@ def test_error_in_upload_is_raised(session):
                 create_connection=sql_server_create_connection,
                 table=SQL_SERVER_TABLE_NAME,
             )
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_base_driver_udtf_class_builder():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "sqlite3udtf.db")
+        table_name, columns, example_data, _ = sqlite3_db(dbpath)
+        # Create the driver with the real connection function
+        driver = BaseDriver(
+            functools.partial(create_connection_to_sqlite3_db, dbpath),
+            DBMS_TYPE.UNKNOWN,
+        )
+
+        # Get the UDTF class with a small fetch size to test batching
+        UDTFClass = driver.udtf_class_builder(
+            fetch_size=2, session_init_statement=["select 1"]
+        )
+
+        # Instantiate the UDTF class
+        udtf_instance = UDTFClass()
+
+        # Test with a simple query that should return a few rows
+        test_query = f"SELECT * FROM {table_name}"
+        result_rows = list(udtf_instance.process(test_query))
+
+        # Verify we got some data back (we know the test table has data from other tests)
+        assert len(result_rows) > 0

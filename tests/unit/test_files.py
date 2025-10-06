@@ -23,7 +23,7 @@ from snowflake.snowpark._internal.utils import generate_random_alphanumeric
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark import Session
-from tests.utils import Utils
+from tests.utils import IS_WINDOWS, Utils
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -374,6 +374,10 @@ def test_read_relative_path_snowflakefile(
     read_mode, write_mode, use_tmp_path, tmp_path
 ):
     if use_tmp_path:
+        if IS_WINDOWS:
+            pytest.skip(
+                "Windows does not support relpath between drives. tmp_dir is on C: while the working dir on a mounted drive."
+            )
         test_msg, temp_file = Utils.write_test_msg(write_mode, tmp_path)
     else:
         # Write to a temp file in the current directory

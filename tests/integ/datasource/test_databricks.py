@@ -17,7 +17,10 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     TempObjectType,
 )
-from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
+from snowflake.snowpark.exceptions import (
+    SnowparkDataframeReaderException,
+    SnowparkSQLException,
+)
 from snowflake.snowpark.types import (
     StructType,
     StructField,
@@ -205,7 +208,9 @@ def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
 
 def test_unit_udtf_ingestion():
     dbx_driver = DatabricksDriver(create_databricks_connection, DBMS_TYPE.DATABRICKS_DB)
-    udtf_ingestion_class = dbx_driver.udtf_class_builder()
+    udtf_ingestion_class = dbx_driver.udtf_class_builder(
+        session_init_statement=["select 1"]
+    )
     udtf_ingestion_instance = udtf_ingestion_class()
 
     dsp = DataSourcePartitioner(
@@ -250,3 +255,57 @@ def test_unit_udtf_ingestion():
             else:
                 # Keep other types as is
                 assert value == expected_row[index]
+
+
+def test_unsupported_type():
+
+    schema = DatabricksDriver(
+        create_databricks_connection, DBMS_TYPE.DATABRICKS_DB
+    ).to_snow_type([("test_col", "unsupported_type", True)])
+    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_databricks_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="PARSE_SYNTAX_ERROR",
+    ):
+        session.read.dbapi(
+            create_databricks_connection,
+            table=TEST_TABLE_NAME,
+            predicates=["invalid syntax"],
+        )
+
+
+def test_session_init(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="syntax error command",
+    ):
+        session.read.dbapi(
+            create_databricks_connection,
+            table=TEST_TABLE_NAME,
+            session_init_statement=["syntax error command"],
+        )
+
+
+def test_session_init_udtf(session):
+    udtf_configs = {
+        "external_access_integration": DATABRICKS_TEST_EXTERNAL_ACCESS_INTEGRATION
+    }
+
+    def create_databricks_udtf_connection():
+        import databricks.sql
+
+        return databricks.sql.connect(**DATABRICKS_CONNECTION_PARAMETERS)
+
+    with pytest.raises(
+        SnowparkSQLException,
+        match="syntax error command",
+    ):
+        session.read.dbapi(
+            create_databricks_udtf_connection,
+            table=TEST_TABLE_NAME,
+            session_init_statement=["syntax error command"],
+            udtf_configs=udtf_configs,
+        ).collect()

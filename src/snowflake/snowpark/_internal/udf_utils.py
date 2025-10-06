@@ -173,6 +173,22 @@ class ExtensionFunctionProperties:
         self.anonymous = anonymous
 
 
+def get_wrapped_attr(func: Callable, attr_name: str) -> Optional[Any]:
+    """Return attribute from a function, following functools.wraps __wrapped__ chain.
+
+    Looks for `attr_name` on `func`; if not found and `func` has a `__wrapped__` attribute,
+    follows the chain until the attribute is found or the end is reached.
+    """
+    f: Callable = func
+    while True:
+        value = getattr(f, attr_name, None)
+        if value is not None:
+            return value
+        if not hasattr(f, "__wrapped__"):
+            return None
+        f = f.__wrapped__
+
+
 def is_local_python_file(file_path: str) -> bool:
     return not file_path.startswith(STAGE_PREFIX) and file_path.endswith(".py")
 
@@ -597,6 +613,17 @@ def extract_return_input_types(
         return_type_from_type_hints,
         input_types_from_type_hints,
     ) = get_types_from_type_hints(func, object_type, output_schema)
+
+    # Detect vectorized decorator hints on UDF functions (minimal surface change).
+    forced_pandas_udf = False
+    forced_is_dataframe_input = False
+    if object_type == TempObjectType.FUNCTION and isinstance(func, Callable):
+        vectorized_input_attr = get_wrapped_attr(func, "_sf_vectorized_input")
+        if vectorized_input_attr is not None:
+            forced_pandas_udf = True
+            if installed_pandas and vectorized_input_attr is pandas.DataFrame:
+                forced_is_dataframe_input = True
+
     if installed_pandas and return_type and return_type_from_type_hints:
         if isinstance(return_type_from_type_hints, PandasSeriesType):
             res_return_type = (
@@ -697,6 +724,17 @@ def extract_return_input_types(
             )
         else:
             return True, True, res_return_type, res_input_types
+
+    # If explicitly marked as vectorized via decorator, treat as pandas UDF regardless of type hints
+    if forced_pandas_udf:
+        return (
+            True,
+            forced_is_dataframe_input,
+            res_return_type.element_type
+            if isinstance(res_return_type, PandasSeriesType)
+            else res_return_type,
+            res_input_types,
+        )
 
     # not pandas UDF
     if not isinstance(res_return_type, (PandasSeriesType, PandasDataFrameType)) and all(
@@ -1096,6 +1134,7 @@ def resolve_imports_and_packages(
     skip_upload_on_content_match: bool = False,
     is_permanent: bool = False,
     force_inline_code: bool = False,
+    **kwargs,
 ) -> Tuple[
     Optional[str],
     Optional[str],
@@ -1129,6 +1168,9 @@ def resolve_imports_and_packages(
                     packages,
                     include_pandas=is_pandas_udf,
                     statement_params=statement_params,
+                    _suppress_local_package_warnings=kwargs.get(
+                        "_suppress_local_package_warnings", False
+                    ),
                 )
                 if packages is not None
                 else session._resolve_packages(
@@ -1137,6 +1179,9 @@ def resolve_imports_and_packages(
                     validate_package=False,
                     include_pandas=is_pandas_udf,
                     statement_params=statement_params,
+                    _suppress_local_package_warnings=kwargs.get(
+                        "_suppress_local_package_warnings", False
+                    ),
                 )
             )
 
@@ -1194,13 +1239,18 @@ def resolve_imports_and_packages(
             # and we compress it first then upload it
             udf_file_name_base = f"udf_py_{random_number()}"
             udf_file_name = f"{udf_file_name_base}.zip"
+            # Prefer explicit max_batch_size, otherwise inherit from @vectorized decorator
+            effective_max_batch_size = max_batch_size
+            if effective_max_batch_size is None and isinstance(func, Callable):
+                effective_max_batch_size = get_wrapped_attr(func, "_sf_max_batch_size")
+
             code = generate_python_code(
                 func,
                 arg_names,
                 object_type,
                 is_pandas_udf,
                 is_dataframe_input,
-                max_batch_size,
+                effective_max_batch_size,
                 source_code_display=source_code_display,
             )
             if not force_inline_code and len(code) > _MAX_INLINE_CLOSURE_SIZE_BYTES:

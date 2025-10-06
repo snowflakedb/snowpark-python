@@ -11,6 +11,7 @@ import pytest
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import (
     abs,
+    ai_complete,
     array_agg,
     array_construct,
     asc,
@@ -339,11 +340,11 @@ def test_patch_unsupported_function(session):
     df = session.create_dataframe([[3, 1], [3, 2], [4, 3]], schema=["a", "b"])
     with pytest.raises(NotImplementedError):
         df.select(
-            call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+            call_function("my_function", df["a"], df["b"]).alias("greatest")
         ).collect()
 
-    @patch("greatest_ignore_nulls")
-    def mock_greatest_ignore_nulls(
+    @patch("my_mocked_function")
+    def mock_my_mocked_function(
         *columns: Iterable[ColumnEmulator],
     ) -> ColumnEmulator:
         return ColumnEmulator(
@@ -351,10 +352,10 @@ def test_patch_unsupported_function(session):
         )
 
     assert df.select(
-        call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+        call_function("my_mocked_function", df["a"], df["b"]).alias("greatest")
     ).collect() == [Row(1), Row(1), Row(1)]
 
-    @patch("greatest_ignore_nulls")
+    @patch("my_mocked_function_2")
     def mock_wrong_patch(columns: Iterable[ColumnEmulator]) -> ColumnEmulator:
         return ColumnEmulator(
             [1] * len(columns[0]), sf_type=ColumnType(IntegerType(), False)
@@ -362,7 +363,7 @@ def test_patch_unsupported_function(session):
 
     with pytest.raises(SnowparkLocalTestingException) as exc:
         df.select(
-            call_function("greatest_ignore_nulls", df["a"], df["b"]).alias("greatest")
+            call_function("my_mocked_function_2", df["a"], df["b"]).alias("greatest")
         ).collect()
     assert "Please ensure the implementation follows specifications" in str(exc.value)
 
@@ -619,3 +620,48 @@ def test_concat_ws_indexing(session):
     filtered = df.where(df.A > 1)
     final = filtered.with_column("concat", concat_ws(lit("-"), "A", "B"))
     Utils.check_answer(final, [Row(2, "B", "2-B"), Row(3, "C", "3-C")])
+
+
+def test_ai_complete(session):
+    """Test that ai_complete (NamedFunctionExpression) works with mock framework."""
+    df = session.create_dataframe(
+        [["Hello world"], ["Test prompt"]], schema=["prompt_text"]
+    )
+
+    # Mock the ai_complete function to return a simple response
+    @patch("ai_complete")
+    def mock_ai_complete(
+        model=None, prompt=None, response_format=None, model_parameters=None, **kwargs
+    ) -> ColumnEmulator:
+        """Simple mock that returns 'AI response: <prompt>' for each input."""
+        assert (
+            model == "test-model"
+            and model_parameters == {"temperature": 0.5}
+            and response_format == {"type": "json"}
+        )
+
+        responses = [{"response": f"AI response to {p}"} for p in prompt]
+        from snowflake.snowpark.types import MapType, StringType
+
+        return ColumnEmulator(
+            data=responses,
+            sf_type=ColumnType(MapType(StringType(), StringType()), False),
+        )
+
+    # Test ai_complete with named arguments (this creates a NamedFunctionExpression)
+    result_df = df.select(
+        ai_complete(
+            model="test-model",
+            prompt=col("prompt_text"),
+            model_parameters={"temperature": 0.5},
+            response_format={"type": "json"},
+        ).alias("ai_response")
+    )
+
+    Utils.check_answer(
+        result_df,
+        [
+            Row('{\n  "response": "AI response to Hello world"\n}'),
+            Row('{\n  "response": "AI response to Test prompt"\n}'),
+        ],
+    )

@@ -172,6 +172,8 @@ MODE = " MODE "
 LATERAL = " LATERAL "
 PUT = " PUT "
 GET = " GET "
+LIST = " LIST "
+REMOVE = " REMOVE "
 COPY_FILES = " COPY FILES "
 GROUPING_SETS = " GROUPING SETS "
 QUESTION_MARK = "?"
@@ -1232,6 +1234,10 @@ def file_operation_statement(
         return f"{PUT}{file_name}{SPACE}{stage_location}{SPACE}{get_options_statement(options)}"
     if command.lower() == "get":
         return f"{GET}{stage_location}{SPACE}{file_name}{SPACE}{get_options_statement(options)}"
+    if command.lower() == "list":
+        return f"{LIST}{stage_location}{get_options_statement(options)}"
+    if command.lower() == "remove":
+        return f"{REMOVE}{stage_location}{get_options_statement(options)}"
     if command.lower() == "copy_files":
         # For COPY FILES, file_name stores the value of the source stage location or subquery (from a DataFrame)
         return f"{COPY_FILES}{INTO}{stage_location}{FROM}{file_name}{get_options_statement(options)}"
@@ -1370,7 +1376,12 @@ def order_expression(name: str, direction: str, null_ordering: str) -> str:
 
 
 def create_or_replace_view_statement(
-    name: str, child: str, is_temp: bool, comment: Optional[str], replace: bool
+    name: str,
+    child: str,
+    is_temp: bool,
+    comment: Optional[str],
+    replace: bool,
+    copy_grants: bool,
 ) -> str:
     comment_sql = get_comment_sql(comment)
     return (
@@ -1380,6 +1391,7 @@ def create_or_replace_view_statement(
         + VIEW
         + name
         + comment_sql
+        + (COPY_GRANTS if copy_grants else EMPTY_STRING)
         + AS
         + project_statement([], child)
     )
@@ -1400,6 +1412,7 @@ def create_or_replace_dynamic_table_statement(
     max_data_extension_time: Optional[int],
     child: str,
     iceberg_config: Optional[dict] = None,
+    copy_grants: bool = False,
 ) -> str:
     cluster_by_sql = (
         f"{CLUSTER_BY}{LEFT_PARENTHESIS}{COMMA.join(clustering_keys)}{RIGHT_PARENTHESIS}"
@@ -1430,7 +1443,7 @@ def create_or_replace_dynamic_table_statement(
         f"{IF + NOT + EXISTS if if_not_exists else EMPTY_STRING}{name}{LAG}{EQUALS}"
         f"{convert_value_to_sql_option(lag)}{WAREHOUSE}{EQUALS}{warehouse}"
         f"{refresh_and_initialize_options}{cluster_by_sql}{data_retention_options}{iceberg_options}"
-        f"{comment_sql}{AS}{project_statement([], child)}"
+        f"{comment_sql}{COPY_GRANTS if copy_grants else EMPTY_STRING}{AS}{project_statement([], child)}"
     )
 
 

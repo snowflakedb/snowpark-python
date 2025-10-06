@@ -49,6 +49,12 @@ class FakeConnection:
     def close(self):
         pass
 
+    def get_output_converter(self, type):
+        pass
+
+    def add_output_converter(self, type1, type2):
+        pass
+
     @property
     def description(self):
         return self.schema
@@ -955,13 +961,13 @@ def unknown_dbms_create_connection():
     )
 
 
-SQLITE3_DB_CUSTOM_SCHEMA_STRING = "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT"
+SQLITE3_DB_CUSTOM_SCHEMA_STRING = "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col TEXT(200), ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL(25,8), map_col MAP, array_col ARRAY, var_col VARIANT"
 SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE = StructType(
     [
         StructField("id", IntegerType()),
         StructField("int_col", IntegerType()),
         StructField("real_col", FloatType()),
-        StructField("text_col", StringType()),
+        StructField("text_col", StringType(200)),
         StructField("blob_col", BinaryType()),
         StructField("null_col", NullType()),
         StructField("ts_col", TimestampType()),
@@ -970,7 +976,7 @@ SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE = StructType(
         StructField("short_col", ShortType()),
         StructField("long_col", LongType()),
         StructField("double_col", DoubleType()),
-        StructField("decimal_col", DecimalType()),
+        StructField("decimal_col", DecimalType(25, 8)),
         StructField("map_col", MapType()),
         StructField("array_col", ArrayType()),
         StructField("var_col", VariantType()),

@@ -1633,6 +1633,12 @@ class TestFiles:
 
     @property
     def test_requirements_file(self):
+        # TODO: SNOW-2389419, snowpark does not support multiple line requirements for a single package
+        # ideally the req file could be like:
+        # numpy==1.26.3; python_version<"3.13"
+        # numpy==2.3.1; python_version>="3.13"
+        if sys.version_info >= (3, 13):
+            return os.path.join(self.resources_path, "test_requirements_py313.txt")
         return os.path.join(self.resources_path, "test_requirements.txt")
 
     @property
@@ -1706,6 +1712,22 @@ class TestFiles:
     @property
     def test_books_xsd(self):
         return os.path.join(self.resources_path, "books.xsd")
+
+    @property
+    def test_audio_ogg(self):
+        return os.path.join(self.resources_path, "audio.ogg")
+
+    @property
+    def test_conversation_ogg(self):
+        return os.path.join(self.resources_path, "conversation.ogg")
+
+    @property
+    def test_doc_pdf(self):
+        return os.path.join(self.resources_path, "doc.pdf")
+
+    @property
+    def test_invoice_pdf(self):
+        return os.path.join(self.resources_path, "invoice.pdf")
 
 
 class TypeMap(NamedTuple):

@@ -157,9 +157,7 @@ class PymysqlDriver(BaseDriver):
                 scale,
                 null_ok,
             ) = col
-            snow_type = BASE_PYMYSQL_TYPE_TO_SNOW_TYPE.get(type_code, None)
-            if snow_type is None:
-                raise NotImplementedError(f"mysql type not supported: {type_code}")
+            snow_type = BASE_PYMYSQL_TYPE_TO_SNOW_TYPE.get(type_code, StringType)
             if type_code in (PymysqlTypeCode.DECIMAL, PymysqlTypeCode.NEWDECIMAL):
                 # we did -2 here because what driver returned is precision + 2, mysql store + 2 precision internally
                 precision -= 2
@@ -185,8 +183,24 @@ class PymysqlDriver(BaseDriver):
             fields.append(StructField(name, data_type, null_ok))
         return StructType(fields)
 
+    def non_retryable_error_checker(self, error: Exception) -> bool:
+        import pymysql
+
+        if isinstance(error, pymysql.err.ProgrammingError):
+            syntax_error_codes = [
+                "1064",  # syntax error
+            ]
+            for error_code in syntax_error_codes:
+                if error_code in str(error):
+                    return True
+        return False
+
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
 
@@ -196,6 +210,9 @@ class PymysqlDriver(BaseDriver):
 
                 conn = create_connection()
                 cursor = pymysql.cursors.SSCursor(conn)
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
@@ -204,14 +221,6 @@ class PymysqlDriver(BaseDriver):
                     yield from rows
 
         return UDTFIngestion
-
-    def prepare_connection(
-        self,
-        conn: "Connection",
-        query_timeout: int = 0,
-    ) -> "Connection":
-        conn.read_timeout = query_timeout if query_timeout != 0 else None
-        return conn
 
     @staticmethod
     def infer_type_from_data(data: List[tuple], number_of_columns: int) -> List[Type]:

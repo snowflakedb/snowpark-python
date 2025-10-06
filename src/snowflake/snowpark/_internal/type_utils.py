@@ -49,6 +49,8 @@ from snowflake.snowpark.types import (
     ByteType,
     DataType,
     DateType,
+    DayTimeInterval,
+    DayTimeIntervalType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -234,6 +236,43 @@ def convert_sf_to_sp_type(
             raise ValueError(
                 f"Invalid scale value {scale} for YearMonthIntervalType. Expected 0, 1, or 2."
             )
+    if column_type_name == "INTERVAL_DAY_TIME":
+        if scale == 3:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.DAY, DayTimeIntervalType.SECOND
+            )
+        elif scale == 4:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.DAY, DayTimeIntervalType.MINUTE
+            )
+        elif scale == 5:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.DAY, DayTimeIntervalType.HOUR
+            )
+        elif scale == 6:
+            return DayTimeIntervalType(DayTimeIntervalType.DAY)
+        elif scale == 7:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.HOUR, DayTimeIntervalType.SECOND
+            )
+        elif scale == 8:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.HOUR, DayTimeIntervalType.MINUTE
+            )
+        elif scale == 9:
+            return DayTimeIntervalType(DayTimeIntervalType.HOUR)
+        elif scale == 10:
+            return DayTimeIntervalType(
+                DayTimeIntervalType.MINUTE, DayTimeIntervalType.SECOND
+            )
+        elif scale == 11:
+            return DayTimeIntervalType(DayTimeIntervalType.MINUTE)
+        elif scale == 12:
+            return DayTimeIntervalType(DayTimeIntervalType.SECOND)
+        else:
+            raise ValueError(
+                f"Invalid scale value {scale} for DayTimeIntervalType. Expected between 3 and 12."
+            )
     if column_type_name == "TEXT":
         if internal_size > 0:
             return StringType(internal_size, internal_size == max_string_size)
@@ -306,6 +345,8 @@ def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
     if isinstance(datatype, TimeType):
         return "TIME"
     if isinstance(datatype, YearMonthIntervalType):
+        return datatype.simple_string().upper()
+    if isinstance(datatype, DayTimeIntervalType):
         return datatype.simple_string().upper()
     if isinstance(datatype, TimestampType):
         if datatype.tz == TimestampTimeZone.NTZ:
@@ -621,7 +662,15 @@ def python_value_str_to_object(value, tp: Optional[DataType]) -> Any:
         }
 
     if isinstance(
-        tp, (GeometryType, GeographyType, VariantType, FileType, YearMonthIntervalType)
+        tp,
+        (
+            GeometryType,
+            GeographyType,
+            VariantType,
+            FileType,
+            YearMonthIntervalType,
+            DayTimeIntervalType,
+        ),
     ):
         if value.strip() == "None":
             return None
@@ -764,6 +813,9 @@ def python_type_to_snow_type(
     if tp == YearMonthInterval:
         return YearMonthIntervalType(), False
 
+    if tp == DayTimeInterval:
+        return DayTimeIntervalType(), False
+
     if tp == Timestamp or tp_origin == Timestamp:
         if not tp_args:
             timezone = TimestampTimeZone.DEFAULT
@@ -794,6 +846,7 @@ def snow_type_to_dtype_str(snow_type: DataType) -> str:
             TimestampType,
             TimeType,
             YearMonthIntervalType,
+            DayTimeIntervalType,
             GeographyType,
             GeometryType,
             VariantType,
@@ -1027,16 +1080,20 @@ DATA_TYPE_STRING_OBJECT_MAPPINGS["timestamp_ltz"] = functools.partial(
 )
 DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_to_month"] = YearMonthIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["intervalyeartomonth"] = YearMonthIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_year_month"] = YearMonthIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_day_to_second"] = DayTimeIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["intervaldaytosecond"] = DayTimeIntervalType
+DATA_TYPE_STRING_OBJECT_MAPPINGS["interval_day_time"] = DayTimeIntervalType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["str"] = StringType
 DATA_TYPE_STRING_OBJECT_MAPPINGS["varchar"] = StringType
 
 
 DECIMAL_RE = re.compile(
-    r"^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
+    r"(?i)^\s*(numeric|number|decimal)\s*\(\s*(\s*)(\d*)\s*,\s*(\d*)\s*\)\s*$"
 )
 # support type string format like "  decimal  (  2  ,  1  )  "
 
-STRING_RE = re.compile(r"^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
+STRING_RE = re.compile(r"(?i)^\s*(varchar|string|text)\s*\(\s*(\d*)\s*\)\s*$")
 # support type string format like "  string  (  23  )  "
 
 ARRAY_RE = re.compile(r"(?i)^\s*array\s*<")
@@ -1329,6 +1386,257 @@ def most_permissive_type(datatype: DataType) -> DataType:
         return DoubleType()
     else:
         return copy.deepcopy(datatype)
+
+
+def format_year_month_interval_for_display(
+    cell: str, start_field: int, end_field: int
+) -> str:
+    """
+    Format a YearMonthIntervalType string for display in _show_string_spark().
+
+    Args:
+        cell: The string representation of the interval (e.g., "+1-6", "-2-03", "24")
+        start_field: Start field constant from YearMonthIntervalType (YEAR=0, MONTH=1)
+        end_field: End field constant from YearMonthIntervalType (YEAR=0, MONTH=1)
+
+    Returns:
+        Formatted interval string (e.g., "INTERVAL '1-6' YEAR TO MONTH", "INTERVAL '24' MONTH")
+    """
+    # Handle different input formats
+    # Check for compound format (year-month) vs simple number
+    has_internal_dash = (cell.startswith("+") or cell.startswith("-")) and "-" in cell[
+        1:
+    ]
+
+    # Default initialization
+    years = "0"
+    months = "0"
+    is_negative = False
+
+    if has_internal_dash:
+        # Format like "+1-03" or "-1-03" or "-1-6" (compound year-month)
+        is_negative = cell.startswith("-")
+
+        # Remove the sign prefix and parse the remaining "year-month" part
+        remaining = cell[1:]  # Remove the "+" or "-" prefix: "1-6"
+        if "-" in remaining:
+            parts = remaining.split("-", 1)  # Split only on first dash: ["1", "6"]
+            years = str(int(parts[0]))
+            months = str(int(parts[1]))
+
+    # Format based on start/end field
+    sign_prefix = "-" if is_negative else ""
+
+    if (
+        start_field == YearMonthIntervalType.YEAR
+        and end_field == YearMonthIntervalType.MONTH
+    ):
+        # Full range: YEAR TO MONTH
+        return f"INTERVAL '{sign_prefix}{years}-{months}' YEAR TO MONTH"
+    elif (
+        start_field == YearMonthIntervalType.YEAR
+        and end_field == YearMonthIntervalType.YEAR
+    ):
+        # Years only: YEAR
+        return f"INTERVAL '{sign_prefix}{years}' YEAR"
+    elif (
+        start_field == YearMonthIntervalType.MONTH
+        and end_field == YearMonthIntervalType.MONTH
+    ):
+        # Months only: MONTH - calculate total months
+        total_months = int(years) * 12 + int(months)
+        if is_negative:
+            total_months = -total_months
+        return f"INTERVAL '{total_months}' MONTH"
+
+
+def format_day_time_interval_for_display(
+    cell: Union[str, datetime.timedelta], start_field: int, end_field: int
+) -> str:
+    """
+    Format a DayTimeIntervalType value for display in _show_string_spark().
+
+    Args:
+        cell: Either a datetime.timedelta object or string representation
+        start_field: Start field constant from DayTimeIntervalType (DAY=0, HOUR=1, MINUTE=2, SECOND=3)
+        end_field: End field constant from DayTimeIntervalType (DAY=0, HOUR=1, MINUTE=2, SECOND=3)
+
+    Returns:
+        Formatted interval string (e.g., "INTERVAL '01:30:45' HOUR TO SECOND")
+    """
+    if isinstance(cell, datetime.timedelta):
+        # Heuristic: Use Decimal for extreme values near 64-bit boundary, float for normal values
+        total_seconds_approx = cell.total_seconds()
+
+        # Check if we're approaching values where float precision becomes problematic
+        # Be conservative: use Decimal for large values to ensure precision
+        # This corresponds to roughly 3 million years - normal use cases are well below this
+        if (
+            abs(total_seconds_approx) > 1e11
+        ):  # ~100 gigaseconds, very conservative threshold
+            # Use Decimal arithmetic for precise conversion to avoid floating-point precision loss
+            total_seconds_value = (
+                decimal.Decimal(cell.days) * decimal.Decimal(86400)
+                + decimal.Decimal(cell.seconds)
+                + decimal.Decimal(cell.microseconds) / decimal.Decimal(1_000_000)
+            )
+        else:
+            # Use fast float path for normal values
+            total_seconds_value = cell.total_seconds()
+
+        interval_str = format_day_time_interval(
+            total_seconds_value, start_field, end_field
+        )
+    elif isinstance(cell, str):
+        # Raw string that needs to be formatted (e.g., "1 01:01:01.7878")
+        interval_str = cell
+
+    field_names = {
+        DayTimeIntervalType.DAY: "DAY",
+        DayTimeIntervalType.HOUR: "HOUR",
+        DayTimeIntervalType.MINUTE: "MINUTE",
+        DayTimeIntervalType.SECOND: "SECOND",
+    }
+
+    start_name = field_names.get(start_field, "DAY")
+    end_name = field_names.get(end_field, "SECOND")
+
+    if start_field == end_field:
+        return f"INTERVAL '{interval_str}' {start_name}"
+    else:
+        return f"INTERVAL '{interval_str}' {start_name} TO {end_name}"
+
+
+def format_day_time_interval(
+    total_seconds_value: Union[float, decimal.Decimal], start_field: int, end_field: int
+) -> str:
+    """
+    Format a DayTimeIntervalType value for display in _show_string_spark().
+
+    Args:
+        total_seconds_value: Total seconds as either float or Decimal (can be negative)
+        start_field: Start field constant from DayTimeIntervalType (DAY=0, HOUR=1, MINUTE=2, SECOND=3)
+        end_field: End field constant from DayTimeIntervalType (DAY=0, HOUR=1, MINUTE=2, SECOND=3)
+
+    Returns:
+        Formatted interval string (e.g., "01:30:45", "2 12:30", "05", etc.)
+    """
+    is_negative = total_seconds_value < 0
+    abs_total_seconds = abs(total_seconds_value)
+
+    # Determine if we're working with Decimal for high-precision arithmetic
+    use_decimal = isinstance(total_seconds_value, decimal.Decimal)
+
+    days = int(abs_total_seconds) // 86400
+    remaining_seconds = abs_total_seconds - (days * 86400)
+    hours = int(remaining_seconds) // 3600
+    remaining_after_hours = remaining_seconds - (hours * 3600)
+    minutes = int(remaining_after_hours) // 60
+
+    # Calculate seconds more precisely to avoid floating-point accumulation errors
+    # Use the original total and subtract the calculated day/hour/minute components
+    if use_decimal:
+        total_non_second_time = (
+            decimal.Decimal(days * 86400)
+            + decimal.Decimal(hours * 3600)
+            + decimal.Decimal(minutes * 60)
+        )
+    else:
+        total_non_second_time = (days * 86400) + (hours * 3600) + (minutes * 60)
+    seconds = abs_total_seconds - total_non_second_time
+
+    sign = "-" if is_negative else ""
+
+    def format_with_leading_zero(value: int) -> str:
+        """Format integer with leading zero if < 10, otherwise as-is"""
+        return f"{value:02d}" if value < 10 else f"{value}"
+
+    def format_seconds_with_precision(
+        seconds_value: Union[float, decimal.Decimal]
+    ) -> str:
+        """Format seconds with full precision, preserving trailing zeros for proper padding"""
+        # Unified formatting logic for both Decimal and float types
+        if seconds_value == int(seconds_value):
+            return f"{int(seconds_value):02d}"
+        else:
+            # For fractional seconds, ensure proper leading zero padding
+            integer_part = int(seconds_value)
+            if integer_part < 10:
+                # Format with leading zero for the integer part
+                formatted = f"{seconds_value:.6f}".rstrip("0")
+                if formatted.endswith("."):
+                    return f"{integer_part:02d}"
+                # Replace the integer part with zero-padded version
+                decimal_part = formatted.split(".", 1)[1]
+                return f"{integer_part:02d}.{decimal_part}"
+            else:
+                # For >= 10, use normal formatting
+                formatted = f"{seconds_value:.6f}".rstrip("0")
+                if formatted.endswith("."):
+                    return f"{integer_part}"
+                return formatted
+
+    # For single field intervals, extract just that component
+    if start_field == end_field:
+        if start_field == DayTimeIntervalType.DAY:
+            return f"{sign}{days}"
+        elif start_field == DayTimeIntervalType.HOUR:
+            total_hours = int(abs_total_seconds) // 3600
+            return f"{sign}{format_with_leading_zero(total_hours)}"
+        elif start_field == DayTimeIntervalType.MINUTE:
+            total_minutes = int(abs_total_seconds) // 60
+            return f"{sign}{format_with_leading_zero(total_minutes)}"
+        elif start_field == DayTimeIntervalType.SECOND:
+            # Handle fractional seconds - use total seconds, not just remainder
+            if abs_total_seconds == int(abs_total_seconds):
+                total_secs_int = int(abs_total_seconds)
+                return f"{sign}{format_with_leading_zero(total_secs_int)}"
+            else:
+                # Use unified formatting that handles both float and Decimal
+                return f"{sign}{format_seconds_with_precision(abs_total_seconds)}"
+
+    # For multi-field intervals, format based on start/end fields
+    if start_field == DayTimeIntervalType.DAY:
+        hours_str = format_with_leading_zero(hours)
+        # DAY TO X format: truncate based on end_field
+        if end_field == DayTimeIntervalType.HOUR:
+            # DAY TO HOUR: "D HH"
+            return f"{sign}{days} {hours_str}"
+        elif end_field == DayTimeIntervalType.MINUTE:
+            # DAY TO MINUTE: "D HH:MM"
+            return f"{sign}{days} {hours_str}:{minutes:02d}"
+        else:
+            # DAY TO SECOND: "D HH:MM:SS"
+            if seconds == int(seconds):
+                return f"{sign}{days} {hours_str}:{minutes:02d}:{int(seconds):02d}"
+            else:
+                return f"{sign}{days} {hours_str}:{minutes:02d}:{format_seconds_with_precision(seconds)}"
+    elif start_field == DayTimeIntervalType.HOUR:
+        # HOUR TO X format: "HH:MM:SS" (no days)
+        total_hours = int(abs_total_seconds) // 3600
+        remaining_after_hours = abs_total_seconds - (total_hours * 3600)
+        mins = int(remaining_after_hours) // 60
+        secs = remaining_after_hours - (mins * 60)
+
+        if end_field == DayTimeIntervalType.MINUTE:
+            return f"{sign}{format_with_leading_zero(total_hours)}:{mins:02d}"
+        else:  # TO SECOND
+            if secs == int(secs):
+                return f"{sign}{format_with_leading_zero(total_hours)}:{mins:02d}:{int(secs):02d}"
+            else:
+                return f"{sign}{format_with_leading_zero(total_hours)}:{mins:02d}:{format_seconds_with_precision(secs)}"
+    elif start_field == DayTimeIntervalType.MINUTE:
+        # MINUTE TO X format: "MM:SS" (no days or hours)
+        total_minutes = int(abs_total_seconds) // 60
+        remaining_secs = abs_total_seconds - (total_minutes * 60)
+
+        minutes_str = format_with_leading_zero(total_minutes)
+        if remaining_secs == int(remaining_secs):
+            return f"{sign}{minutes_str}:{int(remaining_secs):02d}"
+        else:
+            return (
+                f"{sign}{minutes_str}:{format_seconds_with_precision(remaining_secs)}"
+            )
 
 
 # Type hints

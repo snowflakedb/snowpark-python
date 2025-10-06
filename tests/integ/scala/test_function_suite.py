@@ -5,7 +5,7 @@
 
 import json
 from contextlib import contextmanager
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from functools import partial
 
@@ -135,6 +135,8 @@ from snowflake.snowpark.functions import (
     lower,
     lpad,
     ltrim,
+    interval_year_month_from_parts,
+    interval_day_time_from_parts,
     max,
     md5,
     mean,
@@ -214,11 +216,13 @@ from snowflake.snowpark.functions import (
 from snowflake.snowpark.mock._functions import LocalTimezone
 from snowflake.snowpark.types import (
     DateType,
+    DayTimeIntervalType,
     StructField,
     StructType,
     TimestampTimeZone,
     TimestampType,
     VariantType,
+    YearMonthIntervalType,
 )
 from snowflake.snowpark.window import Window
 from tests.utils import IS_IN_STORED_PROC, TestData, Utils
@@ -5613,3 +5617,303 @@ def test_any_value(session):
         Row(1, 1),
         Row(2, 1),
     ] or non_deterministic_result_2 == [Row(1, 1), Row(2, 2)]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: function floor not supported",
+)
+def test_interval_year_month_from_parts(session):
+    df = session.create_dataframe(
+        [
+            (0, 0, "+0-00"),
+            (1, 0, "+1-00"),
+            (0, 1, "+0-01"),
+            (1, 1, "+1-01"),
+            (2, 11, "+2-11"),
+            (1, 12, "+2-00"),
+            (0, 13, "+1-01"),
+            (1, 24, "+3-00"),
+            (-1, 0, "-1-00"),
+            (0, -1, "-0-01"),
+            (-1, -1, "-1-01"),
+            (-2, -11, "-2-11"),
+            (-1, -12, "-2-00"),
+            (0, -13, "-1-01"),
+            (-1, -24, "-3-00"),
+            (10, 5, "+10-05"),
+            (-10, -5, "-10-05"),
+            (999, 999, "+1082-03"),
+            (-999, -999, "-1082-03"),
+            (0, 999, "+83-03"),
+            (0, -999, "-83-03"),
+            (999999999, 11, "+999999999-11"),
+            (-999999999, 11, "-999999998-01"),
+        ],
+        schema=["years", "months", "expected"],
+    )
+
+    schema_result = df.select(
+        interval_year_month_from_parts(col("years"), col("months"))
+    )
+    assert schema_result.schema.fields[0].datatype == YearMonthIntervalType(0, 1)
+
+    result = df.select(
+        interval_year_month_from_parts(col("years"), col("months")),
+        col("expected"),
+    ).collect()
+
+    assert len(result) == 23
+    for row in result:
+        assert (
+            row['interval_year_month_from_parts("YEARS", "MONTHS")'] == row["EXPECTED"]
+        )
+
+    df_only_years = session.create_dataframe([(5,), (-3,), (0,)], schema=["years"])
+    years_schema_result = df_only_years.select(
+        interval_year_month_from_parts(col("years"))
+    )
+    assert years_schema_result.schema.fields[0].datatype == YearMonthIntervalType(0, 1)
+
+    result_years = years_schema_result.collect()
+    assert result_years[0]['interval_year_month_from_parts("YEARS", 0)'] == "+5-00"
+    assert result_years[1]['interval_year_month_from_parts("YEARS", 0)'] == "-3-00"
+    assert result_years[2]['interval_year_month_from_parts("YEARS", 0)'] == "+0-00"
+
+    df_only_months = session.create_dataframe([(15,), (-7,), (0,)], schema=["months"])
+    months_schema_result = df_only_months.select(
+        interval_year_month_from_parts(months=col("months"))
+    )
+    assert months_schema_result.schema.fields[0].datatype == YearMonthIntervalType(0, 1)
+
+    result_months = months_schema_result.collect()
+    assert result_months[0]['interval_year_month_from_parts(0, "MONTHS")'] == "+1-03"
+    assert result_months[1]['interval_year_month_from_parts(0, "MONTHS")'] == "-0-07"
+    assert result_months[2]['interval_year_month_from_parts(0, "MONTHS")'] == "+0-00"
+
+    df_literals = session.create_dataframe([(1,)], schema=["dummy"])
+    literals_schema_result = df_literals.select(
+        interval_year_month_from_parts(lit(2), lit(5)),
+        interval_year_month_from_parts(lit(-1), lit(13)),
+        interval_year_month_from_parts(lit(0)),
+        interval_year_month_from_parts(months=lit(25)),
+    )
+
+    for field in literals_schema_result.schema.fields:
+        assert field.datatype == YearMonthIntervalType(0, 1)
+
+    result_literals = literals_schema_result.collect()
+    assert result_literals[0]["interval_year_month_from_parts(2, 5)"] == "+2-05"
+    assert result_literals[0]["interval_year_month_from_parts(-1, 13)"] == "+0-01"
+    assert result_literals[0]["interval_year_month_from_parts(0, 0)"] == "+0-00"
+    assert result_literals[0]["interval_year_month_from_parts(0, 25)"] == "+2-01"
+
+    df_schema_test = session.create_dataframe([(1, 2)], schema=["y", "m"])
+    schema_result = df_schema_test.select(
+        interval_year_month_from_parts(col("y"), col("m"))
+    )
+    schema_fields = schema_result.schema.fields
+    assert len(schema_fields) == 1
+    assert schema_fields[0].datatype == YearMonthIntervalType(0, 1)
+
+    df_nulls = session.create_dataframe(
+        [(None, 5), (3, None), (None, None)], schema=["years", "months"]
+    )
+    result_nulls = df_nulls.select(
+        interval_year_month_from_parts(col("years"), col("months"))
+    ).collect()
+
+    assert result_nulls[0]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
+    assert result_nulls[1]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
+    assert result_nulls[2]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="FEAT: Alter Session not supported in local testing",
+)
+@pytest.mark.skipif(
+    IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
+)
+def test_interval_day_time_from_parts(session):
+    test_cases = [
+        (0, 0, 0, 0.0, timedelta(0)),
+        (1, 0, 0, 0.0, timedelta(days=1)),
+        (0, 1, 0, 0.0, timedelta(hours=1)),
+        (0, 0, 1, 0.0, timedelta(minutes=1)),
+        (0, 0, 0, 1.0, timedelta(seconds=1.0)),
+        (1, 2, 3, 4.5, timedelta(days=1, hours=2, minutes=3, seconds=4.5)),
+        (5, 10, 30, 45.123, timedelta(days=5, hours=10, minutes=30, seconds=45.123)),
+        (0, 25, 90, 120.999, timedelta(hours=25, minutes=90, seconds=120.999)),
+        (-1, 0, 0, 0.0, timedelta(days=-1)),
+        (0, -1, 0, 0.0, timedelta(hours=-1)),
+        (0, 0, -1, 0.0, timedelta(minutes=-1)),
+        (0, 0, 0, -1.0, timedelta(seconds=-1.0)),
+        (-1, -2, -3, -4.5, timedelta(days=-1, hours=-2, minutes=-3, seconds=-4.5)),
+        (2, -1, 30, -15.0, timedelta(days=2, hours=-1, minutes=30, seconds=-15.0)),
+        (
+            365,
+            24,
+            60,
+            3600.0,
+            timedelta(days=365, hours=24, minutes=60, seconds=3600.0),
+        ),
+    ]
+
+    input_data = [
+        (days, hours, mins, secs) for days, hours, mins, secs, _ in test_cases
+    ]
+    expected_values = [expected for _, _, _, _, expected in test_cases]
+
+    df = session.create_dataframe(
+        input_data,
+        schema=["days", "hours", "mins", "secs"],
+    )
+
+    result = df.select(
+        interval_day_time_from_parts(
+            col("days"), col("hours"), col("mins"), col("secs")
+        ).alias("interval_result"),
+    ).collect()
+
+    assert len(result) == len(expected_values)
+    for i, expected in enumerate(expected_values):
+        assert result[i]["INTERVAL_RESULT"] == expected
+
+    df_only_days = session.create_dataframe([(10,), (-5,), (0,)], schema=["days"])
+    days_schema_result = df_only_days.select(
+        interval_day_time_from_parts(days=col("days"))
+    )
+    assert days_schema_result.schema.fields[0].datatype == DayTimeIntervalType(0, 3)
+
+    result_days = days_schema_result.collect()
+    assert result_days[0]["interval_day_time_from_parts(days, 0, 0, 0)"] == timedelta(
+        days=10
+    )
+    assert result_days[1]["interval_day_time_from_parts(days, 0, 0, 0)"] == timedelta(
+        days=-5
+    )
+    assert result_days[2]["interval_day_time_from_parts(days, 0, 0, 0)"] == timedelta(0)
+
+    df_only_hours = session.create_dataframe([(25,), (-12,), (0,)], schema=["hours"])
+    hours_schema_result = df_only_hours.select(
+        interval_day_time_from_parts(hours=col("hours"))
+    )
+    assert hours_schema_result.schema.fields[0].datatype == DayTimeIntervalType(0, 3)
+
+    result_hours = hours_schema_result.collect()
+    assert result_hours[0]["interval_day_time_from_parts(0, hours, 0, 0)"] == timedelta(
+        hours=25
+    )
+    assert result_hours[1]["interval_day_time_from_parts(0, hours, 0, 0)"] == timedelta(
+        hours=-12
+    )
+    assert result_hours[2]["interval_day_time_from_parts(0, hours, 0, 0)"] == timedelta(
+        0
+    )
+
+    df_only_mins = session.create_dataframe([(90,), (-45,), (0,)], schema=["mins"])
+    mins_schema_result = df_only_mins.select(
+        interval_day_time_from_parts(mins=col("mins"))
+    )
+    assert mins_schema_result.schema.fields[0].datatype == DayTimeIntervalType(0, 3)
+
+    result_mins = mins_schema_result.collect()
+    assert result_mins[0]["interval_day_time_from_parts(0, 0, mins, 0)"] == timedelta(
+        minutes=90
+    )
+    assert result_mins[1]["interval_day_time_from_parts(0, 0, mins, 0)"] == timedelta(
+        minutes=-45
+    )
+    assert result_mins[2]["interval_day_time_from_parts(0, 0, mins, 0)"] == timedelta(0)
+
+    df_only_secs = session.create_dataframe(
+        [(3661.5,), (-1800.25,), (0.0,)], schema=["secs"]
+    )
+    secs_schema_result = df_only_secs.select(
+        interval_day_time_from_parts(secs=col("secs"))
+    )
+    assert secs_schema_result.schema.fields[0].datatype == DayTimeIntervalType(0, 3)
+
+    result_secs = secs_schema_result.collect()
+    assert result_secs[0]["interval_day_time_from_parts(0, 0, 0, secs)"] == timedelta(
+        seconds=3661.5
+    )
+    assert result_secs[1]["interval_day_time_from_parts(0, 0, 0, secs)"] == timedelta(
+        seconds=-1800.25
+    )
+    assert result_secs[2]["interval_day_time_from_parts(0, 0, 0, secs)"] == timedelta(0)
+
+    df_literals = session.create_dataframe([(1,)], schema=["dummy"])
+    literals_schema_result = df_literals.select(
+        interval_day_time_from_parts(lit(1), lit(2), lit(3), lit(4.5)).alias(
+            "all_literal"
+        ),
+        interval_day_time_from_parts(days=lit(7)).alias("days_only"),
+        interval_day_time_from_parts(hours=lit(12)).alias("hours_only"),
+        interval_day_time_from_parts(mins=lit(30)).alias("mins_only"),
+        interval_day_time_from_parts(secs=lit(45.5)).alias("secs_only"),
+    )
+
+    for field in literals_schema_result.schema.fields:
+        assert field.datatype == DayTimeIntervalType(0, 3)
+
+    result_literals = literals_schema_result.collect()
+    assert result_literals[0]["ALL_LITERAL"] == timedelta(
+        days=1, hours=2, minutes=3, seconds=4.5
+    )
+    assert result_literals[0]["DAYS_ONLY"] == timedelta(days=7)
+    assert result_literals[0]["HOURS_ONLY"] == timedelta(hours=12)
+    assert result_literals[0]["MINS_ONLY"] == timedelta(minutes=30)
+    assert result_literals[0]["SECS_ONLY"] == timedelta(seconds=45.5)
+
+    df_mixed_params = session.create_dataframe(
+        [(2, 30), (1, 90), (0, 0)], schema=["days", "mins"]
+    )
+    mixed_schema_result = df_mixed_params.select(
+        interval_day_time_from_parts(days=col("days"), mins=col("mins"))
+    )
+    assert mixed_schema_result.schema.fields[0].datatype == DayTimeIntervalType(0, 3)
+
+    result_mixed = mixed_schema_result.collect()
+    assert result_mixed[0][
+        "interval_day_time_from_parts(days, 0, mins, 0)"
+    ] == timedelta(days=2, minutes=30)
+    assert result_mixed[1][
+        "interval_day_time_from_parts(days, 0, mins, 0)"
+    ] == timedelta(days=1, minutes=90)
+    assert result_mixed[2][
+        "interval_day_time_from_parts(days, 0, mins, 0)"
+    ] == timedelta(0)
+
+    df_schema_test = session.create_dataframe(
+        [(1, 2, 3, 4.0)], schema=["d", "h", "m", "s"]
+    )
+    schema_result = df_schema_test.select(
+        interval_day_time_from_parts(col("d"), col("h"), col("m"), col("s"))
+    )
+    schema_fields = schema_result.schema.fields
+    assert len(schema_fields) == 1
+    assert schema_fields[0].datatype == DayTimeIntervalType(0, 3)
+
+    df_nulls = session.create_dataframe(
+        [
+            (None, 1, 2, 3.0),
+            (1, None, 2, 3.0),
+            (1, 2, None, 3.0),
+            (1, 2, 3, None),
+            (None, None, None, None),
+        ],
+        schema=["days", "hours", "mins", "secs"],
+    )
+    result_nulls = df_nulls.select(
+        interval_day_time_from_parts(
+            col("days"), col("hours"), col("mins"), col("secs")
+        ).alias("interval_result")
+    ).collect()
+
+    assert result_nulls[0]["INTERVAL_RESULT"] is None
+    assert result_nulls[1]["INTERVAL_RESULT"] is None
+    assert result_nulls[2]["INTERVAL_RESULT"] is None
+    assert result_nulls[3]["INTERVAL_RESULT"] is None
+    assert result_nulls[4]["INTERVAL_RESULT"] is None

@@ -32,7 +32,11 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from snowflake.snowpark.modin.plugin.extensions.datetime_index import DatetimeIndex
+from snowflake.snowpark.modin.plugin._internal.utils import (
+    MODIN_IS_AT_LEAST_0_37_0,
+)
 from tests.integ.utils.sql_counter import sql_count_checker
+from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
 
 # snowflake-ml-python, which provides snowflake.cortex, may not be available in
 # the test environment. If it's not available, skip all tests in this module.
@@ -150,24 +154,29 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
         df_incompatible.move_to("Snowflake")
 
 
-@sql_count_checker(query_count=1)
-def test_merge(init_transaction_tables, us_holidays_data):
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+# Newer version of modin switches before the merge
+@sql_count_checker(query_count=2 if MODIN_IS_AT_LEAST_0_37_0 else 0)
+def test_merge(revenue_transactions, us_holidays_data):
+    df_transactions = pd.read_snowflake(revenue_transactions)
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
     assert df_transactions.get_backend() == "Snowflake"
     assert df_us_holidays.get_backend() == "Pandas"
-    # Since `df_us_holidays` is much smaller than `df_transactions`, we moved `df_us_holidays`
-    # to Snowflake where `df_transactions` is, to perform the operation.
     combined = pd.merge(
         df_us_holidays, df_transactions, left_on="Date", right_on="DATE"
     )
-    assert combined.get_backend() == "Snowflake"
+    if MODIN_IS_AT_LEAST_0_37_0:
+        # Because the result of the merge is small enough to be faster to execute in native pandas,
+        # we move the Snowflake data to pandas.
+        assert combined.get_backend() == "Pandas"
+    else:
+        # Older version of modin moves to Snowflake because df_us_holidays is small.
+        assert combined.get_backend() == "Snowflake"
 
 
-@sql_count_checker(query_count=4)
-def test_filtered_data(init_transaction_tables):
+@sql_count_checker(query_count=2)
+def test_filtered_data(revenue_transactions):
     # When data is filtered, the engine should change when it is sufficiently small.
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    df_transactions = pd.read_snowflake(revenue_transactions)
     assert df_transactions.get_backend() == "Snowflake"
     # in-place operations that do not change the backend
     # TODO: the following will result in an align which will grow the
@@ -191,11 +200,15 @@ def test_filtered_data(init_transaction_tables):
     # We still operate in Snowflake because we cannot properly estimate the rows
     assert df_transactions_filter1.get_backend() == "Snowflake"
 
-    # Filter 2 will immediately move to pandas because we know the size of the
-    # resultset. The SQL here is functionatly the same as above.
+    # The SQL here is functionatly the same as above
+    # Unlike in previous iterations of hybrid this does *not* move the data immediately
     df_transactions_filter2 = pd.read_snowflake(
-        "SELECT Date, SUM(Revenue) AS REVENUE FROM revenue_transactions WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09' GROUP BY DATE"
+        f"SELECT Date, SUM(Revenue) AS REVENUE FROM {revenue_transactions} WHERE Date >= DATEADD( 'days', -7, '2025-06-09' ) and Date < '2025-06-09' GROUP BY DATE"
     )
+    # We do not know the size of this data yet, because the query is entirely lazy
+    assert df_transactions_filter2.get_backend() == "Snowflake"
+    # Move to pandas backend
+    df_transactions_filter2.move_to("Pandas", inplace=True)
     assert df_transactions_filter2.get_backend() == "Pandas"
 
     # Sort and compare the results.
@@ -213,9 +226,9 @@ def test_filtered_data(init_transaction_tables):
     )
 
 
-@sql_count_checker(query_count=4)
-def test_apply(init_transaction_tables, us_holidays_data):
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS").head(1000)
+@sql_count_checker(query_count=3)
+def test_apply(revenue_transactions, us_holidays_data):
+    df_transactions = pd.read_snowflake(revenue_transactions).head(1000)
     assert df_transactions.get_backend() == "Snowflake"
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
     df_us_holidays["Date"] = pd.to_datetime(df_us_holidays["Date"])
@@ -329,10 +342,11 @@ def test_explain_switch_empty():
     assert new_switch_index_names == empty_switch_index_names
 
 
-@sql_count_checker(query_count=1)
-def test_explain_switch(init_transaction_tables, us_holidays_data):
+# Newer version of modin switches before the merge
+@sql_count_checker(query_count=2 if MODIN_IS_AT_LEAST_0_37_0 else 0)
+def test_explain_switch(revenue_transactions, us_holidays_data):
     clear_hybrid_switch_log()
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    df_transactions = pd.read_snowflake(revenue_transactions)
     df_us_holidays = pd.DataFrame(us_holidays_data, columns=["Holiday", "Date"])
     pd.merge(df_us_holidays, df_transactions, left_on="Date", right_on="DATE")
     assert "decision" in str(pd.explain_switch())
@@ -387,8 +401,9 @@ def test_tqdm_usage_during_snowflake_to_pandas_switch():
         ("Series", "transform", (lambda x: x * 2,)),  # declared in series_overrides
     ],
 )
+@pytest.mark.parametrize("use_session_param", [True, False])
 @sql_count_checker(query_count=1)
-def test_unimplemented_autoswitches(class_name, method_name, f_args):
+def test_unimplemented_autoswitches(class_name, method_name, f_args, use_session_param):
     # Unimplemented methods declared via register_*_not_implemented should automatically
     # default to local pandas execution.
     # This test needs to be modified if any of the APIs in question are ever natively implemented
@@ -397,6 +412,13 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
     method = getattr(getattr(pd, class_name)(data).move_to("Snowflake"), method_name)
     # Attempting to call the method without switching should raise.
     with config_context(AutoSwitchBackend=False):
+        if use_session_param:
+            from modin.config import AutoSwitchBackend
+
+            AutoSwitchBackend.enable()
+            pd.session.pandas_hybrid_execution_enabled = False
+            assert pd.session.pandas_hybrid_execution_enabled is False
+            assert AutoSwitchBackend.get() is False
         with pytest.raises(
             NotImplementedError, match="Snowpark pandas does not yet support the method"
         ):
@@ -411,7 +433,11 @@ def test_unimplemented_autoswitches(class_name, method_name, f_args):
         # Series.to_json will output an extraneous level for the __reduced__ column, but that's OK
         # since we don't officially support the method.
         # See modin bug: https://github.com/modin-project/modin/issues/7624
-        if class_name == "Series" and method_name == "to_json":
+        if (
+            not MODIN_IS_AT_LEAST_0_37_0
+            and class_name == "Series"
+            and method_name == "to_json"
+        ):
             assert snow_result == '{"__reduced__":{"0":1,"1":2,"2":3}}'
         else:
             assert snow_result == pandas_result
@@ -425,14 +451,15 @@ def test_to_datetime():
     assert isinstance(result, DatetimeIndex)
 
 
+@pytest.mark.parametrize("use_session_param", [True, False])
 @sql_count_checker(
-    query_count=12,
+    query_count=11,
     join_count=6,
     udtf_count=2,
     high_count_expected=True,
     high_count_reason="tests queries across different execution modes",
 )
-def test_query_count_no_switch(init_transaction_tables):
+def test_query_count_no_switch(revenue_transactions, use_session_param):
     """
     Tests that when there is no switching behavior the query count is the
     same under hybrid mode and non-hybrid mode.
@@ -444,17 +471,31 @@ def test_query_count_no_switch(init_transaction_tables):
         df_result["COUNT"] = df_result.groupby("DATE")["REVENUE"].transform("count")
         return df_result
 
-    df_transactions = pd.read_snowflake("REVENUE_TRANSACTIONS")
+    df_transactions = pd.read_snowflake(revenue_transactions)
     inner_test(df_transactions)
     orig_len = None
     hybrid_len = None
     with pd.session.query_history() as query_history_orig:
         with config_context(AutoSwitchBackend=False, NativePandasMaxRows=10):
+            if use_session_param:
+                from modin.config import AutoSwitchBackend
+
+                AutoSwitchBackend.enable()
+                pd.session.pandas_hybrid_execution_enabled = False
+                assert pd.session.pandas_hybrid_execution_enabled is False
+                assert AutoSwitchBackend.get() is False
             df_result = inner_test(df_transactions)
             orig_len = len(df_result)
 
     with pd.session.query_history() as query_history_hybrid:
         with config_context(AutoSwitchBackend=True, NativePandasMaxRows=10):
+            if use_session_param:
+                from modin.config import AutoSwitchBackend
+
+                AutoSwitchBackend.disable()
+                pd.session.pandas_hybrid_execution_enabled = True
+                assert pd.session.pandas_hybrid_execution_enabled is True
+                assert AutoSwitchBackend.get() is True
             df_result = inner_test(df_transactions)
             hybrid_len = len(df_result)
 
@@ -584,3 +625,39 @@ class TestApplySnowparkAndCortexFunctions:
         sentiment = method(pandas_backend_data, Sentiment)
         assert sentiment.get_backend() == "Snowflake"
         sentiment.to_pandas()
+
+
+@sql_count_checker(query_count=1, join_count=2)
+def test_switch_then_iloc():
+    # Switching backends then calling iloc should be valid.
+    # Prior to fixing SNOW-2331021, discrepancies with the index class caused an AssertionError.
+    df = pd.DataFrame([[0] * 10] * 10)
+    assert df.get_backend() == "Pandas"
+    # Should not error
+    assert_snowpark_pandas_equal_to_pandas(
+        df.move_to("Snowflake").iloc[[1, 3, 9], 1],
+        df.iloc[[1, 3, 9], 1].to_pandas(),
+    )
+    # Setting should similarly not error
+    df.iloc[1, 1] = 100
+    assert df.iloc[1, 1] == 100
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_rename():
+    # SNOW-2333472: Switching backends then performing a rename should be valid.
+    df = pd.DataFrame([[0] * 3] * 3)
+    assert df.get_backend() == "Pandas"
+    assert_snowpark_pandas_equal_to_pandas(
+        df.move_to("Snowflake").rename({0: "a", 1: "b", 2: "c"}),
+        # Perform to_pandas first due to modin issue 7667
+        df.to_pandas().rename({0: "a", 1: "b", 2: "c"}),
+    )
+
+
+@sql_count_checker(query_count=1, join_count=1)
+def test_set_index():
+    s = pd.Series([0]).move_to("Snowflake")
+    # SNOW-2333472: Switching backends then setting the index should be valid.
+    s.index = ["a"]
+    assert_snowpark_pandas_equal_to_pandas(s, native_pd.Series([0], index=["a"]))

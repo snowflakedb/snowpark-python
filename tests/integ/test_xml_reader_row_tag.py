@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 import json
 import pytest
 
@@ -200,17 +201,28 @@ def test_read_malformed_xml(session, file):
     assert len(result[0]) == 3
 
     # failfast mode
-    df = (
-        session.read.option("rowTag", row_tag).option("mode", "failfast").xml(file_path)
-    )
     with pytest.raises(SnowparkSQLException, match="Malformed XML record at bytes"):
-        df.collect()
+        df = (
+            session.read.option("rowTag", row_tag)
+            .option("mode", "failfast")
+            .xml(file_path)
+        )
 
 
 def test_read_xml_row_tag_not_found(session):
     row_tag = "non-existing-tag"
-    df = session.read.option("rowTag", row_tag).xml(
-        f"@{tmp_stage_name}/{test_file_books_xml}"
+
+    with pytest.raises(
+        SnowparkDataframeReaderException, match="Cannot find the row tag"
+    ):
+        session.read.option("rowTag", row_tag).xml(
+            f"@{tmp_stage_name}/{test_file_books_xml}"
+        )
+
+    df = (
+        session.read.option("cacheResult", False)
+        .option("rowTag", row_tag)
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
     )
 
     with pytest.raises(
@@ -218,7 +230,6 @@ def test_read_xml_row_tag_not_found(session):
     ):
         df.collect()
 
-    # also works for nested query plan
     with pytest.raises(
         SnowparkDataframeReaderException, match="Cannot find the row tag"
     ):
@@ -388,6 +399,19 @@ def test_read_xml_ignore_surrounding_whitespace(
     Utils.check_answer(df, [expected_row])
 
 
+def test_read_xml_warning_local_package(session, caplog):
+    row_tag = "book"
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        session.read.option("rowTag", row_tag).xml(
+            f"@{tmp_stage_name}/{test_file_books_xml}"
+        )
+    assert (
+        "Your UDF might not work when the package version is different between the server and your local environment"
+        not in caplog.text
+    )
+
+
 def test_read_xml_row_validation_xsd_path(session):
     row_tag = "book"
     df = (
@@ -406,3 +430,11 @@ def test_read_xml_row_validation_xsd_path(session):
     assert result[0]["'price'"] == '"44.95"'
     assert result[0]["'publish_date'"] == '"2000-10-01"'
     assert result[0]["'_id'"] == '"bk101"'
+
+
+def test_read_xml_row_validation_xsd_path_failfast(session):
+    row_tag = "book"
+    with pytest.raises(SnowparkSQLException, match="XML record string:"):
+        session.read.option("rowTag", row_tag).option(
+            "rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}"
+        ).option("mode", "failfast").xml(f"@{tmp_stage_name}/{test_file_books_xml}")
