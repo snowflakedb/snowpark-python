@@ -3,106 +3,25 @@
 #
 
 import logging
-from random import Random
 import re
-import string
 
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
-from modin.config import context as config_context
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
     VALID_PANDAS_LABELS,
     VALID_SNOWFLAKE_COLUMN_NAMES,
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
+    to_snowflake_counter,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from modin.config import PandasToSnowflakeParquetThresholdBytes
-
-from tests.utils import Utils
 
 
-def _generate_lower_case_table_name_unquoted() -> str:
-    return "snowpark_temp_table_" + "".join(
-        Random().choice(string.ascii_lowercase + string.digits) for _ in range(10)
-    )
-
-
-@pytest.fixture
-def lower_case_table_name_unquoted(session):
-    name = _generate_lower_case_table_name_unquoted()
-    yield name
-    Utils.drop_table(session, name)
-
-
-@pytest.fixture
-def lower_case_table_name_quoted(session):
-    name = '"' + _generate_lower_case_table_name_unquoted() + '"'
-    yield name
-    Utils.drop_table(session, name)
-
-
-@pytest.fixture
-def upper_case_table_name_quoted(session):
-    name = '"' + _generate_lower_case_table_name_unquoted().upper() + '"'
-    yield name
-    Utils.drop_table(session, name)
-
-
-@pytest.fixture
-def upper_case_table_name_with_space_quoted(session):
-    name = '" ' + _generate_lower_case_table_name_unquoted().upper() + ' "'
-    yield name
-    Utils.drop_table(session, name)
-
-
-@pytest.fixture
-def valid_unquoted_identifier_table_name(session):
-    name = _generate_lower_case_table_name_unquoted() + "$n"
-    yield name
-    Utils.drop_table(session, name)
-
-
-@pytest.fixture(
-    params=[
-        ("pandas", 0),
-        ("pandas", int(1e9)),
-        ("snowflake", 0),
-    ],
-    autouse=True,
-    ids=lambda param: f"backend_{param[0]}-parquet_threshold_{param[1]}",
-)
-def starting_backend_and_parquet_threshold(request):
-    with config_context(
-        Backend=request.param[0],
-        PandasToSnowflakeParquetThresholdBytes=request.param[1],
-    ):
-        yield
-
-
-def to_snowflake_counter(*, df: pd.DataFrame, if_exists: str) -> SqlCounter:
-    if (
-        df.get_backend() == "Pandas"
-        and df.memory_usage(deep=False).sum()
-        > PandasToSnowflakeParquetThresholdBytes.get()
-    ):
-        # In this case we are using a parquet file to load pandas data to
-        # Snowflake.
-        # if if_exists='fail', we issue a query to check whether the table
-        # exists. In any case, we do issue more queries to make the parquet
-        # file, stage it, and load it into a table, but the SqlCounter doesn't
-        # track those queries.
-        query_count = 1 if if_exists == "fail" else 0
-    elif if_exists in ("append", "fail"):
-        query_count = 2
-    else:
-        assert if_exists == "replace"
-        # In this case, we can skip the query that checks whether the table
-        # exists.
-        query_count = 1
-    return SqlCounter(query_count=query_count)
+@pytest.fixture(autouse=True)
+def use_starting_backend_and_parquet_threshold(starting_backend_and_parquet_threshold):
+    return starting_backend_and_parquet_threshold
 
 
 @pytest.mark.parametrize("index", [True, False])
@@ -113,7 +32,7 @@ def test_to_snowflake_index(test_table_name, index, index_labels):
     )
 
     if_exists = "replace"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(
             test_table_name, if_exists=if_exists, index=index, index_label=index_labels
         )
@@ -129,7 +48,7 @@ def test_to_snowflake_index(test_table_name, index, index_labels):
     verify_columns(test_table_name, expected_columns)
 
 
-def test_to_snowflake_multiindex(test_table_name):
+def test_to_snowflake_row_multiindex(test_table_name):
     index = native_pd.MultiIndex.from_arrays(
         [[1, 1, 2, 2], ["red", "blue", "red", "blue"]], names=("number", "color")
     )
@@ -138,7 +57,7 @@ def test_to_snowflake_multiindex(test_table_name):
     )
     snow_df = pd.DataFrame(native_df)
     if_exists = "replace"
-    with to_snowflake_counter(df=snow_df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=snow_df, if_exists=if_exists):
         snow_df.to_snowflake(test_table_name, if_exists=if_exists, index=True)
     verify_columns(test_table_name, ["number", "color", "a", "b"])
 
@@ -148,6 +67,17 @@ def test_to_snowflake_multiindex(test_table_name):
         snow_df.to_snowflake(
             test_table_name, if_exists="replace", index=True, index_label=["a"]
         )
+
+
+def test_column_multiindex(test_table_name):
+    native_df = native_pd.DataFrame(
+        [[1, 2]], columns=pd.MultiIndex.from_tuples([("a", 0), ("b", "c")])
+    )
+    snow_df = pd.DataFrame(native_df)
+    if_exists = "replace"
+    with to_snowflake_counter(dataset=snow_df, if_exists=if_exists):
+        snow_df.to_snowflake(test_table_name, if_exists=if_exists, index=False)
+    verify_columns(test_table_name, [str(column) for column in native_df.columns])
 
 
 @pytest.mark.parametrize(
@@ -187,7 +117,7 @@ def test_to_snowflake_if_exists(session, test_table_name):
 
     # Verify new table is created
     if_exists = "fail"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists=if_exists, index=False)
     verify_columns(test_table_name, ["a", "b"])
 
@@ -206,21 +136,21 @@ def test_to_snowflake_if_exists(session, test_table_name):
     # Verify existing table is replaced with new data
     if_exists = "replace"
     df = pd.DataFrame({"a": [1, 2, 3], "c": [4, 5, 6]})
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists=if_exists, index=False)
     verify_columns(test_table_name, ["a", "c"])
     verify_num_rows(session, test_table_name, 3)
 
     # Verify data is appended to existing table
     if_exists = "append"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists=if_exists, index=False)
     verify_columns(test_table_name, ["a", "c"])
     verify_num_rows(session, test_table_name, 6)
 
     # Verify pd.to_snowflake operates the same
     if_exists = "append"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         pd.to_snowflake(df, test_table_name, if_exists=if_exists, index=False)
     verify_columns(test_table_name, ["a", "c"])
     verify_num_rows(session, test_table_name, 9)
@@ -235,7 +165,7 @@ def test_to_snowflake_if_exists(session, test_table_name):
 def test_to_snowflake_index_labels(index_label, test_table_name):
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     if_exists = "replace"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(
             test_table_name, if_exists=if_exists, index=True, index_label=index_label
         )
@@ -246,7 +176,7 @@ def test_to_snowflake_index_labels(index_label, test_table_name):
 def test_to_snowflake_column_names_from_pandas(col_name, test_table_name):
     df = pd.DataFrame({col_name: [1, 2, 3], "b": [4, 5, 6]})
     if_exists = "replace"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists="replace", index=False)
     verify_columns(test_table_name, [str(col_name), "b"])
 
@@ -266,7 +196,7 @@ def test_column_names_with_read_snowflake_and_to_snowflake(
     expected_columns = session.table(test_table_name).columns
 
     df = pd.read_snowflake(test_table_name)
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists=if_exists, index=False)
     # Verify column names are not updated here.
     assert expected_columns == session.table(test_table_name).columns
@@ -277,7 +207,7 @@ def test_column_names_with_read_snowflake_and_to_snowflake(
 def test_to_snowflake_column_with_quotes(session, test_table_name):
     df = pd.DataFrame({'a"b': [1, 2, 3], 'a""b': [4, 5, 6]})
     if_exists = "replace"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists=if_exists, index=False)
     verify_columns(test_table_name, ['a"b', 'a""b'])
 
@@ -287,7 +217,7 @@ def test_to_snowflake_index_label_none(test_table_name):
     # no index
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
     if_exists = "replace"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists=if_exists)
     verify_columns(test_table_name, ["index", "a", "b"])
 
@@ -296,14 +226,14 @@ def test_to_snowflake_index_label_none(test_table_name):
     df = pd.DataFrame(
         {"a": [1, 2, 3], "b": [4, 5, 6]}, index=pd.Index([2, 3, 4], name="index")
     )
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists=if_exists, index_label=[None])
     verify_columns(test_table_name, ["index", "a", "b"])
 
     # nameless index
     if_exists = "replace"
     df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]}, index=pd.Index([2, 3, 4]))
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists, index_label=[None])
     verify_columns(test_table_name, ["index", "a", "b"])
 
@@ -312,7 +242,7 @@ def test_to_snowflake_index_label_none(test_table_name):
 def test_to_snowflake_index_label_none_data_column_conflict(test_table_name):
     df = pd.DataFrame({"index": [1, 2, 3], "a": [4, 5, 6]})
     if_exists = "replace"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists=if_exists)
     # If the column name "index" is taken by one of the data columns,
     # then "level_0" is used instead for naming the index column.
@@ -332,7 +262,7 @@ def test_to_snowflake_index_label_none_data_column_conflict(test_table_name):
     # nameless index
     df = pd.DataFrame({"index": [1, 2, 3], "a": [4, 5, 6]}, index=pd.Index([2, 3, 4]))
     if_exists = "replace"
-    with to_snowflake_counter(df=df, if_exists=if_exists):
+    with to_snowflake_counter(dataset=df, if_exists=if_exists):
         df.to_snowflake(test_table_name, if_exists=if_exists, index_label=[None])
     verify_columns(test_table_name, ["level_0", "index", "a"])
 
@@ -354,7 +284,7 @@ def test_to_snowflake_data_label_none_raises(test_table_name):
 def test_to_snowflake_with_dropped_row_position(test_table_name):
     snow_df = pd.DataFrame({"a": [1, 2, 3], "b": [2, 4, 5]})
     snow_df = snow_df.groupby("a").count().reset_index()
-    with to_snowflake_counter(df=snow_df, if_exists="fail"):
+    with to_snowflake_counter(dataset=snow_df, if_exists="fail"):
         snow_df.to_snowflake(test_table_name, index=False, table_type="temporary")
 
 
@@ -378,7 +308,7 @@ def test_timedelta_to_snowflake_with_read_snowflake(test_table_name, caplog):
             }
         )
         if_exists = "replace"
-        with to_snowflake_counter(df=df, if_exists=if_exists):
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
             df.to_snowflake(test_table_name, index=False, if_exists=if_exists)
         df = pd.read_snowflake(test_table_name)
         # dytpe may be float64 or int64 depending on how we wrote to snowflake,
@@ -392,7 +322,7 @@ class TestTableName:
         native_df = native_pd.DataFrame({"a": [1]})
         df = pd.DataFrame(native_df)
         if_exists = "replace"
-        with to_snowflake_counter(df=df, if_exists=if_exists):
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
             df.to_snowflake(
                 lower_case_table_name_unquoted, if_exists=if_exists, index=False
             )
@@ -405,7 +335,7 @@ class TestTableName:
         native_df = native_pd.DataFrame({"a": [1]})
         df = pd.DataFrame(native_df)
         if_exists = "replace"
-        with to_snowflake_counter(df=df, if_exists=if_exists):
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
             df.to_snowflake(
                 lower_case_table_name_quoted, if_exists=if_exists, index=False
             )
@@ -418,7 +348,7 @@ class TestTableName:
         native_df = native_pd.DataFrame({"a": [1]})
         df = pd.DataFrame(native_df)
         if_exists = "replace"
-        with to_snowflake_counter(df=df, if_exists=if_exists):
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
             df.to_snowflake(
                 upper_case_table_name_quoted, if_exists=if_exists, index=False
             )
@@ -433,7 +363,7 @@ class TestTableName:
         native_df = native_pd.DataFrame({"a": [1]})
         df = pd.DataFrame(native_df)
         if_exists = "replace"
-        with to_snowflake_counter(df=df, if_exists=if_exists):
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
             df.to_snowflake(
                 upper_case_table_name_with_space_quoted,
                 if_exists=if_exists,
@@ -448,7 +378,7 @@ class TestTableName:
         native_df = native_pd.DataFrame({"a": [1]})
         df = pd.DataFrame(native_df)
         if_exists = "replace"
-        with to_snowflake_counter(df=df, if_exists=if_exists):
+        with to_snowflake_counter(dataset=df, if_exists=if_exists):
             df.to_snowflake(
                 valid_unquoted_identifier_table_name, if_exists=if_exists, index=False
             )
