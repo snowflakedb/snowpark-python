@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
     Cursor,
 )
+from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
     get_sorted_key_for_version,
     measure_time,
@@ -27,6 +28,7 @@ from snowflake.snowpark.types import (
     BinaryType,
     DateType,
     BooleanType,
+    StringType,
 )
 import snowflake.snowpark
 import logging
@@ -173,7 +175,10 @@ class BaseDriver:
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
             """
         res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
-        return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
+        return BaseDriver.keep_nullable_attributes(
+            self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast),
+            schema,
+        )
 
     def udtf_class_builder(
         self,
@@ -213,6 +218,22 @@ class BaseDriver:
         elif scale is not None:
             return False
         return True
+
+    @staticmethod
+    def get_cast_type_with_default_string_length(datatype):
+        """
+        Returns the appropriate cast type for a given datatype.
+        For StringType, ensures a default length is set if not already specified.
+
+        Args:
+            datatype: A Snowpark DataType object
+
+        Returns:
+            The same datatype, or StringType with default length if applicable
+        """
+        if isinstance(datatype, StringType):
+            return StringType(datatype.length or DEFAULT_STRING_SIZE)
+        return datatype
 
     # convert timestamp and date to string to work around SNOW-1911989
     # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.map.html
@@ -268,19 +289,27 @@ class BaseDriver:
         return session.table(table_name, _emit_ast=_emit_ast)
 
     @staticmethod
+    def keep_nullable_attributes(
+        selected_df: "DataFrame", schema: StructType
+    ) -> "DataFrame":
+        for attr, source_field in zip(selected_df._plan.attributes, schema.fields):
+            attr.nullable = source_field.nullable
+        return selected_df
+
+    @staticmethod
     def to_result_snowpark_df_udtf(
         res_df: "DataFrame",
         schema: StructType,
         _emit_ast: bool = True,
     ):
-        cols = [
-            res_df[field.name].cast(field.datatype).alias(field.name)
-            for field in schema.fields
-        ]
-        selected_df = res_df.select(cols, _emit_ast=_emit_ast)
-        for attr, source_field in zip(selected_df._plan.attributes, schema.fields):
-            attr.nullable = source_field.nullable
-        return selected_df
+        cols = []
+        for field in schema.fields:
+            cast_type = BaseDriver.get_cast_type_with_default_string_length(
+                field.datatype
+            )
+            cols.append(res_df[field.name].cast(cast_type).alias(field.name))
+
+        return res_df.select(cols, _emit_ast=_emit_ast)
 
     def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
         """
