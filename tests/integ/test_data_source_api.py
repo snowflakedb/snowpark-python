@@ -1814,3 +1814,26 @@ def test_dbapi_with_connection_parameters(session):
         )
         result4 = df4.order_by("ID").collect()
         assert result4 == assert_data
+
+        # Test 3: Function without parameters should raise TypeError
+        def create_connection_check_no_params():
+            import sqlite3
+
+            return sqlite3.connect(dbpath)
+
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            session.read.dbapi(
+                create_connection_check_no_params,
+                table=table_name,
+                custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                connection_parameters={"key": "value"},
+            )
+
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            session.read.dbapi(
+                create_connection_check_no_params,
+                table=table_name,
+                custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                connection_parameters={"key": "value"},
+                udtf_configs={"external_access_integration": "test_integration"},
+            )
