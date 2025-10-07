@@ -34,7 +34,10 @@ body {
     expr {
       begin_transaction {
         src {
+          end_column: 35
+          end_line: 25
           file: 2
+          start_column: 8
           start_line: 25
         }
       }
@@ -53,7 +56,10 @@ body {
           value: "my_transaction"
         }
         src {
+          end_column: 51
+          end_line: 27
           file: 2
+          start_column: 8
           start_line: 27
         }
       }
@@ -69,7 +75,10 @@ body {
     expr {
       commit {
         src {
+          end_column: 24
+          end_line: 29
           file: 2
+          start_column: 8
           start_line: 29
         }
       }
@@ -85,7 +94,10 @@ body {
     expr {
       rollback {
         src {
+          end_column: 26
+          end_line: 31
           file: 2
+          start_column: 8
           start_line: 31
         }
       }
