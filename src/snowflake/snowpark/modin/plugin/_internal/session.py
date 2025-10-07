@@ -81,7 +81,8 @@ class SnowpandasSessionHolder(ModuleType):
             self._warn_if_possible_when_quoted_identifiers_ignore_case_is_set(
                 self._session
             )
-            self._session.cte_optimization_enabled = True
+            if not self._session.cte_optimization_enabled:
+                self._session.cte_optimization_enabled = True
             return self._session
 
         try:
@@ -90,7 +91,8 @@ class SnowpandasSessionHolder(ModuleType):
             self._warn_if_possible_when_quoted_identifiers_ignore_case_is_set(
                 self._session
             )
-            session.cte_optimization_enabled = True
+            if not session.cte_optimization_enabled:
+                session.cte_optimization_enabled = True
             return session
         except SnowparkSessionException as ex:
             if ex.error_code == "1409":
