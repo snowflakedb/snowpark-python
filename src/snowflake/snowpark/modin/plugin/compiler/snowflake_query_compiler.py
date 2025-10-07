@@ -587,7 +587,7 @@ class UnsupportedArgsRule:
     def get_unsupported_args_reason(
         api_cls_name: Optional[str],
         operation: str,
-        args: Optional[MappingProxyType[Any, Any]],
+        args: MappingProxyType[Any, Any],
     ) -> Optional[str]:
         """
         Get the specific reason why args are unsupported.
@@ -604,7 +604,7 @@ class UnsupportedArgsRule:
             MethodKey(api_cls_name, operation)
         )
 
-        if args is None or rule is None:
+        if rule is None:
             return None
 
         # Check custom conditions and return the specific reason
@@ -1189,8 +1189,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 api_cls_name, operation, arguments
             ):
                 WarningMessage.single_warning(
-                    f"Method '{operation}' with specified arguments is not supported on Snowflake."
-                    f"Attempting to switch to pandas for execution."
+                    f"Method '{operation}' with specified arguments is not supported on Snowflake. Attempting to switch to native pandas for execution."
                 )
 
                 return QCCoercionCost.COST_IMPOSSIBLE
