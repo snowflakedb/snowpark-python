@@ -7,6 +7,7 @@
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+- Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 
 #### Bug Fixes
 
