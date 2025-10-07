@@ -200,22 +200,6 @@ def infer_objects(self, copy: bool | None = None):  # noqa: PR01, RT01, D200
 
 
 @register_base_not_implemented()
-def interpolate(
-    self,
-    method="linear",
-    *,
-    axis=0,
-    limit=None,
-    inplace=False,
-    limit_direction: str | None = None,
-    limit_area=None,
-    downcast=lib.no_default,
-    **kwargs,
-):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
 def kurt(
     self, axis=no_default, skipna=True, numeric_only=False, **kwargs
 ):  # noqa: PR01, RT01, D200

@@ -14489,6 +14489,110 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(internal_frame)
 
+    def interpolate(
+        self,
+        method: str = "linear",
+        axis: int = 0,
+        limit: Optional[int] = None,
+        inplace: bool = False,
+        limit_direction: Literal["forward", "backward", "both", None] = None,
+        limit_area: Literal[None, "inside", "outside"] = None,
+        downcast: Literal["infer", None] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Interpolate missing values in a dataframe.
+
+        Parameters
+        ----------
+        method: str, default: "linear"
+            The method of interpolation. Native pandas supports a wide range of values for this argument,
+            and uses it to call an appropriate scipy interpolation function. Snowflake only supports the
+            "linear", "time", and "pad" methods; the "index"/"values" method can also be easily supported
+            but is left as an exercise for some future implementor.
+        axis: int, default: 0
+            The axis across which to interpolate. Snowflake only supports 0 (columnar).
+        limit: Optional[int], default: None
+            The maximum number of consecutive NaN values to fill. Unsupported by Snowflake.
+        inplace: bool, default: False
+            Whether or not the interpolation occurs in-place. This argument is ignored and only provided
+            for compatibility with Modin.
+        limit_direction: Literal["forward", "backward", "both", None], default: None
+            The direction in which to fill consecutive NaN values. If `method` is "pad" or "ffill"
+            this must be "forward"; if `method` is "bfill" or "backfill" this must be "backward".
+        limit_area: Literal["inside", "outside", None], default: None
+            Restrictions on how consecutive NaN values should be filled. None means all NaN values
+            are replaced, "inside" means only NaNs between valid values are replaced, and "outside"
+            means only NaNs outside valid values are replaced.
+
+            If the method is "linear", only "inside" is supported. TODO wrap with an ffill/bfill for "both"?
+
+            If the method is "pad"/"ffill" or "backfill"/"bfill", only None is supported.
+        downcast: Literal["infer", None], default: None
+            Whether to downcast dtypes if possible. Not supported by Snowpark pandas.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            A query compiler containing the interpolated result.
+        """
+        if axis == 1:
+            ErrorMessage.parameter_not_implemented_error(
+                "axis = 1", method_name="interpolate"
+            )
+        if limit is not None:
+            ErrorMessage.parameter_not_implemented_error(
+                f"limit = {limit}", method_name="interpolate"
+            )
+        if method == "linear":
+            sql_fill_method = "interpolate_linear"
+        elif method == "pad" or method == "ffill":
+            sql_fill_method = "interpolate_ffill"
+        elif method == "backfill" or method == "bfill":
+            sql_fill_method = "interpolate_bfill"
+        else:
+            ErrorMessage.parameter_not_implemented_error(
+                f"method = {method}", method_name="interpolate"
+            )
+        if (
+            sql_fill_method == "interpolate_ffill"
+            or sql_fill_method == "interpolate_bfill"
+        ) and limit_area is not None:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas does not yet support interpolate with limit_area={limit_area} for method={method}"
+            )
+        if downcast is not None:
+            ErrorMessage.parameter_not_implemented_error(
+                f"downcast = {downcast}", method_name="interpolate"
+            )
+        # Validate limit_direction (these are actual ValueErrors, not unimplemented parameter combinations)
+        if (
+            sql_fill_method == "interpolate_ffill"
+            and limit_direction is not None
+            and limit_direction != "forward"
+        ):
+            raise ValueError(
+                f"`limit_direction` must be 'forward' for method `{method}`"
+            )
+        if (
+            sql_fill_method == "interpolate_bfill"
+            and limit_direction is not None
+            and limit_direction != "backward"
+        ):
+            raise ValueError(
+                f"`limit_direction` must be 'backward' for method `{method}`"
+            )
+        # TODO do a second pass of ffill/bfill to cover extrapolated values
+        frame = self._modin_frame.ensure_row_position_column()
+        new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+            {
+                column_identifier: builtin(sql_fill_method)(
+                    col(column_identifier)
+                ).over(Window.order_by(frame.row_position_snowflake_quoted_identifier))
+                for column_identifier in frame.data_column_snowflake_quoted_identifiers
+            }
+        )[0].ensure_row_position_column()
+        return SnowflakeQueryCompiler(frame=new_frame)
+
     def skew(
         self,
         axis: int,
