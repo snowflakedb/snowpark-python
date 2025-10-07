@@ -110,6 +110,16 @@
       - `st_covers`
       - `st_difference`
       - `st_dimension`
+      - `st_interpolate`
+      - `st_intersection`
+      - `st_intersection_agg`
+      - `st_intersects`
+      - `st_isvalid`
+      - `st_length`
+      - `st_makegeompoint`
+      - `st_makeline`
+      - `st_makepolygon`
+      - `st_makepolygonoriented`
 
 #### Bug Fixes
 
