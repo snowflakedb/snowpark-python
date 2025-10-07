@@ -48,7 +48,7 @@ def test_to_snowflake_index(test_table_name, index, index_labels):
     verify_columns(test_table_name, expected_columns)
 
 
-def test_to_snowflake_multiindex(test_table_name):
+def test_to_snowflake_row_multiindex(test_table_name):
     index = native_pd.MultiIndex.from_arrays(
         [[1, 1, 2, 2], ["red", "blue", "red", "blue"]], names=("number", "color")
     )
@@ -67,6 +67,17 @@ def test_to_snowflake_multiindex(test_table_name):
         snow_df.to_snowflake(
             test_table_name, if_exists="replace", index=True, index_label=["a"]
         )
+
+
+def test_column_multiindex(test_table_name):
+    native_df = native_pd.DataFrame(
+        [[1, 2]], columns=pd.MultiIndex.from_tuples([("a", 0), ("b", "c")])
+    )
+    snow_df = pd.DataFrame(native_df)
+    if_exists = "replace"
+    with to_snowflake_counter(dataset=snow_df, if_exists=if_exists):
+        snow_df.to_snowflake(test_table_name, if_exists=if_exists, index=False)
+    verify_columns(test_table_name, [str(column) for column in native_df.columns])
 
 
 @pytest.mark.parametrize(
