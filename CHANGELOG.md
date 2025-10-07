@@ -10,6 +10,7 @@
 
 #### Bug Fixes
 
+- Added a fix for floating point precision discrepancies in `interval_day_time_from_parts`.
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 
 ### Snowpark pandas API Updates
