@@ -2531,16 +2531,16 @@ def st_makepoint(
 
 @publicapi
 def st_disjoint(
-    geography_expression_1: ColumnOrName,
-    geography_expression_2: ColumnOrName,
+    geography_or_geometry_expression_1: ColumnOrName,
+    geography_or_geometry_expression_2: ColumnOrName,
     _emit_ast: bool = True,
 ) -> Column:
     """
     Returns TRUE if the two GEOGRAPHY or GEOMETRY objects are disjoint (do not intersect). Returns FALSE otherwise.
 
     Args:
-        geography_expression_1 (ColumnOrName): A GEOGRAPHY or GEOMETRY object.
-        geography_expression_2 (ColumnOrName): A GEOGRAPHY or GEOMETRY object.
+        geography_or_geometry_expression_1 (ColumnOrName): A GEOGRAPHY or GEOMETRY object.
+        geography_or_geometry_expression_2 (ColumnOrName): A GEOGRAPHY or GEOMETRY object.
 
     Returns:
         Column: Boolean values indicating whether the two geography or geometry objects are disjoint.
@@ -2554,8 +2554,8 @@ def st_disjoint(
         >>> df.select(st_disjoint(to_geography(col("geog1")), to_geography(col("geog2"))).alias("disjoint")).collect()
         [Row(DISJOINT=True), Row(DISJOINT=False)]
     """
-    c1 = _to_col_if_str(geography_expression_1, "st_disjoint")
-    c2 = _to_col_if_str(geography_expression_2, "st_disjoint")
+    c1 = _to_col_if_str(geography_or_geometry_expression_1, "st_disjoint")
+    c2 = _to_col_if_str(geography_or_geometry_expression_2, "st_disjoint")
     return builtin("st_disjoint", _emit_ast=_emit_ast)(c1, c2)
 
 

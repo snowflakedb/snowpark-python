@@ -7,6 +7,17 @@
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+- Added support for the following scalar functions in `functions.py`:
+  - `st_disjoint`
+  - `st_distance`
+  - `st_dwithin`
+  - `st_endpoint`
+  - `st_envelope`
+  - `st_geohash`
+  - `st_geomfromgeohash`
+  - `st_geompointfromgeohash`
+  - `st_hausdorffdistance`
+  - `st_makepoint`
 
 ## 1.40.0 (YYYY-MM-DD)
 
@@ -110,16 +121,6 @@
       - `st_covers`
       - `st_difference`
       - `st_dimension`
-      - `st_disjoint`
-      - `st_distance`
-      - `st_dwithin`
-      - `st_endpoint`
-      - `st_envelope`
-      - `st_geohash`
-      - `st_geomfromgeohash`
-      - `st_geompointfromgeohash`
-      - `st_hausdorffdistance`
-      - `st_makepoint`
 
 #### Bug Fixes
 
