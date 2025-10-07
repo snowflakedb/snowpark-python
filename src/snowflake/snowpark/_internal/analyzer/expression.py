@@ -575,6 +575,29 @@ class ModelExpression(Expression):
         return PlanNodeCategory.FUNCTION
 
 
+class ServiceExpression(Expression):
+    def __init__(
+        self,
+        service_name: str,
+        method_name: str,
+        arguments: List[Expression],
+    ) -> None:
+        super().__init__()
+        self.service_name = service_name
+        self.method_name = method_name
+        self.children = arguments
+
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        return derive_dependent_columns(*self.children)
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(*self.children)
+
+    @property
+    def plan_node_category(self) -> PlanNodeCategory:
+        return PlanNodeCategory.FUNCTION
+
+
 class FunctionExpression(Expression):
     def __init__(
         self,

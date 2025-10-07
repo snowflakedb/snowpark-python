@@ -181,6 +181,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ListAgg,
     Literal,
     ModelExpression,
+    ServiceExpression,
     MultipleExpression,
     Star,
     NamedFunctionExpression,
@@ -10746,6 +10747,30 @@ def _call_model(
     )
 
 
+def _call_service(
+    service_name: str,
+    method_name: str,
+    *args,
+    _emit_ast: bool = True,
+) -> Column:
+    if _emit_ast:
+        _ast = build_function_expr("service", [service_name, method_name, *args])
+    else:
+        _ast = None
+
+    args_list = parse_positional_args_to_list(*args)
+    expressions = [Column._to_expr(arg) for arg in args_list]
+    return Column(
+        ServiceExpression(
+            service_name,
+            method_name,
+            expressions,
+        ),
+        _ast=_ast,
+        _emit_ast=_emit_ast,
+    )
+
+
 @publicapi
 def model(
     model_name: str,
@@ -10772,6 +10797,44 @@ def model(
     """
     return lambda method_name: lambda *args: _call_model(
         model_name, version_or_alias_name, method_name, *args, _emit_ast=_emit_ast
+    )
+
+
+@publicapi
+def service(
+    service_name: str,
+    _emit_ast: bool = True,
+) -> Callable:
+    """
+    Creates a service function that can be used to call a service method.
+
+    Args:
+        service_name: The name of the service to call.
+
+    Example::
+
+        >>> service_instance = service("TESTSCHEMA_SNOWPARK_PYTHON.FORECAST_MODEL_SERVICE")
+        >>> # Prepare a DataFrame with the ten expected features
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         (0.038076, 0.050680, 0.061696, 0.021872, -0.044223, -0.034821, -0.043401, -0.002592, 0.019907, -0.017646),
+        ...     ],
+        ...     schema=["age", "sex", "bmi", "bp", "s1", "s2", "s3", "s4", "s5", "s6"],
+        ... )
+        >>> # Invoke the model's predict method exposed by the service
+        >>> result_df = df.select(
+        ...     service_instance("predict")(col("age"), col("sex"), col("bmi"), col("bp"), col("s1"), col("s2"), col("s3"), col("s4"), col("s5"), col("s6"))["output_feature_0"]
+        ... )
+        >>> result_df.show()
+        ------------------------------------------------------
+        |"TESTSCHEMA_SNOWPARK_PYTHON.FORECAST_MODEL_SERV...  |
+        ------------------------------------------------------
+        |220.2223358154297                                   |
+        ------------------------------------------------------
+        <BLANKLINE>
+    """
+    return lambda method_name: lambda *args: _call_service(
+        service_name, method_name, *args, _emit_ast=_emit_ast
     )
 
 
