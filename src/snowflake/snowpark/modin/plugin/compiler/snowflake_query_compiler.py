@@ -13049,6 +13049,31 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         values: Union[
             list[Any], np.ndarray, "SnowflakeQueryCompiler", dict[Hashable, ListLike]
         ],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _isin_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and (
+            not isinstance(values, SnowflakeQueryCompiler)
+            or values._relaxed_query_compiler is not None
+        ):
+            new_values = values
+            if isinstance(values, SnowflakeQueryCompiler):
+                assert values._relaxed_query_compiler is not None
+                new_values = values._relaxed_query_compiler
+            relaxed_query_compiler = self._relaxed_query_compiler._isin_internal(
+                values=new_values
+            )
+
+        qc = self._isin_internal(values=values)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _isin_internal(
+        self,
+        values: Union[
+            list[Any], np.ndarray, "SnowflakeQueryCompiler", dict[Hashable, ListLike]
+        ],
     ) -> "SnowflakeQueryCompiler":  # noqa: PR02
         """
         Check for each element of `self` whether it's contained in passed `values`.
