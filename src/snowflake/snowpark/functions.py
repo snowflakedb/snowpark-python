@@ -11095,6 +11095,8 @@ def interval_year_month_from_parts(
 
     res = cast(interval_string, "INTERVAL YEAR TO MONTH")
     if _alias_column_name:
+        # Aliasing column names when using this in a case when will throw an error. This allows us to only alias
+        # when necessary.
 
         def get_col_name(col):
             if isinstance(col._expr1, Literal):
@@ -11248,6 +11250,8 @@ def interval_day_time_from_parts(
 
     res = cast(interval_value, "INTERVAL DAY TO SECOND")
     if _alias_column_name:
+        # Aliasing column names when using this in a case when will throw an error. This allows us to only alias
+        # when necessary.
 
         def get_col_name(col):
             if isinstance(col._expr1, Literal):
