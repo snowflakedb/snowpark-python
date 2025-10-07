@@ -6,15 +6,23 @@
 
 #### New Features
 
+- Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
-
-## 1.40.0 (YYYY-MM-DD)
-
-### Snowpark Python API Updates
 
 #### Bug Fixes
 
-- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
+- Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
+
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+- Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
+
+## 1.40.0 (2025-10-02)
+
+### Snowpark Python API Updates
 
 #### New Features
 
@@ -113,6 +121,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
+- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be generated when using nested structured types.
 - Fixed multiple bugs in `DataFrameReader.dbapi` (PuPr):
   - Fixed UDTF ingestion failure with `pyodbc` driver caused by unprocessed row data.
   - Fixed SQL Server query input failure due to incorrect select query generation.
@@ -120,7 +130,6 @@
   - Fixed an issue that caused the program to hang during multithreaded Parquet based ingestion when a data fetching error occurred.
   - Fixed a bug in schema parsing when custom schema strings used upper-cased data type names (NUMERIC, NUMBER, DECIMAL, VARCHAR, STRING, TEXT).
 - Fixed a bug in `Session.create_dataframe` where schema string parsing failed when using upper-cased data type names (e.g., NUMERIC, NUMBER, DECIMAL, VARCHAR, STRING, TEXT).
-- Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 
 #### Improvements
 
@@ -135,7 +144,6 @@
 
 - Updated the supported `modin` versions to >=0.36.0 and <0.38.0 (was previously >= 0.35.0 and <0.37.0).
 
-
 #### New Features
 - Added support for `DataFrame.query` for dataframes with single-level indexes.
 - Added support for `DataFrameGroupby.__len__` and `SeriesGroupBy.__len__`.
@@ -147,7 +155,6 @@
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
 - When hybrid execution is enabled, `pd.merge`, `pd.concat`, `DataFrame.merge`, and `DataFrame.join` may now move arguments to backends other than those among the function arguments.
 - Improved performance of `DataFrame.to_snowflake` and `pd.to_snowflake(dataframe)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
-- Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
 
 ## 1.39.1 (2025-09-25)
 
