@@ -4,6 +4,10 @@
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+
 #### Bug Fixes
 
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
@@ -15,7 +19,7 @@
 - Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 
-## 1.40.0 (2025-10-06)
+## 1.40.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
 
