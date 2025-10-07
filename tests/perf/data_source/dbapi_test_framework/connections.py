@@ -127,3 +127,37 @@ def get_connection_factory(dbms_type, params):
 
     factory_func = CONNECTION_FACTORIES[dbms_type]
     return factory_func(**params)
+
+
+def get_jdbc_url(dbms_type, params):
+    """
+    Generate JDBC connection URL from database parameters.
+
+    Args:
+        dbms_type: Type of DBMS (mysql, postgres, mssql, oracle, databricks)
+        params: Dict of connection parameters
+
+    Returns:
+        JDBC connection URL string
+    """
+    dbms_type = dbms_type.lower()
+
+    if dbms_type == "mysql":
+        return f"jdbc:mysql://{params['host']}:{params['port']}/{params['database']}"
+
+    elif dbms_type in ("postgres", "postgresql"):
+        return (
+            f"jdbc:postgresql://{params['host']}:{params['port']}/{params['database']}"
+        )
+
+    elif dbms_type in ("mssql", "sqlserver"):
+        return f"jdbc:sqlserver://{params['host']}:{params['port']};databaseName={params['database']}"
+
+    elif dbms_type == "oracle":
+        return f"jdbc:oracle:thin:@//{params['host']}:{params['port']}/{params['service_name']}"
+
+    elif dbms_type in ("databricks", "dbx"):
+        return f"jdbc:databricks://{params['server_hostname']};httpPath={params['http_path']}"
+
+    else:
+        raise ValueError(f"Unknown DBMS type for JDBC: {dbms_type}")

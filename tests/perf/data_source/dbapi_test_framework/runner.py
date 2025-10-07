@@ -239,6 +239,183 @@ def run_udtf_ingestion_in_sproc(
     return elapsed
 
 
+def run_jdbc_ingestion(
+    session,
+    jdbc_url,
+    source_type,
+    source_value,
+    target_table,
+    dbapi_params,
+    udtf_configs,
+):
+    """
+    Method 5: JDBC ingestion using session.read.jdbc()
+
+    Data is fetched via JDBC UDTF running on Snowflake.
+    Requires JDBC driver JAR, secret, and external access integration.
+    Args:
+        jdbc_url: JDBC connection URL
+        source_type: "table" or "query"
+        source_value: Table name or SQL query string
+        target_table: Target Snowflake table name
+        dbapi_params: DBAPI parameters (fetch_size, etc.)
+        udtf_configs: UDTF configuration (EAI, secret, imports)
+    """
+    print(f"\n{'='*60}")
+    print("Running: JDBC INGESTION")
+    print(f"{'='*60}")
+
+    start_time = time.time()
+
+    # Build source kwargs
+    source_kwargs = {source_type: source_value}
+
+    # Read using JDBC
+    df = session.read.jdbc(
+        url=jdbc_url,
+        udtf_configs=udtf_configs,
+        **source_kwargs,
+        **dbapi_params,
+    )
+
+    # Write to Snowflake
+    df.write.save_as_table(target_table, mode="overwrite")
+
+    end_time = time.time()
+    elapsed = end_time - start_time
+
+    print(f"✓ Completed in {elapsed:.2f} seconds")
+    return elapsed
+
+
+def run_jdbc_ingestion_in_sproc(
+    session,
+    jdbc_url,
+    source_type,
+    source_value,
+    target_table,
+    dbapi_params,
+    udtf_configs,
+    dbms,
+):
+    """
+    Method 6: JDBC ingestion inside a stored procedure
+
+    The JDBC ingestion logic runs inside a Snowflake stored procedure.
+    Args:
+        jdbc_url: JDBC connection URL
+        source_type: "table" or "query"
+        source_value: Table name or SQL query string
+        target_table: Target Snowflake table name
+        dbapi_params: DBAPI parameters (fetch_size, etc.)
+        udtf_configs: UDTF configuration (EAI, secret, imports)
+        dbms: DBMS type (for external access integration)
+    """
+    print(f"\n{'='*60}")
+    print("Running: JDBC INGESTION IN STORED PROCEDURE")
+    print(f"{'='*60}")
+
+    source_dict = {source_type: source_value}
+    external_access_integrations = [udtf_configs.get("external_access_integration")]
+    # JDBC uses Java, so no Python packages needed
+    packages = []
+
+    # Define the ingestion function
+    def ingestion_sproc(_session: Session):
+        df = _session.read.jdbc(
+            url=jdbc_url,
+            udtf_configs=udtf_configs,
+            **source_dict,
+            **dbapi_params,
+        )
+        df.write.save_as_table(target_table, mode="overwrite")
+        return "Success"
+
+    # Register as stored procedure with external access integration
+    from snowflake.snowpark.types import StringType
+
+    sproc = session.sproc.register(
+        func=ingestion_sproc,
+        name="temp_jdbc_ingestion_sproc",
+        return_type=StringType(),
+        input_types=None,
+        replace=True,
+        is_permanent=False,
+        packages=packages,
+        external_access_integrations=external_access_integrations,
+    )
+
+    start_time = time.time()
+
+    # Call the stored procedure
+    result = sproc()
+
+    end_time = time.time()
+    elapsed = end_time - start_time
+
+    print(f"✓ Completed in {elapsed:.2f} seconds")
+    print(f"  Result: {result}")
+    return elapsed
+
+
+def ensure_jdbc_driver_uploaded(session, dbms, jar_filename):
+    """
+    Ensure JDBC driver JAR is uploaded to stage before test execution.
+
+    Uploads the driver only if it doesn't already exist on the stage.
+    Looks for JAR in local drivers/ directory.
+
+    Args:
+        session: Snowflake session
+        dbms: Database type (mysql, postgres, etc.)
+        jar_filename: Name of JAR file
+
+    Returns:
+        Stage path to the JAR file (e.g., "@session_stage/mysql-connector.jar")
+    """
+    from pathlib import Path
+
+    # Get stage name
+    stage_name = session.get_session_stage()
+
+    # Check if JAR already exists on stage
+    stage_jar_path = f"{stage_name}/{jar_filename}"
+
+    try:
+        # List files on stage to check if JAR exists
+        result = session.sql(f"LIST {stage_name}").collect()
+        existing_files = [row["name"] for row in result]
+
+        if any(jar_filename in f for f in existing_files):
+            print(f"✓ JDBC driver already on stage: {stage_jar_path}")
+            return stage_jar_path
+    except Exception:
+        pass  # Stage might not exist yet or no permission to list
+
+    # Look for JAR in local drivers/ directory
+    local_jar_path = Path(__file__).parent / "drivers" / jar_filename
+
+    if not local_jar_path.exists():
+        raise FileNotFoundError(
+            f"JDBC driver not found: {local_jar_path}\n"
+            f"Please download the {dbms.upper()} JDBC driver and place it in:\n"
+            f"  {local_jar_path.parent}/\n"
+            f"Download from official sources."
+        )
+
+    # Upload JAR to stage
+    print(f"Uploading JDBC driver to stage: {jar_filename}")
+    session.file.put(
+        str(local_jar_path),
+        stage_name,
+        auto_compress=False,
+        overwrite=False,
+    )
+    print(f"✓ Uploaded: {stage_jar_path}")
+
+    return stage_jar_path
+
+
 def run_test(test_config):
     """
     Run a single test based on configuration.
@@ -370,6 +547,62 @@ def run_test(test_config):
                 udtf_configs,
                 dbms,
             )
+
+        elif method in ("jdbc", "jdbc_sproc"):
+            # Generate JDBC URL
+            from connections import get_jdbc_url
+
+            jdbc_url = get_jdbc_url(dbms, dbms_params)
+
+            # Get JAR filename from config
+            jar_filename = config.JDBC_DRIVER_JARS.get(dbms_key)
+            if not jar_filename:
+                raise ValueError(
+                    f"JDBC driver JAR not configured for {dbms}. "
+                    f"Please add to config.JDBC_DRIVER_JARS."
+                )
+
+            # Ensure driver is uploaded (uploads only if not already on stage)
+            jar_path = ensure_jdbc_driver_uploaded(session, dbms, jar_filename)
+
+            # Get secret
+            secret = config.JDBC_SECRETS.get(dbms_key)
+            if not secret:
+                raise ValueError(
+                    f"JDBC secret not configured for {dbms}. "
+                    f"Please add to config.JDBC_SECRETS or set environment variable."
+                )
+
+            # Build JDBC udtf_configs
+            jdbc_udtf_configs = {
+                "external_access_integration": udtf_configs.get(
+                    "external_access_integration"
+                ),
+                "secret": secret,
+                "imports": [jar_path],
+            }
+
+            if method == "jdbc":
+                elapsed = run_jdbc_ingestion(
+                    session,
+                    jdbc_url,
+                    source_type,
+                    source_value,
+                    target_table,
+                    dbapi_params,
+                    jdbc_udtf_configs,
+                )
+            else:  # jdbc_sproc
+                elapsed = run_jdbc_ingestion_in_sproc(
+                    session,
+                    jdbc_url,
+                    source_type,
+                    source_value,
+                    target_table,
+                    dbapi_params,
+                    jdbc_udtf_configs,
+                    dbms,
+                )
 
         else:
             raise ValueError(f"Unknown ingestion method: {method}")

@@ -117,7 +117,9 @@ python3 -m tests.perf.data_source.dbapi_test_framework.main --matrix
 
 ## Ingestion Methods
 
-The framework tests 4 different ingestion approaches:
+The framework tests 6 different ingestion approaches:
+
+### DBAPI Methods (Python drivers)
 
 1. **local** - Local ingestion using `session.read.dbapi()`
    - Data fetched locally and uploaded to Snowflake
@@ -135,13 +137,28 @@ The framework tests 4 different ingestion approaches:
    - UDTF ingestion logic runs inside a Snowflake stored procedure
    - Requires external access integration + packages
 
+### JDBC Methods (Java drivers)
+
+5. **jdbc** - JDBC ingestion using `session.read.jdbc()`
+   - Data fetched via JDBC UDTF running on Snowflake
+   - Requires JDBC driver JAR, Snowflake secret, and external access integration
+   - **Only supports UDTF-based ingestion** (no local mode)
+   - Driver JARs are automatically uploaded to stage on first run
+
+6. **jdbc_sproc** - JDBC ingestion inside a stored procedure
+   - JDBC ingestion logic runs inside a Snowflake stored procedure
+   - Requires JDBC driver JAR, Snowflake secret, and external access integration
+   - Driver JARs are automatically uploaded to stage on first run
+
 ## Supported Databases
 
-- **MySQL** (via `pymysql`)
-- **PostgreSQL** (via `psycopg2`)
-- **MS SQL Server** (via `pyodbc`)
-- **Oracle** (via `oracledb`)
-- **Databricks** (via `databricks-sql-connector`)
+All databases support both DBAPI and JDBC methods:
+
+- **MySQL** (DBAPI: `pymysql`, JDBC: `mysql-connector-j`)
+- **PostgreSQL** (DBAPI: `psycopg2`, JDBC: `postgresql`)
+- **MS SQL Server** (DBAPI: `pyodbc`, JDBC: `mssql-jdbc`)
+- **Oracle** (DBAPI: `oracledb`, JDBC: `ojdbc`)
+- **Databricks** (DBAPI: `databricks-sql-connector`, JDBC: `DatabricksJDBC42`)
 
 ## Configuration
 
@@ -157,7 +174,7 @@ The test matrix in `config.py` supports two source types:
         "type": "table|query",  # Type: table or query
         "value": "DBAPI_TEST_TABLE"  # Table name or SQL query
     },
-    "ingestion_method": "local|udtf|local_sproc|udtf_sproc"
+    "ingestion_method": "local|udtf|local_sproc|udtf_sproc|jdbc|jdbc_sproc"
 }
 ```
 
@@ -281,6 +298,27 @@ DBAPI_PARAMS = {
 }
 ```
 
+### JDBC Ingestion
+```python
+{
+    "dbms": "mysql",
+    "source": {"type": "table", "value": "DBAPI_TEST_TABLE"},
+    "ingestion_method": "jdbc"  # Uses JDBC driver instead of Python DBAPI
+}
+```
+
+### JDBC in Stored Procedure
+```python
+{
+    "dbms": "postgres",
+    "source": {
+        "type": "query",
+        "value": "SELECT * FROM DBAPI_TEST_TABLE WHERE id BETWEEN 1 AND 1000"
+    },
+    "ingestion_method": "jdbc_sproc"  # JDBC inside stored procedure
+}
+```
+
 ## Output
 
 ### During Test Execution
@@ -362,6 +400,58 @@ CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION snowpark_dbapi_mysql_test_integrat
 ```
 
 Repeat for each DBMS you want to test with UDTF/stored procedure methods.
+
+### JDBC Setup (for jdbc and jdbc_sproc methods)
+
+#### 1. Download JDBC Drivers
+
+Download the required JDBC driver JARs and place them in the `drivers/` directory:
+
+```bash
+cd tests/perf/data_source/dbapi_test_framework
+mkdir -p drivers
+# Download drivers from official sources (see drivers/README.md)
+```
+
+See `drivers/README.md` for download links and specific versions.
+
+#### 2. Create Snowflake Secrets
+
+JDBC methods require Snowflake secrets to store database credentials:
+
+```sql
+-- Example for MySQL
+CREATE OR REPLACE SECRET snowpark_dbapi_mysql_test_cred
+  TYPE = USERNAME_PASSWORD
+  USERNAME = 'your_mysql_user'
+  PASSWORD = 'your_mysql_password';
+
+-- Grant usage to the role
+GRANT USAGE ON SECRET snowpark_dbapi_mysql_test_cred TO ROLE your_role;
+```
+
+Repeat for each database you want to test with JDBC.
+
+**Secret naming convention:**
+- MySQL: `ADMIN.PUBLIC.SNOWPARK_DBAPI_MYSQL_TEST_CRED`
+- PostgreSQL: `ADMIN.PUBLIC.SNOWPARK_DBAPI_POSTGRES_TEST_CRED`
+- SQL Server: `ADMIN.PUBLIC.SNOWPARK_DBAPI_SQL_SERVER_TEST_CRED`
+- Oracle: `ADMIN.PUBLIC.SNOWPARK_DBAPI_ORACLEDB_TEST_CRED`
+- Databricks: `ADMIN.PUBLIC.SNOWPARK_DBAPI_DATABRICKS_TEST_CRED`
+
+You can customize secret names via environment variables (e.g., `MYSQL_SECRET`).
+
+#### 3. Update External Access Integration (if needed)
+
+The JDBC methods use the same external access integrations as DBAPI UDTF methods. No additional setup required if you already have UDTF working.
+
+#### 4. Automatic Driver Upload
+
+When you run JDBC tests:
+- The framework automatically checks if the driver is on the stage
+- If not found, it uploads from your local `drivers/` directory
+- Subsequent runs skip the upload (fast)
+- Each test only uploads the specific driver it needs
 
 ## Database Setup Utilities
 

@@ -110,6 +110,45 @@ SPROC_PACKAGES = {
     "databricks": ["databricks-sql-connector"],
 }
 
+# JDBC driver JAR filenames (place these in drivers/ directory)
+JDBC_DRIVER_JARS = {}  # CHANGE ME TO RUN THE JDBC DRIVER JARS YOU WANT
+# *** EXAMPLE ***
+# JDBC_DRIVER_JARS = {
+#     "mysql": "mysql-connector-j-9.1.0.jar",
+#     "postgres": "postgresql-42.7.7.jar",
+#     "mssql": "mssql-jdbc-12.8.1.jre11.jar",
+#     "oracle": "ojdbc17-23.9.0.25.07.jar",
+#     "databricks": "DatabricksJDBC42-2.6.40.jar",
+# }
+
+
+# Snowflake secrets containing DB credentials (format: schema.secret_name)
+# Users should create these secrets with USERNAME_PASSWORD_SECRET type
+JDBC_SECRETS = {
+    "mysql": os.getenv("MYSQL_SECRET", "ADMIN.PUBLIC.SNOWPARK_DBAPI_MYSQL_TEST_CRED"),
+    "postgres": os.getenv(
+        "POSTGRES_SECRET", "ADMIN.PUBLIC.SNOWPARK_DBAPI_POSTGRES_TEST_CRED"
+    ),
+    "mssql": os.getenv(
+        "MSSQL_SECRET", "ADMIN.PUBLIC.SNOWPARK_DBAPI_SQL_SERVER_TEST_CRED"
+    ),
+    "oracle": os.getenv(
+        "ORACLE_SECRET", "ADMIN.PUBLIC.SNOWPARK_DBAPI_ORACLEDB_TEST_CRED"
+    ),
+    "databricks": os.getenv(
+        "DATABRICKS_SECRET", "ADMIN.PUBLIC.SNOWPARK_DBAPI_DATABRICKS_TEST_CRED"
+    ),
+}
+
+# JDBC connection properties (optional, per-database settings)
+JDBC_PROPERTIES = {
+    "mysql": {"useSSL": "false"},
+    "postgres": {"ssl": "false"},
+    "mssql": {"trustServerCertificate": "true"},
+    "oracle": {},
+    "databricks": {},
+}
+
 # UDTF configuration (for udtf and udtf_sproc methods)
 # Each DBMS needs its own external access integration
 # Names match the existing test integrations in tests/resources/test_data_source_dir/
@@ -136,7 +175,8 @@ UDTF_CONFIGS = {
 # {
 #     "dbms": "mysql",
 #     "source": {"type": "table|query", "value": "..."},
-#     "ingestion_method": "local|udtf|local_sproc|udtf_sproc"
+#     "ingestion_method": "local|udtf|local_sproc|udtf_sproc|jdbc|jdbc_sproc",
+#     "dbapi_params": {...},
 # }
 DBMS_LIST = [
     "mysql",
@@ -148,7 +188,7 @@ DBMS_LIST = [
 METHODS = [
     "local",
     "udtf",
-]  # CHANGE ME TO RUN THE METHODS YOU WANT, full list: local, udtf, local_sproc, udtf_sproc
+]  # CHANGE ME TO RUN THE METHODS YOU WANT, full list: local, udtf, local_sproc, udtf_sproc, jdbc, jdbc_sproc
 
 # Generate test matrix: table-based and query-based tests
 TEST_MATRIX = [
