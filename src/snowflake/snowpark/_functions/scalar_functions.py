@@ -2653,7 +2653,9 @@ def st_isvalid(
 
 
 @publicapi
-def st_length(geography_or_geometry_expression, _emit_ast: bool = True) -> Column:
+def st_length(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
     """
     Returns the length of a GEOGRAPHY or GEOMETRY object. The value is a REAL value, which represents the length:
         - For GEOGRAPHY input values, the length is in meters.
