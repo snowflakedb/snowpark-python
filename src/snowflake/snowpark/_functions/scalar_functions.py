@@ -2682,7 +2682,7 @@ def st_envelope(geography_or_geometry_expression: ColumnOrName, _emit_ast=True):
 @publicapi
 def st_geohash(
     geography_or_geometry_expression: ColumnOrName,
-    precision=None,
+    precision: ColumnOrName = None,
     _emit_ast: bool = True,
 ):
     """
