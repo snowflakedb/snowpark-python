@@ -2506,7 +2506,9 @@ def st_dimension(
 
 @publicapi
 def st_interpolate(
-    geography_expression, tolerance=None, _emit_ast: bool = True
+    geography_expression: ColumnOrName,
+    tolerance: ColumnOrName = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Returns a geography object with additional points interpolated along the edges of the input geography.
@@ -2653,7 +2655,7 @@ def st_isvalid(
 @publicapi
 def st_length(geography_or_geometry_expression, _emit_ast: bool = True) -> Column:
     """
-    Returns the length of a GEOGRAPHY or GEOMETRY object. THE value is a REAL value, which represents the length:
+    Returns the length of a GEOGRAPHY or GEOMETRY object. The value is a REAL value, which represents the length:
         - For GEOGRAPHY input values, the length is in meters.
         - For GEOMETRY input values, the length is computed with the same units used to define the input coordinates.
 
