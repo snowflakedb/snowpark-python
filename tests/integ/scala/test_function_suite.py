@@ -5933,7 +5933,7 @@ def test_interval_day_time_from_parts(session):
     expected_total = 86400 + 123456789012.123456
     import builtins
 
-    assert builtins.abs(total_seconds - expected_total) < 1e-3
+    assert builtins.abs(total_seconds - expected_total) < 1e-6
 
     result_microsecond = df_extreme.select(
         interval_day_time_from_parts(lit(0), lit(0), lit(0), lit(0.123456)).alias(
