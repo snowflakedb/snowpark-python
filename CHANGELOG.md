@@ -7,6 +7,7 @@
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+- Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following scalar functions in `functions.py`:
   - `st_disjoint`
   - `st_distance`
@@ -29,6 +30,7 @@
 
 - Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
+- Add support for `isna`, `isnull`, `notna`, `notnull` in faster pandas.
 
 ## 1.40.0 (2025-10-02)
 
@@ -165,6 +167,8 @@
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
 - When hybrid execution is enabled, `pd.merge`, `pd.concat`, `DataFrame.merge`, and `DataFrame.join` may now move arguments to backends other than those among the function arguments.
 - Improved performance of `DataFrame.to_snowflake` and `pd.to_snowflake(dataframe)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+- Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+- Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 
 ## 1.39.1 (2025-09-25)
 

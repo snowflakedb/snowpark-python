@@ -3,8 +3,10 @@
 #
 
 import copy
+from contextlib import contextmanager
 import modin.pandas as pd
 import pandas as native_pd
+import pytest
 
 from snowflake.snowpark._internal.utils import TempObjectType
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -15,6 +17,17 @@ from snowflake.snowpark.session import (
 from tests.integ.modin.utils import assert_frame_equal, assert_index_equal
 from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
+
+
+@contextmanager
+def session_parameter_override(session, parameter_name, value):
+    """Context manager to temporarily override a session parameter and restore it afterwards"""
+    original_value = getattr(session, parameter_name)
+    setattr(session, parameter_name, value)
+    try:
+        yield
+    finally:
+        setattr(session, parameter_name, original_value)
 
 
 @sql_count_checker(query_count=5, join_count=1)
@@ -140,40 +153,71 @@ def test_read_filter_groupby_agg(session):
 def test_read_filter_join_flag_disabled(session):
     # test a chain of operations that are fully supported in faster pandas
     # but with the dummy_row_pos_optimization_enabled flag turned off
-    session.dummy_row_pos_optimization_enabled = False
+    with session_parameter_override(
+        session, "dummy_row_pos_optimization_enabled", False
+    ):
+        # create tables
+        table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        session.create_dataframe(
+            native_pd.DataFrame([[1, 11], [2, 12], [3, 13]], columns=["A", "B"])
+        ).write.save_as_table(table_name1, table_type="temp")
+        table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        session.create_dataframe(
+            native_pd.DataFrame([[1, 21], [2, 22], [3, 23]], columns=["C", "D"])
+        ).write.save_as_table(table_name2, table_type="temp")
 
+        # create snow dataframes
+        df1 = pd.read_snowflake(table_name1)
+        df2 = pd.read_snowflake(table_name2)
+        snow_result = df1[df1["B"] > 11].merge(
+            df2[df2["D"] == 22], left_on="A", right_on="C"
+        )
+
+        # verify that the input dataframes have an empty relaxed query compiler
+        assert df1._query_compiler._relaxed_query_compiler is None
+        assert df2._query_compiler._relaxed_query_compiler is None
+        # verify that the output dataframe also has an empty relaxed query compiler
+        assert snow_result._query_compiler._relaxed_query_compiler is None
+
+        # create pandas dataframes
+        native_df1 = df1.to_pandas()
+        native_df2 = df2.to_pandas()
+        native_result = native_df1[native_df1["B"] > 11].merge(
+            native_df2[native_df2["D"] == 22], left_on="A", right_on="C"
+        )
+
+        # compare results
+        assert_frame_equal(snow_result, native_result)
+
+
+@pytest.mark.parametrize("func", ["isna", "isnull", "notna", "notnull"])
+@sql_count_checker(query_count=3)
+def test_isna_notna(session, func):
     # create tables
-    table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     session.create_dataframe(
-        native_pd.DataFrame([[1, 11], [2, 12], [3, 13]], columns=["A", "B"])
-    ).write.save_as_table(table_name1, table_type="temp")
-    table_name2 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
-    session.create_dataframe(
-        native_pd.DataFrame([[1, 21], [2, 22], [3, 23]], columns=["C", "D"])
-    ).write.save_as_table(table_name2, table_type="temp")
+        native_pd.DataFrame([[1, 11], [2, None], [3, 13]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
 
     # create snow dataframes
-    df1 = pd.read_snowflake(table_name1)
-    df2 = pd.read_snowflake(table_name2)
-    snow_result = df1[df1["B"] > 11].merge(
-        df2[df2["D"] == 22], left_on="A", right_on="C"
-    )
+    df = pd.read_snowflake(table_name)
+    snow_result = df[getattr(df["B"], func)()]
 
-    # verify that the input dataframes have an empty relaxed query compiler
-    assert df1._query_compiler._relaxed_query_compiler is None
-    assert df2._query_compiler._relaxed_query_compiler is None
-    # verify that the output dataframe also has an empty relaxed query compiler
-    assert snow_result._query_compiler._relaxed_query_compiler is None
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
 
     # create pandas dataframes
-    native_df1 = df1.to_pandas()
-    native_df2 = df2.to_pandas()
-    native_result = native_df1[native_df1["B"] > 11].merge(
-        native_df2[native_df2["D"] == 22], left_on="A", right_on="C"
-    )
+    native_df = df.to_pandas()
+    native_result = native_df[getattr(native_df["B"], func)()]
 
     # compare results
-    assert_frame_equal(snow_result, native_result)
+    assert_frame_equal(snow_result, native_result, check_dtype=False)
 
 
 @sql_count_checker(query_count=0)
