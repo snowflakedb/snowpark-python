@@ -2653,14 +2653,17 @@ def st_isvalid(
 @publicapi
 def st_length(geography_or_geometry_expression, _emit_ast: bool = True) -> Column:
     """
-    Returns the length of a GEOGRAPHY or GEOMETRY object. For POINT objects, returns 0.
-    For POLYGON objects, returns the perimeter.
+    Returns the length of a GEOGRAPHY or GEOMETRY object. THE value is a REAL value, which represents the length:
+        - For GEOGRAPHY input values, the length is in meters.
+        - For GEOMETRY input values, the length is computed with the same units used to define the input coordinates.
 
     Args:
         geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY objects
 
     Returns:
-        Column: The length of the geography or geometry object
+        Column: Returns a REAL value, which represents the length:
+            - For GEOGRAPHY input values, the length is in meters.
+            - For GEOMETRY input values, the length is computed with the same units used to define the input coordinates.
 
     Examples::
         >>> from snowflake.snowpark.functions import to_geography
