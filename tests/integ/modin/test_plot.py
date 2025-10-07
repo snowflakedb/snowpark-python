@@ -6,14 +6,20 @@ import io
 
 import modin.pandas as pd
 import pandas as npd
+import pytest
 
 from tests.integ.utils.sql_counter import sql_count_checker
+from tests.utils import IS_WINDOWS
 
 species = ["adelie"] * 3 + ["chinstrap"] * 3 + ["gentoo"] * 3
 measurements = ["bill_length", "flipper_length", "bill_depth"] * 3
 values = [37.3, 187.1, 17.7, 46.6, 191.7, 17.6, 45.5, 212.7, 14.2]
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="A usable init.tcl cannot be found on windows",
+)
 @sql_count_checker(query_count=1, join_count=0)
 def test_simple_plot_method():
     ndf = npd.DataFrame(

@@ -9,8 +9,13 @@ import pytest
 
 from matplotlib.testing.compare import compare_images
 from tests.integ.utils.sql_counter import sql_count_checker
+from tests.utils import IS_WINDOWS
 
 
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="A usable init.tcl cannot be found on windows",
+)
 @sql_count_checker(query_count=2)
 @pytest.mark.parametrize("grid", [True, False])
 @pytest.mark.parametrize("bins", [None, 1, 5, 10])
