@@ -10732,6 +10732,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def isna(self) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _isna_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._isna_internal()
+
+        qc = self._isna_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _isna_internal(self) -> "SnowflakeQueryCompiler":
+        """
         Check for each element of self whether it's NaN.
 
         Returns
@@ -10746,6 +10757,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def notna(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _notna_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._notna_internal()
+
+        qc = self._notna_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _notna_internal(self) -> "SnowflakeQueryCompiler":
         """
         Check for each element of `self` whether it's existing (non-missing) value.
 
