@@ -24,15 +24,16 @@ class CloudProviderToken:
 
 
 def _get_scls_spcs_base_path():
-    return os.getenv(SCLS_SPCS_SECRET_ENV_NAME, None)
-
-
-def _get_scls_spcs_secret_dir(secret_name: str) -> str:
-    base = _get_scls_spcs_base_path()
+    base = os.getenv(SCLS_SPCS_SECRET_ENV_NAME, None)
     if not base:
         raise NotImplementedError(
             "Secret API is only supported on Snowflake server and Spark Classic's SPCS container environments."
         )
+    return base
+
+
+def _get_scls_spcs_secret_dir(secret_name: str) -> str:
+    base = _get_scls_spcs_base_path()
     secret_dir = os.path.join(base, secret_name)
     if not os.path.exists(secret_dir):
         raise FileNotFoundError(f"Secret directory not found: {secret_dir}")
@@ -41,12 +42,8 @@ def _get_scls_spcs_secret_dir(secret_name: str) -> str:
     return secret_dir
 
 
-def _get_scls_spcs_secret_file(secret_name: str, filename: str) -> str:
+def _read_scls_spcs_secret_file(secret_name: str, filename: str) -> str:
     base = _get_scls_spcs_base_path()
-    if not base:
-        raise NotImplementedError(
-            "Secret API is only supported on Snowflake server and Spark Classic's SPCS container environments."
-        )
     secret_path = os.path.join(base, secret_name, filename)
     if not os.path.exists(secret_path):
         raise FileNotFoundError(f"Secret file not found: {secret_path}")
@@ -71,7 +68,7 @@ def get_generic_secret_string(secret_name: str) -> str:
 
         return _snowflake.get_generic_secret_string(secret_name)
     except ImportError:
-        return _get_scls_spcs_secret_file(secret_name, "secret_string")
+        return _read_scls_spcs_secret_file(secret_name, "secret_string")
 
 
 def get_oauth_access_token(secret_name: str) -> str:
@@ -89,7 +86,7 @@ def get_oauth_access_token(secret_name: str) -> str:
 
         return _snowflake.get_oauth_access_token(secret_name)
     except ImportError:
-        return _get_scls_spcs_secret_file(secret_name, "access_token")
+        return _read_scls_spcs_secret_file(secret_name, "access_token")
 
 
 def get_secret_type(secret_name: str) -> str:
@@ -152,8 +149,8 @@ def get_username_password(secret_name: str) -> UsernamePassword:
         secret_object = _snowflake.get_username_password(secret_name)
         return UsernamePassword(secret_object.username, secret_object.password)
     except ImportError:
-        username = _get_scls_spcs_secret_file(secret_name, "username")
-        password = _get_scls_spcs_secret_file(secret_name, "password")
+        username = _read_scls_spcs_secret_file(secret_name, "username")
+        password = _read_scls_spcs_secret_file(secret_name, "password")
         return UsernamePassword(username, password)
 
 
@@ -179,5 +176,5 @@ def get_cloud_provider_token(secret_name: str) -> CloudProviderToken:
     except ImportError:
         # SPCS container currently does not support cloud provider token secrets
         raise NotImplementedError(
-            "Cannot import _snowflake module. Secret API is only supported on Snowflake server environment."
+            "Cannot import _snowflake module. get_cloud_provider_token is only supported on Snowflake server environment."
         )
