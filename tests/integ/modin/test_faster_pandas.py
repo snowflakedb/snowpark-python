@@ -220,6 +220,35 @@ def test_isna_notna(session, func):
     assert_frame_equal(snow_result, native_result, check_dtype=False)
 
 
+@sql_count_checker(query_count=3)
+def test_sort_values(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[2, 12], [1, 11], [3, 13]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result = df.sort_values(by="A")
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = native_df.sort_values(by="A")
+
+    # compare results
+    assert_frame_equal(snow_result, native_result, check_dtype=False)
+
+
 @sql_count_checker(query_count=0)
 def test_dummy_row_pos_optimization_enabled_on_session(db_parameters):
     with Session.builder.configs(db_parameters).create() as new_session:
