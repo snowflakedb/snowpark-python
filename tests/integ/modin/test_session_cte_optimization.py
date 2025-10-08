@@ -9,6 +9,9 @@ import threading
 from contextlib import contextmanager
 from typing import Any, Generator
 
+import modin.pandas as pd
+import snowflake.snowpark.modin.plugin  # noqa: F401
+
 from snowflake.snowpark.session import _get_active_session
 
 from tests.integ.utils.sql_counter import sql_count_checker
@@ -45,11 +48,7 @@ def test_cte_optimization_for_snowpark_pandas(db_parameters, caplog):
 
         caplog.clear()
 
-        # Import Snowpark pandas
-        import modin.pandas as pd
-        import snowflake.snowpark.modin.plugin  # noqa: F401
-
-        # Verify that cte optimization will now be enabled
+        # Verify that cte optimization will be enabled once snowpark pandas is used
         assert pd.session == session
         assert pd.session.cte_optimization_enabled is True
 
