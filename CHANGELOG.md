@@ -30,6 +30,16 @@
       - `st_geompointfromgeohash`
       - `st_hausdorffdistance`
       - `st_makepoint`
+      - `st_npoints`
+      - `st_perimeter`
+      - `st_pointn`
+      - `st_setsrid`
+      - `st_simplify`
+      - `st_srid`
+      - `st_startpoint`
+      - `st_symdifference`
+      - `st_transform`
+      - `st_union`
 
 #### Bug Fixes
 
