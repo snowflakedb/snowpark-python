@@ -518,7 +518,7 @@ class MethodKey(NamedTuple):
 @dataclass
 class UnsupportedArgsRule:
     """
-    Rule for defining argument combinations that trigger auto-switching to pandas.
+    Rule for defining argument combinations that trigger auto-switching to native pandas.
 
     Attributes:
         unsupported_conditions: List of conditions that can be either:
@@ -526,45 +526,40 @@ class UnsupportedArgsRule:
             - tuple[str, Any]: (argument_name, unsupported_value) for simple value checks
     """
 
-    unsupported_conditions: List[Union[Tuple[Callable, str], Tuple[str, Any]]] = field(
-        default_factory=list
-    )
+    unsupported_conditions: List[
+        Union[Tuple[Callable[[MappingProxyType], bool], str], Tuple[str, Any]]
+    ] = field(default_factory=list)
 
-    def validate(self, args: Optional[MappingProxyType[Any, Any]]) -> bool:
+    def get_reason_if_unsupported(
+        self, args: MappingProxyType[Any, Any]
+    ) -> Optional[str]:
         """
-        Validate arguments against this rule's conditions.
+        Validate arguments and return the reason if unsupported.
 
         Args:
             args: Method arguments to check
-
         Returns:
-            True if any condition matches (indicating unsupported args)
+            The specific reason string if unsupported args detected, None if all args are supported
         """
-        if args is None:
-            return False
-
         for condition in self.unsupported_conditions:
-            try:
-                if callable(condition[0]):
-                    # tuple[Callable, str]: (condition_function, reason)
-                    condition_func, _ = condition
-                    if condition_func(args):
-                        return True
-                else:
-                    # tuple[str, Any]: (argument_name, unsupported_value)
-                    arg_name, unsupported_value = condition
-                    if (
-                        isinstance(arg_name, str)
-                        and args.get(arg_name) == unsupported_value
-                    ):
-                        return True
-            except Exception as e:
-                logging.warning(
-                    f"Exception occurred while evaluating unsupported args condition: "
-                    f"{e}. Condition: {condition}. Continuing to next condition."
-                )
+            if callable(condition[0]):
+                # tuple[Callable, str]: (condition_function, reason)
+                condition_func, reason = condition
+                if condition_func(args):
+                    return reason
+            else:
+                # tuple[str, Any]: (argument_name, unsupported_value)
+                arg_name, unsupported_value = condition
+                if args.get(arg_name) == unsupported_value:
+                    return f"{arg_name}={repr(unsupported_value)} is not supported"
 
-        return False
+        return None
+
+    def is_unsupported(self, args: MappingProxyType[Any, Any]) -> bool:
+        """
+        Returns True if args are unsupported.
+        """
+        return self.get_reason_if_unsupported(args) is not None
 
     def __post_init__(self) -> None:
         # Validate all conditions are properly formatted at initialization time.
@@ -603,42 +598,7 @@ class UnsupportedArgsRule:
         rule = HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS.get(
             MethodKey(api_cls_name, operation)
         )
-
-        if rule is None:
-            return None
-
-        # Check custom conditions and return the specific reason
-        for condition in rule.unsupported_conditions:
-            try:
-                if len(condition) != 2:
-                    logging.warning(
-                        f"Invalid condition format for {api_cls_name}.{operation}: "
-                        f"expected tuple of length 2, got {len(condition)}. Condition: {condition}"
-                    )
-                    continue
-
-                if callable(condition[0]):
-                    # tuple[Callable, str]: (condition_function, reason)
-                    condition_func, reason = condition
-                    if condition_func(args):
-                        return reason
-                else:
-                    # tuple[str, Any]: (argument_name, unsupported_value)
-                    arg_name, unsupported_value = condition
-                    if (
-                        isinstance(arg_name, str)
-                        and args.get(arg_name) == unsupported_value
-                    ):
-                        # Auto-generate error message for simple value checks
-                        return f"{arg_name}={repr(unsupported_value)} is not supported"
-            except Exception as e:
-                logging.warning(
-                    f"Exception occurred while evaluating unsupported args reason for "
-                    f"{api_cls_name}.{operation}: {e}. Condition: {condition}. Continuing to next condition."
-                )
-                continue
-
-        return None
+        return rule.get_reason_if_unsupported(args) if rule else None
 
 
 # Set of MethodKey objects for methods that are wholly unimplemented by
@@ -702,26 +662,12 @@ def register_query_compiler_method_not_implemented(
             if SnowflakeQueryCompiler._has_unsupported_args(
                 api_cls_name, method_name, arguments
             ):
-                # Get specific reason and build error
-                reason = UnsupportedArgsRule.get_unsupported_args_reason(
-                    api_cls_name, method_name, arguments
+                ErrorMessage.not_implemented_with_reason(
+                    method_name,
+                    UnsupportedArgsRule.get_unsupported_args_reason(
+                        api_cls_name, method_name, arguments
+                    ),
                 )
-                if reason:
-                    ErrorMessage.not_implemented_with_reason(method_name, reason)
-                else:
-                    # Fallback to generic error - this shouldn't happen with proper rule configuration
-                    args_str = (
-                        ", ".join(f"{k}={repr(v)}" for k, v in arguments.items())
-                        if arguments
-                        else "provided arguments"
-                    )
-                    raise NotImplementedError(
-                        f"Snowpark pandas doesn't support '{method_name}' with the parameter combination: {args_str}. "
-                        f"This combination of parameters is not supported in Snowflake and requires pandas execution. "
-                        f"Enable auto-switching with: "
-                        f"'from modin.config import AutoSwitchBackend; AutoSwitchBackend.enable()' "
-                        f"to perform these operations in pandas."
-                    )
 
             return query_compiler_method(self, *args, **kwargs)
 
@@ -1134,7 +1080,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         rule = HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[method_key]
 
         # Use the rule's validate method
-        return rule.validate(args)
+        return rule.is_unsupported(args)
 
     def move_to_cost(
         self,
