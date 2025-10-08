@@ -29,6 +29,8 @@ from snowflake.snowpark.modin.plugin._internal.telemetry import (
 from modin.core.storage_formats.base.query_compiler import QCCoercionCost
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
+    UnsupportedArgsRule,
+    register_query_compiler_method_not_implemented,
 )
 from snowflake.snowpark.modin.plugin._internal.frame import InternalFrame
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
@@ -1222,3 +1224,58 @@ def test_auto_switch_unsupported_round_series():
         expected_backend="Pandas",
         is_top_level=False,
     )
+
+
+@sql_count_checker(query_count=0)
+def test_malformed_decorator_conditions():
+    # Test that malformed conditions in decorator are caught during rule creation.
+
+    # Test malformed condition with wrong tuple length
+    with pytest.raises(
+        ValueError, match="Invalid condition at index 0.*expected tuple of length 2"
+    ):
+
+        @register_query_compiler_method_not_implemented(
+            api_cls_name="TestClass",
+            unsupported_args=UnsupportedArgsRule(
+                unsupported_conditions=[
+                    ("single_item",),
+                ]
+            ),
+        )
+        def test_method_single_item(self):
+            pass
+
+    # Test malformed condition with non-tuple
+    with pytest.raises(
+        ValueError, match="Invalid condition at index 1.*expected tuple of length 2"
+    ):
+
+        @register_query_compiler_method_not_implemented(
+            api_cls_name="TestClass",
+            unsupported_args=UnsupportedArgsRule(
+                unsupported_conditions=[
+                    ("valid_param", "valid_value"),
+                    "not_a_tuple",
+                ]
+            ),
+        )
+        def test_method_not_tuple(self):
+            pass
+
+    # Test malformed condition with invalid first element
+    with pytest.raises(
+        ValueError,
+        match="Invalid condition at index 0.*first element must be callable or string",
+    ):
+
+        @register_query_compiler_method_not_implemented(
+            api_cls_name="TestClass",
+            unsupported_args=UnsupportedArgsRule(
+                unsupported_conditions=[
+                    (None, "reason_for_none"),
+                ]
+            ),
+        )
+        def test_method_none_condition(self):
+            pass
