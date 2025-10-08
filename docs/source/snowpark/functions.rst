@@ -414,6 +414,7 @@ Functions
     seq4
     seq8
     sequence
+    service
     sha1
     sha2
     sin
@@ -450,6 +451,26 @@ Functions
     st_covers
     st_difference
     st_dimension
+    st_disjoint
+    st_distance
+    st_dwithin
+    st_endpoint
+    st_envelope
+    st_geohash
+    st_geomfromgeohash
+    st_geompointfromgeohash
+    st_hausdorffdistance
+    st_makepoint
+    st_interpolate
+    st_intersection
+    st_intersection_agg
+    st_intersects
+    st_isvalid
+    st_length
+    st_makegeompoint
+    st_makeline
+    st_makepolygon
+    st_makepolygonoriented
     substr
     substring
     sum
