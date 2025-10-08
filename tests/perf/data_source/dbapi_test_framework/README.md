@@ -117,7 +117,7 @@ python3 -m tests.perf.data_source.dbapi_test_framework.main --matrix
 
 ## Ingestion Methods
 
-The framework tests 6 different ingestion approaches:
+The framework tests 7 different ingestion approaches:
 
 ### DBAPI Methods (Python drivers)
 
@@ -150,15 +150,26 @@ The framework tests 6 different ingestion approaches:
    - Requires JDBC driver JAR, Snowflake secret, and external access integration
    - Driver JARs are automatically uploaded to stage on first run
 
+### PySpark Methods (Spark + JDBC)
+
+7. **pyspark** - PySpark JDBC ingestion
+   - Data fetched via PySpark JDBC running on local Spark session
+   - Written to Snowflake using Snowflake-Spark connector
+   - Requires PySpark, JDBC driver JARs in `drivers/` directory, and Snowflake-Spark connector
+   - Uses plain credentials from `.env` (not Snowflake secrets)
+   - Runs on local machine (not on Snowflake servers)
+
 ## Supported Databases
 
-All databases support both DBAPI and JDBC methods:
+All databases support DBAPI, JDBC, and PySpark methods:
 
 - **MySQL** (DBAPI: `pymysql`, JDBC: `mysql-connector-j`)
 - **PostgreSQL** (DBAPI: `psycopg2`, JDBC: `postgresql`)
 - **MS SQL Server** (DBAPI: `pyodbc`, JDBC: `mssql-jdbc`)
 - **Oracle** (DBAPI: `oracledb`, JDBC: `ojdbc`)
 - **Databricks** (DBAPI: `databricks-sql-connector`, JDBC: `DatabricksJDBC42`)
+
+**Note**: PySpark method uses the same JDBC drivers as the JDBC methods.
 
 ## Configuration
 
@@ -319,6 +330,22 @@ DBAPI_PARAMS = {
 }
 ```
 
+### PySpark Ingestion
+```python
+{
+    "dbms": "mysql",
+    "source": {"type": "table", "value": "DBAPI_TEST_TABLE"},
+    "ingestion_method": "pyspark",  # PySpark JDBC on local Spark session
+    "dbapi_params": {
+        "fetchsize": 10000,
+        "numPartitions": 10,
+        "partitionColumn": "id",
+        "lowerBound": 0,
+        "upperBound": 100000
+    }
+}
+```
+
 ## Output
 
 ### During Test Execution
@@ -381,7 +408,18 @@ pip install psycopg2-binary    # PostgreSQL
 pip install pyodbc             # SQL Server
 pip install oracledb           # Oracle
 pip install databricks-sql-connector  # Databricks
+pip install pyspark            # For PySpark ingestion method
 ```
+
+**Note for PySpark**: You also need the Snowflake-Spark connector and Snowflake JDBC driver:
+- **Snowflake Spark Connector**: `spark-snowflake_2.13-3.1.0.jar` (Scala 2.13, recommended)
+  - Download: https://mvnrepository.com/artifact/net.snowflake/spark-snowflake_2.13/3.1.0
+  - **Important**: Use version 3.1.0 - version 3.1.1+ has issues with Oracle BLOB types
+- **Snowflake JDBC**: `snowflake-jdbc-3.19.0.jar` or later
+  - Download: https://mvnrepository.com/artifact/net.snowflake/snowflake-jdbc
+- Place both JARs in the `drivers/` directory
+
+See `drivers/jdbc_drivers_readme.md` for more details and known issues.
 
 ### Snowflake Setup
 
@@ -452,6 +490,42 @@ When you run JDBC tests:
 - If not found, it uploads from your local `drivers/` directory
 - Subsequent runs skip the upload (fast)
 - Each test only uploads the specific driver it needs
+
+### PySpark Setup (for pyspark method)
+
+#### 1. JDBC Drivers
+
+PySpark uses the same JDBC drivers as the JDBC methods. Ensure drivers are in the `drivers/` directory (see JDBC Setup above).
+
+#### 2. Snowflake-Spark Connector
+
+Download the Snowflake-Spark connector JAR:
+- Maven Central: `net.snowflake:spark-snowflake_2.12` or `spark-snowflake_2.13`
+- Place in `drivers/` directory alongside JDBC drivers
+- Or configure `spark.jars` in `config.PYSPARK_SESSION_CONFIG`
+
+#### 3. Configuration
+
+Customize PySpark session settings in `config.py`:
+
+```python
+PYSPARK_SESSION_CONFIG = {
+    "spark.master": "local[*]",
+    "spark.driver.extraClassPath": "./drivers/*",
+    # Optional: Tune for your machine
+    "spark.sql.shuffle.partitions": 16,
+    "spark.default.parallelism": 16,
+    "spark.executor.cores": 8,
+    "spark.executor.memory": "16g",
+}
+```
+
+#### 4. Credentials
+
+PySpark uses plain credentials from `.env` (not Snowflake secrets):
+- Reads directly from `MYSQL_USERNAME`, `MYSQL_PASSWORD`, etc.
+- No external access integration required
+- Runs entirely on local machine
 
 ## Database Setup Utilities
 

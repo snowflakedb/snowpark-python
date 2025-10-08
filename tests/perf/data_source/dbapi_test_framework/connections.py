@@ -161,3 +161,30 @@ def get_jdbc_url(dbms_type, params):
 
     else:
         raise ValueError(f"Unknown DBMS type for JDBC: {dbms_type}")
+
+
+def get_jdbc_driver_class(dbms_type):
+    """
+    Get JDBC driver class name for a given DBMS type.
+
+    Args:
+        dbms_type: Type of DBMS (mysql, postgres, mssql, oracle, databricks)
+
+    Returns:
+        JDBC driver class name string
+    """
+    # Support both direct execution and module import
+    try:
+        from . import config
+    except ImportError:
+        import config
+
+    dbms_type = dbms_type.lower()
+
+    if dbms_type not in config.JDBC_DRIVER_CLASSES:
+        raise ValueError(
+            f"Unknown DBMS type for JDBC driver class: {dbms_type}. "
+            f"Supported: {', '.join(config.JDBC_DRIVER_CLASSES.keys())}"
+        )
+
+    return config.JDBC_DRIVER_CLASSES[dbms_type]

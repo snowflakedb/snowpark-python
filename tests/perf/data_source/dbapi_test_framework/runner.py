@@ -358,6 +358,151 @@ def run_jdbc_ingestion_in_sproc(
     return elapsed
 
 
+def run_pyspark_ingestion(
+    session,
+    jdbc_url,
+    dbms,
+    dbms_params,
+    source_type,
+    source_value,
+    target_table,
+    dbapi_params,
+):
+    """
+    Method 7: PySpark JDBC ingestion
+
+    Data is fetched via PySpark JDBC and written to Snowflake using Snowflake-Spark connector.
+    Runs on local Spark session with plain credentials (not Snowflake secrets).
+
+    Args:
+        session: Snowflake session (for connection parameters)
+        jdbc_url: JDBC connection URL
+        dbms: Database type (for getting driver class)
+        dbms_params: Database connection parameters (for user/password)
+        source_type: "table" or "query"
+        source_value: Table name or SQL query string
+        target_table: Target Snowflake table name
+        dbapi_params: DBAPI parameters (will be translated to PySpark JDBC options)
+    """
+    print(f"\n{'='*60}")
+    print("Running: PYSPARK JDBC INGESTION")
+    print(f"{'='*60}")
+
+    from pyspark.sql import SparkSession
+    from connections import get_jdbc_driver_class
+
+    # Build Spark session
+    spark_builder = SparkSession.builder.appName("PySparkDBAPITest")
+
+    # Apply Spark configuration
+    for key, value in config.PYSPARK_SESSION_CONFIG.items():
+        spark_builder = spark_builder.config(key, value)
+
+    spark = spark_builder.getOrCreate()
+
+    try:
+        start_time = time.time()
+
+        # Build JDBC options
+        jdbc_options = {
+            "url": jdbc_url,
+            "driver": get_jdbc_driver_class(dbms),
+        }
+
+        # Add credentials from dbms_params
+        # Different DBMS types use different parameter names
+        if dbms.lower() in ("mysql", "postgres", "postgresql", "oracle"):
+            jdbc_options["user"] = dbms_params.get("user")
+            jdbc_options["password"] = dbms_params.get("password")
+        elif dbms.lower() in ("mssql", "sqlserver"):
+            jdbc_options["user"] = dbms_params.get("user")
+            jdbc_options["password"] = dbms_params.get("password")
+        elif dbms.lower() in ("databricks", "dbx"):
+            # Databricks uses token-based auth in JDBC
+            jdbc_options["PWD"] = dbms_params.get("access_token")
+            jdbc_options["UID"] = "token"
+
+        # Add source (table or query)
+        if source_type == "table":
+            jdbc_options["dbtable"] = source_value
+        elif source_type == "query":
+            # Wrap query in subquery
+            # Oracle JDBC doesn't support alias syntax, just use parentheses
+            if dbms.lower() == "oracle":
+                jdbc_options["dbtable"] = f"({source_value})"
+            else:
+                # Standard JDBC subquery with alias
+                jdbc_options["dbtable"] = f"({source_value}) as tmp"
+        else:
+            raise ValueError(f"Invalid source_type: {source_type}")
+
+        # Translate dbapi_params to PySpark JDBC options
+        # Support multiple naming conventions: camelCase, snake_case, and Snowpark style
+        if "fetchsize" in dbapi_params or "fetch_size" in dbapi_params:
+            jdbc_options["fetchsize"] = dbapi_params.get(
+                "fetchsize", dbapi_params.get("fetch_size")
+            )
+        if "numPartitions" in dbapi_params or "num_partitions" in dbapi_params:
+            jdbc_options["numPartitions"] = dbapi_params.get(
+                "numPartitions", dbapi_params.get("num_partitions")
+            )
+        if (
+            "partitionColumn" in dbapi_params
+            or "partition_column" in dbapi_params
+            or "column" in dbapi_params
+        ):
+            jdbc_options["partitionColumn"] = dbapi_params.get(
+                "partitionColumn",
+                dbapi_params.get("partition_column", dbapi_params.get("column")),
+            )
+        if "lowerBound" in dbapi_params or "lower_bound" in dbapi_params:
+            jdbc_options["lowerBound"] = dbapi_params.get(
+                "lowerBound", dbapi_params.get("lower_bound")
+            )
+        if "upperBound" in dbapi_params or "upper_bound" in dbapi_params:
+            jdbc_options["upperBound"] = dbapi_params.get(
+                "upperBound", dbapi_params.get("upper_bound")
+            )
+
+        # Read from source database
+        print(f"Reading from {dbms.upper()} via PySpark JDBC...")
+        df = spark.read.format("jdbc").options(**jdbc_options).load()
+
+        # Optional: Apply repartitioning if configured
+        repartition_num = config.PYSPARK_SESSION_CONFIG.get("repartition_num")
+        if repartition_num:
+            print(f"Repartitioning to {repartition_num} partitions...")
+            df = df.repartition(repartition_num)
+
+        # Get Snowflake connection parameters
+        sf_params = config.SNOWFLAKE_PARAMS
+
+        # Write to Snowflake
+        print(f"Writing to Snowflake table: {target_table}...")
+        (
+            df.write.format("net.snowflake.spark.snowflake")
+            .option("sfUrl", sf_params["host"])
+            .option("sfUser", sf_params["user"])
+            .option("sfPassword", sf_params["password"])
+            .option("sfDatabase", sf_params["database"])
+            .option("sfSchema", sf_params["schema"])
+            .option("sfWarehouse", sf_params["warehouse"])
+            .option("dbtable", target_table)
+            .mode("overwrite")
+            .save()
+        )
+
+        end_time = time.time()
+        elapsed = end_time - start_time
+
+        print(f"✓ Completed in {elapsed:.2f} seconds")
+        return elapsed
+
+    finally:
+        # Clean up Spark session
+        spark.stop()
+
+
 def ensure_jdbc_driver_uploaded(session, dbms, jar_filename):
     """
     Ensure JDBC driver JAR is uploaded to stage before test execution.
@@ -603,6 +748,45 @@ def run_test(test_config):
                     jdbc_udtf_configs,
                     dbms,
                 )
+
+        elif method == "pyspark":
+            # Generate JDBC URL
+            from connections import get_jdbc_url
+
+            jdbc_url = get_jdbc_url(dbms, dbms_params)
+
+            # Verify JDBC drivers are available locally
+            jar_filename = config.JDBC_DRIVER_JARS.get(dbms_key)
+            if not jar_filename:
+                raise ValueError(
+                    f"JDBC driver JAR not configured for {dbms}. "
+                    f"Please add to config.JDBC_DRIVER_JARS."
+                )
+
+            # Check if JAR exists in local drivers/ directory
+            from pathlib import Path
+
+            local_jar_path = Path(__file__).parent / "drivers" / jar_filename
+            if not local_jar_path.exists():
+                raise FileNotFoundError(
+                    f"JDBC driver not found: {local_jar_path}\n"
+                    f"PySpark requires JDBC driver JARs to be in the local drivers/ directory.\n"
+                    f"Please download the {dbms.upper()} JDBC driver and place it in:\n"
+                    f"  {local_jar_path.parent}/\n"
+                    f"Download from official sources."
+                )
+
+            # Run PySpark ingestion
+            elapsed = run_pyspark_ingestion(
+                session,
+                jdbc_url,
+                dbms,
+                dbms_params,
+                source_type,
+                source_value,
+                target_table,
+                dbapi_params,
+            )
 
         else:
             raise ValueError(f"Unknown ingestion method: {method}")

@@ -149,6 +149,30 @@ JDBC_PROPERTIES = {
     "databricks": {},
 }
 
+# JDBC driver class names (for PySpark and other JDBC-based methods)
+JDBC_DRIVER_CLASSES = {
+    "mysql": "com.mysql.cj.jdbc.Driver",
+    "postgres": "org.postgresql.Driver",
+    "mssql": "com.microsoft.sqlserver.jdbc.SQLServerDriver",
+    "oracle": "oracle.jdbc.driver.OracleDriver",
+    "databricks": "com.databricks.client.jdbc.Driver",
+}
+
+# PySpark session configuration
+# Note: PySpark uses plain credentials from .env (not Snowflake secrets)
+# and runs on a local Spark session
+PYSPARK_SESSION_CONFIG = {
+    "spark.master": "local[*]",  # Use all available cores
+    "spark.driver.extraClassPath": str(
+        os.path.join(os.path.dirname(__file__), "drivers", "*")
+    ),  # Path to JDBC JARs
+    # Optional: Uncomment and adjust for parallelism optimization
+    # "spark.sql.shuffle.partitions": 16,
+    # "spark.default.parallelism": 16,
+    # "spark.executor.cores": 8,
+    # "spark.executor.memory": "16g",
+}
+
 # UDTF configuration (for udtf and udtf_sproc methods)
 # Each DBMS needs its own external access integration
 # Names match the existing test integrations in tests/resources/test_data_source_dir/
@@ -175,7 +199,7 @@ UDTF_CONFIGS = {
 # {
 #     "dbms": "mysql",
 #     "source": {"type": "table|query", "value": "..."},
-#     "ingestion_method": "local|udtf|local_sproc|udtf_sproc|jdbc|jdbc_sproc",
+#     "ingestion_method": "local|udtf|local_sproc|udtf_sproc|jdbc|jdbc_sproc|pyspark",
 #     "dbapi_params": {...},
 # }
 DBMS_LIST = [
@@ -188,7 +212,7 @@ DBMS_LIST = [
 METHODS = [
     "local",
     "udtf",
-]  # CHANGE ME TO RUN THE METHODS YOU WANT, full list: local, udtf, local_sproc, udtf_sproc, jdbc, jdbc_sproc
+]  # CHANGE ME TO RUN THE METHODS YOU WANT, full list: local, udtf, local_sproc, udtf_sproc, jdbc, jdbc_sproc, pyspark
 
 # Generate test matrix: table-based and query-based tests
 TEST_MATRIX = [

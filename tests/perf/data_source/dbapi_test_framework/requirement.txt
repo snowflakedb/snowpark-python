@@ -10,6 +10,14 @@ pyodbc                      # SQL Server (requires system ODBC driver)
 oracledb                    # Oracle
 databricks-sql-connector    # Databricks
 
+# PySpark (for pyspark ingestion method)
+pyspark>=3.0.0
+
 # Note: For SQL Server, you also need the system-level ODBC driver:
 # - Windows/macOS/Linux: Install "ODBC Driver 18 for SQL Server" or "msodbcsql"
 # - See: https://docs.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server
+
+# Note: For PySpark method, you also need:
+# - JDBC driver JARs in drivers/ directory (same as JDBC methods)
+# - Snowflake-Spark connector JAR (spark-snowflake_2.12 or _2.13) in drivers/
+# - Download from Maven Central: net.snowflake:spark-snowflake
