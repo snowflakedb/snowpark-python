@@ -8,6 +8,18 @@
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
+- Added support for the following functions in `functions.py`:
+    - Geospatial functions:
+      - `st_interpolate`
+      - `st_intersection`
+      - `st_intersection_agg`
+      - `st_intersects`
+      - `st_isvalid`
+      - `st_length`
+      - `st_makegeompoint`
+      - `st_makeline`
+      - `st_makepolygon`
+      - `st_makepolygonoriented`
 
 #### Bug Fixes
 
