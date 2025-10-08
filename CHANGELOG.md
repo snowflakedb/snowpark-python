@@ -1,12 +1,51 @@
 # Release History
 
-## 1.40.0 (YYYY-MM-DD)
+## 1.41.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+- Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
+- Added support for the following functions in `functions.py`:
+    - Geospatial functions:
+      - `st_interpolate`
+      - `st_intersection`
+      - `st_intersection_agg`
+      - `st_intersects`
+      - `st_isvalid`
+      - `st_length`
+      - `st_makegeompoint`
+      - `st_makeline`
+      - `st_makepolygon`
+      - `st_makepolygonoriented`
+      - `st_disjoint`
+      - `st_distance`
+      - `st_dwithin`
+      - `st_endpoint`
+      - `st_envelope`
+      - `st_geohash`
+      - `st_geomfromgeohash`
+      - `st_geompointfromgeohash`
+      - `st_hausdorffdistance`
+      - `st_makepoint`
+
 #### Bug Fixes
 
-- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
+- Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
+
+### Snowpark pandas API Updates
+
+#### Improvements
+
+- Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+- Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
+- Add support for `isna`, `isnull`, `notna`, `notnull` in faster pandas.
+
+## 1.40.0 (2025-10-02)
+
+### Snowpark Python API Updates
 
 #### New Features
 
@@ -105,6 +144,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
+- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be generated when using nested structured types.
 - Fixed multiple bugs in `DataFrameReader.dbapi` (PuPr):
   - Fixed UDTF ingestion failure with `pyodbc` driver caused by unprocessed row data.
   - Fixed SQL Server query input failure due to incorrect select query generation.
@@ -112,7 +153,6 @@
   - Fixed an issue that caused the program to hang during multithreaded Parquet based ingestion when a data fetching error occurred.
   - Fixed a bug in schema parsing when custom schema strings used upper-cased data type names (NUMERIC, NUMBER, DECIMAL, VARCHAR, STRING, TEXT).
 - Fixed a bug in `Session.create_dataframe` where schema string parsing failed when using upper-cased data type names (e.g., NUMERIC, NUMBER, DECIMAL, VARCHAR, STRING, TEXT).
-- Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 
 #### Improvements
 
@@ -126,7 +166,6 @@
 #### Dependency Updates
 
 - Updated the supported `modin` versions to >=0.36.0 and <0.38.0 (was previously >= 0.35.0 and <0.37.0).
-
 
 #### New Features
 - Added support for `DataFrame.query` for dataframes with single-level indexes.
@@ -145,6 +184,8 @@
   - `cumsum()`, `cummin()`, `cummax()` with `axis=1` (column-wise operations)
   - `skew()` with `axis=1` or `numeric_only=False` parameters
   - `round()` with `decimals` parameter as a Series
+- Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
+- Add support for `isin` in faster pandas.
 
 ## 1.39.1 (2025-09-25)
 
