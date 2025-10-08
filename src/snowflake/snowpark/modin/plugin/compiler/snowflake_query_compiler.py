@@ -14512,13 +14512,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         axis: int, default: 0
             The axis across which to interpolate. Snowflake only supports 0 (columnar).
         limit: Optional[int], default: None
-            The maximum number of consecutive NaN values to fill. Unsupported by Snowflake.
+            The maximum number of consecutive NaN values to fill. Not supported by Snowpark pandas.
         inplace: bool, default: False
             Whether or not the interpolation occurs in-place. This argument is ignored and only provided
             for compatibility with Modin.
         limit_direction: Literal["forward", "backward", "both", None], default: None
             The direction in which to fill consecutive NaN values. If `method` is "pad" or "ffill"
             this must be "forward"; if `method` is "bfill" or "backfill" this must be "backward".
+
+            The default value is "backward" for "bfill"/"backfill", and "forward" otherwise.
         limit_area: Literal["inside", "outside", None], default: None
             Restrictions on how consecutive NaN values should be filled. None means all NaN values
             are replaced, "inside" means only NaNs between valid values are replaced, and "outside"
@@ -14553,10 +14555,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ErrorMessage.parameter_not_implemented_error(
                 f"method = {method}", method_name="interpolate"
             )
+        # The high-level approaches for each supported fill method are as follows.
+        # Linear fill:
+        # - limit_area=None: INTERPOLATE_LINEAR, then
+        #   - INTERPOLATE_FFILL if limit_direction = "forward"
+        #   - INTERPOLATE_BFILL if limit_direction = "backward"
+        #   - do both FFILL and BFILL if limit_direction = "both"
+        # - limit_area="inside": INTERPOLATE_LINEAR only
+        # - limit_area="outside": unsupported
+        # Forwards fill: (direction is restricted to "forwards")
+        # - limit_area=None: FFILL once
+        # - limit_area="inside": unsupported
+        # - limit_area="outside": unsupported
+        # Backwards fill: (direction is restricted to "backwards")
+        # - limit_area=None: BFILL once
+        # - limit_area="inside": unsupported
+        # - limit_area="outside": unsupported
+        #
+        # "outside" configurations could theoretically be done by finding the max/min row position
+        # of non-null values in the table, but this gets complicated.
         if (
-            sql_fill_method == "interpolate_ffill"
-            or sql_fill_method == "interpolate_bfill"
-        ) and limit_area is not None:
+            (
+                sql_fill_method == "interpolate_ffill"
+                or sql_fill_method == "interpolate_bfill"
+            )
+            and limit_area is not None
+        ) or (sql_fill_method == "interpolate_linear" and limit_area == "outside"):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas does not yet support interpolate with limit_area={limit_area} for method={method}"
             )
@@ -14581,17 +14605,58 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             raise ValueError(
                 f"`limit_direction` must be 'backward' for method `{method}`"
             )
-        # TODO do a second pass of ffill/bfill to cover extrapolated values
+        if self.get_axis_len(1) == 0:
+            # If there's no columns, do nothing.
+            return self
+        if limit_direction is None:
+            limit_direction = (
+                "backward" if sql_fill_method == "interpolate_bfill" else "forward"
+            )
         frame = self._modin_frame.ensure_row_position_column()
-        new_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
-            {
-                column_identifier: builtin(sql_fill_method)(
-                    col(column_identifier)
-                ).over(Window.order_by(frame.row_position_snowflake_quoted_identifier))
-                for column_identifier in frame.data_column_snowflake_quoted_identifiers
-            }
-        )[0].ensure_row_position_column()
-        return SnowflakeQueryCompiler(frame=new_frame)
+        original_column_identifiers = frame.data_column_snowflake_quoted_identifiers
+        pos_window = Window.order_by(frame.row_position_snowflake_quoted_identifier)
+        if sql_fill_method == "interpolate_linear" and limit_area is None:
+            # If the fill method is linear and limit_area is None, we need to fill leading/trailing
+            # NULL values as well since the SQL function ordinarily does not touch them. Because
+            # window functions cannot be nested, we implement this by adding 1 column with the FFILL
+            # result (covers trailing NULLs), and 1 column with the BFILL result (covers leading
+            # NULLs), then coalescing each interpolation together.
+            # Note that this may create a SQL expression with 3x the columns of the original frame,
+            # so it may become expensive. However, we expect most interpolations to occur on
+            # single-column frames or Series, so this overhead is acceptable.
+            cols_to_coalesce = {}
+            for column_identifier in original_column_identifiers:
+                cols = [
+                    builtin("interpolate_linear")(col(column_identifier)).over(
+                        pos_window
+                    )
+                ]
+                if limit_direction == "forward" or limit_direction == "both":
+                    cols.append(
+                        builtin("interpolate_ffill")(col(column_identifier)).over(
+                            pos_window
+                        )
+                    )
+                if limit_direction == "backward" or limit_direction == "both":
+                    cols.append(
+                        builtin("interpolate_bfill")(col(column_identifier)).over(
+                            pos_window
+                        )
+                    )
+                cols_to_coalesce[column_identifier] = coalesce(*cols)
+            result_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+                cols_to_coalesce
+            )[0].ensure_row_position_column()
+            # TODO only project relevant columns
+        else:
+            # Other parameter combinations map directly to SQL behavior.
+            result_frame = frame.update_snowflake_quoted_identifiers_with_expressions(
+                {
+                    builtin(sql_fill_method)(col(column_identifier)).over(pos_window)
+                    for column_identifier in original_column_identifiers
+                }
+            )[0].ensure_row_position_column()
+        return SnowflakeQueryCompiler(frame=result_frame)
 
     def skew(
         self,
