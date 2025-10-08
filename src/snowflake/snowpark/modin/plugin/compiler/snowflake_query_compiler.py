@@ -547,6 +547,13 @@ class UnsupportedArgsRule:
                     f"got {type(condition[0]).__name__}. Condition: {condition}"
                 )
 
+            if callable(condition[0]) and not isinstance(condition[1], str):
+                raise ValueError(
+                    f"Invalid condition at index {i}: when first element is callable, "
+                    f"second element must be string (reason), got {type(condition[1]).__name__}. "
+                    f"Condition: {condition}"
+                )
+
     def get_reason_if_unsupported(
         self, args: MappingProxyType[Any, Any]
     ) -> Optional[str]:

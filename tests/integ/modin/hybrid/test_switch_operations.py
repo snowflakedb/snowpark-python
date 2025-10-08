@@ -1279,3 +1279,20 @@ def test_malformed_decorator_conditions():
         )
         def test_method_none_condition(self):
             pass
+
+    # Test malformed condition with callable first element but non-string second element
+    with pytest.raises(
+        ValueError,
+        match="Invalid condition at index 0.*when first element is callable.*second element must be string",
+    ):
+
+        @register_query_compiler_method_not_implemented(
+            api_cls_name="TestClass",
+            unsupported_args=UnsupportedArgsRule(
+                unsupported_conditions=[
+                    (lambda args: True, 123),
+                ]
+            ),
+        )
+        def test_method_callable_non_string_reason(self):
+            pass
