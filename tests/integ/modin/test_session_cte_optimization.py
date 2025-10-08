@@ -33,12 +33,11 @@ def test_cte_optimization_for_snowpark_pandas(db_parameters, caplog):
 
     caplog.set_level(logging.WARNING)
 
-    # Creating a dataframe creates a new thread which triggers the warning
-    thread_count = len(threading.enumerate())
+    # Creating a dataframe ensures that another thread is running which triggers the warning
     session.create_dataframe(
         native_pd.DataFrame([[1, 11], [2, 12], [2, 13]], columns=["A", "B"])
     )
-    assert len(threading.enumerate()) > thread_count
+    assert len(threading.enumerate()) > 1
 
     # Use context manager to temporarily disable CTE optimization
     with session_parameter_override(session, "cte_optimization_enabled", False):
