@@ -1034,59 +1034,129 @@ def test_auto_switch_unsupported_series(
 
 
 @pytest.mark.parametrize(
-    "method,args,test_data",
+    "method,args,test_data,expected_reason",
     [
-        ("get_dummies", {"dummy_na": True}, {"A": ["x", "y", "z"], "B": [1, 2, 3]}),
-        ("get_dummies", {"drop_first": True}, {"A": ["x", "y", "z"], "B": [1, 2, 3]}),
-        ("get_dummies", {"dtype": int}, {"A": ["x", "y", "z"], "B": [1, 2, 3]}),
+        (
+            "get_dummies",
+            {"dummy_na": True},
+            {"A": ["x", "y", "z"], "B": [1, 2, 3]},
+            "dummy_na = True is not supported",
+        ),
+        (
+            "get_dummies",
+            {"drop_first": True},
+            {"A": ["x", "y", "z"], "B": [1, 2, 3]},
+            "drop_first = True is not supported",
+        ),
+        (
+            "get_dummies",
+            {"dtype": int},
+            {"A": ["x", "y", "z"], "B": [1, 2, 3]},
+            "get_dummies with non-default dtype parameter is not supported yet in Snowpark pandas.",
+        ),
     ],
 )
 @sql_count_checker(query_count=0)
 def test_error_handling_top_level_functions_when_auto_switch_disabled(
-    method, args, test_data
+    method, args, test_data, expected_reason
 ):
     # Test that unsupported top-level function args raise NotImplementedError when auto-switch is disabled.
     with config_context(AutoSwitchBackend=False):
         df = pd.DataFrame(test_data).move_to("Snowflake")
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(NotImplementedError) as exc_info:
             getattr(pd, method)(df, **args)
+
+        # Assert the specific expected reason is in the error message
+        error_msg = str(exc_info.value)
+        assert (
+            f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
+            in error_msg
+        )
 
 
 @pytest.mark.parametrize(
-    "method,args,test_data",
+    "method,args,test_data,expected_reason",
     [
-        ("skew", {"axis": 1}, {"A": [1, 2, 3], "B": [4, 5, 6]}),
-        ("skew", {"numeric_only": False}, {"A": [1, 2, 3], "B": [4, 5, 6]}),
-        ("cumsum", {"axis": 1}, {"A": [1, 2, 3], "B": [4, 5, 6]}),
-        ("cummin", {"axis": 1}, {"A": [1, 2, 3], "B": [4, 5, 6]}),
-        ("cummax", {"axis": 1}, {"A": [1, 2, 3], "B": [4, 5, 6]}),
+        (
+            "skew",
+            {"axis": 1},
+            {"A": [1, 2, 3], "B": [4, 5, 6]},
+            "axis = 1 is not supported",
+        ),
+        (
+            "skew",
+            {"numeric_only": False},
+            {"A": [1, 2, 3], "B": [4, 5, 6]},
+            "numeric_only = False argument not supported for skew",
+        ),
+        (
+            "cumsum",
+            {"axis": 1},
+            {"A": [1, 2, 3], "B": [4, 5, 6]},
+            "axis = 1 is not supported",
+        ),
+        (
+            "cummin",
+            {"axis": 1},
+            {"A": [1, 2, 3], "B": [4, 5, 6]},
+            "axis = 1 is not supported",
+        ),
+        (
+            "cummax",
+            {"axis": 1},
+            {"A": [1, 2, 3], "B": [4, 5, 6]},
+            "axis = 1 is not supported",
+        ),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_error_handling_dataframe_when_auto_switch_disabled(method, args, test_data):
+def test_error_handling_dataframe_when_auto_switch_disabled(
+    method, args, test_data, expected_reason
+):
     # Test that unsupported DataFrame args raise NotImplementedError when auto-switch is disabled.
     with config_context(AutoSwitchBackend=False):
         df = pd.DataFrame(test_data).move_to("Snowflake")
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(NotImplementedError) as exc_info:
             getattr(df, method)(**args)
+
+        # Assert the specific expected reason is in the error message
+        error_msg = str(exc_info.value)
+        assert (
+            f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
+            in error_msg
+        )
 
 
 @pytest.mark.parametrize(
-    "method,args,series_data",
+    "method,args,series_data,expected_reason",
     [
-        ("skew", {"numeric_only": False}, [1, 2, 3, 4, 5, 6]),
+        (
+            "skew",
+            {"numeric_only": False},
+            [1, 2, 3, 4, 5, 6],
+            "numeric_only = False argument not supported for skew",
+        ),
     ],
 )
 @sql_count_checker(query_count=0)
-def test_error_handling_series_when_auto_switch_disabled(method, args, series_data):
+def test_error_handling_series_when_auto_switch_disabled(
+    method, args, series_data, expected_reason
+):
     # Test that unsupported Series args raise NotImplementedError when auto-switch is disabled.
     with config_context(AutoSwitchBackend=False):
         series = pd.Series(series_data).move_to("Snowflake")
 
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(NotImplementedError) as exc_info:
             getattr(series, method)(**args)
+
+        # Assert the specific expected reason is in the error message
+        error_msg = str(exc_info.value)
+        assert (
+            f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
+            in error_msg
+        )
 
 
 @sql_count_checker(query_count=1)
