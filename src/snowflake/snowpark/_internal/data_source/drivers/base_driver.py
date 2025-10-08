@@ -3,7 +3,7 @@
 #
 from enum import Enum
 import datetime
-from typing import List, Callable, Any, Optional, TYPE_CHECKING
+from typing import Dict, List, Callable, Any, Optional, TYPE_CHECKING
 from snowflake.connector.options import pandas as pd
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
@@ -144,6 +144,7 @@ class BaseDriver:
         packages: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
         query_timeout: Optional[int] = 0,
+        statement_params: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
@@ -167,12 +168,15 @@ class BaseDriver:
                 external_access_integrations=[external_access_integrations],
                 packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
                 imports=imports,
+                statement_params=statement_params,
             )
         logger.debug(f"register ingestion udtf takes: {udtf_register_time()} seconds")
         call_udtf_sql = f"""
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
             """
-        res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
+        res = session.sql(
+            call_udtf_sql, _emit_ast=_emit_ast
+        )  # TODO: lazy statement params tracking?
         return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
 
     def udtf_class_builder(
