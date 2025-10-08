@@ -530,6 +530,23 @@ class UnsupportedArgsRule:
         Union[Tuple[Callable[[MappingProxyType], bool], str], Tuple[str, Any]]
     ] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        # Validate all conditions are properly formatted at initialization time.
+        for i, condition in enumerate(self.unsupported_conditions):
+            if not isinstance(condition, tuple) or len(condition) != 2:
+                raise ValueError(
+                    f"Invalid condition at index {i}: expected tuple of length 2, "
+                    f"got {type(condition).__name__} of length "
+                    f"{len(condition) if hasattr(condition, '__len__') else 'unknown'}. "
+                    f"Condition: {condition}"
+                )
+
+            if not (callable(condition[0]) or isinstance(condition[0], str)):
+                raise ValueError(
+                    f"Invalid condition at index {i}: first element must be callable or string, "
+                    f"got {type(condition[0]).__name__}. Condition: {condition}"
+                )
+
     def get_reason_if_unsupported(
         self, args: MappingProxyType[Any, Any]
     ) -> Optional[str]:
@@ -551,7 +568,7 @@ class UnsupportedArgsRule:
                 # tuple[str, Any]: (argument_name, unsupported_value)
                 arg_name, unsupported_value = condition
                 if args.get(arg_name) == unsupported_value:
-                    return f"{arg_name}={repr(unsupported_value)} is not supported"
+                    return f"{arg_name} = {repr(unsupported_value)} is not supported"
 
         return None
 
@@ -560,23 +577,6 @@ class UnsupportedArgsRule:
         Returns True if args are unsupported.
         """
         return self.get_reason_if_unsupported(args) is not None
-
-    def __post_init__(self) -> None:
-        # Validate all conditions are properly formatted at initialization time.
-        for i, condition in enumerate(self.unsupported_conditions):
-            if not isinstance(condition, tuple) or len(condition) != 2:
-                raise ValueError(
-                    f"Invalid condition at index {i}: expected tuple of length 2, "
-                    f"got {type(condition).__name__} of length "
-                    f"{len(condition) if hasattr(condition, '__len__') else 'unknown'}. "
-                    f"Condition: {condition}"
-                )
-
-            if not (callable(condition[0]) or isinstance(condition[0], str)):
-                raise ValueError(
-                    f"Invalid condition at index {i}: first element must be callable or string, "
-                    f"got {type(condition[0]).__name__}. Condition: {condition}"
-                )
 
     @staticmethod
     def get_unsupported_args_reason(
