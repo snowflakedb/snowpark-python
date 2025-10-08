@@ -461,6 +461,16 @@ Functions
     st_geompointfromgeohash
     st_hausdorffdistance
     st_makepoint
+    st_interpolate
+    st_intersection
+    st_intersection_agg
+    st_intersects
+    st_isvalid
+    st_length
+    st_makegeompoint
+    st_makeline
+    st_makepolygon
+    st_makepolygonoriented
     substr
     substring
     sum

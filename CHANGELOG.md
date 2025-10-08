@@ -8,17 +8,28 @@
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
-- Added support for the following scalar functions in `functions.py`:
-  - `st_disjoint`
-  - `st_distance`
-  - `st_dwithin`
-  - `st_endpoint`
-  - `st_envelope`
-  - `st_geohash`
-  - `st_geomfromgeohash`
-  - `st_geompointfromgeohash`
-  - `st_hausdorffdistance`
-  - `st_makepoint`
+- Added support for the following functions in `functions.py`:
+    - Geospatial functions:
+      - `st_interpolate`
+      - `st_intersection`
+      - `st_intersection_agg`
+      - `st_intersects`
+      - `st_isvalid`
+      - `st_length`
+      - `st_makegeompoint`
+      - `st_makeline`
+      - `st_makepolygon`
+      - `st_makepolygonoriented`
+      - `st_disjoint`
+      - `st_distance`
+      - `st_dwithin`
+      - `st_endpoint`
+      - `st_envelope`
+      - `st_geohash`
+      - `st_geomfromgeohash`
+      - `st_geompointfromgeohash`
+      - `st_hausdorffdistance`
+      - `st_makepoint`
 
 #### Bug Fixes
 
@@ -169,6 +180,7 @@
 - Improved performance of `DataFrame.to_snowflake` and `pd.to_snowflake(dataframe)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
 - Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
+- Add support for `isin` in faster pandas.
 
 ## 1.39.1 (2025-09-25)
 
