@@ -304,7 +304,7 @@ def test_sort_values(session):
     native_result = native_df.sort_values(by="A")
 
     # compare results
-    assert_frame_equal(snow_result, native_result, check_dtype=False)
+    assert_frame_equal(snow_result, native_result)
 
 
 @sql_count_checker(query_count=0)
