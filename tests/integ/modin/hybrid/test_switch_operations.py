@@ -1120,15 +1120,11 @@ def test_error_handling_dataframe_when_auto_switch_disabled(
     with config_context(AutoSwitchBackend=False):
         df = pd.DataFrame(test_data).move_to("Snowflake")
 
-        with pytest.raises(NotImplementedError) as exc_info:
+        with pytest.raises(
+            NotImplementedError,
+            match=f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}",
+        ):
             getattr(df, method)(**args)
-
-        # Assert the specific expected reason is in the error message
-        error_msg = str(exc_info.value)
-        assert (
-            f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
-            in error_msg
-        )
 
 
 @pytest.mark.parametrize(
@@ -1150,15 +1146,11 @@ def test_error_handling_series_when_auto_switch_disabled(
     with config_context(AutoSwitchBackend=False):
         series = pd.Series(series_data).move_to("Snowflake")
 
-        with pytest.raises(NotImplementedError) as exc_info:
+        with pytest.raises(
+            NotImplementedError,
+            match=f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}",
+        ):
             getattr(series, method)(**args)
-
-        # Assert the specific expected reason is in the error message
-        error_msg = str(exc_info.value)
-        assert (
-            f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
-            in error_msg
-        )
 
 
 @sql_count_checker(query_count=1)
