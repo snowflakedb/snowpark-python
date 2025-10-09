@@ -139,7 +139,7 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
     df_compatible.move_to("Pandas")
 
     cost_compatible = SnowflakeQueryCompiler.move_to_me_cost(
-        df_compatible._query_compiler
+        df_compatible._query_compiler, None, None, None
     )
     assert cost_compatible < QCCoercionCost.COST_IMPOSSIBLE
 
@@ -150,7 +150,7 @@ def test_move_to_me_cost_with_incompatible_dtype(caplog):
     WarningMessage.printed_warnings.clear()
     with caplog.at_level(logging.WARNING):
         cost_incompatible = SnowflakeQueryCompiler.move_to_me_cost(
-            df_incompatible._query_compiler
+            df_incompatible._query_compiler, None, None, None
         )
         assert cost_incompatible == QCCoercionCost.COST_IMPOSSIBLE
         assert "not directly compatible with the Snowflake backend" in caplog.text
