@@ -709,7 +709,6 @@ def test_auto_switch_supported_top_level_functions(method, kwargs):
         df = pd.DataFrame(test_data).move_to("Snowflake")
         assert df.get_backend() == "Snowflake"
 
-        # Test cost - should be zero for supported operations
         _test_stay_cost(
             data_obj=df,
             api_cls_name=None,
@@ -751,7 +750,6 @@ def test_auto_switch_supported_dataframe(method, kwargs):
         df = pd.DataFrame(test_data).move_to("Snowflake")
         assert df.get_backend() == "Snowflake"
 
-        # Test cost - should be zero for supported operations
         _test_stay_cost(
             data_obj=df,
             api_cls_name="BasePandasDataset",
@@ -788,7 +786,6 @@ def test_auto_switch_supported_series(method, kwargs, is_result_scalar):
         series = pd.Series(test_data).move_to("Snowflake")
         assert series.get_backend() == "Snowflake"
 
-        # Test cost - should be zero for supported operations
         _test_stay_cost(
             data_obj=series,
             api_cls_name="BasePandasDataset",
@@ -797,6 +794,7 @@ def test_auto_switch_supported_series(method, kwargs, is_result_scalar):
             expected_cost=QCCoercionCost.COST_ZERO,
         )
 
+        # We only test expected backend for non-scalar results
         if not is_result_scalar:
             _test_expected_backend(
                 data_obj=series,
@@ -832,7 +830,6 @@ def test_auto_switch_supported_post_op_switch_point_dataframe(method, kwargs):
         df = pd.DataFrame(test_data).move_to("Snowflake")
         assert df.get_backend() == "Snowflake"
 
-        # Test costs - should be zero (can execute on Snowflake)
         _test_stay_cost(
             data_obj=df,
             api_cls_name="BasePandasDataset",
@@ -863,7 +860,6 @@ def test_auto_switch_supported_post_op_switch_point_series(method, kwargs):
         series = pd.Series(test_data).move_to("Snowflake")
         assert series.get_backend() == "Snowflake"
 
-        # Test costs - should be zero (can execute on Snowflake)
         _test_stay_cost(
             data_obj=series,
             api_cls_name="BasePandasDataset",
@@ -899,7 +895,6 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
         df = pd.DataFrame(test_data).move_to("Snowflake")
         assert df.get_backend() == "Snowflake"
 
-        # Test cost - should be impossible for unsupported operations
         _test_stay_cost(
             data_obj=df,
             api_cls_name=None,
@@ -908,7 +903,6 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        # Test move_to_me cost
         pandas_df = pd.DataFrame(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_df._query_compiler,
@@ -957,7 +951,6 @@ def test_auto_switch_unsupported_dataframe(method, kwargs):
         }
         df = pd.DataFrame(test_data).move_to("Snowflake")
 
-        # Test cost - should be impossible for unsupported operations
         _test_stay_cost(
             data_obj=df,
             api_cls_name="BasePandasDataset",
@@ -966,7 +959,6 @@ def test_auto_switch_unsupported_dataframe(method, kwargs):
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        # Test move_to_me cost
         pandas_df = pd.DataFrame(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_df._query_compiler,
@@ -1007,7 +999,6 @@ def test_auto_switch_unsupported_series(method, kwargs):
         series = pd.Series(test_data).move_to("Snowflake")
         assert series.get_backend() == "Snowflake"
 
-        # Test cost - should be impossible for unsupported operations
         _test_stay_cost(
             data_obj=series,
             api_cls_name="BasePandasDataset",
@@ -1016,7 +1007,6 @@ def test_auto_switch_unsupported_series(method, kwargs):
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        # Test move_to_me cost
         pandas_series = pd.Series(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_series._query_compiler,
