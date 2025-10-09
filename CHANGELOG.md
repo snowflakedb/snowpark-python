@@ -31,6 +31,14 @@
       - `st_geompointfromgeohash`
       - `st_hausdorffdistance`
       - `st_makepoint`
+      - `st_union_agg`
+      - `st_within`
+      - `st_x`
+      - `st_xmax`
+      - `st_xmin`
+      - `st_y`
+      - `st_ymax`
+      - `st_ymin`
 
 #### Bug Fixes
 

@@ -471,6 +471,14 @@ Functions
     st_makeline
     st_makepolygon
     st_makepolygonoriented
+    st_union_agg
+    st_within
+    st_x
+    st_xmax
+    st_xmin
+    st_y
+    st_ymax
+    st_ymin
     substr
     substring
     sum

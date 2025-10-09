@@ -3090,3 +3090,215 @@ def st_hausdorffdistance(
     c1 = _to_col_if_str(geography_expression_1, "st_hausdorffdistance")
     c2 = _to_col_if_str(geography_expression_2, "st_hausdorffdistance")
     return builtin("st_hausdorffdistance", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def st_union_agg(geography_column: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the union of all geography objects in a group as a single geography object.
+
+    Args:
+        geography_column (ColumnOrName): The geography objects to union
+
+    Returns:
+        Column: The union of all geography objects in the group
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ['POINT(1 1)'],
+        ...     ['POINT(0 1)'],
+        ...     ['LINESTRING(0 0, 0 1)'],
+        ...     ['POLYGON((10 10, 11 11, 11 10, 10 10))']
+        ... ], schema=["g"])
+        >>> df.select(st_union_agg(to_geography(df["g"])).alias("union_result")).collect()
+        [Row(UNION_RESULT='{\\n  "geometries": [\\n    {\\n      "coordinates": [\\n        9.999999999999998e-01,\\n        1.0000000000000...00000000000000e+01\\n          ]\\n        ]\\n      ],\\n      "type": "Polygon"\\n    }\\n  ],\\n  "type": "GeometryCollection"\\n}')]
+    """
+    c = _to_col_if_str(geography_column, "st_union_agg")
+    return builtin("st_union_agg", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_within(
+    geography_or_geometry_expression_1: ColumnOrName,
+    geography_or_geometry_expression_2: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns TRUE if the first GEOGRAPHY object is completely inside the second GEOGRAPHY object.
+
+    Args:
+        geography_or_geometry_expression_1 (ColumnOrName): A GEOGRAPHY object or a geography expression to test if it's within the second geography.
+        geography_or_geometry_expression_2 (ColumnOrName): A GEOGRAPHY object or a geography expression that may contain the first geography.
+
+    Returns:
+        Column: Boolean value indicating whether the first geography is within the second geography.
+
+    Examples::
+        >>> df = session.create_dataframe([
+        ...     ('POLYGON((1 1, 2 1, 2 2, 1 2, 1 1))', 'POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))'),
+        ...     ('POINT(1.5 1.5)', 'POLYGON((1 1, 2 1, 2 2, 1 2, 1 1))')
+        ... ], schema=["g1", "g2"])
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df.select(st_within(to_geography(df["g1"]), to_geography(df["g2"])).alias("within")).collect()
+        [Row(WITHIN=True), Row(WITHIN=True)]
+    """
+    c1 = _to_col_if_str(geography_or_geometry_expression_1, "st_within")
+    c2 = _to_col_if_str(geography_or_geometry_expression_2, "st_within")
+    return builtin("st_within", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def st_x(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the X coordinate of a POINT geometry or geography object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A POINT geometry or geography objects
+
+    Returns:
+        Column: The X coordinate value as a numeric column
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit, st_makepoint, to_geography
+        >>> from snowflake.snowpark.functions import st_makepoint, to_geography
+        >>> df = session.create_dataframe([[37.5, 45.5], [40.0, 60.0]], schema=["x", "y"])
+        >>> df.select(st_x(to_geography(st_makepoint(df["x"], df["y"]))).alias("x_coordinate")).collect()
+        [Row(X_COORDINATE=37.5), Row(X_COORDINATE=40.0)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_x")
+    return builtin("st_x", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_xmax(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the maximum X coordinate of the bounding box of a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object.
+
+    Returns:
+        Column: The maximum X coordinate values.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, to_geography
+        >>> df = session.create_dataframe([
+        ...     ['POINT(-60 30)'],
+        ...     ['POINT(180 0)'],
+        ...     ['LINESTRING(-60 30, 60 30)']
+        ... ], schema=["geom"])
+        >>> df.select(st_xmax(to_geography(df["geom"])).alias("xmax")).collect()
+        [Row(XMAX=-59.99999999999999), Row(XMAX=180.0), Row(XMAX=60.00000000000002)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_xmax")
+    return builtin("st_xmax", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_xmin(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the minimum X coordinate of a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A column containing GEOGRAPHY or GEOMETRY objects.
+
+    Returns:
+        Column: A column containing the minimum X coordinate values.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ["POINT(-180 0)"],
+        ...     ["POINT(180 0)"],
+        ...     ["LINESTRING(-60 30, 60 30)"]
+        ... ], schema=["geom"])
+        >>> df.select(st_xmin(to_geography(df["geom"])).alias("xmin")).collect()
+        [Row(XMIN=-180.0), Row(XMIN=-180.0), Row(XMIN=-60.00000000000002)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_xmin")
+    return builtin("st_xmin", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_y(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the Y coordinate of a POINT, or None if the input is not a POINT.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object representing points.
+
+    Returns:
+        Column: The Y coordinate values as floating-point numbers.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> from snowflake.snowpark.functions import st_makepoint
+        >>> df = session.create_dataframe([[37.5, 45.5], [40.0, 60.0]], schema=["x", "y"])
+        >>> df.select(st_y(to_geography(st_makepoint(df["x"], df["y"]))).alias("y_coord")).collect()
+        [Row(Y_COORD=45.5), Row(Y_COORD=60.0)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_y")
+    return builtin("st_y", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_ymax(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the maximum Y coordinate of the input GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object.
+
+    Returns:
+        Column: The maximum Y coordinate value.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ["POINT(-180 0)"],
+        ...     ["POINT(180 0)"],
+        ...     ["LINESTRING(-60 30,60 30)"],
+        ...     ["LINESTRING(-60 -30,60 -30)"]
+        ... ], schema=["geog"])
+        >>> df.select(st_ymax(to_geography(df["geog"])).alias("ymax")).collect()
+        [Row(YMAX=0.0), Row(YMAX=0.0), Row(YMAX=49.106605350869174), Row(YMAX=-29.999999999999943)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_ymax")
+    return builtin("st_ymax", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_ymin(geography_or_geometry_expression, _emit_ast: bool = True):
+    """
+    Returns the minimum Y coordinate (latitude) of all points in a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object
+
+    Returns:
+        Column: The minimum Y coordinate value
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ['POINT(-180 0)'],
+        ...     ['POINT(180 0)'],
+        ...     ['LINESTRING(-60 30, 60 30)'],
+        ...     ['LINESTRING(-60 -30, 60 -30)']
+        ... ], schema=["geometry"])
+        >>> df.select(st_ymin(to_geography(df["geometry"])).alias("ymin")).collect()
+        [Row(YMIN=0.0), Row(YMIN=0.0), Row(YMIN=29.999999999999943), Row(YMIN=-49.106605350869174)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_ymin")
+    return builtin("st_ymin", _emit_ast=_emit_ast)(c)
