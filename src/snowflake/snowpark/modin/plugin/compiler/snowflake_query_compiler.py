@@ -1179,8 +1179,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Cost of migrating the data from other_qc to this qc or
             None if the cost cannot be determined.
         """
-        # in-memory intialization should not move to Snowflake
         if (
+            # in-memory intialization should not move to Snowflake
             cls._is_in_memory_init(api_cls_name, operation, arguments)
             or not cls._are_dtypes_compatible_with_snowflake(other_qc)
             or (
