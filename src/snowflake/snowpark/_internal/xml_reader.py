@@ -468,7 +468,18 @@ def process_xml_range(
                     # to parse undeclared namespaces, we have to use recover mode
                     recover = bool(":" in tag_name)
                     parser = ET.XMLParser(recover=recover, ns_clean=True)
-                    element = ET.fromstring(record_str, parser)
+                    try:
+                        element = ET.fromstring(record_str, parser)
+                    except ET.XMLSyntaxError:
+                        # when ignoring namespaces, strip attribute prefixes
+                        # like xyz:id -> id so records with undeclared prefixes can still parse.
+                        if ignore_namespace:
+                            cleaned_record = re.sub(
+                                r"\s+(\w+):(\w+)=", r" \2=", record_str
+                            )
+                            element = ET.fromstring(cleaned_record, parser)
+                        else:
+                            raise
                 else:
                     element = ET.fromstring(record_str)
 

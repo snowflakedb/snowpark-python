@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diffgr:diffgram xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" xmlns:diffgr="urn:schemas-microsoft-com:xml-diffgram-v1">
+  <DocumentElement xmlns="">
+    <Results diffgr:id="Results1" msdata:rowOrder="0">
+      <DATECREATION>201301021116</DATECREATION>
+      <IDCATEGORIE>2</IDCATEGORIE>
+      <IDMODEINSCRIPTION>P</IDMODEINSCRIPTION>
+      <PASSWORD>exp</PASSWORD>
+      <IDCONTACT>1000</IDCONTACT>
+      <NOM>CAMUT</NOM>
+      <PRENOM>Anthony</PRENOM>
+      <SOCIETE>TECH-EVENT INC.</SOCIETE>
+    </Results>
+    <Results diffgr:id="Results2" msdata:rowOrder="1">
+      <DATECREATION>201212041605</DATECREATION>
+      <IDCATEGORIE>ADMIN</IDCATEGORIE>
+      <IDMODEINSCRIPTION>P</IDMODEINSCRIPTION>
+      <PASSWORD>test</PASSWORD>
+      <IDCONTACT>600208</IDCONTACT>
+      <NOM>CAMUT</NOM>
+      <PRENOM>Anthony</PRENOM>
+      <SOCIETE>TECH-EVENT</SOCIETE>
+    </Results>
+    <Results diffgr:id="Results3" msdata:rowOrder="2">
+      <DATECREATION>201212071210</DATECREATION>
+      <IDCATEGORIE>VECCLI</IDCATEGORIE>
+      <IDMODEINSCRIPTION>P</IDMODEINSCRIPTION>
+      <IDCONTACT>600241</IDCONTACT>
+      <NOM>Test3</NOM>
+      <PRENOM>Alpha</PRENOM>
+      <SOCIETE>Example Corp</SOCIETE>
+    </Results>
+  </DocumentElement>
+</diffgr:diffgram>
+
+

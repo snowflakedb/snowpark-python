@@ -1031,7 +1031,9 @@ class DataFrameReader:
                 The default value is '_corrupt_record'.
 
               + ``ignoreNamespace``: remove namespace prefixes from XML element names when constructing result column names.
-                The default value is ``True``. Note that a given prefix isn't declared on the row tag element,
+                The default value is ``True``. Parsing uses recovery mode to tolerate malformed records (e.g., undefined
+                namespace prefixes in attributes such as ``diffgr:id`` or ``msdata:rowOrder``). When this option is enabled,
+                element name prefixes are stripped where resolvable; if a prefix isn't declared on the row tag element,
                 it cannot be resolved and will be left intact (i.e. this setting is ignored for that element).
                 For example, for the following XML data with a row tag ``abc:def``:
                 ```

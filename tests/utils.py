@@ -1702,6 +1702,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "undeclared_namespace.xml")
 
     @property
+    def test_xml_undeclared_attr_namespace(self):
+        return os.path.join(self.resources_path, "undeclared_attr_namespace.xml")
+
+    @property
     def test_null_value_xml(self):
         return os.path.join(self.resources_path, "null_value.xml")
 
