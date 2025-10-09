@@ -1059,7 +1059,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _has_unsupported_args(
         cls,
         api_cls_name: Optional[str],
-        operation: Optional[str],
+        operation: str,
         args: Optional[MappingProxyType[Any, Any]],
     ) -> bool:
         """
@@ -1077,7 +1077,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             True if unsupported args are detected and an auto-switch should occur
         """
-        if not operation or args is None:
+        if args is None:
             return False
 
         method_key = MethodKey(api_cls_name, operation)
