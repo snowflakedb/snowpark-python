@@ -3120,7 +3120,7 @@ def st_npoints(
 
 
 # Alias for st_npoints
-ST_NUMPOINTS = st_npoints
+st_numpoints = st_npoints
 
 
 @publicapi
@@ -3338,41 +3338,45 @@ def st_symdifference(
 
 
 @publicapi
-def st_transform(geometry_expression, *args, _emit_ast: bool = True):
+def st_transform(
+    geometry_expression: ColumnOrName,
+    to_srid: ColumnOrName,
+    from_srid: ColumnOrName = None,
+    _emit_ast: bool = True,
+):
     """
     Transforms a geometry from one spatial reference system (SRS) to another using SRID (Spatial Reference System Identifier) values.
 
     Args:
         geometry_expression (ColumnOrName): A column containing geometry objects to transform
-        *args: Either one argument (to_srid) or two arguments (from_srid, to_srid) specifying the spatial reference system identifiers
+        to_srid (ColumnOrName): The target spatial reference system identifier to transform the geometry to
+        from_srid (ColumnOrName, optional): The source spatial reference system identifier. If None, uses the geometry's existing SRID
 
     Returns:
         Column: A column containing the transformed geometry objects
 
     Examples::
-        >>> from snowflake.snowpark.functions import to_geometry
+        >>> from snowflake.snowpark import Row
+        >>> from snowflake.snowpark.functions import to_geometry, lit
+
         >>> df = session.create_dataframe([["POINT(389866.35 5819003.03)"]], schema=["geom_wkt"])
-        >>> df.select(st_transform(to_geometry(df["geom_wkt"]), lit(32633), lit(3857)).alias("transformed")).collect()
-        [Row(TRANSFORMED='{\\n  "coordinates": [\\n    1.489140093765645e+06,\\n    6.892872198680114e+06\\n  ],\\n  "type": "Point"\\n}')]
-        >>> df2 = session.create_dataframe([["POINT(4.500212 52.161170)"]], schema=["geom_wkt"])
-        >>> df2.select(st_transform(to_geometry(df2["geom_wkt"]), lit(4326), lit(28992)).alias("transformed")).collect()
-        [Row(TRANSFORMED='{\\n  "coordinates": [\\n    9.430867050247335e+04,\\n    4.640381686548707e+05\\n  ],\\n  "type": "Point"\\n}')]
+        >>> result1 = df.select(st_transform(st_setsrid(to_geometry(df["geom_wkt"]), lit(32617)), lit(3857)).alias("transformed")).collect()
+        >>> assert result1 == [Row(TRANSFORMED='{\\n  "coordinates": [\\n    -9.197531022388615e+06,\\n    6.892872198680114e+06\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> result2 = df.select(st_transform(to_geometry(df["geom_wkt"]), lit(32633), lit(3857)).alias("transformed")).collect()
+        >>> assert result2 == [Row(TRANSFORMED='{\\n  "coordinates": [\\n    -3.861449042853381e+05,\\n    5.185433920948020e+06\\n  ],\\n  "type": "Point"\\n}')]
     """
     geometry_col = _to_col_if_str(geometry_expression, "st_transform")
 
-    if len(args) == 1:
-        to_srid = args[0]
-        to_srid_col = _to_col_if_str(to_srid, "st_transform")
-        return builtin("st_transform", _emit_ast=_emit_ast)(geometry_col, to_srid_col)
-    elif len(args) == 2:
-        from_srid, to_srid = args
+    if from_srid is not None:
         from_srid_col = _to_col_if_str(from_srid, "st_transform")
         to_srid_col = _to_col_if_str(to_srid, "st_transform")
         return builtin("st_transform", _emit_ast=_emit_ast)(
             geometry_col, from_srid_col, to_srid_col
         )
     else:
-        raise ValueError("st_transform requires 2 or 3 arguments")
+        to_srid_col = _to_col_if_str(to_srid, "st_transform")
+        return builtin("st_transform", _emit_ast=_emit_ast)(geometry_col, to_srid_col)
 
 
 @publicapi
