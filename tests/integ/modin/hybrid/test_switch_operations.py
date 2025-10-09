@@ -1146,6 +1146,7 @@ def test_malformed_decorator_conditions():
 
         @register_query_compiler_method_not_implemented(
             api_cls_name="TestClass",
+            method_name="test_method_single_item",
             unsupported_args=UnsupportedArgsRule(
                 unsupported_conditions=[
                     ("single_item",),
@@ -1162,6 +1163,7 @@ def test_malformed_decorator_conditions():
 
         @register_query_compiler_method_not_implemented(
             api_cls_name="TestClass",
+            method_name="test_method_not_tuple",
             unsupported_args=UnsupportedArgsRule(
                 unsupported_conditions=[
                     ("valid_param", "valid_value"),
@@ -1180,6 +1182,7 @@ def test_malformed_decorator_conditions():
 
         @register_query_compiler_method_not_implemented(
             api_cls_name="TestClass",
+            method_name="test_method_none_condition",
             unsupported_args=UnsupportedArgsRule(
                 unsupported_conditions=[
                     (None, "reason_for_none"),
@@ -1197,6 +1200,7 @@ def test_malformed_decorator_conditions():
 
         @register_query_compiler_method_not_implemented(
             api_cls_name="TestClass",
+            method_name="test_method_callable_non_string_reason",
             unsupported_args=UnsupportedArgsRule(
                 unsupported_conditions=[
                     (lambda args: True, 123),
