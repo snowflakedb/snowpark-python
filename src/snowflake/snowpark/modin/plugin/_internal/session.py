@@ -2,9 +2,11 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 import sys
+from contextlib import contextmanager
 from types import ModuleType
-from typing import Any, Callable, Optional
+from typing import Any, Callable, ContextManager, Generator, Optional
 import warnings
 
 # import the entire context submodule instead of just get_active_session so
@@ -12,6 +14,38 @@ import warnings
 import snowflake.snowpark.context
 from snowflake.snowpark.exceptions import SnowparkSessionException
 from snowflake.snowpark.session import Session, _active_sessions
+
+
+class MultiThreadingWarningFilter(logging.Filter):
+    """
+    Filter to suppress logging messages warnining about multiple threads
+    potentially trying to update the same config parameter
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return (
+            "You might have more than one threads sharing the Session object trying to update"
+            not in record.getMessage()
+        )
+
+
+def _suppress_multithreading_warnings() -> ContextManager[None]:
+    """
+    Context manager to temporarily suppress logging warnings about multiple threads
+    potentially trying to update the same config parameter
+    """
+
+    @contextmanager
+    def _filter_context() -> Generator[None, None, None]:
+        logger = logging.getLogger("snowflake.snowpark")
+        filter_instance = MultiThreadingWarningFilter()
+        logger.addFilter(filter_instance)
+        try:
+            yield
+        finally:
+            logger.removeFilter(filter_instance)
+
+    return _filter_context()
 
 
 def _subimport(name: str) -> ModuleType:
@@ -81,7 +115,9 @@ class SnowpandasSessionHolder(ModuleType):
             self._warn_if_possible_when_quoted_identifiers_ignore_case_is_set(
                 self._session
             )
-            self._session.cte_optimization_enabled = True
+            if not self._session.cte_optimization_enabled:
+                with _suppress_multithreading_warnings():
+                    self._session.cte_optimization_enabled = True
             return self._session
 
         try:
@@ -90,7 +126,9 @@ class SnowpandasSessionHolder(ModuleType):
             self._warn_if_possible_when_quoted_identifiers_ignore_case_is_set(
                 self._session
             )
-            session.cte_optimization_enabled = True
+            if not session.cte_optimization_enabled:
+                with _suppress_multithreading_warnings():
+                    session.cte_optimization_enabled = True
             return session
         except SnowparkSessionException as ex:
             if ex.error_code == "1409":

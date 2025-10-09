@@ -1837,3 +1837,26 @@ def test_dbapi_with_connection_parameters(session):
                 connection_parameters={"key": "value"},
                 udtf_configs={"external_access_integration": "test_integration"},
             )
+
+
+def test_oracledb_v34():
+    class MockOracleConnectionV33:
+        __module__ = "oracledb"
+
+    # Version for 3.4 or higher
+    class MockOracleConnectionV34:
+        __module__ = "oracledb.connection"
+
+    def create_mock_oracledb_v33_or_lower():
+        return MockOracleConnectionV33()
+
+    def create_mock_oracledb_v34_or_higher():
+        return MockOracleConnectionV34()
+
+    dbms_type, driver_type = detect_dbms(create_mock_oracledb_v33_or_lower())
+    assert dbms_type == DBMS_TYPE.ORACLE_DB
+    assert driver_type == DRIVER_TYPE.ORACLEDB
+
+    dbms_type, driver_type = detect_dbms(create_mock_oracledb_v34_or_higher())
+    assert dbms_type == DBMS_TYPE.ORACLE_DB
+    assert driver_type == DRIVER_TYPE.ORACLEDB

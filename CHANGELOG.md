@@ -9,10 +9,33 @@
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
 - Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
+- Added support for the following functions in `functions.py`:
+    - Geospatial functions:
+      - `st_interpolate`
+      - `st_intersection`
+      - `st_intersection_agg`
+      - `st_intersects`
+      - `st_isvalid`
+      - `st_length`
+      - `st_makegeompoint`
+      - `st_makeline`
+      - `st_makepolygon`
+      - `st_makepolygonoriented`
+      - `st_disjoint`
+      - `st_distance`
+      - `st_dwithin`
+      - `st_endpoint`
+      - `st_envelope`
+      - `st_geohash`
+      - `st_geomfromgeohash`
+      - `st_geompointfromgeohash`
+      - `st_hausdorffdistance`
+      - `st_makepoint`
 
 #### Bug Fixes
 
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
+- Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0. 
 
 ### Snowpark pandas API Updates
 
