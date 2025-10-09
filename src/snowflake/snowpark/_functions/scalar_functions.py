@@ -2502,3 +2502,591 @@ def st_dimension(
     """
     c = _to_col_if_str(geography_or_geometry_expression, "st_dimension")
     return builtin("st_dimension", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_interpolate(
+    geography_expression: ColumnOrName,
+    tolerance: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns a geography object with additional points interpolated along the edges of the input geography.
+
+    Args:
+        geography_expression (ColumnOrName): A geography data
+        tolerance (ColumnOrName, optional): The maximum distance between interpolated points in meters
+
+    Returns:
+        Column: A geography object with interpolated points along its edges
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ['POLYGON((2.365837 48.862456,-76.992874 39.009046,-16.091194 18.013997,2.365837 48.862456))']
+        ... ], schema=["geog_wkt"])
+        >>> df.select(st_interpolate(to_geography(df["geog_wkt"])).alias("interpolated")).collect()
+        [Row(INTERPOLATED='{\\n  "coordinates": [\\n    [\\n      [\\n        2.365837000000000e+00,\\n        4.886245600000001e+01\\n      ...     ],\\n      [\\n        2.365837000000000e+00,\\n        4.886245600000001e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}')]
+
+        >>> df.select(st_interpolate(to_geography(df["geog_wkt"]), lit(1000)).alias("interpolated_with_tolerance")).collect()
+        [Row(INTERPOLATED_WITH_TOLERANCE='{\\n  "coordinates": [\\n    [\\n      [\\n        2.365837000000000e+00,\\n        4.886245600000...     ],\\n      [\\n        2.365837000000000e+00,\\n        4.886245600000001e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}')]
+    """
+
+    geography_col = _to_col_if_str(geography_expression, "st_interpolate")
+
+    if tolerance is None:
+        return builtin("st_interpolate", _emit_ast=_emit_ast)(geography_col)
+    else:
+        tolerance_col = _to_col_if_str(tolerance, "st_interpolate")
+        return builtin("st_interpolate", _emit_ast=_emit_ast)(
+            geography_col, tolerance_col
+        )
+
+
+@publicapi
+def st_intersection(
+    geography_expression_1: ColumnOrName,
+    geography_expression_2: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the intersection of two GEOGRAPHY objects. If the objects do not intersect, returns an empty geometry collection.
+
+    Args:
+        geography_expression_1 (ColumnOrName): A column containing GEOGRAPHY objects or a geography expression.
+        geography_expression_2 (ColumnOrName): A column containing GEOGRAPHY objects or a geography expression.
+
+    Returns:
+        Column: A column containing the intersection of the two input GEOGRAPHY objects as a GEOGRAPHY object.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ['POLYGON((0 0, 1 0, 2 1, 1 2, 2 3, 1 4, 0 4, 0 0))', 'POLYGON((3 0, 3 4, 2 4, 1 3, 2 2, 1 1, 2 0, 3 0))']
+        ... ], schema=["geog1", "geog2"])
+        >>> df.select(st_intersection(to_geography(df["geog1"]), to_geography(df["geog2"])).alias("intersection")).collect()
+        [Row(INTERSECTION='{\\n  "coordinates": [\\n    [\\n      [\\n        [\\n          1.500000000000000e+00,\\n          5.000571197534015e-01\\n        ],\\n        [\\n          2.000000000000000e+00,\\n          1.000000000000000e+00\\n        ],\\n        [\\n          1.500000000000000e+00,\\n          1.500171359265506e+00\\n        ],\\n        [\\n          9.999999999999998e-01,\\n          1.000000000000000e+00\\n        ],\\n        [\\n          1.500000000000000e+00,\\n          5.000571197534015e-01\\n        ]\\n      ]\\n    ],\\n    [\\n      [\\n        [\\n          1.500000000000000e+00,\\n          2.500285598878384e+00\\n        ],\\n        [\\n          2.000000000000000e+00,\\n          3.000000000000000e+00\\n        ],\\n        [\\n          1.500000000000000e+00,\\n          3.500399838942360e+00\\n        ],\\n        [\\n          1.000000000000000e+00,\\n          3.000000000000000e+00\\n        ],\\n        [\\n          1.500000000000000e+00,\\n          2.500285598878384e+00\\n        ]\\n      ]\\n    ]\\n  ],\\n  "type": "MultiPolygon"\\n}')]
+    """
+    c1 = _to_col_if_str(geography_expression_1, "st_intersection")
+    c2 = _to_col_if_str(geography_expression_2, "st_intersection")
+    return builtin("st_intersection", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def st_intersection_agg(
+    geography_column: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the intersection of all geography objects in a group as an aggregate function.
+
+    Args:
+        geography_column (ColumnOrName): A column containing geography objects to find the intersection of in a group.
+
+    Returns:
+        Column: A column containing the intersection of all geography objects in the group
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ['POLYGON((10 10, 11 11, 11 10, 10 10))'],
+        ...     ['POLYGON((10 10, 11 10, 10 11, 10 10))'],
+        ...     ['POLYGON((10.5 10.5, 10 10, 11 10, 10.5 10.5))']
+        ... ], schema=["g"])
+        >>> df.select(st_intersection_agg(to_geography(df["g"])).alias("intersection")).collect()
+        [Row(INTERSECTION='{\\n  "coordinates": [\\n    [\\n      [\\n        1.050000000000000e+01,\\n        1.050000000000000e+01\\n      ...     ],\\n      [\\n        1.050000000000000e+01,\\n        1.050000000000000e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}')]
+    """
+    c = _to_col_if_str(geography_column, "st_intersection_agg")
+    return builtin("st_intersection_agg", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_intersects(
+    geography_or_geometry_expression_1: ColumnOrName,
+    geography_or_geometry_expression_2: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns True if the two GEOGRAPHY or GEOMETRY objects intersect (i.e. have any points in common), False otherwise.
+
+    Args:
+        geography_or_geometry_expression_1 (ColumnOrName): A column containing GEOGRAPHY or GEOMETRY objects or a column name.
+        geography_or_geometry_expression_2 (ColumnOrName): A column containing GEOGRAPHY or GEOMETRY objects or a column name.
+
+    Returns:
+        Column: A column of boolean values indicating whether the two geography objects intersect.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ["POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))", "POLYGON((1 1, 3 1, 3 3, 1 3, 1 1))"],
+        ...     ["POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))", "POLYGON((2 2, 3 2, 3 3, 2 3, 2 2))"]
+        ... ], schema=["geog1", "geog2"])
+        >>> df.select(st_intersects(to_geography(df["geog1"]), to_geography(df["geog2"])).alias("intersects")).collect()
+        [Row(INTERSECTS=True), Row(INTERSECTS=False)]
+    """
+    c1 = _to_col_if_str(geography_or_geometry_expression_1, "st_intersects")
+    c2 = _to_col_if_str(geography_or_geometry_expression_2, "st_intersects")
+    return builtin("st_intersects", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def st_isvalid(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns TRUE if the input GEOGRAPHY or GEOMETRY object is valid, FALSE otherwise.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A column containing GEOGRAPHY or GEOMETRY objects to validate.
+
+    Returns:
+        Column: A column of boolean values indicating whether each geography or geometry object is valid.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([["POLYGON((-93.086 37.557,-86.699 37.497,-93.198 35.123,-93.086 37.557))"]],schema=["geom"])
+        >>> df.select(st_isvalid(to_geography(df["geom"])).alias("is_valid")).collect()
+        [Row(IS_VALID=True)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_isvalid")
+    return builtin("st_isvalid", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_length(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the length of a GEOGRAPHY or GEOMETRY object. The value is a REAL value, which represents the length:
+        - For GEOGRAPHY input values, the length is in meters.
+        - For GEOMETRY input values, the length is computed with the same units used to define the input coordinates.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY objects
+
+    Returns:
+        Column: Returns a REAL value, which represents the length:
+            - For GEOGRAPHY input values, the length is in meters.
+            - For GEOMETRY input values, the length is computed with the same units used to define the input coordinates.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     "LINESTRING(0 0, 1 1)",
+        ...     "POINT(1 1)",
+        ...     "POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))"
+        ... ], schema=["geometry_col"])
+        >>> df.select(st_length(to_geography(df["geometry_col"])).alias("length")).collect()
+        [Row(LENGTH=157249.6280925079), Row(LENGTH=0.0), Row(LENGTH=0.0)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_length")
+    return builtin("st_length", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_makegeompoint(
+    longitude: ColumnOrName, latitude: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Constructs a GEOMETRY object that represents a point with the specified longitude and latitude values.
+
+    Args:
+        longitude (ColumnOrName): A column or column name containing the longitude values
+        latitude (ColumnOrName): A column or column name containing the latitude values
+
+    Returns:
+        Column: A column containing GEOMETRY objects representing points
+
+    Examples::
+        >>> df = session.create_dataframe([[-122.35, 37.55], [-74.006, 40.7128]], schema=["longitude", "latitude"])
+        >>> df.select(st_makegeompoint(df["longitude"], df["latitude"]).alias("geom_point")).collect()
+        [Row(GEOM_POINT='{\\n  "coordinates": [\\n    -1.223500000000000e+02,\\n    3.755000000000000e+01\\n  ],\\n  "type": "Point"\\n}'), Row(GEOM_POINT='{\\n  "coordinates": [\\n    -7.400600000000000e+01,\\n    4.071280000000000e+01\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    longitude_col = _to_col_if_str(longitude, "st_makegeompoint")
+    latitude_col = _to_col_if_str(latitude, "st_makegeompoint")
+    return builtin("st_makegeompoint", _emit_ast=_emit_ast)(longitude_col, latitude_col)
+
+
+@publicapi
+def st_makeline(
+    geography_or_geometry_expression_1: ColumnOrName,
+    geography_or_geometry_expression_2: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns a LINESTRING geography object by connecting the input geography objects in the order they are passed to the function.
+
+    Args:
+        geography_or_geometry_expression_1 (ColumnOrName): A GEOGRAPHY or GEOMETRY object that represents the first point or set of points in the line.
+        geography_or_geometry_expression_2 (ColumnOrName): A GEOGRAPHY or GEOMETRY object that represents the second point or set of points in the line.
+
+    Returns:
+        Column: A LINESTRING geography object connecting the input geography objects.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ["POINT(37.0 45.0)", "POINT(38.5 46.5)"],
+        ...     ["POINT(-122.306067 37.55412)", "MULTIPOINT((-122.32328 37.561801), (-122.325879 37.586852))"]
+        ... ], schema=["geog1", "geog2"])
+        >>> df.select(st_makeline(to_geography(df["geog1"]), to_geography(df["geog2"])).alias("makeline")).collect()
+        [Row(MAKELINE='{\\n  "coordinates": [\\n    [\\n      37,\\n      45\\n    ],\\n    [\\n      38.5,\\n      46.5\\n    ]\\n  ],\\n  "type": "LineString"\\n}'), Row(MAKELINE='{\\n  "coordinates": [\\n    [\\n      -122.306067,\\n      37.55412\\n    ],\\n    [\\n      -122.32328,\\n      37.561801\\n    ],\\n    [\\n      -122.325879,\\n      37.586852\\n    ]\\n  ],\\n  "type": "LineString"\\n}')]
+    """
+    c1 = _to_col_if_str(geography_or_geometry_expression_1, "st_makeline")
+    c2 = _to_col_if_str(geography_or_geometry_expression_2, "st_makeline")
+    return builtin("st_makeline", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def st_makepolygon(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Creates a polygon from a linestring that represents the exterior ring.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A column or column name containing a GEOGRAPHY or GEOMETRY object representing a linestring that forms the exterior ring of the polygon.
+
+    Returns:
+        Column: A new column containing the polygon created from the input linestring.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geometry
+        >>> df = session.create_dataframe([["LINESTRING(0.0 0.0, 1.0 0.0, 1.0 2.0, 0.0 2.0, 0.0 0.0)"]], schema=["linestring"])
+        >>> df.select(st_makepolygon(to_geometry(df["linestring"])).alias("polygon")).collect()
+        [Row(POLYGON='{\\n  "coordinates": [\\n    [\\n      [\\n        0.000000000000000e+00,\\n        0.000000000000000e+00\\n      ],\\n      [\\n        1.000000000000000e+00,\\n        0.000000000000000e+00\\n      ],\\n      [\\n        1.000000000000000e+00,\\n        2.000000000000000e+00\\n      ],\\n      [\\n        0.000000000000000e+00,\\n        2.000000000000000e+00\\n      ],\\n      [\\n        0.000000000000000e+00,\\n        0.000000000000000e+00\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}')]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_makepolygon")
+    return builtin("st_makepolygon", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_makepolygonoriented(
+    geography_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns a polygon with vertices oriented in a consistent direction (counter-clockwise for exterior rings, clockwise for interior rings).
+
+    Args:
+        geography_expression (ColumnOrName): The geography expression (typically a LINESTRING) to convert to an oriented polygon.
+
+    Returns:
+        Column: The oriented polygon geometry.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, to_geography
+        >>> import json
+        >>> df = session.create_dataframe([
+        ...     "LINESTRING(0.0 0.0, 1.0 0.0, 1.0 2.0, 0.0 2.0, 0.0 0.0)"
+        ... ], schema=["linestring"])
+        >>> result = df.select(st_makepolygonoriented(to_geography(col("linestring"))).alias("polygon")).collect()
+        >>> assert json.loads(result[0]["POLYGON"]) == {
+        ... "coordinates": [
+        ...     [
+        ...         [0, 0],
+        ...         [1, 0],
+        ...         [1, 2],
+        ...         [0, 2],
+        ...         [0, 0]
+        ...     ]
+        ... ],
+        ... "type": "Polygon"
+        ... }
+    """
+    c = _to_col_if_str(geography_expression, "st_makepolygonoriented")
+    return builtin("st_makepolygonoriented", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_makepoint(
+    longitude: ColumnOrName, latitude: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Creates a GEOGRAPHY object that represents a point with the specified longitude and latitude.
+
+    Args:
+        longitude (ColumnOrName): The longitude values.
+        latitude (ColumnOrName): The latitude values.
+
+    Returns:
+        Column: A GEOGRAPHY objects representing points.
+
+    Example::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[37.5, 45.5], [-122.35, 37.55]], schema=["longitude", "latitude"])
+        >>> df.select(st_makepoint(col("longitude"), col("latitude")).alias("point")).collect()
+        [Row(POINT='{\\n  "coordinates": [\\n    3.750000000000000e+01,\\n    4.550000000000000e+01\\n  ],\\n  "type": "Point"\\n}'), Row(POINT='{\\n  "coordinates": [\\n    -1.223500000000000e+02,\\n    3.755000000000000e+01\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    longitude_col = _to_col_if_str(longitude, "st_makepoint")
+    latitude_col = _to_col_if_str(latitude, "st_makepoint")
+    return builtin("st_makepoint", _emit_ast=_emit_ast)(longitude_col, latitude_col)
+
+
+@publicapi
+def st_disjoint(
+    geography_or_geometry_expression_1: ColumnOrName,
+    geography_or_geometry_expression_2: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns TRUE if the two GEOGRAPHY or GEOMETRY objects are disjoint (do not intersect). Returns FALSE otherwise.
+
+    Args:
+        geography_or_geometry_expression_1 (ColumnOrName): A GEOGRAPHY or GEOMETRY object.
+        geography_or_geometry_expression_2 (ColumnOrName): A GEOGRAPHY or GEOMETRY object.
+
+    Returns:
+        Column: Boolean values indicating whether the two geography or geometry objects are disjoint.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, to_geography
+        >>> df = session.create_dataframe([
+        ...     ["POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))", "POLYGON((3 3, 5 3, 5 5, 3 5, 3 3))"],
+        ...     ["POLYGON((0 0, 2 0, 2 2, 0 2, 0 0))", "POLYGON((1 1, 3 1, 3 3, 1 3, 1 1))"]
+        ... ], schema=["geog1", "geog2"])
+        >>> df.select(st_disjoint(to_geography(col("geog1")), to_geography(col("geog2"))).alias("disjoint")).collect()
+        [Row(DISJOINT=True), Row(DISJOINT=False)]
+    """
+    c1 = _to_col_if_str(geography_or_geometry_expression_1, "st_disjoint")
+    c2 = _to_col_if_str(geography_or_geometry_expression_2, "st_disjoint")
+    return builtin("st_disjoint", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def st_distance(
+    geography_or_geometry_expression_1: ColumnOrName,
+    geography_or_geometry_expression_2: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the minimum geodesic distance between two GEOGRAPHY objects or the Euclidean distance between two GEOMETRY objects.
+
+    Args:
+        geography_or_geometry_expression_1 (ColumnOrName): A GEOGRAPHY or GEOMETRY objects.
+        geography_or_geometry_expression_2 (ColumnOrName): A GEOGRAPHY or GEOMETRY objects.
+
+    Returns:
+        Column: The distance between the two geographic or geometric objects.
+
+    Examples:
+        >>> df = session.sql("select TO_GEOGRAPHY('POINT(0 0)') as point1, TO_GEOGRAPHY('POINT(1 0)') as point2")
+        >>> df.select(st_distance(df.point1, df.point2).alias("distance")).collect()
+        [Row(DISTANCE=111195.10117748393)]
+    """
+    geography_or_geometry_expression_1 = _to_col_if_str(
+        geography_or_geometry_expression_1, "st_distance"
+    )
+    geography_or_geometry_expression_2 = _to_col_if_str(
+        geography_or_geometry_expression_2, "st_distance"
+    )
+    return builtin("st_distance", _emit_ast=_emit_ast)(
+        geography_or_geometry_expression_1, geography_or_geometry_expression_2
+    )
+
+
+@publicapi
+def st_dwithin(
+    geography_expression_1: ColumnOrName,
+    geography_expression_2: ColumnOrName,
+    distance_in_meters: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns true if the distance between two GEOGRAPHY objects is within the specified distance in meters.
+
+    Args:
+        geography_expression_1 (ColumnOrName): The first geography expression to compare
+        geography_expression_2 (ColumnOrName): The second geography expression to compare
+        distance_in_meters (ColumnOrName): The maximum distance in meters for the comparison
+
+    Returns:
+        Column: A boolean column indicating whether the two geography objects are within the specified distance
+
+    Examples:
+        >>> from snowflake.snowpark.functions import st_makepoint, lit
+        >>> df = session.create_dataframe([
+        ...     [0.0, 0.0, 1.0, 0.0, 150000.0],
+        ...     [0.0, 0.0, 2.0, 0.0, 150000.0]
+        ... ], schema=["x1", "y1", "x2", "y2", "distance"])
+        >>> df.select(
+        ...     st_dwithin(
+        ...         st_makepoint(df["x1"], df["y1"]),
+        ...         st_makepoint(df["x2"], df["y2"]),
+        ...         df["distance"]
+        ...     ).alias("within_distance")
+        ... ).collect()
+        [Row(WITHIN_DISTANCE=True), Row(WITHIN_DISTANCE=False)]
+    """
+    c1 = _to_col_if_str(geography_expression_1, "st_dwithin")
+    c2 = _to_col_if_str(geography_expression_2, "st_dwithin")
+    c3 = _to_col_if_str(distance_in_meters, "st_dwithin")
+    return builtin("st_dwithin", _emit_ast=_emit_ast)(c1, c2, c3)
+
+
+@publicapi
+def st_endpoint(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the last point of a LINESTRING or MULTILINESTRING geometry or geography object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A column containing LINESTRING or MULTILINESTRING geometry or geography data
+
+    Returns:
+        Column: A column containing the endpoint as a POINT geometry or geography object
+
+    Examples:
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([['LINESTRING(1 1, 2 2, 3 3, 4 4)']], schema=["linestring"])
+        >>> df.select(st_endpoint(to_geography(df["linestring"])).alias("endpoint")).collect()
+        [Row(ENDPOINT='{\\n  "coordinates": [\\n    4.000000000000000e+00,\\n    4.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_endpoint")
+    return builtin("st_endpoint", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_envelope(geography_or_geometry_expression: ColumnOrName, _emit_ast=True):
+    """
+    Returns the minimum bounding box (envelope) that contains the input GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression: The GEOGRAPHY or GEOMETRY data.
+
+    Returns:
+        Column: The envelope as a GEOGRAPHY or GEOMETRY object.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ['POLYGON((-122.306067 37.55412, -122.32328 37.561801, -122.325879 37.586852, -122.306067 37.55412))'],
+        ...     ['POINT(-122.32328 37.561801)'],
+        ...     ['LINESTRING(-122.32328 37.561801, -122.32328 37.562001)']
+        ... ], schema=["geom"])
+        >>> df.select(st_envelope(to_geography(df["geom"])).alias("envelope")).collect()
+        [Row(ENVELOPE='{\\n  "coordinates": [\\n    [\\n      [\\n        -1.223258790000000e+02,\\n        3.755411999999995e+01\\n      ],\\n      [\\n        -1.223060670000000e+02,\\n        3.755411999999995e+01\\n      ],\\n      [\\n        -1.223060670000000e+02,\\n        3.758685200000006e+01\\n      ],\\n      [\\n        -1.223258790000000e+02,\\n        3.758685200000006e+01\\n      ],\\n      [\\n        -1.223258790000000e+02,\\n        3.755411999999995e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}'), Row(ENVELOPE='{\\n  "coordinates": [\\n    -1.223232800000000e+02,\\n    3.756180100000000e+01\\n  ],\\n  "type": "Point"\\n}'), Row(ENVELOPE='{\\n  "coordinates": [\\n    [\\n      -1.223232800000000e+02,\\n      3.756180099999997e+01\\n    ],\\n    [\\n      -1.223232800000000e+02,\\n      3.756200100000003e+01\\n    ]\\n  ],\\n  "type": "LineString"\\n}')]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_envelope")
+    return builtin("st_envelope", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_geohash(
+    geography_or_geometry_expression: ColumnOrName,
+    precision: ColumnOrName = None,
+    _emit_ast: bool = True,
+):
+    """
+    Returns the geohash for a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object for which to calculate the geohash
+        precision (ColumnOrName, optional): The precision of the geohash. If not specified, uses the default precision
+
+    Returns:
+        Column: A string representing the geohash of the input geography or geometry object
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([["POINT(-122.306100 37.554162)"]], schema=["geom"])
+        >>> df.select(st_geohash(to_geography(df["geom"])).alias("geohash")).collect()
+        [Row(GEOHASH='9q9j8ue2v71y5zzy0s4q')]
+
+        >>> df2 = session.create_dataframe([["POINT(-122.306100 37.554162)"]], schema=["geom"])
+        >>> df2.select(st_geohash(to_geography(df2["geom"]), lit(5)).alias("geohash")).collect()
+        [Row(GEOHASH='9q9j8')]
+    """
+    col = _to_col_if_str(geography_or_geometry_expression, "st_geohash")
+
+    if precision is not None:
+        precision_col = _to_col_if_str(precision, "st_geohash")
+        return builtin("st_geohash", _emit_ast=_emit_ast)(col, precision_col)
+    else:
+        return builtin("st_geohash", _emit_ast=_emit_ast)(col)
+
+
+@publicapi
+def st_geomfromgeohash(
+    geohash: ColumnOrName, precision: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Constructs a GEOMETRY object from a geohash string.
+
+    Args:
+        geohash (ColumnOrName): A column or string containing the geohash value
+        precision (ColumnOrName, optional): A column or value specifying the precision level for the geohash conversion
+
+    Returns:
+        Column: A GEOMETRY object representing the polygon area covered by the geohash
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([["9q9j8ue2v71y5zzy0s4q"], ["9q9j8u"]], schema=["geohash"])
+        >>> df.select(st_geomfromgeohash(col("geohash")).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    [\\n      [\\n        -1.223061000000001e+02,\\n        3.755416199999996e+01\\n      ],\\n      [\\n        -1.223061000000001e+02,\\n        3.755416200000012e+01\\n      ],\\n      [\\n        -1.223060999999998e+02,\\n        3.755416200000012e+01\\n      ],\\n      [\\n        -1.223060999999998e+02,\\n        3.755416199999996e+01\\n      ],\\n      [\\n        -1.223061000000001e+02,\\n        3.755416199999996e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}'), Row(GEOMETRY='{\\n  "coordinates": [\\n    [\\n      [\\n        -1.223107910156250e+02,\\n        3.755126953125000e+01\\n      ],\\n      [\\n        -1.223107910156250e+02,\\n        3.755676269531250e+01\\n      ],\\n      [\\n        -1.222998046875000e+02,\\n        3.755676269531250e+01\\n      ],\\n      [\\n        -1.222998046875000e+02,\\n        3.755126953125000e+01\\n      ],\\n      [\\n        -1.223107910156250e+02,\\n        3.755126953125000e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}')]
+
+        >>> df2 = session.create_dataframe([["9q9j8ue2v71y5zzy0s4q"]], schema=["geohash"])
+        >>> df2.select(st_geomfromgeohash(col("geohash"), lit(6)).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    [\\n      [\\n        -1.223107910156250e+02,\\n        3.755126953125000e+01\\n      ],\\n      [\\n        -1.223107910156250e+02,\\n        3.755676269531250e+01\\n      ],\\n      [\\n        -1.222998046875000e+02,\\n        3.755676269531250e+01\\n      ],\\n      [\\n        -1.222998046875000e+02,\\n        3.755126953125000e+01\\n      ],\\n      [\\n        -1.223107910156250e+02,\\n        3.755126953125000e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}')]
+    """
+    geohash_col = _to_col_if_str(geohash, "st_geomfromgeohash")
+
+    if precision is None:
+        return builtin("st_geomfromgeohash", _emit_ast=_emit_ast)(geohash_col)
+    else:
+        precision_col = _to_col_if_str(precision, "st_geomfromgeohash")
+        return builtin("st_geomfromgeohash", _emit_ast=_emit_ast)(
+            geohash_col, precision_col
+        )
+
+
+@publicapi
+def st_geompointfromgeohash(geohash: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns a GEOMETRY object that represents a point constructed from a geohash string.
+
+    Args:
+        geohash (ColumnOrName): A column or string representing the geohash value to convert to a geometry point
+
+    Returns:
+        Column: A GEOMETRY object representing the point decoded from the geohash
+
+    Examples::
+        >>> df = session.create_dataframe([['9q9j8ue2v71y5zzy0s4q'], ['9q9hpyb25d']], schema=["geohash"])
+        >>> df.select(st_geompointfromgeohash(df["geohash"]).alias("geometry_point")).collect()
+        [Row(GEOMETRY_POINT='{\\n  "coordinates": [\\n    -1.223061000000001e+02,\\n    3.755416199999996e+01\\n  ],\\n  "type": "Point"\\n}'), Row(GEOMETRY_POINT='{\\n  "coordinates": [\\n    -1.220026749372482e+02,\\n    3.730271726846695e+01\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    c = _to_col_if_str(geohash, "st_geompointfromgeohash")
+    return builtin("st_geompointfromgeohash", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_hausdorffdistance(
+    geography_expression_1: ColumnOrName,
+    geography_expression_2: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the Hausdorff distance between two GEOGRAPHY objects.
+
+    Args:
+        geography_expression_1 (ColumnOrName): A column containing GEOGRAPHY objects or a geography expression.
+        geography_expression_2 (ColumnOrName): A column containing GEOGRAPHY objects or a geography expression.
+
+    Returns:
+        Column: A column containing the Hausdorff distance between the two geography objects.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ("POINT(0 0)", "POINT(0 1)"),
+        ...     ("POLYGON((-1 0, 0 1, 1 0, 0 -1, -1 0))", "POLYGON((-1 0, 0 1, 2 0, 0 -1, -1 0))")
+        ... ], schema=["geog1", "geog2"])
+        >>> df.select(st_hausdorffdistance(to_geography(df["geog1"]), to_geography(df["geog2"]))).collect()
+        [Row(ST_HAUSDORFFDISTANCE(TO_GEOGRAPHY("GEOG1"), TO_GEOGRAPHY("GEOG2"))=1.0), Row(ST_HAUSDORFFDISTANCE(TO_GEOGRAPHY("GEOG1"), TO_GEOGRAPHY("GEOG2"))=1.0)]
+    """
+    c1 = _to_col_if_str(geography_expression_1, "st_hausdorffdistance")
+    c2 = _to_col_if_str(geography_expression_2, "st_hausdorffdistance")
+    return builtin("st_hausdorffdistance", _emit_ast=_emit_ast)(c1, c2)

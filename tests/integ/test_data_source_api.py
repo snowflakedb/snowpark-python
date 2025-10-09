@@ -1758,3 +1758,26 @@ def test_base_driver_udtf_class_builder():
 
         # Verify we got some data back (we know the test table has data from other tests)
         assert len(result_rows) > 0
+
+
+def test_oracledb_v34():
+    class MockOracleConnectionV33:
+        __module__ = "oracledb"
+
+    # Version for 3.4 or higher
+    class MockOracleConnectionV34:
+        __module__ = "oracledb.connection"
+
+    def create_mock_oracledb_v33_or_lower():
+        return MockOracleConnectionV33()
+
+    def create_mock_oracledb_v34_or_higher():
+        return MockOracleConnectionV34()
+
+    dbms_type, driver_type = detect_dbms(create_mock_oracledb_v33_or_lower())
+    assert dbms_type == DBMS_TYPE.ORACLE_DB
+    assert driver_type == DRIVER_TYPE.ORACLEDB
+
+    dbms_type, driver_type = detect_dbms(create_mock_oracledb_v34_or_higher())
+    assert dbms_type == DBMS_TYPE.ORACLE_DB
+    assert driver_type == DRIVER_TYPE.ORACLEDB
