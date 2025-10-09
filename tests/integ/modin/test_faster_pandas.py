@@ -308,7 +308,7 @@ def test_str_contains(session):
     native_result = native_df["A"].str.contains("ab")
 
     # compare results
-    assert_series_equal(snow_result, native_result, check_dtype=False)
+    assert_series_equal(snow_result, native_result)
 
 
 @pytest.mark.parametrize("func", ["startswith", "endswith"])
@@ -338,7 +338,7 @@ def test_str_startswith_endswith(session, func):
     native_result = getattr(native_df["A"].str, func)("c")
 
     # compare results
-    assert_series_equal(snow_result, native_result, check_dtype=False)
+    assert_series_equal(snow_result, native_result)
 
 
 @sql_count_checker(query_count=3)
@@ -367,7 +367,7 @@ def test_str_slice(session):
     native_result = native_df["A"].str.slice(0, 2, 1)
 
     # compare results
-    assert_series_equal(snow_result, native_result, check_dtype=False)
+    assert_series_equal(snow_result, native_result)
 
 
 @sql_count_checker(query_count=0)
