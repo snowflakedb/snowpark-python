@@ -1158,8 +1158,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def move_to_me_cost(
         cls,
         other_qc: BaseQueryCompiler,
-        api_cls_name: Optional[str] = None,
-        operation: Optional[str] = None,
+        api_cls_name: Optional[str],
+        operation: str,
         arguments: Optional[MappingProxyType[str, Any]] = None,
     ) -> int:
         """
@@ -1183,11 +1183,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # in-memory intialization should not move to Snowflake
             cls._is_in_memory_init(api_cls_name, operation, arguments)
             or not cls._are_dtypes_compatible_with_snowflake(other_qc)
-            or (
-                operation
-                and MethodKey(api_cls_name, operation)
-                in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
-            )
+            or MethodKey(api_cls_name, operation)
+            in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
             or cls._has_unsupported_args(api_cls_name, operation, arguments)
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
