@@ -34,6 +34,7 @@
 #### Bug Fixes
 
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
+- Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0. 
 
 ### Snowpark pandas API Updates
 
