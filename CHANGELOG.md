@@ -7,6 +7,7 @@
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+- Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following functions in `functions.py`:
     - Geospatial functions:
