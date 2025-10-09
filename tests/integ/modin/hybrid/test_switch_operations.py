@@ -701,13 +701,13 @@ def _test_expected_backend(
 
 
 @pytest.mark.parametrize(
-    "method,args,test_data,expected_query_count",
+    "method,kwargs,test_data,expected_query_count",
     [
         ("get_dummies", {}, {"A": ["x", "y", "z"], "B": [1, 2, 3]}, 1),
     ],
 )
 def test_auto_switch_supported_top_level_functions(
-    method, args, test_data, expected_query_count
+    method, kwargs, test_data, expected_query_count
 ):
     # Test supported top-level functions that should stay on Snowflake backend.
     with SqlCounter(query_count=expected_query_count):
@@ -719,33 +719,35 @@ def test_auto_switch_supported_top_level_functions(
             data_obj=df,
             api_cls_name=None,
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
         )
 
         _test_expected_backend(
             data_obj=df,
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_backend="Snowflake",
             is_top_level=True,
         )
 
         # Test result equality
-        actual = getattr(pd, method)(df, **args)
-        expected = getattr(native_pd, method)(native_pd.DataFrame(test_data), **args)
+        actual = getattr(pd, method)(df, **kwargs)
+        expected = getattr(native_pd, method)(native_pd.DataFrame(test_data), **kwargs)
 
         assert_snowpark_pandas_equal_to_pandas(actual, expected)
 
 
 @pytest.mark.parametrize(
-    "method,args,test_data,expected_query_count",
+    "method,kwargs,test_data,expected_query_count",
     [
         ("skew", {"numeric_only": True}, {"A": [1, 2, 3], "B": [4, 5, 6]}, 1),
         ("round", {"decimals": 2}, {"A": [1.234, 2.567], "B": [3.891, 4.123]}, 1),
     ],
 )
-def test_auto_switch_supported_dataframe(method, args, test_data, expected_query_count):
+def test_auto_switch_supported_dataframe(
+    method, kwargs, test_data, expected_query_count
+):
     # Test supported DataFrame operations that should stay on Snowflake backend.
     with SqlCounter(query_count=expected_query_count):
         df = pd.DataFrame(test_data).move_to("Snowflake")
@@ -756,21 +758,21 @@ def test_auto_switch_supported_dataframe(method, args, test_data, expected_query
             data_obj=df,
             api_cls_name="BasePandasDataset",
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
         )
 
         _test_expected_backend(
             data_obj=df,
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_backend="Snowflake",
             is_top_level=False,
         )
 
         # Test result equality
-        actual = getattr(df, method)(**args)
-        expected = getattr(native_pd.DataFrame(test_data), method)(**args)
+        actual = getattr(df, method)(**kwargs)
+        expected = getattr(native_pd.DataFrame(test_data), method)(**kwargs)
 
         if hasattr(actual, "get_backend"):
             assert_snowpark_pandas_equal_to_pandas(actual, expected)
@@ -779,13 +781,15 @@ def test_auto_switch_supported_dataframe(method, args, test_data, expected_query
 
 
 @pytest.mark.parametrize(
-    "method,args,series_data,expected_query_count",
+    "method,kwargs,series_data,expected_query_count",
     [
         ("skew", {"numeric_only": True}, [1, 2, 3, 4, 5, 6], 2),
         ("round", {"decimals": 2}, [1.234, 2.567, 3.891, 4.123], 1),
     ],
 )
-def test_auto_switch_supported_series(method, args, series_data, expected_query_count):
+def test_auto_switch_supported_series(
+    method, kwargs, series_data, expected_query_count
+):
     # Test supported Series operations that should stay on Snowflake backend.
     with SqlCounter(query_count=expected_query_count):
         series = pd.Series(series_data).move_to("Snowflake")
@@ -796,7 +800,7 @@ def test_auto_switch_supported_series(method, args, series_data, expected_query_
             data_obj=series,
             api_cls_name="BasePandasDataset",
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
         )
 
@@ -804,14 +808,14 @@ def test_auto_switch_supported_series(method, args, series_data, expected_query_
         _test_expected_backend(
             data_obj=series,
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_backend="Snowflake",
             is_top_level=False,
         )
 
         # Test result equality
-        actual = getattr(series, method)(**args)
-        expected = getattr(native_pd.Series(series_data), method)(**args)
+        actual = getattr(series, method)(**kwargs)
+        expected = getattr(native_pd.Series(series_data), method)(**kwargs)
 
         if hasattr(actual, "get_backend"):
             assert_snowpark_pandas_equal_to_pandas(actual, expected)
@@ -820,7 +824,7 @@ def test_auto_switch_supported_series(method, args, series_data, expected_query_
 
 
 @pytest.mark.parametrize(
-    "method,args,test_data,expected_query_count",
+    "method,kwargs,test_data,expected_query_count",
     [
         ("cumsum", {"axis": 0}, {"A": [1, 2, 3], "B": [4, 5, 6]}, 1),
         ("cummin", {"axis": 0}, {"A": [1, 2, 3], "B": [4, 5, 6]}, 1),
@@ -828,7 +832,7 @@ def test_auto_switch_supported_series(method, args, series_data, expected_query_
     ],
 )
 def test_auto_switch_supported_post_op_switch_point_dataframe(
-    method, args, test_data, expected_query_count
+    method, kwargs, test_data, expected_query_count
 ):
     # Test DataFrame operations that execute on Snowflake but switch to Pandas post-operation.
     with SqlCounter(query_count=expected_query_count):
@@ -840,18 +844,18 @@ def test_auto_switch_supported_post_op_switch_point_dataframe(
             data_obj=df,
             api_cls_name="BasePandasDataset",
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
         )
 
         # Test result equality - don't check backend as it switches post-operation
-        df_actual = getattr(df, method)(**args)
-        df_expected = getattr(native_pd.DataFrame(test_data), method)(**args)
+        df_actual = getattr(df, method)(**kwargs)
+        df_expected = getattr(native_pd.DataFrame(test_data), method)(**kwargs)
         assert_snowpark_pandas_equal_to_pandas(df_actual, df_expected)
 
 
 @pytest.mark.parametrize(
-    "method,args,series_data,expected_query_count",
+    "method,kwargs,series_data,expected_query_count",
     [
         ("cumsum", {"axis": 0}, [1, 2, 3, 4, 5], 1),
         ("cummin", {"axis": 0}, [5, 3, 4, 1, 2], 1),
@@ -859,7 +863,7 @@ def test_auto_switch_supported_post_op_switch_point_dataframe(
     ],
 )
 def test_auto_switch_supported_post_op_switch_point_series(
-    method, args, series_data, expected_query_count
+    method, kwargs, series_data, expected_query_count
 ):
     # Test Series operations that execute on Snowflake but switch to Pandas post-operation.
     with SqlCounter(query_count=expected_query_count):
@@ -871,18 +875,18 @@ def test_auto_switch_supported_post_op_switch_point_series(
             data_obj=series,
             api_cls_name="BasePandasDataset",
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
         )
 
         # Test result equality - don't check backend as it switches post-operation
-        series_actual = getattr(series, method)(**args)
-        series_expected = getattr(native_pd.Series(series_data), method)(**args)
+        series_actual = getattr(series, method)(**kwargs)
+        series_expected = getattr(native_pd.Series(series_data), method)(**kwargs)
         assert_snowpark_pandas_equal_to_pandas(series_actual, series_expected)
 
 
 @pytest.mark.parametrize(
-    "method,args,test_data,expected_query_count",
+    "method,kwargs,test_data,expected_query_count",
     [
         ("get_dummies", {"dummy_na": True}, {"A": ["x", "y", "z"], "B": [1, 2, 3]}, 1),
         (
@@ -895,7 +899,7 @@ def test_auto_switch_supported_post_op_switch_point_series(
     ],
 )
 def test_auto_switch_unsupported_top_level_functions(
-    method, args, test_data, expected_query_count
+    method, kwargs, test_data, expected_query_count
 ):
     # Test unsupported top-level functions that should switch to Pandas backend.
     with SqlCounter(query_count=expected_query_count):
@@ -907,7 +911,7 @@ def test_auto_switch_unsupported_top_level_functions(
             data_obj=df,
             api_cls_name=None,
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
@@ -917,7 +921,7 @@ def test_auto_switch_unsupported_top_level_functions(
             pandas_qc=pandas_df._query_compiler,
             api_cls_name=None,
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
@@ -925,19 +929,19 @@ def test_auto_switch_unsupported_top_level_functions(
         _test_expected_backend(
             data_obj=df,
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_backend="Pandas",
             is_top_level=True,
         )
 
         # Test result equality
-        actual = getattr(pd, method)(df, **args)
-        expected = getattr(native_pd, method)(native_pd.DataFrame(test_data), **args)
+        actual = getattr(pd, method)(df, **kwargs)
+        expected = getattr(native_pd, method)(native_pd.DataFrame(test_data), **kwargs)
         assert_snowpark_pandas_equal_to_pandas(actual, expected)
 
 
 @pytest.mark.parametrize(
-    "method,args,test_data,expected_query_count",
+    "method,kwargs,test_data,expected_query_count",
     [
         ("skew", {"axis": 1}, {"A": [1, 2, 3], "B": [4, 5, 6]}, 1),
         ("skew", {"numeric_only": False}, {"A": [1, 2, 3], "B": [4, 5, 6]}, 1),
@@ -947,7 +951,7 @@ def test_auto_switch_unsupported_top_level_functions(
     ],
 )
 def test_auto_switch_unsupported_dataframe(
-    method, args, test_data, expected_query_count
+    method, kwargs, test_data, expected_query_count
 ):
     # Test unsupported DataFrame operations that should switch to Pandas backend.
     with SqlCounter(query_count=expected_query_count):
@@ -958,7 +962,7 @@ def test_auto_switch_unsupported_dataframe(
             data_obj=df,
             api_cls_name="BasePandasDataset",
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
@@ -968,7 +972,7 @@ def test_auto_switch_unsupported_dataframe(
             pandas_qc=pandas_df._query_compiler,
             api_cls_name="BasePandasDataset",
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
@@ -976,14 +980,14 @@ def test_auto_switch_unsupported_dataframe(
         _test_expected_backend(
             data_obj=df,
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_backend="Pandas",
             is_top_level=False,
         )
 
         # Test result equality
-        actual = getattr(df, method)(**args)
-        expected = getattr(native_pd.DataFrame(test_data), method)(**args)
+        actual = getattr(df, method)(**kwargs)
+        expected = getattr(native_pd.DataFrame(test_data), method)(**kwargs)
 
         if hasattr(actual, "get_backend"):
             assert_snowpark_pandas_equal_to_pandas(actual, expected)
@@ -992,13 +996,13 @@ def test_auto_switch_unsupported_dataframe(
 
 
 @pytest.mark.parametrize(
-    "method,args,series_data,expected_query_count",
+    "method,kwargs,series_data,expected_query_count",
     [
         ("skew", {"numeric_only": False}, [1, 2, 3, 4, 5, 6], 1),
     ],
 )
 def test_auto_switch_unsupported_series(
-    method, args, series_data, expected_query_count
+    method, kwargs, series_data, expected_query_count
 ):
     # Test unsupported Series operations that should switch to Pandas backend.
     with SqlCounter(query_count=expected_query_count):
@@ -1010,7 +1014,7 @@ def test_auto_switch_unsupported_series(
             data_obj=series,
             api_cls_name="BasePandasDataset",
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
@@ -1018,14 +1022,14 @@ def test_auto_switch_unsupported_series(
         _test_expected_backend(
             data_obj=series,
             method_name=method,
-            args=args,
+            args=kwargs,
             expected_backend="Pandas",
             is_top_level=False,
         )
 
         # Test result equality
-        actual = getattr(series, method)(**args)
-        expected = getattr(native_pd.Series(series_data), method)(**args)
+        actual = getattr(series, method)(**kwargs)
+        expected = getattr(native_pd.Series(series_data), method)(**kwargs)
 
         if hasattr(actual, "get_backend"):
             assert_snowpark_pandas_equal_to_pandas(actual, expected)
@@ -1034,7 +1038,7 @@ def test_auto_switch_unsupported_series(
 
 
 @pytest.mark.parametrize(
-    "method,args,test_data,expected_reason",
+    "method,kwargs,test_data,expected_reason",
     [
         (
             "get_dummies",
@@ -1058,7 +1062,7 @@ def test_auto_switch_unsupported_series(
 )
 @sql_count_checker(query_count=0)
 def test_error_handling_top_level_functions_when_auto_switch_disabled(
-    method, args, test_data, expected_reason
+    method, kwargs, test_data, expected_reason
 ):
     # Test that unsupported top-level function args raise NotImplementedError when auto-switch is disabled.
     with config_context(AutoSwitchBackend=False):
@@ -1066,13 +1070,15 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
 
         with pytest.raises(
             NotImplementedError,
-            match=f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}",
+            match=re.escape(
+                f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
+            ),
         ):
-            getattr(pd, method)(df, **args)
+            getattr(pd, method)(df, **kwargs)
 
 
 @pytest.mark.parametrize(
-    "method,args,test_data,expected_reason",
+    "method,kwargs,test_data,expected_reason",
     [
         (
             "skew",
@@ -1108,7 +1114,7 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
 )
 @sql_count_checker(query_count=0)
 def test_error_handling_dataframe_when_auto_switch_disabled(
-    method, args, test_data, expected_reason
+    method, kwargs, test_data, expected_reason
 ):
     # Test that unsupported DataFrame args raise NotImplementedError when auto-switch is disabled.
     with config_context(AutoSwitchBackend=False):
@@ -1116,13 +1122,15 @@ def test_error_handling_dataframe_when_auto_switch_disabled(
 
         with pytest.raises(
             NotImplementedError,
-            match=f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}",
+            match=re.escape(
+                f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
+            ),
         ):
-            getattr(df, method)(**args)
+            getattr(df, method)(**kwargs)
 
 
 @pytest.mark.parametrize(
-    "method,args,series_data,expected_reason",
+    "method,kwargs,series_data,expected_reason",
     [
         (
             "skew",
@@ -1134,7 +1142,7 @@ def test_error_handling_dataframe_when_auto_switch_disabled(
 )
 @sql_count_checker(query_count=0)
 def test_error_handling_series_when_auto_switch_disabled(
-    method, args, series_data, expected_reason
+    method, kwargs, series_data, expected_reason
 ):
     # Test that unsupported Series args raise NotImplementedError when auto-switch is disabled.
     with config_context(AutoSwitchBackend=False):
@@ -1142,9 +1150,11 @@ def test_error_handling_series_when_auto_switch_disabled(
 
         with pytest.raises(
             NotImplementedError,
-            match=f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}",
+            match=re.escape(
+                f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
+            ),
         ):
-            getattr(series, method)(**args)
+            getattr(series, method)(**kwargs)
 
 
 @sql_count_checker(query_count=1)
@@ -1156,13 +1166,13 @@ def test_auto_switch_unsupported_round_dataframe():
     test_data = {"A": [1.234, 2.567], "B": [3.891, 4.123]}
 
     df = pd.DataFrame(test_data).move_to("Snowflake")
-    args = {"decimals": round_series_decimals}
+    kwargs = {"decimals": round_series_decimals}
 
     _test_stay_cost(
         data_obj=df,
         api_cls_name="BasePandasDataset",
         method_name="round",
-        args=args,
+        args=kwargs,
         expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
     )
 
@@ -1171,14 +1181,14 @@ def test_auto_switch_unsupported_round_dataframe():
         pandas_qc=pandas_df._query_compiler,
         api_cls_name="BasePandasDataset",
         method_name="round",
-        args=args,
+        args=kwargs,
         expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
     )
 
     _test_expected_backend(
         data_obj=df,
         method_name="round",
-        args=args,
+        args=kwargs,
         expected_backend="Pandas",
         is_top_level=False,
     )
@@ -1193,20 +1203,20 @@ def test_auto_switch_unsupported_round_series():
     test_data = [1.234, 2.567, 3.891, 4.123]
 
     series = pd.Series(test_data).move_to("Snowflake")
-    args = {"decimals": round_series_decimals}
+    kwargs = {"decimals": round_series_decimals}
 
     _test_stay_cost(
         data_obj=series,
         api_cls_name="BasePandasDataset",
         method_name="round",
-        args=args,
+        args=kwargs,
         expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
     )
 
     _test_expected_backend(
         data_obj=series,
         method_name="round",
-        args=args,
+        args=kwargs,
         expected_backend="Pandas",
         is_top_level=False,
     )
