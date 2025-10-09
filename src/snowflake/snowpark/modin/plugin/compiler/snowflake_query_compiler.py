@@ -1075,7 +1075,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             args: Method arguments, including *args and **kwargs
 
         Returns:
-            True if unsupported args detected and auto-switch should occur
+            True if unsupported args are detected and an auto-switch should occur
         """
         if not operation or args is None:
             return False
