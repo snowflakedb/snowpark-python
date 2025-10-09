@@ -760,7 +760,6 @@ def test_auto_switch_supported_dataframe(method, args, test_data, expected_query
             expected_cost=QCCoercionCost.COST_ZERO,
         )
 
-        # Test expected backend
         _test_expected_backend(
             data_obj=df,
             method_name=method,
