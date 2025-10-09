@@ -298,6 +298,22 @@ def assert_snowpark_pandas_equal_to_pandas(
             assert [str(dt) for dt in snow_to_native.dtypes.tolist()] == expected_dtypes
 
 
+def assert_scalars_equal(snow, expected_pandas):
+    """
+    Compare scalar values for equality.
+
+    Args:
+        snow: The Snowpark pandas result
+        expected_pandas: The expected pandas result
+    """
+    if isinstance(snow, (float, np.floating)) and isinstance(
+        expected_pandas, (float, np.floating)
+    ):
+        assert snow == pytest.approx(expected_pandas)
+    else:
+        assert snow == expected_pandas
+
+
 def assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
     snow: DataFrame | Series | Index,
     native: native_pd.DataFrame | native_pd.Series | native_pd.Index,
