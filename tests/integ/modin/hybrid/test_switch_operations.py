@@ -1064,15 +1064,11 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
     with config_context(AutoSwitchBackend=False):
         df = pd.DataFrame(test_data).move_to("Snowflake")
 
-        with pytest.raises(NotImplementedError) as exc_info:
+        with pytest.raises(
+            NotImplementedError,
+            match=f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}",
+        ):
             getattr(pd, method)(df, **args)
-
-        # Assert the specific expected reason is in the error message
-        error_msg = str(exc_info.value)
-        assert (
-            f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
-            in error_msg
-        )
 
 
 @pytest.mark.parametrize(
