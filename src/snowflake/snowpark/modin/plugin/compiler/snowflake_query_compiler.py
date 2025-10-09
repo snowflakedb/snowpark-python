@@ -575,7 +575,7 @@ class UnsupportedArgsRule:
                 # tuple[str, Any]: (argument_name, unsupported_value)
                 arg_name, unsupported_value = condition
                 if args.get(arg_name) == unsupported_value:
-                    return f"{arg_name} = {repr(unsupported_value)} is not supported"
+                    return f"{arg_name} = {unsupported_value} is not supported"
 
         return None
 
