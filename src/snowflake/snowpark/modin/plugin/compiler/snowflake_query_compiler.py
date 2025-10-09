@@ -515,7 +515,7 @@ class MethodKey(NamedTuple):
 
 
 # Rule defining which args should trigger auto-switching.
-@dataclass
+@dataclass(frozen=True)
 class UnsupportedArgsRule:
     """
     Rule for defining argument combinations that trigger auto-switching to native pandas.
