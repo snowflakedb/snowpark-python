@@ -14,7 +14,11 @@ from snowflake.snowpark.session import (
     _SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED,
     Session,
 )
-from tests.integ.modin.utils import assert_frame_equal, assert_index_equal
+from tests.integ.modin.utils import (
+    assert_frame_equal,
+    assert_index_equal,
+    assert_series_equal,
+)
 from tests.integ.utils.sql_counter import sql_count_checker
 from tests.utils import Utils
 
@@ -276,6 +280,94 @@ def test_isin_series(session):
 
     # compare results
     assert_frame_equal(snow_result, native_result, check_dtype=False)
+
+
+@sql_count_checker(query_count=3)
+def test_str_contains(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([["abc"], ["def"], ["ghi"]], columns=["A"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result = df["A"].str.contains("ab")
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = native_df["A"].str.contains("ab")
+
+    # compare results
+    assert_series_equal(snow_result, native_result, check_dtype=False)
+
+
+@pytest.mark.parametrize("func", ["startswith", "endswith"])
+@sql_count_checker(query_count=3)
+def test_str_startswith_endswith(session, func):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([["abc"], ["def"], ["cba"]], columns=["A"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result = getattr(df["A"].str, func)("c")
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = getattr(native_df["A"].str, func)("c")
+
+    # compare results
+    assert_series_equal(snow_result, native_result, check_dtype=False)
+
+
+@sql_count_checker(query_count=3)
+def test_str_slice(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([["abc"], ["def"], ["ghi"]], columns=["A"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result = df["A"].str.slice(0, 2, 1)
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = native_df["A"].str.slice(0, 2, 1)
+
+    # compare results
+    assert_series_equal(snow_result, native_result, check_dtype=False)
 
 
 @sql_count_checker(query_count=0)
