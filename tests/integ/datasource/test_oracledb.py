@@ -376,3 +376,46 @@ def test_dbapi_no_hang_on_exit_when_worker_error(session):
                 num_partitions=10,
                 max_workers=2,
             )
+
+
+@pytest.mark.parametrize(
+    "udtf_configs",
+    [
+        None,
+        {
+            "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        },
+    ],
+)
+def test_oracledb_with_connection_parameters(session, udtf_configs):
+    """Test connection_parameters with local/default ingestion and UDTF ingestion."""
+
+    def create_connection_with_params(user=None, password=None, dsn=None, **kwargs):
+        if kwargs.get("extra_param") != "extra_value":
+            raise ValueError("extra_param should be extra_value")
+        import oracledb
+
+        return oracledb.connect(user=user, password=password, dsn=dsn)
+
+    host = ORACLEDB_CONNECTION_PARAMETERS["host"]
+    port = ORACLEDB_CONNECTION_PARAMETERS["port"]
+    service_name = ORACLEDB_CONNECTION_PARAMETERS["service_name"]
+    username = ORACLEDB_CONNECTION_PARAMETERS["username"]
+    password = ORACLEDB_CONNECTION_PARAMETERS["password"]
+    dsn = f"{host}:{port}/{service_name}"
+
+    connection_params = {
+        "user": username,
+        "password": password,
+        "dsn": dsn,
+        "extra_param": "extra_value",  # Extra param to verify arbitrary params are passed
+    }
+
+    df = session.read.dbapi(
+        create_connection_with_params,
+        table=ORACLEDB_TABLE_NAME,
+        custom_schema=oracledb_real_schema,
+        connection_parameters=connection_params,
+        udtf_configs=udtf_configs,
+    )
+    Utils.check_answer(df, oracledb_real_data)

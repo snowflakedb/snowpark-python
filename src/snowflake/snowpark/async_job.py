@@ -265,8 +265,12 @@ class AsyncJob:
 
     def status(self) -> str:
         """
-        Returns a string representing the current status of the query.
-        (e.g., "RUNNING", "SUCCESS", "FAILED_WITH_ERROR", "ABORTING", etc.)
+        Returns the current query status as a string.
+
+        Possible values are the names from `snowflake.connector.cursor.QueryStatus`, e.g.
+        `RUNNING`, `SUCCESS`, `FAILED_WITH_ERROR`, `ABORTING`, `ABORTED`, `QUEUED`,
+        `FAILED_WITH_INCIDENT`, `DISCONNECTED`, `RESUMING_WAREHOUSE`, `QUEUED_REPARING_WAREHOUSE`,
+        `RESTARTED`, `BLOCKED`, `NO_DATA`.
         """
         status = self._session._conn._conn.get_query_status(self.query_id)
         return status.name
