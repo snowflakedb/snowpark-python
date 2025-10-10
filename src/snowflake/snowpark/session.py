@@ -843,6 +843,7 @@ class Session:
         """
         with _session_management_lock:
             try:
+                self._opentelemetry_shutdown()
                 self.close()
             except Exception:
                 pass
@@ -5124,7 +5125,7 @@ class Session:
             ):
                 self._enable_logger_provider()
 
-    def disable_external_telemetry(self):
+    def disable_external_telemetry(self) -> None:
         with self._lock:
             if self._tracer_provider:
                 self._disable_tracer_provider()
@@ -5132,7 +5133,7 @@ class Session:
             if self._logger_provider:
                 self._disable_logger_provider()
 
-    def _get_external_telemetry_auth_token(self):
+    def _get_external_telemetry_auth_token(self) -> None:
         with self._lock:
             self._attestation = create_attestation(
                 self.connection.auth_class.provider,
@@ -5152,22 +5153,32 @@ class Session:
 
         return headers
 
-    def _disable_tracer_provider(self):
+    def _disable_tracer_provider(self) -> None:
         if self._proxy_tracer_provider and self._tracer_provider_enabled:
             self._proxy_tracer_provider.disable()
             self._tracer_provider_enabled = False
 
-    def _enable_tracer_provider(self):
+    def _enable_tracer_provider(self) -> None:
         if self._proxy_tracer_provider and not self._tracer_provider_enabled:
             self._proxy_tracer_provider.enable()
             self._tracer_provider_enabled = True
 
-    def _disable_logger_provider(self):
+    def _disable_logger_provider(self) -> None:
         if self._logger_provider and self._logger_provider_enabled:
             self._proxy_log_provider.disable()
             self._logger_provider_enabled = False
 
-    def _enable_logger_provider(self):
+    def _enable_logger_provider(self) -> None:
         if self._logger_provider and not self._logger_provider_enabled:
             self._proxy_log_provider.enable()
             self._logger_provider_enabled = True
+
+    def _opentelemetry_shutdown(self) -> None:
+        if self._span_processor is not None:
+            self._span_processor.shutdown()
+        if self._log_processor is not None:
+            self._log_processor.shutdown()
+        if self._tracer_provider is not None:
+            self._proxy_tracer_provider.shutdown()
+        if self._logger_provider is not None:
+            self._proxy_log_provider.shutdown()

@@ -138,7 +138,7 @@ class ProxyLogProvider(LoggerProvider):
             )
         else:
             # Return a no-op logger when disabled
-            return NoOpLogger()
+            return NoOpLogger(name="noop")
 
     def shutdown(self):
         if self._real_provider:
