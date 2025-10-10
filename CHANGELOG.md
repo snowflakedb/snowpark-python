@@ -61,10 +61,27 @@
 #### Improvements
 
 - Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+- Enhanced autoswitching functionality from Snowflake to native Pandas for methods with unsupported argument combinations:
+  - `get_dummies()` with `dummy_na=True`, `drop_first=True`, or custom `dtype` parameters
+  - `cumsum()`, `cummin()`, `cummax()` with `axis=1` (column-wise operations)
+  - `skew()` with `axis=1` or `numeric_only=False` parameters
+  - `round()` with `decimals` parameter as a Series
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
-- Add support for `isna`, `isnull`, `notna`, `notnull` in faster pandas.
-- Add support for `str.contains`, `str.startswith`, `str.endswith`, and `str.slice` in faster pandas.
-- Add support for `sort_values` in faster pandas.
+- Add support for the following in faster pandas:
+  - `isin`
+  - `isna`
+  - `isnull`
+  - `notna`
+  - `notnull`
+  - `str.contains`
+  - `str.startswith`
+  - `str.endswith`
+  - `str.slice`
+  - `sort_values`
+
+#### Bug Fixes
+
+- Fixed a bug where the row count was not getting cached in the ordered dataframe each time count_rows() is called.
 
 ## 1.40.0 (2025-10-02)
 
@@ -201,9 +218,6 @@
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
 - When hybrid execution is enabled, `pd.merge`, `pd.concat`, `DataFrame.merge`, and `DataFrame.join` may now move arguments to backends other than those among the function arguments.
 - Improved performance of `DataFrame.to_snowflake` and `pd.to_snowflake(dataframe)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
-- Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
-- Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
-- Add support for `isin` in faster pandas.
 
 ## 1.39.1 (2025-09-25)
 
