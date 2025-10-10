@@ -3414,10 +3414,10 @@ def st_union_agg(geography_column: ColumnOrName, _emit_ast: bool = True) -> Colu
     Returns the union of all geography objects in a group as a single geography object.
 
     Args:
-        geography_column (ColumnOrName): The geography objects to union
+        geography_column (ColumnOrName): The geography objects to union.
 
     Returns:
-        Column: The union of all geography objects in the group
+        Column: The union of all geography objects in the group.
 
     Examples::
         >>> from snowflake.snowpark.functions import to_geography
@@ -3444,8 +3444,8 @@ def st_within(
     Returns TRUE if the first GEOGRAPHY object is completely inside the second GEOGRAPHY object.
 
     Args:
-        geography_or_geometry_expression_1 (ColumnOrName): A GEOGRAPHY object or a geography expression to test if it's within the second geography.
-        geography_or_geometry_expression_2 (ColumnOrName): A GEOGRAPHY object or a geography expression that may contain the first geography.
+        geography_or_geometry_expression_1 (ColumnOrName): A GEOGRAPHY or GEOMETRY object to test if it's within the second object.
+        geography_or_geometry_expression_2 (ColumnOrName): A GEOGRAPHY or GEOMETRY object that may contain the first object.
 
     Returns:
         Column: Boolean value indicating whether the first geography is within the second geography.
@@ -3472,10 +3472,10 @@ def st_x(
     Returns the X coordinate of a POINT geometry or geography object.
 
     Args:
-        geography_or_geometry_expression (ColumnOrName): A POINT geometry or geography objects
+        geography_or_geometry_expression (ColumnOrName): A POINT geometry or geography objects.
 
     Returns:
-        Column: The X coordinate value as a numeric column
+        Column: The X coordinate value as a numeric column.
 
     Examples::
         >>> from snowflake.snowpark.functions import col, lit, st_makepoint, to_geography
@@ -3523,10 +3523,10 @@ def st_xmin(
     Returns the minimum X coordinate of a GEOGRAPHY or GEOMETRY object.
 
     Args:
-        geography_or_geometry_expression (ColumnOrName): A column containing GEOGRAPHY or GEOMETRY objects.
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object.
 
     Returns:
-        Column: A column containing the minimum X coordinate values.
+        Column: The minimum X coordinate values.
 
     Examples::
         >>> from snowflake.snowpark.functions import to_geography
@@ -3600,10 +3600,10 @@ def st_ymin(geography_or_geometry_expression, _emit_ast: bool = True):
     Returns the minimum Y coordinate (latitude) of all points in a GEOGRAPHY or GEOMETRY object.
 
     Args:
-        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object.
 
     Returns:
-        Column: The minimum Y coordinate value
+        Column: The minimum Y coordinate value.
 
     Examples::
         >>> from snowflake.snowpark.functions import to_geography
