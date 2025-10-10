@@ -246,7 +246,7 @@ Methods
 | ``interpolate``             | P                               |                                  | ``N`` if ``limit`` is set,                         |
 |                             |                                 |                                  | ``limit_area`` is "outside", or ``method`` is not  |
 |                             |                                 |                                  | "linear", "bfill", or "pad".                       |
-|                             |                                 |                                  | ``limit_area="inside`` is supported only when      |
+|                             |                                 |                                  | ``limit_area="inside"`` is supported only when     |
 |                             |                                 |                                  | ``method`` is ``linear``.                          |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``isin``                    | Y                               |                                  | Snowpark pandas deviates with respect to handling  |
