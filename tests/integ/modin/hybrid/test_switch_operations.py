@@ -938,6 +938,7 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
         ("cummax", {"axis": 1}, "BasePandasDataset"),
         ("round", {"decimals": native_pd.Series([0, 1, 1])}, "BasePandasDataset"),
         ("corr", {"method": "kendall"}, "DataFrame"),
+        ("corr", {"method": 123}, "DataFrame"),
     ],
 )
 def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
@@ -1093,6 +1094,11 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
             "corr",
             {"method": "kendall"},
             "method 'kendall' is not supported, only 'pearson' is supported",
+        ),
+        (
+            "corr",
+            {"method": 123},
+            "method parameter must be a string, only 'pearson' is supported",
         ),
     ],
 )

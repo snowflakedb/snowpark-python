@@ -20717,7 +20717,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unsupported_conditions=[
                 (
                     lambda args: not isinstance(args.get("method", "pearson"), str),
-                    "method parameter must be a string",
+                    "method parameter must be a string, only 'pearson' is supported",
                 ),
                 (
                     lambda args: args.get("method", "pearson") != "pearson",
