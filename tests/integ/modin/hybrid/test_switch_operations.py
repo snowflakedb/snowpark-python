@@ -882,7 +882,6 @@ def test_auto_switch_supported_post_op_switch_point_series(method, kwargs):
             "get_dummies",
             {"drop_first": True},
         ),
-        ("get_dummies", {"dtype": int}),
     ],
 )
 def test_auto_switch_unsupported_top_level_functions(method, kwargs):
@@ -1034,11 +1033,6 @@ def test_auto_switch_unsupported_series(method, kwargs):
             "get_dummies",
             {"drop_first": True},
             "drop_first = True is not supported",
-        ),
-        (
-            "get_dummies",
-            {"dtype": int},
-            "get_dummies with non-default dtype parameter is not supported yet in Snowpark pandas.",
         ),
     ],
 )

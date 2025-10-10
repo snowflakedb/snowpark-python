@@ -6994,10 +6994,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unsupported_conditions=[
                 ("dummy_na", True),
                 ("drop_first", True),
-                (
-                    lambda args: args.get("dtype") is not None,
-                    "get_dummies with non-default dtype parameter is not supported yet in Snowpark pandas.",
-                ),
             ]
         ),
     )
