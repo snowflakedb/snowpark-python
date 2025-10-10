@@ -58,6 +58,7 @@
   - `cumsum()`, `cummin()`, `cummax()` with `axis=1` (column-wise operations)
   - `skew()` with `axis=1` or `numeric_only=False` parameters
   - `round()` with `decimals` parameter as a Series
+  - `corr()` with `method!=pearson` parameter
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for the following in faster pandas:
   - `isin`
