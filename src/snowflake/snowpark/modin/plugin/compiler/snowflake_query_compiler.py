@@ -523,8 +523,8 @@ class UnsupportedArgsRule:
     Attributes:
         unsupported_conditions: List of conditions that can be:
             - tuple[str, Any]: (argument_name, unsupported_value) for simple value checks
-            - tuple[Callable, str]: (condition_function, reason) for complex checks and simple reason
-            - tuple[Callable, Callable]: (condition_function, reason_function) for complex checks and complex reason
+            - tuple[Callable, str]: (condition_function, reason) for complex checks and simple string reason
+            - tuple[Callable, Callable]: (condition_function, reason_function) for complex checks and reason generation
     """
 
     unsupported_conditions: List[
@@ -559,7 +559,7 @@ class UnsupportedArgsRule:
             ):
                 raise ValueError(
                     f"Invalid condition at index {i}: when first element is callable, "
-                    f"second element must be string (reason) or a callable (reason function), got {type(condition[1]).__name__}. "
+                    f"second element must be a string representing the reason, or a callable that returns the reason, got {type(condition[1]).__name__}. "
                     f"Condition: {condition}"
                 )
 
