@@ -58,6 +58,10 @@
 - Add support for `str.contains`, `str.startswith`, `str.endswith`, and `str.slice` in faster pandas.
 - Add support for `sort_values` in faster pandas.
 
+#### Bug Fixes
+
+- Fixed a bug where the row count was not getting cached in the ordered dataframe each time count_rows() is called.
+
 ## 1.40.0 (2025-10-02)
 
 ### Snowpark Python API Updates
