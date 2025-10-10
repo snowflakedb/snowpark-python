@@ -740,6 +740,7 @@ def test_auto_switch_supported_top_level_functions(method, kwargs):
         ("skew", {"numeric_only": True}, "BasePandasDataset"),
         ("round", {"decimals": 1}, "BasePandasDataset"),
         ("corr", {"method": "pearson"}, "DataFrame"),
+        ("corr", {}, "DataFrame"),
     ],
 )
 def test_auto_switch_supported_dataframe(method, kwargs, api_cls_name):
@@ -938,7 +939,7 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
         ("cummax", {"axis": 1}, "BasePandasDataset"),
         ("round", {"decimals": native_pd.Series([0, 1, 1])}, "BasePandasDataset"),
         ("corr", {"method": "kendall"}, "DataFrame"),
-        ("corr", {"method": 123}, "DataFrame"),
+        ("corr", {"method": lambda x, y: np.corrcoef(x, y)[0, 1]}, "DataFrame"),
     ],
 )
 def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
@@ -1093,12 +1094,12 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
         (
             "corr",
             {"method": "kendall"},
-            "method 'kendall' is not supported, only 'pearson' is supported",
+            "method ='kendall' is not supported. Snowpark pandas currenly only supports method = 'pearson'.",
         ),
         (
             "corr",
             {"method": 123},
-            "method parameter must be a string, only 'pearson' is supported",
+            "method parameter must be a string. Snowpark pandas currenly only supports method = 'pearson'.",
         ),
     ],
 )

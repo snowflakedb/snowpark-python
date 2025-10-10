@@ -521,7 +521,7 @@ class UnsupportedArgsRule:
     Rule for defining argument combinations that trigger auto-switching to native pandas.
 
     Attributes:
-        unsupported_conditions: List of conditions that can be either:
+        unsupported_conditions: List of conditions that can be:
             - tuple[str, Any]: (argument_name, unsupported_value) for simple value checks
             - tuple[Callable, str]: (condition_function, reason) for complex checks and simple reason
             - tuple[Callable, Callable]: (condition_function, reason_function) for complex checks and complex reason
@@ -20717,11 +20717,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unsupported_conditions=[
                 (
                     lambda args: not isinstance(args.get("method", "pearson"), str),
-                    "method parameter must be a string, only 'pearson' is supported",
+                    "method parameter must be a string. Snowpark pandas currenly only supports method = 'pearson'.",
                 ),
                 (
                     lambda args: args.get("method", "pearson") != "pearson",
-                    lambda args: f"method '{args.get('method')}' is not supported, only 'pearson' is supported",
+                    lambda args: f"method ='{args.get('method')}' is not supported. Snowpark pandas currenly only supports method = 'pearson'.",
                 ),
             ]
         ),
