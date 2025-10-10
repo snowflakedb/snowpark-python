@@ -1060,7 +1060,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         cls,
         api_cls_name: Optional[str],
         operation: str,
-        args: Optional[MappingProxyType[Any, Any]],
+        args: MappingProxyType[Any, Any],
     ) -> bool:
         """
         Check if method call contains unsupported args that can only be run on the native pandas backend.
@@ -1077,8 +1077,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Returns:
             True if unsupported args are detected and an auto-switch should occur
         """
-        if args is None:
-            return False
 
         method_key = MethodKey(api_cls_name, operation)
         if method_key not in HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS:
@@ -1160,7 +1158,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         other_qc: BaseQueryCompiler,
         api_cls_name: Optional[str],
         operation: str,
-        arguments: Optional[MappingProxyType[str, Any]] = None,
+        arguments: MappingProxyType[str, Any],
     ) -> int:
         """
         Return the coercion costs from other_qc to this qc type.
