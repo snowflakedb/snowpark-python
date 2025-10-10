@@ -230,7 +230,7 @@ Methods
 | ``interpolate``             | P                               |                                  | ``N`` if ``axis == 1``, ``limit`` is set,          |
 |                             |                                 |                                  | ``limit_area`` is "outside", or ``method`` is not  |
 |                             |                                 |                                  | "linear", "bfill", or "pad".                       |
-|                             |                                 |                                  | ``limit_area="inside`` is supported only when      |
+|                             |                                 |                                  | ``limit_area="inside"`` is supported only when      |
 |                             |                                 |                                  | ``method`` is ``linear``.                          |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``isetitem``                | N                               |                                  |                                                    |
