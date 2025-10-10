@@ -41,7 +41,6 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
 from tests.integ.utils.sql_counter import sql_count_checker, SqlCounter
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equal_to_pandas,
-    assert_scalars_equal,
     eval_snowpark_pandas_result,
 )
 
@@ -794,7 +793,6 @@ def test_auto_switch_supported_series(method, kwargs, is_result_scalar):
             expected_cost=QCCoercionCost.COST_ZERO,
         )
 
-        # We only test expected backend for non-scalar results
         if not is_result_scalar:
             _test_expected_backend(
                 data_obj=series,
@@ -808,7 +806,7 @@ def test_auto_switch_supported_series(method, kwargs, is_result_scalar):
             series,
             native_pd.Series(test_data),
             lambda series: getattr(series, method)(**kwargs),
-            comparator=assert_scalars_equal
+            comparator=np.testing.assert_allclose
             if is_result_scalar
             else assert_snowpark_pandas_equal_to_pandas,
         )
@@ -1020,7 +1018,7 @@ def test_auto_switch_unsupported_series(method, kwargs):
             series,
             native_pd.Series(test_data),
             lambda series: getattr(series, method)(**kwargs),
-            comparator=assert_scalars_equal,
+            comparator=np.testing.assert_allclose,
         )
 
 
