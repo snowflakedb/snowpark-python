@@ -474,10 +474,14 @@ def process_xml_range(
                         # when ignoring namespaces, strip attribute prefixes
                         # like xyz:id -> id so records with undeclared prefixes can still parse.
                         if ignore_namespace:
-                            cleaned_record = re.sub(
-                                r"\s+(\w+):(\w+)=", r" \2=", record_str
-                            )
-                            element = ET.fromstring(cleaned_record, parser)
+                            try:
+                                cleaned_record = re.sub(
+                                    r"\s+(\w+):(\w+)=", r" \2=", record_str
+                                )
+                                element = ET.fromstring(cleaned_record, parser)
+                            except Exception as inner_ex:
+                                # avoid chained exceptions
+                                raise inner_ex from None
                         else:
                             raise
                 else:
