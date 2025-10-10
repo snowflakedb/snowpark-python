@@ -14625,6 +14625,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
         # Linear interpolation touches only numeric and datetime columns, but ffill and bfill work
         # on non-numeric data as well.
+        # SNOW-2405318: Tests that hit this branch are skipped due to a SQL bug with INTERPOLATE_LINEAR.
         if sql_fill_method == "interpolate_linear":
             columns_to_interpolate = [
                 identifier
@@ -14636,7 +14637,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             columns_to_interpolate = original_identifiers
         pos_window = Window.order_by(frame.row_position_snowflake_quoted_identifier)
-        if sql_fill_method == "interpolate_linear" and limit_area is None:
+        # SNOW-2405318: Tests that hit this branch are skipped due to a SQL bug with INTERPOLATE_LINEAR.
+        # The branch was tested manually with the INTERPOLATE_LINEAR invocation replaced with
+        # INTERPOLATE_FFILL to ensure it otherwise works; coverage should be returned after the
+        # server-side bug is addressed.
+        if (
+            sql_fill_method == "interpolate_linear" and limit_area is None
+        ):  # pragma: no cover
             # If the fill method is linear and limit_area is None, we need to fill leading/trailing
             # NULL values as well since the SQL function ordinarily does not touch them. Because
             # window functions cannot be nested, we implement this by adding 1 column with the FFILL

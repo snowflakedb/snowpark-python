@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import modin.pandas as pd  # noqa: F401
+import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
 import pytest
@@ -46,7 +46,9 @@ INTERPOLATE_DATETIME_DATA = {
 # INTERPOLATE_LINEAR in nested selects does not work due to a server-side bug. We skip these tests
 # instead of XFAILing because each failed query takes ~10 seconds to run, while successful queries
 # take <100ms.
-LINEAR_FAIL_REASON = "SNOW-####: INTERPOLATE_LINEAR in nested select causes SQL error"
+LINEAR_FAIL_REASON = (
+    "SNOW-2405318: INTERPOLATE_LINEAR in nested select causes SQL error"
+)
 
 
 @pytest.mark.skip(reason=LINEAR_FAIL_REASON)
