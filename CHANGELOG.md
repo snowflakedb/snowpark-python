@@ -71,6 +71,10 @@
   - `str.slice`
   - `sort_values`
 
+#### Bug Fixes
+
+- Fixed a bug where the row count was not getting cached in the ordered dataframe each time count_rows() is called.
+
 ## 1.40.0 (2025-10-02)
 
 ### Snowpark Python API Updates
