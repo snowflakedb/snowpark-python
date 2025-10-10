@@ -100,9 +100,13 @@ def test_df_interpolate_fill(data, method):
 @pytest.mark.parametrize(
     "kwargs, expected_error_regex",
     [
-        param({"axis": 1}, "with axis = 1", id="axis=1"),
-        param({"method": "nearest"}, "with method = nearest", id="unsupported_method"),
-        param({"limit": 1}, "with limit = 1", id="limit=1"),
+        param({"axis": 1}, "axis = 1 is not supported", id="axis=1"),
+        param(
+            {"method": "nearest"},
+            "only method = 'linear', 'ffill', 'pad', 'bfill', and 'backfill'",
+            id="unsupported_method",
+        ),
+        param({"limit": 1}, "only limit = None", id="limit=1"),
         param(
             {"method": "linear", "limit_area": "outside"},
             "with limit_area = outside for method = linear",
@@ -128,7 +132,9 @@ def test_df_interpolate_fill(data, method):
             "with limit_area = inside for method = bfill",
             id="bfill_inside",
         ),
-        param({"downcast": "infer"}, "with downcast = infer", id="downcast"),
+        param(
+            {"downcast": "infer"}, "only downcast = None is supported", id="downcast"
+        ),
     ],
 )
 @sql_count_checker(query_count=0)

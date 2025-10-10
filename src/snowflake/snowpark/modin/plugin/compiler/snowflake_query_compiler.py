@@ -14758,6 +14758,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(internal_frame)
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "interpolate",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: args.get("method")
+                    not in {"linear", "ffill", "pad", "bfill", "backfill"},
+                    "only method = 'linear', 'ffill', 'pad', 'bfill', and 'backfill' are supported",
+                ),
+                ("axis", 1),
+                (
+                    lambda args: args.get("limit") is not None,
+                    "only limit = None is supported",
+                ),
+                (
+                    lambda args: args.get("downcast") is not None,
+                    "only downcast = None is supported",
+                ),
+            ]
+        ),
+    )
     def interpolate(
         self,
         method: str = "linear",
@@ -14808,14 +14830,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         SnowflakeQueryCompiler
             A query compiler containing the interpolated result.
         """
-        if axis == 1:
-            ErrorMessage.not_implemented(
-                "Snowpark pandas does not yet support interpolate with axis = 1"
-            )
-        if limit is not None:
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas does not yet support interpolate with limit = {limit}"
-            )
         if method == "linear":
             sql_fill_method = "interpolate_linear"
         elif method == "pad" or method == "ffill":
@@ -14854,10 +14868,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ) or (sql_fill_method == "interpolate_linear" and limit_area == "outside"):
             ErrorMessage.not_implemented(
                 f"Snowpark pandas does not yet support interpolate with limit_area = {limit_area} for method = {method}"
-            )
-        if downcast is not None:
-            ErrorMessage.not_implemented(
-                f"Snowpark pandas does not yet support interpolate with downcast = {downcast}"
             )
         # Validate limit_direction (these are actual ValueErrors, not unimplemented parameter combinations)
         if (
