@@ -284,24 +284,16 @@ class ServerConnection:
         query_params: Optional[Sequence[Any]] = None,
         **kwargs: dict,
     ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:
-        result_metadata = run_new_describe(cursor, query, query_params)
-
-        with self._lock:
-            for listener in filter(
-                lambda listener: hasattr(listener, "include_describe")
-                and listener.include_describe,
-                self._query_listeners,
-            ):
-                thread_id = (
-                    threading.get_ident()
-                    if getattr(listener, "include_thread_id", False)
-                    else None
-                )
-                query_record = QueryRecord(
-                    cursor.sfqid, query, True, thread_id=thread_id
-                )
-                listener._notify(query_record, **kwargs)
-
+        try:
+            result_metadata = run_new_describe(cursor, query, query_params)
+            self.notify_query_listeners(
+                QueryRecord(cursor.sfqid, query, True), is_error=False, is_describe=True, **kwargs
+            )
+        except Exception as e:
+            self.notify_query_listeners(
+                QueryRecord(cursor.sfqid, query, True), is_error=True, is_describe=True, **kwargs
+            )
+            raise e
         return result_metadata
 
     @_Decorator.log_msg_and_perf_telemetry("Uploading file to stage")
@@ -417,12 +409,12 @@ class ServerConnection:
                 raise ex
 
     def notify_query_listeners(
-        self, query_record: QueryRecord, is_error: bool = False, **kwargs
+        self, query_record: QueryRecord, is_error: bool = False, is_describe: bool = False, **kwargs
     ) -> None:
         with self._lock:
             for listener in self._query_listeners:
                 # if listener is not set to record error query, skip
-                if is_error and not getattr(listener, "include_error", False):
+                if (is_error and not getattr(listener, "include_error", False)) or (is_describe and not getattr(listener, "include_describe", False)):
                     continue
                 if getattr(listener, "include_thread_id", False):
                     new_record = QueryRecord(
