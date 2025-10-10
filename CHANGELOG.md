@@ -7,6 +7,7 @@
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+- Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following functions in `functions.py`:
     - Geospatial functions:
@@ -30,10 +31,22 @@
       - `st_geompointfromgeohash`
       - `st_hausdorffdistance`
       - `st_makepoint`
+      - `st_npoints`
+      - `st_perimeter`
+      - `st_pointn`
+      - `st_setsrid`
+      - `st_simplify`
+      - `st_srid`
+      - `st_startpoint`
+      - `st_symdifference`
+      - `st_transform`
+      - `st_union`
 
 #### Bug Fixes
 
+- Added a fix for floating point precision discrepancies in `interval_day_time_from_parts`.
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
+- Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0. 
 
 ### Snowpark pandas API Updates
 
@@ -42,6 +55,8 @@
 - Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for `isna`, `isnull`, `notna`, `notnull` in faster pandas.
+- Add support for `str.contains`, `str.startswith`, `str.endswith`, and `str.slice` in faster pandas.
+- Add support for `sort_values` in faster pandas.
 
 ## 1.40.0 (2025-10-02)
 

@@ -4288,6 +4288,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         include_index: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _sort_rows_by_column_values_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._sort_rows_by_column_values_internal(
+                    columns=columns,
+                    ascending=ascending,
+                    kind=kind,
+                    na_position=na_position,
+                    ignore_index=ignore_index,
+                    key=key,
+                    include_indexer=include_indexer,
+                    include_index=include_index,
+                )
+            )
+        qc = self._sort_rows_by_column_values_internal(
+            columns=columns,
+            ascending=ascending,
+            kind=kind,
+            na_position=na_position,
+            ignore_index=ignore_index,
+            key=key,
+            include_indexer=include_indexer,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _sort_rows_by_column_values_internal(
+        self,
+        columns: list[Hashable],
+        ascending: list[bool],
+        kind: SortKind,
+        na_position: NaPosition,
+        ignore_index: bool,
+        key: Optional[IndexKeyFunc] = None,
+        include_indexer: bool = False,
+        include_index: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Reorder the rows based on the lexicographic order of the given columns.
 
         Args:
@@ -17412,6 +17452,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self, pat: Union[str, tuple], na: object = None
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_startswith_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._str_startswith_internal(pat=pat, na=na)
+            )
+
+        qc = self._str_startswith_internal(pat=pat, na=na)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_startswith_internal(
+        self, pat: Union[str, tuple], na: object = None
+    ) -> "SnowflakeQueryCompiler":
+        """
         Test if the start of each string element matches a pattern.
 
         Parameters
@@ -17428,6 +17483,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self._str_startswith_endswith(pat, na, is_startswith=True)
 
     def str_endswith(
+        self, pat: Union[str, tuple], na: object = None
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_endswith_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._str_endswith_internal(pat=pat, na=na)
+            )
+
+        qc = self._str_endswith_internal(pat=pat, na=na)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_endswith_internal(
         self, pat: Union[str, tuple], na: object = None
     ) -> "SnowflakeQueryCompiler":
         """
@@ -17778,6 +17848,38 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_contains(
+        self,
+        pat: str,
+        case: bool = True,
+        flags: int = 0,
+        na: object = None,
+        regex: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_contains_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._str_contains_internal(
+                    pat=pat,
+                    case=case,
+                    flags=flags,
+                    na=na,
+                    regex=regex,
+                )
+            )
+
+        qc = self._str_contains_internal(
+            pat=pat,
+            case=case,
+            flags=flags,
+            na=na,
+            regex=regex,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_contains_internal(
         self,
         pat: str,
         case: bool = True,
@@ -18141,6 +18243,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error("normalize", "Series.str")
 
     def str_slice(
+        self,
+        start: Optional[int] = None,
+        stop: Optional[int] = None,
+        step: Optional[int] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_slice_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_slice_internal(
+                start=start,
+                stop=stop,
+                step=step,
+            )
+        qc = self._str_slice_internal(
+            start=start,
+            stop=stop,
+            step=step,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_slice_internal(
         self,
         start: Optional[int] = None,
         stop: Optional[int] = None,
