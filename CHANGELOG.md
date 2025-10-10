@@ -70,6 +70,7 @@
   - `str.endswith`
   - `str.slice`
   - `sort_values`
+  - `loc` (setting columns)
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
