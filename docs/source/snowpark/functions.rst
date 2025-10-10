@@ -471,6 +471,16 @@ Functions
     st_makeline
     st_makepolygon
     st_makepolygonoriented
+    st_npoints
+    st_perimeter
+    st_pointn
+    st_setsrid
+    st_simplify
+    st_srid
+    st_startpoint
+    st_symdifference
+    st_transform
+    st_union
     substr
     substring
     sum
