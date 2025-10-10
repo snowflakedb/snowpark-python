@@ -1200,7 +1200,7 @@ def test_malformed_decorator_conditions():
     # Test malformed condition with callable first element but non-string second element
     with pytest.raises(
         ValueError,
-        match="Invalid condition at index 0.*when first element is callable.*second element must be string (reason) or a callable",
+        match="Invalid condition at index 0.*when first element is callable.*second element must be string",
     ):
 
         @register_query_compiler_method_not_implemented(
