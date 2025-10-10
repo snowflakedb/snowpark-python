@@ -46,6 +46,7 @@
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for `isna`, `isnull`, `notna`, `notnull` in faster pandas.
 - Add support for `str.contains`, `str.startswith`, `str.endswith`, and `str.slice` in faster pandas.
+- Add support for `sort_values` in faster pandas.
 
 ## 1.40.0 (2025-10-02)
 
