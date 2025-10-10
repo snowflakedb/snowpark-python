@@ -5917,3 +5917,30 @@ def test_interval_day_time_from_parts(session):
     assert result_nulls[2]["INTERVAL_RESULT"] is None
     assert result_nulls[3]["INTERVAL_RESULT"] is None
     assert result_nulls[4]["INTERVAL_RESULT"] is None
+
+    df_extreme = session.create_dataframe(
+        [[1, 0, 0, 123456789012.123456]], ["days", "hours", "mins", "secs"]
+    )
+    result_extreme = df_extreme.select(
+        interval_day_time_from_parts(
+            col("days"), col("hours"), col("mins"), col("secs")
+        ).alias("extreme_interval")
+    ).collect()
+
+    interval_result = result_extreme[0]["EXTREME_INTERVAL"]
+    assert isinstance(interval_result, timedelta)
+    total_seconds = interval_result.total_seconds()
+    expected_total = 86400 + 123456789012.123456
+    import builtins
+
+    assert builtins.abs(total_seconds - expected_total) < 1e-6
+
+    result_microsecond = df_extreme.select(
+        interval_day_time_from_parts(lit(0), lit(0), lit(0), lit(0.123456)).alias(
+            "microsecond_test"
+        )
+    ).collect()
+
+    interval_result = result_microsecond[0]["MICROSECOND_TEST"]
+    expected = timedelta(seconds=0.123456)
+    assert interval_result == expected

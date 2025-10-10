@@ -7,6 +7,7 @@
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+- Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following functions in `functions.py`:
     - Geospatial functions:
@@ -30,9 +31,20 @@
       - `st_geompointfromgeohash`
       - `st_hausdorffdistance`
       - `st_makepoint`
+      - `st_npoints`
+      - `st_perimeter`
+      - `st_pointn`
+      - `st_setsrid`
+      - `st_simplify`
+      - `st_srid`
+      - `st_startpoint`
+      - `st_symdifference`
+      - `st_transform`
+      - `st_union`
 
 #### Bug Fixes
 
+- Added a fix for floating point precision discrepancies in `interval_day_time_from_parts`.
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 - Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0. 
 
@@ -44,8 +56,28 @@
 #### Improvements
 
 - Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+- Enhanced autoswitching functionality from Snowflake to native Pandas for methods with unsupported argument combinations:
+  - `get_dummies()` with `dummy_na=True`, `drop_first=True`, or custom `dtype` parameters
+  - `cumsum()`, `cummin()`, `cummax()` with `axis=1` (column-wise operations)
+  - `skew()` with `axis=1` or `numeric_only=False` parameters
+  - `round()` with `decimals` parameter as a Series
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
-- Add support for `isna`, `isnull`, `notna`, `notnull` in faster pandas.
+- Add support for the following in faster pandas:
+  - `isin`
+  - `isna`
+  - `isnull`
+  - `notna`
+  - `notnull`
+  - `str.contains`
+  - `str.startswith`
+  - `str.endswith`
+  - `str.slice`
+  - `sort_values`
+- Reuse row count from the relaxed query compiler in `get_axis_len`.
+
+#### Bug Fixes
+
+- Fixed a bug where the row count was not getting cached in the ordered dataframe each time count_rows() is called.
 
 ## 1.40.0 (2025-10-02)
 
@@ -182,9 +214,6 @@
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
 - When hybrid execution is enabled, `pd.merge`, `pd.concat`, `DataFrame.merge`, and `DataFrame.join` may now move arguments to backends other than those among the function arguments.
 - Improved performance of `DataFrame.to_snowflake` and `pd.to_snowflake(dataframe)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
-- Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
-- Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
-- Add support for `isin` in faster pandas.
 
 ## 1.39.1 (2025-09-25)
 

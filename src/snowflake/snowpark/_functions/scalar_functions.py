@@ -3090,3 +3090,319 @@ def st_hausdorffdistance(
     c1 = _to_col_if_str(geography_expression_1, "st_hausdorffdistance")
     c2 = _to_col_if_str(geography_expression_2, "st_hausdorffdistance")
     return builtin("st_hausdorffdistance", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def st_npoints(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the number of points in a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY objects.
+
+    Returns:
+        Column: The number of points in the input object.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, to_geometry
+        >>> df = session.create_dataframe([
+        ...     ['POINT(66 12)'],
+        ...     ['POLYGON((17 17, 17 30, 30 30, 30 17, 17 17))'],
+        ...     ['LINESTRING(40 60, 50 50, 60 40)']
+        ... ], schema=["geom"])
+        >>> df.select(st_npoints(to_geometry(df["geom"])).alias("npoints")).collect()
+        [Row(NPOINTS=1), Row(NPOINTS=5), Row(NPOINTS=3)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_npoints")
+    return builtin("st_npoints", _emit_ast=_emit_ast)(c)
+
+
+# Alias for st_npoints
+st_numpoints = st_npoints
+
+
+@publicapi
+def st_perimeter(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the perimeter of a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY objects
+
+    Returns:
+        Column: The perimeter of the input geography or geometry object
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geometry
+        >>> df = session.create_dataframe([
+        ...     "POLYGON((0 0, 0 1, 1 1, 1 0, 0 0))",
+        ...     "POINT(1 1)",
+        ...     "LINESTRING(0 0, 1 1)"
+        ... ], schema=["geometry"])
+        >>> df.select(st_perimeter(to_geometry(df["geometry"])).alias("perimeter")).collect()
+        [Row(PERIMETER=4.0), Row(PERIMETER=0.0), Row(PERIMETER=0.0)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_perimeter")
+    return builtin("st_perimeter", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_pointn(
+    geography_or_geometry_expression: ColumnOrName,
+    index: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the Nth point in a LINESTRING. Points are indexed starting from 1.
+    Negative values are counted backwards from the end of the LINESTRING, where -1 is the last point.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): LINESTRING values in GEOGRAPHY or GEOMETRY format
+        index (ColumnOrName): The 1-based index of the point to return. Negative values count from the end
+
+    Returns:
+        Column: The Nth point as a POINT object
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography, to_geometry, lit
+        >>> df = session.create_dataframe([["LINESTRING(1 1, 2 2, 3 3, 4 4)"]], schema=["linestring"])
+        >>> df.select(st_pointn(to_geography(df["linestring"]), lit(2)).alias("point")).collect()
+        [Row(POINT='{\\n  "coordinates": [\\n    2.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+        >>> df.select(st_pointn(to_geometry(df["linestring"]), lit(-2)).alias("point")).collect()
+        [Row(POINT='{\\n  "coordinates": [\\n    3.000000000000000e+00,\\n    3.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    geography_or_geometry_col = _to_col_if_str(
+        geography_or_geometry_expression, "st_pointn"
+    )
+    index_col = _to_col_if_str(index, "st_pointn")
+    return builtin("st_pointn", _emit_ast=_emit_ast)(
+        geography_or_geometry_col, index_col
+    )
+
+
+@publicapi
+def st_setsrid(
+    geometry_expression: ColumnOrName, srid: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Sets the spatial reference identifier (SRID) for a geometry object.
+
+    Args:
+        geometry_expression (ColumnOrName): A geometry object or column containing geometry data
+        srid (ColumnOrName): The spatial reference identifier to set for the geometry
+
+    Returns:
+        Column: A new geometry object with the specified SRID
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geometry, lit
+        >>> df = session.create_dataframe([["POINT(13 51)"]], schema=["geometry_wkt"])
+        >>> df.select(st_setsrid(to_geometry(df["geometry_wkt"]), lit(4326)).alias("result")).collect()
+        [Row(RESULT='{\\n  "coordinates": [\\n    1.300000000000000e+01,\\n    5.100000000000000e+01\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    geometry_col = _to_col_if_str(geometry_expression, "st_setsrid")
+    srid_col = _to_col_if_str(srid, "st_setsrid")
+    return builtin("st_setsrid", _emit_ast=_emit_ast)(geometry_col, srid_col)
+
+
+@publicapi
+def st_simplify(
+    geography_or_geometry_expression: ColumnOrName,
+    tolerance: ColumnOrName,
+    preserve_collapsed: ColumnOrName = None,
+    _emit_ast: bool = True,
+):
+    """
+    Returns a simplified version of the input GEOGRAPHY or GEOMETRY object by removing points that are deemed unnecessary for the shape.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object to be simplified.
+        tolerance (ColumnOrName): The tolerance value used for simplification. Points closer than this distance may be removed.
+        preserve_collapsed (ColumnOrName, optional): A boolean value indicating whether to preserve collapsed geometries. Defaults to None.
+
+    Returns:
+        Column: A simplified GEOGRAPHY or GEOMETRY object.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography, to_geometry, lit
+        >>> df1 = session.create_dataframe([
+        ...     ["LINESTRING(-122.306067 37.55412, -122.32328 37.561801, -122.325879 37.586852)"]
+        ... ], schema=["geog_wkt"])
+        >>> df1.select(st_simplify(to_geography(df1["geog_wkt"]), lit(1000)).alias("simplified")).collect()
+        [Row(SIMPLIFIED='{\\n  "coordinates": [\\n    [\\n      -1.223060670000000e+02,\\n      3.755412000000000e+01\\n    ],\\n    [\\n      -1.223258790000000e+02,\\n      3.758685200000001e+01\\n    ]\\n  ],\\n  "type": "LineString"\\n}')]
+
+        >>> df2 = session.create_dataframe([
+        ...     ["LINESTRING(1100 1100, 2500 2100, 3100 3100, 4900 1100, 3100 1900)"]
+        ... ], schema=["geom_wkt"])
+        >>> df2.select(st_simplify(to_geometry(df2["geom_wkt"]), lit(500)).alias("simplified")).collect()
+        [Row(SIMPLIFIED='{\\n  "coordinates": [\\n    [\\n      1.100000000000000e+03,\\n      1.100000000000000e+03\\n    ],\\n    [\\n      ...0000000e+03\\n    ],\\n    [\\n      3.100000000000000e+03,\\n      1.900000000000000e+03\\n    ]\\n  ],\\n  "type": "LineString"\\n}')]
+
+        >>> df3 = session.create_dataframe([
+        ...     ["LINESTRING(-122.306067 37.55412, -122.32328 37.561801, -122.325879 37.586852)"]
+        ... ], schema=["geog_wkt"])
+        >>> df3.select(st_simplify(to_geography(df3["geog_wkt"]), lit(1000), lit(True)).alias("simplified")).collect()
+        [Row(SIMPLIFIED='{\\n  "coordinates": [\\n    [\\n      -1.223060670000000e+02,\\n      3.755412000000000e+01\\n    ],\\n    [\\n      -1.223258790000000e+02,\\n      3.758685200000001e+01\\n    ]\\n  ],\\n  "type": "LineString"\\n}')]
+    """
+    col = _to_col_if_str(geography_or_geometry_expression, "st_simplify")
+    tolerance_col = _to_col_if_str(tolerance, "st_simplify")
+
+    if preserve_collapsed is not None:
+        preserve_collapsed_col = _to_col_if_str(preserve_collapsed, "st_simplify")
+        return builtin("st_simplify", _emit_ast=_emit_ast)(
+            col, tolerance_col, preserve_collapsed_col
+        )
+    else:
+        return builtin("st_simplify", _emit_ast=_emit_ast)(col, tolerance_col)
+
+
+@publicapi
+def st_srid(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the spatial reference system identifier (SRID) for a GEOGRAPHY or GEOMETRY object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): A GEOGRAPHY or GEOMETRY object
+
+    Returns:
+        Column: The SRID of the input GEOGRAPHY or GEOMETRY object
+
+    Examples::
+        >>> from snowflake.snowpark.functions import st_makepoint
+        >>> df = session.create_dataframe([[37.5, 45.5]], schema=["x", "y"])
+        >>> df.select(st_srid(st_makepoint(df["x"], df["y"])).alias("srid")).collect()
+        [Row(SRID=4326)]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_srid")
+    return builtin("st_srid", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_startpoint(
+    geography_or_geometry_expression: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns the first point of a LINESTRING geography or geometry object as a POINT object.
+
+    Args:
+        geography_or_geometry_expression (ColumnOrName): The LINESTRING geography or geometry object
+
+    Returns:
+        Column: The POINT objects representing the start point of the input LINESTRING
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography, to_geometry
+        >>> df_geography = session.create_dataframe([["LINESTRING(1 1, 2 2, 3 3, 4 4)"]], schema=["linestring"])
+        >>> df_geography.select(st_startpoint(to_geography(df_geography["linestring"])).alias("startpoint")).collect()
+        [Row(STARTPOINT='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    1.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+        >>> df_geometry = session.create_dataframe([["LINESTRING(1 1, 2 2, 3 3, 4 4)"]], schema=["linestring"])
+        >>> df_geometry.select(st_startpoint(to_geometry(df_geometry["linestring"])).alias("startpoint")).collect()
+        [Row(STARTPOINT='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    1.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    c = _to_col_if_str(geography_or_geometry_expression, "st_startpoint")
+    return builtin("st_startpoint", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_symdifference(
+    geography_expression_1: ColumnOrName,
+    geography_expression_2: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the symmetric difference of two GEOGRAPHY objects. The symmetric difference consists of all points that are in either geography but not in both.
+
+    Args:
+        geography_expression_1 (ColumnOrName): A GEOGRAPHY object or a string representation of a geography.
+        geography_expression_2 (ColumnOrName): A GEOGRAPHY object or a string representation of a geography.
+
+    Returns:
+        Column: A GEOGRAPHY object representing the symmetric difference of the two input geographies.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ["POLYGON((0 0, 1 0, 2 1, 1 2, 2 3, 1 4, 0 4, 0 0))", "POLYGON((3 0, 3 4, 2 4, 1 3, 2 2, 1 1, 2 0, 3 0))"]
+        ... ], schema=["geog1", "geog2"])
+        >>> result = df.select(st_symdifference(to_geography(df["geog1"]), to_geography(df["geog2"])).alias("symmetric_difference")).collect()
+        >>> # Returns a MultiPolygon representing the symmetric difference
+    """
+    c1 = _to_col_if_str(geography_expression_1, "st_symdifference")
+    c2 = _to_col_if_str(geography_expression_2, "st_symdifference")
+    return builtin("st_symdifference", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def st_transform(
+    geometry_expression: ColumnOrName,
+    to_srid: ColumnOrName,
+    from_srid: ColumnOrName = None,
+    _emit_ast: bool = True,
+):
+    """
+    Transforms a geometry from one spatial reference system (SRS) to another using SRID (Spatial Reference System Identifier) values.
+
+    Args:
+        geometry_expression (ColumnOrName): A column containing geometry objects to transform
+        to_srid (ColumnOrName): The target spatial reference system identifier to transform the geometry to
+        from_srid (ColumnOrName, optional): The source spatial reference system identifier. If None, uses the geometry's existing SRID
+
+    Returns:
+        Column: A column containing the transformed geometry objects
+
+    Examples::
+        >>> from snowflake.snowpark import Row
+        >>> from snowflake.snowpark.functions import to_geometry, lit
+
+        >>> df = session.create_dataframe([["POINT(389866.35 5819003.03)"]], schema=["geom_wkt"])
+        >>> result1 = df.select(st_transform(st_setsrid(to_geometry(df["geom_wkt"]), lit(32617)), lit(3857)).alias("transformed")).collect()
+        >>> assert result1 == [Row(TRANSFORMED='{\\n  "coordinates": [\\n    -9.197531022388615e+06,\\n    6.892872198680114e+06\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> result2 = df.select(st_transform(to_geometry(df["geom_wkt"]), lit(32633), lit(3857)).alias("transformed")).collect()
+        >>> assert result2 == [Row(TRANSFORMED='{\\n  "coordinates": [\\n    -3.861449042853381e+05,\\n    5.185433920948020e+06\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    geometry_col = _to_col_if_str(geometry_expression, "st_transform")
+
+    if from_srid is not None:
+        from_srid_col = _to_col_if_str(from_srid, "st_transform")
+        to_srid_col = _to_col_if_str(to_srid, "st_transform")
+        return builtin("st_transform", _emit_ast=_emit_ast)(
+            geometry_col, from_srid_col, to_srid_col
+        )
+    else:
+        to_srid_col = _to_col_if_str(to_srid, "st_transform")
+        return builtin("st_transform", _emit_ast=_emit_ast)(geometry_col, to_srid_col)
+
+
+@publicapi
+def st_union(
+    geography_expression_1: ColumnOrName,
+    geography_expression_2: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the union of two GEOGRAPHY objects as a single GEOGRAPHY object.
+
+    Args:
+        geography_expression_1 (ColumnOrName): A GEOGRAPHY object.
+        geography_expression_2 (ColumnOrName): A GEOGRAPHY object.
+
+    Returns:
+        Column: The union of the two input GEOGRAPHY objects.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import to_geography
+        >>> df = session.create_dataframe([
+        ...     ['POLYGON((0 0, 1 0, 2 1, 1 2, 2 3, 1 4, 0 4, 0 0))', 'POLYGON((3 0, 3 4, 2 4, 1 3, 2 2, 1 1, 2 0, 3 0))']
+        ... ], schema=["geog1", "geog2"])
+        >>> result = df.select(st_union(to_geography(df["geog1"]), to_geography(df["geog2"])).alias("union_result")).collect()
+        >>> # [Row(UNION_RESULT='{\\n  "coordinates": [\\n    [\\n      [\\n        3.000000000000000e+00,\\n        0.000000000000000e+00\\n      ],\\n      [\\n        3.000000000000000e+00,\\n        4.000000000000000e+00\\n      ],\\n      [\\n        2.000000000000000e+00,\\n        4.000000000000000e+00\\n      ],\\n      [\\n        1.500000000000000e+00,\\n        3.500399838942360e+00\\n      ],\\n      [\\n        1.000000000000000e+00,\\n        4.000000000000000e+00\\n      ],\\n      [\\n        0.000000000000000e+00,\\n        4.000000000000000e+00\\n      ],\\n      [\\n        0.000000000000000e+00,\\n        0.000000000000000e+00\\n      ],\\n      [\\n        1.000000000000000e+00,\\n        0.000000000000000e+00\\n      ],\\n      [\\n        1.500000000000000e+00,\\n        5.000571197534015e-01\\n      ],\\n      [\\n        2.000000000000000e+00,\\n        0.000000000000000e+00\\n      ],\\n      [\\n        3.000000000000000e+00,\\n        0.000000000000000e+00\\n      ]\\n    ],\\n    [\\n      [\\n        1.500000000000000e+00,\\n        1.500171359265506e+00\\n      ],\\n      [\\n        9.999999999999998e-01,\\n        2.000000000000000e+00\\n      ],\\n      [\\n        1.500000000000000e+00,\\n        2.500285598878384e+00\\n      ],\\n      [\\n        2.000000000000000e+00,\\n        2.000000000000000e+00\\n      ],\\n      [\\n        1.500000000000000e+00,\\n        1.500171359265506e+00\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}')]
+    """
+    c1 = _to_col_if_str(geography_expression_1, "st_union")
+    c2 = _to_col_if_str(geography_expression_2, "st_union")
+    return builtin("st_union", _emit_ast=_emit_ast)(c1, c2)
