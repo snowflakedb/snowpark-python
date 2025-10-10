@@ -678,17 +678,13 @@ def register_query_compiler_method_not_implemented(
             if SnowflakeQueryCompiler._has_unsupported_args(
                 api_cls_name, method_name, arguments
             ):
-                # Only raise NotImplementedError if auto-switching is disabled
-                # When auto-switching is enabled, let the auto-switching mechanism handle it
-                from modin.config import AutoSwitchBackend
 
-                if not AutoSwitchBackend.get():
-                    ErrorMessage.not_implemented_with_reason(
-                        method_name,
-                        UnsupportedArgsRule.get_unsupported_args_reason(
-                            api_cls_name, method_name, arguments
-                        ),
-                    )
+                ErrorMessage.not_implemented_with_reason(
+                    method_name,
+                    UnsupportedArgsRule.get_unsupported_args_reason(
+                        api_cls_name, method_name, arguments
+                    ),
+                )
 
             return query_compiler_method(self, *args, **kwargs)
 
