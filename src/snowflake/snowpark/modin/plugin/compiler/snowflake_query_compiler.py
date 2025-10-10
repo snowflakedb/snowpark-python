@@ -10698,9 +10698,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 and self._relaxed_query_compiler._modin_frame.ordered_dataframe.row_count
                 is not None
             ):
-                return (
+                row_count = (
                     self._relaxed_query_compiler._modin_frame.ordered_dataframe.row_count
                 )
+                self._modin_frame.ordered_dataframe.row_count = row_count
+                return row_count
             else:
                 return self._modin_frame.num_rows
         else:
