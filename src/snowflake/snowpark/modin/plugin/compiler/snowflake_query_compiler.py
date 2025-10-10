@@ -529,11 +529,11 @@ class UnsupportedArgsRule:
 
     unsupported_conditions: List[
         Union[
+            Tuple[str, Any],
             Tuple[
                 Callable[[MappingProxyType], bool],
                 Union[str, Callable[[MappingProxyType], str]],
             ],
-            Tuple[str, Any],
         ]
     ] = field(default_factory=list)
 
