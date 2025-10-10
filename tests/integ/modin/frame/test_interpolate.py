@@ -6,6 +6,7 @@ import modin.pandas as pd  # noqa: F401
 import numpy as np
 import pandas as native_pd
 import pytest
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
@@ -14,61 +15,80 @@ from tests.integ.modin.utils import (
 )
 from tests.integ.utils.sql_counter import sql_count_checker
 
+pytestmark = pytest.mark.filterwarnings("ignore::FutureWarning")
 
-# Test data for basic interpolation scenarios
-BASIC_INTERPOLATE_DATA = [
-    # Basic linear interpolation
-    {
-        "data": {"A": [1, np.nan, 3, 4], "B": [np.nan, 2, 3, np.nan]},
-        "expected": {"A": [1, 2, 3, 4], "B": [np.nan, 2, 3, np.nan]},
-        "id": "basic_linear",
-    },
-    # Single column with multiple NaNs
-    {
-        "data": {"A": [1, np.nan, np.nan, 4, 5]},
-        "expected": {"A": [1, 2, 3, 4, 5]},
-        "id": "multiple_nans",
-    },
-    # All NaN column
-    {
-        "data": {"A": [np.nan, np.nan, np.nan], "B": [1, 2, 3]},
-        "expected": {"A": [np.nan, np.nan, np.nan], "B": [1, 2, 3]},
-        "id": "all_nan_column",
-    },
-    # No NaN values
-    {
-        "data": {"A": [1, 2, 3, 4], "B": [5, 6, 7, 8]},
-        "expected": {"A": [1, 2, 3, 4], "B": [5, 6, 7, 8]},
-        "id": "no_nans",
-    },
-    # Mixed data types
-    {
-        "data": {"A": [1, np.nan, 3], "B": ["x", "y", "z"], "C": [1.5, np.nan, 3.5]},
-        "expected": {"A": [1, 2, 3], "B": ["x", "y", "z"], "C": [1.5, 2.5, 3.5]},
-        "id": "mixed_types",
-    },
-]
+INTERPOLATE_TEST_DATA = {
+    "starts_with_nan": [np.nan, np.nan, -0.5, np.nan, 1, -1.5, 2, np.nan, 100],
+    "ends_with_nan": [-0.5, np.nan, 1, -1.5, 2, np.nan, 100, np.nan, np.nan],
+    "starts_and_ends_with_nan": [
+        np.nan,
+        np.nan,
+        -0.5,
+        np.nan,
+        np.nan,
+        100,
+        np.nan,
+        -30,
+        np.nan,
+    ],
+    "all_nan": [np.nan] * 9,
+    "str_data": [None, "a", "b", None, "cde", None, "x", None, None],
+}
+
+INTERPOLATE_DATETIME_DATA = {
+    f"datetime_{freq}": native_pd.to_datetime(
+        native_pd.date_range("2025-01-01", periods=8, freq=freq)
+    )
+    for freq in ("D", "h", "min", "s", "ms", "us")
+}
 
 
-@pytest.mark.parametrize("test_data", BASIC_INTERPOLATE_DATA)
+# INTERPOLATE_LINEAR in nested selects does not work due to a server-side bug. We skip these tests
+# instead of XFAILing because each failed query takes ~10 seconds to run, while successful queries
+# take <100ms.
+LINEAR_FAIL_REASON = "SNOW-####: INTERPOLATE_LINEAR in nested select causes SQL error"
+
+
+@pytest.mark.skip(reason=LINEAR_FAIL_REASON)
 @sql_count_checker(query_count=1)
-def test_df_interpolate_basic(test_data):
+def test_df_interpolate_default_params():
     """Test basic DataFrame.interpolate functionality with default linear method."""
     eval_snowpark_pandas_result(
-        *create_test_dfs(test_data["data"]),
+        *create_test_dfs(INTERPOLATE_TEST_DATA),
         lambda df: df.interpolate(),
     )
 
 
+@pytest.mark.skip(reason=LINEAR_FAIL_REASON)
 @pytest.mark.parametrize(
-    "method",
-    ["linear", "pad", "ffill", "bfill", "backfill"],
+    "data",
+    [
+        param(INTERPOLATE_TEST_DATA, id="numeric"),
+        param(INTERPOLATE_DATETIME_DATA, id="datetime"),
+    ],
 )
+@pytest.mark.parametrize("limit_direction", ["forward", "backward", None])
+@pytest.mark.parametrize("limit_area", ["inside", None])
 @sql_count_checker(query_count=1)
-def test_df_interpolate_methods(method):
-    """Test DataFrame.interpolate with different interpolation methods."""
-    data = {"A": [1, np.nan, 3, np.nan, 5], "B": [np.nan, 2, np.nan, 4, 5]}
+def test_df_interpolate_linear(data, limit_direction, limit_area):
+    eval_snowpark_pandas_result(
+        *create_test_dfs(data),
+        lambda df: df.interpolate(
+            method="linear", limit_direction=limit_direction, limit_area=limit_area
+        ),
+    )
 
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        param(INTERPOLATE_TEST_DATA, id="numeric"),
+        param(INTERPOLATE_DATETIME_DATA, id="datetime"),
+    ],
+)
+@pytest.mark.parametrize("method", ["ffill", "pad", "bfill", "backfill"])
+@sql_count_checker(query_count=1)
+def test_df_interpolate_fill(data, method):
     eval_snowpark_pandas_result(
         *create_test_dfs(data),
         lambda df: df.interpolate(method=method),
@@ -76,281 +96,200 @@ def test_df_interpolate_methods(method):
 
 
 @pytest.mark.parametrize(
-    "limit",
-    [1, 2, 3, None],
+    "kwargs, expected_error_regex",
+    [
+        param({"axis": 1}, "with axis = 1", id="axis=1"),
+        param({"method": "nearest"}, "with method = nearest", id="unsupported_method"),
+        param({"limit": 1}, "with limit = 1", id="limit=1"),
+        param(
+            {"method": "linear", "limit_area": "outside"},
+            "with limit_area = outside for method = linear",
+            id="linear_outside",
+        ),
+        param(
+            {"method": "pad", "limit_area": "outside"},
+            "with limit_area = outside for method = pad",
+            id="pad_outside",
+        ),
+        param(
+            {"method": "pad", "limit_area": "inside"},
+            "with limit_area = inside for method = pad",
+            id="pad_inside",
+        ),
+        param(
+            {"method": "bfill", "limit_area": "outside"},
+            "with limit_area = outside for method = bfill",
+            id="bfill_outside",
+        ),
+        param(
+            {"method": "bfill", "limit_area": "inside"},
+            "with limit_area = inside for method = bfill",
+            id="bfill_inside",
+        ),
+        param({"downcast": "infer"}, "with downcast = infer", id="downcast"),
+    ],
 )
-@sql_count_checker(query_count=1)
-def test_df_interpolate_limit(limit):
-    """Test DataFrame.interpolate with limit parameter."""
-    data = {"A": [1, np.nan, np.nan, np.nan, 5], "B": [np.nan, 2, np.nan, 4, np.nan]}
-
-    eval_snowpark_pandas_result(
-        *create_test_dfs(data),
-        lambda df: df.interpolate(limit=limit),
-    )
+@sql_count_checker(query_count=0)
+def test_df_interpolate_unsupported_parameters(kwargs, expected_error_regex):
+    with pytest.raises(NotImplementedError, match=expected_error_regex):
+        pd.DataFrame(INTERPOLATE_TEST_DATA).interpolate(**kwargs).to_pandas()
 
 
 @pytest.mark.parametrize(
-    "limit_direction",
-    ["forward", "backward", "both"],
+    "method, limit_direction, expected_direction",
+    [
+        ["pad", "backward", "forward"],
+        ["pad", "both", "forward"],
+        ["bfill", "forward", "backward"],
+        ["bfill", "both", "backward"],
+    ],
 )
-@sql_count_checker(query_count=1)
-def test_df_interpolate_limit_direction(limit_direction):
-    """Test DataFrame.interpolate with limit_direction parameter."""
-    data = {"A": [1, np.nan, np.nan, np.nan, 5], "B": [np.nan, 2, np.nan, 4, np.nan]}
-
+@sql_count_checker(query_count=0)
+def test_df_interpolate_bad_direction(method, limit_direction, expected_direction):
     eval_snowpark_pandas_result(
-        *create_test_dfs(data),
-        lambda df: df.interpolate(limit=2, limit_direction=limit_direction),
+        *create_test_dfs(INTERPOLATE_TEST_DATA),
+        lambda df: df.interpolate(method=method, limit_direction=limit_direction),
+        expect_exception=True,
+        expect_exception_type=ValueError,
+        expect_exception_match=f"`limit_direction` must be '{expected_direction}' for method `{method}`",
     )
 
 
-@pytest.mark.parametrize(
-    "axis",
-    [0, 1],
-)
-@sql_count_checker(query_count=1)
-def test_df_interpolate_axis(axis):
-    """Test DataFrame.interpolate with different axis parameters."""
-    data = {"A": [1, np.nan, 3], "B": [np.nan, 2, np.nan], "C": [1, 2, np.nan]}
-
-    eval_snowpark_pandas_result(
-        *create_test_dfs(data),
-        lambda df: df.interpolate(axis=axis),
-    )
-
-
-@pytest.mark.parametrize(
-    "inplace",
-    [True, False],
-)
+@pytest.mark.parametrize("inplace", [True, False])
 @sql_count_checker(query_count=1)
 def test_df_interpolate_inplace(inplace):
-    """Test DataFrame.interpolate with inplace parameter."""
-    data = {"A": [1, np.nan, 3], "B": [np.nan, 2, np.nan]}
-
     eval_snowpark_pandas_result(
-        *create_test_dfs(data),
-        lambda df: df.interpolate(inplace=inplace),
+        *create_test_dfs(INTERPOLATE_TEST_DATA),
+        lambda df: df.interpolate(method="pad", inplace=inplace),
         inplace=inplace,
     )
 
 
-@pytest.mark.parametrize(
-    "limit_area",
-    ["inside", "outside", None],
-)
 @sql_count_checker(query_count=1)
-def test_df_interpolate_limit_area(limit_area):
-    """Test DataFrame.interpolate with limit_area parameter."""
-    data = {"A": [1, np.nan, np.nan, 4], "B": [np.nan, 2, 3, np.nan]}
-
+def test_df_interpolate_empty_rows():
     eval_snowpark_pandas_result(
-        *create_test_dfs(data),
-        lambda df: df.interpolate(limit=1, limit_area=limit_area),
+        *create_test_dfs({"A": [], "B": []}),
+        lambda df: df.interpolate(method="pad"),
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_df_interpolate_empty_columns():
+    eval_snowpark_pandas_result(
+        *create_test_dfs([]),
+        lambda df: df.interpolate(method="pad"),
+        check_column_type=False,
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_df_interpolate_single_rows():
+    eval_snowpark_pandas_result(
+        *create_test_dfs({"A": [1], "B": [np.nan]}),
+        lambda df: df.interpolate(method="pad"),
     )
 
 
 @pytest.mark.parametrize(
-    "test_data",
+    "method, test_data",
     [
-        # Empty DataFrame
-        {"data": {}, "id": "empty_df"},
-        # Single row DataFrame
-        {"data": {"A": [1], "B": [2]}, "id": "single_row"},
-        # Single column DataFrame
-        {"data": {"A": [1, np.nan, 3]}, "id": "single_column"},
-        # DataFrame with all NaN values
-        {"data": {"A": [np.nan, np.nan], "B": [np.nan, np.nan]}, "id": "all_nans"},
+        param(
+            "linear",
+            native_pd.DataFrame(
+                {"A": [1, np.nan, np.nan, 4]},
+                index=native_pd.MultiIndex.from_arrays(
+                    [["a", "a", "b", "b"], [1, 2, 1, 2]], names=["letters", "numbers"]
+                ),
+            ),
+            id="multiindex_rows",
+            marks=pytest.mark.skip(reason=LINEAR_FAIL_REASON),
+        ),
+        param(
+            "ffill",  # non-linear methods are valid if columns are multi-index but rows are not
+            native_pd.DataFrame(
+                [
+                    [1, np.nan, np.nan, 100],
+                    [0, 2, np.nan, 4],
+                    [3, np.nan, -2, np.nan],
+                    [9, -1, np.nan, 9],
+                ],
+                columns=native_pd.MultiIndex.from_arrays(
+                    [["a", "a", "b", "b"], [1, 2, 1, 2]], names=["letters", "numbers"]
+                ),
+            ),
+            id="multiindex_columns",
+        ),
+        param(
+            "linear",
+            native_pd.DataFrame(
+                [
+                    [1, np.nan, np.nan, 100],
+                    [0, 2, np.nan, 4],
+                    [3, np.nan, -2, np.nan],
+                    [9, -1, np.nan, 9],
+                ],
+                index=native_pd.MultiIndex.from_arrays(
+                    [["a", "a", "b", "b"], [1, 2, 1, 2]], names=["letters", "numbers"]
+                ),
+                columns=native_pd.MultiIndex.from_arrays(
+                    [["a", "a", "b", "b"], [1, 2, 1, 2]], names=["letters", "numbers"]
+                ),
+            ),
+            id="multiindex_both",
+            marks=pytest.mark.skip(reason=LINEAR_FAIL_REASON),
+        ),
     ],
 )
 @sql_count_checker(query_count=1)
-def test_df_interpolate_edge_cases(test_data):
-    """Test DataFrame.interpolate with edge cases."""
+def test_df_interpolate_multiindex(method, test_data):
     eval_snowpark_pandas_result(
-        *create_test_dfs(test_data["data"]),
-        lambda df: df.interpolate(),
+        *create_test_dfs(test_data),
+        lambda df: df.interpolate(method=method),
     )
 
 
-@pytest.mark.parametrize(
-    "test_data",
-    [
-        # MultiIndex DataFrame
-        {
-            "data": {"A": [1, np.nan, np.nan, 4]},
-            "index": native_pd.MultiIndex.from_arrays(
+@sql_count_checker(query_count=0)
+def test_df_interpolate_multiindex_invalid_method():
+    eval_snowpark_pandas_result(
+        *create_test_dfs(
+            {"A": [1, np.nan, np.nan, 4]},
+            index=native_pd.MultiIndex.from_arrays(
                 [["a", "a", "b", "b"], [1, 2, 1, 2]], names=["letters", "numbers"]
             ),
-            "id": "multiindex",
-        },
-        # Custom index DataFrame
-        {
-            "data": {"A": [1, np.nan, 3], "B": [np.nan, 2, np.nan]},
-            "index": ["x", "y", "z"],
-            "id": "custom_index",
-        },
-    ],
-)
-@sql_count_checker(query_count=1)
-def test_df_interpolate_index_types(test_data):
-    """Test DataFrame.interpolate with different index types."""
-    eval_snowpark_pandas_result(
-        *create_test_dfs(test_data["data"], index=test_data.get("index")),
-        lambda df: df.interpolate(),
+        ),
+        lambda df: df.interpolate(method="ffill"),
+        expect_exception=True,
+        expect_exception_type=ValueError,
+        expect_exception_match="Only `method=linear` interpolation is supported on MultiIndexes.",
     )
 
 
 @pytest.mark.parametrize(
-    "dtype",
-    ["float64", "int64", "float32", "int32"],
-)
-@sql_count_checker(query_count=1)
-def test_df_interpolate_dtypes(dtype):
-    """Test DataFrame.interpolate with different numeric data types."""
-    data = {"A": [1, np.nan, 3], "B": [np.nan, 2, np.nan]}
-
-    snow_df, native_df = create_test_dfs(data)
-    snow_df = snow_df.astype(dtype)
-    native_df = native_df.astype(dtype)
-
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.interpolate(),
-    )
-
-
-@pytest.mark.parametrize(
-    "kwargs",
+    "method",
     [
-        {"method": "linear", "limit": 1},
-        {"method": "pad", "limit_direction": "forward"},
-        {"method": "bfill", "limit_area": "inside"},
-        {"axis": 1, "limit": 2},
-        {"method": "linear", "inplace": True},
+        param("linear", marks=pytest.mark.skip(reason=LINEAR_FAIL_REASON)),
+        "pad",
+        "bfill",
     ],
 )
 @sql_count_checker(query_count=1)
-def test_df_interpolate_parameter_combinations(kwargs):
-    """Test DataFrame.interpolate with various parameter combinations."""
-    data = {"A": [1, np.nan, np.nan, 4], "B": [np.nan, 2, 3, np.nan]}
-
+def test_df_interpolate_unordered_index(method):
     eval_snowpark_pandas_result(
-        *create_test_dfs(data),
-        lambda df: df.interpolate(**kwargs),
-        inplace=kwargs.get("inplace", False),
+        *create_test_dfs(
+            [[1, np.nan, 3, np.nan, 100]],
+            index=[5, 3, 1, 2, 0],
+        ),
+        lambda df: df.interpolate(method),
     )
 
 
-@pytest.mark.parametrize(
-    "time_precision, null_sparsity",
-    [
-        # Different time precisions
-        ("D", "low"),  # Daily precision, low null sparsity
-        ("H", "medium"),  # Hourly precision, medium null sparsity
-        ("T", "high"),  # Minute precision, high null sparsity
-        ("S", "low"),  # Second precision, low null sparsity
-        ("ms", "medium"),  # Millisecond precision, medium null sparsity
-        ("us", "high"),  # Microsecond precision, high null sparsity
-    ],
-)
-@sql_count_checker(query_count=1)
-def test_df_interpolate_datetime_precision_and_sparsity(time_precision, null_sparsity):
-    """Test DataFrame.interpolate with different datetime precisions and null sparsities."""
-    # Define null patterns based on sparsity
-    null_patterns = {
-        "low": [0, 1, 0, 0, 1, 0, 0, 0],  # ~25% nulls
-        "medium": [0, 1, 1, 0, 1, 1, 0, 1],  # ~50% nulls
-        "high": [1, 0, 1, 1, 0, 1, 1, 1],  # ~75% nulls
-    }
-
-    # Create datetime data based on precision
-    base_dates = native_pd.date_range("2023-01-01", periods=8, freq=time_precision)
-
-    # Apply null pattern to create missing values
-    null_mask = null_patterns[null_sparsity]
-    timestamps = [
-        base_dates[i] if not null_mask[i] else None for i in range(len(base_dates))
-    ]
-
-    data = {
-        "timestamp": native_pd.to_datetime(timestamps),
-        "value": [1, np.nan, 3, np.nan, 5, np.nan, 7, np.nan],
-        "price": [10.5, np.nan, np.nan, 13.0, 14.5, np.nan, np.nan, 18.0],
-    }
-
-    eval_snowpark_pandas_result(
-        *create_test_dfs(data),
-        lambda df: df.interpolate(),
-    )
-
-
-@sql_count_checker(query_count=1)
-def test_df_interpolate_preserves_non_numeric_columns():
-    """Test that DataFrame.interpolate preserves non-numeric columns unchanged."""
-    data = {
-        "A": [1, np.nan, 3],
-        "B": ["x", "y", "z"],
-        "C": [True, False, True],
-        "D": [np.nan, 2.5, np.nan],
-    }
-
-    eval_snowpark_pandas_result(
-        *create_test_dfs(data),
-        lambda df: df.interpolate(),
-    )
-
-
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=2)
 def test_df_interpolate_with_datetime_index():
-    """Test DataFrame.interpolate with datetime index."""
-    dates = native_pd.date_range("2023-01-01", periods=4, freq="D")
-    data = {"value": [1, np.nan, np.nan, 4]}
-
+    dates = native_pd.date_range("2023-01-01", periods=6, freq="D")
+    data = {"value": [np.nan, 1, np.nan, np.nan, 4, np.nan]}
     eval_snowpark_pandas_result(
         *create_test_dfs(data, index=dates),
-        lambda df: df.interpolate(),
+        lambda df: df.interpolate(method="pad"),
+        # Snowpark pandas always drops the freq field
+        check_freq=False,
     )
-
-
-@sql_count_checker(query_count=1)
-def test_df_interpolate_large_dataframe():
-    """Test DataFrame.interpolate with a larger DataFrame."""
-    np.random.seed(42)
-    data = {
-        "A": np.random.randn(100),
-        "B": np.random.randn(100),
-        "C": np.random.randn(100),
-    }
-
-    # Introduce some NaN values
-    for col in data:
-        nan_indices = np.random.choice(100, size=10, replace=False)
-        data[col][nan_indices] = np.nan
-
-    eval_snowpark_pandas_result(
-        *create_test_dfs(data),
-        lambda df: df.interpolate(),
-    )
-
-
-@sql_count_checker(query_count=1)
-def test_df_interpolate_error_handling():
-    """Test DataFrame.interpolate error handling for invalid parameters."""
-    data = {"A": [1, np.nan, 3]}
-    snow_df, native_df = create_test_dfs(data)
-
-    # Test with invalid method
-    with pytest.raises(ValueError):
-        snow_df.interpolate(method="invalid_method")
-
-    with pytest.raises(ValueError):
-        native_df.interpolate(method="invalid_method")
-
-    # Test with invalid limit_direction
-    with pytest.raises(ValueError):
-        snow_df.interpolate(limit_direction="invalid_direction")
-
-    with pytest.raises(ValueError):
-        native_df.interpolate(limit_direction="invalid_direction")

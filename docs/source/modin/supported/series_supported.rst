@@ -243,7 +243,11 @@ Methods
 | ``info``                    | D                               |                                  | Different Index types are used in pandas but not   |
 |                             |                                 |                                  | in Snowpark pandas                                 |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``interpolate``             | N                               |                                  |                                                    |
+| ``interpolate``             | P                               |                                  | ``N`` if ``limit`` is set,                         |
+|                             |                                 |                                  | ``limit_area`` is "outside", or ``method`` is not  |
+|                             |                                 |                                  | "linear", "bfill", or "pad".                       |
+|                             |                                 |                                  | ``limit_area="inside`` is supported only when      |
+|                             |                                 |                                  | ``method`` is ``linear``.                          |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``isin``                    | Y                               |                                  | Snowpark pandas deviates with respect to handling  |
 |                             |                                 |                                  | NA values                                          |
