@@ -4060,6 +4060,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         include_index: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _sort_rows_by_column_values_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._sort_rows_by_column_values_internal(
+                    columns=columns,
+                    ascending=ascending,
+                    kind=kind,
+                    na_position=na_position,
+                    ignore_index=ignore_index,
+                    key=key,
+                    include_indexer=include_indexer,
+                    include_index=include_index,
+                )
+            )
+        qc = self._sort_rows_by_column_values_internal(
+            columns=columns,
+            ascending=ascending,
+            kind=kind,
+            na_position=na_position,
+            ignore_index=ignore_index,
+            key=key,
+            include_indexer=include_indexer,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _sort_rows_by_column_values_internal(
+        self,
+        columns: list[Hashable],
+        ascending: list[bool],
+        kind: SortKind,
+        na_position: NaPosition,
+        ignore_index: bool,
+        key: Optional[IndexKeyFunc] = None,
+        include_indexer: bool = False,
+        include_index: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Reorder the rows based on the lexicographic order of the given columns.
 
         Args:

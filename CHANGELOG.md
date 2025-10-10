@@ -31,6 +31,16 @@
       - `st_geompointfromgeohash`
       - `st_hausdorffdistance`
       - `st_makepoint`
+      - `st_npoints`
+      - `st_perimeter`
+      - `st_pointn`
+      - `st_setsrid`
+      - `st_simplify`
+      - `st_srid`
+      - `st_startpoint`
+      - `st_symdifference`
+      - `st_transform`
+      - `st_union`
       - `st_union_agg`
       - `st_within`
       - `st_x`
@@ -54,6 +64,7 @@
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for `isna`, `isnull`, `notna`, `notnull` in faster pandas.
 - Add support for `str.contains`, `str.startswith`, `str.endswith`, and `str.slice` in faster pandas.
+- Add support for `sort_values` in faster pandas.
 
 ## 1.40.0 (2025-10-02)
 
