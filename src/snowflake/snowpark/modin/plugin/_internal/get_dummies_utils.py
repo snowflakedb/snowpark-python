@@ -5,7 +5,6 @@
 from collections.abc import Hashable
 from typing import Any
 
-from pandas._testing import is_string_dtype
 from pandas.api.types import (
     is_bool_dtype,
     is_datetime64_any_dtype,
@@ -13,6 +12,7 @@ from pandas.api.types import (
     is_integer_dtype,
     is_object_dtype,
     is_timedelta64_dtype,
+    is_string_dtype,
 )
 import pandas as native_pd
 
