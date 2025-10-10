@@ -10692,7 +10692,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         Length of the specified axis.
         """
-        return self._modin_frame.num_rows if axis == 0 else len(self.columns)
+        if axis == 0:
+            if (
+                self._relaxed_query_compiler is not None
+                and self._relaxed_query_compiler._modin_frame.ordered_dataframe.row_count
+                is not None
+            ):
+                return (
+                    self._relaxed_query_compiler._modin_frame.ordered_dataframe.row_count
+                )
+            else:
+                return self._modin_frame.num_rows
+        else:
+            return len(self.columns)
 
     def _nunique_columns(
         self, dropna: bool, include_index: bool = False

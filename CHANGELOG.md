@@ -57,6 +57,7 @@
 - Add support for `isna`, `isnull`, `notna`, `notnull` in faster pandas.
 - Add support for `str.contains`, `str.startswith`, `str.endswith`, and `str.slice` in faster pandas.
 - Add support for `sort_values` in faster pandas.
+- Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 ## 1.40.0 (2025-10-02)
 
