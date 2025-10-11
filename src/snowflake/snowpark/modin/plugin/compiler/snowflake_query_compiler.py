@@ -7927,6 +7927,49 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         origin: DateTimeOrigin = "unix",
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _dataframe_to_datetime_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dataframe_to_datetime_internal(
+                    errors=errors,
+                    dayfirst=dayfirst,
+                    yearfirst=yearfirst,
+                    utc=utc,
+                    format=format,
+                    exact=exact,
+                    unit=unit,
+                    infer_datetime_format=infer_datetime_format,
+                    origin=origin,
+                )
+            )
+        qc = self._dataframe_to_datetime_internal(
+            errors=errors,
+            dayfirst=dayfirst,
+            yearfirst=yearfirst,
+            utc=utc,
+            format=format,
+            exact=exact,
+            unit=unit,
+            infer_datetime_format=infer_datetime_format,
+            origin=origin,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dataframe_to_datetime_internal(
+        self,
+        errors: DateTimeErrorChoices = "raise",
+        dayfirst: bool = False,
+        yearfirst: bool = False,
+        utc: bool = False,
+        format: Optional[str] = None,
+        exact: Union[bool, lib.NoDefault] = lib.no_default,
+        unit: Optional[str] = None,
+        infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
+        origin: DateTimeOrigin = "unix",
+    ) -> "SnowflakeQueryCompiler":
+        """
         Convert dataframe to the datetime dtype.
 
         Args:
@@ -8106,6 +8149,52 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def series_to_datetime(
+        self,
+        errors: DateTimeErrorChoices = "raise",
+        dayfirst: bool = False,
+        yearfirst: bool = False,
+        utc: bool = False,
+        format: Optional[str] = None,
+        exact: Union[bool, lib.NoDefault] = lib.no_default,
+        unit: Optional[str] = None,
+        infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
+        origin: DateTimeOrigin = "unix",
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _series_to_datetime_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and not include_index:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._series_to_datetime_internal(
+                    errors=errors,
+                    dayfirst=dayfirst,
+                    yearfirst=yearfirst,
+                    utc=utc,
+                    format=format,
+                    exact=exact,
+                    unit=unit,
+                    infer_datetime_format=infer_datetime_format,
+                    origin=origin,
+                    include_index=include_index,
+                )
+            )
+        qc = self._series_to_datetime_internal(
+            errors=errors,
+            dayfirst=dayfirst,
+            yearfirst=yearfirst,
+            utc=utc,
+            format=format,
+            exact=exact,
+            unit=unit,
+            infer_datetime_format=infer_datetime_format,
+            origin=origin,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _series_to_datetime_internal(
         self,
         errors: DateTimeErrorChoices = "raise",
         dayfirst: bool = False,
