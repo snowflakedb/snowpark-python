@@ -101,6 +101,12 @@ def setup(session, resources_path, local_testing_mode):
     Utils.upload_to_stage(
         session,
         "@" + tmp_stage_name,
+        test_files.test_xml_undeclared_attr_namespace,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
         test_files.test_null_value_xml,
         compress=False,
     )
@@ -294,6 +300,29 @@ def test_read_xml_undeclared_namespace(session, ignore_namespace):
     assert len(result) == 2
     assert result[0]["'px:name'"] in ['"Item One"', '"Item Two"']
     assert result[1]["'px:value'"] in ['"100"', '"200"']
+
+
+@pytest.mark.parametrize("ignore_namespace", [True, False])
+def test_read_xml_undeclared_attr_namespace(session, ignore_namespace):
+    # File has attribute prefixes (e.g., diffgr:id, msdata:rowOrder) declared only on ancestors.
+    # Reader extracts <Results> ... </Results> records without the declarations; parsing must still succeed.
+    row_tag = "Results"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("cacheResult", False)
+        .option("mode", "failfast")
+        .option("ignoreNamespace", ignore_namespace)
+        .xml(f"@{tmp_stage_name}/undeclared_attr_namespace.xml")
+    )
+    if not ignore_namespace:
+        with pytest.raises(SnowparkSQLException, match="XMLSyntaxError"):
+            df.collect()
+    else:
+        result = df.collect()
+        assert len(result) == 3
+        noms = {result[0]["'NOM'"], result[1]["'NOM'"], result[2]["'NOM'"]}
+        assert '"CAMUT"' in noms
+        assert any(v in noms for v in ['"CAMUT"', '"Test2"', '"Test3"'])
 
 
 @pytest.mark.parametrize("attribute_prefix", ["_", ""])

@@ -385,6 +385,7 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_udtf_dir/test_vectorized_udtf.py",
                 "resources/test_udaf_dir/",
                 "resources/test_udaf_dir/test_udaf_file.py",
+                "resources/undeclared_attr_namespace.xml",
                 "resources/undeclared_namespace.xml",
                 "resources/xxe.xml",
             ],
