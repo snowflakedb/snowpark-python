@@ -11486,6 +11486,77 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         frame_is_df_and_item_is_series: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _set_2d_labels_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if (
+            self._relaxed_query_compiler is not None
+            and (
+                not isinstance(index, SnowflakeQueryCompiler)
+                or index._relaxed_query_compiler is not None
+            )
+            and (
+                not isinstance(columns, SnowflakeQueryCompiler)
+                or columns._relaxed_query_compiler is not None
+            )
+            and (
+                not isinstance(item, SnowflakeQueryCompiler)
+                or item._relaxed_query_compiler is not None
+            )
+        ):
+            new_index = index
+            if isinstance(index, SnowflakeQueryCompiler):
+                new_index = index._relaxed_query_compiler
+            new_columns = columns
+            if isinstance(columns, SnowflakeQueryCompiler):
+                new_columns = columns._relaxed_query_compiler
+            new_item = item
+            if isinstance(item, SnowflakeQueryCompiler):
+                new_item = item._relaxed_query_compiler
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._set_2d_labels_internal(
+                    index=new_index,
+                    columns=new_columns,
+                    item=new_item,
+                    matching_item_columns_by_label=matching_item_columns_by_label,
+                    matching_item_rows_by_label=matching_item_rows_by_label,
+                    index_is_bool_indexer=index_is_bool_indexer,
+                    deduplicate_columns=deduplicate_columns,
+                    frame_is_df_and_item_is_series=frame_is_df_and_item_is_series,
+                )
+            )
+
+        qc = self._set_2d_labels_internal(
+            index=index,
+            columns=columns,
+            item=item,
+            matching_item_columns_by_label=matching_item_columns_by_label,
+            matching_item_rows_by_label=matching_item_rows_by_label,
+            index_is_bool_indexer=index_is_bool_indexer,
+            deduplicate_columns=deduplicate_columns,
+            frame_is_df_and_item_is_series=frame_is_df_and_item_is_series,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _set_2d_labels_internal(
+        self,
+        index: Union[Scalar, slice, "SnowflakeQueryCompiler"],
+        columns: Union[
+            "SnowflakeQueryCompiler",
+            tuple,
+            slice,
+            list,
+            "pd.Index",
+            np.ndarray,
+        ],
+        item: Union[Scalar, AnyArrayLike, "SnowflakeQueryCompiler"],
+        matching_item_columns_by_label: bool,
+        matching_item_rows_by_label: bool,
+        index_is_bool_indexer: bool,
+        deduplicate_columns: bool = False,
+        frame_is_df_and_item_is_series: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Create a new SnowflakeQueryCompiler with indexed columns and rows replaced by item.
 
         Args:
