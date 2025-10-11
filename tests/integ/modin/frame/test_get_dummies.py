@@ -331,13 +331,13 @@ class TestDtypeParameter:
 
 
 @sql_count_checker(query_count=0)
-def test_dummy_na():
+def test_dummy_na_negative():
     with pytest.raises(NotImplementedError):
         pd.get_dummies(pd.DataFrame(["a", None]), dummy_na=True)
 
 
 @sql_count_checker(query_count=0)
-def test_drop_first():
+def test_drop_first_negative():
     with pytest.raises(NotImplementedError):
         pd.get_dummies(pd.DataFrame(["a", "b"]), drop_first=True)
 
