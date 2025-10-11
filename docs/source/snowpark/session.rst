@@ -19,6 +19,7 @@ Snowpark Session
     :template: autosummary/accessor_method.rst
 
     Session.SessionBuilder.app_name
+    Session.SessionBuilder.appName
     Session.SessionBuilder.config
     Session.SessionBuilder.configs
     Session.SessionBuilder.create
