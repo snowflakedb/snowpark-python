@@ -3692,6 +3692,7 @@ def st_geographyfromwkb(
         Column: A GEOGRAPHY object parsed from the WKB input.
 
     Examples::
+        >>> from snowflake.snowpark.functions import col, lit
         >>> df = session.create_dataframe([['01010000006666666666965EC06666666666C64240']], schema=["wkb_data"])
         >>> df.select(st_geographyfromwkb(col("wkb_data")).alias("geography")).collect()
         [Row(GEOGRAPHY='{\\n  "coordinates": [\\n    -1.223500000000000e+02,\\n    3.755000000000000e+01\\n  ],\\n  "type": "Point"\\n}')]
@@ -3842,17 +3843,17 @@ def st_geometryfromwkt(
     Examples::
         >>> from snowflake.snowpark.functions import col, lit
         >>> df = session.create_dataframe([["POINT(389866.35 5819003.03)"]], schema=["wkt"])
-        >>> df.select(st_geometryfromwkt(col("wkt"))).collect()
-        [Row(ST_GEOMETRYFROMWKT("WKT")='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+        >>> df.select(st_geometryfromwkt(col("wkt")).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
 
-        >>> df.select(st_geometryfromwkt(col("wkt"), lit(4326))).collect()
-        [Row(ST_GEOMETRYFROMWKT("WKT", 4326)='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+        >>> df.select(st_geometryfromwkt(col("wkt"), lit(4326)).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
 
-        >>> df.select(st_geometryfromwkt(col("wkt"), lit(4326), lit(True))).collect()
-        [Row(ST_GEOMETRYFROMWKT("WKT", 4326, TRUE)='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+        >>> df.select(st_geometryfromwkt(col("wkt"), lit(4326), lit(True)).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
 
-        >>> df.select(st_geometryfromwkt(col("wkt"), allow_invalid=lit(True))).collect()
-        [Row(ST_GEOMETRYFROMWKT("WKT", 4326, TRUE)='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+        >>> df.select(st_geometryfromwkt(col("wkt"), allow_invalid=lit(True)).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
     """
     c = _to_col_if_str(varchar_expression, "st_geometryfromwkt")
 
