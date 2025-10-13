@@ -41,9 +41,18 @@
       - `st_symdifference`
       - `st_transform`
       - `st_union`
+      - `st_union_agg`
+      - `st_within`
+      - `st_x`
+      - `st_xmax`
+      - `st_xmin`
+      - `st_y`
+      - `st_ymax`
+      - `st_ymin`
 
 #### Bug Fixes
 
+- Fixed a bug that `DataFrameReader.xml` fails to parse XML files with undeclared namespaces when `ignoreNamespace` is `True`.
 - Added a fix for floating point precision discrepancies in `interval_day_time_from_parts`.
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 - Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0. 
