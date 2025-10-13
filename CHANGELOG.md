@@ -42,6 +42,7 @@
       - `st_transform`
       - `st_union`
 
+
 #### Bug Fixes
 
 - Fixed a bug that `DataFrameReader.xml` fails to parse XML files with undeclared namespaces when `ignoreNamespace` is `True`.
@@ -70,6 +71,26 @@
   - `str.startswith`
   - `str.endswith`
   - `str.slice`
+  - `dt.date`
+  - `dt.time`
+  - `dt.hour`
+  - `dt.minute`
+  - `dt.second`
+  - `dt.microsecond`
+  - `dt.nanosecond`
+  - `dt.year`
+  - `dt.month`
+  - `dt.day`
+  - `dt.quarter`
+  - `dt.is_month_start`
+  - `dt.is_month_end`
+  - `dt.is_quarter_start`
+  - `dt.is_quarter_end`
+  - `dt.is_year_start`
+  - `dt.is_year_end`
+  - `dt.is_leap_year`
+  - `dt.days_in_month`
+  - `dt.daysinmonth`
   - `sort_values`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
