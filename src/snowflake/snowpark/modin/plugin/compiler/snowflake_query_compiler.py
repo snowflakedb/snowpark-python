@@ -678,7 +678,6 @@ def register_query_compiler_method_not_implemented(
             if SnowflakeQueryCompiler._has_unsupported_args(
                 api_cls_name, method_name, arguments
             ):
-
                 ErrorMessage.not_implemented_with_reason(
                     method_name,
                     UnsupportedArgsRule.get_unsupported_args_reason(
