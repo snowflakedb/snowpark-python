@@ -3926,25 +3926,24 @@ def try_to_geometry(
 
     Examples::
         >>> df1 = session.create_dataframe([["POINT(1 2)"]], schema=["geom_str"])
-        >>> df1.select(try_to_geometry(df1["geom_str"])).collect()
-        [Row(TRY_TO_GEOMETRY("GEOM_STR")='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+        >>> df1.select(try_to_geometry(df1["geom_str"]).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
 
         >>> df2 = session.create_dataframe([["POINT(1 2)"]], schema=["geom_str"])
-        >>> df2.select(try_to_geometry(df2["geom_str"], lit(4326))).collect()
-        [Row(TRY_TO_GEOMETRY("GEOM_STR", 4326)='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+        >>> df2.select(try_to_geometry(df2["geom_str"], lit(4326)).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
 
         >>> df3 = session.create_dataframe([["INVALID INPUT"]], schema=["geom_str"])
-        >>> df3.select(try_to_geometry(df3["geom_str"])).collect()
-        [Row(TRY_TO_GEOMETRY("GEOM_STR")=None)]
+        >>> df3.select(try_to_geometry(df3["geom_str"]).alias("geometry")).collect()
+        [Row(GEOMETRY=None)]
 
-        >>> df2 = session.create_dataframe([["POINT(1 2)"]], schema=["geom_str"])
-        >>> df2.select(try_to_geometry(df2["geom_str"], lit(4326), lit(True))).collect()
-        [Row(TRY_TO_GEOMETRY("GEOM_STR", 4326)='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+        >>> df4 = session.create_dataframe([["POINT(1 2)"]], schema=["geom_str"])
+        >>> df4.select(try_to_geometry(df4["geom_str"], lit(4326), lit(True)).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
 
-        >>> df2 = session.create_dataframe([["POINT(1 2)"]], schema=["geom_str"])
-        >>> df2.select(try_to_geometry(df2["geom_str"], allow_invalid=lit(True))).collect()
-        [Row(TRY_TO_GEOMETRY("GEOM_STR", 4326)='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
-
+        >>> df5 = session.create_dataframe([["POINT(1 2)"]], schema=["geom_str"])
+        >>> df5.select(try_to_geometry(df5["geom_str"], allow_invalid=lit(True)).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
     """
     c = _to_col_if_str(input_expr, "try_to_geometry")
 
