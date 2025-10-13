@@ -109,6 +109,11 @@ def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, DRIVER_TYPE]:
     # Get the Python driver name
     python_driver_name = type(dbapi2_conn).__module__.lower()
     driver_type = DRIVER_TYPE.UNKNOWN
+    python_driver_name = (
+        "oracledb"
+        if python_driver_name == "oracledb.connection"
+        else python_driver_name
+    )
     try:
         driver_type = DRIVER_TYPE(python_driver_name)
     except ValueError:
