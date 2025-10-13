@@ -481,6 +481,14 @@ Functions
     st_symdifference
     st_transform
     st_union
+    st_union_agg
+    st_within
+    st_x
+    st_xmax
+    st_xmin
+    st_y
+    st_ymax
+    st_ymin
     st_geogfromgeohash
     st_geogpointfromgeohash
     st_geographyfromwkb
