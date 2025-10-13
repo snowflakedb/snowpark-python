@@ -9,31 +9,35 @@
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following functions in `functions.py`:
-    - Geospatial functions:
-      - `st_interpolate`
-      - `st_intersection`
-      - `st_intersection_agg`
-      - `st_intersects`
-      - `st_isvalid`
-      - `st_length`
-      - `st_makegeompoint`
-      - `st_makeline`
-      - `st_makepolygon`
-      - `st_makepolygonoriented`
-      - `st_disjoint`
-      - `st_distance`
-      - `st_dwithin`
-      - `st_endpoint`
-      - `st_envelope`
-      - `st_geohash`
-      - `st_geomfromgeohash`
-      - `st_geompointfromgeohash`
-      - `st_hausdorffdistance`
-      - `st_makepoint`
+  - Geospatial functions:
+    - `st_interpolate`
+    - `st_intersection`
+    - `st_intersection_agg`
+    - `st_intersects`
+    - `st_isvalid`
+    - `st_length`
+    - `st_makegeompoint`
+    - `st_makeline`
+    - `st_makepolygon`
+    - `st_makepolygonoriented`
+    - `st_disjoint`
+    - `st_distance`
+    - `st_dwithin`
+    - `st_endpoint`
+    - `st_envelope`
+    - `st_geohash`
+    - `st_geomfromgeohash`
+    - `st_geompointfromgeohash`
+    - `st_hausdorffdistance`
+    - `st_makepoint`
 
 #### Bug Fixes
 
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
+
+#### Dependency Updates
+
+- Updated dependency of `snowflake-connector-python>=3.17,<5.0.0`.
 
 ### Snowpark pandas API Updates
 
@@ -69,7 +73,7 @@
       - `nullif`
       - `nvl2`
       - `regr_valx`
-      
+
     - Semi-structured and structured date functions:
       - `array_remove_at`
       - `as_boolean`
@@ -81,14 +85,14 @@
     - String & binary functions:
       - `chr`
       - `hex_decode_binary`
-      
+
     - Numeric functions:
       - `div0null`
 
     - Differential privacy functions:
       - `dp_interval_high`
       - `dp_interval_low`
-      
+
     - Context functions:
       - `last_query_id`
       - `last_transaction`
@@ -269,7 +273,7 @@
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
 - Added support for applying Snowflake Cortex function `Complete`.
-- Introduce faster pandas: Improved performance by deferring row position computation. 
+- Introduce faster pandas: Improved performance by deferring row position computation.
   - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
   - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 - Updated the error message for when Snowpark pandas is referenced within apply.
