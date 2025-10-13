@@ -2594,6 +2594,32 @@ class DataFrame:
             _ast_stmt=stmt,
         )
 
+    @df_to_relational_group_df_api_usage
+    @publicapi
+    def group_by_all(
+        self, _emit_ast: bool = True
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Performs a SQL
+        `GROUP BY ALL <https://docs.snowflake.com/en/sql-reference/constructs/group-by#label-group-by-all-columns>`_.
+        on the DataFrame.
+        """
+        # AST.
+        # stmt = None
+        # if _emit_ast:
+        #     stmt = self._session._ast_batch.bind()
+        #     expr = with_src_position(stmt.expr.dataframe_cube, stmt)
+        #     self._set_ast_ref(expr.df)
+        #     col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
+        #     for c in col_list:
+        #         build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            [],
+            snowflake.snowpark.relational_grouped_dataframe._GroupByAllType(),
+            # _ast_stmt=stmt,
+        )
+
     @publicapi
     def distinct(
         self, _ast_stmt: proto.Bind = None, _emit_ast: bool = True
