@@ -11141,7 +11141,7 @@ def interval_day_time_from_parts(
         --------------------------
         |"INTERVAL"              |
         --------------------------
-        |1 day, 12:30:01.001000  |
+        |1 day, 12:30:01.001001  |
         --------------------------
         <BLANKLINE>
 
@@ -11208,16 +11208,16 @@ def interval_day_time_from_parts(
         cast(secs_int, "str"),
     )
 
-    has_fraction = abs(secs_part - cast(secs_int, "double")) > 1e-10
-    fractional_part = secs_part - cast(secs_int, "double")
+    has_fraction = abs(secs_part - cast(secs_int, "decimal")) > 1e-15
+    fractional_part = secs_part - cast(secs_int, "decimal")
 
     fraction_str = iff(
         has_fraction,
         concat(
             lit("."),
             lpad(
-                cast(round(fractional_part * lit(1000), 0), "str"),
-                3,
+                cast(round(fractional_part * lit(1000000), 0), "str"),
+                6,
                 lit("0"),
             ),
         ),
