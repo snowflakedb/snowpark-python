@@ -1862,7 +1862,7 @@ class DataFrameReader:
                 session_init_statement=session_init_statement,
                 query_timeout=query_timeout,
                 statement_params=statements_params_for_telemetry,
-                _emit_ast=_emit_ast,
+                _emit_ast=False,  # internal API, no need to emit AST
             )
             end_time = time.perf_counter()
             telemetry_json_string["end_to_end_duration"] = end_time - start_time

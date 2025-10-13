@@ -444,7 +444,7 @@ def test_telemetry_tracking(caplog, session, fetch_with_process):
     called, comment_showed = 0, 0
 
     def assert_datasource_statement_params_run_query(*args, **kwargs):
-        # assert we set statement_parameters to track datasourcee api usage
+        # assert we set statement_parameters to track datasource api usage
         nonlocal comment_showed
         statement_parameters = kwargs.get("_statement_params")
         query = args[0]
@@ -494,6 +494,55 @@ def test_telemetry_tracking(caplog, session, fetch_with_process):
             single=True,
         )
         assert called == 2
+
+
+def test_telemetry_tracking_for_udtf(caplog, session):
+
+    original_func = session._conn.run_query
+    called = 0
+
+    def assert_datasource_statement_params_run_query(*args, **kwargs):
+        # assert we set statement_parameters to track datasource udtf api usage
+        assert kwargs.get("_statement_params")[STATEMENT_PARAMS_DATA_SOURCE] == "1"
+        nonlocal called
+        called += 1
+        return original_func(*args, **kwargs)
+
+    def create_connection():
+        class FakeConnection:
+            def cursor(self):
+                class FakeCursor:
+                    def execute(self, query):
+                        pass
+
+                    @property
+                    def description(self):
+                        return [("c1", int, None, None, None, None, None)]
+
+                    def fetchmany(self, *args, **kwargs):
+                        return None
+
+                return FakeCursor()
+
+        return FakeConnection()
+
+    df = session.read.dbapi(
+        create_connection,
+        table="Fake",
+        custom_schema="c1 INT",
+        udtf_configs={
+            "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
+            "packages": ["snowflake-snowpark-python"],
+        },
+    )
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        side_effect=assert_datasource_statement_params_run_query,
+    ):
+        df.select("*").collect()
+    assert (
+        "'name': 'DataFrameReader.dbapi'" in str(df._plan.api_calls[0]) and called == 1
+    )
 
 
 @pytest.mark.skipif(
