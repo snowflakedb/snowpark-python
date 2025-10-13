@@ -12,6 +12,7 @@ import json
 import logging
 import re
 from collections import Counter, defaultdict
+from dataclasses import dataclass, field
 import typing
 import uuid
 from collections.abc import Hashable, Iterable, Mapping, Sequence
@@ -23,6 +24,7 @@ from typing import (
     Callable,
     List,
     Literal,
+    NamedTuple,
     Optional,
     TypeVar,
     Union,
@@ -44,6 +46,9 @@ import pandas.io.parsers.readers
 import pytz  # type: ignore
 from modin.core.storage_formats import BaseQueryCompiler  # type: ignore
 from modin.core.storage_formats.base.query_compiler import QCCoercionCost
+from modin.core.storage_formats.pandas.query_compiler_caster import (
+    register_function_for_pre_op_switch,
+)
 from pandas import Timedelta
 from pandas._libs import lib
 from pandas._libs.lib import no_default
@@ -501,9 +506,182 @@ HYBRID_ITERATIVE_STYLE_METHODS = ["iterrows", "itertuples", "items", "plot"]
 HYBRID_ALL_EXPENSIVE_METHODS = (
     HYBRID_HIGH_OVERHEAD_METHODS + HYBRID_ITERATIVE_STYLE_METHODS
 )
-# Set of (class name, method name) tuples for methods that are wholly unimplemented by
+
+
+# Named tuple for method registry keys.
+class MethodKey(NamedTuple):
+    api_cls_name: Optional[str]
+    method_name: str
+
+
+# Rule defining which args should trigger auto-switching.
+@dataclass(frozen=True)
+class UnsupportedArgsRule:
+    """
+    Rule for defining argument combinations that trigger auto-switching to native pandas.
+
+    Attributes:
+        unsupported_conditions: List of conditions that can be either:
+            - tuple[Callable, str]: (condition_function, reason) for complex conditions
+            - tuple[str, Any]: (argument_name, unsupported_value) for simple value checks
+    """
+
+    unsupported_conditions: List[
+        Union[Tuple[Callable[[MappingProxyType], bool], str], Tuple[str, Any]]
+    ] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        # Validate all conditions are properly formatted at initialization time.
+        for i, condition in enumerate(self.unsupported_conditions):
+            if not isinstance(condition, tuple) or len(condition) != 2:
+                raise ValueError(
+                    f"Invalid condition at index {i}: expected tuple of length 2, "
+                    f"got {type(condition).__name__} of length "
+                    f"{len(condition) if hasattr(condition, '__len__') else 'unknown'}. "
+                    f"Condition: {condition}"
+                )
+
+            if not (callable(condition[0]) or isinstance(condition[0], str)):
+                raise ValueError(
+                    f"Invalid condition at index {i}: first element must be callable or string, "
+                    f"got {type(condition[0]).__name__}. Condition: {condition}"
+                )
+
+            if callable(condition[0]) and not isinstance(condition[1], str):
+                raise ValueError(
+                    f"Invalid condition at index {i}: when first element is callable, "
+                    f"second element must be string (reason), got {type(condition[1]).__name__}. "
+                    f"Condition: {condition}"
+                )
+
+    def get_reason_if_unsupported(
+        self, args: MappingProxyType[Any, Any]
+    ) -> Optional[str]:
+        """
+        Validate arguments and return the reason if unsupported.
+
+        Args:
+            args: Method arguments to check
+        Returns:
+            The specific reason string if unsupported args detected, None if all args are supported
+        """
+        for condition in self.unsupported_conditions:
+            if callable(condition[0]):
+                # tuple[Callable, str]: (condition_function, reason)
+                condition_func, reason = condition
+                if condition_func(args):
+                    return reason
+            else:
+                # tuple[str, Any]: (argument_name, unsupported_value)
+                arg_name, unsupported_value = condition
+                if args.get(arg_name) == unsupported_value:
+                    return f"{arg_name} = {unsupported_value} is not supported"
+
+        return None
+
+    def is_unsupported(self, args: MappingProxyType[Any, Any]) -> bool:
+        """
+        Returns True if args are unsupported.
+        """
+        return self.get_reason_if_unsupported(args) is not None
+
+    @staticmethod
+    def get_unsupported_args_reason(
+        api_cls_name: Optional[str],
+        operation: str,
+        args: MappingProxyType[Any, Any],
+    ) -> Optional[str]:
+        """
+        Get the specific reason why args are unsupported.
+
+        Args:
+            api_cls_name: Class name (DataFrame, Series, BasePandasDataset, None for top-level functions)
+            operation: Method name
+            args: Method arguments
+
+        Returns:
+            The specific reason string if unsupported args detected, None otherwise
+        """
+        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS.get(
+            MethodKey(api_cls_name, operation)
+        )
+        return rule.get_reason_if_unsupported(args) if rule else None
+
+
+# Set of MethodKey objects for methods that are wholly unimplemented by
 # Snowpark pandas. This list is populated by the register_*_not_implemented decorators.
-HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS: Set[Tuple[str, str]] = set()
+HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS: Set[MethodKey] = set()
+
+# Global registry for args-based switching rules
+HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS: dict[MethodKey, UnsupportedArgsRule] = {}
+
+
+def register_query_compiler_method_not_implemented(
+    api_cls_name: Optional[str],
+    method_name: str,
+    unsupported_args: Optional["UnsupportedArgsRule"] = None,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """
+    Decorator for SnowflakeQueryCompiler methods with args-based auto-switching.
+
+    Registers pre-op switching for the specified API-layer method, replacing the decorated query
+    compiler method with a version that raises a NotImplementedError if any unsupported parameter predicate evaluates True.
+
+    This decorator is applied at the query compiler level rather than the frontend to avoid
+    creating unnecessary frontend overrides. Frontend decorators in Modin must attach to an
+    existing method for dispatch, but many functions already rely on Modin's default frontend
+    implementations and delegate directly to the query compiler. Adding frontend decorators
+    would require redundant overrides solely as attachment points, increasing code complexity
+    without meaningful benefit.
+
+    Args:
+        api_cls_name: Frontend class name (e.g., "BasePandasDataset", "Series", "DataFrame", "None").
+        method_name: Method name to register.
+        unsupported_args: UnsupportedArgsRule for args-based auto-switching.
+                          If None, method is treated as completely unimplemented.
+    """
+    reg_key = MethodKey(api_cls_name, method_name)
+
+    # register the method in the hybrid switch for unsupported args
+    if unsupported_args is None:
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(reg_key)
+    else:
+        HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[reg_key] = unsupported_args
+
+    register_function_for_pre_op_switch(
+        class_name=api_cls_name, backend="Snowflake", method=method_name
+    )
+
+    def decorator(query_compiler_method: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(query_compiler_method)
+        def wrapper(self: "SnowflakeQueryCompiler", *args: Any, **kwargs: Any) -> Any:
+            bound_arguments = inspect.signature(query_compiler_method).bind(
+                self, *args, **kwargs
+            )
+            bound_arguments.apply_defaults()
+
+            # Extract parameters excluding 'self'
+            arguments = MappingProxyType(
+                {k: v for k, v in bound_arguments.arguments.items() if k != "self"}
+            )
+
+            # Check if any condition triggers unsupported behavior
+            if SnowflakeQueryCompiler._has_unsupported_args(
+                api_cls_name, method_name, arguments
+            ):
+                ErrorMessage.not_implemented_with_reason(
+                    method_name,
+                    UnsupportedArgsRule.get_unsupported_args_reason(
+                        api_cls_name, method_name, arguments
+                    ),
+                )
+
+            return query_compiler_method(self, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
 
 T = TypeVar("T", bound=Callable[..., Any])
 
@@ -877,6 +1055,38 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def _transfer_threshold(cls) -> int:
         return SnowflakePandasTransferThreshold.get()
 
+    @classmethod
+    def _has_unsupported_args(
+        cls,
+        api_cls_name: Optional[str],
+        operation: str,
+        args: MappingProxyType[Any, Any],
+    ) -> bool:
+        """
+        Check if method call contains unsupported args that can only be run on the native pandas backend.
+
+        This method evaluates registered UnsupportedArgsRule conditions to determine
+        if the provided arguments are not supported by Snowpark pandas and should
+        trigger an auto-switch to the native pandas backend.
+
+        Args:
+            api_cls_name: Class name (DataFrame, Series, BasePandasDataset, None for top-level functions)
+            operation: Method name
+            args: Method arguments, including *args and **kwargs
+
+        Returns:
+            True if unsupported args are detected and an auto-switch should occur
+        """
+
+        method_key = MethodKey(api_cls_name, operation)
+        if method_key not in HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS:
+            return False
+
+        rule = HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[method_key]
+
+        # Use the rule's validate method
+        return rule.is_unsupported(args)
+
     def move_to_cost(
         self,
         other_qc_type: type,
@@ -916,11 +1126,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         operation: str,
         arguments: MappingProxyType[str, Any],
     ) -> Optional[int]:
+        method_key = MethodKey(api_cls_name, operation)
+
         if (
             self._is_in_memory_init(api_cls_name, operation, arguments)
-            or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
+            or method_key in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
+
+        if method_key in HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS:
+
+            if arguments and SnowflakeQueryCompiler._has_unsupported_args(
+                api_cls_name, operation, arguments
+            ):
+                WarningMessage.single_warning(
+                    f"Method '{operation}' with specified arguments is not supported on Snowflake. Attempting to switch to native pandas for execution."
+                )
+
+                return QCCoercionCost.COST_IMPOSSIBLE
+
+            return QCCoercionCost.COST_ZERO
+
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
             return QCCoercionCost.COST_HIGH
@@ -930,9 +1156,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def move_to_me_cost(
         cls,
         other_qc: BaseQueryCompiler,
-        api_cls_name: Optional[str] = None,
-        operation: Optional[str] = None,
-        arguments: Optional[MappingProxyType[str, Any]] = None,
+        api_cls_name: Optional[str],
+        operation: str,
+        arguments: MappingProxyType[str, Any],
     ) -> int:
         """
         Return the coercion costs from other_qc to this qc type.
@@ -951,11 +1177,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             Cost of migrating the data from other_qc to this qc or
             None if the cost cannot be determined.
         """
-        # in-memory intialization should not move to Snowflake
         if (
+            # in-memory intialization should not move to Snowflake
             cls._is_in_memory_init(api_cls_name, operation, arguments)
             or not cls._are_dtypes_compatible_with_snowflake(other_qc)
-            or (api_cls_name, operation) in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
+            or MethodKey(api_cls_name, operation)
+            in HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS
+            or cls._has_unsupported_args(api_cls_name, operation, arguments)
         ):
             return QCCoercionCost.COST_IMPOSSIBLE
 
@@ -6759,6 +6987,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             drop_by_labels=not is_series_groupby and level is None,
         )
 
+    @register_query_compiler_method_not_implemented(
+        None,
+        "get_dummies",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                ("dummy_na", True),
+                ("drop_first", True),
+                (
+                    lambda args: args.get("dtype") is not None,
+                    "get_dummies with non-default dtype parameter is not supported yet in Snowpark pandas.",
+                ),
+            ]
+        ),
+    )
     def get_dummies(
         self,
         prefix: Optional[Union[Hashable, list[Hashable]]],
@@ -8179,6 +8421,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             qc._attrs = copy.deepcopy(self._attrs)
         return qc
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "cumsum",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                ("axis", 1),
+            ]
+        ),
+    )
     def cumsum(
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
@@ -8208,6 +8459,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).frame
         )
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "cummin",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                ("axis", 1),
+            ]
+        ),
+    )
     def cummin(
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
@@ -8237,6 +8497,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).frame
         )
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "cummax",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                ("axis", 1),
+            ]
+        ),
+    )
     def cummax(
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
@@ -10423,7 +10692,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         -------
         Length of the specified axis.
         """
-        return self._modin_frame.num_rows if axis == 0 else len(self.columns)
+        if axis == 0:
+            if (
+                self._relaxed_query_compiler is not None
+                and self._relaxed_query_compiler._modin_frame.ordered_dataframe.row_count
+                is not None
+            ):
+                row_count = (
+                    self._relaxed_query_compiler._modin_frame.ordered_dataframe.row_count
+                )
+                self._modin_frame.ordered_dataframe.row_count = row_count
+                return row_count
+            else:
+                return self._modin_frame.num_rows
+        else:
+            return len(self.columns)
 
     def _nunique_columns(
         self, dropna: bool, include_index: bool = False
@@ -14489,6 +14772,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(internal_frame)
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "skew",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                ("axis", 1),
+                (
+                    lambda args: args.get("numeric_only") is not True,
+                    "numeric_only = False argument not supported for skew",
+                ),
+            ]
+        ),
+    )
     def skew(
         self,
         axis: int,
@@ -16541,6 +16837,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "round",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: isinstance(args.get("decimals"), pd.Series),
+                    "round with decimals of type Series is not yet supported",
+                ),
+            ]
+        ),
+    )
     def round(
         self, decimals: Union[int, Mapping, "pd.Series"] = 0, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
