@@ -2604,20 +2604,17 @@ class DataFrame:
         on the DataFrame.
         """
         # AST.
-        # stmt = None
-        # if _emit_ast:
-        #     stmt = self._session._ast_batch.bind()
-        #     expr = with_src_position(stmt.expr.dataframe_cube, stmt)
-        #     self._set_ast_ref(expr.df)
-        #     col_list, expr.cols.variadic = parse_positional_args_to_list_variadic(*cols)
-        #     for c in col_list:
-        #         build_expr_from_snowpark_column_or_col_name(expr.cols.args.add(), c)
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            expr = with_src_position(stmt.expr.dataframe_group_by_all, stmt)
+            self._set_ast_ref(expr.df)
 
         return snowflake.snowpark.RelationalGroupedDataFrame(
             self,
             [],
             snowflake.snowpark.relational_grouped_dataframe._GroupByAllType(),
-            # _ast_stmt=stmt,
+            _ast_stmt=stmt,
         )
 
     @publicapi
