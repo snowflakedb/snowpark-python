@@ -20717,11 +20717,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unsupported_conditions=[
                 (
                     lambda args: not isinstance(args.get("method", "pearson"), str),
-                    "method parameter must be a string. Snowpark pandas currenly only supports method = 'pearson'.",
+                    "method parameter must be a string. Snowpark pandas currently only supports method = 'pearson'.",
                 ),
                 (
                     lambda args: args.get("method", "pearson") != "pearson",
-                    lambda args: f"method ='{args.get('method')}' is not supported. Snowpark pandas currenly only supports method = 'pearson'.",
+                    lambda args: f"method = '{args.get('method')}' is not supported. Snowpark pandas currently only supports method = 'pearson'.",
                 ),
             ]
         ),

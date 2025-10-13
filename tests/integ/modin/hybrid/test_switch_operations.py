@@ -1094,12 +1094,12 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
         (
             "corr",
             {"method": "kendall"},
-            "method ='kendall' is not supported. Snowpark pandas currenly only supports method = 'pearson'.",
+            "method = 'kendall' is not supported. Snowpark pandas currently only supports method = 'pearson'.",
         ),
         (
             "corr",
             {"method": 123},
-            "method parameter must be a string. Snowpark pandas currenly only supports method = 'pearson'.",
+            "method parameter must be a string. Snowpark pandas currently only supports method = 'pearson'.",
         ),
     ],
 )
