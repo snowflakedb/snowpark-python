@@ -14919,7 +14919,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # Linear interpolation touches only numeric and datetime columns, but ffill and bfill work
         # on non-numeric data as well.
         # SNOW-2405318: Tests that hit this branch are skipped due to a SQL bug with INTERPOLATE_LINEAR.
-        if sql_fill_method == "interpolate_linear":
+        if sql_fill_method == "interpolate_linear":  # pragma: no cover
             columns_to_interpolate = [
                 identifier
                 for identifier, dtype in zip(
