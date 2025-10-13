@@ -481,6 +481,14 @@ Functions
     st_symdifference
     st_transform
     st_union
+    st_geogfromgeohash
+    st_geogpointfromgeohash
+    st_geographyfromwkb
+    st_geographyfromwkt
+    st_geometryfromwkb
+    st_geometryfromwkt
+    try_to_geography
+    try_to_geometry
     substr
     substring
     sum

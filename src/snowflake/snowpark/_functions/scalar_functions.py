@@ -3406,3 +3406,245 @@ def st_union(
     c1 = _to_col_if_str(geography_expression_1, "st_union")
     c2 = _to_col_if_str(geography_expression_2, "st_union")
     return builtin("st_union", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def st_geogfromgeohash(
+    geohash: ColumnOrName, precision: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Constructs a GEOGRAPHY object from a geohash string.
+
+    Args:
+        geohash (ColumnOrName): The geohash value.
+        precision (ColumnOrName, optional): The precision level for the geohash conversion.
+
+    Returns:
+        Column: A GEOGRAPHY object representing the polygon area covered by the geohash.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["9q9j8ue2v71y5zzy0s4q"], ["9q9hpvs0d0uy"]], schema=["geohash"])
+        >>> df.select(st_geogfromgeohash(col("geohash")).alias("geography")).collect()
+        [Row(GEOGRAPHY='{\\n  "coordinates": [\\n    [\\n      [\\n        -1.223061000000001e+02,\\n        3.755416199999996e+01\\n      ],\\n      [\\n        -1.223061000000001e+02,\\n        3.755416200000012e+01\\n      ],\\n      [\\n        -1.223060999999998e+02,\\n        3.755416200000012e+01\\n      ],\\n      [\\n        -1.223060999999998e+02,\\n        3.755416199999996e+01\\n      ],\\n      [\\n        -1.223061000000001e+02,\\n        3.755416199999996e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}'), Row(GEOGRAPHY='{\\n  "coordinates": [\\n    [\\n      [\\n        -1.219975884631276e+02,\\n        3.729592826217413e+01\\n      ],\\n      [\\n        -1.219975884631276e+02,\\n        3.729592842981219e+01\\n      ],\\n      [\\n        -1.219975881278515e+02,\\n        3.729592842981219e+01\\n      ],\\n      [\\n        -1.219975881278515e+02,\\n        3.729592826217413e+01\\n      ],\\n      [\\n        -1.219975884631276e+02,\\n        3.729592826217413e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}')]
+
+        >>> df2 = session.create_dataframe([["9q9j8ue2v71y5zzy0s4q", 6], ["9q9hpvs0d0uy", 5]], schema=["geohash", "precision"])
+        >>> df2.select(st_geogfromgeohash(col("geohash"), col("precision")).alias("geography")).collect()
+        [Row(GEOGRAPHY='{\\n  "coordinates": [\\n    [\\n      [\\n        -1.223107910156250e+02,\\n        3.755126953125000e+01\\n      ],\\n      [\\n        -1.223107910156250e+02,\\n        3.755676269531250e+01\\n      ],\\n      [\\n        -1.222998046875000e+02,\\n        3.755676269531250e+01\\n      ],\\n      [\\n        -1.222998046875000e+02,\\n        3.755126953125000e+01\\n      ],\\n      [\\n        -1.223107910156250e+02,\\n        3.755126953125000e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}'), Row(GEOGRAPHY='{\\n  "coordinates": [\\n    [\\n      [\\n        -1.220361328125000e+02,\\n        3.726562500000000e+01\\n      ],\\n      [\\n        -1.220361328125000e+02,\\n        3.730957031250000e+01\\n      ],\\n      [\\n        -1.219921875000000e+02,\\n        3.730957031250000e+01\\n      ],\\n      [\\n        -1.219921875000000e+02,\\n        3.726562500000000e+01\\n      ],\\n      [\\n        -1.220361328125000e+02,\\n        3.726562500000000e+01\\n      ]\\n    ]\\n  ],\\n  "type": "Polygon"\\n}')]
+    """
+    geohash_col = _to_col_if_str(geohash, "st_geogfromgeohash")
+
+    if precision is None:
+        return builtin("st_geogfromgeohash", _emit_ast=_emit_ast)(geohash_col)
+    else:
+        precision_col = _to_col_if_str(precision, "st_geogfromgeohash")
+        return builtin("st_geogfromgeohash", _emit_ast=_emit_ast)(
+            geohash_col, precision_col
+        )
+
+
+@publicapi
+def st_geogpointfromgeohash(geohash: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Constructs a GEOGRAPHY object that represents a point from a geohash string.
+
+    Args:
+        geohash (ColumnOrName): The geohash value to convert to a geography point.
+
+    Returns:
+        Column: A GEOGRAPHY object representing a point decoded from the geohash.
+
+    Examples::
+        >>> df = session.create_dataframe([["9q9j8ue2v71y5zzy0s4q"], ["9q9hpb8"]], schema=["geohash"])
+        >>> df.select(st_geogpointfromgeohash(df["geohash"]).alias("geography_point")).collect()
+        [Row(GEOGRAPHY_POINT='{\\n  "coordinates": [\\n    -1.223060999999999e+02,\\n    3.755416200000003e+01\\n  ],\\n  "type": "Point"\\n}'), Row(GEOGRAPHY_POINT='{\\n  "coordinates": [\\n    -1.220024871826172e+02,\\n    3.726905822743459e+01\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    c = _to_col_if_str(geohash, "st_geogpointfromgeohash")
+    return builtin("st_geogpointfromgeohash", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def st_geographyfromwkt(
+    varchar_expression: ColumnOrName,
+    allow_invalid: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Parses a WKT (well-known text) or EWKT (extended well-known text) expression and returns a GEOGRAPHY object.
+
+    Args:
+        varchar_expression (ColumnOrName): The WKT or EWKT representation of a geography object.
+        allow_invalid (ColumnOrName, optional): A boolean expression that specifies whether to allow invalid geometries. If True, invalid geometries are returned as NULL instead of raising an error.
+
+    Returns:
+        Column: A GEOGRAPHY object parsed from the input WKT string.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([['POINT(-122.35 37.55)'], ['POINTZ(-122.35 37.55 30)']], schema=["wkt"])
+        >>> df.select(st_geographyfromwkt(col("wkt")).alias("geography")).collect()
+        [Row(GEOGRAPHY='{\\n  "coordinates": [\\n    -122.35,\\n    37.55\\n  ],\\n  "type": "Point"\\n}'), Row(GEOGRAPHY='{\\n  "coordinates": [\\n    -122.35,\\n    37.55,\\n    30\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df.select(st_geographyfromwkt(col("wkt"), lit(True)).alias("geography")).collect()
+        [Row(GEOGRAPHY='{\\n  "coordinates": [\\n    -122.35,\\n    37.55\\n  ],\\n  "type": "Point"\\n}'), Row(GEOGRAPHY='{\\n  "coordinates": [\\n    -122.35,\\n    37.55,\\n    30\\n  ],\\n  "type": "Point"\\n}')]
+
+    """
+    c = _to_col_if_str(varchar_expression, "st_geographyfromwkt")
+    if allow_invalid is not None:
+        allow_invalid_col = _to_col_if_str(allow_invalid, "st_geographyfromwkt")
+        return builtin("st_geographyfromwkt", _emit_ast=_emit_ast)(c, allow_invalid_col)
+    else:
+        return builtin("st_geographyfromwkt", _emit_ast=_emit_ast)(c)
+
+
+# aliases
+st_geogfromwkt = st_geographyfromwkt
+st_geographyfromewkt = st_geographyfromwkt
+st_geogfromewkt = st_geographyfromwkt
+st_geographyfromtext = st_geographyfromwkt
+st_geogfromtext = st_geographyfromwkt
+
+
+@publicapi
+def st_geometryfromwkb(
+    varchar_or_binary_expression: ColumnOrName,
+    srid: ColumnOrName = None,
+    allow_invalid: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Parses a WKB (well-known binary) or EWKB (extended well-known binary) representation of a geometry and returns a GEOMETRY object.
+
+    Args:
+        varchar_or_binary_expression (ColumnOrName): A VARCHAR or BINARY expression containing the WKB or EWKB representation of a geometry.
+        srid (ColumnOrName, optional): The SRID (spatial reference system identifier) to use for the geometry. If not specified, the SRID from the EWKB is used, or 0 if the input is WKB.
+        allow_invalid (ColumnOrName, optional): If TRUE, allows invalid geometries to be processed. If FALSE or not specified, invalid geometries will cause an error.
+
+    Returns:
+        Column: A GEOMETRY object parsed from the WKB/EWKB representation.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([
+        ...     ['010100000066666666A9CB17411F85EBC19E325641'],
+        ...     ['0101000020797F000066666666A9CB17411F85EBC19E325641']
+        ... ], schema=["wkb_data"])
+        >>> df.select(st_geometryfromwkb(col("wkb_data")).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}'), Row(GEOMETRY='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df2 = session.create_dataframe([
+        ...     ['010100000066666666A9CB17411F85EBC19E325641']
+        ... ], schema=["wkb_data"])
+        >>> df2.select(st_geometryfromwkb(col("wkb_data"), lit(4326)).alias("geometry")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df3 = session.create_dataframe([
+        ... ['010100000066666666A9CB17411F85EBC19E325641']
+        ... ], schema=["wkb_data"])
+        >>> df3.select(st_geometryfromwkb(col("wkb_data"), lit(4326), lit(True)).alias("GEOMETRY")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    c = _to_col_if_str(varchar_or_binary_expression, "st_geometryfromwkb")
+
+    if srid is not None and allow_invalid is not None:
+        srid_col = _to_col_if_str(srid, "st_geometryfromwkb")
+        allow_invalid_col = _to_col_if_str(allow_invalid, "st_geometryfromwkb")
+        return builtin("st_geometryfromwkb", _emit_ast=_emit_ast)(
+            c, srid_col, allow_invalid_col
+        )
+    elif srid is not None:
+        srid_col = _to_col_if_str(srid, "st_geometryfromwkb")
+        return builtin("st_geometryfromwkb", _emit_ast=_emit_ast)(c, srid_col)
+    else:
+        return builtin("st_geometryfromwkb", _emit_ast=_emit_ast)(c)
+
+
+# aliases
+st_geomfromwkb = st_geometryfromwkb
+st_geometryfromewkb = st_geometryfromwkb
+st_geomfromewkb = st_geometryfromwkb
+
+
+@publicapi
+def st_geometryfromwkt(
+    varchar_expression: ColumnOrName,
+    srid: ColumnOrName = None,
+    allow_invalid: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Parses a WKT (well-known text) input and returns a GEOMETRY object.
+
+    Args:
+        varchar_expression (ColumnOrName): A string expression containing the WKT representation of a geometry.
+        srid (ColumnOrName, optional): The spatial reference system identifier (SRID) for the geometry.
+        allow_invalid (ColumnOrName, optional): Whether to allow invalid geometries.
+
+    Returns:
+        Column: A GEOMETRY object parsed from the WKT input
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([["POINT(389866.35 5819003.03)"]], schema=["wkt"])
+        >>> df.select(st_geometryfromwkt(col("wkt"))).collect()
+        [Row(ST_GEOMETRYFROMWKT("WKT")='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df.select(st_geometryfromwkt(col("wkt"), lit(4326))).collect()
+        [Row(ST_GEOMETRYFROMWKT("WKT", 4326)='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df.select(st_geometryfromwkt(col("wkt"), lit(4326), lit(True))).collect()
+        [Row(ST_GEOMETRYFROMWKT("WKT", 4326, TRUE)='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    c = _to_col_if_str(varchar_expression, "st_geometryfromwkt")
+
+    if srid is not None and allow_invalid is not None:
+        srid_col = _to_col_if_str(srid, "st_geometryfromwkt")
+        allow_invalid_col = _to_col_if_str(allow_invalid, "st_geometryfromwkt")
+        return builtin("st_geometryfromwkt", _emit_ast=_emit_ast)(
+            c, srid_col, allow_invalid_col
+        )
+    elif srid is not None:
+        srid_col = _to_col_if_str(srid, "st_geometryfromwkt")
+        return builtin("st_geometryfromwkt", _emit_ast=_emit_ast)(c, srid_col)
+    else:
+        return builtin("st_geometryfromwkt", _emit_ast=_emit_ast)(c)
+
+
+# aliases
+st_geomfromwkt = st_geometryfromwkt
+st_geometryfromewkt = st_geometryfromwkt
+st_geomfromewkt = st_geometryfromwkt
+st_geometryfromtext = st_geometryfromwkt
+st_geomfromtext = st_geometryfromwkt
+
+
+@publicapi
+def try_to_geography(
+    e: ColumnOrName, allow_invalid: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Parses an input and attempts to produce a GEOGRAPHY value. If the input cannot be parsed as a GEOGRAPHY value, the function returns None instead of reporting an error.
+
+    Args:
+        e (ColumnOrName): A GEOGRAPHY object in WKT, WKB, EWKT, EWKB, or GeoJSON format.
+        allow_invalid (ColumnOrName, optional): A boolean expression that specifies whether to allow invalid geometries. If True, invalid geometries are allowed and the function attempts to fix them. If False or None, invalid geometries cause the function to return None.
+
+    Returns:
+        Column: A GEOGRAPHY object if the input can be parsed successfully, otherwise None.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([["POINT(-122.35 37.55)"], ["LINESTRING(-124.20 42.00, -120.01 41.99)"], ["Not a valid input"]], schema=["geog_text"])
+        >>> df.select(try_to_geography(col("geog_text")).alias("geography")).collect()
+        [Row(GEOGRAPHY='{\\n  "coordinates": [\\n    -122.35,\\n    37.55\\n  ],\\n  "type": "Point"\\n}'), Row(GEOGRAPHY='{\\n  "coordinates": [\\n    [\\n      -124.2,\\n      42\\n    ],\\n    [\\n      -120.01,\\n      41.99\\n    ]\\n  ],\\n  "type": "LineString"\\n}'), Row(GEOGRAPHY=None)]
+
+        >>> df = session.create_dataframe([["LINESTRING(100 102,100 102)"]], schema=["geog_text"])
+        >>> df.select(try_to_geography(col("geog_text"), lit(True)).alias("geography")).collect()
+        [Row(GEOGRAPHY='{\\n  "coordinates": [\\n    [\\n      100,\\n      102\\n    ],\\n    [\\n      100,\\n      102\\n    ]\\n  ],\\n  "type": "LineString"\\n}')]
+    """
+    c = _to_col_if_str(e, "try_to_geography")
+    if allow_invalid is not None:
+        allow_invalid_col = _to_col_if_str(allow_invalid, "try_to_geography")
+        return builtin("try_to_geography", _emit_ast=_emit_ast)(c, allow_invalid_col)
+    else:
+        return builtin("try_to_geography", _emit_ast=_emit_ast)(c)
