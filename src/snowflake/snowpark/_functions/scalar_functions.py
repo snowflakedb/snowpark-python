@@ -3755,6 +3755,12 @@ def st_geometryfromwkb(
         ... ], schema=["wkb_data"])
         >>> df3.select(st_geometryfromwkb(col("wkb_data"), lit(4326), lit(True)).alias("GEOMETRY")).collect()
         [Row(GEOMETRY='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df3 = session.create_dataframe([
+        ... ['010100000066666666A9CB17411F85EBC19E325641']
+        ... ], schema=["wkb_data"])
+        >>> df3.select(st_geometryfromwkb(col("wkb_data"),allow_invalid=lit(True)).alias("GEOMETRY")).collect()
+        [Row(GEOMETRY='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
     """
     c = _to_col_if_str(varchar_or_binary_expression, "st_geometryfromwkb")
 
@@ -3805,6 +3811,9 @@ def st_geometryfromwkt(
         [Row(ST_GEOMETRYFROMWKT("WKT", 4326)='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
 
         >>> df.select(st_geometryfromwkt(col("wkt"), lit(4326), lit(True))).collect()
+        [Row(ST_GEOMETRYFROMWKT("WKT", 4326, TRUE)='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df.select(st_geometryfromwkt(col("wkt"), allow_invalid=lit(True))).collect()
         [Row(ST_GEOMETRYFROMWKT("WKT", 4326, TRUE)='{\\n  "coordinates": [\\n    3.898663500000000e+05,\\n    5.819003030000000e+06\\n  ],\\n  "type": "Point"\\n}')]
     """
     c = _to_col_if_str(varchar_expression, "st_geometryfromwkt")
