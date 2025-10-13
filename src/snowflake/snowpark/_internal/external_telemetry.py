@@ -1,15 +1,36 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import importlib
+from abc import ABC
 from typing import Dict, Optional
-
-from opentelemetry.trace import TracerProvider, NoOpTracer
-from opentelemetry._logs import LoggerProvider, NoOpLogger
-from opentelemetry.util.types import Attributes
+from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 import snowflake.snowpark
 import requests
-import opentelemetry
+
+
+class MissingOpenTelemetry(MissingOptionalDependency):
+    _dep_name = "opentelemetry"
+
+
+def _import_or_missing_opentelemetry() -> tuple[ModuleLikeObject, bool]:
+    try:
+        opentelemetry = importlib.import_module("opentelemetry")
+        importlib.import_module("opentelemetry.sdk")
+        importlib.import_module("opentelemetry.exporter.otlp")
+        importlib.import_module("opentelemetry._logs")
+        return opentelemetry, True
+    except ImportError:
+        return MissingOpenTelemetry(), False
+
+
+opentelemetry, installed_opentelemery = _import_or_missing_opentelemetry()
+
+BaseLogProvider = opentelemetry._logs.LoggerProvider if installed_opentelemery else ABC
+BaseTraceProvider = (
+    opentelemetry.trace.TracerProvider if installed_opentelemery else ABC
+)
+Attributes = opentelemetry.util.types.Attributes if installed_opentelemery else ABC
 
 
 class RetryWithTokenRefreshAdapter(requests.adapters.HTTPAdapter):
@@ -56,7 +77,7 @@ class RetryWithTokenRefreshAdapter(requests.adapters.HTTPAdapter):
                     raise e
 
 
-class ProxyTracerProvider(TracerProvider):
+class ProxyTracerProvider(BaseTraceProvider):
     def __init__(self, real_provider=None) -> None:
         super().__init__()
         self._real_provider = real_provider
@@ -88,7 +109,7 @@ class ProxyTracerProvider(TracerProvider):
             )
         else:
             # Return a no-op tracer when disabled
-            return NoOpTracer()
+            return opentelemetry.trace.NoOpTracer()
 
     def shutdown(self):
         if self._real_provider:
@@ -106,7 +127,7 @@ class ProxyTracerProvider(TracerProvider):
             self._real_provider.force_flush(timeout_millis)
 
 
-class ProxyLogProvider(LoggerProvider):
+class ProxyLogProvider(BaseLogProvider):
     def __init__(self, real_provider=None) -> None:
         super().__init__()
         self._real_provider = real_provider
@@ -128,7 +149,7 @@ class ProxyLogProvider(LoggerProvider):
         instrumenting_library_version: Optional[str] = None,
         schema_url: Optional[str] = None,
         attributes: Optional[Attributes] = None,
-    ) -> "opentelemetry._log.Logger":
+    ) -> "opentelemetry._logs.Logger":
         if self._enabled and self._real_provider:
             return self._real_provider.get_logger(
                 instrumenting_module_name,
@@ -138,7 +159,7 @@ class ProxyLogProvider(LoggerProvider):
             )
         else:
             # Return a no-op logger when disabled
-            return NoOpLogger(name="noop")
+            return opentelemetry._logs.NoOpLogger(name="noop")
 
     def shutdown(self):
         if self._real_provider:
@@ -146,10 +167,9 @@ class ProxyLogProvider(LoggerProvider):
         self._real_provider = None
         self._enabled = False
 
-    # Delegate span processor methods to real provider
-    def add_span_processor(self, processor):
+    def add_log_record_processor(self, processor):
         if self._real_provider:
-            self._real_provider.add_span_processor(processor)
+            self._real_provider.add_log_record_processor(processor)
 
     def force_flush(self, timeout_millis=None):
         if self._real_provider:

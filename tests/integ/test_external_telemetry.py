@@ -144,3 +144,7 @@ def test_end_telemetry_after_disable(session):
 
 def test_negative(session):
     pass
+
+
+def test_opentelemetry_not_installed(session):
+    pass

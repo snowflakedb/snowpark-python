@@ -247,6 +247,13 @@ if sys.version_info <= (3, 9):
 else:
     from collections.abc import Iterable
 
+from snowflake.snowpark._internal.external_telemetry import (
+    opentelemetry,
+    installed_opentelemery,
+    RetryWithTokenRefreshAdapter,
+    ProxyTracerProvider,
+)
+
 _logger = getLogger(__name__)
 
 _session_management_lock = RLock()
@@ -4942,9 +4949,10 @@ class Session:
     def enable_external_telemetry(
         self,
         event_table: str = "snowflake.telemetry.events",
-        enable_log_level: bool = False,
+        log_level: int = None,
         enable_trace_level: bool = False,
     ) -> None:
+        logging.DEBUG
         """
         Enable user to send external telemetry to designated event table when necessary dependencies are installed.
 
@@ -4953,6 +4961,8 @@ class Session:
         telemetry after it is turned off.
 
         Note:
+            Please use logging.getLogger().setLevel(<log level>) instead of logging.basicConfig(<log leve>)
+            because the later will not work with exsiting handlers.
             This function requires the `opentelemetry` extra from Snowpark.
             Install it via pip:
 
@@ -4960,7 +4970,7 @@ class Session:
 
         Args:
             event_table: A string of the name of the event table where external telemetry will be stored, must be a fully qualified name.
-            enable_log_level: A bool value indicate whether logs are collected into event_table
+            log_level: A int value indicate log level, typically one of Python’s standard logging levels (e.g., DEBUG, INFO), no log exported if it is None. Must be valid for the logging system.
             enable_trace_level: A bool value indicate whether traces are collected into event_table
 
         Examples 1
@@ -4997,6 +5007,18 @@ class Session:
             >>> session.disable_external_telemetry()
 
         """
+        if not installed_opentelemery:
+            _logger.debug(
+                f"Opentelemetry dependencies are missing, no telemetry export into event table: {event_table}"
+            )
+            return
+
+        if log_level is None and not enable_trace_level:
+            _logger.warning(
+                f"Snowpark python log_level and trace_level are not enabled to collect telemetry into event table: {event_table}."
+            )
+            return
+
         if len(parse_table_name(event_table)) != 3:
             event_table = self.get_fully_qualified_name_if_possible(event_table)
 
@@ -5008,36 +5030,6 @@ class Session:
             return
 
         self._event_table = event_table
-
-        try:
-            from opentelemetry import trace
-            from opentelemetry.sdk.resources import Resource
-            from opentelemetry.sdk.trace import TracerProvider
-            from opentelemetry.sdk.trace.export import BatchSpanProcessor
-            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-                OTLPSpanExporter,
-            )
-            from opentelemetry._logs import set_logger_provider
-            from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-            from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-            from opentelemetry.exporter.otlp.proto.http._log_exporter import (
-                OTLPLogExporter,
-            )
-            from snowflake.snowpark._internal.external_telemetry import (
-                RetryWithTokenRefreshAdapter,
-                ProxyTracerProvider,
-            )
-        except ImportError as e:
-            _logger.debug(
-                f"failed with:{str(e)}, opentelemetry is required to use external telemetry service"
-            )
-            return
-
-        if not enable_log_level and not enable_trace_level:
-            _logger.warning(
-                f"Snowpark python log_level and trace_level are not enabled to collect telemetry into event table: {event_table}."
-            )
-            return
 
         try:
 
@@ -5054,35 +5046,15 @@ class Session:
             )
             return
 
-        resource = Resource.create({"service.name": "snow.snowpark.external"})
+        resource = opentelemetry.sdk.resources.Resource.create(
+            {"service.name": "snow.snowpark.external"}
+        )
 
         header = self._get_external_telemetry_auth_token()
 
         with self._lock:
             if enable_trace_level and self._proxy_tracer_provider is None:
-                url = f"https://{endpoint}/v1/traces"
-
-                self._proxy_tracer_provider = ProxyTracerProvider()
-                trace.set_tracer_provider(self._proxy_tracer_provider)
-
-                self._tracer_provider = TracerProvider(resource=resource)
-
-                trace_session = requests.Session()
-                trace_session.headers.update(header)
-                trace_session.mount(
-                    "https://", RetryWithTokenRefreshAdapter(self, header)
-                )
-                trace_session.mount(
-                    "http://", RetryWithTokenRefreshAdapter(self, header)
-                )
-
-                exporter = OTLPSpanExporter(endpoint=url, session=trace_session)
-                self._span_processor = BatchSpanProcessor(exporter)
-                self._tracer_provider.add_span_processor(self._span_processor)
-                self._proxy_tracer_provider.set_real_provider(self._tracer_provider)
-                self._proxy_tracer_provider.enable()
-
-                self._tracer_provider_enabled = True
+                self._init_trace_level(endpoint, header, resource)
             elif (
                 enable_trace_level
                 and self._proxy_tracer_provider
@@ -5090,36 +5062,10 @@ class Session:
             ):
                 self._enable_tracer_provider()
 
-            if enable_log_level and self._log_handler is None:
-                url = f"https://{endpoint}/v1/logs"
-                self._proxy_log_provider = ProxyLogProvider()
-                set_logger_provider(self._proxy_log_provider)
-
-                self._logger_provider = LoggerProvider(resource=resource)
-
-                log_session = requests.Session()
-                log_session.headers.update(header)
-                log_session.mount(
-                    "https://", RetryWithTokenRefreshAdapter(self, header)
-                )
-                log_session.mount("http://", RetryWithTokenRefreshAdapter(self, header))
-
-                exporter = OTLPLogExporter(endpoint=url, session=log_session)
-                self._log_processor = BatchLogRecordProcessor(exporter)
-                self._logger_provider.add_log_record_processor(self._log_processor)
-
-                self._proxy_log_provider.set_real_provider(self._logger_provider)
-                self._proxy_log_provider.enable()
-
-                self._log_handler = LoggingHandler(
-                    logger_provider=self._proxy_log_provider
-                )
-                # TODO: update docstring that you need to use getLogger() instead of basicConfig()
-                logging.getLogger().addHandler(self._log_handler)
-
-                self._logger_provider_enabled = True
+            if log_level is not None and self._log_handler is None:
+                self._init_log_level(endpoint, header, resource, log_level)
             elif (
-                enable_log_level
+                log_level is not None
                 and self._logger_provider
                 and not self._logger_provider_enabled
             ):
@@ -5133,7 +5079,7 @@ class Session:
             if self._logger_provider:
                 self._disable_logger_provider()
 
-    def _get_external_telemetry_auth_token(self) -> None:
+    def _get_external_telemetry_auth_token(self) -> Dict:
         with self._lock:
             self._attestation = create_attestation(
                 self.connection.auth_class.provider,
@@ -5182,3 +5128,76 @@ class Session:
             self._proxy_tracer_provider.shutdown()
         if self._logger_provider is not None:
             self._proxy_log_provider.shutdown()
+
+    def _init_trace_level(
+        self,
+        endpoint: str,
+        header: dict,
+        resource: "opentelemetry.sdk.resources.Resource",
+    ):
+        url = f"https://{endpoint}/v1/traces"
+
+        self._proxy_tracer_provider = ProxyTracerProvider()
+        opentelemetry.trace.set_tracer_provider(self._proxy_tracer_provider)
+
+        self._tracer_provider = opentelemetry.sdk.trace.TracerProvider(
+            resource=resource
+        )
+
+        trace_session = requests.Session()
+        trace_session.headers.update(header)
+        trace_session.mount("https://", RetryWithTokenRefreshAdapter(self, header))
+        trace_session.mount("http://", RetryWithTokenRefreshAdapter(self, header))
+
+        exporter = (
+            opentelemetry.exporter.otlp.proto.http.trace_exporter.OTLPSpanExporter(
+                endpoint=url, session=trace_session
+            )
+        )
+        self._span_processor = opentelemetry.sdk.trace.export.BatchSpanProcessor(
+            exporter
+        )
+        self._tracer_provider.add_span_processor(self._span_processor)
+        self._proxy_tracer_provider.set_real_provider(self._tracer_provider)
+        self._proxy_tracer_provider.enable()
+
+        self._tracer_provider_enabled = True
+
+    def _init_log_level(
+        self,
+        endpoint: str,
+        header: dict,
+        resource: "opentelemetry.sdk.resources.Resource",
+        log_level: int,
+    ):
+        url = f"https://{endpoint}/v1/logs"
+        self._proxy_log_provider = ProxyLogProvider()
+        opentelemetry._logs.set_logger_provider(self._proxy_log_provider)
+
+        self._logger_provider = opentelemetry.sdk._logs.LoggerProvider(
+            resource=resource
+        )
+
+        log_session = requests.Session()
+        log_session.headers.update(header)
+        log_session.mount("https://", RetryWithTokenRefreshAdapter(self, header))
+        log_session.mount("http://", RetryWithTokenRefreshAdapter(self, header))
+
+        exporter = opentelemetry.exporter.otlp.proto.http._log_exporter.OTLPLogExporter(
+            endpoint=url, session=log_session
+        )
+        self._log_processor = opentelemetry.sdk._logs.export.BatchLogRecordProcessor(
+            exporter
+        )
+        self._logger_provider.add_log_record_processor(self._log_processor)
+
+        self._proxy_log_provider.set_real_provider(self._logger_provider)
+        self._proxy_log_provider.enable()
+
+        self._log_handler = opentelemetry.sdk._logs.LoggingHandler(
+            logger_provider=self._proxy_log_provider
+        )
+        logging.getLogger().addHandler(self._log_handler)
+        logging.getLogger().setLevel(log_level)
+
+        self._logger_provider_enabled = True
