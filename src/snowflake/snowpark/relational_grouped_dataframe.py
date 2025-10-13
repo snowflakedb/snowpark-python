@@ -239,7 +239,7 @@ class RelationalGroupedDataFrame:
             )
         elif isinstance(self._group_type, _GroupByAllType):
             group_plan = Aggregate(
-                [GroupByAll(unaliased_grouping)],
+                [GroupByAll([])],
                 aliased_agg,
                 self._dataframe._select_statement or self._dataframe._plan,
             )
