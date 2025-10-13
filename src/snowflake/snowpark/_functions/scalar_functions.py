@@ -3676,6 +3676,44 @@ def st_geogpointfromgeohash(geohash: ColumnOrName, _emit_ast: bool = True) -> Co
 
 
 @publicapi
+def st_geographyfromwkb(
+    varchar_or_binary_expression: ColumnOrName,
+    allow_invalid: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Parses a WKB (well-known binary) or EWKB (extended well-known binary) input and returns a GEOGRAPHY object.
+
+    Args:
+        varchar_or_binary_expression (ColumnOrName): The WKB or EWKB representation as a VARCHAR or BINARY value.
+        allow_invalid (ColumnOrName, optional): A boolean column that specifies whether to allow invalid geometries. If True, invalid geometries are accepted; if False or not specified, invalid geometries cause an error.
+
+    Returns:
+        Column: A GEOGRAPHY object parsed from the WKB input.
+
+    Examples::
+        >>> df = session.create_dataframe([['01010000006666666666965EC06666666666C64240']], schema=["wkb_data"])
+        >>> df.select(st_geographyfromwkb(col("wkb_data")).alias("geography")).collect()
+        [Row(GEOGRAPHY='{\\n  "coordinates": [\\n    -1.223500000000000e+02,\\n    3.755000000000000e+01\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df.select(st_geographyfromwkb(col("wkb_data"), lit(True)).alias("geography")).collect()
+        [Row(GEOGRAPHY='{\\n  "coordinates": [\\n    -1.223500000000000e+02,\\n    3.755000000000000e+01\\n  ],\\n  "type": "Point"\\n}')]
+    """
+    c = _to_col_if_str(varchar_or_binary_expression, "st_geographyfromwkb")
+    if allow_invalid is not None:
+        allow_invalid_col = _to_col_if_str(allow_invalid, "st_geographyfromwkb")
+        return builtin("st_geographyfromwkb", _emit_ast=_emit_ast)(c, allow_invalid_col)
+    else:
+        return builtin("st_geographyfromwkb", _emit_ast=_emit_ast)(c)
+
+
+# Aliases
+ST_GEOGFROMWKB = st_geographyfromwkb
+ST_GEOGRAPHYFROMEWKB = st_geographyfromwkb
+ST_GEOGFROMEWKB = st_geographyfromwkb
+
+
+@publicapi
 def st_geographyfromwkt(
     varchar_expression: ColumnOrName,
     allow_invalid: ColumnOrName = None,
