@@ -3869,3 +3869,50 @@ def try_to_geography(
         return builtin("try_to_geography", _emit_ast=_emit_ast)(c, allow_invalid_col)
     else:
         return builtin("try_to_geography", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def try_to_geometry(
+    input_expr, srid=None, allow_invalid=None, _emit_ast: bool = True
+) -> Column:
+    """
+    Attempts to parse a string or binary value as a GEOMETRY object. Returns None if the input cannot be parsed as a valid geometry.
+
+    Args:
+        input_expr (ColumnOrName): The GEOMETRY data to parse.
+        srid (int, optional): The spatial reference system identifier to assign to the GEOMETRY.
+        allow_invalid (bool, optional): Whether to allow invalid geometries to be returned.
+
+    Returns:
+        Column: A GEOMETRY object if parsing succeeds, None otherwise
+
+    Examples::
+        >>> df1 = session.create_dataframe([["POINT(1 2)"]], schema=["geom_str"])
+        >>> df1.select(try_to_geometry(df1["geom_str"])).collect()
+        [Row(TRY_TO_GEOMETRY("GEOM_STR")='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df2 = session.create_dataframe([["POINT(1 2)"]], schema=["geom_str"])
+        >>> df2.select(try_to_geometry(df2["geom_str"], lit(4326))).collect()
+        [Row(TRY_TO_GEOMETRY("GEOM_STR", 4326)='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df3 = session.create_dataframe([["INVALID INPUT"]], schema=["geom_str"])
+        >>> df3.select(try_to_geometry(df3["geom_str"])).collect()
+        [Row(TRY_TO_GEOMETRY("GEOM_STR")=None)]
+
+        >>> df2 = session.create_dataframe([["POINT(1 2)"]], schema=["geom_str"])
+        >>> df2.select(try_to_geometry(df2["geom_str"], lit(4326), lit(True))).collect()
+        [Row(TRY_TO_GEOMETRY("GEOM_STR", 4326)='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+
+        >>> df2 = session.create_dataframe([["POINT(1 2)"]], schema=["geom_str"])
+        >>> df2.select(try_to_geometry(df2["geom_str"], allow_invalid=lit(True))).collect()
+        [Row(TRY_TO_GEOMETRY("GEOM_STR", 4326)='{\\n  "coordinates": [\\n    1.000000000000000e+00,\\n    2.000000000000000e+00\\n  ],\\n  "type": "Point"\\n}')]
+
+    """
+    c = _to_col_if_str(input_expr, "try_to_geometry")
+
+    if srid is not None and allow_invalid is not None:
+        return builtin("try_to_geometry", _emit_ast=_emit_ast)(c, srid, allow_invalid)
+    elif srid is not None:
+        return builtin("try_to_geometry", _emit_ast=_emit_ast)(c, srid)
+    else:
+        return builtin("try_to_geometry", _emit_ast=_emit_ast)(c)
