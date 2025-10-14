@@ -25,3 +25,21 @@ def test_py38_deprecation():
     with pytest.warns(None) as record:
         importlib.import_module("snowflake.snowpark")
     assert len(record) == 0
+
+
+def test_py39_deprecation():
+    if not (sys.version_info.major == 3 and sys.version_info.minor == 9):
+        pytest.skip("This test is for Python 3.9 only")
+
+    with pytest.warns(
+        DeprecationWarning,
+        match="Python Runtime 3.9 reached its End-Of-Life",
+    ) as record:
+        importlib.reload(snowflake.snowpark)
+
+    assert len(record) == 1
+
+    # import again won't trigger the warning
+    with pytest.warns(None) as record:
+        importlib.import_module("snowflake.snowpark")
+    assert len(record) == 0

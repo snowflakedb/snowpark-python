@@ -41,6 +41,7 @@ from snowflake.snowpark._internal.telemetry import relational_group_df_api_usage
 from snowflake.snowpark._internal.type_utils import ColumnOrName, LiteralType
 from snowflake.snowpark._internal.utils import (
     check_agg_exprs,
+    experimental,
     is_valid_tuple_for_agg,
     parse_positional_args_to_list,
     parse_positional_args_to_list_variadic,
@@ -827,6 +828,96 @@ class RelationalGroupedDataFrame:
             for e in exprs:
                 build_expr_from_python_val(ast.cols.args.add(), e)
 
+            df._ast_id = stmt.uid
+
+        return df
+
+    @relational_group_df_api_usage
+    @experimental(version="1.39.0")
+    @publicapi
+    def ai_agg(
+        self,
+        expr: ColumnOrName,
+        task_description: str,
+        _emit_ast: bool = True,
+        **kwargs,
+    ) -> DataFrame:
+        """Aggregate a column of text data using a natural language task description.
+
+        This method reduces a column of text by performing a natural language aggregation
+        as described in the task description for each group. For instance, it can summarize
+        large datasets or extract specific insights per group.
+
+        Args:
+            expr: The column (Column object or column name as string) containing the text data
+                on which the aggregation operation is to be performed.
+            task_description: A plain English string that describes the aggregation task, such as
+                "Summarize the product reviews for a blog post targeting consumers" or
+                "Identify the most positive review and translate it into French and Polish, one word only".
+
+        Returns:
+            A DataFrame with one row per group containing the aggregated result.
+
+        Example::
+
+            >>> df = session.create_dataframe([
+            ...     ["electronics", "Excellent product, highly recommend!"],
+            ...     ["electronics", "Great quality and fast shipping"],
+            ...     ["clothing", "Perfect fit and great material"],
+            ...     ["clothing", "Poor quality, very disappointed"],
+            ... ], schema=["category", "review"])
+            >>> summary_df = df.group_by("category").ai_agg(
+            ...     expr="review",
+            ...     task_description="Summarize these product reviews for a blog post targeting consumers"
+            ... )
+            >>> summary_df.count()
+            2
+
+        Note:
+            For optimal performance, follow these guidelines:
+
+                - Use plain English text for the task description.
+
+                - Describe the text provided in the task description. For example, instead of a task
+                  description like "summarize", use "Summarize the phone call transcripts".
+
+                - Describe the intended use case. For example, instead of "find the best review",
+                  use "Find the most positive and well-written restaurant review to highlight on
+                  the restaurant website".
+
+                - Consider breaking the task description into multiple steps.
+        """
+        exclude_grouping_columns = kwargs.get("exclude_grouping_columns", False)
+
+        # Convert expr to Column expression
+        expr_col = (
+            Column(expr)._expression if isinstance(expr, str) else expr._expression
+        )
+
+        # Create the ai_agg expression
+        agg_expr = functions.ai_agg(
+            Column(expr_col, _emit_ast=False),
+            functions.lit(task_description, _emit_ast=False),
+            _emit_ast=False,
+        )._expression
+
+        df = self._to_df(
+            [agg_expr],
+            exclude_grouping_columns=exclude_grouping_columns,
+            _emit_ast=False,
+        )
+        # if no grouping exprs, there is already a LIMIT 1 in the query
+        # see aggregate_statement in analyzer_utils.py
+        df._ops_after_agg = set() if self._grouping_exprs else {"limit"}
+
+        if _emit_ast:
+            stmt = self._dataframe._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.relational_grouped_dataframe_ai_agg, stmt)
+            # Reference the grouped dataframe
+            self._set_ast_ref(ast.grouped_df)
+            # Set arguments
+            build_expr_from_python_val(ast.expr, expr)
+            ast.task_description = task_description
             df._ast_id = stmt.uid
 
         return df

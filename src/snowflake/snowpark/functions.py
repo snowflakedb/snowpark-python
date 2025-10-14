@@ -181,6 +181,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ListAgg,
     Literal,
     ModelExpression,
+    ServiceExpression,
     MultipleExpression,
     Star,
     NamedFunctionExpression,
@@ -10746,6 +10747,30 @@ def _call_model(
     )
 
 
+def _call_service(
+    service_name: str,
+    method_name: str,
+    *args,
+    _emit_ast: bool = True,
+) -> Column:
+    if _emit_ast:
+        _ast = build_function_expr("service", [service_name, method_name, *args])
+    else:
+        _ast = None
+
+    args_list = parse_positional_args_to_list(*args)
+    expressions = [Column._to_expr(arg) for arg in args_list]
+    return Column(
+        ServiceExpression(
+            service_name,
+            method_name,
+            expressions,
+        ),
+        _ast=_ast,
+        _emit_ast=_emit_ast,
+    )
+
+
 @publicapi
 def model(
     model_name: str,
@@ -10772,6 +10797,44 @@ def model(
     """
     return lambda method_name: lambda *args: _call_model(
         model_name, version_or_alias_name, method_name, *args, _emit_ast=_emit_ast
+    )
+
+
+@publicapi
+def service(
+    service_name: str,
+    _emit_ast: bool = True,
+) -> Callable:
+    """
+    Creates a service function that can be used to call a service method.
+
+    Args:
+        service_name: The name of the service to call.
+
+    Example::
+
+        >>> service_instance = service("TESTSCHEMA_SNOWPARK_PYTHON.FORECAST_MODEL_SERVICE")
+        >>> # Prepare a DataFrame with the ten expected features
+        >>> df = session.create_dataframe(
+        ...     [
+        ...         (0.038076, 0.050680, 0.061696, 0.021872, -0.044223, -0.034821, -0.043401, -0.002592, 0.019907, -0.017646),
+        ...     ],
+        ...     schema=["age", "sex", "bmi", "bp", "s1", "s2", "s3", "s4", "s5", "s6"],
+        ... )
+        >>> # Invoke the model's predict method exposed by the service
+        >>> result_df = df.select(
+        ...     service_instance("predict")(col("age"), col("sex"), col("bmi"), col("bp"), col("s1"), col("s2"), col("s3"), col("s4"), col("s5"), col("s6"))["output_feature_0"]
+        ... )
+        >>> result_df.show()
+        ------------------------------------------------------
+        |"TESTSCHEMA_SNOWPARK_PYTHON.FORECAST_MODEL_SERV...  |
+        ------------------------------------------------------
+        |220.2223358154297                                   |
+        ------------------------------------------------------
+        <BLANKLINE>
+    """
+    return lambda method_name: lambda *args: _call_service(
+        service_name, method_name, *args, _emit_ast=_emit_ast
     )
 
 
@@ -11000,11 +11063,10 @@ def interval_year_month_from_parts(
     """
     ast = None
     if _emit_ast:
+        # Always include both parameters to match the actual function execution
         args = []
-        if years is not None:
-            args.append(years)
-        if months is not None:
-            args.append(months)
+        args.append(years if years is not None else lit(0))
+        args.append(months if months is not None else lit(0))
         ast = build_function_expr("interval_year_month_from_parts", args)
 
     years_col = (
@@ -11038,6 +11100,153 @@ def interval_year_month_from_parts(
     alias_name = f"interval_year_month_from_parts({get_col_name(years_col)}, {get_col_name(months_col)})"
 
     res = cast(interval_string, "INTERVAL YEAR TO MONTH").alias(alias_name)
+    res._ast = ast
+    return res
+
+
+@private_preview(
+    version="1.38.0",
+    extra_doc_string="Type DayTimeIntervalType is currently in private preview and needs to be enabled by setting parameter `FEATURE_INTERVAL_TYPES` to `ENABLED`.",
+)
+@publicapi
+def interval_day_time_from_parts(
+    days: Optional[ColumnOrName] = None,
+    hours: Optional[ColumnOrName] = None,
+    mins: Optional[ColumnOrName] = None,
+    secs: Optional[ColumnOrName] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Creates a day-time interval expression using with specified days, hours, mins and seconds.
+
+    This DayTime is not to be confused with the interval created by make_interval.
+    You can define a table column to be of data type DayTimeIntervalType.
+
+    Args:
+        days: The number of days, positive or negative
+        hours: The number of hours, positive or negative
+        mins: The number of minutes, positive or negative
+        secs: The number of seconds, positive or negative
+
+    Returns:
+        A Column representing a day-time interval
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import interval_day_time_from_parts
+        >>>
+        >>> _ = session.sql("ALTER SESSION SET FEATURE_INTERVAL_TYPES=ENABLED;").collect()
+        >>> df = session.create_dataframe([[1, 12, 30, 01.001001]], ['day', 'hour', 'min', 'sec'])
+        >>> df.select(interval_day_time_from_parts(col("day"), col("hour"), col("min"), col("sec")).alias("interval")).show()
+        --------------------------
+        |"INTERVAL"              |
+        --------------------------
+        |1 day, 12:30:01.001001  |
+        --------------------------
+        <BLANKLINE>
+
+    """
+    # Handle AST emission
+    ast = None
+    if _emit_ast:
+        # Create AST for this custom function using build_function_expr
+        # Always include all 4 parameters to match the actual function execution
+        args = []
+        args.append(days if days is not None else lit(0))
+        args.append(hours if hours is not None else lit(0))
+        args.append(mins if mins is not None else lit(0))
+        args.append(secs if secs is not None else lit(0))
+        ast = build_function_expr("interval_day_time_from_parts", args)
+
+    days_col = (
+        lit(0) if days is None else _to_col_if_str(days, "interval_day_time_from_parts")
+    )
+    hours_col = (
+        lit(0)
+        if hours is None
+        else _to_col_if_str(hours, "interval_day_time_from_parts")
+    )
+    mins_col = (
+        lit(0) if mins is None else _to_col_if_str(mins, "interval_day_time_from_parts")
+    )
+    secs_col = (
+        lit(0) if secs is None else _to_col_if_str(secs, "interval_day_time_from_parts")
+    )
+
+    total_seconds = (
+        days_col * lit(86400) + hours_col * lit(3600) + mins_col * lit(60) + secs_col
+    )
+
+    is_negative = total_seconds < lit(0)
+    abs_total_seconds = abs(total_seconds)
+
+    days_part = cast(floor(abs_total_seconds / lit(86400)), "int")
+    remaining_after_days = abs_total_seconds % lit(86400)
+
+    hours_part = cast(floor(remaining_after_days / lit(3600)), "int")
+    remaining_after_hours = remaining_after_days % lit(3600)
+
+    mins_part = cast(floor(remaining_after_hours / lit(60)), "int")
+    secs_part = remaining_after_hours % lit(60)
+
+    hours_str = iff(
+        hours_part < lit(10),
+        concat(lit("0"), cast(hours_part, "str")),
+        cast(hours_part, "str"),
+    )
+
+    mins_str = iff(
+        mins_part < lit(10),
+        concat(lit("0"), cast(mins_part, "str")),
+        cast(mins_part, "str"),
+    )
+
+    secs_int = cast(floor(secs_part), "int")
+    secs_str = iff(
+        secs_int < lit(10),
+        concat(lit("0"), cast(secs_int, "str")),
+        cast(secs_int, "str"),
+    )
+
+    has_fraction = abs(secs_part - cast(secs_int, "decimal")) > 1e-15
+    fractional_part = secs_part - cast(secs_int, "decimal")
+
+    fraction_str = iff(
+        has_fraction,
+        concat(
+            lit("."),
+            lpad(
+                cast(round(fractional_part * lit(1000000), 0), "str"),
+                6,
+                lit("0"),
+            ),
+        ),
+        lit(""),
+    )
+
+    secs_formatted = concat(secs_str, fraction_str)
+
+    sign_prefix = iff(is_negative, lit("-"), lit(""))
+    interval_value = concat(
+        sign_prefix,
+        cast(days_part, "str"),
+        lit(" "),
+        hours_str,
+        lit(":"),
+        mins_str,
+        lit(":"),
+        secs_formatted,
+    )
+
+    def get_col_name(col):
+        if isinstance(col._expr1, Literal):
+            return str(col._expr1.value)
+        else:
+            return str(col._expr1)
+
+    alias_name = f"interval_day_time_from_parts({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
+
+    res = cast(interval_value, "INTERVAL DAY TO SECOND").alias(alias_name)
     res._ast = ast
     return res
 
@@ -12468,6 +12677,7 @@ def ai_extract(
         |"EXTRACTED"                   |
         --------------------------------
         |{                             |
+        |  "error": null,              |
         |  "response": {               |
         |    "city": "San Francisco",  |
         |    "name": "John"            |
@@ -12490,12 +12700,14 @@ def ai_extract(
         |"TEXT"                          |"INFO"                   |
         ------------------------------------------------------------
         |Alice Johnson works in Seattle  |{                        |
+        |                                |  "error": null,         |
         |                                |  "response": {          |
         |                                |    "city": "Seattle",   |
         |                                |    "name": "Alice"      |
         |                                |  }                      |
         |                                |}                        |
         |Bob Williams works in Portland  |{                        |
+        |                                |  "error": null,         |
         |                                |  "response": {          |
         |                                |    "city": "Portland",  |
         |                                |    "name": "Bob"        |
@@ -12516,6 +12728,7 @@ def ai_extract(
         |"EXTRACTED"         |
         ----------------------
         |{                   |
+        |  "error": null,    |
         |  "response": {     |
         |    "languages": [  |
         |      "Python",     |
@@ -12542,6 +12755,7 @@ def ai_extract(
         |"EXTRACTED"                   |
         --------------------------------
         |{                             |
+        |  "error": null,              |
         |  "response": {               |
         |    "amount": "USD $950.00",  |
         |    "date": "Nov 26, 2016"    |

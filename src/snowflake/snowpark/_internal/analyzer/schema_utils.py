@@ -2,7 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import traceback
-from typing import TYPE_CHECKING, List, Union, Optional
+from typing import TYPE_CHECKING, List, Union, Optional, Sequence, Any
 
 import snowflake.snowpark
 from snowflake.connector.cursor import ResultMetadata, SnowflakeCursor
@@ -70,6 +70,7 @@ def analyze_attributes(
     sql: str,
     session: "snowflake.snowpark.session.Session",
     dataframe_uuid: Optional[str] = None,
+    query_params: Optional[Sequence[Any]] = None,
 ) -> List[Attribute]:
     lowercase = sql.strip().lower()
 
@@ -104,7 +105,7 @@ def analyze_attributes(
     stack = traceback.extract_stack(limit=10)[:-1]
     stack_trace = [frame.line for frame in stack] if len(stack) > 0 else None
     with measure_time() as e2e_time:
-        attributes = session._get_result_attributes(sql)
+        attributes = session._get_result_attributes(sql, query_params)
     session._conn._telemetry_client.send_describe_query_details(
         session._session_id, sql, e2e_time(), stack_trace
     )
@@ -118,9 +119,9 @@ def analyze_attributes(
 
 @ttl_cache(ttl_seconds=15)
 def cached_analyze_attributes(
-    sql: str, session: "snowflake.snowpark.session.Session", dataframe_uuid: Optional[str] = None  # type: ignore
+    sql: str, session: "snowflake.snowpark.session.Session", dataframe_uuid: Optional[str] = None, query_params: Optional[Sequence[Any]] = None  # type: ignore
 ) -> List[Attribute]:
-    return analyze_attributes(sql, session, dataframe_uuid)
+    return analyze_attributes(sql, session, dataframe_uuid, query_params)
 
 
 def convert_result_meta_to_attribute(
@@ -162,7 +163,7 @@ def get_new_description(
 
 
 def run_new_describe(
-    cursor: SnowflakeCursor, query: str
+    cursor: SnowflakeCursor, query: str, query_params: Optional[Sequence[Any]] = None
 ) -> Union[List[ResultMetadata], List["ResultMetadataV2"]]:  # pyright: ignore
     """Execute describe() on a cursor, returning the new metadata format if possible.
 
@@ -172,8 +173,5 @@ def run_new_describe(
     # ResultMetadataV2 may not currently be a type, depending on the connector
     # version, so the argument types are pyright ignored
 
-    if hasattr(cursor, "_describe_internal"):
-        # Pyright does not perform narrowing here
-        return cursor._describe_internal(query)  # pyright: ignore
-    else:
-        return cursor.describe(query)
+    # Pyright does not perform narrowing here
+    return cursor._describe_internal(query, params=query_params)  # pyright: ignore

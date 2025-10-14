@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import logging
 import pytest
+from unittest import mock
 
 import snowflake.snowpark.context as context
 from snowflake.connector.options import installed_pandas
@@ -1763,3 +1764,110 @@ def test_lob_collect_max_size(session, server_side_max_string, type_string, data
     )
     assert df.schema == StructType([StructField("DATA", datatype, nullable=False)])
     assert len(df.collect()[0][0]) >= server_side_max_string - 16
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Structured types are not supported in Local Testing",
+)
+@pytest.mark.parametrize("fix_enabled", [True, False])
+def test_snow_2360274_repro(
+    structured_type_session, structured_type_support, fix_enabled
+):
+    if not structured_type_support:
+        pytest.skip("Test requires structured type support.")
+
+    agg_table_name = f"snowpark_2360274_repro_agg_{uuid.uuid4().hex[:5]}".upper()
+
+    nested_field_name = (
+        "value" if context._should_use_structured_type_semantics() else '"value"'
+    )
+    expected_schema = StructType(
+        [
+            StructField("ID", LongType(), nullable=False),
+            StructField(
+                "VALS_ARR",
+                ArrayType(
+                    StructType(
+                        [StructField(nested_field_name, StringType(10), nullable=True)]
+                    )
+                ),
+                nullable=True,
+            ),
+            StructField(
+                "VALS_MAP",
+                MapType(StringType(10), StringType(10)),
+                nullable=True,
+            ),
+            StructField(
+                "VALS_OBJ",
+                StructType(
+                    [StructField(nested_field_name, StringType(10), nullable=True)]
+                ),
+                nullable=True,
+            ),
+            StructField("TAG", StringType(2), nullable=False),
+        ]
+    )
+
+    def inner():
+        structured_type_session.sql(
+            f"""
+            CREATE
+            OR REPLACE TABLE {agg_table_name} (
+                ID INT NOT NULL,
+                VALS_ARR ARRAY(OBJECT({nested_field_name} STRING(10))) NOT NULL,
+                VALS_MAP MAP(STRING(10), STRING(10)) NOT NULL,
+                VALS_OBJ OBJECT({nested_field_name} STRING(10)) NOT NULL
+            ) AS WITH SRC(ID, VALUE) AS (
+                SELECT
+                    $1,
+                    $2
+                FROM
+                VALUES
+                    (1, 'A'),
+                    (1, 'B'),
+                    (2, 'A')
+            )
+            SELECT
+                ID,
+                CAST(
+                    ARRAY_AGG(OBJECT_CONSTRUCT('value', VALUE)) AS ARRAY(OBJECT({nested_field_name} STRING))
+                ) AS VALS_ARR,
+                CAST(
+                    OBJECT_CONSTRUCT('value', VALUE) AS MAP(STRING, STRING)
+                ) AS VALS_MAP,
+                CAST(
+                    OBJECT_CONSTRUCT('value', VALUE) AS OBJECT({nested_field_name} STRING)
+                ) AS VALS_OBJ,
+            FROM
+                SRC
+            GROUP BY
+                ID, VALS_MAP, VALS_OBJ"""
+        ).collect()
+
+        agged = structured_type_session.table(agg_table_name)
+
+        reference = structured_type_session.sql(
+            """
+        SELECT $1 AS ID, $2 AS TAG FROM VALUES (1, 'AB'), (2, 'B')
+        """
+        )
+
+        joined = agged.join(reference, on=agged.id == reference.id, how="inner").select(
+            agged.id.alias("ID"), "VALS_ARR", "VALS_MAP", "VALS_OBJ", "TAG"
+        )
+        Utils.is_schema_same(joined.schema, expected_schema, case_sensitive=False)
+
+    try:
+        with mock.patch.object(context, "_enable_fix_2360274", fix_enabled):
+            if fix_enabled:
+                inner()
+            else:
+                with pytest.raises(
+                    SnowparkSQLException,
+                    match="Unsupported data type 'STRUCTURED_OBJECT'",
+                ):
+                    inner()
+    finally:
+        Utils.drop_table(structured_type_session, agg_table_name)
