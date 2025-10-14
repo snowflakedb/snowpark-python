@@ -32,8 +32,10 @@ from snowflake.snowpark._internal.data_source.drivers import (
 )
 import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
+from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
+from snowflake.snowpark._internal.utils import get_temp_type_for_object
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
-
+from snowflake.snowpark.types import StructType
 
 logger = logging.getLogger(__name__)
 
@@ -549,3 +551,34 @@ def process_parquet_queue_with_threads(
     )
 
     return fetch_to_local_end_time, upload_to_sf_start_time, upload_to_sf_end_time
+
+
+def create_data_source_table_and_stage(
+    session: "snowflake.snowpark.Session",
+    schema: StructType,
+    snowflake_table_name: str,
+    snowflake_stage_name: str,
+    statements_params_for_telemetry: dict,
+) -> None:
+    snowflake_table_type = "TEMPORARY"
+    create_table_sql = (
+        "CREATE "
+        f"{snowflake_table_type} "
+        "TABLE "
+        f"identifier(?) "
+        f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in schema.fields])})"""
+        f"""{DATA_SOURCE_SQL_COMMENT}"""
+    )
+    params = (snowflake_table_name,)
+    logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
+    session.sql(create_table_sql, params=params, _emit_ast=False).collect(
+        statement_params=statements_params_for_telemetry, _emit_ast=False
+    )
+    # create temp stage
+    sql_create_temp_stage = (
+        f"create {get_temp_type_for_object(session._use_scoped_temp_objects, True)} stage"
+        f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+    )
+    session.sql(sql_create_temp_stage, _emit_ast=False).collect(
+        statement_params=statements_params_for_telemetry, _emit_ast=False
+    )

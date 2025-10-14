@@ -42,9 +42,9 @@ from snowflake.snowpark._internal.data_source.utils import (
     worker_process,
     process_parquet_queue_with_threads,
     STATEMENT_PARAMS_DATA_SOURCE,
-    DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
     _MAX_WORKER_SCALE,
+    create_data_source_table_and_stage,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -69,7 +69,6 @@ from snowflake.snowpark._internal.utils import (
     get_aliased_option_name,
     get_copy_into_table_options,
     get_stage_parts,
-    get_temp_type_for_object,
     is_in_stored_procedure,
     parse_positional_args_to_list_variadic,
     private_preview,
@@ -1902,29 +1901,14 @@ class DataFrameReader:
             return df
 
         # parquet ingestion
-        snowflake_table_type = "TEMPORARY"
         snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-        create_table_sql = (
-            "CREATE "
-            f"{snowflake_table_type} "
-            "TABLE "
-            f"identifier(?) "
-            f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
-            f"""{DATA_SOURCE_SQL_COMMENT}"""
-        )
-        params = (snowflake_table_name,)
-        logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
-        self._session.sql(create_table_sql, params=params, _emit_ast=False).collect(
-            statement_params=statements_params_for_telemetry, _emit_ast=False
-        )
-        # create temp stage
         snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
-        sql_create_temp_stage = (
-            f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
-            f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
-        )
-        self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
-            statement_params=statements_params_for_telemetry, _emit_ast=False
+        create_data_source_table_and_stage(
+            session=self._session,
+            schema=struct_schema,
+            snowflake_table_name=snowflake_table_name,
+            snowflake_stage_name=snowflake_stage_name,
+            statements_params_for_telemetry=statements_params_for_telemetry,
         )
 
         data_fetching_thread_pool_executor = None
