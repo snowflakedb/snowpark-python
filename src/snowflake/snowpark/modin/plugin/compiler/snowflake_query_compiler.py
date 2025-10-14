@@ -7815,6 +7815,34 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         level: Optional[Union[Hashable, int]] = None,
         errors: Optional[IgnoreRaise] = "ignore",
     ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rename_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._rename_internal(
+                index_renamer=index_renamer,
+                columns_renamer=columns_renamer,
+                level=level,
+                errors=errors,
+            )
+        qc = self._rename_internal(
+            index_renamer=index_renamer,
+            columns_renamer=columns_renamer,
+            level=level,
+            errors=errors,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rename_internal(
+        self,
+        *,
+        index_renamer: Optional[Renamer] = None,
+        columns_renamer: Optional[Renamer] = None,
+        # TODO: SNOW-800889 handle level is hashable
+        level: Optional[Union[Hashable, int]] = None,
+        errors: Optional[IgnoreRaise] = "ignore",
+    ) -> "SnowflakeQueryCompiler":
         internal_frame = self._modin_frame
         if index_renamer is not None:
             # rename index means to update the values in the index columns
