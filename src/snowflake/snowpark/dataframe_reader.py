@@ -1838,29 +1838,18 @@ class DataFrameReader:
             "udtf_ingestion" if udtf_configs is not None else "local_ingestion"
         )
 
-        table_or_query = table or query
-        is_query = True if table is None else False
+        # prepare parameter for data source partitioner
+        ds_par_params = locals()
+        ds_par_params["table_or_query"] = table or query
+        ds_par_params["is_query"] = True if table is None else False
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
+
         start_time = time.perf_counter()
         logger.debug(f"ingestion start at: {start_time}")
         if session_init_statement and isinstance(session_init_statement, str):
             session_init_statement = [session_init_statement]
-        partitioner = DataSourcePartitioner(
-            create_connection,
-            table_or_query,
-            is_query,
-            column,
-            lower_bound,
-            upper_bound,
-            num_partitions,
-            query_timeout,
-            fetch_size,
-            custom_schema,
-            predicates,
-            session_init_statement,
-            fetch_merge_count,
-            connection_parameters,
-        )
+        partitioner = DataSourcePartitioner.from_dict(ds_par_params)
+
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
         telemetry_json_string["dbms_type"] = partitioner.dbms_type.value
@@ -1876,7 +1865,7 @@ class DataFrameReader:
             self._session.create_dataframe(
                 [[query] for query in partitioned_queries], schema=["partition"]
             ).write.save_as_table(partitions_table, table_type="temp")
-            df = partitioner.driver.udtf_ingestion(
+            df = partitioner.udtf_ingestion(
                 self._session,
                 struct_schema,
                 partitions_table,
