@@ -3,6 +3,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 import json
 import pytest
 
@@ -329,3 +330,16 @@ def test_xpath_return_types(session):
     assert isinstance(schema["BOOL_COL"].datatype, BooleanType)
     assert isinstance(schema["FLOAT_COL"].datatype, DoubleType)
     assert isinstance(schema["INT_COL"].datatype, LongType)
+
+
+def test_xpath_warning_local_package(session, caplog):
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        df = session.create_dataframe(
+            [["<root><a>1</a><a>2</a><a>3</a></root>"]], schema=["xml"]
+        )
+        df.select(xpath("xml", "//a/text()").alias("values")).collect()
+    assert (
+        "Your UDF might not work when the package version is different between the server and your local environment"
+        not in caplog.text
+    )

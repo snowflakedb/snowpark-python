@@ -11,6 +11,9 @@ from math import isnan
 from typing import Any, Callable, Optional, Union
 
 import modin.pandas as pd
+from modin.config import PandasToSnowflakeParquetThresholdBytes
+from tests.integ.utils.sql_counter import SqlCounter
+
 import numpy as np
 import pandas as native_pd
 import pandas.testing as tm
@@ -871,3 +874,28 @@ def assert_index_equal(
         atol=atol,
         obj=obj,
     )
+
+
+def to_snowflake_counter(
+    *, dataset: pd.DataFrame | pd.Series, if_exists: str
+) -> SqlCounter:
+    if (
+        dataset.get_backend() == "Pandas"
+        and dataset.memory_usage(deep=False).sum()
+        > PandasToSnowflakeParquetThresholdBytes.get()
+    ):
+        # In this case we are using a parquet file to load pandas data to
+        # Snowflake.
+        # if if_exists='fail', we issue a query to check whether the table
+        # exists. In any case, we do issue more queries to make the parquet
+        # file, stage it, and load it into a table, but the SqlCounter doesn't
+        # track those queries.
+        query_count = 1 if if_exists == "fail" else 0
+    elif if_exists in ("append", "fail"):
+        query_count = 2
+    else:
+        assert if_exists == "replace"
+        # In this case, we can skip the query that checks whether the table
+        # exists.
+        query_count = 1
+    return SqlCounter(query_count=query_count)

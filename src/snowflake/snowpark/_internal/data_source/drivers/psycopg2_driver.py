@@ -3,7 +3,7 @@
 #
 import logging
 from enum import Enum
-from typing import Callable, List, Any, TYPE_CHECKING
+from typing import List, Any, TYPE_CHECKING
 
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.drivers import BaseDriver
@@ -167,11 +167,6 @@ BASE_POSTGRES_TYPE_TO_SNOW_TYPE = {
 
 
 class Psycopg2Driver(BaseDriver):
-    def __init__(
-        self, create_connection: Callable[[], "Connection"], dbms_type: Enum
-    ) -> None:
-        super().__init__(create_connection, dbms_type)
-
     def to_snow_type(self, schema: List[Any]) -> StructType:
         # The psycopg2 spec is defined in the following links:
         # https://www.psycopg.org/docs/cursor.html#cursor.description
@@ -210,6 +205,18 @@ class Psycopg2Driver(BaseDriver):
                 data_type = snow_type()
             fields.append(StructField(name, data_type, True))
         return StructType(fields)
+
+    def non_retryable_error_checker(self, error: Exception) -> bool:
+        import psycopg2
+
+        if isinstance(error, psycopg2.errors.SyntaxError):
+            syntax_error_codes = [
+                "42601",  # syntax error
+            ]
+            for error_code in syntax_error_codes:
+                if error_code == str(error.pgcode):
+                    return True
+        return False
 
     @staticmethod
     def to_result_snowpark_df(
@@ -253,9 +260,14 @@ class Psycopg2Driver(BaseDriver):
         return conn
 
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
+        connection_parameters = self.connection_parameters
 
         # TODO: SNOW-2101485 use class method to prepare connection
         # ideally we should use the same function as prepare_connection
@@ -275,10 +287,20 @@ class Psycopg2Driver(BaseDriver):
 
         class UDTFIngestion:
             def process(self, query: str):
-                conn = prepare_connection_in_udtf(create_connection())
+                conn_result = (
+                    create_connection(**connection_parameters)
+                    if connection_parameters
+                    else create_connection()
+                )
+                conn = prepare_connection_in_udtf(conn_result, query_timeout)
                 cursor = conn.cursor(
                     f"SNOWPARK_CURSOR_{generate_random_alphanumeric(5)}"
                 )
+                if session_init_statement is not None:
+                    session_init_cur = conn.cursor()
+                    for statement in session_init_statement:
+                        session_init_cur.execute(statement)
+                        session_init_cur.fetchall()
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)

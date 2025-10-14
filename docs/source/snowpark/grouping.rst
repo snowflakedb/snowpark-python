@@ -18,6 +18,7 @@ Grouping
     :toctree: api/
 
     RelationalGroupedDataFrame.agg
+    RelationalGroupedDataFrame.ai_agg
     RelationalGroupedDataFrame.apply_in_pandas
     RelationalGroupedDataFrame.applyInPandas
     RelationalGroupedDataFrame.avg

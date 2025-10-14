@@ -109,6 +109,11 @@ def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, DRIVER_TYPE]:
     # Get the Python driver name
     python_driver_name = type(dbapi2_conn).__module__.lower()
     driver_type = DRIVER_TYPE.UNKNOWN
+    python_driver_name = (
+        "oracledb"
+        if python_driver_name == "oracledb.connection"
+        else python_driver_name
+    )
     try:
         driver_type = DRIVER_TYPE(python_driver_name)
     except ValueError:
@@ -196,6 +201,8 @@ def _task_fetch_data_from_source_with_retry(
     parquet_queue: Union[mp.Queue, queue.Queue],
     stop_event: threading.Event = None,
 ):
+    start = time.perf_counter()
+    logger.debug(f"Partition {partition_idx} fetch start")
     _retry_run(
         _task_fetch_data_from_source,
         worker,
@@ -203,6 +210,10 @@ def _task_fetch_data_from_source_with_retry(
         partition_idx,
         parquet_queue,
         stop_event,
+    )
+    end = time.perf_counter()
+    logger.debug(
+        f"Partition {partition_idx} fetch finished, used {end - start} seconds"
     )
 
 
@@ -253,6 +264,8 @@ def _upload_and_copy_into_table_with_retry(
     on_error: Optional[str] = "abort_statement",
     statements_params: Optional[Dict[str, str]] = None,
 ):
+    start = time.perf_counter()
+    logger.debug(f"Parquet file {parquet_id} upload and copy into table start")
     try:
         _retry_run(
             _upload_and_copy_into_table,
@@ -269,6 +282,10 @@ def _upload_and_copy_into_table_with_retry(
         # proactively close the buffer to release memory
         parquet_buffer.close()
         backpressure_semaphore.release()
+    end = time.perf_counter()
+    logger.debug(
+        f"Parquet file {parquet_id} upload and copy into table finished, used {end - start} seconds"
+    )
 
 
 def _retry_run(func: Callable, *args, **kwargs) -> Any:
@@ -308,6 +325,9 @@ def worker_process(
 ):
     """Worker process that fetches data from multiple partitions"""
     while True:
+        if stop_event and stop_event.is_set():
+            # other worker has set the stop event signalling me to stop, exit gracefully
+            break
         try:
             # Get item from queue with timeout
             partition_idx, query = partition_queue.get(timeout=1.0)
