@@ -108,6 +108,7 @@
   - `dt.days_in_month`
   - `dt.daysinmonth`
   - `sort_values`
+  - `loc` (setting columns)
   - `to_datetime`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
