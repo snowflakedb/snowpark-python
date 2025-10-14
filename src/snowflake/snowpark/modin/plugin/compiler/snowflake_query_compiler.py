@@ -521,13 +521,20 @@ class UnsupportedArgsRule:
     Rule for defining argument combinations that trigger auto-switching to native pandas.
 
     Attributes:
-        unsupported_conditions: List of conditions that can be either:
-            - tuple[Callable, str]: (condition_function, reason) for complex conditions
+        unsupported_conditions: List of conditions that can be:
             - tuple[str, Any]: (argument_name, unsupported_value) for simple value checks
+            - tuple[Callable, str]: (condition_function, reason) for complex checks and simple string reason
+            - tuple[Callable, Callable]: (condition_function, reason_function) for complex checks and reason generation
     """
 
     unsupported_conditions: List[
-        Union[Tuple[Callable[[MappingProxyType], bool], str], Tuple[str, Any]]
+        Union[
+            Tuple[str, Any],
+            Tuple[
+                Callable[[MappingProxyType], bool],
+                Union[str, Callable[[MappingProxyType], str]],
+            ],
+        ]
     ] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -547,10 +554,12 @@ class UnsupportedArgsRule:
                     f"got {type(condition[0]).__name__}. Condition: {condition}"
                 )
 
-            if callable(condition[0]) and not isinstance(condition[1], str):
+            if callable(condition[0]) and not (
+                isinstance(condition[1], str) or callable(condition[1])
+            ):
                 raise ValueError(
                     f"Invalid condition at index {i}: when first element is callable, "
-                    f"second element must be string (reason), got {type(condition[1]).__name__}. "
+                    f"second element must be a string representing the reason, or a callable that returns the reason, got {type(condition[1]).__name__}. "
                     f"Condition: {condition}"
                 )
 
@@ -567,10 +576,10 @@ class UnsupportedArgsRule:
         """
         for condition in self.unsupported_conditions:
             if callable(condition[0]):
-                # tuple[Callable, str]: (condition_function, reason)
+                # tuple[Callable, str or Callable]: (condition_function, reason)
                 condition_func, reason = condition
                 if condition_func(args):
-                    return reason
+                    return reason(args) if callable(reason) else reason
             else:
                 # tuple[str, Any]: (argument_name, unsupported_value)
                 arg_name, unsupported_value = condition
@@ -21284,6 +21293,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         qc = qc.set_index_names(output_index_names)
         return qc
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="DataFrame",
+        method_name="corr",
+        unsupported_args=UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not isinstance(args.get("method", "pearson"), str),
+                    "method parameter must be a string. Snowpark pandas currently only supports method = 'pearson'.",
+                ),
+                (
+                    lambda args: args.get("method", "pearson") != "pearson",
+                    lambda args: f"method = '{args.get('method')}' is not supported. Snowpark pandas currently only supports method = 'pearson'.",
+                ),
+            ]
+        ),
+    )
     def corr(
         self,
         method: Union[str, Callable] = "pearson",
