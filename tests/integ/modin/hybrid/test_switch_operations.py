@@ -735,13 +735,15 @@ def test_auto_switch_supported_top_level_functions(method, kwargs):
 
 
 @pytest.mark.parametrize(
-    "method,kwargs",
+    "method,kwargs,api_cls_name",
     [
-        ("skew", {"numeric_only": True}),
-        ("round", {"decimals": 1}),
+        ("skew", {"numeric_only": True}, "BasePandasDataset"),
+        ("round", {"decimals": 1}, "BasePandasDataset"),
+        ("corr", {"method": "pearson"}, "DataFrame"),
+        ("corr", {}, "DataFrame"),
     ],
 )
-def test_auto_switch_supported_dataframe(method, kwargs):
+def test_auto_switch_supported_dataframe(method, kwargs, api_cls_name):
     # Test supported DataFrame operations that should stay on Snowflake backend.
     test_data = {"A": [1.23, 2.57, 3.89], "B": [4.12, 5.26, 6.34]}
 
@@ -751,7 +753,7 @@ def test_auto_switch_supported_dataframe(method, kwargs):
 
         _test_stay_cost(
             data_obj=df,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
@@ -928,17 +930,19 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
 
 
 @pytest.mark.parametrize(
-    "method,kwargs",
+    "method,kwargs,api_cls_name",
     [
-        ("skew", {"axis": 1}),
-        ("skew", {"numeric_only": False}),
-        ("cumsum", {"axis": 1}),
-        ("cummin", {"axis": 1}),
-        ("cummax", {"axis": 1}),
-        ("round", {"decimals": native_pd.Series([0, 1, 1])}),
+        ("skew", {"axis": 1}, "BasePandasDataset"),
+        ("skew", {"numeric_only": False}, "BasePandasDataset"),
+        ("cumsum", {"axis": 1}, "BasePandasDataset"),
+        ("cummin", {"axis": 1}, "BasePandasDataset"),
+        ("cummax", {"axis": 1}, "BasePandasDataset"),
+        ("round", {"decimals": native_pd.Series([0, 1, 1])}, "BasePandasDataset"),
+        ("corr", {"method": "kendall"}, "DataFrame"),
+        ("corr", {"method": lambda x, y: np.corrcoef(x, y)[0, 1]}, "DataFrame"),
     ],
 )
-def test_auto_switch_unsupported_dataframe(method, kwargs):
+def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
     # Test unsupported DataFrame operations that should switch to Pandas backend.
     test_data = {"A": [1.234, 2.567, 9.101], "B": [3.891, 4.123, 5.912]}
 
@@ -951,7 +955,7 @@ def test_auto_switch_unsupported_dataframe(method, kwargs):
 
         _test_stay_cost(
             data_obj=df,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=snowpark_kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
@@ -960,7 +964,7 @@ def test_auto_switch_unsupported_dataframe(method, kwargs):
         pandas_df = pd.DataFrame(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_df._query_compiler,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=snowpark_kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
@@ -1086,6 +1090,16 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
             "cummax",
             {"axis": 1},
             "axis = 1 is not supported",
+        ),
+        (
+            "corr",
+            {"method": "kendall"},
+            "method = 'kendall' is not supported. Snowpark pandas currently only supports method = 'pearson'.",
+        ),
+        (
+            "corr",
+            {"method": 123},
+            "method parameter must be a string. Snowpark pandas currently only supports method = 'pearson'.",
         ),
     ],
 )
