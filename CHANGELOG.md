@@ -67,7 +67,7 @@
 #### New Features
 
 - Added support for the `dtypes` parameter of `pd.get_dummies`
-- Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "pad", and "bfill" methods.
+- Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
 
 #### Improvements
 
