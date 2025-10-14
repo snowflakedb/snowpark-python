@@ -15258,7 +15258,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         method: str, default: "linear"
             The method of interpolation. Native pandas supports a wide range of values for this argument,
             and uses it to call an appropriate scipy interpolation function. Snowflake only supports the
-            "linear", "time", and "pad" methods; the "index"/"values" method can also be easily supported
+            "linear", "bfill", and "pad" methods; the "index"/"values" method can also be easily supported
             but is left as an exercise for some future implementor.
         axis: int, default: 0
             The axis across which to interpolate. Snowflake only supports 0 (columnar).
