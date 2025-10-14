@@ -182,9 +182,7 @@ class BaseDriver:
         call_udtf_sql = f"""
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
             """
-        res = session.sql(
-            call_udtf_sql, _emit_ast=_emit_ast
-        )  # TODO: lazy statement params tracking?
+        res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
         return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
 
     def udtf_class_builder(
