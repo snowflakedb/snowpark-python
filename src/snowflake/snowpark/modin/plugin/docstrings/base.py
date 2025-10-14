@@ -1580,25 +1580,6 @@ class BasePandasDataset:
         See Also
         --------
         fillna : Fill missing values using different methods.
-        scipy.interpolate.Akima1DInterpolator : Piecewise cubic polynomials
-            (Akima interpolator).
-        scipy.interpolate.BPoly.from_derivatives : Piecewise polynomial in the
-            Bernstein basis.
-        scipy.interpolate.interp1d : Interpolate a 1-D function.
-        scipy.interpolate.KroghInterpolator : Interpolate polynomial (Krogh
-            interpolator).
-        scipy.interpolate.PchipInterpolator : PCHIP 1-d monotonic cubic
-            interpolation.
-        scipy.interpolate.CubicSpline : Cubic spline data interpolator.
-
-        Notes
-        -----
-        The 'krogh', 'piecewise_polynomial', 'spline', 'pchip' and 'akima'
-        methods are wrappers around the respective SciPy implementations of
-        similar names. These use the actual numerical values of the index.
-        For more information on their behavior, see the
-        `SciPy documentation
-        <https://docs.scipy.org/doc/scipy/reference/interpolate.html#univariate-interpolation>`__.
 
         Examples
         --------
@@ -1617,18 +1598,6 @@ class BasePandasDataset:
         1    1.0
         2    2.0
         3    3.0
-        dtype: float64
-
-        Filling in ``NaN`` in a Series via polynomial interpolation or splines:
-        Both 'polynomial' and 'spline' methods require that you also specify
-        an ``order`` (int).
-
-        >>> s = pd.Series([0, 2, np.nan, 8])
-        >>> s.interpolate(method='polynomial', order=2)  # doctest: +SKIP
-        0    0.000000
-        1    2.000000
-        2    4.666667
-        3    8.000000
         dtype: float64
 
         Fill the DataFrame forward (that is, going down) along each column
