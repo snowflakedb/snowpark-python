@@ -12993,7 +12993,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         Wrapper around _drop_internal to be supported in faster pandas.
         """
         relaxed_query_compiler = None
-        if self._relaxed_query_compiler is not None:
+        if self._relaxed_query_compiler is not None and index is None:
             relaxed_query_compiler = self._relaxed_query_compiler._drop_internal(
                 index=index,
                 columns=columns,
