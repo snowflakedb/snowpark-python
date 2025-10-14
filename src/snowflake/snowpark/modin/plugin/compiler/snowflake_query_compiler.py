@@ -13086,6 +13086,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         errors: Literal["raise", "ignore"] = "raise",
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _drop_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and index is None:
+            relaxed_query_compiler = self._relaxed_query_compiler._drop_internal(
+                index=index,
+                columns=columns,
+                level=level,
+                errors=errors,
+            )
+        qc = self._drop_internal(
+            index=index,
+            columns=columns,
+            level=level,
+            errors=errors,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _drop_internal(
+        self,
+        index: Optional[Sequence[Hashable]] = None,
+        columns: Optional[Sequence[Hashable]] = None,
+        level: Optional[Level] = None,
+        errors: Literal["raise", "ignore"] = "raise",
+    ) -> "SnowflakeQueryCompiler":
+        """
         Drop specified rows or columns.
         Args:
             index : list of labels, optional
