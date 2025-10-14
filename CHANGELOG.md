@@ -41,6 +41,14 @@
       - `st_symdifference`
       - `st_transform`
       - `st_union`
+      - `st_union_agg`
+      - `st_within`
+      - `st_x`
+      - `st_xmax`
+      - `st_xmin`
+      - `st_y`
+      - `st_ymax`
+      - `st_ymin`
 
 
 #### Bug Fixes
@@ -92,6 +100,7 @@
   - `dt.days_in_month`
   - `dt.daysinmonth`
   - `sort_values`
+  - `to_datetime`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
