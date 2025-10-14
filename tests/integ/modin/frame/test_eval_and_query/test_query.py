@@ -9,7 +9,6 @@ import modin.pandas as pd
 import re
 
 from tests.integ.utils.sql_counter import sql_count_checker
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_36_0
 import logging
 from tests.integ.modin.frame.test_eval_and_query.utils import (
     engine_parameters,
@@ -18,11 +17,6 @@ from tests.integ.modin.frame.test_eval_and_query.utils import (
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
-)
-
-pytestmark = pytest.mark.skipif(
-    not MODIN_IS_AT_LEAST_0_36_0,
-    reason="Modin 0.36 had an important performant fix for query().",
 )
 
 global_int = 10

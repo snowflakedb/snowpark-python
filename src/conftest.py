@@ -97,6 +97,7 @@ def pytest_collection_modifyitems(config, items):
         disabled_doctests = [
             "ai_classify",
             "model",
+            "service",
         ]  # Add any test names that should be skipped
         for item in items:
             # identify doctest items

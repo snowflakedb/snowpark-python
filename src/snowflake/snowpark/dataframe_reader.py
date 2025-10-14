@@ -1031,7 +1031,9 @@ class DataFrameReader:
                 The default value is '_corrupt_record'.
 
               + ``ignoreNamespace``: remove namespace prefixes from XML element names when constructing result column names.
-                The default value is ``True``. Note that a given prefix isn't declared on the row tag element,
+                The default value is ``True``. Parsing uses recovery mode to tolerate malformed records (e.g., undefined
+                namespace prefixes in attributes such as ``diffgr:id`` or ``msdata:rowOrder``). When this option is enabled,
+                element name prefixes are stripped where resolvable; if a prefix isn't declared on the row tag element,
                 it cannot be resolved and will be left intact (i.e. this setting is ignored for that element).
                 For example, for the following XML data with a row tag ``abc:def``:
                 ```
@@ -1407,11 +1409,6 @@ class DataFrameReader:
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
-            warning(
-                "rowTag",
-                "rowTag for reading XML file is in private preview since 1.31.0. Do not use it in production.",
-            )
-
             if is_in_stored_procedure():  # pragma: no cover
                 # create a temp stage for udtf import files
                 # we have to use "temp" object instead of "scoped temp" object in stored procedure
@@ -1447,6 +1444,7 @@ class DataFrameReader:
                 input_types=input_types,
                 packages=["snowflake-snowpark-python", "lxml<6"],
                 replace=True,
+                _suppress_local_package_warnings=True,
             )
         else:
             xml_reader_udtf = None
@@ -1685,7 +1683,7 @@ class DataFrameReader:
     @publicapi
     def dbapi(
         self,
-        create_connection: Callable[[], "Connection"],
+        create_connection: Callable[..., "Connection"],
         *,
         table: Optional[str] = None,
         query: Optional[str] = None,
@@ -1695,13 +1693,14 @@ class DataFrameReader:
         num_partitions: Optional[int] = None,
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
-        fetch_size: Optional[int] = 1000,
+        fetch_size: Optional[int] = 100000,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
         udtf_configs: Optional[dict] = None,
         fetch_merge_count: int = 1,
         fetch_with_process: bool = False,
+        connection_parameters: Optional[dict] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
@@ -1722,7 +1721,9 @@ class DataFrameReader:
         column name with table in external data source.
 
         Args:
-            create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
+            create_connection: A callable that returns a DB-API compatible database connection.
+                The callable can optionally accept keyword arguments via `**kwargs`.
+                If connection_parameters is provided, those will be passed as keyword arguments to this callable.
                 The callable must be picklable, as it will be passed to and executed in child processes.
             table: The name of the table in the external data source.
                 This parameter cannot be used together with the `query` parameter.
@@ -1781,6 +1782,11 @@ class DataFrameReader:
                 like Parquet file generation. When using multiprocessing, guard your script with
                 `if __name__ == "__main__":` and call `multiprocessing.freeze_support()` on Windows if needed.
                 This parameter has no effect in UDFT ingestion.
+            connection_parameters: Optional dictionary of parameters to pass to the create_connection callable.
+                If provided, these parameters will be unpacked and passed as keyword arguments
+                to create_connection(`**connection_parameters`).
+                This allows for flexible connection configuration without hardcoding values in the callable.
+                Example: {"timeout": 30, "isolation_level": "READ_UNCOMMITTED"}
 
         Example::
             .. code-block:: python
@@ -1800,8 +1806,27 @@ class DataFrameReader:
                     connection = oracledb.connect(...)
                     return connection
 
-                if __name__ == "__main__":
-                    df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
+                df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
+
+        Example::
+            .. code-block:: python
+
+                import sqlite3
+                def create_sqlite_connection(timeout=5.0, isolation_level=None, **kwargs):
+                    connection = sqlite3.connect(
+                        database=":memory:",
+                        timeout=timeout,
+                        isolation_level=isolation_level
+                    )
+                    return connection
+
+                connection_params = {"timeout": 30.0, "isolation_level": "DEFERRED"}
+                df = session.read.dbapi(
+                    create_sqlite_connection,
+                    table=...,
+                    connection_parameters=connection_params
+                )
+
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
@@ -1835,6 +1860,7 @@ class DataFrameReader:
             predicates,
             session_init_statement,
             fetch_merge_count,
+            connection_parameters,
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
@@ -1859,6 +1885,8 @@ class DataFrameReader:
                 fetch_size=fetch_size,
                 imports=udtf_configs.get("imports", None),
                 packages=udtf_configs.get("packages", None),
+                session_init_statement=session_init_statement,
+                query_timeout=query_timeout,
                 _emit_ast=_emit_ast,
             )
             end_time = time.perf_counter()

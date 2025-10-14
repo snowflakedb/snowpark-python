@@ -1,9 +1,0 @@
-/* Reference this CSS file on the command line when building translated doc. */
-/* The html_style parameter in the doc build command overrides the stylesheet parameter in the theme.conf file. */
-
-/* Figures */
-
-/* Hide in translated doc builds */
-.fig-hide {
-    display: none;
-}
