@@ -9,11 +9,15 @@ import pandas as native_pd
 import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
+from pytest import param
 from snowflake.snowpark._internal.utils import (
     TempObjectType,
     random_name_for_temp_object,
 )
-from tests.integ.modin.utils import assert_snowpark_pandas_equal_to_pandas
+from tests.integ.modin.utils import (
+    assert_snowpark_pandas_equal_to_pandas,
+    eval_snowpark_pandas_result,
+)
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
@@ -246,23 +250,96 @@ def test_get_dummies_pandas_after_read_snowflake(session):
     assert_snowpark_pandas_equal_to_pandas(snow_get_dummies, pandas_get_dummies)
 
 
-@sql_count_checker(query_count=0)
-def test_get_dummies_pandas_negative():
-
-    pandas_df = native_pd.DataFrame(
-        {"A": ["a", "b", "a"], "B": ["b", "a", "c"], "C": [1, 2, 3]}
+class TestDtypeParameter:
+    @pytest.mark.parametrize(
+        "dtype",
+        [
+            np.int64,
+            int,
+            "int",
+            float,
+            np.float64,
+            "float64",
+            str,
+            "str",
+            np.str_,
+            bool,
+            "bool",
+            np.bool_,
+            "datetime64[ns]",
+            param(
+                "timedelta64[ns]",
+                marks=pytest.mark.xfail(strict=True, raises=NotImplementedError),
+            ),
+            None,
+        ],
     )
-
-    snow_df = pd.DataFrame(pandas_df)
-
-    with pytest.raises(NotImplementedError):
-        pd.get_dummies(
-            snow_df,
-            prefix=["col1", "col2"],
-            dummy_na=True,
-            drop_first=True,
-            dtype=np.int32,
+    @sql_count_checker(query_count=1)
+    def test_valid_dtype(self, dtype):
+        pandas_df = native_pd.DataFrame({"A": ["a", "b", "a"]})
+        snow_df = pd.DataFrame(pandas_df)
+        # note that we're using the default check_dtype=True to check that we
+        # are producing the correct dtypes.
+        assert_snowpark_pandas_equal_to_pandas(
+            pd.get_dummies(snow_df, dtype=dtype),
+            native_pd.get_dummies(pandas_df, dtype=dtype),
         )
+
+    @sql_count_checker(query_count=1)
+    def test_valid_dtype_argument_int32(self):
+        """Test int32 separately because Snowpark pandas always produces int64 for integers."""
+        pandas_df = native_pd.DataFrame({"A": ["a", "b", "a"]})
+        snow_df = pd.DataFrame(pandas_df)
+        snow_result = pd.get_dummies(snow_df, dtype=np.int32)
+        pandas_result = native_pd.get_dummies(pandas_df, dtype=np.int32)
+        # note that we're using the default check_dtype=True to check that we
+        # are producing the correct dtypes.
+        assert_snowpark_pandas_equal_to_pandas(
+            snow_result, pandas_result.astype(np.int64)
+        )
+
+    @sql_count_checker(query_count=0)
+    def test_invalid_dtype_argument(self):
+        eval_snowpark_pandas_result(
+            pd,
+            native_pd,
+            lambda module: module.get_dummies(
+                module.DataFrame({"A": ["a", "b", "a"]}), dtype="invalid_dtype"
+            ),
+            expect_exception=True,
+            expect_exception_type=TypeError,
+            expect_exception_match=re.escape(
+                "data type 'invalid_dtype' not understood"
+            ),
+        )
+
+    @sql_count_checker(query_count=0)
+    @pytest.mark.parametrize("dtype", ["object", np.dtype("object")])
+    def test_invalid_dtype_argument_object(self, dtype):
+        eval_snowpark_pandas_result(
+            pd,
+            native_pd,
+            lambda module: module.get_dummies(
+                module.DataFrame({"A": ["a", "b", "a"]}), dtype=dtype
+            ),
+            expect_exception=True,
+            expect_exception_type=ValueError,
+            expect_exception_match=re.escape(
+                "dtype=object is not a valid dtype for get_dummies"
+            ),
+        )
+
+
+@sql_count_checker(query_count=0)
+def test_dummy_na_negative():
+    with pytest.raises(NotImplementedError):
+        pd.get_dummies(pd.DataFrame(["a", None]), dummy_na=True)
+
+
+@sql_count_checker(query_count=0)
+def test_drop_first_negative():
+    with pytest.raises(NotImplementedError):
+        pd.get_dummies(pd.DataFrame(["a", "b"]), drop_first=True)
 
 
 @sql_count_checker(query_count=0)

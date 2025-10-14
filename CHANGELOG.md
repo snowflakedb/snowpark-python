@@ -66,6 +66,7 @@
 
 #### New Features
 
+- Added support for the `dtypes` parameter of `pd.get_dummies`
 - Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "pad", and "bfill" methods.
 
 #### Improvements
@@ -109,6 +110,7 @@
   - `dt.days_in_month`
   - `dt.daysinmonth`
   - `sort_values`
+  - `loc` (setting columns)
   - `to_datetime`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
