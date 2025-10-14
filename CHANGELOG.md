@@ -10,52 +10,57 @@
 - Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following functions in `functions.py`:
-    - Geospatial functions:
-      - `st_interpolate`
-      - `st_intersection`
-      - `st_intersection_agg`
-      - `st_intersects`
-      - `st_isvalid`
-      - `st_length`
-      - `st_makegeompoint`
-      - `st_makeline`
-      - `st_makepolygon`
-      - `st_makepolygonoriented`
-      - `st_disjoint`
-      - `st_distance`
-      - `st_dwithin`
-      - `st_endpoint`
-      - `st_envelope`
-      - `st_geohash`
-      - `st_geomfromgeohash`
-      - `st_geompointfromgeohash`
-      - `st_hausdorffdistance`
-      - `st_makepoint`
-      - `st_npoints`
-      - `st_perimeter`
-      - `st_pointn`
-      - `st_setsrid`
-      - `st_simplify`
-      - `st_srid`
-      - `st_startpoint`
-      - `st_symdifference`
-      - `st_transform`
-      - `st_union`
-      - `st_union_agg`
-      - `st_within`
-      - `st_x`
-      - `st_xmax`
-      - `st_xmin`
-      - `st_y`
-      - `st_ymax`
-      - `st_ymin`
+  - Geospatial functions:
+    - `st_interpolate`
+    - `st_intersection`
+    - `st_intersection_agg`
+    - `st_intersects`
+    - `st_isvalid`
+    - `st_length`
+    - `st_makegeompoint`
+    - `st_makeline`
+    - `st_makepolygon`
+    - `st_makepolygonoriented`
+    - `st_disjoint`
+    - `st_distance`
+    - `st_dwithin`
+    - `st_endpoint`
+    - `st_envelope`
+    - `st_geohash`
+    - `st_geomfromgeohash`
+    - `st_geompointfromgeohash`
+    - `st_hausdorffdistance`
+    - `st_makepoint`
+    - `st_npoints`
+    - `st_perimeter`
+    - `st_pointn`
+    - `st_setsrid`
+    - `st_simplify`
+    - `st_srid`
+    - `st_startpoint`
+    - `st_symdifference`
+    - `st_transform`
+    - `st_union`
+    - `st_union_agg`
+    - `st_within`
+    - `st_x`
+    - `st_xmax`
+    - `st_xmin`
+    - `st_y`
+    - `st_ymax`
+    - `st_ymin`
+
 
 #### Bug Fixes
 
 - Fixed a bug that `DataFrameReader.xml` fails to parse XML files with undeclared namespaces when `ignoreNamespace` is `True`.
 - Added a fix for floating point precision discrepancies in `interval_day_time_from_parts`.
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
-- Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0. 
+- Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0.
+
+#### Dependency Updates
+
+- Updated dependency of `snowflake-connector-python>=3.17,<5.0.0`.
 
 ### Snowpark pandas API Updates
 
@@ -82,7 +87,28 @@
   - `str.startswith`
   - `str.endswith`
   - `str.slice`
+  - `dt.date`
+  - `dt.time`
+  - `dt.hour`
+  - `dt.minute`
+  - `dt.second`
+  - `dt.microsecond`
+  - `dt.nanosecond`
+  - `dt.year`
+  - `dt.month`
+  - `dt.day`
+  - `dt.quarter`
+  - `dt.is_month_start`
+  - `dt.is_month_end`
+  - `dt.is_quarter_start`
+  - `dt.is_quarter_end`
+  - `dt.is_year_start`
+  - `dt.is_year_end`
+  - `dt.is_leap_year`
+  - `dt.days_in_month`
+  - `dt.daysinmonth`
   - `sort_values`
+  - `to_datetime`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
@@ -115,7 +141,7 @@
       - `nullif`
       - `nvl2`
       - `regr_valx`
-      
+
     - Semi-structured and structured date functions:
       - `array_remove_at`
       - `as_boolean`
@@ -127,14 +153,14 @@
     - String & binary functions:
       - `chr`
       - `hex_decode_binary`
-      
+
     - Numeric functions:
       - `div0null`
 
     - Differential privacy functions:
       - `dp_interval_high`
       - `dp_interval_low`
-      
+
     - Context functions:
       - `last_query_id`
       - `last_transaction`
@@ -312,7 +338,7 @@
 - Eliminate duplicate parameter check queries for casing status when retrieving the session.
 - Retrieve dataframe row counts through object metadata to avoid a COUNT(\*) query (performance)
 - Added support for applying Snowflake Cortex function `Complete`.
-- Introduce faster pandas: Improved performance by deferring row position computation. 
+- Introduce faster pandas: Improved performance by deferring row position computation.
   - The following operations are currently supported and can benefit from the optimization: `read_snowflake`, `repr`, `loc`, `reset_index`, `merge`, and binary operations.
   - If a lazy object (e.g., DataFrame or Series) depends on a mix of supported and unsupported operations, the optimization will not be used.
 - Updated the error message for when Snowpark pandas is referenced within apply.
