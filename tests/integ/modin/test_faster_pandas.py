@@ -437,7 +437,7 @@ def test_set_2d_labels_from_same_df(session):
         native_pd.DataFrame([[2, 112]], columns=["A", "B"]),
     ],
 )
-@sql_count_checker(query_count=6, join_count=3)
+@sql_count_checker(query_count=5, join_count=2)
 def test_set_2d_labels_from_different_df(session, input_df2):
     # create tables
     table_name1 = Utils.random_name_for_temp_object(TempObjectType.TABLE)
