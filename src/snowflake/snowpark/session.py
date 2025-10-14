@@ -5143,7 +5143,7 @@ class Session:
         endpoint: str,
         header: dict,
         resource: "opentelemetry.sdk.resources.Resource",
-    ):
+    ) -> None:
         url = f"https://{endpoint}/v1/traces"
 
         self._proxy_tracer_provider = ProxyTracerProvider()
@@ -5178,7 +5178,7 @@ class Session:
         header: dict,
         resource: "opentelemetry.sdk.resources.Resource",
         log_level: int,
-    ):
+    ) -> None:
         url = f"https://{endpoint}/v1/logs"
         self._proxy_log_provider = ProxyLogProvider()
         opentelemetry._logs.set_logger_provider(self._proxy_log_provider)
