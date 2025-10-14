@@ -103,10 +103,10 @@ def test_df_interpolate_fill(data, method):
         param({"axis": 1}, "axis = 1 is not supported", id="axis=1"),
         param(
             {"method": "nearest"},
-            "only method = 'linear', 'ffill', 'pad', 'bfill', and 'backfill'",
+            "method = 'nearest' is not supported",
             id="unsupported_method",
         ),
-        param({"limit": 1}, "only limit = None", id="limit=1"),
+        param({"limit": 1}, "limit = 1 is not supported", id="limit=1"),
         param(
             {"method": "linear", "limit_area": "outside"},
             "with limit_area = outside for method = linear",
@@ -133,7 +133,7 @@ def test_df_interpolate_fill(data, method):
             id="bfill_inside",
         ),
         param(
-            {"downcast": "infer"}, "only downcast = None is supported", id="downcast"
+            {"downcast": "infer"}, "downcast = 'infer' is not supported", id="downcast"
         ),
     ],
 )

@@ -15156,16 +15156,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 (
                     lambda args: args.get("method")
                     not in {"linear", "ffill", "pad", "bfill", "backfill"},
-                    "only method = 'linear', 'ffill', 'pad', 'bfill', and 'backfill' are supported",
+                    lambda args: f"method = '{args.get('method')}' is not supported. Snowpark pandas currently only supports method = 'linear', 'ffill', 'pad', 'bfill', and 'backfill'",
                 ),
                 ("axis", 1),
                 (
                     lambda args: args.get("limit") is not None,
-                    "only limit = None is supported",
+                    lambda args: f"limit = {args.get('limit')} is not supported. Snowpark pandas currently only supports limit = None",
                 ),
                 (
                     lambda args: args.get("downcast") is not None,
-                    "only downcast = None is supported",
+                    lambda args: f"downcast = '{args.get('downcast')}' is not supported. Snowpark pandas currently only supports downcast = None",
                 ),
             ]
         ),
