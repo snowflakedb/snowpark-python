@@ -526,22 +526,26 @@ def test_telemetry_tracking_for_udtf(caplog, session):
 
         return FakeConnection()
 
-    df = session.read.dbapi(
-        create_connection,
-        table="Fake",
-        custom_schema="c1 INT",
-        udtf_configs={
-            "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
-            "packages": ["snowflake-snowpark-python"],
-        },
-    )
     with mock.patch(
         "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
         side_effect=assert_datasource_statement_params_run_query,
     ):
+        df = session.read.dbapi(
+            create_connection,
+            table="Fake",
+            custom_schema="c1 INT",
+            udtf_configs={
+                "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
+                "packages": ["snowflake-snowpark-python"],
+            },
+        )
         df.select("*").collect()
+    # called 7 comes from
+    # dbapi internal save empty table: 1 time
+    # dbapi register UDTF: 5 times (operations entailing stage, package, registration)
+    # select: 1 time
     assert (
-        "'name': 'DataFrameReader.dbapi'" in str(df._plan.api_calls[0]) and called == 1
+        "'name': 'DataFrameReader.dbapi'" in str(df._plan.api_calls[0]) and called == 7
     )
 
 
