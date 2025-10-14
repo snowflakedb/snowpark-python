@@ -1,5 +1,5 @@
 ===========================================
-Hybrid Execution (Public Preview)
+Hybrid Execution
 ===========================================
 
 Snowpark pandas supports workloads on mixed underlying execution engines and will automatically
@@ -37,8 +37,8 @@ read_snowflake, value_counts, tail, var, std, sum, sem, max, min, mean, agg, agg
 Examples
 ========
 
-Enabling Hybrid Execution
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Disabling or Enabling Hybrid Execution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -141,3 +141,11 @@ Debugging Hybrid Execution
 `pd.explain_switch()` provides information on how execution engine decisions
 are made. This method prints a simplified version of the command unless `simple=False` is
 passed as an argument.
+
+Performance Considerations
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+Hybrid mode will generally perform well with small datasets and traditional notebook
+workloads, but merge-heavy workloads using a star schema can result in moving data too
+often, particularly when tables in the star schema straddle the transfer-cost boundary.
+Since the Snowflake Warehouse is designed for these SQL-like workloads turning off hybrid
+mode may be desirable.

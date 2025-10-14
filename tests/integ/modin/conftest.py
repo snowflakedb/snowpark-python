@@ -302,7 +302,7 @@ def create_multiindex_with_dt64tz_level() -> pd.MultiIndex:
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def indices_dict():
     return {
         "string": pandas.Index(
@@ -389,7 +389,7 @@ def test_table_name(session) -> str:
         Utils.drop_table(session, test_table_name)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def float_frame() -> pandas.DataFrame:
     """
     Fixture for DataFrame of floats with index of unique strings
@@ -422,7 +422,7 @@ def float_frame() -> pandas.DataFrame:
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def float_string_frame():
     """
     Fixture for DataFrame of floats and strings with index of unique strings
@@ -457,7 +457,7 @@ def float_string_frame():
     return df
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def datetime_series(nper=30, freq: Frequency = "B", name=None) -> pandas.Series:
     """
     Fixture for Series of floats with DatetimeIndex
