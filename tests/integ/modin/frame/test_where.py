@@ -19,7 +19,7 @@ from tests.integ.modin.utils import (
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def test_data():
     return {
         "A": [1, 2, 3, 4, 5],
@@ -30,7 +30,7 @@ def test_data():
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def test_cond():
     return {
         "A": [True, False, True, False, True],
@@ -41,7 +41,7 @@ def test_cond():
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def test_others():
     return {
         "A": [200, 201, 202, 203, 204],

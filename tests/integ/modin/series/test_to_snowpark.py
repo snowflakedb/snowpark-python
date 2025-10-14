@@ -16,7 +16,7 @@ from snowflake.snowpark.types import LongType, StringType
 from tests.integ.utils.sql_counter import sql_count_checker
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def snow_series_basic(session):
     native_series = native_pd.Series(
         [1, 2, 3, 4],

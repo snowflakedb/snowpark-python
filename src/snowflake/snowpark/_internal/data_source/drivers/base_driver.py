@@ -43,17 +43,28 @@ if TYPE_CHECKING:
 class BaseDriver:
     def __init__(
         self,
-        create_connection: Callable[[], "Connection"],
+        create_connection: Callable[..., "Connection"],
         dbms_type: Enum,
+        connection_parameters: Optional[dict] = None,
     ) -> None:
         self.create_connection = create_connection
         self.dbms_type = dbms_type
+        self.connection_parameters = connection_parameters
         self.raw_schema = None
+
+    def _call_create_connection(self) -> "Connection":
+        """Call create_connection with connection_parameters if provided."""
+        if self.connection_parameters:
+            return self.create_connection(**self.connection_parameters)
+        return self.create_connection()
 
     def to_snow_type(self, schema: List[Any]) -> StructType:
         raise NotImplementedError(
             f"{self.__class__.__name__} has not implemented to_snow_type function"
         )
+
+    def non_retryable_error_checker(self, error: Exception) -> bool:
+        return False
 
     @staticmethod
     def prepare_connection(
@@ -97,7 +108,7 @@ class BaseDriver:
     def infer_schema_from_description_with_error_control(
         self, table_or_query: str, is_query: bool, query_input_alias: str
     ) -> StructType:
-        conn = self.create_connection()
+        conn = self._call_create_connection()
         cursor = conn.cursor()
         try:
             return self.infer_schema_from_description(
@@ -139,6 +150,8 @@ class BaseDriver:
         fetch_size: int = 1000,
         imports: Optional[List[str]] = None,
         packages: Optional[List[str]] = None,
+        session_init_statement: Optional[List[str]] = None,
+        query_timeout: Optional[int] = 0,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         from snowflake.snowpark._internal.data_source.utils import UDTF_PACKAGE_MAP
@@ -146,7 +159,12 @@ class BaseDriver:
         udtf_name = random_name_for_temp_object(TempObjectType.FUNCTION)
         with measure_time() as udtf_register_time:
             session.udtf.register(
-                self.udtf_class_builder(fetch_size=fetch_size, schema=schema),
+                self.udtf_class_builder(
+                    fetch_size=fetch_size,
+                    schema=schema,
+                    session_init_statement=session_init_statement,
+                    query_timeout=query_timeout,
+                ),
                 name=udtf_name,
                 output_schema=StructType(
                     [
@@ -166,14 +184,28 @@ class BaseDriver:
         return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
 
     def udtf_class_builder(
-        self, fetch_size: int = 1000, schema: StructType = None
+        self,
+        fetch_size: int = 1000,
+        schema: StructType = None,
+        session_init_statement: List[str] = None,
+        query_timeout: int = 0,
     ) -> type:
         create_connection = self.create_connection
+        prepare_connection = self.prepare_connection
+        connection_parameters = self.connection_parameters
 
         class UDTFIngestion:
             def process(self, query: str):
-                conn = create_connection()
+                conn_result = (
+                    create_connection(**connection_parameters)
+                    if connection_parameters
+                    else create_connection()
+                )
+                conn = prepare_connection(conn_result, query_timeout)
                 cursor = conn.cursor()
+                if session_init_statement is not None:
+                    for statement in session_init_statement:
+                        cursor.execute(statement)
                 cursor.execute(query)
                 while True:
                     rows = cursor.fetchmany(fetch_size)
@@ -259,7 +291,10 @@ class BaseDriver:
             res_df[field.name].cast(field.datatype).alias(field.name)
             for field in schema.fields
         ]
-        return res_df.select(cols, _emit_ast=_emit_ast)
+        selected_df = res_df.select(cols, _emit_ast=_emit_ast)
+        for attr, source_field in zip(selected_df._plan.attributes, schema.fields):
+            attr.nullable = source_field.nullable
+        return selected_df
 
     def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
         """

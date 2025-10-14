@@ -14,6 +14,7 @@ from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
+    count_rows,
     create_initial_ordered_dataframe,
     get_object_metadata_row_count,
 )
@@ -259,3 +260,27 @@ def test_get_object_metadata_row_count(session):
 
     finally:
         session.sql(f"DROP SCHEMA IF EXISTS {ALTERNATIVE_TEST_SCHEMA}").collect()
+
+
+@sql_count_checker(query_count=2)
+def test_count_rows(session):
+    columns = ["A", "B", "C"]
+    num_rows = 10
+    data = [[0] * len(columns) for _ in range(num_rows)]
+    test_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    snowpark_df = session.create_dataframe(data, schema=columns)
+    snowpark_df.write.save_as_table(test_table_name)
+
+    (
+        ordered_df,
+        row_position_quoted_identifier,
+    ) = create_initial_ordered_dataframe(test_table_name, enforce_ordering=False)
+
+    # Ensure that the row count cache is empty in the ordered dataframe
+    ordered_df.row_count = None
+    assert ordered_df.row_count is None
+
+    # verify that the row count gets cached in the ordered dataframe
+    # after calling count_rows()
+    assert count_rows(ordered_df) == 10
+    assert ordered_df.row_count == 10

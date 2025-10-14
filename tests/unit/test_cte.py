@@ -2,6 +2,8 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import hashlib
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -103,3 +105,28 @@ def test_encode_node_id_with_query_select_sql(mock_session, mock_analyzer):
         encode_node_id_with_query(select_statement_node)
         == f"{expected_hash}_SelectStatement"
     )
+
+
+def test_encode_node_id_with_query_includes_aliases():
+    node = SimpleNamespace(
+        sql_query="select col1 from t",
+        query_params=(("p1", 1), ("p2", "x")),
+        expr_to_alias={"uuid1": "ALIAS1"},
+        df_aliased_col_name_to_real_col_name={"ALIAS1": "col1"},
+    )
+
+    def stringify_dict(d: dict) -> str:
+        key_value_pairs = list(d.items())
+        key_value_pairs.sort(key=lambda x: x[0])
+        return str(key_value_pairs)
+
+    expected_string = node.sql_query
+    if node.query_params:
+        expected_string = f"{expected_string}#{node.query_params}"
+    if node.expr_to_alias:
+        expected_string = f"{expected_string}#{stringify_dict(node.expr_to_alias)}"
+    if node.df_aliased_col_name_to_real_col_name:
+        expected_string = f"{expected_string}#{stringify_dict(node.df_aliased_col_name_to_real_col_name)}"
+
+    expected_hash = hashlib.sha256(expected_string.encode()).hexdigest()[:10]
+    assert encode_node_id_with_query(node) == f"{expected_hash}_SimpleNamespace"

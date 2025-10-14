@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import logging
 import json
 import pytest
 
@@ -95,6 +96,12 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name,
         test_files.test_xml_undeclared_namespace,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name,
+        test_files.test_xml_undeclared_attr_namespace,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -295,6 +302,29 @@ def test_read_xml_undeclared_namespace(session, ignore_namespace):
     assert result[1]["'px:value'"] in ['"100"', '"200"']
 
 
+@pytest.mark.parametrize("ignore_namespace", [True, False])
+def test_read_xml_undeclared_attr_namespace(session, ignore_namespace):
+    # File has attribute prefixes (e.g., diffgr:id, msdata:rowOrder) declared only on ancestors.
+    # Reader extracts <Results> ... </Results> records without the declarations; parsing must still succeed.
+    row_tag = "Results"
+    df = (
+        session.read.option("rowTag", row_tag)
+        .option("cacheResult", False)
+        .option("mode", "failfast")
+        .option("ignoreNamespace", ignore_namespace)
+        .xml(f"@{tmp_stage_name}/undeclared_attr_namespace.xml")
+    )
+    if not ignore_namespace:
+        with pytest.raises(SnowparkSQLException, match="XMLSyntaxError"):
+            df.collect()
+    else:
+        result = df.collect()
+        assert len(result) == 3
+        noms = {result[0]["'NOM'"], result[1]["'NOM'"], result[2]["'NOM'"]}
+        assert '"CAMUT"' in noms
+        assert any(v in noms for v in ['"CAMUT"', '"Test2"', '"Test3"'])
+
+
 @pytest.mark.parametrize("attribute_prefix", ["_", ""])
 def test_read_xml_attribute_prefix(session, attribute_prefix):
     row_tag = "book"
@@ -398,6 +428,19 @@ def test_read_xml_ignore_surrounding_whitespace(
     Utils.check_answer(df, [expected_row])
 
 
+def test_read_xml_warning_local_package(session, caplog):
+    row_tag = "book"
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        session.read.option("rowTag", row_tag).xml(
+            f"@{tmp_stage_name}/{test_file_books_xml}"
+        )
+    assert (
+        "Your UDF might not work when the package version is different between the server and your local environment"
+        not in caplog.text
+    )
+
+
 def test_read_xml_row_validation_xsd_path(session):
     row_tag = "book"
     df = (
@@ -416,3 +459,11 @@ def test_read_xml_row_validation_xsd_path(session):
     assert result[0]["'price'"] == '"44.95"'
     assert result[0]["'publish_date'"] == '"2000-10-01"'
     assert result[0]["'_id'"] == '"bk101"'
+
+
+def test_read_xml_row_validation_xsd_path_failfast(session):
+    row_tag = "book"
+    with pytest.raises(SnowparkSQLException, match="XML record string:"):
+        session.read.option("rowTag", row_tag).option(
+            "rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}"
+        ).option("mode", "failfast").xml(f"@{tmp_stage_name}/{test_file_books_xml}")

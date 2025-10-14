@@ -468,7 +468,22 @@ def process_xml_range(
                     # to parse undeclared namespaces, we have to use recover mode
                     recover = bool(":" in tag_name)
                     parser = ET.XMLParser(recover=recover, ns_clean=True)
-                    element = ET.fromstring(record_str, parser)
+                    try:
+                        element = ET.fromstring(record_str, parser)
+                    except ET.XMLSyntaxError:
+                        # when ignoring namespaces, strip attribute prefixes
+                        # like xyz:id -> id so records with undeclared prefixes can still parse.
+                        if ignore_namespace:
+                            try:
+                                cleaned_record = re.sub(
+                                    r"\s+(\w+):(\w+)=", r" \2=", record_str
+                                )
+                                element = ET.fromstring(cleaned_record, parser)
+                            except Exception as inner_ex:
+                                # avoid chained exceptions
+                                raise inner_ex from None
+                        else:
+                            raise
                 else:
                     element = ET.fromstring(record_str)
 
@@ -503,7 +518,8 @@ def process_xml_range(
                     yield {column_name_of_corrupt_record: record_str}
                 elif mode == "FAILFAST":
                     raise RuntimeError(
-                        f"Malformed XML record at bytes {record_start}-{record_end}: {e}"
+                        f"Malformed XML record at bytes {record_start}-{record_end}: {e}\n"
+                        f"XML record string: {record_str}"
                     )
 
             if record_end > approx_end:
