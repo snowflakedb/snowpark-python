@@ -305,6 +305,18 @@ def test_unsupported_type():
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
 
 
+def test_mysql_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="You have an error in your SQL syntax",
+    ):
+        session.read.dbapi(
+            create_connection_mysql,
+            table=TEST_TABLE_NAME,
+            predicates=["invalid syntax"],
+        )
+
+
 def test_session_init(session):
     with pytest.raises(
         SnowparkDataframeReaderException,
@@ -347,3 +359,47 @@ def test_session_init_udtf(session):
             ],
             udtf_configs=udtf_configs,
         ).collect()
+
+
+@pytest.mark.parametrize(
+    "udtf_configs",
+    [
+        None,
+        {
+            "external_access_integration": MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        },
+    ],
+)
+def test_mysql_with_connection_parameters_local_ingestion(session, udtf_configs):
+    """Test connection_parameters with local/default ingestion."""
+
+    def create_connection_with_params(
+        user=None, password=None, host=None, database=None, **kwargs
+    ):
+        if kwargs.get("extra_param") != "extra_value":
+            raise ValueError("extra_param should be extra_value")
+        import pymysql
+
+        return pymysql.connect(
+            user=user,
+            password=password,
+            host=host,
+            database=database,
+        )
+
+    connection_params = {
+        "user": MYSQL_CONNECTION_PARAMETERS["username"],
+        "password": MYSQL_CONNECTION_PARAMETERS["password"],
+        "host": MYSQL_CONNECTION_PARAMETERS["host"],
+        "database": MYSQL_CONNECTION_PARAMETERS["database"],
+        "extra_param": "extra_value",  # Extra param to verify arbitrary params are passed
+    }
+
+    df = session.read.dbapi(
+        create_connection_with_params,
+        table=TEST_TABLE_NAME,
+        custom_schema=mysql_schema,
+        connection_parameters=connection_params,
+        udtf_configs=udtf_configs,
+    )
+    Utils.check_answer(df, mysql_real_data)

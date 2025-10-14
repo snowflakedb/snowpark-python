@@ -23,6 +23,7 @@ from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.dataframe import DataFrame as SnowparkDataFrame
 from snowflake.snowpark.modin.plugin.extensions.utils import (
     add_cache_result_docstring,
+    pandas_to_snowflake,
     register_non_snowflake_accessors,
 )
 from snowflake.snowpark.modin.plugin.utils.warning_message import (
@@ -37,11 +38,8 @@ register_dataframe_accessor = functools.partial(
 register_non_snowflake_accessors(_register_dataframe_accessor, "DataFrame")
 
 
-# Snowflake specific dataframe methods
-# We use extensions, as we want to make clear that a Snowpark pandas DataFrame is NOT a
-# pandas DataFrame.
 # Implementation note: Arguments names and types are kept consistent with pandas.DataFrame.to_sql
-@register_dataframe_accessor("to_snowflake")
+@register_dataframe_accessor("to_snowflake", backend="Snowflake")
 def to_snowflake(
     self,
     name: Union[str, Iterable[str]],
@@ -78,6 +76,9 @@ def to_snowflake(
 
     """
     self._query_compiler.to_snowflake(name, if_exists, index, index_label, table_type)
+
+
+register_dataframe_accessor("to_snowflake", backend="Pandas")(pandas_to_snowflake)
 
 
 @register_dataframe_accessor("to_snowpark")

@@ -264,6 +264,16 @@ Functions
     h3_try_polygon_to_cells
     h3_uncompact_cells
     h3_uncompact_cells_strings
+    h3_grid_path
+    h3_is_pentagon
+    h3_is_valid_cell
+    h3_latlng_to_cell
+    h3_latlng_to_cell_string
+    h3_point_to_cell
+    h3_point_to_cell_string
+    h3_try_coverage
+    h3_try_coverage_strings
+    h3_try_grid_distance
     iff
     ifnull
     in_
@@ -326,6 +336,10 @@ Functions
     map_concat
     map_contains_key
     map_keys
+    map_delete
+    map_insert
+    map_pick
+    map_size
     max
     max_by
     md5
@@ -400,6 +414,7 @@ Functions
     seq4
     seq8
     sequence
+    service
     sha1
     sha2
     sin
@@ -426,6 +441,54 @@ Functions
     st_asewkt
     st_asgeojson
     st_aswkb
+    st_aswkt
+    st_azimuth
+    st_buffer
+    st_centroid
+    st_collect
+    st_contains
+    st_coveredby
+    st_covers
+    st_difference
+    st_dimension
+    st_disjoint
+    st_distance
+    st_dwithin
+    st_endpoint
+    st_envelope
+    st_geohash
+    st_geomfromgeohash
+    st_geompointfromgeohash
+    st_hausdorffdistance
+    st_makepoint
+    st_interpolate
+    st_intersection
+    st_intersection_agg
+    st_intersects
+    st_isvalid
+    st_length
+    st_makegeompoint
+    st_makeline
+    st_makepolygon
+    st_makepolygonoriented
+    st_npoints
+    st_perimeter
+    st_pointn
+    st_setsrid
+    st_simplify
+    st_srid
+    st_startpoint
+    st_symdifference
+    st_transform
+    st_union
+    st_union_agg
+    st_within
+    st_x
+    st_xmax
+    st_xmin
+    st_y
+    st_ymax
+    st_ymin
     substr
     substring
     sum

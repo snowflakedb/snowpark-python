@@ -15,7 +15,7 @@ from tests.utils import multithreaded_run
 
 # Must pin modin version to match latest version available in Snowflake
 # Anaconda
-SPROC_MODIN_VERSION = "0.35.0"
+SPROC_MODIN_VERSION = "0.36.0"
 
 PACKAGE_LIST = [
     # Note that because we specify `snowflake-snowpark-python` as a package here, it will pick whatever

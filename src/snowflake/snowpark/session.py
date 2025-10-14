@@ -775,13 +775,16 @@ class Session:
             try:
                 from modin.config import AutoSwitchBackend
 
-                pandas_hybrid_execution_enabled: bool = (
-                    self._conn._get_client_side_session_parameter(
-                        _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED,
-                        AutoSwitchBackend().get(),
-                    )
+                pandas_hybrid_execution_enabled: Union[
+                    bool, None
+                ] = self._conn._get_client_side_session_parameter(
+                    _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED, None
                 )
-                AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
+                # Only set AutoSwitchBackend if the session parameter was already set.
+                # snowflake.snowpark.modin.plugin sets AutoSwitchBackend to True if it was
+                # not already set, so we should not change the variable if it's in its default state.
+                if pandas_hybrid_execution_enabled is not None:
+                    AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
             except Exception:
                 # Continue session initialization even if Modin configuration fails
                 pass
@@ -1759,8 +1762,10 @@ class Session:
             >>> from snowflake.snowpark.functions import udf
             >>> import numpy
             >>> import pandas
+            >>> import sys
             >>> # test_requirements.txt contains "numpy" and "pandas"
-            >>> session.add_requirements("tests/resources/test_requirements.txt")
+            >>> file = "test_requirements.txt" if sys.version_info < (3, 13) else "test_requirements_py313.txt"
+            >>> session.add_requirements(f"tests/resources/{file}")
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
@@ -1913,6 +1918,7 @@ class Session:
         package_table: str,
         current_packages: Dict[str, str],
         statement_params: Optional[Dict[str, str]] = None,
+        suppress_local_package_warnings: bool = False,
     ) -> List[Requirement]:
         # Keep track of any package errors
         errors = []
@@ -2008,24 +2014,27 @@ class Session:
                         if not is_valid_version(
                             package_name, package_client_version, valid_packages
                         ):
-                            _logger.warning(
-                                f"The version of package '{package_name}' in the local environment is "
-                                f"{package_client_version}, which does not fit the criteria for the "
-                                f"requirement '{package}'. Your UDF might not work when the package version "
-                                f"is different between the server and your local environment."
-                            )
+                            if not suppress_local_package_warnings:
+                                _logger.warning(
+                                    f"The version of package '{package_name}' in the local environment is "
+                                    f"{package_client_version}, which does not fit the criteria for the "
+                                    f"requirement '{package}'. Your UDF might not work when the package version "
+                                    f"is different between the server and your local environment."
+                                )
                     except importlib.metadata.PackageNotFoundError:
-                        _logger.warning(
-                            f"Package '{package_name}' is not installed in the local environment. "
-                            f"Your UDF might not work when the package is installed on the server "
-                            f"but not on your local environment."
-                        )
+                        if not suppress_local_package_warnings:
+                            _logger.warning(
+                                f"Package '{package_name}' is not installed in the local environment. "
+                                f"Your UDF might not work when the package is installed on the server "
+                                f"but not on your local environment."
+                            )
                     except Exception as ex:  # pragma: no cover
-                        _logger.warning(
-                            "Failed to get the local distribution of package %s: %s",
-                            package_name,
-                            ex,
-                        )
+                        if not suppress_local_package_warnings:
+                            _logger.warning(
+                                "Failed to get the local distribution of package %s: %s",
+                                package_name,
+                                ex,
+                            )
 
             if package_name in current_packages:
                 if current_packages[package_name] != package:
@@ -2100,6 +2109,7 @@ class Session:
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         artifact_repository: Optional[str] = None,
+        **kwargs,
     ) -> List[str]:
         """
         Given a list of packages to add, this method will
@@ -2183,6 +2193,9 @@ class Session:
                 package_table,
                 result_dict,
                 statement_params=statement_params,
+                suppress_local_package_warnings=kwargs.get(
+                    "_suppress_local_package_warnings", False
+                ),
             )
 
             # Add dependency packages
@@ -4831,6 +4844,7 @@ class Session:
                     packages=["snowflake-snowpark-python", "lxml<6"],
                     replace=True,
                     _emit_ast=False,
+                    _suppress_local_package_warnings=True,
                 )
 
                 self._xpath_udf_cache[cache_key] = xpath_udf
@@ -5196,3 +5210,68 @@ class Session:
         logging.getLogger().setLevel(log_level)
 
         self._logger_provider_enabled = True
+
+    @publicapi
+    def begin_transaction(
+        self, name: Optional[str] = None, _emit_ast: bool = True
+    ) -> None:
+        """
+        Begins a new transaction in the current session.
+
+        Args:
+            name: Optional string that assigns a name to the transaction. A name helps
+                identify a transaction, but is not required and does not need to be unique.
+
+        Example::
+            >>> # Begin an anonymous transaction
+            >>> session.begin_transaction()
+
+            >>> # Begin a named transaction
+            >>> session.begin_transaction("my_transaction")
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.begin_transaction, stmt)
+            if name is not None:
+                ast.name.value = name
+
+        query = f"BEGIN TRANSACTION {('NAME ' + name) if name else ''}"
+        self.sql(query, _ast_stmt=stmt, _emit_ast=_emit_ast).collect(_emit_ast=False)
+
+    @publicapi
+    def commit(self, _emit_ast: bool = True) -> None:
+        """
+        Commits an open transaction in the current session.
+
+        Example::
+            >>> session.begin_transaction()
+            >>> session.commit()
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            with_src_position(stmt.expr.commit, stmt)
+
+        self.sql("COMMIT", _ast_stmt=stmt, _emit_ast=_emit_ast).collect(_emit_ast=False)
+
+    @publicapi
+    def rollback(self, _emit_ast: bool = True) -> None:
+        """
+        Rolls back an open transaction in the current session.
+
+        Example::
+            >>> session.begin_transaction()
+            >>> session.rollback()
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            with_src_position(stmt.expr.rollback, stmt)
+
+        self.sql("ROLLBACK", _ast_stmt=stmt, _emit_ast=_emit_ast).collect(
+            _emit_ast=False
+        )
