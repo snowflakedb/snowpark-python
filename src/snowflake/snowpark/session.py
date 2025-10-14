@@ -235,6 +235,13 @@ from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
 
+from snowflake.snowpark._internal.external_telemetry import (
+    opentelemetry,
+    installed_opentelemery,
+    RetryWithTokenRefreshAdapter,
+    ProxyTracerProvider,
+)
+
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
     from snowflake.snowpark.udf import UserDefinedFunction  # pragma: no cover
@@ -246,13 +253,6 @@ if sys.version_info <= (3, 9):
     from typing import Iterable
 else:
     from collections.abc import Iterable
-
-from snowflake.snowpark._internal.external_telemetry import (
-    opentelemetry,
-    installed_opentelemery,
-    RetryWithTokenRefreshAdapter,
-    ProxyTracerProvider,
-)
 
 _logger = getLogger(__name__)
 
@@ -4952,7 +4952,6 @@ class Session:
         log_level: int = None,
         enable_trace_level: bool = False,
     ) -> None:
-        logging.DEBUG
         """
         Enable user to send external telemetry to designated event table when necessary dependencies are installed.
 
@@ -5021,13 +5020,9 @@ class Session:
 
         if len(parse_table_name(event_table)) != 3:
             event_table = self.get_fully_qualified_name_if_possible(event_table)
-
-        # abort the process if event table is not a fully qualified name
-        if len(parse_table_name(event_table)) != 3:
             _logger.warning(
-                f"Event table name must be fully qualified to collect telemetry into event table: {event_table}."
+                f"Input event table is converted to fully qualified name: {event_table}."
             )
-            return
 
         self._event_table = event_table
 
