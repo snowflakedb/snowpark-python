@@ -370,6 +370,72 @@ def test_str_slice(session):
     assert_series_equal(snow_result, native_result)
 
 
+@pytest.mark.parametrize(
+    "property_name",
+    [
+        "date",
+        "time",
+        "hour",
+        "minute",
+        "second",
+        "microsecond",
+        "nanosecond",
+        "year",
+        "month",
+        "day",
+        "quarter",
+        "is_month_start",
+        "is_month_end",
+        "is_quarter_start",
+        "is_quarter_end",
+        "is_year_start",
+        "is_year_end",
+        "is_leap_year",
+        "days_in_month",
+        "daysinmonth",
+    ],
+)
+@sql_count_checker(query_count=3)
+def test_dt_properties(session, property_name):
+    datetime_index = native_pd.DatetimeIndex(
+        [
+            "2014-04-04 23:56:01.000000001",
+            "2014-07-18 21:24:02.000000002",
+            "2015-11-22 22:14:03.000000003",
+            "2015-11-23 20:12:04.1234567890",
+            pd.NaT,
+        ],
+        tz="US/Eastern",
+    )
+    native_ser = native_pd.Series(datetime_index)
+
+    # create table
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame(native_ser, columns=["A"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result = getattr(df["A"].dt, property_name)
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = getattr(native_df["A"].dt, property_name)
+
+    # compare results
+    assert_series_equal(snow_result, native_result)
+
+
 @sql_count_checker(query_count=3)
 def test_sort_values(session):
     # create tables
@@ -478,6 +544,74 @@ def test_set_2d_labels_from_different_df(session, input_df2):
 
     # compare results
     assert_frame_equal(snow_result, native_result)
+
+
+@sql_count_checker(query_count=3)
+def test_dataframe_to_datetime(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame(
+            [[2021, 9, 30], [2021, 10, 30], [2021, 11, 30]],
+            columns=["year", "month", "day"],
+        )
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result = pd.to_datetime(df)
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = native_pd.to_datetime(native_df)
+
+    # compare results
+    assert_series_equal(snow_result, native_result)
+
+
+@sql_count_checker(query_count=3)
+def test_series_to_datetime(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame(
+            [
+                [1, "2022-09-30 12:00:00"],
+                [2, "2022-10-30 12:00:00"],
+                [3, "2022-11-30 12:00:00"],
+            ],
+            columns=["A", "B"],
+        )
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result = pd.to_datetime(df["B"])
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = native_pd.to_datetime(native_df["B"])
+
+    # compare results
+    assert_series_equal(snow_result, native_result)
 
 
 @sql_count_checker(query_count=0)
