@@ -7927,6 +7927,49 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         origin: DateTimeOrigin = "unix",
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _dataframe_to_datetime_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dataframe_to_datetime_internal(
+                    errors=errors,
+                    dayfirst=dayfirst,
+                    yearfirst=yearfirst,
+                    utc=utc,
+                    format=format,
+                    exact=exact,
+                    unit=unit,
+                    infer_datetime_format=infer_datetime_format,
+                    origin=origin,
+                )
+            )
+        qc = self._dataframe_to_datetime_internal(
+            errors=errors,
+            dayfirst=dayfirst,
+            yearfirst=yearfirst,
+            utc=utc,
+            format=format,
+            exact=exact,
+            unit=unit,
+            infer_datetime_format=infer_datetime_format,
+            origin=origin,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dataframe_to_datetime_internal(
+        self,
+        errors: DateTimeErrorChoices = "raise",
+        dayfirst: bool = False,
+        yearfirst: bool = False,
+        utc: bool = False,
+        format: Optional[str] = None,
+        exact: Union[bool, lib.NoDefault] = lib.no_default,
+        unit: Optional[str] = None,
+        infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
+        origin: DateTimeOrigin = "unix",
+    ) -> "SnowflakeQueryCompiler":
+        """
         Convert dataframe to the datetime dtype.
 
         Args:
@@ -8106,6 +8149,52 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def series_to_datetime(
+        self,
+        errors: DateTimeErrorChoices = "raise",
+        dayfirst: bool = False,
+        yearfirst: bool = False,
+        utc: bool = False,
+        format: Optional[str] = None,
+        exact: Union[bool, lib.NoDefault] = lib.no_default,
+        unit: Optional[str] = None,
+        infer_datetime_format: Union[lib.NoDefault, bool] = lib.no_default,
+        origin: DateTimeOrigin = "unix",
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _series_to_datetime_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and not include_index:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._series_to_datetime_internal(
+                    errors=errors,
+                    dayfirst=dayfirst,
+                    yearfirst=yearfirst,
+                    utc=utc,
+                    format=format,
+                    exact=exact,
+                    unit=unit,
+                    infer_datetime_format=infer_datetime_format,
+                    origin=origin,
+                    include_index=include_index,
+                )
+            )
+        qc = self._series_to_datetime_internal(
+            errors=errors,
+            dayfirst=dayfirst,
+            yearfirst=yearfirst,
+            utc=utc,
+            format=format,
+            exact=exact,
+            unit=unit,
+            infer_datetime_format=infer_datetime_format,
+            origin=origin,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _series_to_datetime_internal(
         self,
         errors: DateTimeErrorChoices = "raise",
         dayfirst: bool = False,
@@ -13069,42 +13158,180 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self
 
     def dt_date(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_date_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_date_internal()
+        qc = self._dt_date_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_date_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("date")
 
     def dt_time(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_time_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_time_internal()
+        qc = self._dt_time_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_time_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("time")
 
     def dt_timetz(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_timetz_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_timetz_internal()
+        qc = self._dt_timetz_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_timetz_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("timetz")
 
     def dt_year(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_year_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_year_internal()
+        qc = self._dt_year_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_year_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("year")
 
     def dt_month(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_month_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_month_internal()
+        qc = self._dt_month_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_month_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("month")
 
     def dt_day(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_day_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_day_internal()
+        qc = self._dt_day_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_day_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("day")
 
     def dt_hour(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_hour_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_hour_internal()
+        qc = self._dt_hour_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_hour_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("hour")
 
     def dt_minute(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_minute_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_minute_internal()
+        qc = self._dt_minute_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_minute_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("minute")
 
     def dt_second(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_second_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_second_internal()
+        qc = self._dt_second_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_second_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("second")
 
     def dt_microsecond(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_microsecond_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_microsecond_internal()
+            )
+        qc = self._dt_microsecond_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_microsecond_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("microsecond")
 
     def dt_nanosecond(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_nanosecond_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_nanosecond_internal()
+            )
+        qc = self._dt_nanosecond_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_nanosecond_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("nanosecond")
 
     def dt_dayofweek(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_dayofweek_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_dayofweek_internal()
+            )
+        qc = self._dt_dayofweek_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_dayofweek_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("dayofweek")
 
     def dt_isocalendar(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_isocalendar_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_isocalendar_internal()
+            )
+        qc = self._dt_isocalendar_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_isocalendar_internal(self) -> "SnowflakeQueryCompiler":
         col_name = self.columns[0]
         year_col = self.dt_property("yearofweekiso").rename(
             columns_renamer={col_name: "year"}
@@ -13118,39 +13345,179 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return year_col.concat(axis=1, other=[week_col, day_col])
 
     def dt_weekday(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_weekday_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_weekday_internal()
+        qc = self._dt_weekday_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_weekday_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("weekday")
 
     def dt_dayofyear(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_dayofyear_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_dayofyear_internal()
+            )
+        qc = self._dt_dayofyear_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_dayofyear_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("dayofyear")
 
     def dt_quarter(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_quarter_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_quarter_internal()
+        qc = self._dt_quarter_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_quarter_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("quarter")
 
     def dt_is_month_start(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_is_month_start_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_is_month_start_internal()
+            )
+        qc = self._dt_is_month_start_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_is_month_start_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_month_start")
 
     def dt_is_month_end(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_is_month_end_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_is_month_end_internal()
+            )
+        qc = self._dt_is_month_end_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_is_month_end_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_month_end")
 
     def dt_is_quarter_start(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_is_quarter_start_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_is_quarter_start_internal()
+            )
+        qc = self._dt_is_quarter_start_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_is_quarter_start_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_quarter_start")
 
     def dt_is_quarter_end(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_is_quarter_end_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_is_quarter_end_internal()
+            )
+        qc = self._dt_is_quarter_end_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_is_quarter_end_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_quarter_end")
 
     def dt_is_year_start(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_is_year_start_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_is_year_start_internal()
+            )
+        qc = self._dt_is_year_start_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_is_year_start_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_year_start")
 
     def dt_is_year_end(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_is_year_end_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_is_year_end_internal()
+            )
+        qc = self._dt_is_year_end_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_is_year_end_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_year_end")
 
     def dt_is_leap_year(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_is_leap_year_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_is_leap_year_internal()
+            )
+        qc = self._dt_is_leap_year_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_is_leap_year_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("is_leap_year")
 
     def dt_daysinmonth(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_daysinmonth_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_daysinmonth_internal()
+            )
+        qc = self._dt_daysinmonth_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_daysinmonth_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("days_in_month")
 
     def dt_days_in_month(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_days_in_month_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_days_in_month_internal()
+            )
+        qc = self._dt_days_in_month_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_days_in_month_internal(self) -> "SnowflakeQueryCompiler":
         return self.dt_property("days_in_month")
 
     def dt_freq(self) -> "SnowflakeQueryCompiler":
