@@ -11,7 +11,7 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
     Cursor,
 )
-from snowflake.snowpark._internal.server_connection import DEFAULT_STRING_SIZE
+from snowflake.snowpark._internal.server_connection import MAX_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
     get_sorted_key_for_version,
     measure_time,
@@ -246,7 +246,7 @@ class BaseDriver:
             The same datatype, or StringType with default length if applicable
         """
         if isinstance(datatype, StringType):
-            return StringType(datatype.length or DEFAULT_STRING_SIZE)
+            return StringType(datatype.length or MAX_STRING_SIZE)
         return datatype
 
     # convert timestamp and date to string to work around SNOW-1911989

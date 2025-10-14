@@ -42,19 +42,19 @@ SQL_SERVER_SCHEMA = StructType(
         StructField("DATETIME_COL", TimestampType(TimestampTimeZone("ntz")), True),
         StructField("DATETIME2_COL", TimestampType(TimestampTimeZone("ntz")), True),
         StructField("SMALLDATETIME_COL", TimestampType(TimestampTimeZone("ntz")), True),
-        StructField("CHAR_COL", StringType(16777216), True),
-        StructField("VARCHAR_COL", StringType(16777216), True),
-        StructField("VARCHAR_MAX_COL", StringType(16777216), True),
-        StructField("TEXT_COL", StringType(16777216), True),
-        StructField("NCHAR_COL", StringType(16777216), True),
-        StructField("NVARCHAR_COL", StringType(16777216), True),
-        StructField("NVARCHAR_MAX_COL", StringType(16777216), True),
-        StructField("NTEXT_COL", StringType(16777216), True),
+        StructField("CHAR_COL", StringType(), True),
+        StructField("VARCHAR_COL", StringType(), True),
+        StructField("VARCHAR_MAX_COL", StringType(), True),
+        StructField("TEXT_COL", StringType(), True),
+        StructField("NCHAR_COL", StringType(), True),
+        StructField("NVARCHAR_COL", StringType(), True),
+        StructField("NVARCHAR_MAX_COL", StringType(), True),
+        StructField("NTEXT_COL", StringType(), True),
         StructField("BINARY_COL", BinaryType(), True),
         StructField("VARBINARY_COL", BinaryType(), True),
         StructField("VARBINARY_MAX_COL", BinaryType(), True),
         StructField("IMAGE_COL", BinaryType(), True),
-        StructField("UNIQUEIDENTIFIER_COL", StringType(16777216), True),
+        StructField("UNIQUEIDENTIFIER_COL", StringType(), True),
         StructField("SQL_VARIANT_COL", BinaryType(), True),
         StructField("TIMESTAMP_COL", BinaryType(), False),
     ]
@@ -63,9 +63,9 @@ SQL_SERVER_SCHEMA = StructType(
 SQL_SERVER_UNICODE_SCHEMA = StructType(
     [
         StructField('"編號"', LongType(), nullable=False),
-        StructField('"姓名"', StringType(16777216), nullable=True),
-        StructField('"國家"', StringType(16777216), nullable=True),
-        StructField('"備註"', StringType(16777216), nullable=True),
+        StructField('"姓名"', StringType(), nullable=True),
+        StructField('"國家"', StringType(), nullable=True),
+        StructField('"備註"', StringType(), nullable=True),
     ]
 )
 
