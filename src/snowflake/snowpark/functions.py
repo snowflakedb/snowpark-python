@@ -12677,6 +12677,7 @@ def ai_extract(
         |"EXTRACTED"                   |
         --------------------------------
         |{                             |
+        |  "error": null,              |
         |  "response": {               |
         |    "city": "San Francisco",  |
         |    "name": "John"            |
@@ -12699,12 +12700,14 @@ def ai_extract(
         |"TEXT"                          |"INFO"                   |
         ------------------------------------------------------------
         |Alice Johnson works in Seattle  |{                        |
+        |                                |  "error": null,         |
         |                                |  "response": {          |
         |                                |    "city": "Seattle",   |
         |                                |    "name": "Alice"      |
         |                                |  }                      |
         |                                |}                        |
         |Bob Williams works in Portland  |{                        |
+        |                                |  "error": null,         |
         |                                |  "response": {          |
         |                                |    "city": "Portland",  |
         |                                |    "name": "Bob"        |
@@ -12725,6 +12728,7 @@ def ai_extract(
         |"EXTRACTED"         |
         ----------------------
         |{                   |
+        |  "error": null,    |
         |  "response": {     |
         |    "languages": [  |
         |      "Python",     |
@@ -12751,6 +12755,7 @@ def ai_extract(
         |"EXTRACTED"                   |
         --------------------------------
         |{                             |
+        |  "error": null,              |
         |  "response": {               |
         |    "amount": "USD $950.00",  |
         |    "date": "Nov 26, 2016"    |
