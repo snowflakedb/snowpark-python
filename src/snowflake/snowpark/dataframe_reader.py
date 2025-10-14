@@ -79,6 +79,7 @@ from snowflake.snowpark._internal.utils import (
     experimental,
 )
 from snowflake.snowpark.column import METADATA_COLUMN_TYPES, Column, _to_col_if_str
+from snowflake.snowpark.data_source import DataSource
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.exceptions import (
     SnowparkSessionException,
@@ -476,6 +477,7 @@ class DataFrameReader:
         self._infer_schema_target_columns: Optional[List[str]] = None
         self.__format: Optional[str] = None
         self._data_source_format = ["jdbc", "dbapi"]
+        self._custom_data_source_format = {}
 
         self._ast = None
         if _emit_ast:
@@ -2151,3 +2153,7 @@ class DataFrameReader:
             dataframe._ast_id = stmt.uid
 
         return dataframe
+
+    def register_custom_data_source(self, data_source: DataSource):
+        self._data_source_format.append(data_source.name())
+        self._custom_data_source_format[data_source.name()] = data_source
