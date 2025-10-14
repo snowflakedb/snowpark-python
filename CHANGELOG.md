@@ -79,6 +79,7 @@
   - `str.endswith`
   - `str.slice`
   - `sort_values`
+  - `to_datetime`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
