@@ -3,7 +3,7 @@
 #
 import importlib
 from abc import ABC
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
 import snowflake.snowpark
 import requests
@@ -13,7 +13,7 @@ class MissingOpenTelemetry(MissingOptionalDependency):
     _dep_name = "opentelemetry"
 
 
-def _import_or_missing_opentelemetry() -> tuple[ModuleLikeObject, bool]:
+def _import_or_missing_opentelemetry() -> Tuple[ModuleLikeObject, bool]:
     try:
         opentelemetry = importlib.import_module("opentelemetry")
         importlib.import_module("opentelemetry.sdk")
@@ -24,13 +24,13 @@ def _import_or_missing_opentelemetry() -> tuple[ModuleLikeObject, bool]:
         return MissingOpenTelemetry(), False
 
 
-opentelemetry, installed_opentelemery = _import_or_missing_opentelemetry()
+opentelemetry, installed_opentelemetry = _import_or_missing_opentelemetry()
 
-BaseLogProvider = opentelemetry._logs.LoggerProvider if installed_opentelemery else ABC
+BaseLogProvider = opentelemetry._logs.LoggerProvider if installed_opentelemetry else ABC
 BaseTraceProvider = (
-    opentelemetry.trace.TracerProvider if installed_opentelemery else ABC
+    opentelemetry.trace.TracerProvider if installed_opentelemetry else ABC
 )
-Attributes = opentelemetry.util.types.Attributes if installed_opentelemery else ABC
+Attributes = opentelemetry.util.types.Attributes if installed_opentelemetry else ABC
 
 
 class RetryWithTokenRefreshAdapter(requests.adapters.HTTPAdapter):

@@ -237,7 +237,7 @@ from snowflake.snowpark.udtf import UDTFRegistration
 
 from snowflake.snowpark._internal.external_telemetry import (
     opentelemetry,
-    installed_opentelemery,
+    installed_opentelemetry,
     RetryWithTokenRefreshAdapter,
     ProxyTracerProvider,
 )
@@ -4975,7 +4975,7 @@ class Session:
 
         Note:
             Please use logging.getLogger().setLevel(<log level>) instead of logging.basicConfig(<log leve>)
-            because the later will not work with exsiting handlers.
+            because the later will not work with existing handlers.
             This function requires the `opentelemetry` extra from Snowpark.
             Install it via pip:
 
@@ -4987,7 +4987,7 @@ class Session:
             enable_trace_level: A bool value indicate whether traces are collected into event_table
 
         Examples 1
-            >>> session.enable_external_telemetry("db.sc.external_et", True, True)
+            >>> session.enable_external_telemetry("db.sc.external_et", logging.INFO, True)
             >>> logging.getLogger().setLevel(logging.INFO)
             >>> tracer = trace.get_tracer("external_telemetry")
             >>> with tracer.start_as_current_span("code_store") as span:
@@ -5000,7 +5000,7 @@ class Session:
             >>> logging.getLogger().setLevel(logging.INFO)
             >>> logging.info("log before enable external telemetry") # this log is not sent to event table
 
-            >>> session.enable_external_telemetry("db.sc.external_et", True, True)
+            >>> session.enable_external_telemetry("db.sc.external_et", logging.INFO, True)
 
             >>> tracer = trace.get_tracer("external_telemetry")
             >>> with tracer.start_as_current_span("code_store") as span:
@@ -5012,7 +5012,7 @@ class Session:
 
             >>> logging.info("out of scope log")  # this log is not sent to event table
 
-            >>> session.enable_external_telemetry("db.sc.external_et", True, True)
+            >>> session.enable_external_telemetry("db.sc.external_et", logging.INFO, True)
 
             >>> logging.getLogger().setLevel(logging.DEBUG)
             >>> logging.debug("debug log") # this log is sent to event table because external telemetry is re-enabled
@@ -5020,7 +5020,7 @@ class Session:
             >>> session.disable_external_telemetry()
 
         """
-        if not installed_opentelemery:
+        if not installed_opentelemetry:
             _logger.debug(
                 f"Opentelemetry dependencies are missing, no telemetry export into event table: {event_table}"
             )
@@ -5204,10 +5204,9 @@ class Session:
         self._proxy_log_provider.enable()
 
         self._log_handler = opentelemetry.sdk._logs.LoggingHandler(
-            logger_provider=self._proxy_log_provider
+            logger_provider=self._proxy_log_provider, level=log_level
         )
         logging.getLogger().addHandler(self._log_handler)
-        logging.getLogger().setLevel(log_level)
 
         self._logger_provider_enabled = True
 

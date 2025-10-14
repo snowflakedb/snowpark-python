@@ -69,7 +69,7 @@ class MockOTLPLogExporter(OTLPLogExporter):
 class MockOTLPSpanExporter(OTLPSpanExporter):
     def export(self, batch):
         if self._shutdown:
-            return LogExportResult.FAILURE
+            return SpanExportResult.FAILURE
         with lock:
             if self._endpoint in mock_tracer_results:
                 mock_tracer_results[self._endpoint].extend(batch)
