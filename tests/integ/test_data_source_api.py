@@ -503,7 +503,9 @@ def test_telemetry_tracking_for_udtf(caplog, session):
 
     def assert_datasource_statement_params_run_query(*args, **kwargs):
         # assert we set statement_parameters to track datasource udtf api usage
-        assert kwargs.get("_statement_params")[STATEMENT_PARAMS_DATA_SOURCE] == "1"
+        query = args[0]
+        if not query.lower().startswith("put"):
+            assert kwargs.get("_statement_params")[STATEMENT_PARAMS_DATA_SOURCE] == "1"
         nonlocal called
         called += 1
         return original_func(*args, **kwargs)
@@ -540,12 +542,13 @@ def test_telemetry_tracking_for_udtf(caplog, session):
             },
         )
         df.select("*").collect()
-    # called 7 comes from
-    # dbapi internal save empty table: 1 time
-    # dbapi register UDTF: 5 times (operations entailing stage, package, registration)
-    # select: 1 time
+    # called 7/8 times coming from:
+    # 1. dbapi internal save empty table: 1 time
+    # 2. dbapi register UDTF: 5/6 times depending on python versions (operations entailing stage, package, registration)
+    #   the delta is due to different python versions will do registration differently: inline or upload to stage
+    # 3. select: 1 time
     assert (
-        "'name': 'DataFrameReader.dbapi'" in str(df._plan.api_calls[0]) and called == 7
+        "'name': 'DataFrameReader.dbapi'" in str(df._plan.api_calls[0]) and called >= 7
     )
 
 
