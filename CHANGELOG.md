@@ -106,6 +106,7 @@
   - `dt.daysinmonth`
   - `sort_values`
   - `to_datetime`
+  - `drop`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
