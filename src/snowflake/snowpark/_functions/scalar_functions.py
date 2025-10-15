@@ -3866,6 +3866,9 @@ def st_geometryfromwkt(
     elif srid is not None:
         srid_col = _to_col_if_str(srid, "st_geometryfromwkt")
         return builtin("st_geometryfromwkt", _emit_ast=_emit_ast)(c, srid_col)
+    elif allow_invalid is not None:
+        allow_invalid_col = _to_col_if_str(allow_invalid, "st_geometryfromwkt")
+        return builtin("st_geometryfromwkt", _emit_ast=_emit_ast)(c, allow_invalid_col)
     else:
         return builtin("st_geometryfromwkt", _emit_ast=_emit_ast)(c)
 
@@ -3960,5 +3963,8 @@ def try_to_geometry(
     elif srid is not None:
         srid_col = _to_col_if_str(srid, "try_to_geometry")
         return builtin("try_to_geometry", _emit_ast=_emit_ast)(c, srid_col)
+    elif allow_invalid is not None:
+        allow_invalid_col = _to_col_if_str(allow_invalid, "try_to_geometry")
+        return builtin("try_to_geometry", _emit_ast=_emit_ast)(c, allow_invalid_col)
     else:
         return builtin("try_to_geometry", _emit_ast=_emit_ast)(c)
