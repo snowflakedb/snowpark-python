@@ -3952,8 +3952,13 @@ def try_to_geometry(
     c = _to_col_if_str(input_expr, "try_to_geometry")
 
     if srid is not None and allow_invalid is not None:
-        return builtin("try_to_geometry", _emit_ast=_emit_ast)(c, srid, allow_invalid)
+        srid_col = _to_col_if_str(srid, "try_to_geometry")
+        allow_invalid_col = _to_col_if_str(allow_invalid, "try_to_geometry")
+        return builtin("try_to_geometry", _emit_ast=_emit_ast)(
+            c, srid_col, allow_invalid_col
+        )
     elif srid is not None:
-        return builtin("try_to_geometry", _emit_ast=_emit_ast)(c, srid)
+        srid_col = _to_col_if_str(srid, "try_to_geometry")
+        return builtin("try_to_geometry", _emit_ast=_emit_ast)(c, srid_col)
     else:
         return builtin("try_to_geometry", _emit_ast=_emit_ast)(c)
