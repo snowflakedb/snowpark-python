@@ -3868,7 +3868,7 @@ def st_geometryfromwkt(
         return builtin("st_geometryfromwkt", _emit_ast=_emit_ast)(c, srid_col)
     elif allow_invalid is not None:
         allow_invalid_col = _to_col_if_str(allow_invalid, "st_geometryfromwkt")
-        return builtin("st_geometryfromwkt", _emit_ast=_emit_ast)(c, allow_invalid_col)
+        return builtin("st_geometryfromwkt", _emit_ast=_emit_ast)(c, None, allow_invalid_col)
     else:
         return builtin("st_geometryfromwkt", _emit_ast=_emit_ast)(c)
 
