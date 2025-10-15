@@ -269,7 +269,7 @@ def get_frame_by_row_pos_frame(
 def _get_frame_by_row_pos_boolean_frame(
     internal_frame: InternalFrame,
     key: InternalFrame,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Select rows using the boolean frame positional key. The two frames will be inner joined on their row position column
@@ -320,7 +320,7 @@ def _get_frame_by_row_pos_boolean_frame(
 def _get_frame_by_row_pos_int_frame(
     internal_frame: InternalFrame,
     key: InternalFrame,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Select rows using the int frame positional key. The two frames will be inner joined on the internal_frame's row
@@ -374,7 +374,7 @@ def _get_frame_by_row_pos_int_frame(
 def _get_adjusted_key_frame_by_row_pos_int_frame(
     internal_frame: InternalFrame,
     key: InternalFrame,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Return the key frame with any negative row positions adjusted by the internal frame.  For example, if the original
@@ -1100,7 +1100,7 @@ def get_index_frame_by_row_label_slice(
 def get_frame_by_row_label(
     internal_frame: InternalFrame,
     key: Union[InternalFrame, slice, tuple],
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Select rows by labels in the key.
@@ -1130,7 +1130,9 @@ def get_frame_by_row_label(
 
     # boolean indexer
     if isinstance(key_datatype, BooleanType):
-        return _get_frame_by_row_label_boolean_frame(internal_frame, key)
+        return _get_frame_by_row_label_boolean_frame(
+            internal_frame, key, dummy_row_pos_mode
+        )
 
     return _get_frame_by_row_label_non_boolean_frame(
         internal_frame, key, dummy_row_pos_mode
@@ -1470,6 +1472,7 @@ def _get_frame_by_row_label_slice(
 def _get_frame_by_row_label_boolean_frame(
     internal_frame: InternalFrame,
     key: InternalFrame,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Select rows with boolean frame key. Here, if the frame and key's index are aligned, then the join is on their row
@@ -1487,6 +1490,7 @@ def _get_frame_by_row_label_boolean_frame(
     joined_frame, result_column_mapper = align_on_index(
         internal_frame,
         key,
+        dummy_row_pos_mode,
         "coalesce",
     )
 
@@ -1521,7 +1525,7 @@ def _get_frame_by_row_label_boolean_frame(
 def _get_frame_by_row_label_non_boolean_frame(
     internal_frame: InternalFrame,
     key: InternalFrame,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Select rows where its index is equal to the index in the key value.
@@ -1640,7 +1644,7 @@ def _set_2d_labels_helper_for_frame_item(
     matching_item_rows_by_label: bool,
     col_info: LocSetColInfo,
     index_is_bool_indexer: bool,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     This set 2d label helper method handles df[index, columns] = item where index is a non-boolean indexer and item is a
@@ -1675,12 +1679,14 @@ def _set_2d_labels_helper_for_frame_item(
         result_frame = align_on_index(
             internal_frame,
             index,
+            dummy_row_pos_mode,
             "coalesce",
         ).result_frame
 
         return align_on_index(
             result_frame,
             item,
+            dummy_row_pos_mode,
             "coalesce",
         ).result_frame
 
@@ -1690,6 +1696,7 @@ def _set_2d_labels_helper_for_frame_item(
             return align_on_index(
                 internal_frame,
                 item,
+                dummy_row_pos_mode,
                 "coalesce",
             ).result_frame
         else:
@@ -1848,7 +1855,7 @@ def _set_2d_labels_helper_for_non_frame_item(
     internal_frame: InternalFrame,
     index: Union[slice, Scalar, InternalFrame],
     index_is_bool_indexer: bool,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     The helper method for the case where item is not an internal frame
@@ -1890,6 +1897,7 @@ def _set_2d_labels_helper_for_non_frame_item(
         return align_on_index(
             internal_frame,
             index,
+            dummy_row_pos_mode,
             "coalesce",
         ).result_frame
     elif isinstance(index, InternalFrame):
@@ -1920,7 +1928,7 @@ def _set_2d_labels_helper_for_single_column_wise_item(
     item_data_column_pandas_labels: list[Hashable],
     index_is_bool_indexer: bool,
     enforce_match_item_by_row_labels: bool,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     # If it's a single column with an item list, then we set the item values column-wise, for example,
@@ -2136,7 +2144,7 @@ def set_frame_2d_labels(
     index_is_bool_indexer: bool,
     deduplicate_columns: bool,
     frame_is_df_and_item_is_series: bool,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Helper function to handle the general loc set functionality. The general idea here is to join the key from ``index``
@@ -2351,6 +2359,7 @@ def set_frame_2d_labels(
                     item_data_column_pandas_labels,
                     index_is_bool_indexer,
                     enforce_match_item_by_row_labels,
+                    dummy_row_pos_mode,
                 )
                 # we convert bool indexer to non-bool one above so set it to False now
                 index_is_bool_indexer = False
@@ -2604,7 +2613,7 @@ def set_frame_2d_positional(
     set_as_coords: bool,
     item: Union[InternalFrame, Scalar],
     is_item_series: bool,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Helper function to handle the general (worst case) 2-join case where index (aka row_key) and item are both frames.
@@ -2833,7 +2842,7 @@ def set_frame_2d_positional(
 def get_kv_frame_from_index_and_item_frames(
     index: InternalFrame,
     item: InternalFrame,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Return the key-value frame from the key (index) and item (values) frames by aligning on the row positions.

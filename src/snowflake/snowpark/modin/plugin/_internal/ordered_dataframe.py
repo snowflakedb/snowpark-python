@@ -1145,6 +1145,7 @@ class OrderedDataFrame:
     def join(
         self,
         right: "OrderedDataFrame",
+        dummy_row_pos_mode: bool,
         left_on_cols: Optional[list[str]] = None,
         right_on_cols: Optional[list[str]] = None,
         left_match_col: Optional[str] = None,
@@ -1153,7 +1154,6 @@ class OrderedDataFrame:
             "MatchComparator"  # noqa: F821
         ] = None,
         how: JoinTypeLit = "inner",
-        dummy_row_pos_mode: bool = False,
     ) -> "OrderedDataFrame":
         """
         Performs equi join of the specified type (``how``) with the current
@@ -1472,9 +1472,9 @@ class OrderedDataFrame:
         right: "OrderedDataFrame",
         left_on_cols: list[str],
         right_on_cols: list[str],
+        dummy_row_pos_mode: bool,
         how: AlignTypeLit = "outer",
         enable_default_sort: bool = True,
-        dummy_row_pos_mode: bool = False,
     ) -> "OrderedDataFrame":
         """
         Performs align operation of the specified join type (``how``) with the current
@@ -1603,10 +1603,10 @@ class OrderedDataFrame:
         # perform outer join
         joined_ordered_frame = left.join(
             right,
+            dummy_row_pos_mode,
             left_on_cols=left_on_cols,
             right_on_cols=right_on_cols,
             how=how if direct_join_map else "outer",
-            dummy_row_pos_mode=dummy_row_pos_mode,
         )
 
         sort = False
