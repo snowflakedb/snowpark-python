@@ -7,6 +7,7 @@
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+- Added a new function `group_by_all()` to the `DataFrame` class.
 - Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following functions in `functions.py`:
@@ -72,6 +73,9 @@
 
 ### Snowpark pandas API Updates
 
+#### New Features
+- Added support for the `dtypes` parameter of `pd.get_dummies`
+
 #### Improvements
 
 - Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
@@ -113,7 +117,9 @@
   - `dt.days_in_month`
   - `dt.daysinmonth`
   - `sort_values`
+  - `loc` (setting columns)
   - `to_datetime`
+  - `drop`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
