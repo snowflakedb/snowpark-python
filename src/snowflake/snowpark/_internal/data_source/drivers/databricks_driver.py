@@ -149,11 +149,8 @@ class DatabricksDriver(BaseDriver):
             ):
                 project_columns.append(to_variant(column(field.name)).as_(field.name))
             else:
-                cast_type = BaseDriver.get_cast_type_with_default_string_length(
-                    field.datatype
-                )
                 project_columns.append(
-                    column(field.name).cast(cast_type).alias(field.name)
+                    column(field.name).cast(field.datatype).alias(field.name)
                 )
         return session.table(table_name, _emit_ast=_emit_ast).select(
             project_columns, _emit_ast=_emit_ast
@@ -172,8 +169,5 @@ class DatabricksDriver(BaseDriver):
             ):
                 cols.append(to_variant(parse_json(column(field.name))).as_(field.name))
             else:
-                cast_type = BaseDriver.get_cast_type_with_default_string_length(
-                    field.datatype
-                )
-                cols.append(res_df[field.name].cast(cast_type).alias(field.name))
+                cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
         return res_df.select(cols, _emit_ast=_emit_ast)

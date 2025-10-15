@@ -228,13 +228,6 @@ class Psycopg2Driver(BaseDriver):
                 project_columns.append(
                     to_variant(parse_json(column(field.name))).as_(field.name)
                 )
-            elif isinstance(field.datatype, StringType):
-                cast_type = BaseDriver.get_cast_type_with_default_string_length(
-                    field.datatype
-                )
-                project_columns.append(
-                    column(field.name).cast(cast_type).alias(field.name)
-                )
             else:
                 project_columns.append(column(field.name))
         return session.table(table_name, _emit_ast=_emit_ast).select(
@@ -252,10 +245,7 @@ class Psycopg2Driver(BaseDriver):
             if isinstance(field.datatype, VariantType):
                 cols.append(to_variant(parse_json(column(field.name))).as_(field.name))
             else:
-                cast_type = BaseDriver.get_cast_type_with_default_string_length(
-                    field.datatype
-                )
-                cols.append(res_df[field.name].cast(cast_type).alias(field.name))
+                cols.append(res_df[field.name].cast(field.datatype).alias(field.name))
         return res_df.select(cols, _emit_ast=_emit_ast)
 
     @staticmethod

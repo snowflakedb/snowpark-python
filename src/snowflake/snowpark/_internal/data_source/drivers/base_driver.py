@@ -242,22 +242,6 @@ class BaseDriver:
             return False
         return True
 
-    @staticmethod
-    def get_cast_type_with_default_string_length(datatype):
-        """
-        Returns the appropriate cast type for a given datatype.
-        For StringType, ensures a default length is set if not already specified.
-
-        Args:
-            datatype: A Snowpark DataType object
-
-        Returns:
-            The same datatype, or StringType with default length if applicable
-        """
-        if isinstance(datatype, StringType):
-            return StringType(datatype.length or MAX_STRING_SIZE)
-        return datatype
-
     # convert timestamp and date to string to work around SNOW-1911989
     # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.map.html
     # 'map' is introduced in pandas 2.1.0, before that it is 'applymap'
@@ -325,13 +309,10 @@ class BaseDriver:
         schema: StructType,
         _emit_ast: bool = True,
     ):
-        cols = []
-        for field in schema.fields:
-            cast_type = BaseDriver.get_cast_type_with_default_string_length(
-                field.datatype
-            )
-            cols.append(res_df[field.name].cast(cast_type).alias(field.name))
-
+        cols = [
+            res_df[field.name].cast(field.datatype).alias(field.name)
+            for field in schema.fields
+        ]
         return res_df.select(cols, _emit_ast=_emit_ast)
 
     def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
