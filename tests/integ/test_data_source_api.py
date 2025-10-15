@@ -79,7 +79,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_create_connection_unicode_data,
     sql_server_create_connection_double_quoted_data,
 )
-from tests.utils import Utils, IS_WINDOWS
+from tests.utils import Utils, IS_WINDOWS, RUNNING_ON_JENKINS
 
 try:
     import pandas  # noqa: F401
@@ -496,6 +496,10 @@ def test_telemetry_tracking(caplog, session, fetch_with_process):
         assert called == 2
 
 
+@pytest.mark.skipif(
+    RUNNING_ON_JENKINS,
+    reason="SNOW-2089683: oracledb real connection test failed on jenkins",
+)
 def test_telemetry_tracking_for_udtf(caplog, session):
 
     original_func = session._conn.run_query
