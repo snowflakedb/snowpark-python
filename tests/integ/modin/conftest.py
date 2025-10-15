@@ -68,6 +68,7 @@ def read_hybrid_known_failures():
       filtered = df[["module", "name", "message", "status"]][
           df["status"].isin(["failed", "xfailed", "error"])
       ]
+      filtered['message'] = filtered['message'].str.slice(0, 40) # truncate the error message
       filtered = filtered.sort_values(by=["module", "name"])
       filtered.to_csv("tests/integ/modin/modin_hybrid_integ_results.csv", index=False)
     """
