@@ -19,6 +19,7 @@ from snowflake.snowpark.types import (
     VariantType,
     TimestampTimeZone,
 )
+from snowflake.snowpark._internal.server_connection import MAX_STRING_SIZE
 
 MysqlType = namedtuple(
     "MysqlType",
@@ -280,15 +281,15 @@ mysql_schema = StructType(
         StructField("YEARCOL", LongType(), nullable=True),
         StructField("FLOATCOL", DoubleType(), nullable=True),
         StructField("DOUBLECOL", DoubleType(), nullable=True),
-        StructField("CHARCOL", StringType(), nullable=True),
-        StructField("VARCHARCOL", StringType(), nullable=True),
-        StructField("TINYTEXTCOL", StringType(), nullable=True),
-        StructField("TEXTCOL", StringType(), nullable=True),
-        StructField("MEDIUMTEXTCOL", StringType(), nullable=True),
-        StructField("LONGTEXTCOL", StringType(), nullable=True),
-        StructField("ENUMCOL", StringType(), nullable=True),
-        StructField("SETCOL", StringType(), nullable=True),
-        StructField("BITCOL", StringType(), nullable=True),
+        StructField("CHARCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("VARCHARCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("TINYTEXTCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("TEXTCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("MEDIUMTEXTCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("LONGTEXTCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("ENUMCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("SETCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("BITCOL", StringType(MAX_STRING_SIZE), nullable=True),
         StructField("BINARYCOL", BinaryType(), nullable=True),
         StructField("VARBINARYCOL", BinaryType(), nullable=True),
         StructField("TINYBLOBCOL", BinaryType(), nullable=True),
@@ -329,15 +330,15 @@ mysql_more_column_schema = StructType(
         StructField("YEARCOL", LongType(), nullable=True),
         StructField("FLOATCOL", DoubleType(), nullable=True),
         StructField("DOUBLECOL", DoubleType(), nullable=True),
-        StructField("CHARCOL", StringType(), nullable=True),
-        StructField("VARCHARCOL", StringType(), nullable=True),
-        StructField("TINYTEXTCOL", StringType(), nullable=True),
-        StructField("TEXTCOL", StringType(), nullable=True),
-        StructField("MEDIUMTEXTCOL", StringType(), nullable=True),
-        StructField("LONGTEXTCOL", StringType(), nullable=True),
-        StructField("ENUMCOL", StringType(), nullable=True),
-        StructField("SETCOL", StringType(), nullable=True),
-        StructField("BITCOL", StringType(), nullable=True),
+        StructField("CHARCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("VARCHARCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("TINYTEXTCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("TEXTCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("MEDIUMTEXTCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("LONGTEXTCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("ENUMCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("SETCOL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("BITCOL", StringType(MAX_STRING_SIZE), nullable=True),
         StructField("BINARYCOL", BinaryType(), nullable=True),
         StructField("VARBINARYCOL", BinaryType(), nullable=True),
         StructField("TINYBLOBCOL", BinaryType(), nullable=True),
@@ -359,17 +360,17 @@ mysql_more_column_schema = StructType(
 mysql_unicode_schema = StructType(
     [
         StructField('"編號"', LongType(), nullable=False),
-        StructField('"姓名"', StringType(), nullable=True),
-        StructField('"國家"', StringType(), nullable=True),
-        StructField('"備註"', StringType(), nullable=True),
+        StructField('"姓名"', StringType(MAX_STRING_SIZE), nullable=True),
+        StructField('"國家"', StringType(MAX_STRING_SIZE), nullable=True),
+        StructField('"備註"', StringType(MAX_STRING_SIZE), nullable=True),
     ]
 )
 
 mysql_double_quoted_schema = StructType(
     [
         StructField('"Id"', LongType(), nullable=False),
-        StructField('"FullName"', StringType(), nullable=True),
-        StructField('"Country"', StringType(), nullable=True),
-        StructField('"Notes"', StringType(), nullable=True),
+        StructField('"FullName"', StringType(MAX_STRING_SIZE), nullable=True),
+        StructField('"Country"', StringType(MAX_STRING_SIZE), nullable=True),
+        StructField('"Notes"', StringType(MAX_STRING_SIZE), nullable=True),
     ]
 )

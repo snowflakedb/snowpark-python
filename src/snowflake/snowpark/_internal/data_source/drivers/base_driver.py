@@ -105,7 +105,16 @@ class BaseDriver:
         query_input_alias: str,
     ) -> StructType:
         self.get_raw_schema(table_or_query, cursor, is_query, query_input_alias)
-        return self.to_snow_type(self.raw_schema)
+        generated_schema = self.to_snow_type(self.raw_schema)
+        # snowflake will default string length to 128MB in the bundle which will be enabled in 2026-01
+        # https://docs.snowflake.com/en/release-notes/bcr-bundles/2025_07_bundle
+        # here we prematurely make the change to default string to
+        # 1. align the string length with UDTF based ingestion
+        # 2. avoid the BCR impact to dbapi feature
+        for field in generated_schema.fields:
+            if isinstance(field.datatype, StringType) and field.datatype.length is None:
+                field.datatype.length = MAX_STRING_SIZE
+        return generated_schema
 
     def infer_schema_from_description_with_error_control(
         self, table_or_query: str, is_query: bool, query_input_alias: str

@@ -13,6 +13,7 @@ from snowflake.snowpark._internal.data_source.drivers.databricks_driver import (
     DatabricksDriver,
 )
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
+from snowflake.snowpark._internal.server_connection import MAX_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
     random_name_for_temp_object,
     TempObjectType,
@@ -259,7 +260,9 @@ def test_unsupported_type():
     schema = DatabricksDriver(
         create_databricks_connection, DBMS_TYPE.DATABRICKS_DB
     ).to_snow_type([("test_col", "unsupported_type", True)])
-    assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+    assert schema == StructType(
+        [StructField("TEST_COL", StringType(MAX_STRING_SIZE), nullable=True)]
+    )
 
 
 def test_databricks_non_retryable_error(session):
