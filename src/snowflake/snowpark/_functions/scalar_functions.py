@@ -3912,15 +3912,18 @@ def try_to_geography(
 
 @publicapi
 def try_to_geometry(
-    input_expr, srid=None, allow_invalid=None, _emit_ast: bool = True
+    input_expr: ColumnOrName,
+    srid: ColumnOrName = None,
+    allow_invalid: ColumnOrName = None,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Attempts to parse a string or binary value as a GEOMETRY object. Returns None if the input cannot be parsed as a valid geometry.
 
     Args:
         input_expr (ColumnOrName): The GEOMETRY data to parse.
-        srid (int, optional): The spatial reference system identifier to assign to the GEOMETRY.
-        allow_invalid (bool, optional): Whether to allow invalid geometries to be returned.
+        srid (ColumnOrName, optional): The spatial reference system identifier to assign to the GEOMETRY.
+        allow_invalid (ColumnOrName, optional): Whether to allow invalid geometries to be returned.
 
     Returns:
         Column: A GEOMETRY object if parsing succeeds, None otherwise
