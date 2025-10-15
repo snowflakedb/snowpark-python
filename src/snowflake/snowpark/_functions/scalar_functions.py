@@ -3812,6 +3812,9 @@ def st_geometryfromwkb(
     elif srid is not None:
         srid_col = _to_col_if_str(srid, "st_geometryfromwkb")
         return builtin("st_geometryfromwkb", _emit_ast=_emit_ast)(c, srid_col)
+    elif allow_invalid is not None:
+        allow_invalid_col = _to_col_if_str(allow_invalid, "st_geometryfromwkb")
+        return builtin("st_geometryfromwkb", _emit_ast=_emit_ast)(c, allow_invalid_col)
     else:
         return builtin("st_geometryfromwkb", _emit_ast=_emit_ast)(c)
 
