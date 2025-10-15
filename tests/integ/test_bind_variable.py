@@ -270,6 +270,7 @@ def test_aggregation(session):
     Utils.check_answer(
         df.group_by("column1").agg(max(col("column2"))), [Row(1, "c"), Row(2, "d")]
     )
+    Utils.check_answer(df.group_by_all().agg(max(col("column2"))), [Row("d")])
     Utils.check_answer(
         df.rollup(col("column1")).agg(max(col("column2"))),
         [Row(None, "d"), Row(1, "c"), Row(2, "d")],

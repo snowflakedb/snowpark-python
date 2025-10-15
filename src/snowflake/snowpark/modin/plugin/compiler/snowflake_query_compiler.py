@@ -7812,6 +7812,34 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         level: Optional[Union[Hashable, int]] = None,
         errors: Optional[IgnoreRaise] = "ignore",
     ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rename_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._rename_internal(
+                index_renamer=index_renamer,
+                columns_renamer=columns_renamer,
+                level=level,
+                errors=errors,
+            )
+        qc = self._rename_internal(
+            index_renamer=index_renamer,
+            columns_renamer=columns_renamer,
+            level=level,
+            errors=errors,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rename_internal(
+        self,
+        *,
+        index_renamer: Optional[Renamer] = None,
+        columns_renamer: Optional[Renamer] = None,
+        # TODO: SNOW-800889 handle level is hashable
+        level: Optional[Union[Hashable, int]] = None,
+        errors: Optional[IgnoreRaise] = "ignore",
+    ) -> "SnowflakeQueryCompiler":
         internal_frame = self._modin_frame
         if index_renamer is not None:
             # rename index means to update the values in the index columns
@@ -13058,6 +13086,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         errors: Literal["raise", "ignore"] = "raise",
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _drop_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and index is None:
+            relaxed_query_compiler = self._relaxed_query_compiler._drop_internal(
+                index=index,
+                columns=columns,
+                level=level,
+                errors=errors,
+            )
+        qc = self._drop_internal(
+            index=index,
+            columns=columns,
+            level=level,
+            errors=errors,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _drop_internal(
+        self,
+        index: Optional[Sequence[Hashable]] = None,
+        columns: Optional[Sequence[Hashable]] = None,
+        level: Optional[Level] = None,
+        errors: Literal["raise", "ignore"] = "raise",
+    ) -> "SnowflakeQueryCompiler":
+        """
         Drop specified rows or columns.
         Args:
             index : list of labels, optional
@@ -15983,11 +16037,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert n is not None or frac is not None
         frame = self._modin_frame
         if replace:
-            snowflake_quoted_identifiers = generate_snowflake_quoted_identifiers_helper(
-                pandas_labels=[
-                    ROW_POSITION_COLUMN_LABEL,
-                    SAMPLED_ROW_POSITION_COLUMN_LABEL,
-                ]
+            sampled_row_position_identifier = (
+                generate_snowflake_quoted_identifiers_helper(
+                    pandas_labels=[
+                        SAMPLED_ROW_POSITION_COLUMN_LABEL,
+                    ]
+                )[0]
             )
 
             pre_sampling_rowcount = self.get_axis_len(axis=0)
@@ -15997,30 +16052,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 assert frac is not None
                 post_sampling_rowcount = round(frac * pre_sampling_rowcount)
 
-            row_position_col = (
-                row_number()
-                .over(Window.order_by(pandas_lit(1)))
-                .as_(snowflake_quoted_identifiers[0])
-            )
-
             sampled_row_position_col = uniform(
                 0, pre_sampling_rowcount - 1, random()
-            ).as_(snowflake_quoted_identifiers[1])
+            ).as_(sampled_row_position_identifier)
 
             sampled_row_positions_snowpark_frame = pd.session.generator(
-                row_position_col,
                 sampled_row_position_col,
                 rowcount=post_sampling_rowcount,
             )
 
             sampled_row_positions_odf = OrderedDataFrame(
                 dataframe_ref=DataFrameReference(sampled_row_positions_snowpark_frame),
-                projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
+                projected_column_snowflake_quoted_identifiers=[
+                    sampled_row_position_identifier
+                ],
             )
             sampled_odf = cache_result(
                 sampled_row_positions_odf.join(
                     right=self._modin_frame.ordered_dataframe,
-                    left_on_cols=[snowflake_quoted_identifiers[1]],
+                    left_on_cols=[sampled_row_position_identifier],
                     right_on_cols=[
                         self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
                     ],
