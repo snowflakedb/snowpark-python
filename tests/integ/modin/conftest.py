@@ -57,13 +57,14 @@ def read_hybrid_known_failures():
     Read `modin_hybrid_integ_results.csv` and create a pandas
     dataframe filtered down to only the failed tests. You can regenerate
     this file by:
+    * Delete the old file, "tests/integ/modin/modin_hybrid_integ_results.csv"
     * Collecting the hybrid test results with pytest:
         pytest tests/integ/modin -n 10
                --enable_modin_hybrid_mode
-               --csv tests/integ/modin/modin_hybrid_integ_results.csv
+               --csv tests/integ/modin/modin_hybrid_integ_results-input.csv
     * Pre-filtering and sorting the results to reduce the file and diff size:
       import pandas as pd
-      df = pd.read_csv("tests/integ/modin/modin_hybrid_integ_results.csv")
+      df = pd.read_csv("tests/integ/modin/modin_hybrid_integ_results-input.csv")
       filtered = df[["module", "name", "message", "status"]][
           df["status"].isin(["failed", "xfailed", "error"])
       ]
