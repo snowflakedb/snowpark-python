@@ -1864,8 +1864,12 @@ class DataFrameReader:
             partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
             self._session.create_dataframe(
                 [[query] for query in partitioned_queries], schema=["partition"]
-            ).write.save_as_table(partitions_table, table_type="temp")
-            df = partitioner.udtf_ingestion(
+            ).write.save_as_table(
+                partitions_table,
+                table_type="temp",
+                statement_params=statements_params_for_telemetry,
+            )
+            df = partitioner.driver.udtf_ingestion(
                 self._session,
                 struct_schema,
                 partitions_table,
@@ -1875,7 +1879,8 @@ class DataFrameReader:
                 packages=udtf_configs.get("packages", None),
                 session_init_statement=session_init_statement,
                 query_timeout=query_timeout,
-                _emit_ast=_emit_ast,
+                statement_params=statements_params_for_telemetry,
+                _emit_ast=False,  # internal API, no need to emit AST
             )
             end_time = time.perf_counter()
             telemetry_json_string["end_to_end_duration"] = end_time - start_time

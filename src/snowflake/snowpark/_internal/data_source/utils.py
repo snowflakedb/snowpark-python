@@ -582,3 +582,21 @@ def create_data_source_table_and_stage(
     session.sql(sql_create_temp_stage, _emit_ast=False).collect(
         statement_params=statements_params_for_telemetry, _emit_ast=False
     )
+    
+    
+def track_data_source_statement_params(
+    dataframe, statement_params: Optional[Dict] = None
+) -> Optional[Dict]:
+    """
+    Helper method to initialize and update data source tracking statement_params based on dataframe attributes.
+    """
+    statement_params = statement_params or {}
+    if (
+        dataframe._plan
+        and dataframe._plan.api_calls
+        and dataframe._plan.api_calls[0].get("name") == DATA_SOURCE_DBAPI_SIGNATURE
+    ):
+        # Track data source ingestion
+        statement_params[STATEMENT_PARAMS_DATA_SOURCE] = "1"
+
+    return statement_params if statement_params else None

@@ -40,6 +40,10 @@ class Rollup(GroupingSet):
     pass
 
 
+class GroupByAll(GroupingSet):
+    pass
+
+
 class GroupingSetsExpression(Expression):
     def __init__(self, args: List[List[Expression]]) -> None:
         super().__init__()
