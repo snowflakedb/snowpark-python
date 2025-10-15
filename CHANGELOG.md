@@ -112,6 +112,15 @@
   - `loc` (setting columns)
   - `to_datetime`
   - `drop`
+  - `agg`
+  - `min`
+  - `max`
+  - `count`
+  - `sum`
+  - `mean`
+  - `median`
+  - `std`
+  - `var`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
