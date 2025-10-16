@@ -158,11 +158,13 @@ class _SnowflakeSecretsSPCS(_SnowflakeSecrets):
         password = self._read_scls_spcs_secret_file(secret_name, "password")
         return UsernamePassword(username, password)
 
+
     def get_cloud_provider_token(self, secret_name: str) -> CloudProviderToken:
         # SPCS container currently does not support cloud provider token secrets
         raise NotImplementedError(
-            "Cannot import _snowflake module. get_cloud_provider_token is only supported on Snowflake server environment."
+            "Cloud provider token secrets are not supported in SPCS container environments."
         )
+
 
 
 def _is_spcs_environment() -> bool:
