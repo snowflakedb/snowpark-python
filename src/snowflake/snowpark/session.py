@@ -331,7 +331,7 @@ WRITE_PANDAS_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 WRITE_ARROW_CHUNK_SIZE: int = 100000 if is_in_stored_procedure() else None
 
 # wif token refresh time in minutes
-_WIF_TOKEN_REFRESH_TIME: int = 10
+DEFAULT_EVENT_TABLE = "snowflake.telemetry.events"
 
 
 def _get_active_session() -> "Session":
@@ -4962,7 +4962,7 @@ class Session:
 
     def enable_event_table_telemetry_collection(
         self,
-        event_table: str = "snowflake.telemetry.events",
+        event_table: str = DEFAULT_EVENT_TABLE,
         log_level: int = None,
         enable_trace_level: bool = False,
     ) -> None:
