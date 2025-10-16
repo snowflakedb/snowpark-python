@@ -745,11 +745,13 @@ def test_auto_switch_supported_top_level_functions(method, kwargs):
         ("sort_index", {"axis": 0}, 1, "BasePandasDataset"),
         ("sort_values", {"by": "A", "axis": 0}, 1, "BasePandasDataset"),
         ("apply", {"func": lambda x: x * 2}, 15, "DataFrame"),
+        ("fillna", {"value": 0}, 1, "DataFrame"),
+        ("dropna", {"axis": 0}, 1, "DataFrame"),
     ],
 )
 def test_auto_switch_supported_dataframe(method, kwargs, query_count, api_cls_name):
     # Test supported DataFrame operations that should stay on Snowflake backend.
-    test_data = {"A": [1.23, 2.57, 3.89], "B": [4.12, 5.26, 6.34]}
+    test_data = {"A": [1.23, None, 3.89], "B": [4.12, 5.26, 6.34]}
 
     with SqlCounter(
         query_count=query_count,
@@ -788,13 +790,14 @@ def test_auto_switch_supported_dataframe(method, kwargs, query_count, api_cls_na
         ("shift", {"periods": 1}, False, 1, "BasePandasDataset"),
         ("sort_index", {"axis": 0}, False, 1, "BasePandasDataset"),
         ("apply", {"func": lambda x: x * 2}, False, 4, "Series"),
+        ("fillna", {"value": 0}, False, 1, "Series"),
     ],
 )
 def test_auto_switch_supported_series(
     method, kwargs, is_result_scalar, query_count, api_cls_name
 ):
     # Test supported Series operations that should stay on Snowflake backend.
-    test_data = [1.89, 2.95, 3.12, 4.17, 5.23, 6.34]
+    test_data = [1.89, 2.95, 3.12, None, 5.23, 6.34]
 
     with SqlCounter(query_count=query_count):
         series = pd.Series(test_data).move_to("Snowflake")
@@ -894,10 +897,7 @@ def test_auto_switch_supported_post_op_switch_point_series(method, kwargs):
     "method,kwargs",
     [
         ("get_dummies", {"dummy_na": True}),
-        (
-            "get_dummies",
-            {"drop_first": True},
-        ),
+        ("get_dummies", {"drop_first": True}),
         ("melt", {"col_level": 0}),
         ("pivot_table", {"values": "B", "index": "A", "sort": False}),
         ("pivot_table", {"index": ["A", 0], "columns": "B", "values": "B"}),
@@ -970,7 +970,7 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
         ("corr", {"method": lambda x, y: np.corrcoef(x, y)[0, 1]}, "DataFrame"),
         ("dropna", {"axis": 1}, "DataFrame"),
         ("fillna", {"value": 0, "limit": 1}, "DataFrame"),
-        ("fillna", {"downcast": {"A": "float32"}, "value": 0}, "DataFrame"),
+        ("fillna", {"downcast": "infer", "value": 0}, "DataFrame"),
     ],
 )
 def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
