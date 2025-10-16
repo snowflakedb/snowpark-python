@@ -7,6 +7,7 @@
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+- Added a new function `group_by_all()` to the `DataFrame` class.
 - Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following functions in `functions.py`:
@@ -49,6 +50,14 @@
     - `st_y`
     - `st_ymax`
     - `st_ymin`
+    - `st_geogfromgeohash`
+    - `st_geogpointfromgeohash`
+    - `st_geographyfromwkb`
+    - `st_geographyfromwkt`
+    - `st_geometryfromwkb`
+    - `st_geometryfromwkt`
+    - `try_to_geography`
+    - `try_to_geometry`
 
 
 #### Bug Fixes
@@ -110,6 +119,8 @@
   - `sort_values`
   - `loc` (setting columns)
   - `to_datetime`
+  - `drop`
+  - `invert`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
