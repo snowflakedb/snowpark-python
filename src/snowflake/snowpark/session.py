@@ -4986,28 +4986,28 @@ class Session:
 
         Examples 1
             .. code-block:: python
-                session.enable_external_telemetry("db.sc.external_et", logging.INFO, True)
+                session.enable_event_table_telemetry_collection("db.sc.external_et", logging.INFO, True)
                 tracer = trace.get_tracer("external_telemetry")
                 with tracer.start_as_current_span("code_store") as span:
                     span.set_attribute("code.lineno", "21")
                     span.set_attribute("code.content", "session.sql(...)")
                     logging.info("Trace being sent to event table")
-                session.disable_external_telemetry()
+                session.disable_event_table_telemetry_collection()
 
         Examples 2
             .. code-block:: python
                 logging.info("log before enable external telemetry") # this log is not sent to event table
-                session.enable_external_telemetry("db.sc.external_et", logging.INFO, True)
+                session.enable_event_table_telemetry_collection("db.sc.external_et", logging.INFO, True)
                 tracer = trace.get_tracer("external_telemetry")
                 with tracer.start_as_current_span("code_store") as span:
                      span.set_attribute("code.lineno", "21")
                     span.set_attribute("code.content", "session.sql(...)")
                     logging.info("Trace being sent to event table")
-                session.disable_external_telemetry()
+                session.disable_event_table_telemetry_collection()
                 logging.info("out of scope log")  # this log is not sent to event table
-                session.enable_external_telemetry("db.sc.external_et", logging.DEBUG, True)
+                session.enable_event_table_telemetry_collection("db.sc.external_et", logging.DEBUG, True)
                 logging.debug("debug log") # this log is sent to event table because external telemetry is re-enabled
-                session.disable_external_telemetry()
+                session.disable_event_table_telemetry_collection()
 
         """
         if not installed_opentelemetry:
