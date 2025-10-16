@@ -177,6 +177,7 @@ class BaseDriver:
                 packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
                 imports=imports,
                 statement_params=statement_params,
+                _emit_ast=_emit_ast,  # internal function call, no need to emit AST
             )
         logger.debug(f"register ingestion udtf takes: {udtf_register_time()} seconds")
         call_udtf_sql = f"""
