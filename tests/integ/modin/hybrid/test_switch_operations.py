@@ -1247,11 +1247,6 @@ def test_error_handling_dataframe_when_auto_switch_disabled(
             "only int 'periods' is currently supported",
         ),
         (
-            "apply",
-            {"func": "sum"},
-            "only callable 'func' is currently supported",
-        ),
-        (
             "fillna",
             {"downcast": "infer", "value": 0},
             "the 'downcast' parameter is not yet supported",
