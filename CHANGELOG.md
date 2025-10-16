@@ -133,6 +133,7 @@
   - `to_datetime`
   - `drop`
   - `invert`
+  - `duplicated`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
