@@ -2582,6 +2582,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # TODO: SNOW-1023324, implement shifting index only.
         ErrorMessage.not_implemented("shifting index values not yet supported.")
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "shift",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: args.get("suffix") is not None,
+                    "Snowpark pandas DataFrame/Series.shift does not yet support the `suffix` parameter",
+                ),
+                (
+                    lambda args: not isinstance(args.get("periods"), int),
+                    "Snowpark pandas DataFrame/Series.shift does not yet support `periods` that are sequences. Only int `periods` are supported.",
+                ),
+            ]
+        ),
+    )
     def shift(
         self,
         periods: Union[int, Sequence[int]] = 1,
@@ -4169,6 +4185,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         return None
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "sort_index",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: args.get("axis") in (1, "index"),
+                    "sort_index is not supported yet on axis=1 in Snowpark pandas.",
+                ),
+                (
+                    lambda args: args.get("key") is not None,
+                    "Snowpark pandas sort_index API doesn't yet support 'key' parameter",
+                ),
+            ]
+        ),
+    )
     def sort_index(
         self,
         *,
@@ -4255,8 +4287,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             include_indexer=include_indexer,
         )
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "sort_values",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                ("axis", 1),
+            ]
+        ),
+    )
     def sort_columns_by_row_values(
-        self, rows: IndexLabel, ascending: bool = True, **kwargs: Any
+        self, rows: IndexLabel, ascending: bool = True, axis: int = 1, **kwargs: Any
     ) -> None:
         """
         Reorder the columns based on the lexicographic order of the given rows.
@@ -8624,6 +8665,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).frame
         )
 
+    @register_query_compiler_method_not_implemented(
+        None,
+        "melt",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: args.get("col_level") is not None,
+                    "col_level argument not yet supported for melt",
+                ),
+            ]
+        ),
+    )
     def melt(
         self,
         id_vars: list[str],
@@ -9671,6 +9724,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return left_qc, right_qc
 
+    @register_query_compiler_method_not_implemented(
+        "DataFrame",
+        "apply",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: args.get("result_type") is not None,
+                    "Snowpark pandas DataFrame apply does not support the `result_type` parameter yet",
+                ),
+            ]
+        ),
+    )
     def apply(
         self,
         func: Union[AggFuncType, UserDefinedFunction],
@@ -10255,6 +10320,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return self._map_series_with_dict_like(arg)
 
+    @register_query_compiler_method_not_implemented(
+        "Series",
+        "apply",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not callable(args.get("func")),
+                    "Snowpark pandas Series apply only supports callables func",
+                ),
+            ]
+        ),
+    )
     def apply_on_series(
         self, func: AggFuncType, args: tuple[Any, ...] = (), **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
@@ -10343,6 +10420,63 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             sort=True,
         )
 
+    @register_query_compiler_method_not_implemented(
+        None,
+        "pivot_table",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                ("sort", False),
+                (
+                    lambda args: (
+                        args.get("index")
+                        and (
+                            not isinstance(args.get("index"), str)
+                            and not all([isinstance(v, str) for v in args.get("index")])
+                            and None not in args.get("index")
+                        )
+                    ),
+                    "non-string of list of string index is not yet supported for pivot_table",
+                ),
+                (
+                    lambda args: (
+                        args.get("columns")
+                        and (
+                            not isinstance(args.get("columns"), str)
+                            and not all(
+                                [isinstance(v, str) for v in args.get("columns")]
+                            )
+                            and None not in args.get("columns")
+                        )
+                    ),
+                    "non-string of list of string columns is not yet supported for pivot_table",
+                ),
+                (
+                    lambda args: (
+                        args.get("values")
+                        and (
+                            not isinstance(args.get("values"), str)
+                            and not all(
+                                [isinstance(v, str) for v in args.get("values")]
+                            )
+                            and None not in args.get("values")
+                        )
+                    ),
+                    "non-string of list of string values is not yet supported for pivot_table",
+                ),
+                (
+                    lambda args: (
+                        isinstance(args.get("aggfunc"), dict)
+                        and any(
+                            not isinstance(af, str)
+                            for af in args.get("aggfunc").values()
+                        )
+                        and args.get("index") is None
+                    ),
+                    "dictionary aggfunc with non-string aggregation functions is not yet supported for pivot_table with margins or when index is None",
+                ),
+            ]
+        ),
+    )
     def pivot_table(
         self,
         index: Any,
