@@ -644,7 +644,7 @@ def register_query_compiler_method_not_implemented(
     without meaningful benefit.
 
     Args:
-        api_cls_names: Frontend class names (e.g., ["BasePandasDataset", "Series", "DataFrame", None]).
+        api_cls_names: Frontend class names (e.g., ["BasePandasDataset", "Series", "DataFrame", None]). This is a list because some methods are implemented for both DataFrames and Series.
         method_name: Method name to register.
         unsupported_args: UnsupportedArgsRule for args-based auto-switching.
                           If None, method is treated as completely unimplemented.
@@ -653,6 +653,7 @@ def register_query_compiler_method_not_implemented(
     for api_cls_name in api_cls_names:
         reg_key = MethodKey(api_cls_name, method_name)
 
+        # register the method in the hybrid switch for unsupported args
         if unsupported_args is None:
             HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(reg_key)
         else:
@@ -2599,11 +2600,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unsupported_conditions=[
                 (
                     lambda args: args.get("suffix") is not None,
-                    "Snowpark pandas DataFrame/Series.shift does not yet support the `suffix` parameter",
+                    "the 'suffix' parameter is not yet supported",
                 ),
                 (
                     lambda args: not isinstance(args.get("periods"), int),
-                    "Snowpark pandas DataFrame/Series.shift does not yet support `periods` that are sequences. Only int `periods` are supported.",
+                    "only int 'periods' is currently supported",
                 ),
             ]
         ),
@@ -4202,11 +4203,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unsupported_conditions=[
                 (
                     lambda args: args.get("axis") in (1, "index"),
-                    "sort_index is not supported yet on axis=1 in Snowpark pandas.",
+                    "axis=1 is not yet supported",
                 ),
                 (
                     lambda args: args.get("key") is not None,
-                    "Snowpark pandas sort_index API doesn't yet support 'key' parameter",
+                    "the 'key' parameter is not yet supported",
                 ),
             ]
         ),
@@ -8707,7 +8708,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unsupported_conditions=[
                 (
                     lambda args: args.get("col_level") is not None,
-                    "col_level argument not yet supported for melt",
+                    "col_level argument is not yet supported",
                 ),
             ]
         ),
@@ -9766,7 +9767,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unsupported_conditions=[
                 (
                     lambda args: args.get("result_type") is not None,
-                    "Snowpark pandas DataFrame apply does not support the `result_type` parameter yet",
+                    "the 'result_type' parameter is not yet supported",
                 ),
             ]
         ),
@@ -10362,7 +10363,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unsupported_conditions=[
                 (
                     lambda args: not callable(args.get("func")),
-                    "Snowpark pandas Series apply only supports callables func",
+                    "only callable 'func' is currently supported",
                 ),
             ]
         ),
@@ -12684,11 +12685,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 (
                     lambda kwargs: kwargs.get("value") is not None
                     and kwargs.get("limit") is not None,
-                    "Snowpark pandas fillna API doesn't yet support 'limit' parameter with 'value' parameter",
+                    "the 'limit' parameter with 'value' parameter is not yet supported",
                 ),
                 (
                     lambda kwargs: kwargs.get("downcast") is not None,
-                    "Snowpark pandas fillna API doesn't yet support 'downcast' parameter",
+                    "the 'downcast' parameter is not yet supported",
                 ),
             ]
         ),

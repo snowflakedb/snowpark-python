@@ -512,7 +512,7 @@ def test_query_count_no_switch(revenue_transactions, use_session_param):
 non_callable_func_not_implemented = pytest.mark.xfail(
     strict=True,
     raises=NotImplementedError,
-    match=re.escape("Snowpark pandas apply API only supports callables func"),
+    match=re.escape("only callable 'func' is currently supported"),
 )
 
 
@@ -1027,6 +1027,7 @@ def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
         ("apply", {"func": "sum"}, "Series"),
         ("fillna", {"value": 0, "limit": 1}, "Series"),
         ("fillna", {"downcast": "infer", "value": 0}, "Series"),
+        ("sort_index", {"key": lambda x: x}, "BasePandasDataset"),
     ],
 )
 def test_auto_switch_unsupported_series(method, kwargs, api_cls_name):
@@ -1079,7 +1080,7 @@ def test_auto_switch_unsupported_series(method, kwargs, api_cls_name):
         (
             "melt",
             {"col_level": 0},
-            "col_level argument not yet supported for melt",
+            "col_level argument is not yet supported",
         ),
         (
             "pivot_table",
@@ -1158,22 +1159,22 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
         (
             "shift",
             {"suffix": "_suffix"},
-            "Snowpark pandas DataFrame/Series.shift does not yet support the `suffix` parameter",
+            "the 'suffix' parameter is not yet supported",
         ),
         (
             "shift",
             {"periods": [1, 2]},
-            "Snowpark pandas DataFrame/Series.shift does not yet support `periods` that are sequences. Only int `periods` are supported.",
+            "only int 'periods' is currently supported",
         ),
         (
             "sort_index",
             {"axis": 1},
-            "sort_index is not supported yet on axis=1 in Snowpark pandas.",
+            "axis=1 is not yet supported",
         ),
         (
             "sort_index",
             {"key": lambda x: x},
-            "Snowpark pandas sort_index API doesn't yet support 'key' parameter",
+            "the 'key' parameter is not yet supported",
         ),
         (
             "sort_values",
@@ -1183,7 +1184,22 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
         (
             "apply",
             {"func": lambda x: x * 2, "result_type": "expand"},
-            "Snowpark pandas DataFrame apply does not support the `result_type` parameter yet",
+            "the 'result_type' parameter is not yet supported",
+        ),
+        (
+            "fillna",
+            {"downcast": "infer", "value": 0},
+            "the 'downcast' parameter is not yet supported",
+        ),
+        (
+            "fillna",
+            {"limit": 1, "value": 0},
+            "the 'limit' parameter with 'value' parameter is not yet supported",
+        ),
+        (
+            "dropna",
+            {"axis": 1},
+            "axis = 1 is not supported",
         ),
         (
             "corr",
@@ -1225,27 +1241,27 @@ def test_error_handling_dataframe_when_auto_switch_disabled(
         (
             "shift",
             {"suffix": "_suffix"},
-            "Snowpark pandas DataFrame/Series.shift does not yet support the `suffix` parameter",
+            "the 'suffix' parameter is not yet supported",
         ),
         (
             "shift",
             {"periods": [1, 2]},
-            "Snowpark pandas DataFrame/Series.shift does not yet support `periods` that are sequences. Only int `periods` are supported.",
+            "only int 'periods' is currently supported",
         ),
         (
             "apply",
             {"func": "sum"},
-            "Snowpark pandas Series apply only supports callables func",
+            "only callable 'func' is currently supported",
         ),
         (
             "fillna",
             {"downcast": "infer", "value": 0},
-            "Snowpark pandas fillna API doesn't yet support 'downcast' parameter",
+            "the 'downcast' parameter is not yet supported",
         ),
         (
             "fillna",
             {"limit": 1, "value": 0},
-            "Snowpark pandas fillna API doesn't yet support 'limit' parameter with 'value' parameter",
+            "the 'limit' parameter with 'value' parameter is not yet supported",
         ),
     ],
 )
