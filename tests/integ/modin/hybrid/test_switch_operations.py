@@ -762,7 +762,6 @@ def test_auto_switch_supported_dataframe(method, kwargs, query_count, api_cls_na
         _test_stay_cost(
             data_obj=df,
             api_cls_name=api_cls_name,
-            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
@@ -899,7 +898,6 @@ def test_auto_switch_supported_post_op_switch_point_series(method, kwargs):
             "get_dummies",
             {"drop_first": True},
         ),
-        ("get_dummies", {"dtype": int}),
         ("melt", {"col_level": 0}),
         ("pivot_table", {"values": "B", "index": "A", "sort": False}),
         ("pivot_table", {"index": ["A", 0], "columns": "B", "values": "B"}),
@@ -970,6 +968,9 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
         ("apply", {"func": lambda x: x * 2, "result_type": "expand"}, "DataFrame"),
         ("corr", {"method": "kendall"}, "DataFrame"),
         ("corr", {"method": lambda x, y: np.corrcoef(x, y)[0, 1]}, "DataFrame"),
+        ("dropna", {"axis": 1}, "DataFrame"),
+        ("fillna", {"value": 0, "limit": 1}, "DataFrame"),
+        ("fillna", {"downcast": {"A": "float32"}, "value": 0}, "DataFrame"),
     ],
 )
 def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
@@ -1018,15 +1019,17 @@ def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
 
 
 @pytest.mark.parametrize(
-    "method,kwargs",
+    "method,kwargs,api_cls_name",
     [
-        ("skew", {"numeric_only": False}),
-        ("shift", {"suffix": "_suffix"}),
-        ("shift", {"periods": [1, 2]}),
-        ("apply", {"func": "upper"}),
+        ("skew", {"numeric_only": False}, "BasePandasDataset"),
+        ("shift", {"suffix": "_suffix"}, "BasePandasDataset"),
+        ("shift", {"periods": [1, 2]}, "BasePandasDataset"),
+        ("apply", {"func": "sum"}, "Series"),
+        ("fillna", {"value": 0, "limit": 1}, "Series"),
+        ("fillna", {"downcast": "infer", "value": 0}, "Series"),
     ],
 )
-def test_auto_switch_unsupported_series(method, kwargs):
+def test_auto_switch_unsupported_series(method, kwargs, api_cls_name):
     # Test unsupported Series operations that should switch to Pandas backend.
     test_data = [1, 2, 3, 4, 5, 6]
 
@@ -1036,7 +1039,7 @@ def test_auto_switch_unsupported_series(method, kwargs):
 
         _test_stay_cost(
             data_obj=series,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
@@ -1045,7 +1048,7 @@ def test_auto_switch_unsupported_series(method, kwargs):
         pandas_series = pd.Series(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_series._query_compiler,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
@@ -1072,11 +1075,6 @@ def test_auto_switch_unsupported_series(method, kwargs):
             "get_dummies",
             {"drop_first": True},
             "drop_first = True is not supported",
-        ),
-        (
-            "get_dummies",
-            {"dtype": int},
-            "get_dummies with non-default dtype parameter is not supported yet in Snowpark pandas.",
         ),
         (
             "melt",
@@ -1233,6 +1231,21 @@ def test_error_handling_dataframe_when_auto_switch_disabled(
             "shift",
             {"periods": [1, 2]},
             "Snowpark pandas DataFrame/Series.shift does not yet support `periods` that are sequences. Only int `periods` are supported.",
+        ),
+        (
+            "apply",
+            {"func": "sum"},
+            "Snowpark pandas Series apply only supports callables func",
+        ),
+        (
+            "fillna",
+            {"downcast": "infer", "value": 0},
+            "Snowpark pandas fillna API doesn't yet support 'downcast' parameter",
+        ),
+        (
+            "fillna",
+            {"limit": 1, "value": 0},
+            "Snowpark pandas fillna API doesn't yet support 'limit' parameter with 'value' parameter",
         ),
     ],
 )
