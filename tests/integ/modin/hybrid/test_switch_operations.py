@@ -512,7 +512,7 @@ def test_query_count_no_switch(revenue_transactions, use_session_param):
 non_callable_func_not_implemented = pytest.mark.xfail(
     strict=True,
     raises=NotImplementedError,
-    match=re.escape("only callable 'func' is currently supported"),
+    match=re.escape("Snowpark pandas apply API only supports callables func"),
 )
 
 
