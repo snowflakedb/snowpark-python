@@ -521,13 +521,20 @@ class UnsupportedArgsRule:
     Rule for defining argument combinations that trigger auto-switching to native pandas.
 
     Attributes:
-        unsupported_conditions: List of conditions that can be either:
-            - tuple[Callable, str]: (condition_function, reason) for complex conditions
+        unsupported_conditions: List of conditions that can be:
             - tuple[str, Any]: (argument_name, unsupported_value) for simple value checks
+            - tuple[Callable, str]: (condition_function, reason) for complex checks and simple string reason
+            - tuple[Callable, Callable]: (condition_function, reason_function) for complex checks and reason generation
     """
 
     unsupported_conditions: List[
-        Union[Tuple[Callable[[MappingProxyType], bool], str], Tuple[str, Any]]
+        Union[
+            Tuple[str, Any],
+            Tuple[
+                Callable[[MappingProxyType], bool],
+                Union[str, Callable[[MappingProxyType], str]],
+            ],
+        ]
     ] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -547,10 +554,12 @@ class UnsupportedArgsRule:
                     f"got {type(condition[0]).__name__}. Condition: {condition}"
                 )
 
-            if callable(condition[0]) and not isinstance(condition[1], str):
+            if callable(condition[0]) and not (
+                isinstance(condition[1], str) or callable(condition[1])
+            ):
                 raise ValueError(
                     f"Invalid condition at index {i}: when first element is callable, "
-                    f"second element must be string (reason), got {type(condition[1]).__name__}. "
+                    f"second element must be a string representing the reason, or a callable that returns the reason, got {type(condition[1]).__name__}. "
                     f"Condition: {condition}"
                 )
 
@@ -567,10 +576,10 @@ class UnsupportedArgsRule:
         """
         for condition in self.unsupported_conditions:
             if callable(condition[0]):
-                # tuple[Callable, str]: (condition_function, reason)
+                # tuple[Callable, str or Callable]: (condition_function, reason)
                 condition_func, reason = condition
                 if condition_func(args):
-                    return reason
+                    return reason(args) if callable(reason) else reason
             else:
                 # tuple[str, Any]: (argument_name, unsupported_value)
                 arg_name, unsupported_value = condition
@@ -7035,10 +7044,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unsupported_conditions=[
                 ("dummy_na", True),
                 ("drop_first", True),
-                (
-                    lambda args: args.get("dtype") is not None,
-                    "get_dummies with non-default dtype parameter is not supported yet in Snowpark pandas.",
-                ),
             ]
         ),
     )
@@ -7081,9 +7086,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         self._raise_not_implemented_error_for_timedelta()
 
-        if dummy_na is True or drop_first is True or dtype is not None:
+        if dummy_na is True or drop_first is True:
             ErrorMessage.not_implemented(
-                "get_dummies with non-default dummy_na, drop_first, and dtype parameters"
+                "get_dummies with non-default dummy_na or drop_first parameters"
                 + " is not supported yet in Snowpark pandas."
             )
         if columns is None:
@@ -7127,6 +7132,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             columns=columns,
             prefixes=prefix,
             prefix_sep=prefix_sep,
+            dtype=dtype,
         )
         query_compiler = SnowflakeQueryCompiler(result_internal_frame)
 
@@ -7839,6 +7845,34 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     @snowpark_pandas_type_immutable_check
     def rename(
+        self,
+        *,
+        index_renamer: Optional[Renamer] = None,
+        columns_renamer: Optional[Renamer] = None,
+        # TODO: SNOW-800889 handle level is hashable
+        level: Optional[Union[Hashable, int]] = None,
+        errors: Optional[IgnoreRaise] = "ignore",
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rename_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._rename_internal(
+                index_renamer=index_renamer,
+                columns_renamer=columns_renamer,
+                level=level,
+                errors=errors,
+            )
+        qc = self._rename_internal(
+            index_renamer=index_renamer,
+            columns_renamer=columns_renamer,
+            level=level,
+            errors=errors,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rename_internal(
         self,
         *,
         index_renamer: Optional[Renamer] = None,
@@ -11709,6 +11743,77 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         frame_is_df_and_item_is_series: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _set_2d_labels_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if (
+            self._relaxed_query_compiler is not None
+            and (
+                not isinstance(index, SnowflakeQueryCompiler)
+                or index._relaxed_query_compiler is not None
+            )
+            and (
+                not isinstance(columns, SnowflakeQueryCompiler)
+                or columns._relaxed_query_compiler is not None
+            )
+            and (
+                not isinstance(item, SnowflakeQueryCompiler)
+                or item._relaxed_query_compiler is not None
+            )
+        ):
+            new_index = index
+            if isinstance(index, SnowflakeQueryCompiler):
+                new_index = index._relaxed_query_compiler
+            new_columns = columns
+            if isinstance(columns, SnowflakeQueryCompiler):
+                new_columns = columns._relaxed_query_compiler
+            new_item = item
+            if isinstance(item, SnowflakeQueryCompiler):
+                new_item = item._relaxed_query_compiler
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._set_2d_labels_internal(
+                    index=new_index,
+                    columns=new_columns,
+                    item=new_item,
+                    matching_item_columns_by_label=matching_item_columns_by_label,
+                    matching_item_rows_by_label=matching_item_rows_by_label,
+                    index_is_bool_indexer=index_is_bool_indexer,
+                    deduplicate_columns=deduplicate_columns,
+                    frame_is_df_and_item_is_series=frame_is_df_and_item_is_series,
+                )
+            )
+
+        qc = self._set_2d_labels_internal(
+            index=index,
+            columns=columns,
+            item=item,
+            matching_item_columns_by_label=matching_item_columns_by_label,
+            matching_item_rows_by_label=matching_item_rows_by_label,
+            index_is_bool_indexer=index_is_bool_indexer,
+            deduplicate_columns=deduplicate_columns,
+            frame_is_df_and_item_is_series=frame_is_df_and_item_is_series,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _set_2d_labels_internal(
+        self,
+        index: Union[Scalar, slice, "SnowflakeQueryCompiler"],
+        columns: Union[
+            "SnowflakeQueryCompiler",
+            tuple,
+            slice,
+            list,
+            "pd.Index",
+            np.ndarray,
+        ],
+        item: Union[Scalar, AnyArrayLike, "SnowflakeQueryCompiler"],
+        matching_item_columns_by_label: bool,
+        matching_item_rows_by_label: bool,
+        index_is_bool_indexer: bool,
+        deduplicate_columns: bool = False,
+        frame_is_df_and_item_is_series: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Create a new SnowflakeQueryCompiler with indexed columns and rows replaced by item.
 
         Args:
@@ -13108,6 +13213,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def drop(
+        self,
+        index: Optional[Sequence[Hashable]] = None,
+        columns: Optional[Sequence[Hashable]] = None,
+        level: Optional[Level] = None,
+        errors: Literal["raise", "ignore"] = "raise",
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _drop_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and index is None:
+            relaxed_query_compiler = self._relaxed_query_compiler._drop_internal(
+                index=index,
+                columns=columns,
+                level=level,
+                errors=errors,
+            )
+        qc = self._drop_internal(
+            index=index,
+            columns=columns,
+            level=level,
+            errors=errors,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _drop_internal(
         self,
         index: Optional[Sequence[Hashable]] = None,
         columns: Optional[Sequence[Hashable]] = None,
@@ -15837,11 +15968,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert n is not None or frac is not None
         frame = self._modin_frame
         if replace:
-            snowflake_quoted_identifiers = generate_snowflake_quoted_identifiers_helper(
-                pandas_labels=[
-                    ROW_POSITION_COLUMN_LABEL,
-                    SAMPLED_ROW_POSITION_COLUMN_LABEL,
-                ]
+            sampled_row_position_identifier = (
+                generate_snowflake_quoted_identifiers_helper(
+                    pandas_labels=[
+                        SAMPLED_ROW_POSITION_COLUMN_LABEL,
+                    ]
+                )[0]
             )
 
             pre_sampling_rowcount = self.get_axis_len(axis=0)
@@ -15851,30 +15983,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 assert frac is not None
                 post_sampling_rowcount = round(frac * pre_sampling_rowcount)
 
-            row_position_col = (
-                row_number()
-                .over(Window.order_by(pandas_lit(1)))
-                .as_(snowflake_quoted_identifiers[0])
-            )
-
             sampled_row_position_col = uniform(
                 0, pre_sampling_rowcount - 1, random()
-            ).as_(snowflake_quoted_identifiers[1])
+            ).as_(sampled_row_position_identifier)
 
             sampled_row_positions_snowpark_frame = pd.session.generator(
-                row_position_col,
                 sampled_row_position_col,
                 rowcount=post_sampling_rowcount,
             )
 
             sampled_row_positions_odf = OrderedDataFrame(
                 dataframe_ref=DataFrameReference(sampled_row_positions_snowpark_frame),
-                projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
+                projected_column_snowflake_quoted_identifiers=[
+                    sampled_row_position_identifier
+                ],
             )
             sampled_odf = cache_result(
                 sampled_row_positions_odf.join(
                     right=self._modin_frame.ordered_dataframe,
-                    left_on_cols=[snowflake_quoted_identifiers[1]],
+                    left_on_cols=[sampled_row_position_identifier],
                     right_on_cols=[
                         self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
                     ],
@@ -21215,6 +21342,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         qc = qc.set_index_names(output_index_names)
         return qc
 
+    @register_query_compiler_method_not_implemented(
+        api_cls_name="DataFrame",
+        method_name="corr",
+        unsupported_args=UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not isinstance(args.get("method", "pearson"), str),
+                    "method parameter must be a string. Snowpark pandas currently only supports method = 'pearson'.",
+                ),
+                (
+                    lambda args: args.get("method", "pearson") != "pearson",
+                    lambda args: f"method = '{args.get('method')}' is not supported. Snowpark pandas currently only supports method = 'pearson'.",
+                ),
+            ]
+        ),
+    )
     def corr(
         self,
         method: Union[str, Callable] = "pearson",

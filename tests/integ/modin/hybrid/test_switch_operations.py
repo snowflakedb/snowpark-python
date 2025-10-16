@@ -762,6 +762,7 @@ def test_auto_switch_supported_dataframe(method, kwargs, query_count, api_cls_na
         _test_stay_cost(
             data_obj=df,
             api_cls_name=api_cls_name,
+            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
@@ -967,6 +968,8 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
         ("sort_index", {"key": lambda x: x}, "BasePandasDataset"),
         ("sort_values", {"by": 0, "axis": 1}, "BasePandasDataset"),
         ("apply", {"func": lambda x: x * 2, "result_type": "expand"}, "DataFrame"),
+        ("corr", {"method": "kendall"}, "DataFrame"),
+        ("corr", {"method": lambda x, y: np.corrcoef(x, y)[0, 1]}, "DataFrame"),
     ],
 )
 def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
@@ -1184,6 +1187,16 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
             {"func": lambda x: x * 2, "result_type": "expand"},
             "Snowpark pandas DataFrame apply does not support the `result_type` parameter yet",
         ),
+        (
+            "corr",
+            {"method": "kendall"},
+            "method = 'kendall' is not supported. Snowpark pandas currently only supports method = 'pearson'.",
+        ),
+        (
+            "corr",
+            {"method": 123},
+            "method parameter must be a string. Snowpark pandas currently only supports method = 'pearson'.",
+        ),
     ],
 )
 @sql_count_checker(query_count=0)
@@ -1300,7 +1313,7 @@ def test_malformed_decorator_conditions():
     # Test malformed condition with callable first element but non-string second element
     with pytest.raises(
         ValueError,
-        match="Invalid condition at index 0.*when first element is callable.*second element must be string",
+        match="Invalid condition at index 0.*when first element is callable.*second element must be a string",
     ):
 
         @register_query_compiler_method_not_implemented(
