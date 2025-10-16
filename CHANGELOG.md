@@ -112,6 +112,7 @@
   - `loc` (setting columns)
   - `to_datetime`
   - `drop`
+  - `invert`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
