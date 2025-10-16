@@ -17036,6 +17036,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         keep: DropKeep = "first",
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _duplicated_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._duplicated_internal(
+                subset=subset,
+                keep=keep,
+            )
+        qc = self._duplicated_internal(
+            subset=subset,
+            keep=keep,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _duplicated_internal(
+        self,
+        subset: Union[Hashable, Sequence[Hashable]] = None,
+        keep: DropKeep = "first",
+    ) -> "SnowflakeQueryCompiler":
+        """
         Return boolean Series denoting duplicate rows.
 
         Parameters
