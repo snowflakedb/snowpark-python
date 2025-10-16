@@ -109,6 +109,11 @@ def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, DRIVER_TYPE]:
     # Get the Python driver name
     python_driver_name = type(dbapi2_conn).__module__.lower()
     driver_type = DRIVER_TYPE.UNKNOWN
+    python_driver_name = (
+        "oracledb"
+        if python_driver_name == "oracledb.connection"
+        else python_driver_name
+    )
     try:
         driver_type = DRIVER_TYPE(python_driver_name)
     except ValueError:
@@ -544,3 +549,21 @@ def process_parquet_queue_with_threads(
     )
 
     return fetch_to_local_end_time, upload_to_sf_start_time, upload_to_sf_end_time
+
+
+def track_data_source_statement_params(
+    dataframe, statement_params: Optional[Dict] = None
+) -> Optional[Dict]:
+    """
+    Helper method to initialize and update data source tracking statement_params based on dataframe attributes.
+    """
+    statement_params = statement_params or {}
+    if (
+        dataframe._plan
+        and dataframe._plan.api_calls
+        and dataframe._plan.api_calls[0].get("name") == DATA_SOURCE_DBAPI_SIGNATURE
+    ):
+        # Track data source ingestion
+        statement_params[STATEMENT_PARAMS_DATA_SOURCE] = "1"
+
+    return statement_params if statement_params else None
