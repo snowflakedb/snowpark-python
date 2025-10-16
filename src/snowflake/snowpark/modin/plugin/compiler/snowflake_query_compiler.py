@@ -4503,6 +4503,50 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _groupby_agg_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._groupby_agg_internal(
+                by=by,
+                agg_func=agg_func,
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+                agg_args=agg_args,
+                agg_kwargs=agg_kwargs,
+                how=how,
+                numeric_only=numeric_only,
+                is_series_groupby=is_series_groupby,
+                drop=drop,
+            )
+        qc = self._groupby_agg_internal(
+            by=by,
+            agg_func=agg_func,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+            how=how,
+            numeric_only=numeric_only,
+            is_series_groupby=is_series_groupby,
+            drop=drop,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _groupby_agg_internal(
+        self,
+        by: Any,
+        agg_func: AggFuncType,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+        how: str = "axis_wise",
+        numeric_only: bool = False,
+        is_series_groupby: bool = False,
+        drop: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         compute groupby with aggregation functions.
         Note: groupby with categorical data type expands all categories during groupby, for example,
         with a dataframe created with following:
