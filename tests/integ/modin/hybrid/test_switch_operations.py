@@ -789,7 +789,6 @@ def test_auto_switch_supported_dataframe(method, kwargs, query_count, api_cls_na
         ("round", {"decimals": 1}, False, 1, "BasePandasDataset"),
         ("shift", {"periods": 1}, False, 1, "BasePandasDataset"),
         ("sort_index", {"axis": 0}, False, 1, "BasePandasDataset"),
-        ("apply", {"func": lambda x: x * 2}, False, 4, "Series"),
         ("fillna", {"value": 0}, False, 1, "Series"),
     ],
 )
@@ -1024,7 +1023,6 @@ def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
         ("skew", {"numeric_only": False}, "BasePandasDataset"),
         ("shift", {"suffix": "_suffix"}, "BasePandasDataset"),
         ("shift", {"periods": [1, 2]}, "BasePandasDataset"),
-        ("apply", {"func": "sum"}, "Series"),
         ("fillna", {"value": 0, "limit": 1}, "Series"),
         ("fillna", {"downcast": "infer", "value": 0}, "Series"),
         ("sort_index", {"key": lambda x: x}, "BasePandasDataset"),

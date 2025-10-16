@@ -10356,18 +10356,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return self._map_series_with_dict_like(arg)
 
-    @register_query_compiler_method_not_implemented(
-        ["Series"],
-        "apply",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                (
-                    lambda args: not callable(args.get("func")),
-                    "only callable 'func' is currently supported",
-                ),
-            ]
-        ),
-    )
     def apply_on_series(
         self, func: AggFuncType, args: tuple[Any, ...] = (), **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
