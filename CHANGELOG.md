@@ -50,6 +50,14 @@
     - `st_y`
     - `st_ymax`
     - `st_ymin`
+    - `st_geogfromgeohash`
+    - `st_geogpointfromgeohash`
+    - `st_geographyfromwkb`
+    - `st_geographyfromwkt`
+    - `st_geometryfromwkb`
+    - `st_geometryfromwkt`
+    - `try_to_geography`
+    - `try_to_geometry`
 
 
 #### Bug Fixes
@@ -123,6 +131,7 @@
   - `to_datetime`
   - `drop`
   - `invert`
+  - `duplicated`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
