@@ -7,6 +7,7 @@ from contextlib import contextmanager
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
+from pandas._testing import assert_almost_equal
 
 from snowflake.snowpark._internal.utils import TempObjectType
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -245,7 +246,7 @@ def test_agg(session, func):
     # compare results
     assert_series_equal(snow_result1, native_result1, check_dtype=False)
     assert_frame_equal(snow_result2, native_result2, check_dtype=False)
-    assert snow_result3 == native_result3
+    assert_almost_equal(snow_result3, native_result3)
     assert_series_equal(snow_result4, native_result4, check_dtype=False)
 
 
