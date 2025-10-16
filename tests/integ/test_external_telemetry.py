@@ -133,7 +133,7 @@ def test_basic_end_to_end(session, request):
             side_effect=make_mock_log_exporter,
         ),
     ):
-        session.enable_external_telemetry("db.sc.tb", logging.INFO, True)
+        session.enable_event_table_telemetry_collection("db.sc.tb", logging.INFO, True)
 
         tracer = trace.get_tracer("external_telemetry")
         with tracer.start_as_current_span("code_store") as span:
@@ -142,7 +142,7 @@ def test_basic_end_to_end(session, request):
             logging.info("Trace being sent to event table")
             logging.info("second log recorded")
 
-        session.disable_external_telemetry()
+        session.disable_event_table_telemetry_collection()
     # force batch processor to send telemetry
     session._proxy_tracer_provider.force_flush(1000)
     session._proxy_log_provider.force_flush(1000)
@@ -185,8 +185,8 @@ def test_send_telemetry_out_of_scope(session, request):
         with tracer.start_as_current_span("code_store") as span:
             span.set_attribute("code.pos", "before_enable")
             logging.info("log before enable")
-        session.enable_external_telemetry("db.sc.tb", logging.INFO, True)
-        session.disable_external_telemetry()
+        session.enable_event_table_telemetry_collection("db.sc.tb", logging.INFO, True)
+        session.disable_event_table_telemetry_collection()
         with tracer.start_as_current_span("code_store") as span:
             span.set_attribute("code.pos", "after_enable")
             logging.info("log after enable")
@@ -221,9 +221,9 @@ def test_re_enable(session, request):
             side_effect=make_mock_log_exporter,
         ),
     ):
-        session.enable_external_telemetry("db.sc.tb", logging.INFO, True)
-        session.disable_external_telemetry()
-        session.enable_external_telemetry("db.sc.tb", logging.INFO, True)
+        session.enable_event_table_telemetry_collection("db.sc.tb", logging.INFO, True)
+        session.disable_event_table_telemetry_collection()
+        session.enable_event_table_telemetry_collection("db.sc.tb", logging.INFO, True)
         tracer = trace.get_tracer("external_telemetry")
         with tracer.start_as_current_span("code_store") as span:
             span.set_attribute("code.lineno", "21")
@@ -246,17 +246,19 @@ def test_re_enable(session, request):
 
 
 def test_negative_case(session, caplog):
-    session.enable_external_telemetry("db.sc.tb", None, False)
+    session.enable_event_table_telemetry_collection("db.sc.tb", None, False)
     assert (
         "Snowpark python log_level and trace_level are not enabled to collect telemetry into event table:"
         in caplog.text
     )
 
-    session.enable_external_telemetry("no_fully_qualified", logging.INFO, True)
+    session.enable_event_table_telemetry_collection(
+        "no_fully_qualified", logging.INFO, True
+    )
     assert "Input event table is converted to fully qualified name:" in caplog.text
 
     with patch("snowflake.snowpark.session.installed_opentelemery", False):
-        session.enable_external_telemetry("db.sc.tb", logging.INFO, True)
+        session.enable_event_table_telemetry_collection("db.sc.tb", logging.INFO, True)
         assert (
             "Opentelemetry dependencies are missing, no telemetry export into event table:"
             in caplog.text

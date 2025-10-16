@@ -4960,7 +4960,7 @@ class Session:
             _emit_ast=_emit_ast,
         )
 
-    def enable_external_telemetry(
+    def enable_event_table_telemetry_collection(
         self,
         event_table: str = "snowflake.telemetry.events",
         log_level: int = None,
@@ -5070,7 +5070,7 @@ class Session:
             ):
                 self._enable_logger_provider()
 
-    def disable_external_telemetry(self) -> None:
+    def disable_event_table_telemetry_collection(self) -> None:
         with self._lock:
             if self._tracer_provider:
                 self._disable_tracer_provider()
