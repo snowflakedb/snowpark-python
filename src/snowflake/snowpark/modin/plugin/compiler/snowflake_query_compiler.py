@@ -11476,6 +11476,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def invert(self) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _invert_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._invert_internal()
+        qc = self._invert_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _invert_internal(self) -> "SnowflakeQueryCompiler":
+        """
         Apply bitwise inversion for each element of the QueryCompiler.
 
         Returns
@@ -17062,6 +17072,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(result_frame)
 
     def duplicated(
+        self,
+        subset: Union[Hashable, Sequence[Hashable]] = None,
+        keep: DropKeep = "first",
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _duplicated_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._duplicated_internal(
+                subset=subset,
+                keep=keep,
+            )
+        qc = self._duplicated_internal(
+            subset=subset,
+            keep=keep,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _duplicated_internal(
         self,
         subset: Union[Hashable, Sequence[Hashable]] = None,
         keep: DropKeep = "first",
