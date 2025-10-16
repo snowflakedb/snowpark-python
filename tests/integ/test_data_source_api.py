@@ -1916,3 +1916,24 @@ def test_oracledb_v34():
     dbms_type, driver_type = detect_dbms(create_mock_oracledb_v34_or_higher())
     assert dbms_type == DBMS_TYPE.ORACLE_DB
     assert driver_type == DRIVER_TYPE.ORACLEDB
+
+
+def test_partitioner_from_dict():
+    init_dict = {
+        "create_connection": sql_server_create_connection,
+        "table_or_query": "ALL_TYPE_TABLE",
+        "is_query": False,
+        "column": "ID",
+        "lower_bound": 0,
+        "upper_bound": 1000,
+        "num_partitions": 4,
+        "max_workers": "should not include",
+        "query_timeout": 0,
+        "fetch_size": 100000,
+    }
+    partitioner = DataSourcePartitioner.from_dict(init_dict)
+    for key, value in init_dict.items():
+        if key != "max_workers":
+            assert getattr(partitioner, key) == value
+        else:
+            assert not hasattr(partitioner, key)
