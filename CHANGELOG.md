@@ -122,6 +122,7 @@
   - `drop`
   - `invert`
   - `duplicated`
+  - `columns` (e.g., df.columns = ["A", "B"])
   - `agg`
   - `min`
   - `max`
