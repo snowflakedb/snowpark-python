@@ -4022,6 +4022,9 @@ def compress(
         input_val (ColumnOrName): The input string to be compressed.
         method (ColumnOrName): The compression method (e.g., "SNAPPY").
 
+    Returns:
+        Column: The compressed binary data.
+
     Example::
         >>> df = session.create_dataframe([['Snowflake'], ['Hello World']], schema=["input"])
         >>> df.select(compress(df["input"], lit("SNAPPY")).alias("compressed")).collect()
@@ -4044,7 +4047,7 @@ def decompress_binary(
         method (ColumnOrName): The compression method used to decompress the data.
 
     Returns:
-        Column: A column containing the decompressed binary data.
+        Column: The decompressed binary data.
 
     Examples::
         >>> from snowflake.snowpark.functions import lit
@@ -4066,8 +4069,11 @@ def decompress_string(
     Decompresses a BINARY value using the specified compression method and returns the result as a string.
 
     Args:
-        input_data: A column containing the compressed binary data to decompress.
-        method: A column or string specifying the compression method used. Supported methods include 'SNAPPY', 'GZIP', etc.
+        input_data (ColumnOrName): The compressed binary data to decompress.
+        method (ColumnOrName): The compression method used. Supported methods include 'SNAPPY', 'GZIP', etc.
+
+    Returns:
+        Column: The decompressed string.
 
     Example::
 
@@ -4090,7 +4096,7 @@ def md5_binary(msg: ColumnOrName, _emit_ast: bool = True) -> Column:
         msg (ColumnOrName): The input message to compute the MD5 hash for.
 
     Returns:
-        Column: A column containing the MD5 hash as a binary value (bytearray).
+        Column: The MD5 hash as a binary value (bytearray).
 
     Examples::
         >>> from snowflake.snowpark import Row
