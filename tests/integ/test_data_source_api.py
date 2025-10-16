@@ -500,8 +500,10 @@ def test_telemetry_tracking(caplog, session, fetch_with_process):
     RUNNING_ON_JENKINS,
     reason="SNOW-2089683: oracledb real connection test failed on jenkins",
 )
-def test_telemetry_tracking_for_udtf(caplog, session):
+def test_telemetry_tracking_for_udtf(caplog, session, ast_enabled):
 
+    if ast_enabled:
+        pytest.skip("TODO: dbapi has not implemented ast yet, skip the test for now")
     original_func = session._conn.run_query
     called = 0
 
