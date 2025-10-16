@@ -4,11 +4,14 @@
 
 import os
 import pathlib
+from random import Random
 import re
 from datetime import datetime
+import string
 
 import modin.pandas as pd
 import numpy as np
+from modin.config import context as config_context
 import pandas
 import pytest
 from pandas._typing import Frequency
@@ -299,7 +302,7 @@ def create_multiindex_with_dt64tz_level() -> pd.MultiIndex:
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def indices_dict():
     return {
         "string": pandas.Index(
@@ -386,7 +389,7 @@ def test_table_name(session) -> str:
         Utils.drop_table(session, test_table_name)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def float_frame() -> pandas.DataFrame:
     """
     Fixture for DataFrame of floats with index of unique strings
@@ -419,7 +422,7 @@ def float_frame() -> pandas.DataFrame:
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def float_string_frame():
     """
     Fixture for DataFrame of floats and strings with index of unique strings
@@ -454,7 +457,7 @@ def float_string_frame():
     return df
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def datetime_series(nper=30, freq: Frequency = "B", name=None) -> pandas.Series:
     """
     Fixture for Series of floats with DatetimeIndex
@@ -867,3 +870,60 @@ def clear_printed_warnings() -> Generator[None, None, None]:
     WarningMessage.printed_warnings.clear()
     yield
     WarningMessage.printed_warnings = warnings
+
+
+def _generate_lower_case_table_name_unquoted() -> str:
+    return "snowpark_temp_table_" + "".join(
+        Random().choice(string.ascii_lowercase + string.digits) for _ in range(10)
+    )
+
+
+@pytest.fixture
+def lower_case_table_name_unquoted(session):
+    name = _generate_lower_case_table_name_unquoted()
+    yield name
+    Utils.drop_table(session, name)
+
+
+@pytest.fixture
+def lower_case_table_name_quoted(session):
+    name = '"' + _generate_lower_case_table_name_unquoted() + '"'
+    yield name
+    Utils.drop_table(session, name)
+
+
+@pytest.fixture
+def upper_case_table_name_quoted(session):
+    name = '"' + _generate_lower_case_table_name_unquoted().upper() + '"'
+    yield name
+    Utils.drop_table(session, name)
+
+
+@pytest.fixture
+def upper_case_table_name_with_space_quoted(session):
+    name = '" ' + _generate_lower_case_table_name_unquoted().upper() + ' "'
+    yield name
+    Utils.drop_table(session, name)
+
+
+@pytest.fixture
+def valid_unquoted_identifier_table_name(session):
+    name = _generate_lower_case_table_name_unquoted() + "$n"
+    yield name
+    Utils.drop_table(session, name)
+
+
+@pytest.fixture(
+    params=[
+        ("pandas", 0),
+        ("pandas", int(1e9)),
+        ("snowflake", 0),
+    ],
+    ids=lambda param: f"backend_{param[0]}-parquet_threshold_{param[1]}",
+)
+def starting_backend_and_parquet_threshold(request):
+    with config_context(
+        Backend=request.param[0],
+        PandasToSnowflakeParquetThresholdBytes=request.param[1],
+    ):
+        yield

@@ -6844,7 +6844,8 @@ def test_create_dataframe_implicit_struct_not_null_single(session):
     assert result == expected_rows
 
 
-def test_create_dataframe_implicit_struct_not_null_multiple(session):
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_create_dataframe_implicit_struct_not_null_multiple(session, upper_case):
     """
     Test a schema with multiple fields, one of which is NOT NULL.
     """
@@ -6852,7 +6853,11 @@ def test_create_dataframe_implicit_struct_not_null_multiple(session):
         [10, "foo"],
         [20, "bar"],
     ]
-    schema_str = "col1: int not null, col2: string"
+    # Only uppercase the types, not field names
+    if upper_case:
+        schema_str = "col1: INT NOT NULL, col2: STRING(100)"
+    else:
+        schema_str = "col1: int not null, col2: string(100)"
 
     df = session.create_dataframe(data, schema=schema_str)
     # Verify schema
@@ -6860,7 +6865,7 @@ def test_create_dataframe_implicit_struct_not_null_multiple(session):
 
     expected_fields = [
         StructField("COL1", LongType(), nullable=False),
-        StructField("COL2", StringType(2**24), nullable=True),
+        StructField("COL2", StringType(100), nullable=True),
     ]
     assert df.schema.fields == expected_fields
 
@@ -6873,7 +6878,8 @@ def test_create_dataframe_implicit_struct_not_null_multiple(session):
     assert result == expected_rows
 
 
-def test_create_dataframe_implicit_struct_not_null_nested(session):
+@pytest.mark.parametrize("upper_case", [False, True])
+def test_create_dataframe_implicit_struct_not_null_nested(session, upper_case):
     """
     Test a schema with nested array and a NOT NULL decimal field.
     """
@@ -6881,7 +6887,11 @@ def test_create_dataframe_implicit_struct_not_null_nested(session):
         [["1", "2"], Decimal("3.14")],
         [["5", "6"], Decimal("2.72")],
     ]
-    schema_str = "arr: array<string>, val: decimal(10,2) NOT NULL"
+    # Only uppercase the types, not field names
+    if upper_case:
+        schema_str = "arr: ARRAY<STRING>, val: DECIMAL(10,2) NOT NULL"
+    else:
+        schema_str = "arr: array<string>, val: decimal(10,2) NOT NULL"
 
     df = session.create_dataframe(data, schema=schema_str)
     # Verify schema

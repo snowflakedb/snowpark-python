@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def df_data():
     return {
         "A": [
@@ -54,7 +54,7 @@ def df_data():
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def df_data_more_pivot_values():
     return {
         "A": [
@@ -117,7 +117,7 @@ def df_data_more_pivot_values():
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def df_data_with_duplicates():
     return (
         # NOTE: This call to np.array converts all the numbers to string
@@ -192,7 +192,7 @@ def df_data_with_duplicates():
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def df_encoded_data():
     return {
         "A": [
@@ -241,7 +241,7 @@ def df_encoded_data():
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def df_small_encoded_data():
     return {
         "A": [
@@ -259,7 +259,7 @@ def df_small_encoded_data():
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def df_data_small():
     return {
         "ax": [
@@ -292,7 +292,7 @@ def df_data_small():
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def df_data_with_nulls():
     return {
         "A": [
@@ -364,7 +364,7 @@ def df_data_with_nulls():
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def df_data_with_nulls_2():
     return {
         "A": ["foo", "bar"],
@@ -376,7 +376,7 @@ def df_data_with_nulls_2():
     }
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def df_pivot_data():
     return {
         "foo": ["one", "one", "one", "two", "two", "two"],

@@ -414,6 +414,7 @@ Functions
     seq4
     seq8
     sequence
+    service
     sha1
     sha2
     sin
@@ -440,6 +441,62 @@ Functions
     st_asewkt
     st_asgeojson
     st_aswkb
+    st_aswkt
+    st_azimuth
+    st_buffer
+    st_centroid
+    st_collect
+    st_contains
+    st_coveredby
+    st_covers
+    st_difference
+    st_dimension
+    st_disjoint
+    st_distance
+    st_dwithin
+    st_endpoint
+    st_envelope
+    st_geohash
+    st_geomfromgeohash
+    st_geompointfromgeohash
+    st_hausdorffdistance
+    st_makepoint
+    st_interpolate
+    st_intersection
+    st_intersection_agg
+    st_intersects
+    st_isvalid
+    st_length
+    st_makegeompoint
+    st_makeline
+    st_makepolygon
+    st_makepolygonoriented
+    st_npoints
+    st_perimeter
+    st_pointn
+    st_setsrid
+    st_simplify
+    st_srid
+    st_startpoint
+    st_symdifference
+    st_transform
+    st_union
+    st_union_agg
+    st_within
+    st_x
+    st_xmax
+    st_xmin
+    st_y
+    st_ymax
+    st_ymin
+    st_geogfromgeohash
+    st_geogpointfromgeohash
+    st_geographyfromwkb
+    st_geographyfromwkt
+    st_geometryfromwkb
+    st_geometryfromwkt
+    try_to_geography
+    try_to_geometry
     substr
     substring
     sum

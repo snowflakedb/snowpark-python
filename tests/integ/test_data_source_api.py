@@ -444,7 +444,7 @@ def test_telemetry_tracking(caplog, session, fetch_with_process):
     called, comment_showed = 0, 0
 
     def assert_datasource_statement_params_run_query(*args, **kwargs):
-        # assert we set statement_parameters to track datasourcee api usage
+        # assert we set statement_parameters to track datasource api usage
         nonlocal comment_showed
         statement_parameters = kwargs.get("_statement_params")
         query = args[0]
@@ -494,6 +494,62 @@ def test_telemetry_tracking(caplog, session, fetch_with_process):
             single=True,
         )
         assert called == 2
+
+
+def test_telemetry_tracking_for_udtf(caplog, session):
+
+    original_func = session._conn.run_query
+    called = 0
+
+    def assert_datasource_statement_params_run_query(*args, **kwargs):
+        # assert we set statement_parameters to track datasource udtf api usage
+        query = args[0]
+        if not query.lower().startswith("put"):
+            assert kwargs.get("_statement_params")[STATEMENT_PARAMS_DATA_SOURCE] == "1"
+        nonlocal called
+        called += 1
+        return original_func(*args, **kwargs)
+
+    def create_connection():
+        class FakeConnection:
+            def cursor(self):
+                class FakeCursor:
+                    def execute(self, query):
+                        pass
+
+                    @property
+                    def description(self):
+                        return [("c1", int, None, None, None, None, None)]
+
+                    def fetchmany(self, *args, **kwargs):
+                        return None
+
+                return FakeCursor()
+
+        return FakeConnection()
+
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        side_effect=assert_datasource_statement_params_run_query,
+    ):
+        df = session.read.dbapi(
+            create_connection,
+            table="Fake",
+            custom_schema="c1 INT",
+            udtf_configs={
+                "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
+                "packages": ["snowflake-snowpark-python"],
+            },
+        )
+        df.select("*").collect()
+    # called 7/8 times coming from:
+    # 1. dbapi internal save empty table: 1 time
+    # 2. dbapi register UDTF: 5/6 times depending on python versions (operations entailing stage, package, registration)
+    #   the delta is due to different python versions will do registration differently: inline or upload to stage
+    # 3. select: 1 time
+    assert (
+        "'name': 'DataFrameReader.dbapi'" in str(df._plan.api_calls[0]) and called >= 7
+    )
 
 
 @pytest.mark.skipif(
@@ -1758,3 +1814,105 @@ def test_base_driver_udtf_class_builder():
 
         # Verify we got some data back (we know the test table has data from other tests)
         assert len(result_rows) > 0
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_dbapi_with_connection_parameters(session):
+    """Test that connection_parameters are correctly passed to create_connection callable."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "test_connection_params.db")
+        table_name, _, _, assert_data = sqlite3_db(dbpath)
+
+        # Test 1: Function with keyword arguments
+        def create_connection_with_kwargs(timeout=5.0, isolation_level=None, **kwargs):
+            import sqlite3
+
+            assert (
+                timeout == 30.0
+                and isolation_level == "DEFERRED"
+                and kwargs.get("extra") == 123
+            )
+            return sqlite3.connect(
+                database=dbpath, timeout=timeout, isolation_level=isolation_level
+            )
+
+        connection_params = {
+            "timeout": 30.0,
+            "isolation_level": "DEFERRED",
+            "extra": 123,
+        }
+
+        df = session.read.dbapi(
+            create_connection_with_kwargs,
+            table=table_name,
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+            connection_parameters=connection_params,
+        )
+        result = df.order_by("ID").collect()
+        assert result == assert_data
+
+        # Test 2: Empty dict should not pass parameters
+
+        def create_connection_check_empty(**kwargs):
+            import sqlite3
+
+            assert not kwargs, f"Expected no kwargs, but got: {kwargs}"
+            return sqlite3.connect(dbpath)
+
+        df4 = session.read.dbapi(
+            create_connection_check_empty,
+            table=table_name,
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+            connection_parameters={},
+        )
+        result4 = df4.order_by("ID").collect()
+        assert result4 == assert_data
+
+        # Test 3: Function without parameters should raise TypeError
+        def create_connection_check_no_params():
+            import sqlite3
+
+            return sqlite3.connect(dbpath)
+
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            session.read.dbapi(
+                create_connection_check_no_params,
+                table=table_name,
+                custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                connection_parameters={"key": "value"},
+            )
+
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            session.read.dbapi(
+                create_connection_check_no_params,
+                table=table_name,
+                custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                connection_parameters={"key": "value"},
+                udtf_configs={"external_access_integration": "test_integration"},
+            )
+
+
+def test_oracledb_v34():
+    class MockOracleConnectionV33:
+        __module__ = "oracledb"
+
+    # Version for 3.4 or higher
+    class MockOracleConnectionV34:
+        __module__ = "oracledb.connection"
+
+    def create_mock_oracledb_v33_or_lower():
+        return MockOracleConnectionV33()
+
+    def create_mock_oracledb_v34_or_higher():
+        return MockOracleConnectionV34()
+
+    dbms_type, driver_type = detect_dbms(create_mock_oracledb_v33_or_lower())
+    assert dbms_type == DBMS_TYPE.ORACLE_DB
+    assert driver_type == DRIVER_TYPE.ORACLEDB
+
+    dbms_type, driver_type = detect_dbms(create_mock_oracledb_v34_or_higher())
+    assert dbms_type == DBMS_TYPE.ORACLE_DB
+    assert driver_type == DRIVER_TYPE.ORACLEDB
