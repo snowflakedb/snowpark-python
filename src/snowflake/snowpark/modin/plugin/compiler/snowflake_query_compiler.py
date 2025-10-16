@@ -626,7 +626,7 @@ HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS: dict[MethodKey, UnsupportedArgsRule] = {}
 
 
 def register_query_compiler_method_not_implemented(
-    api_cls_name: Optional[str],
+    api_cls_names: List[Optional[str]],
     method_name: str,
     unsupported_args: Optional["UnsupportedArgsRule"] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -644,22 +644,23 @@ def register_query_compiler_method_not_implemented(
     without meaningful benefit.
 
     Args:
-        api_cls_name: Frontend class name (e.g., "BasePandasDataset", "Series", "DataFrame", "None").
+        api_cls_names: Frontend class names (e.g., ["BasePandasDataset", "Series", "DataFrame", None]).
         method_name: Method name to register.
         unsupported_args: UnsupportedArgsRule for args-based auto-switching.
                           If None, method is treated as completely unimplemented.
     """
-    reg_key = MethodKey(api_cls_name, method_name)
 
-    # register the method in the hybrid switch for unsupported args
-    if unsupported_args is None:
-        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(reg_key)
-    else:
-        HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[reg_key] = unsupported_args
+    for api_cls_name in api_cls_names:
+        reg_key = MethodKey(api_cls_name, method_name)
 
-    register_function_for_pre_op_switch(
-        class_name=api_cls_name, backend="Snowflake", method=method_name
-    )
+        if unsupported_args is None:
+            HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(reg_key)
+        else:
+            HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[reg_key] = unsupported_args
+
+        register_function_for_pre_op_switch(
+            class_name=api_cls_name, backend="Snowflake", method=method_name
+        )
 
     def decorator(query_compiler_method: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(query_compiler_method)
@@ -2592,7 +2593,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.not_implemented("shifting index values not yet supported.")
 
     @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
+        ["BasePandasDataset"],
         "shift",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -4195,7 +4196,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return None
 
     @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
+        ["BasePandasDataset"],
         "sort_index",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -4297,7 +4298,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
+        ["BasePandasDataset"],
         "sort_values",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -7038,7 +7039,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        None,
+        [None],
         "get_dummies",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -8586,7 +8587,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return qc
 
     @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
+        ["BasePandasDataset"],
         "cumsum",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -8624,7 +8625,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
+        ["BasePandasDataset"],
         "cummin",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -8662,7 +8663,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
+        ["BasePandasDataset"],
         "cummax",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -8700,7 +8701,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        None,
+        [None],
         "melt",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -9759,7 +9760,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return left_qc, right_qc
 
     @register_query_compiler_method_not_implemented(
-        "DataFrame",
+        ["DataFrame"],
         "apply",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -10355,7 +10356,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return self._map_series_with_dict_like(arg)
 
     @register_query_compiler_method_not_implemented(
-        "Series",
+        ["Series"],
         "apply",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -10455,7 +10456,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        None,
+        [None],
         "pivot_table",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -12675,6 +12676,23 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 *columns_to_include,
             )
 
+    @register_query_compiler_method_not_implemented(
+        ["DataFrame", "Series"],
+        "fillna",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda kwargs: kwargs.get("value") is not None
+                    and kwargs.get("limit") is not None,
+                    "Snowpark pandas fillna API doesn't yet support 'limit' parameter with 'value' parameter",
+                ),
+                (
+                    lambda kwargs: kwargs.get("downcast") is not None,
+                    "Snowpark pandas fillna API doesn't yet support 'downcast' parameter",
+                ),
+            ]
+        ),
+    )
     def fillna(
         self,
         value: Optional[Union[Hashable, Mapping, "pd.DataFrame", "pd.Series"]] = None,
@@ -12920,6 +12938,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).frame
         )
 
+    @register_query_compiler_method_not_implemented(
+        ["DataFrame"],
+        "dropna",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                ("axis", 1),
+            ]
+        ),
+    )
     def dropna(
         self,
         axis: int,
@@ -15415,7 +15442,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(internal_frame)
 
     @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
+        ["BasePandasDataset"],
         "skew",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -17476,7 +17503,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_frame)
 
     @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
+        ["BasePandasDataset"],
         "round",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -21353,7 +21380,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return qc
 
     @register_query_compiler_method_not_implemented(
-        api_cls_name="DataFrame",
+        api_cls_names=["DataFrame"],
         method_name="corr",
         unsupported_args=UnsupportedArgsRule(
             unsupported_conditions=[
