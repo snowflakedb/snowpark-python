@@ -10764,6 +10764,36 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         columns: Union["SnowflakeQueryCompiler", slice, int, bool, list, AnyArrayLike],
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _take_2d_positional_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and (
+            index == slice(None, None, None)
+            or (
+                isinstance(index, slice)
+                and (index.start is None or index.start == 0)
+                and (index.step is None or index.step == 1)
+            )
+        ):
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._take_2d_positional_internal(
+                    index=index,
+                    columns=columns,
+                )
+            )
+
+        qc = self._take_2d_positional_internal(
+            index=index,
+            columns=columns,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _take_2d_positional_internal(
+        self,
+        index: Union["SnowflakeQueryCompiler", slice],
+        columns: Union["SnowflakeQueryCompiler", slice, int, bool, list, AnyArrayLike],
+    ) -> "SnowflakeQueryCompiler":
+        """
         Index QueryCompiler with passed keys.
 
         Parameters
