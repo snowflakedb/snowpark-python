@@ -52,12 +52,12 @@ def setup_modin_hybrid_mode(pytestconfig):
         MODIN_HYBRID_TEST_MODE_ENABLED = False
 
 
-def read_hybrid_known_failures():
+def read_hybrid_test_list():
     """
     Read `modin_hybrid_integ_results.csv` and create a pandas
-    dataframe filtered down to only the failed tests. You can regenerate
-    this file by:
-    * Delete the old file, "tests/integ/modin/modin_hybrid_integ_results.csv"
+    dataframe filtered down to only the passing tests which run quickly. 
+    You can regenerate this file by:
+    * Delete the old file, "tests/integ/modin/modin_hybrid_integ_passing_tests.csv"
     * Collecting the hybrid test results with pytest:
         pytest tests/integ/modin -n 10
                --enable_modin_hybrid_mode
@@ -65,43 +65,40 @@ def read_hybrid_known_failures():
     * Pre-filtering and sorting the results to reduce the file and diff size:
       import pandas as pd
       df = pd.read_csv("tests/integ/modin/modin_hybrid_integ_results-input.csv")
-      filtered = df[["module", "name", "message", "status"]][
-          df["status"].isin(["failed", "xfailed", "error"])
+      # filter the test list to passing tests only
+      df_passing = df[["module", "name", "message", "status", "duration"]][
+          df["status"].isin(["passed"])
       ]
-      filtered['message'] = filtered['message'].str.slice(0, 40) # truncate the error message
-      filtered = filtered.sort_values(by=["module", "name"])
-      filtered.to_csv("tests/integ/modin/modin_hybrid_integ_results.csv", index=False)
+      # Filter passing list to set of tests which pass in less than 1/4th of a second
+      df_passing_fast = df[["module", "name"]][
+          df["duration"] < 0.250
+      ]
+      df_passing_fast = df_passing_fast.sort_values(by=["module", "name"])
+      df_passing_fast.to_csv("tests/integ/modin/modin_hybrid_integ_passing_tests.csv", index=False)
     """
 
     HYBRID_RESULTS_PATH = os.path.normpath(
         os.path.join(
-            os.path.dirname(__file__), "../modin/modin_hybrid_integ_results.csv"
+            os.path.dirname(__file__), "../modin/modin_hybrid_integ_passing_tests.csv"
         )
     )
     if not os.path.exists(HYBRID_RESULTS_PATH):
         return pandas.DataFrame([], columns=["module", "name", "message", "status"])
-    df = pandas.read_csv(HYBRID_RESULTS_PATH)
-    return df[["module", "name", "message", "status"]][
-        df["status"].isin(["failed", "xfailed", "error"])
-    ]
+    return pandas.read_csv(HYBRID_RESULTS_PATH)
 
 
-HYBRID_KNOWN_FAILURES = read_hybrid_known_failures()
+HYBRID_TEST_LIST = read_hybrid_test_list()
 
 
-def is_hybrid_known_failure(module_name, test_name) -> dict[bool, str]:
+def is_hybrid_test(module_name, test_name) -> bool:
     """
     Determine whether the module/test is a known hybrid mode failure
     and return the result along with the error message if applicable.
     """
-    module_mask = HYBRID_KNOWN_FAILURES.module == module_name
-    testname_mask = HYBRID_KNOWN_FAILURES.name == test_name
-    test_data = HYBRID_KNOWN_FAILURES[module_mask & testname_mask]
-    failed = len(test_data) >= 1
-    msg = None
-    if failed:
-        msg = test_data["message"].iloc[0]
-    return (failed, msg)
+    module_mask = HYBRID_TEST_LIST.module == module_name
+    testname_mask = HYBRID_TEST_LIST.name == test_name
+    test_data = HYBRID_TEST_LIST[module_mask & testname_mask]
+    return len(test_data) >= 1
 
 
 def pytest_runtest_setup(item):
@@ -115,9 +112,9 @@ def pytest_runtest_setup(item):
     if len(list(item.iter_markers(name="skip_hybrid"))) > 0:
         pytest.skip("Skipped for Hybrid: pytest.mark.skip_hybrid")
     # Check the known failure list and skip those with a message
-    (failed, msg) = is_hybrid_known_failure(item.module.__name__, item.name)
-    if failed:
-        pytest.skip(f"Skipped for Hybrid: {msg}")
+    hybrid_test = is_hybrid_test(item.module.__name__, item.name)
+    if not hybrid_test:
+        pytest.skip(f"Skipped for Hybrid")
 
 
 @pytest.fixture(scope="module", autouse=True)
