@@ -807,7 +807,7 @@ def prepare_pivot_aggregation_for_handling_missing_and_null_values(
                 aggr_snowflake_quoted_identifier
             )
         else:
-            raise NotImplementedError("blah")
+            raise NotImplementedError("Aggregate function not supported for pivot")
         pre_pivot_ordered_dataframe = pivot_ordered_dataframe.group_by(
             grouping_snowflake_quoted_identifiers, agg_expr
         )
