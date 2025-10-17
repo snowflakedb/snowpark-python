@@ -308,6 +308,49 @@ def test_duplicated(session):
     assert_series_equal(snow_result, native_result)
 
 
+@sql_count_checker(query_count=5)
+def test_iloc_head(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[1, 11], [2, 12], [3, 13]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result1 = df.iloc[:, [1]]
+    snow_result2 = df.iloc[0:2:1, [1]]
+    snow_result3 = df.head()
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result1._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result1._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+    assert snow_result2._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result2._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+    assert snow_result3._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result3._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result1 = native_df.iloc[:, [1]]
+    native_result2 = native_df.iloc[0:2:1, [1]]
+    native_result3 = native_df.head()
+
+    # compare results
+    assert_frame_equal(snow_result1, native_result1)
+    assert_frame_equal(snow_result2, native_result2)
+    assert_frame_equal(snow_result3, native_result3)
+
+
 @sql_count_checker(query_count=3)
 def test_invert(session):
     # create tables
