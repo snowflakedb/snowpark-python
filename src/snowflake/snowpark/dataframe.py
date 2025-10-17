@@ -2263,7 +2263,7 @@ class DataFrame:
     @publicapi
     def sort_by_all(
         self,
-        ascending: Optional[Union[bool, int]] = True,
+        ascending: Union[bool, int] = True,
         _emit_ast: bool = True,
     ) -> "DataFrame":
         """Sorts a DataFrame by all columns (similar to ORDER BY ALL in SQL).
@@ -2313,15 +2313,9 @@ class DataFrame:
             stmt = self._session._ast_batch.bind()
             ast = with_src_position(stmt.expr.dataframe_sort_by_all, stmt)
             self._set_ast_ref(ast.df)
-            asc_ast = proto.Expr()
-            if isinstance(ascending, bool):
-                asc_ast.bool_val.v = ascending
-            else:
-                asc_ast.int64_val.v = ascending
-            ast.ascending.CopyFrom(asc_ast)
+            ast.ascending = bool(ascending)
 
-        order = Ascending() if ascending else Descending()
-
+        order = Ascending() if bool(ascending) else Descending()
         sort_expr = [SortByAllOrder(order)]
         # In snowpark_connect_compatible mode, we need to handle
         # the sorting for dataframe after aggregation without nesting
