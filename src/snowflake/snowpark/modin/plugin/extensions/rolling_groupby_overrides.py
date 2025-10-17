@@ -55,7 +55,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         method: str = "single",
         dropna: bool = True,
     ) -> None:
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._dataframe = dataframe
         self._query_compiler = dataframe._query_compiler
         self.by = by
@@ -76,7 +75,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         self._series_not_implemented()
 
     def _method_not_implemented(self, method: str):  # pragma: no cover
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         ErrorMessage.not_implemented(
             f"Method {method} is not implemented for RollingGroupby!"
         )
@@ -85,7 +83,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         """
         Raises NotImplementedError if Groupby.rolling is called with a Series.
         """
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         if self._dataframe.ndim == 1:
             ErrorMessage.not_implemented(
                 "Snowpark pandas does not yet support the method GroupBy.rolling for Series"
@@ -109,12 +106,12 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.groupby_rolling(
-                self.rolling_kwargs,
-                "max",
-                self.groupby_kwargs,
-                is_series,
-                tuple(),
-                agg_kwargs,
+                rolling_kwargs=self.rolling_kwargs,
+                rolling_method="max",
+                groupby_kwargs=self.groupby_kwargs,
+                is_series=is_series,
+                agg_args=tuple(),
+                agg_kwargs=agg_kwargs,
             )
         )
 
@@ -124,7 +121,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("rolling_mean", args, kwargs)
 
@@ -133,12 +129,12 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.groupby_rolling(
-                self.rolling_kwargs,
-                "mean",
-                self.groupby_kwargs,
-                is_series,
-                tuple(),
-                agg_kwargs,
+                rolling_kwargs=self.rolling_kwargs,
+                rolling_method="mean",
+                groupby_kwargs=self.groupby_kwargs,
+                is_series=is_series,
+                agg_args=tuple(),
+                agg_kwargs=agg_kwargs,
             )
         )
 
@@ -148,7 +144,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("rolling_median", args, kwargs)
 
@@ -157,12 +152,12 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.groupby_rolling(
-                self.rolling_kwargs,
-                "median",
-                self.groupby_kwargs,
-                is_series,
-                tuple(),
-                agg_kwargs,
+                rolling_kwargs=self.rolling_kwargs,
+                rolling_method="median",
+                groupby_kwargs=self.groupby_kwargs,
+                is_series=is_series,
+                agg_args=tuple(),
+                agg_kwargs=agg_kwargs,
             )
         )
 
@@ -173,7 +168,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
 
@@ -182,12 +176,12 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.groupby_rolling(
-                self.rolling_kwargs,
-                "min",
-                self.groupby_kwargs,
-                is_series,
-                tuple(),
-                agg_kwargs,
+                rolling_kwargs=self.rolling_kwargs,
+                rolling_method="min",
+                groupby_kwargs=self.groupby_kwargs,
+                is_series=is_series,
+                agg_args=tuple(),
+                agg_kwargs=agg_kwargs,
             )
         )
 
@@ -198,7 +192,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("rolling_sum", args, kwargs)
 
@@ -207,12 +200,12 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.groupby_rolling(
-                self.rolling_kwargs,
-                "sum",
-                self.groupby_kwargs,
-                is_series,
-                tuple(),
-                agg_kwargs,
+                rolling_kwargs=self.rolling_kwargs,
+                rolling_method="sum",
+                groupby_kwargs=self.groupby_kwargs,
+                is_series=is_series,
+                agg_args=tuple(),
+                agg_kwargs=agg_kwargs,
             )
         )
 
@@ -223,7 +216,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
 
@@ -232,12 +224,12 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.groupby_rolling(
-                self.rolling_kwargs,
-                "count",
-                self.groupby_kwargs,
-                is_series,
-                tuple(),
-                agg_kwargs,
+                rolling_kwargs=self.rolling_kwargs,
+                rolling_method="count",
+                groupby_kwargs=self.groupby_kwargs,
+                is_series=is_series,
+                agg_args=tuple(),
+                agg_kwargs=agg_kwargs,
             )
         )
 
@@ -248,7 +240,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
 
@@ -257,12 +248,12 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.groupby_rolling(
-                self.rolling_kwargs,
-                "sem",
-                self.groupby_kwargs,
-                is_series,
-                tuple(),
-                agg_kwargs,
+                rolling_kwargs=self.rolling_kwargs,
+                rolling_method="sem",
+                groupby_kwargs=self.groupby_kwargs,
+                is_series=is_series,
+                agg_args=tuple(),
+                agg_kwargs=agg_kwargs,
             )
         )
 
@@ -273,7 +264,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
 
@@ -282,12 +272,12 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.groupby_rolling(
-                self.rolling_kwargs,
-                "var",
-                self.groupby_kwargs,
-                is_series,
-                tuple(),
-                agg_kwargs,
+                rolling_kwargs=self.rolling_kwargs,
+                rolling_method="var",
+                groupby_kwargs=self.groupby_kwargs,
+                is_series=is_series,
+                agg_args=tuple(),
+                agg_kwargs=agg_kwargs,
             )
         )
 
@@ -298,7 +288,6 @@ class RollingGroupby(metaclass=TelemetryMeta):
         *args: Any,
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
-        # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         self._series_not_implemented()
         WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
 
@@ -307,12 +296,12 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
         return self._dataframe.__constructor__(
             query_compiler=self._query_compiler.groupby_rolling(
-                self.rolling_kwargs,
-                "std",
-                self.groupby_kwargs,
-                is_series,
-                tuple(),
-                agg_kwargs,
+                rolling_kwargs=self.rolling_kwargs,
+                rolling_method="std",
+                groupby_kwargs=self.groupby_kwargs,
+                is_series=is_series,
+                agg_args=tuple(),
+                agg_kwargs=agg_kwargs,
             )
         )
 
