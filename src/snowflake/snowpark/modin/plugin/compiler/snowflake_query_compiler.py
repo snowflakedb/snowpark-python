@@ -21392,7 +21392,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return qc
 
     @register_query_compiler_method_not_implemented(
-        api_cls_names=["DataFrame"],
+        api_cls_names="DataFrame",
         method_name="corr",
         unsupported_args=UnsupportedArgsRule(
             unsupported_conditions=[
