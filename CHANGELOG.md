@@ -124,6 +124,16 @@
   - `duplicated`
   - `iloc`
   - `head`
+  - `columns` (e.g., df.columns = ["A", "B"])
+  - `agg`
+  - `min`
+  - `max`
+  - `count`
+  - `sum`
+  - `mean`
+  - `median`
+  - `std`
+  - `var`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
