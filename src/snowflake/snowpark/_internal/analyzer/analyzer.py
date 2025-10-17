@@ -91,6 +91,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
 from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
+    GroupByAll,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
@@ -346,6 +347,8 @@ class Analyzer:
             )
 
         if isinstance(expr, GroupingSet):
+            if isinstance(expr, GroupByAll):
+                return "ALL"
             return self.grouping_extractor(expr, df_aliased_col_name_to_real_col_name)
 
         if isinstance(expr, WindowExpression):
