@@ -21,6 +21,13 @@ from tests.integ.modin.utils import (
 
 global_int = 10
 
+pytestmark = [
+    pytest.mark.skipif(
+        "config.getoption('enable_modin_hybrid_mode', default=False)",
+        reason="numexpr is used for hybrid Pandas engine",
+    ),
+]
+
 
 def python_query(df, expr, *, inplace=False, **kwargs):
     """

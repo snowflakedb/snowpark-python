@@ -668,6 +668,7 @@ def test_index_parent():
     "kwargs",
     [{"dtype": "str"}, {"copy": True}, {"name": "abc"}, {"tupleize_cols": False}],
 )
+@pytest.mark.skip_hybrid
 def test_non_default_args(kwargs):
     idx = pd.Index([1, 2, 3, 4], name="name", dtype="int64")
 
@@ -688,6 +689,7 @@ def test_create_index_from_series():
 
 
 @sql_count_checker(query_count=0)
+@pytest.mark.skip_hybrid
 def test_create_index_from_df_negative():
     with pytest.raises(ValueError):
         pd.Index(pd.DataFrame([[1, 2], [3, 4]]))
