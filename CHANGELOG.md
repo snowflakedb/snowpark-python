@@ -10,6 +10,10 @@
 - Added a new function `group_by_all()` to the `DataFrame` class.
 - Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
+- Added a new function `sort_by_all` to the `DataFrame` class with the below alias:
+  - `DataFrame.sortByAll()` for `DataFrame.sort_by_all()`
+  - `DataFrame.order_by_all()` for `DataFrame.sort_by_all()`
+  - `DataFrame.orderByAll()` for `DataFrame.sort_by_all()`
 - Added support for the following functions in `functions.py`:
   - Geospatial functions:
     - `st_interpolate`

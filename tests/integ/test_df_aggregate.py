@@ -721,6 +721,92 @@ def test_agg_sort_snowpark_connect_compatible(session):
         context._is_snowpark_connect_compatible_mode = original_value
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ORDER BY ALL is not supported in local testing mode",
+)
+def test_agg_sort_by_all_snowpark_connect_compatible(session):
+    original_value = context._is_snowpark_connect_compatible_mode
+
+    try:
+        context._is_snowpark_connect_compatible_mode = True
+        df = session.create_dataframe(
+            [
+                ("country Z", "state Z", -100),
+                ("country A", "state X", 50),
+                ("country B", None, 25),
+                (None, "state Y", 75),
+                ("country A", "state Y", 0),
+                ("country C", "state X", -10),
+                ("country B", "state Z", 100),
+                ("country A", "state X", 50),
+                ("", "", 5),
+                ("country C", "state Y", -10),
+            ]
+        ).to_df(["country", "state", "value"])
+
+        # Test ascending, nulls_first
+        df1_sort_by_all = (
+            df.group_by("country").agg(sum_("value").alias("total")).sort_by_all()
+        )
+        Utils.check_answer(
+            df1_sort_by_all,
+            [
+                Row(None, 75),
+                Row("", 5),
+                Row("country A", 100),
+                Row("country B", 125),
+                Row("country C", -20),
+                Row("country Z", -100),
+            ],
+        )
+
+        # Test descending, nulls_last
+        df2_sort_by_all = (
+            df.group_by("country")
+            .agg(sum_("value").alias("total"))
+            .order_by_all(ascending=False)
+        )
+        Utils.check_answer(
+            df2_sort_by_all,
+            [
+                Row("country Z", -100),
+                Row("country C", -20),
+                Row("country B", 125),
+                Row("country A", 100),
+                Row("", 5),
+                Row(None, 75),
+            ],
+        )
+
+        # Test multiple columns: cross-check with manual sort
+        multi_agg_df = df.group_by("country").agg(
+            sum_("value").alias("sum_value"), count("state").alias("count_state")
+        )
+        result_sort_by_all = multi_agg_df.sort_by_all(ascending=False)
+        result_manual = multi_agg_df.sort(
+            col("country").desc_nulls_last(),
+            col("sum_value").desc_nulls_last(),
+            col("count_state").desc_nulls_last(),
+        )
+        Utils.check_answer(result_sort_by_all, result_manual.collect())
+
+        result_group_by_all = (
+            df.group_by_all().agg(count("*").alias("cnt")).order_by_all()
+        )
+        Utils.check_answer(result_group_by_all, [Row(CNT=10)])
+
+        # Test int parameter: 0=desc, 1=asc
+        Utils.check_answer(
+            df.sortByAll(ascending=0), df.order_by_all(ascending=False).collect()
+        )
+        Utils.check_answer(
+            df.orderByAll(ascending=1), df.sort_by_all(ascending=True).collect()
+        )
+    finally:
+        context._is_snowpark_connect_compatible_mode = original_value
+
+
 def test_agg_no_grouping_exprs_limit_snowpark_connect_compatible(session):
     original_value = context._is_snowpark_connect_compatible_mode
     try:

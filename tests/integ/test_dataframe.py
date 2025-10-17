@@ -7085,6 +7085,50 @@ def test_order_by_col(session, sql_simplifier_enabled, local_testing_mode):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
+    reason="ORDER BY ALL is not supported in local testing mode",
+)
+def test_sort_by_all(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe(
+        [
+            ("country Z", "state Z", -100),
+            ("country A", "state X", 50),
+            ("country B", None, 25),
+            (None, "state Y", 75),
+            ("country A", "state Y", 0),
+            ("country C", "state X", -10),
+            ("country B", "state Z", 100),
+            ("country A", "state X", 50),
+            ("", "", 5),
+            ("country C", "state Y", -10),
+        ]
+    ).to_df(["country", "state", "value"])
+    df.write.save_as_table(table_name, table_type="temporary")
+
+    try:
+        # Test ascending vs SQL
+        result_py_asc = df.order_by_all(ascending=True)
+        result_sql_asc = session.sql(
+            f"SELECT * FROM {table_name} ORDER BY ALL ASC NULLS FIRST"
+        )
+        Utils.check_answer(result_py_asc, result_sql_asc.collect())
+
+        # Test descending vs SQL
+        result_py_desc = df.sort_by_all(ascending=False)
+        result_sql_desc = session.sql(
+            f"SELECT * FROM {table_name} ORDER BY ALL DESC NULLS LAST"
+        )
+        Utils.check_answer(result_py_desc, result_sql_desc.collect())
+
+        # Test int parameter vs SQL
+        Utils.check_answer(df.orderByAll(ascending=1), result_sql_asc.collect())
+        Utils.check_answer(df.sortByAll(ascending=0), result_sql_desc.collect())
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
     reason="Time travel is not supported in Local Testing",
 )
 def test_time_travel_core_functionality(session):
