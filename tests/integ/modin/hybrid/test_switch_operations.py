@@ -1167,7 +1167,7 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
         (
             "sort_index",
             {"axis": 1},
-            "axis=1 is not yet supported",
+            "axis = 1 is not supported",
         ),
         (
             "sort_index",

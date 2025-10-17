@@ -626,7 +626,7 @@ HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS: dict[MethodKey, UnsupportedArgsRule] = {}
 
 
 def register_query_compiler_method_not_implemented(
-    api_cls_names: List[Optional[str]],
+    api_cls_names: Union[list[Optional[str]], Optional[str]],
     method_name: str,
     unsupported_args: Optional["UnsupportedArgsRule"] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -644,11 +644,17 @@ def register_query_compiler_method_not_implemented(
     without meaningful benefit.
 
     Args:
-        api_cls_names: Frontend class names (e.g., ["BasePandasDataset", "Series", "DataFrame", None]). This is a list because some methods are implemented for both DataFrames and Series.
+        api_cls_names: Frontend class names (e.g. "BasePandasDataset", "Series", "DataFrame", or None). It can be a list if multiple api_clas_names are needed.
         method_name: Method name to register.
         unsupported_args: UnsupportedArgsRule for args-based auto-switching.
                           If None, method is treated as completely unimplemented.
     """
+
+    if isinstance(api_cls_names, str) or api_cls_names is None:
+        api_cls_names = [api_cls_names]
+    assert (
+        api_cls_names
+    ), "api_cls_names must be a string (e.g., 'DataFrame', 'Series') or a list of strings (e.g., ['DataFrame', 'Series']) or None for top-level functions"
 
     for api_cls_name in api_cls_names:
         reg_key = MethodKey(api_cls_name, method_name)
@@ -2594,7 +2600,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.not_implemented("shifting index values not yet supported.")
 
     @register_query_compiler_method_not_implemented(
-        ["BasePandasDataset"],
+        "BasePandasDataset",
         "shift",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -4197,14 +4203,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return None
 
     @register_query_compiler_method_not_implemented(
-        ["BasePandasDataset"],
+        "BasePandasDataset",
         "sort_index",
         UnsupportedArgsRule(
             unsupported_conditions=[
-                (
-                    lambda args: args.get("axis") in (1, "columns"),
-                    "axis=1 is not yet supported",
-                ),
+                ("axis", 1),
                 (
                     lambda args: args.get("key") is not None,
                     "the 'key' parameter is not yet supported",
@@ -4274,7 +4277,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         1.0    c
         dtype: object
         """
-        if axis in (1, "columns"):
+        if axis == 1:
             ErrorMessage.not_implemented(
                 "sort_index is not supported yet on axis=1 in Snowpark pandas."
             )
@@ -4299,7 +4302,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        ["BasePandasDataset"],
+        "BasePandasDataset",
         "sort_values",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -7040,7 +7043,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        [None],
+        None,
         "get_dummies",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -8588,7 +8591,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return qc
 
     @register_query_compiler_method_not_implemented(
-        ["BasePandasDataset"],
+        "BasePandasDataset",
         "cumsum",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -8626,7 +8629,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        ["BasePandasDataset"],
+        "BasePandasDataset",
         "cummin",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -8664,7 +8667,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        ["BasePandasDataset"],
+        "BasePandasDataset",
         "cummax",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -8702,7 +8705,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        [None],
+        None,
         "melt",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -9761,7 +9764,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return left_qc, right_qc
 
     @register_query_compiler_method_not_implemented(
-        ["DataFrame"],
+        "DataFrame",
         "apply",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -10445,14 +10448,14 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        [None],
+        None,
         "pivot_table",
         UnsupportedArgsRule(
             unsupported_conditions=[
                 ("sort", False),
                 (
                     lambda args: (
-                        args.get("index")
+                        args.get("index") is not None
                         and (
                             not isinstance(args.get("index"), str)
                             and not all([isinstance(v, str) for v in args.get("index")])
@@ -10463,7 +10466,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ),
                 (
                     lambda args: (
-                        args.get("columns")
+                        args.get("columns") is not None
                         and (
                             not isinstance(args.get("columns"), str)
                             and not all(
@@ -10476,7 +10479,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ),
                 (
                     lambda args: (
-                        args.get("values")
+                        args.get("values") is not None
                         and (
                             not isinstance(args.get("values"), str)
                             and not all(
@@ -10576,7 +10579,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index = [index]
 
         # TODO: SNOW-857485 Support for non-str and list of non-str for index/columns/values
-        if index and (
+        if index is not None and (
             not isinstance(index, str)
             and not all([isinstance(v, str) for v in index])
             and None not in index
@@ -10585,7 +10588,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Not implemented non-string of list of string {index}."
             )
 
-        if values and (
+        if values is not None and (
             not isinstance(values, str)
             and not all([isinstance(v, str) for v in values])
             and None not in values
@@ -10594,7 +10597,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Not implemented non-string of list of string {values}."
             )
 
-        if columns and (
+        if columns is not None and (
             not isinstance(columns, str)
             and not all([isinstance(v, str) for v in columns])
             and None not in columns
@@ -12928,7 +12931,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        ["DataFrame"],
+        "DataFrame",
         "dropna",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -15431,7 +15434,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(internal_frame)
 
     @register_query_compiler_method_not_implemented(
-        ["BasePandasDataset"],
+        "BasePandasDataset",
         "skew",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -17512,7 +17515,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_frame)
 
     @register_query_compiler_method_not_implemented(
-        ["BasePandasDataset"],
+        "BasePandasDataset",
         "round",
         UnsupportedArgsRule(
             unsupported_conditions=[
