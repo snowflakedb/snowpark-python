@@ -4,7 +4,7 @@
 
 from collections import namedtuple
 from collections.abc import Generator, Hashable
-from functools import reduce, partial
+from functools import reduce
 from itertools import product
 from typing import Any, Callable, NamedTuple, Optional, Union
 
@@ -795,17 +795,19 @@ def prepare_pivot_aggregation_for_handling_missing_and_null_values(
     """
     if snowpark_aggr_func in [sum_, count, count_distinct]:
         if snowpark_aggr_func == sum_:
-            agg_expr = coalesce(sum_(aggr_snowflake_quoted_identifier), pandas_lit(0)).as_(
-                aggr_snowflake_quoted_identifier
-            )
+            agg_expr = coalesce(
+                sum_(aggr_snowflake_quoted_identifier), pandas_lit(0)
+            ).as_(aggr_snowflake_quoted_identifier)
         elif snowpark_aggr_func == count:
             agg_expr = count(aggr_snowflake_quoted_identifier).as_(
                 aggr_snowflake_quoted_identifier
             )
-        else:
-            agg_expr = snowpark_aggr_func(aggr_snowflake_quoted_identifier).as_(
+        elif snowpark_aggr_func == count_distinct:
+            agg_expr = count_distinct(aggr_snowflake_quoted_identifier).as_(
                 aggr_snowflake_quoted_identifier
             )
+        else:
+            raise NotImplementedError("blah")
         pre_pivot_ordered_dataframe = pivot_ordered_dataframe.group_by(
             grouping_snowflake_quoted_identifiers, agg_expr
         )
