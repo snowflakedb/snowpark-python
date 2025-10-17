@@ -859,12 +859,10 @@ def rolling(
     method: str = "single",
     **kwargs,
 ):
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
     from snowflake.snowpark.modin.plugin.extensions.rolling_groupby_overrides import (
         RollingGroupby,
     )
 
-    # ErrorMessage.method_not_implemented_error(name="rolling", class_="GroupBy")
     return RollingGroupby(
         dataframe=self._df,
         by=self._by,
