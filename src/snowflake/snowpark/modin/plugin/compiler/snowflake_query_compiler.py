@@ -4274,7 +4274,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         1.0    c
         dtype: object
         """
-        if axis in (1, "index"):
+        if axis in (1, "columns"):
             ErrorMessage.not_implemented(
                 "sort_index is not supported yet on axis=1 in Snowpark pandas."
             )
