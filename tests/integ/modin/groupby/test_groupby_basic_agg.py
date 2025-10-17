@@ -413,6 +413,7 @@ def test_groupby_agg_with_int_dtypes(int_to_decimal_float_agg_method) -> None:
         np.min,
         min,
         sum,
+        "nunique",
         np.std,
         "var",
         {"col2": "sum"},
