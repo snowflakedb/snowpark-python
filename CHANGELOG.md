@@ -126,6 +126,8 @@
   - `drop`
   - `invert`
   - `duplicated`
+  - `iloc`
+  - `head`
   - `columns` (e.g., df.columns = ["A", "B"])
   - `agg`
   - `min`
