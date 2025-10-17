@@ -1623,7 +1623,6 @@ def sort_values(
             na_position=na_position,
             ignore_index=ignore_index,
             key=key,
-            axis=axis,
         )
     return self._create_or_update_from_compiler(result, inplace)
 
