@@ -59,3 +59,23 @@ class SortOrder(Expression):
 
     def dependent_column_names_with_duplication(self) -> List[str]:
         return derive_dependent_columns_with_duplication(self.child)
+
+
+class SortByAllOrder(Expression):
+    def __init__(
+        self,
+        direction: SortDirection,
+        null_ordering: Optional[NullOrdering] = None,
+    ) -> None:
+        super().__init__()
+        self.child: Expression
+        self.direction = direction
+        self.null_ordering = (
+            null_ordering if null_ordering else direction.default_null_ordering
+        )
+
+    def dependent_column_names(self) -> Optional[AbstractSet[str]]:
+        return derive_dependent_columns(self.child)
+
+    def dependent_column_names_with_duplication(self) -> List[str]:
+        return derive_dependent_columns_with_duplication(self.child)

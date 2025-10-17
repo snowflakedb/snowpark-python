@@ -84,6 +84,7 @@ from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
     Descending,
     SortOrder,
+    SortByAllOrder,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
@@ -2250,6 +2251,107 @@ class DataFrame:
                 if self._select_statement
                 else self._with_plan(
                     Sort(sort_exprs, self._plan, is_order_by_append=False)
+                )
+            )
+
+            if _emit_ast:
+                df._ast_id = stmt.uid
+
+            return df
+
+    @df_api_usage
+    @publicapi
+    def sort_by_all(
+        self,
+        ascending: Optional[Union[bool, int]] = True,
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Sorts a DataFrame by all columns (similar to ORDER BY ALL in SQL).
+
+        This method orders the DataFrame by all columns using the same sort order
+        for each column. Unlike :meth:`sort`, this method does not accept column
+        parameters as it automatically sorts by all columns.
+
+        Examples::
+
+            >>> df = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
+            >>> df.sort_by_all(ascending=True).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |1    |4    |
+            |3    |4    |
+            -------------
+            <BLANKLINE>
+
+            >>> df.order_by_all(ascending=0).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |3    |4    |
+            |1    |4    |
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
+        Args:
+            ascending: A :class:`bool` or :class:`int` for sorting the DataFrame,
+             where ``True`` (or 1) sorts all columns in ascending order and ``False``
+             (or 0) sorts all columns in descending order. If not specified, defaults
+             to ``True`` (ascending order).
+
+        Note:
+            This method is equivalent to SQL's ``ORDER BY ALL`` clause and will
+            sort by all columns in the DataFrame in the same order they appear
+            in the schema.
+        """
+
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_sort_by_all, stmt)
+            self._set_ast_ref(ast.df)
+            asc_ast = proto.Expr()
+            if isinstance(ascending, bool):
+                asc_ast.bool_val.v = ascending
+            else:
+                asc_ast.int64_val.v = ascending
+            ast.ascending.CopyFrom(asc_ast)
+
+        order = Ascending() if ascending else Descending()
+
+        sort_expr = [SortByAllOrder(order)]
+        # In snowpark_connect_compatible mode, we need to handle
+        # the sorting for dataframe after aggregation without nesting
+        if (
+            context._is_snowpark_connect_compatible_mode
+            and self._ops_after_agg is not None
+            and "sort" not in self._ops_after_agg
+        ):
+            sort_plan = Sort(sort_expr, self._plan, is_order_by_append=True)
+            if self._select_statement:
+                df = self._with_plan(
+                    self._session._analyzer.create_select_statement(
+                        from_=self._session._analyzer.create_select_snowflake_plan(
+                            sort_plan, analyzer=self._session._analyzer
+                        ),
+                        analyzer=self._session._analyzer,
+                    ),
+                    _ast_stmt=stmt,
+                )
+            else:
+                df = self._with_plan(sort_plan, _ast_stmt=stmt)
+            df._ops_after_agg = self._ops_after_agg.copy()
+            df._ops_after_agg.add("sort")
+            return df
+        else:
+            df = (
+                self._with_plan(self._select_statement.sort(sort_expr))
+                if self._select_statement
+                else self._with_plan(
+                    Sort(sort_expr, self._plan, is_order_by_append=False)
                 )
             )
 
@@ -6785,6 +6887,9 @@ Query List:
     randomSplit = random_split
     order_by = sort
     orderBy = order_by
+    order_by_all = sort_by_all
+    sortByAll = sort_by_all
+    orderByAll = order_by_all
     printSchema = print_schema
 
     # These methods are not needed for code migration. So no aliases for them.
