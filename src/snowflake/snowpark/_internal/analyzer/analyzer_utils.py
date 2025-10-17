@@ -2012,6 +2012,7 @@ def write_parquet(
     on_error: str = "abort_statement",
     use_vectorized_scanner: bool = False,
     parallel: int = 4,
+    write_files_in_parallel: bool = True,
     quote_identifiers: bool = True,
     auto_create_table: bool = False,
     overwrite: bool = False,
@@ -2061,6 +2062,9 @@ def write_parquet(
             `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
         parallel: Number of threads to be used when uploading chunks, default follows documentation at:
             https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
+        write_files_in_parallel: Whether to parallelize over the files while uploading.
+            This will pass a glob string to the PUT upload call (does not support divergent directory paths).
+            https://docs.snowflake.com/en/sql-reference/sql/put#usage-notes (Default value = True)
         quote_identifiers: By default, identifiers, specifically database, schema, table and column names
             will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
             I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
@@ -2111,25 +2115,49 @@ def write_parquet(
         use_scoped_temp_object,
     )
 
-    # Upload all parquet files from the generator
-    num_files_uploaded = 0
-    for chunk_path in parquet_files_generator:
+    if write_files_in_parallel:
+        parquet_files = list(parquet_files_generator)
+
         # Infer column names from first parquet file.
-        if num_files_uploaded == 0 and column_names is None:
+        if column_names is None:
             import pyarrow.parquet  # type: ignore
 
-            column_names = pyarrow.parquet.read_table(chunk_path).schema.names
-
+            column_names = pyarrow.parquet.read_table(parquet_files[0]).schema.names
         upload_sql = (
-            "PUT /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_parquet() */ "
+            "PUT /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */ "
             "'file://{path}' @{stage_location} PARALLEL={parallel}"
         ).format(
-            path=chunk_path.replace("\\", "\\\\").replace("'", "\\'"),
+            path=parquet_files[0]
+            # make a glob string out of the first file
+            .replace(os.path.basename(parquet_files[0]), "*.parquet")
+            .replace("\\", "\\\\")
+            .replace("'", "\\'"),
             stage_location=stage_location,
             parallel=parallel,
         )
-        cursor.execute(upload_sql, _is_internal=True)
-        num_files_uploaded += 1
+
+        cursor.execute(upload_sql, _is_internal=False)
+        num_files_uploaded = len(parquet_files)
+    else:
+        # Upload all parquet files from the generator, in sequence
+        num_files_uploaded = 0
+        for chunk_path in parquet_files_generator:
+            # Infer column names from first parquet file.
+            if num_files_uploaded == 0 and column_names is None:
+                import pyarrow.parquet  # type: ignore
+
+                column_names = pyarrow.parquet.read_table(chunk_path).schema.names
+
+            upload_sql = (
+                "PUT /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_parquet() */ "
+                "'file://{path}' @{stage_location} PARALLEL={parallel}"
+            ).format(
+                path=chunk_path.replace("\\", "\\\\").replace("'", "\\'"),
+                stage_location=stage_location,
+                parallel=parallel,
+            )
+            cursor.execute(upload_sql, _is_internal=True)
+            num_files_uploaded += 1
 
     if quote_identifiers:
         quote = '"'

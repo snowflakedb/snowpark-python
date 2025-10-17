@@ -3165,6 +3165,8 @@ class Session:
             on_error=on_error,
             use_vectorized_scanner=use_vectorized_scanner,
             parallel=parallel,
+            # to preserve existing behavior
+            write_files_in_parallel=False,
             quote_identifiers=quote_identifiers,
             auto_create_table=auto_create_table,
             overwrite=overwrite,
@@ -3197,6 +3199,7 @@ class Session:
         on_error: str = "abort_statement",
         use_vectorized_scanner: bool = False,
         parallel: int = 4,
+        write_files_in_parallel: bool = True,
         quote_identifiers: bool = True,
         auto_create_table: bool = False,
         overwrite: bool = False,
@@ -3225,8 +3228,11 @@ class Session:
                 (Default value = 'abort_statement').
             use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
                 `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
-            parallel: Number of threads to be used when uploading chunks, default follows documentation at:
+            parallel: Number of threads to be used when uploading chunks or files, default follows documentation at:
                 https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
+            write_files_in_parallel: Whether to parallelize over the files while uploading.
+                This will pass a glob string to the PUT upload call (does not support divergent directory paths).
+                https://docs.snowflake.com/en/sql-reference/sql/put#usage-notes (Default value = True)
             quote_identifiers: By default, identifiers, specifically database, schema, and table names
                 will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
                 I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
@@ -3297,6 +3303,7 @@ class Session:
             on_error=on_error,
             use_vectorized_scanner=use_vectorized_scanner,
             parallel=parallel,
+            write_files_in_parallel=write_files_in_parallel,
             quote_identifiers=quote_identifiers,
             auto_create_table=auto_create_table,
             overwrite=overwrite,

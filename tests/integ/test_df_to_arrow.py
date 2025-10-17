@@ -528,6 +528,55 @@ def test_write_parquet_negative(session, tmp_path):
     "config.getoption('local_testing_mode', default=False)",
     reason="arrow not fully supported by local testing.",
 )
+def test_write_parquet_parallel_upload(session, tmp_path):
+    """Test that parallel upload optimization works for multiple files in a flat directory."""
+    import pyarrow.parquet as pq
+
+    # Create multiple parquet files in a flat directory
+    test_dir = tmp_path / "parquet_files"
+    test_dir.mkdir()
+
+    # Create 3 parquet files with different data
+    file1_data = pa.Table.from_arrays([[1, 2], ["a", "b"]], names=["id", "name"])
+    file2_data = pa.Table.from_arrays([[3, 4], ["c", "d"]], names=["id", "name"])
+    file3_data = pa.Table.from_arrays([[5, 6], ["e", "f"]], names=["id", "name"])
+
+    file1 = test_dir / "file1.parquet"
+    file2 = test_dir / "file2.parquet"
+    file3 = test_dir / "file3.parquet"
+
+    pq.write_table(file1_data, file1)
+    pq.write_table(file2_data, file2)
+    pq.write_table(file3_data, file3)
+
+    # Write parquet files using the parallel upload optimization
+    table_name = Utils.random_table_name()
+    try:
+        result_table = session.write_parquet(
+            str(test_dir),
+            table_name,
+            auto_create_table=True,
+            overwrite=True,
+        )
+
+        # Verify all data was loaded
+        result_data = result_table.collect()
+        assert len(result_data) == 6  # 2 rows from each of 3 files
+
+        # Verify data content
+        ids = {row["id"] for row in result_data}
+        names = {row["name"] for row in result_data}
+        assert ids == {1, 2, 3, 4, 5, 6}
+        assert names == {"a", "b", "c", "d", "e", "f"}
+
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
 def test_to_arrow_from_stage(session, resources_path):
     stage_name = Utils.random_stage_name()
     test_files = TestFiles(resources_path)
