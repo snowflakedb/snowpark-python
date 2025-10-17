@@ -122,6 +122,16 @@
   - `drop`
   - `invert`
   - `duplicated`
+  - `columns` (e.g., df.columns = ["A", "B"])
+  - `agg`
+  - `min`
+  - `max`
+  - `count`
+  - `sum`
+  - `mean`
+  - `median`
+  - `std`
+  - `var`
   - `groupby.agg`
   - `groupby.min`
   - `groupby.max`
@@ -131,7 +141,6 @@
   - `groupby.median`
   - `groupby.std`
   - `groupby.var`
-
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes

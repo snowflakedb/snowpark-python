@@ -2315,6 +2315,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @snowpark_pandas_type_immutable_check
     def set_columns(self, new_pandas_labels: Axes) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _set_columns_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._set_columns_internal(
+                new_pandas_labels=new_pandas_labels
+            )
+        qc = self._set_columns_internal(new_pandas_labels=new_pandas_labels)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _set_columns_internal(
+        self, new_pandas_labels: Axes
+    ) -> "SnowflakeQueryCompiler":
+        """
         Set pandas column labels with the new column labels
 
         Args:
@@ -7142,6 +7156,33 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return query_compiler
 
     def agg(
+        self,
+        func: AggFuncType,
+        axis: int,
+        args: Any,
+        kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _agg_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._agg_internal(
+                func=func,
+                axis=axis,
+                args=args,
+                kwargs=kwargs,
+            )
+        qc = self._agg_internal(
+            func=func,
+            axis=axis,
+            args=args,
+            kwargs=kwargs,
+        )
+        qc = self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+        return qc
+
+    def _agg_internal(
         self,
         func: AggFuncType,
         axis: int,
