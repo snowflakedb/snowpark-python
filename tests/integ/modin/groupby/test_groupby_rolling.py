@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+import re
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
@@ -14,63 +15,29 @@ from tests.integ.modin.window.utils import (
     agg_func,
 )
 
+data = pytest.mark.parametrize(
+    "data",
+    [
+        {"A": [1, 1, 2, 2], "B": [1, 2, 3, 4], "C": [0.362, 0.227, 1.267, -0.562]},
+        {
+            "A": [1, 1, np.nan, 2],
+            "B": [1, np.nan, 3, 4],
+            "C": [np.nan, np.nan, np.nan, np.nan],
+        },
+    ],
+)
 window = pytest.mark.parametrize("window", [1, 2, 3, 4, 6])
 min_periods = pytest.mark.parametrize("min_periods", [None, 1, 2])
 center = pytest.mark.parametrize("center", [True, False])
 
 
+@data
 @agg_func
 @window
 @min_periods
 @center
-def test_rolling_dataframe(window, min_periods, center, agg_func):
-    native_df = native_pd.DataFrame(
-        {"A": [1, 1, 2, 2], "B": [1, 2, 3, 4], "C": [0.362, 0.227, 1.267, -0.562]}
-    )
-    snow_df = pd.DataFrame(native_df)
-    if min_periods is not None and min_periods > window:
-        with SqlCounter(query_count=0):
-            eval_snowpark_pandas_result(
-                snow_df,
-                native_df,
-                lambda df: getattr(
-                    df.groupby("A").rolling(
-                        window=window, min_periods=min_periods, center=center
-                    ),
-                    agg_func,
-                )(numeric_only=True),
-                expect_exception=True,
-                expect_exception_type=ValueError,
-                expect_exception_match=f"min_periods {min_periods} must be <= window {window}",
-                test_attrs=False,
-            )
-    else:
-        with SqlCounter(query_count=1):
-            eval_snowpark_pandas_result(
-                snow_df,
-                native_df,
-                lambda df: getattr(
-                    df.groupby("A").rolling(
-                        window=window, min_periods=min_periods, center=center
-                    ),
-                    agg_func,
-                )(numeric_only=True),
-                test_attrs=False,
-            )
-
-
-@agg_func
-@window
-@min_periods
-@center
-def test_rolling_null_dataframe(window, min_periods, center, agg_func):
-    native_df = native_pd.DataFrame(
-        {
-            "A": [1, 1, np.nan, 2],
-            "B": [1, np.nan, 3, 4],
-            "C": [np.nan, np.nan, np.nan, np.nan],
-        }
-    )
+def test_rolling_dataframe(data, window, min_periods, center, agg_func):
+    native_df = native_pd.DataFrame(data)
     snow_df = pd.DataFrame(native_df)
     if min_periods is not None and min_periods > window:
         with SqlCounter(query_count=0):
@@ -104,7 +71,7 @@ def test_rolling_null_dataframe(window, min_periods, center, agg_func):
 
 
 @sql_count_checker(query_count=1)
-def test_groupby_rolling_by_mul_cols():
+def test_groupby_rolling_by_multiple_cols():
     native_df = native_pd.DataFrame(
         {"A": [1, 1, 2, 2], "B": [1, 2, 3, 4], "C": [0.362, 0.227, 1.267, -0.562]}
     )
@@ -118,29 +85,31 @@ def test_groupby_rolling_by_mul_cols():
 
 
 @sql_count_checker(query_count=1)
+def test_groupby_rolling_dropna():
+    native_df = native_pd.DataFrame(
+        {"A": [1, 1, np.nan, 2], "B": [1, 2, 3, 4], "C": [0.362, 0.227, np.nan, np.nan]}
+    )
+    snow_df = pd.DataFrame(native_df)
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby(by="A", dropna=False).rolling(2).sum(),
+        test_attrs=False,
+    )
+
+
+@sql_count_checker(query_count=1)
 def test_groupby_rolling_series_negative():
     date_idx = pd.date_range("1/1/2000", periods=8, freq="min")
     date_idx.names = ["grp_col"]
     snow_ser = pd.Series([1, 1, np.nan, 2])
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas does not yet support the method GroupBy.rolling for Series",
+        match=re.escape(
+            "Snowpark pandas does not yet support the method GroupBy.rolling for Series"
+        ),
     ):
         snow_ser.groupby(snow_ser.index).rolling(2).sum()
-
-
-@sql_count_checker(query_count=0)
-def test_groupby_rolling_min_periods_greater_than_window_negative():
-    """Test that min_periods > window raises ValueError"""
-    native_df = native_pd.DataFrame(
-        {"A": [1, 1, 2, 2], "B": [1, 2, 3, 4], "C": [0.362, 0.227, 1.267, -0.562]}
-    )
-    snow_df = pd.DataFrame(native_df)
-    with pytest.raises(
-        ValueError,
-        match="min_periods 5 must be <= window 2",
-    ):
-        snow_df.groupby("A").rolling(2, min_periods=5).sum()
 
 
 @pytest.mark.parametrize(
@@ -163,3 +132,68 @@ def test_rolling_params_unsupported(function):
     )
     with pytest.raises(NotImplementedError):
         function(snow_df)
+
+
+@sql_count_checker(query_count=1)
+def test_groupby_rolling_with_named_index():
+    """Test groupby rolling with a named index"""
+    native_df = native_pd.DataFrame(
+        {"A": [1, 1, 2, 2], "B": [1, 2, 3, 4], "C": [0.362, 0.227, 1.267, -0.562]}
+    )
+    native_df.index.name = "row_id"
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby("A").rolling(2).sum(),
+        test_attrs=False,
+    )
+
+
+@sql_count_checker(query_count=2)
+def test_groupby_rolling_with_multiindex_index():
+    arrays = [["A", "A", "B", "B"], [1, 2, 1, 2]]
+    tuples = list(zip(*arrays))
+    index = native_pd.MultiIndex.from_tuples(tuples, names=["letter", "number"])
+
+    native_df = native_pd.DataFrame(
+        {
+            "group": [1, 1, 2, 2],
+            "value1": [1, 2, 3, 4],
+            "value2": [0.362, 0.227, 1.267, -0.562],
+        },
+        index=index,
+    )
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby("group").rolling(2).sum(),
+        test_attrs=False,
+    )
+
+
+@sql_count_checker(query_count=1)
+def test_groupby_rolling_with_datetime_index():
+    date_index = native_pd.date_range("2023-01-01", periods=8, freq="D")
+    date_index.name = "date"
+
+    native_df = native_pd.DataFrame(
+        {
+            "group": [1, 1, 1, 1, 2, 2, 2, 2],
+            "value": [1, 2, 3, 4, 5, 6, 7, 8],
+            "price": [10.1, 20.2, 30.3, 40.4, 50.5, 60.6, 70.7, 80.8],
+        },
+        index=date_index,
+    )
+
+    snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df,
+        native_df,
+        lambda df: df.groupby("group").rolling(3).sum(),
+        test_attrs=False,
+    )

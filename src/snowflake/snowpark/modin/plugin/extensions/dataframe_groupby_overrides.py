@@ -876,6 +876,7 @@ def rolling(
         axis=axis,
         closed=closed,
         method=method,
+        dropna=self._kwargs.get("dropna", True),
     )
 
 

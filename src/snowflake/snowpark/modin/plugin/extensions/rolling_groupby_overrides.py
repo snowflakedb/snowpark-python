@@ -77,7 +77,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
 
     def _method_not_implemented(self, method: str):  # pragma: no cover
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-        raise ErrorMessage.not_implemented(
+        ErrorMessage.not_implemented(
             f"Method {method} is not implemented for RollingGroupby!"
         )
 
@@ -87,7 +87,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         """
         # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
         if self._dataframe.ndim == 1:
-            raise ErrorMessage.not_implemented(
+            ErrorMessage.not_implemented(
                 "Snowpark pandas does not yet support the method GroupBy.rolling for Series"
             )
         func = series_not_implemented()(self.__class__)

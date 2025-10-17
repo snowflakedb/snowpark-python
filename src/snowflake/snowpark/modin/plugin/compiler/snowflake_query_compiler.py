@@ -5772,20 +5772,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
 
         dropna = groupby_kwargs.get("dropna", True)
+        sort = groupby_kwargs.get("sort", True)
 
         # Validate parameters
         if rolling_kwargs.get("axis", 0) != 0:
-            raise ErrorMessage.not_implemented(
+            ErrorMessage.not_implemented(
                 "GroupBy rolling with axis != 0 is not supported yet in Snowpark pandas."
             )
 
         if rolling_kwargs.get("win_type") is not None:
-            raise ErrorMessage.not_implemented(
+            ErrorMessage.not_implemented(
                 "GroupBy rolling with win_type parameter is not supported yet in Snowpark pandas."
             )
 
         if rolling_kwargs.get("method", "single") != "single":
-            raise ErrorMessage.not_implemented(
+            ErrorMessage.not_implemented(
                 "GroupBy rolling with method != 'single' is not supported yet in Snowpark pandas."
             )
 
@@ -5803,7 +5804,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         }
 
         if not isinstance(window, (int, float)):
-            raise ErrorMessage.not_implemented(
+            ErrorMessage.not_implemented(
                 "GroupBy rolling only supports numeric window sizes in Snowpark pandas."
             )
         if min_periods and isinstance(window, int) and min_periods > window:
@@ -5816,9 +5817,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             groupby_kwargs.get("level", None),
         )
 
-        extended_qc = self
+        # Handle NULL values in groupby columns based on dropna parameter
         if dropna:
-            extended_qc = extended_qc.dropna(axis=0, how="any", subset=by_labels)
+            extended_qc = self.dropna(axis=0, how="any", subset=by_labels)
+        else:
+            extended_qc = self
 
         result_qc = extended_qc._window_agg(
             window_func=WindowFunction.ROLLING,
@@ -5826,17 +5829,51 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             window_kwargs=window_kwargs,
             agg_kwargs=agg_kwargs,
             partition_cols=by_labels,
+            dropna=dropna,
         )
 
         if by_labels:
+            original_index_names = result_qc.index.names
+            is_multiindex = len(original_index_names) > 1
+
             result_qc = result_qc.reset_index()
 
-            # Set index with group columns then original index
-            index_cols = list(by_labels) + ["index"]
+            if is_multiindex:
+                # For multiIndex,reset_index() creates columns with the original level names
+                # If any level name is None, reset_index() uses 'level_0', 'level_1', etc.
+                reset_index_col_names = []
+                for i, name in enumerate(original_index_names):
+                    if name is not None:
+                        reset_index_col_names.append(name)
+                    else:
+                        reset_index_col_names.append(f"level_{i}")
+            else:
+                # Single index: reset_index() creates one column
+                original_index_name = original_index_names[0]
+                reset_index_col_names = [
+                    original_index_name if original_index_name is not None else "index"
+                ]
+
+            if sort:
+                # Sort by groupby columns first, then by original index columns
+                sort_columns = list(by_labels) + reset_index_col_names
+                ascending = [True] * len(sort_columns)
+                result_qc = result_qc.sort_rows_by_column_values(
+                    columns=sort_columns,
+                    ascending=ascending,
+                    kind="quicksort",
+                    na_position="last",
+                    ignore_index=False,
+                    include_index=True,
+                )
+
+            # Set index with group columns then original index columns
+            index_cols = list(by_labels) + reset_index_col_names
             result_qc = result_qc.set_index(keys=index_cols, drop=True)
 
             frame = result_qc._modin_frame
-            expected_names = list(by_labels) + [None]
+            # For pandas compatibility: both group columns and original index levels keep their names
+            expected_names = list(by_labels) + list(original_index_names)
             new_frame = InternalFrame.create(
                 ordered_dataframe=frame.ordered_dataframe,
                 data_column_pandas_labels=frame.data_column_pandas_labels,
@@ -16335,6 +16372,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         window_kwargs: dict[str, Any],
         agg_kwargs: dict[str, Any],
         partition_cols: Optional[list[str]] = None,
+        dropna: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
         Compute rolling window with given aggregation.
@@ -16397,9 +16435,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         )
 
                 if partition_identifiers:
-                    window_expr = window_expr.partitionBy(
-                        *[col(pid) for pid in partition_identifiers]
-                    )
+                    if dropna:
+                        # Standard partitioning - NULLs are excluded by Snowflake
+                        window_expr = window_expr.partitionBy(
+                            *[col(pid) for pid in partition_identifiers]
+                        )
+                    else:
+                        # For dropna=False, we need to ensure NULLs form their own partition
+                        # Use COALESCE to replace NULL with a sentinel value for partitioning
+                        from snowflake.snowpark.functions import coalesce, lit
+
+                        partition_exprs = []
+                        for pid in partition_identifiers:
+                            # Use a numeric sentinel value for partitioning
+                            # This ensures NULL values form their own partition group
+                            sentinel_value = -999999999999999
+
+                            # Replace NULL with sentinel value for proper partitioning
+                            partition_exprs.append(
+                                coalesce(col(pid), lit(sentinel_value))
+                            )
+                        window_expr = window_expr.partitionBy(*partition_exprs)
             if window_func == WindowFunction.ROLLING:
                 # min_periods defaults to the size of the window if window is specified by an integer
                 min_periods = window if min_periods is None else min_periods
