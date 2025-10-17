@@ -6,6 +6,7 @@
 import atexit
 import datetime
 import decimal
+import importlib.metadata
 import inspect
 import json
 import os
@@ -35,7 +36,6 @@ from typing import (
 )
 
 import cloudpickle
-import importlib.metadata
 from packaging.requirements import Requirement
 from packaging.version import parse as parse_version
 
@@ -49,6 +49,7 @@ from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     result_scan_statement,
     write_arrow,
+    write_parquet,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import str_to_sql
 from snowflake.snowpark._internal.analyzer.expression import Attribute
@@ -108,8 +109,10 @@ from snowflake.snowpark._internal.utils import (
     MODULE_NAME_TO_PACKAGE_NAME_MAP,
     STAGE_PREFIX,
     SUPPORTED_TABLE_TYPES,
-    XPATH_HANDLERS_FILE_PATH,
     XPATH_HANDLER_MAP,
+    XPATH_HANDLERS_FILE_PATH,
+    AstFlagSource,
+    AstMode,
     PythonObjJSONEncoder,
     TempObjectType,
     calculate_checksum,
@@ -127,6 +130,7 @@ from snowflake.snowpark._internal.utils import (
     get_temp_type_for_object,
     get_version,
     import_or_missing_modin_pandas,
+    is_ast_enabled,
     is_in_stored_procedure,
     normalize_local_file,
     normalize_remote_file_or_dir,
@@ -135,6 +139,7 @@ from snowflake.snowpark._internal.utils import (
     publicapi,
     quote_name,
     random_name_for_temp_object,
+    set_ast_state,
     strip_double_quotes_in_like_statement_in_table_name,
     unwrap_single_quote,
     unwrap_stage_location_single_quote,
@@ -142,10 +147,6 @@ from snowflake.snowpark._internal.utils import (
     warn_session_config_update_in_multithreaded_mode,
     warning,
     zip_file_or_directory_to_stream,
-    set_ast_state,
-    is_ast_enabled,
-    AstFlagSource,
-    AstMode,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
@@ -154,6 +155,7 @@ from snowflake.snowpark.context import (
     _use_scoped_temp_objects,
 )
 from snowflake.snowpark.dataframe import DataFrame
+from snowflake.snowpark.dataframe_profiler import DataframeProfiler
 from snowflake.snowpark.dataframe_reader import DataFrameReader
 from snowflake.snowpark.exceptions import (
     SnowparkClientException,
@@ -161,7 +163,6 @@ from snowflake.snowpark.exceptions import (
 )
 from snowflake.snowpark.file_operation import FileOperation
 from snowflake.snowpark.functions import (
-    to_file,
     array_agg,
     col,
     column,
@@ -169,6 +170,7 @@ from snowflake.snowpark.functions import (
     parse_json,
     to_date,
     to_decimal,
+    to_file,
     to_geography,
     to_geometry,
     to_time,
@@ -196,7 +198,6 @@ from snowflake.snowpark.query_history import AstListener, QueryHistory
 from snowflake.snowpark.row import Row
 from snowflake.snowpark.stored_procedure import StoredProcedureRegistration
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
-from snowflake.snowpark.dataframe_profiler import DataframeProfiler
 from snowflake.snowpark.table import Table
 from snowflake.snowpark.table_function import (
     TableFunctionCall,
@@ -208,6 +209,7 @@ from snowflake.snowpark.types import (
     DateType,
     DayTimeIntervalType,
     DecimalType,
+    FileType,
     FloatType,
     GeographyType,
     GeometryType,
@@ -222,7 +224,6 @@ from snowflake.snowpark.types import (
     VariantType,
     VectorType,
     YearMonthIntervalType,
-    FileType,
     _AtomicType,
 )
 from snowflake.snowpark.udaf import UDAFRegistration
@@ -231,6 +232,7 @@ from snowflake.snowpark.udtf import UDTFRegistration
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
+
     from snowflake.snowpark.udf import UserDefinedFunction  # pragma: no cover
 
 # Python 3.8 needs to use typing.Iterable because collections.abc.Iterable is not subscriptable
@@ -1848,7 +1850,7 @@ class Session:
 
     @staticmethod
     def _parse_packages(
-        packages: List[Union[str, ModuleType]]
+        packages: List[Union[str, ModuleType]],
     ) -> Dict[str, Tuple[str, bool, Requirement]]:
         package_dict = dict()
         for package in packages:
@@ -2764,7 +2766,6 @@ class Session:
             self._conn, NopConnection
         ):
             if self._conn._suppress_not_implemented_error:
-
                 # TODO: Snowpark does not allow empty dataframes (no schema, no data). Have a dummy schema here.
                 ans = self.createDataFrame(
                     [],
@@ -3180,6 +3181,138 @@ class Session:
         else:
             raise SnowparkSessionException(
                 f"Failed to write arrow table to Snowflake. COPY INTO output {ci_output}"
+            )
+
+    @experimental(version="1.41.0")
+    @publicapi
+    def write_parquet(
+        self,
+        path: str,
+        table_name: str,
+        *,
+        column_names: Optional[List[str]] = None,
+        database: Optional[str] = None,
+        schema: Optional[str] = None,
+        compression: str = "auto",
+        on_error: str = "abort_statement",
+        use_vectorized_scanner: bool = False,
+        parallel: int = 4,
+        quote_identifiers: bool = True,
+        auto_create_table: bool = False,
+        overwrite: bool = False,
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
+        use_logical_type: Optional[bool] = None,
+        **kwargs: Dict[str, Any],
+    ) -> Table:
+        """Writes parquet file(s) to a Snowflake table.
+
+        Parquet files are uploaded to a temporary stage and then copied into the final location.
+
+        Returns a Snowpark Table that references the table referenced by table_name.
+
+        Args:
+            path: Path to a single parquet file or a directory containing parquet files.
+                Can be a local file path (e.g., "/path/to/file.parquet" or "/path/to/directory/").
+            table_name: Table name where we want to insert into.
+            column_names: List of column names in the order they appear in the parquet files.
+                If None, column names will be inferred from the first parquet file. (Default value = None).
+            database: Database schema and table is in, if not provided the default one will be used (Default value = None).
+            schema: Schema table is in, if not provided the default one will be used (Default value = None).
+            compression: The compression used on the Parquet files. Can be "auto", "gzip", "snappy", or "none".
+                (Default value = "auto").
+            on_error: Action to take when COPY INTO statements fail, default follows documentation at:
+                https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
+                (Default value = 'abort_statement').
+            use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
+                `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
+            parallel: Number of threads to be used when uploading chunks, default follows documentation at:
+                https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
+            quote_identifiers: By default, identifiers, specifically database, schema, and table names
+                will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
+                I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
+            auto_create_table: When true, will automatically create a table with corresponding columns for each column in
+                the parquet files. The table will not be created if it already exists.
+            overwrite: If True, the table contents will be overwritten. If False, data will be appended to the table.
+                (Default value = False).
+            table_type: The table type of to-be-created table. The supported table types include ``temp``/``temporary``
+                and ``transient``. Empty means permanent table as per SQL convention.
+            use_logical_type: Boolean that specifies whether to use Parquet logical types. With this file format option,
+                Snowflake can interpret Parquet logical types during data loading. To enable Parquet logical types,
+                set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
+                https://docs.snowflake.com/en/sql-reference/sql/create-file-format
+
+        Example::
+
+            >>> # Write a single parquet file
+            >>> session.write_parquet("/path/to/file.parquet", "my_table", auto_create_table=True)  # doctest: +SKIP
+            >>>
+            >>> # Write all parquet files in a directory
+            >>> session.write_parquet("/path/to/directory/", "my_table", auto_create_table=True)  # doctest: +SKIP
+        """
+        import glob
+
+        cursor = self._conn._conn.cursor()
+
+        if quote_identifiers:
+            location = (
+                (('"' + database + '".') if database else "")
+                + (('"' + schema + '".') if schema else "")
+                + ('"' + table_name + '"')
+            )
+        else:
+            location = (
+                (database + "." if database else "")
+                + (schema + "." if schema else "")
+                + (table_name)
+            )
+
+        # Collect parquet files
+        if os.path.isfile(path):
+            # Single file
+            parquet_files = [path]
+        elif os.path.isdir(path):
+            # Directory - find all parquet files
+            parquet_files = glob.glob(os.path.join(path, "*.parquet"))
+            if not parquet_files:
+                raise SnowparkSessionException(
+                    f"No parquet files found in directory: {path}"
+                )
+        else:
+            raise SnowparkSessionException(
+                f"Path does not exist or is not accessible: {path}"
+            )
+
+        # Create generator that yields parquet file paths
+        def parquet_file_generator():
+            yield from parquet_files
+
+        success, _, _, ci_output = write_parquet(
+            cursor=cursor,
+            parquet_files_generator=parquet_file_generator(),
+            column_names=column_names,
+            table_name=table_name,
+            database=database,
+            schema=schema,
+            compression=compression,
+            on_error=on_error,
+            use_vectorized_scanner=use_vectorized_scanner,
+            parallel=parallel,
+            quote_identifiers=quote_identifiers,
+            auto_create_table=auto_create_table,
+            overwrite=overwrite,
+            table_type=table_type,
+            use_logical_type=use_logical_type,
+            use_scoped_temp_object=self._use_scoped_temp_objects
+            and is_in_stored_procedure(),
+        )
+
+        if success:
+            table = self.table(location, _emit_ast=False)
+            set_api_call_source(table, "Session.write_parquet")
+            return table
+        else:
+            raise SnowparkSessionException(
+                f"Failed to write parquet file(s) to Snowflake. COPY INTO output {ci_output}"
             )
 
     def _write_modin_pandas_helper(

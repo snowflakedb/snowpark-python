@@ -2004,8 +2004,8 @@ def cte_statement(queries: List[str], table_names: List[str]) -> str:
 def write_parquet(
     cursor: SnowflakeCursor,
     parquet_files_generator: Iterator[str],
-    column_names: List[str],
     table_name: str,
+    column_names: Optional[List[str]] = None,
     database: Optional[str] = None,
     schema: Optional[str] = None,
     compression: str = "auto",
@@ -2047,8 +2047,9 @@ def write_parquet(
     Args:
         cursor: Snowflake connector cursor used to execute queries.
         parquet_files_generator: An iterator that yields local parquet file paths to upload.
-        column_names: List of column names in the order they appear in the parquet files.
         table_name: Table name where we want to insert into.
+        column_names: List of column names in the order they appear in the parquet files.
+            If None, column names will be inferred from the first parquet file. (Default value = None).
         database: Database schema and table is in, if not provided the default one will be used (Default value = None).
         schema: Schema table is in, if not provided the default one will be used (Default value = None).
         compression: The compression used on the Parquet files, can only be gzip, or snappy. Gzip gives a
@@ -2076,7 +2077,12 @@ def write_parquet(
         raise ProgrammingError(
             "Schema has to be provided to write_arrow or write_parquet when a database is provided"
         )
-    compression_map = {"gzip": "auto", "snappy": "snappy", "none": "none"}
+    compression_map = {
+        "gzip": "auto",
+        "snappy": "snappy",
+        "none": "none",
+        "auto": "auto",
+    }
     if compression not in compression_map.keys():
         raise ProgrammingError(
             f"Invalid compression '{compression}', only acceptable values are: {compression_map.keys()}"
@@ -2108,6 +2114,12 @@ def write_parquet(
     # Upload all parquet files from the generator
     num_files_uploaded = 0
     for chunk_path in parquet_files_generator:
+        # Infer column names from first parquet file.
+        if num_files_uploaded == 0 and column_names is None:
+            import pyarrow.parquet  # type: ignore
+
+            column_names = pyarrow.parquet.read_table(chunk_path).schema.names
+
         upload_sql = (
             "PUT /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_parquet() */ "
             "'file://{path}' @{stage_location} PARALLEL={parallel}"
@@ -2339,8 +2351,8 @@ def write_arrow(
     return write_parquet(
         cursor=cursor,
         parquet_files_generator=parquet_file_generator(),
-        column_names=column_names,
         table_name=table_name,
+        column_names=column_names,
         database=database,
         schema=schema,
         compression=compression,
