@@ -79,7 +79,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_create_connection_unicode_data,
     sql_server_create_connection_double_quoted_data,
 )
-from tests.utils import Utils, IS_WINDOWS
+from tests.utils import Utils, IS_WINDOWS, RUNNING_ON_JENKINS
 
 try:
     import pandas  # noqa: F401
@@ -496,8 +496,14 @@ def test_telemetry_tracking(caplog, session, fetch_with_process):
         assert called == 2
 
 
-def test_telemetry_tracking_for_udtf(caplog, session):
+@pytest.mark.skipif(
+    RUNNING_ON_JENKINS,
+    reason="SNOW-2089683: oracledb real connection test failed on jenkins",
+)
+def test_telemetry_tracking_for_udtf(caplog, session, ast_enabled):
 
+    if ast_enabled:
+        pytest.skip("TODO: dbapi has not implemented ast yet, skip the test for now")
     original_func = session._conn.run_query
     called = 0
 
