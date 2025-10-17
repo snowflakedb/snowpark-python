@@ -55,7 +55,7 @@ def setup_modin_hybrid_mode(pytestconfig):
 def read_hybrid_test_list():
     """
     Read `modin_hybrid_integ_results.csv` and create a pandas
-    dataframe filtered down to only the passing tests which run quickly. 
+    dataframe filtered down to only the passing tests which run quickly.
     You can regenerate this file by:
     * Delete the old file, "tests/integ/modin/modin_hybrid_integ_passing_tests.csv"
     * Collecting the hybrid test results with pytest:
@@ -114,7 +114,7 @@ def pytest_runtest_setup(item):
     # Check the known failure list and skip those with a message
     hybrid_test = is_hybrid_test(item.module.__name__, item.name)
     if not hybrid_test:
-        pytest.skip(f"Skipped for Hybrid")
+        pytest.skip("Skipped for Hybrid")
 
 
 @pytest.fixture(scope="module", autouse=True)
