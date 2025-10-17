@@ -1537,6 +1537,7 @@ class TestDataFrameAndSeriesAxis0:
         ],
     )
     @sql_count_checker(query_count=1, join_count=1)
+    @pytest.mark.skip_hybrid
     def test_timedelta_dataframe_plus_timestamp_series(
         self, op, timedelta_dataframes_1
     ):
@@ -1790,6 +1791,7 @@ class TestDataFrameAndSeriesAxis1:
             ),
         ],
     )
+    @pytest.mark.skip_hybrid
     def test_timedelta_dataframe_plus_timestamp_series(
         self, timedelta_dataframes_1, timestamp_no_timezone_series_2, op, error_message
     ):
