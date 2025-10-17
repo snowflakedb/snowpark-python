@@ -1511,7 +1511,15 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             The QueryCompiler converted to pandas.
 
         """
-        result = self._modin_frame.to_pandas(statement_params, **kwargs)
+        if self._relaxed_query_compiler is None:
+            frame = self._modin_frame
+        else:
+            frame = (
+                self._relaxed_query_compiler._modin_frame.ensure_row_position_column(
+                    dummy_row_pos_mode=False
+                )
+            )
+        result = frame.to_pandas(statement_params, **kwargs)
         if self._attrs:
             result.attrs = self._attrs
         return result
