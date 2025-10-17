@@ -4202,7 +4202,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         UnsupportedArgsRule(
             unsupported_conditions=[
                 (
-                    lambda args: args.get("axis") in (1, "index"),
+                    lambda args: args.get("axis") in (1, "columns"),
                     "axis=1 is not yet supported",
                 ),
                 (
