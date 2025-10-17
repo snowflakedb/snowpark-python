@@ -2315,6 +2315,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @snowpark_pandas_type_immutable_check
     def set_columns(self, new_pandas_labels: Axes) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _set_columns_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._set_columns_internal(
+                new_pandas_labels=new_pandas_labels
+            )
+        qc = self._set_columns_internal(new_pandas_labels=new_pandas_labels)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _set_columns_internal(
+        self, new_pandas_labels: Axes
+    ) -> "SnowflakeQueryCompiler":
+        """
         Set pandas column labels with the new column labels
 
         Args:
@@ -7105,6 +7119,33 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _agg_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._agg_internal(
+                func=func,
+                axis=axis,
+                args=args,
+                kwargs=kwargs,
+            )
+        qc = self._agg_internal(
+            func=func,
+            axis=axis,
+            args=args,
+            kwargs=kwargs,
+        )
+        qc = self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+        return qc
+
+    def _agg_internal(
+        self,
+        func: AggFuncType,
+        axis: int,
+        args: Any,
+        kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
         Aggregate using one or more operations over the specified axis.
 
         Args:
@@ -11434,6 +11475,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def invert(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _invert_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._invert_internal()
+        qc = self._invert_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _invert_internal(self) -> "SnowflakeQueryCompiler":
         """
         Apply bitwise inversion for each element of the QueryCompiler.
 
@@ -15834,11 +15885,12 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         assert n is not None or frac is not None
         frame = self._modin_frame
         if replace:
-            snowflake_quoted_identifiers = generate_snowflake_quoted_identifiers_helper(
-                pandas_labels=[
-                    ROW_POSITION_COLUMN_LABEL,
-                    SAMPLED_ROW_POSITION_COLUMN_LABEL,
-                ]
+            sampled_row_position_identifier = (
+                generate_snowflake_quoted_identifiers_helper(
+                    pandas_labels=[
+                        SAMPLED_ROW_POSITION_COLUMN_LABEL,
+                    ]
+                )[0]
             )
 
             pre_sampling_rowcount = self.get_axis_len(axis=0)
@@ -15848,30 +15900,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 assert frac is not None
                 post_sampling_rowcount = round(frac * pre_sampling_rowcount)
 
-            row_position_col = (
-                row_number()
-                .over(Window.order_by(pandas_lit(1)))
-                .as_(snowflake_quoted_identifiers[0])
-            )
-
             sampled_row_position_col = uniform(
                 0, pre_sampling_rowcount - 1, random()
-            ).as_(snowflake_quoted_identifiers[1])
+            ).as_(sampled_row_position_identifier)
 
             sampled_row_positions_snowpark_frame = pd.session.generator(
-                row_position_col,
                 sampled_row_position_col,
                 rowcount=post_sampling_rowcount,
             )
 
             sampled_row_positions_odf = OrderedDataFrame(
                 dataframe_ref=DataFrameReference(sampled_row_positions_snowpark_frame),
-                projected_column_snowflake_quoted_identifiers=snowflake_quoted_identifiers,
+                projected_column_snowflake_quoted_identifiers=[
+                    sampled_row_position_identifier
+                ],
             )
             sampled_odf = cache_result(
                 sampled_row_positions_odf.join(
                     right=self._modin_frame.ordered_dataframe,
-                    left_on_cols=[snowflake_quoted_identifiers[1]],
+                    left_on_cols=[sampled_row_position_identifier],
                     right_on_cols=[
                         self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
                     ],
@@ -17025,6 +17072,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(result_frame)
 
     def duplicated(
+        self,
+        subset: Union[Hashable, Sequence[Hashable]] = None,
+        keep: DropKeep = "first",
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _duplicated_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._duplicated_internal(
+                subset=subset,
+                keep=keep,
+            )
+        qc = self._duplicated_internal(
+            subset=subset,
+            keep=keep,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _duplicated_internal(
         self,
         subset: Union[Hashable, Sequence[Hashable]] = None,
         keep: DropKeep = "first",

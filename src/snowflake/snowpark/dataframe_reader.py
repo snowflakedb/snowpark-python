@@ -1833,6 +1833,111 @@ class DataFrameReader:
                     connection_parameters=connection_params
                 )
 
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                # pull data from target table with parallelism using partition column
+                df_local_par_column = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    fetch_size=100000,
+                    num_partitions=4,
+                    column="ID",  # swap with the column you want your partition based on
+                    upper_bound=10000,
+                    lower_bound=0
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                # pull data from target table with parallelism using predicates
+                df_local_predicates = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    fetch_size=100000,
+                    predicates=[
+                        "ID < 3",
+                        "ID >= 3"
+                    ]
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+                udtf_configs = {
+                    "external_access_integration": "<your external access integration>"
+                }
+
+                # pull data from target table with udtf ingestion
+
+                df_udtf_basic = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    udtf_configs=udtf_configs
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+                udtf_configs = {
+                    "external_access_integration": "<your external access integration>"
+                }
+
+                # pull data from target table with udtf ingestion with parallelism using partition column
+
+                df_udtf_par_column = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    udtf_configs=udtf_configs,
+                    fetch_size=100000,
+                    num_partitions=4,
+                    column="ID",  # swap with the column you want your partition based on
+                    upper_bound=10000,
+                    lower_bound=0
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+                udtf_configs = {
+                    "external_access_integration": "<your external access integration>"
+                }
+
+                # pull data from target table with udtf ingestion with parallelism using partition column
+
+                df_udtf_predicates = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    udtf_configs=udtf_configs,
+                    fetch_size=100000,
+                    predicates=[
+                        "ID < 3",
+                        "ID >= 3"
+                    ]
+                )
+
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
