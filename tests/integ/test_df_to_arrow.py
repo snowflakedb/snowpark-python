@@ -361,7 +361,7 @@ def test_misc_settings(
 def test_write_arrow_negative(session, basic_arrow_table):
     with pytest.raises(
         ProgrammingError,
-        match="Schema has to be provided to write_arrow when a database is provided",
+        match="Schema has to be provided to write_arrow or write_parquet when a database is provided",
     ):
         session.write_arrow(basic_arrow_table, "temp_table", database="foo")
 
