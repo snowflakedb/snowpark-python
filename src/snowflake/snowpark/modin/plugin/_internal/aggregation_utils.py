@@ -579,7 +579,7 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             supported_in_pivot=True,
         ),
         "nunique": _SnowparkPandasAggregation(
-            axis_0_aggregation=lambda c: count(c.distinct()),
+            axis_0_aggregation=count_distinct,
             preserves_snowpark_pandas_types=False,
             supported_in_pivot=True,
         ),
