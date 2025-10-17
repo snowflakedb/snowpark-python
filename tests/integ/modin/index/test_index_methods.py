@@ -59,6 +59,7 @@ def test_df_index_copy(native_df):
 
 @sql_count_checker(query_count=0)
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA[2:])
+@pytest.mark.skip_hybrid
 def test_index_drop(native_index):
     snow_index = pd.Index(native_index)
     labels = [native_index[0]]
@@ -85,6 +86,7 @@ def test_df_index_equals(native_df):
 
 
 @sql_count_checker(query_count=0)
+@pytest.mark.skip_hybrid
 def test_index_union():
     idx1 = pd.Index([1, 2, 3, 4])
     idx2 = pd.Index([3, 4, 5, 6])
@@ -103,6 +105,7 @@ def test_index_union():
 
 
 @sql_count_checker(query_count=0)
+@pytest.mark.skip_hybrid
 def test_index_difference():
     idx1 = pd.Index([2, 1, 3, 4])
     idx2 = pd.Index([3, 4, 5, 6])
