@@ -578,6 +578,11 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
             preserves_snowpark_pandas_types=False,
             supported_in_pivot=True,
         ),
+        "nunique": _SnowparkPandasAggregation(
+            axis_0_aggregation=count_distinct,
+            preserves_snowpark_pandas_types=False,
+            supported_in_pivot=True,
+        ),
         **_create_pandas_to_snowpark_pandas_aggregation_map(
             (len, "size"),
             _SnowparkPandasAggregation(
@@ -717,11 +722,6 @@ _PANDAS_AGGREGATION_TO_SNOWPARK_PANDAS_AGGREGATION: MappingProxyType[
         "quantile": _SnowparkPandasAggregation(
             axis_0_aggregation=column_quantile,
             preserves_snowpark_pandas_types=True,
-            supported_in_pivot=False,
-        ),
-        "nunique": _SnowparkPandasAggregation(
-            axis_0_aggregation=count_distinct,
-            preserves_snowpark_pandas_types=False,
             supported_in_pivot=False,
         ),
     }

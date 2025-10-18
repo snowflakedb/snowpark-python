@@ -168,7 +168,6 @@ def test_pivot_table_not_implemented_or_supported(df_data):
         (np.any, "np.any"),
         ("size", "'size'"),
         (len, "<built-in function len>"),
-        ("nunique", "'nunique'"),
         ("idxmax", "'idxmax'"),
         ("idxmin", "'idxmin'"),
     ],

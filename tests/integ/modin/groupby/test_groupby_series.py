@@ -49,6 +49,7 @@ def test_groupby_series_count_with_nan():
         np.median,
         np.std,
         "var",
+        "nunique",
         [np.var],
         ["sum", np.std],
         ["sum", np.median, sum],

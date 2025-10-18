@@ -65,6 +65,7 @@ def native_df_multiindex() -> native_pd.DataFrame:
             3,
         ),
         (lambda df: df.aggregate({"A": ["count", "max"], "B": [max, "min"]}), 2),
+        (lambda df: df.aggregate("nunique"), 0),
         (
             lambda df: df.aggregate(
                 x=pd.NamedAgg("A", "max"), y=("B", "min"), c=("A", "count")
