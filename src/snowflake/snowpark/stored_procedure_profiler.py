@@ -9,6 +9,7 @@ from snowflake.snowpark._internal.snowpark_profiler import SnowparkProfiler
 from snowflake.snowpark._internal.utils import (
     parse_table_name,
     strip_double_quotes_in_like_statement_in_table_name,
+    SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,6 @@ class StoredProcedureProfiler(SnowparkProfiler):
         session: "snowflake.snowpark.Session",
     ) -> None:
         super().__init__(session)
-        self._active_profiler_name = "ACTIVE_PYTHON_PROFILER"
         self._output_sql = (
             "select snowflake.core.get_python_profiler_output('{query_id}')"
         )
@@ -72,3 +72,10 @@ class StoredProcedureProfiler(SnowparkProfiler):
                 "Target stage for profiler not found, using default stage of current session."
             )
         super().set_active_profiler(active_profiler_type)
+
+    @staticmethod
+    def _is_procedure_or_function_call(query: str) -> bool:
+        query = query.upper().strip(" ")
+        return SNOWFLAKE_ANONYMOUS_CALL_WITH_PATTERN.match(
+            query
+        ) is not None or query.startswith("CALL")
