@@ -74,7 +74,8 @@
 ### Snowpark pandas API Updates
 
 #### New Features
-- Added support for the `dtypes` parameter of `pd.get_dummies`
+- Added support for the `dtypes` parameter of `pd.get_dummies`.
+- Added support for `Dataframe.groupby.rolling()`.
 
 #### Improvements
 

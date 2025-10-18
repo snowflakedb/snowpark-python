@@ -847,9 +847,35 @@ def resample(
 
 
 @register_df_groupby_override("rolling")
-def rolling(self, *args, **kwargs):
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    ErrorMessage.method_not_implemented_error(name="rolling", class_="GroupBy")
+def rolling(
+    self,
+    window,
+    min_periods: Union[int, None] = None,
+    center: bool = False,
+    win_type: Union[str, None] = None,
+    on: Union[str, None] = None,
+    axis: Union[int, str] = 0,
+    closed: Union[str, None] = None,
+    method: str = "single",
+    **kwargs,
+):
+    from snowflake.snowpark.modin.plugin.extensions.rolling_groupby_overrides import (
+        RollingGroupby,
+    )
+
+    return RollingGroupby(
+        dataframe=self._df,
+        by=self._by,
+        window=window,
+        min_periods=min_periods,
+        center=center,
+        win_type=win_type,
+        on=on,
+        axis=axis,
+        closed=closed,
+        method=method,
+        dropna=self._kwargs.get("dropna", True),
+    )
 
 
 @register_df_groupby_override("sample")
