@@ -38,14 +38,14 @@ def test_pivot_table_no_index_single_column_multiple_values(df_data):
     )
 
 
-@sql_count_checker(query_count=1, union_count=1, join_count=2)
+@sql_count_checker(query_count=1, union_count=1, join_count=4)
 def test_pivot_table_no_index_single_column_multiple_values_multiple_aggr_func(df_data):
     pivot_table_test_helper(
         df_data,
         {
             "columns": "B",
             "values": ["D", "E"],
-            "aggfunc": ["mean", "max"],
+            "aggfunc": ["mean", "max", "nunique"],
         },
     )
 
@@ -119,7 +119,7 @@ def test_pivot_table_single_index_multiple_column_single_value(
     )
 
 
-@pytest.mark.parametrize("aggfunc", ["count", "sum", "min", "max", "mean"])
+@pytest.mark.parametrize("aggfunc", ["count", "sum", "min", "max", "mean", "nunique"])
 @pytest.mark.parametrize("values", ["D", ["D"]])
 @sql_count_checker(query_count=1)
 def test_pivot_table_no_index_multiple_column_single_value(df_data, aggfunc, values):
