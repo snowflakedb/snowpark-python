@@ -523,14 +523,34 @@ def test_write_parquet_negative(session, tmp_path):
     ):
         session.write_parquet(str(test_file), "temp_table", database="foo")
 
+    # Test write_files_in_parallel with subdirectories
+    subdir_test = tmp_path / "subdir_test"
+    subdir_test.mkdir()
+    subdir = subdir_test / "subdir"
+    subdir.mkdir()
+
+    # Create parquet file in subdirectory
+    subdir_file = subdir / "test.parquet"
+    pq.write_table(test_data, subdir_file)
+
+    with pytest.raises(
+        ProgrammingError,
+        match="write_files_in_parallel=True is not supported when parquet files exist in subdirectories",
+    ):
+        session.write_parquet(
+            str(subdir_test), "temp_table", write_files_in_parallel=True
+        )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="arrow not fully supported by local testing.",
 )
-def test_write_parquet_parallel_upload(session, tmp_path):
+def test_write_parquet_parallel_upload(session, tmp_path, capfd):
     """Test that parallel upload optimization works for multiple files in a flat directory."""
     import pyarrow.parquet as pq
+
+    from snowflake.connector.cursor import SnowflakeCursor
 
     # Create multiple parquet files in a flat directory
     test_dir = tmp_path / "parquet_files"
@@ -549,15 +569,102 @@ def test_write_parquet_parallel_upload(session, tmp_path):
     pq.write_table(file2_data, file2)
     pq.write_table(file3_data, file3)
 
+    # Track execute calls
+    execute_calls = []
+    original_execute = SnowflakeCursor.execute
+
+    def execute_wrapper(self, *args, **kwargs):
+        execute_calls.append(args[0] if args else kwargs.get("command"))
+        return original_execute(self, *args, **kwargs)
+
     # Write parquet files using the parallel upload optimization
     table_name = Utils.random_table_name()
     try:
-        result_table = session.write_parquet(
-            str(test_dir),
-            table_name,
-            auto_create_table=True,
-            overwrite=True,
-        )
+        with mock.patch.object(
+            SnowflakeCursor, "execute", side_effect=execute_wrapper, autospec=True
+        ):
+            result_table = session.write_parquet(
+                str(test_dir),
+                table_name,
+                auto_create_table=True,
+                overwrite=True,
+            )
+
+        # Verify that there was a single PUT call with a glob pattern (parallel upload)
+        put_calls = [call for call in execute_calls if call and "PUT" in call]
+        assert len(put_calls) == 1, f"Expected 1 PUT call, got {len(put_calls)}"
+        assert "*.parquet" in put_calls[0], "Expected *.parquet glob in PUT call."
+
+        # Verify all data was loaded
+        result_data = result_table.collect()
+        assert len(result_data) == 6  # 2 rows from each of 3 files
+
+        # Verify data content
+        ids = {row["id"] for row in result_data}
+        names = {row["name"] for row in result_data}
+        assert ids == {1, 2, 3, 4, 5, 6}
+        assert names == {"a", "b", "c", "d", "e", "f"}
+
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="arrow not fully supported by local testing.",
+)
+def test_write_parquet_subfolders_sequential_fallback(session, tmp_path):
+    """Test that parallel upload optimization works for multiple files in a flat directory."""
+    import pyarrow.parquet as pq
+
+    from snowflake.connector.cursor import SnowflakeCursor
+
+    # Create multiple parquet files in a flat directory
+    test_dir = tmp_path / "parquet_files"
+    test_dir.mkdir()
+    sub_dir_1 = tmp_path / "parquet_files" / "subdirectory1"
+    sub_dir_2 = tmp_path / "parquet_files" / "subdirectory2"
+
+    sub_dir_1.mkdir()
+    sub_dir_2.mkdir()
+
+    # Create 3 parquet files with different data
+    file1_data = pa.Table.from_arrays([[1, 2], ["a", "b"]], names=["id", "name"])
+    file2_data = pa.Table.from_arrays([[3, 4], ["c", "d"]], names=["id", "name"])
+    file3_data = pa.Table.from_arrays([[5, 6], ["e", "f"]], names=["id", "name"])
+
+    file1 = test_dir / "file1.parquet"
+    file2 = sub_dir_1 / "file2.parquet"
+    file3 = sub_dir_2 / "file3.parquet"
+
+    pq.write_table(file1_data, file1)
+    pq.write_table(file2_data, file2)
+    pq.write_table(file3_data, file3)
+
+    # Track execute calls
+    execute_calls = []
+    original_execute = SnowflakeCursor.execute
+
+    def execute_wrapper(self, *args, **kwargs):
+        execute_calls.append(args[0] if args else kwargs.get("command"))
+        return original_execute(self, *args, **kwargs)
+
+    table_name = Utils.random_table_name()
+    try:
+        with mock.patch.object(
+            SnowflakeCursor, "execute", side_effect=execute_wrapper, autospec=True
+        ):
+            result_table = session.write_parquet(
+                str(test_dir),
+                table_name,
+                auto_create_table=True,
+                overwrite=True,
+                write_files_in_parallel=False,
+            )
+
+        # Verify that there were three PUT calls (one for each subdirectory/file)
+        put_calls = [call for call in execute_calls if call and "PUT" in call]
+        assert len(put_calls) == 3, f"Expected 3 PUT calls, got {len(put_calls)}"
 
         # Verify all data was loaded
         result_data = result_table.collect()

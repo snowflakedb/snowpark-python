@@ -3165,8 +3165,6 @@ class Session:
             on_error=on_error,
             use_vectorized_scanner=use_vectorized_scanner,
             parallel=parallel,
-            # to preserve existing behavior
-            write_files_in_parallel=False,
             quote_identifiers=quote_identifiers,
             auto_create_table=auto_create_table,
             overwrite=overwrite,
@@ -3221,7 +3219,7 @@ class Session:
                 If None, column names will be inferred from the first parquet file. (Default value = None).
             database: Database schema and table is in, if not provided the default one will be used (Default value = None).
             schema: Schema table is in, if not provided the default one will be used (Default value = None).
-            compression: The compression used on the Parquet files. Can be "auto", "gzip", "snappy", or "none".
+            compression: The compression used while uploading the Parquet files. Can be "auto", "gzip", "snappy", or "none".
                 (Default value = "auto").
             on_error: Action to take when COPY INTO statements fail, default follows documentation at:
                 https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
@@ -3272,17 +3270,28 @@ class Session:
                 + (table_name)
             )
 
-        # Collect parquet files
         if os.path.isfile(path):
-            # Single file
             parquet_files = [path]
         elif os.path.isdir(path):
-            # Directory - find all parquet files
-            parquet_files = glob.glob(os.path.join(path, "*.parquet"))
+            parquet_files = glob.glob(os.path.join(path, "**/*.parquet")) + glob.glob(
+                os.path.join(path, "*.parquet")
+            )
             if not parquet_files:
                 raise SnowparkSessionException(
                     f"No parquet files found in directory: {path}"
                 )
+
+            # Check if write_files_in_parallel is enabled but subdirectories exist
+            if write_files_in_parallel:
+                # Check if any parquet files are in subdirectories
+                files_in_subdirs = [
+                    f for f in parquet_files if os.path.dirname(f) != path
+                ]
+                if files_in_subdirs:
+                    raise ProgrammingError(
+                        "write_files_in_parallel=True is not supported when parquet files exist in subdirectories. "
+                        "Please ensure all parquet files are in the root of the specified path, or set write_files_in_parallel=False."
+                    )
         else:
             raise SnowparkSessionException(
                 f"Path does not exist or is not accessible: {path}"

@@ -2053,8 +2053,8 @@ def write_parquet(
             If None, column names will be inferred from the first parquet file. (Default value = None).
         database: Database schema and table is in, if not provided the default one will be used (Default value = None).
         schema: Schema table is in, if not provided the default one will be used (Default value = None).
-        compression: The compression used on the Parquet files, can only be gzip, or snappy. Gzip gives a
-            better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'gzip').
+        compression: The compression used on the Parquet files, can only be auto, gzip or snappy. Gzip gives a
+            better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'auto').
         on_error: Action to take when COPY INTO statements fail, default follows documentation at:
             https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
             (Default value = 'abort_statement').
@@ -2136,7 +2136,7 @@ def write_parquet(
             parallel=parallel,
         )
 
-        cursor.execute(upload_sql, _is_internal=False)
+        cursor.execute(upload_sql, _is_internal=True)
         num_files_uploaded = len(parquet_files)
     else:
         # Upload all parquet files from the generator, in sequence
@@ -2387,6 +2387,7 @@ def write_arrow(
         on_error=on_error,
         use_vectorized_scanner=use_vectorized_scanner,
         parallel=parallel,
+        write_files_in_parallel=False,
         quote_identifiers=quote_identifiers,
         auto_create_table=auto_create_table,
         overwrite=overwrite,
