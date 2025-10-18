@@ -44,6 +44,8 @@ import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 from snowflake.connector.pandas_tools import write_pandas
+
+from snowflake.snowpark import UDFProfiler
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -807,6 +809,7 @@ class Session:
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+        self._udf_profiler = UDFProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
 
@@ -4313,6 +4316,14 @@ class Session:
         See details of how to use this object in :class:`stored_procedure_profiler.StoredProcedureProfiler`.
         """
         return self._sp_profiler
+
+    @property
+    def udf_profiler(self) -> UDFProfiler:
+        """
+        Returns a :class:`udf_profiler.UDFProfiler` object that you can use to profile UDFs.
+        See details of how to use this object in :class:`udf_profiler.UDFProfiler`.
+        """
+        return self._udf_profiler
 
     @property
     def dataframe_profiler(self) -> DataframeProfiler:

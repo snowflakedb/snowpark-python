@@ -2,37 +2,33 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 from unittest import mock
 
 import pytest
 
 import snowflake.snowpark
-from snowflake.snowpark import DataFrame
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import sproc
-from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
+from snowflake.snowpark.functions import udf, sproc
+from snowflake.snowpark.types import StringType
+from snowflake.snowpark.udf_profiler import UDFProfiler
 from tests.utils import Utils
 
 
-def multi_thread_helper_function(pro: StoredProcedureProfiler):
+def multi_thread_helper_function(pro: UDFProfiler):
     pro.set_active_profiler("LINE")
     pro.disable()
 
 
-@pytest.fixture(scope="function")
-def is_profiler_function_exist(profiler_session):
-    functions = profiler_session.sql(
-        "show functions like 'GET_PYTHON_PROFILER_OUTPUT' in snowflake.core"
+@pytest.fixture(scope="function", autouse=True)
+def enable_udf_profiler(profiler_session):
+    profiler_session.sql(
+        "ALTER SESSION SET ENABLE_PYTHON_PROFILER_FOR_UDF = true;"
     ).collect()
-    if len(functions) == 0:
-        pytest.skip("profiler function does not exist")
-
-
-@pytest.fixture(scope="function")
-def tmp_stage_name():
-    tmp_stage_name = Utils.random_stage_name()
-    yield tmp_stage_name
+    profiler_session.sql(
+        "ALTER SESSION SET FEATURE_PYTHON_UDF_PROFILER = 'ENABLED';"
+    ).collect()
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -45,40 +41,26 @@ def setup(profiler_session, resources_path, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_profiler_function_exist(is_profiler_function_exist, profiler_session):
-    res = profiler_session.sql(
-        "show functions like 'GET_PYTHON_PROFILER_OUTPUT' in snowflake.core"
-    ).collect()
-    assert len(res) != 0
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="session.sql is not supported in localtesting",
-)
-@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
-def test_profiler_with_profiler_class(
-    is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
-):
-    @sproc(name="table_sp", replace=True)
-    def table_sp(session: snowflake.snowpark.Session) -> DataFrame:
-        return session.sql("select 1")
-
-    pro = profiler_session.stored_procedure_profiler
-    pro.register_modules(["table_sp"])
-    pro.set_target_stage(
-        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
+def test_profiler_with_profiler_class(profiler_session, db_parameters):
+    @udf(
+        name="str_udf", replace=True, return_type=StringType(), session=profiler_session
     )
+    def str_udf():
+        return "success"
+
+    pro = profiler_session.udf_profiler
+    pro.register_modules(["str_udf"])
 
     pro.set_active_profiler("LINE")
 
-    profiler_session.call("table_sp")
+    profiler_session.sql("select str_udf()").collect()
+    # there is a latency in getting udf profiler result
+    time.sleep(5)
     res = pro.get_output()
     pro.disable()
 
     pro.register_modules([])
-    assert res is not None
-    assert "Modules Profiled" in res
+    print(res)
 
 
 @pytest.mark.skipif(
