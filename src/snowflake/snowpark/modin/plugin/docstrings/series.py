@@ -1821,11 +1821,6 @@ class Series(BasePandasDataset):
     def info():
         pass
 
-    def interpolate():
-        """
-        Fill NaN values using an interpolation method.
-        """
-
     def item():
         """
         Return the first element of the underlying data as a Python scalar.
