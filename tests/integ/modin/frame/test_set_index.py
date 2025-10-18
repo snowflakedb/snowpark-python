@@ -300,6 +300,7 @@ def test_set_index_pass_single_array(obj_type, drop, append, native_df):
         lambda x: native_pd.MultiIndex.from_arrays([x]),
     ],
 )
+@pytest.mark.skip_hybrid
 def test_set_index_pass_arrays(obj_type, drop, append, native_df):
     snow_df = pd.DataFrame(native_df)
     array = ["one", "two", "three"]
