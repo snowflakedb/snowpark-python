@@ -151,8 +151,8 @@ def compute_bin_indices(
     values_frame: InternalFrame,
     cuts_frame: InternalFrame,
     n_cuts: int,
+    dummy_row_pos_mode: bool,
     right: bool = True,
-    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Given a frame of cuts, i.e. borders of bins (strictly increasing) compute for the data in values_frame the index of the bin they fall into.
@@ -190,6 +190,7 @@ def compute_bin_indices(
         values_frame,
         cuts_frame,
         how="asof",
+        dummy_row_pos_mode=dummy_row_pos_mode,
         left_match_col=values_frame.data_column_snowflake_quoted_identifiers[0],
         right_match_col=cuts_frame.data_column_snowflake_quoted_identifiers[0],
         match_comparator=MatchComparator.LESS_THAN_OR_EQUAL_TO

@@ -1356,7 +1356,7 @@ class InternalFrame:
     def strip_duplicates(
         self: "InternalFrame",
         quoted_identifiers: list[str],
-        dummy_row_pos_mode: bool = False,
+        dummy_row_pos_mode: bool,
     ) -> "InternalFrame":
         """
         When assigning frames via index operations for duplicates only the last entry is used, as entries are repeatedly overwritten.
@@ -1403,10 +1403,10 @@ class InternalFrame:
 
         joined_ordered_dataframe = frame.ordered_dataframe.join(
             right=relevant_last_value_row_positions,
+            dummy_row_pos_mode=dummy_row_pos_mode,
             left_on_cols=[frame.row_position_snowflake_quoted_identifier],
             right_on_cols=[relevant_last_value_row_positions_quoted_identifier],
             how="inner",
-            dummy_row_pos_mode=dummy_row_pos_mode,
         )
 
         # Because we reuse row position to select the relevant columns, we need to

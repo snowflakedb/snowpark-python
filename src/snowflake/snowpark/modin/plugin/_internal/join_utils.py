@@ -157,6 +157,7 @@ def join(
     left: InternalFrame,
     right: InternalFrame,
     how: JoinTypeLit,
+    dummy_row_pos_mode: bool,
     left_on: Optional[list[str]] = None,
     right_on: Optional[list[str]] = None,
     left_match_col: Optional[str] = None,
@@ -165,7 +166,6 @@ def join(
     sort: Optional[bool] = False,
     join_key_coalesce_config: Optional[list[JoinKeyCoalesceConfig]] = None,
     inherit_join_index: InheritJoinIndex = InheritJoinIndex.FROM_LEFT,
-    dummy_row_pos_mode: bool = False,
 ) -> JoinOrAlignInternalFrameResult:
     """
     Join ``left`` and ``right`` frames.
@@ -262,13 +262,13 @@ def join(
 
     joined_ordered_dataframe = left.ordered_dataframe.join(
         right=right.ordered_dataframe,
+        dummy_row_pos_mode=dummy_row_pos_mode,
         left_on_cols=left_on,
         right_on_cols=right_on,
         left_match_col=left_match_col,
         right_match_col=right_match_col,
         match_comparator=match_comparator,
         how=how,
-        dummy_row_pos_mode=dummy_row_pos_mode,
     )
     return _create_internal_frame_with_join_or_align_result(
         joined_ordered_dataframe,
@@ -1121,7 +1121,7 @@ def join_on_index_columns(
     right: InternalFrame,
     how: JoinTypeLit,
     sort: bool,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> JoinOrAlignInternalFrameResult:
     """
     Perform join operation on index columns with the specified method (`how`), and preserves order based on sort.
@@ -1239,9 +1239,9 @@ def align(
     right: InternalFrame,
     left_on: list[str],
     right_on: list[str],
+    dummy_row_pos_mode: bool,
     how: AlignTypeLit = "outer",
     sort: AlignSortLit = "default_sort",
-    dummy_row_pos_mode: bool = False,
 ) -> JoinOrAlignInternalFrameResult:
     """
     Align the left and the right frame on given columns 'left_on' and 'right_on' with
@@ -1293,9 +1293,9 @@ def align(
         right.ordered_dataframe,
         left_on_cols=left_on,
         right_on_cols=right_on,
+        dummy_row_pos_mode=dummy_row_pos_mode,
         how=how,
         enable_default_sort=(sort == "default_sort"),
-        dummy_row_pos_mode=dummy_row_pos_mode,
     )
     # aligned_ordered_frame after aligning on row_position columns
     # Example 1 (left is empty not empty):
@@ -1337,9 +1337,9 @@ def align(
 def align_on_index(
     left: InternalFrame,
     right: InternalFrame,
+    dummy_row_pos_mode: bool,
     how: AlignTypeLit = "outer",
     sort: AlignSortLit = "default_sort",
-    dummy_row_pos_mode: bool = False,
 ) -> JoinOrAlignInternalFrameResult:
     """
     Align the left and the right frame on the index columns with given join method (`how`).

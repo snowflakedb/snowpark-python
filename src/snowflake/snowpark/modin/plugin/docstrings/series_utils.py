@@ -2642,7 +2642,7 @@ class CombinedDatetimelikeProperties:
         0    1
         1    2
         2    3
-        dtype: int64
+        dtype: int8
 
         For TimedeltaIndex:
 
@@ -2702,7 +2702,7 @@ class CombinedDatetimelikeProperties:
         0    1
         1    2
         2    3
-        dtype: int64
+        dtype: int8
 
         For TimedeltaIndex:
 
@@ -2734,7 +2734,7 @@ class CombinedDatetimelikeProperties:
         0    1
         1    2
         2    3
-        dtype: int64
+        dtype: int8
 
         For TimedeltaIndex:
 
