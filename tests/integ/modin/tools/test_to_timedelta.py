@@ -175,6 +175,7 @@ def test_to_timedelta_invalid_dtype(native_index):
 
 
 @sql_count_checker(query_count=0)
+@pytest.mark.skip_hybrid
 def test_to_timedelta_string_dtype_not_implemented():
     data = pd.Index(["1 days", "2 days", "3 days"])
     msg = "Snowpark pandas method pd.to_timedelta does not yet support conversion from string type"

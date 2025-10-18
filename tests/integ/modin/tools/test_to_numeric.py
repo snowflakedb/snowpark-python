@@ -129,6 +129,7 @@ def test_scalar_timedelta_to_numeric():
 
 
 @sql_count_checker(query_count=1)
+@pytest.mark.skip_hybrid
 def test_downcast_ignored(downcast, caplog):
     caplog.clear()
     with caplog.at_level(logging.DEBUG):
