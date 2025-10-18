@@ -3,7 +3,6 @@
 #
 import logging
 import math
-import sys
 from decimal import Decimal
 
 import pytest
@@ -225,9 +224,6 @@ def test_infer_type_from_data(data, number_of_columns, expected_result):
 
 
 @pytest.mark.udf
-@pytest.mark.skipif(
-    sys.version_info[:2] == (3, 13), reason="driver not supported in python 3.13"
-)
 def test_udtf_ingestion_mysql(session, caplog):
     from tests.parameters import MYSQL_CONNECTION_PARAMETERS
 
@@ -251,6 +247,7 @@ def test_udtf_ingestion_mysql(session, caplog):
     ).order_by("ID")
 
     Utils.check_answer(df, mysql_real_data)
+    assert df.schema == mysql_schema
 
     # check that udtf is used
     assert (

@@ -67,6 +67,10 @@
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 - Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0.
 
+#### Improvements
+
+- The default maximum length for inferred StringType columns during schema inference in `DataFrameReader.dbapi` is now increased from 16MB to 128MB in parquet file based ingestion.
+
 #### Dependency Updates
 
 - Updated dependency of `snowflake-connector-python>=3.17,<5.0.0`.
