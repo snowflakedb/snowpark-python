@@ -41,6 +41,8 @@ cd snowpark-python
     conda create --name snowpark-dev python=3.9
     ```
 
+  - We recommend installing the following packages: `tox`, `protoc-wheel-0==21.1` and `mypy-protobuf`.
+
 - Activate the new Python virtual environment. For example,
 
   ```bash
@@ -82,6 +84,12 @@ and "Mark Directory as" -> "Source Root". **NOTE**: VS Code doesn't have "Source
 ##### Setup Python Interpreter
 
 [Configure PyCharm interpreter][config pycharm interpreter] or [Configure VS Code interpreter][config vscode interpreter] to use the previously created Python virtual environment.
+
+### Protobuf generation
+
+When switching between revisions with `git switch` or `git checkout`, and when
+setting up the repository for the first time, update the generated `ast_pb2.py`
+from `ast.proto` with `python -m tox -e protoc`.
 
 ### Thread-safe development
 
