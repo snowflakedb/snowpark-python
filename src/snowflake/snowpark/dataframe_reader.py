@@ -1848,6 +1848,7 @@ class DataFrameReader:
         logger.debug(f"ingestion start at: {start_time}")
         if session_init_statement and isinstance(session_init_statement, str):
             session_init_statement = [session_init_statement]
+            ds_par_params["session_init_statement"] = session_init_statement
         partitioner = DataSourcePartitioner.from_dict(ds_par_params)
 
         struct_schema = partitioner.schema
