@@ -120,6 +120,7 @@
   - `sort_values`
   - `loc` (setting columns)
   - `to_datetime`
+  - `rename`
   - `drop`
   - `invert`
   - `duplicated`
