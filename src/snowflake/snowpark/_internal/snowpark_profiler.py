@@ -106,7 +106,9 @@ class SnowparkProfiler:
         """
         Return the profiles of last executed stored procedure or UDF in current thread. If there is no previous
         stored procedure or UDF call, an error will be raised.
-        Please call this function right after the stored procedure or UDF you want to profile to avoid any error.
+
+        Note:
+            Please call this function right after the stored procedure or UDF you want to profile to avoid any error.
 
         """
         # return empty string when profiler is not enabled to not interrupt user's code

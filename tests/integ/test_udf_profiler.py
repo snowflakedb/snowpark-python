@@ -8,12 +8,9 @@ from unittest import mock
 
 import pytest
 
-import snowflake.snowpark
-from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import udf, sproc
-from snowflake.snowpark.types import StringType
+from snowflake.snowpark.functions import udf
+from snowflake.snowpark.types import StringType, IntegerType
 from snowflake.snowpark.udf_profiler import UDFProfiler
-from tests.utils import Utils
 
 
 def multi_thread_helper_function(pro: UDFProfiler):
@@ -41,7 +38,7 @@ def setup(profiler_session, resources_path, local_testing_mode):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_profiler_with_profiler_class(profiler_session, db_parameters):
+def test_udf_profiler_basic(profiler_session):
     @udf(
         name="str_udf", replace=True, return_type=StringType(), session=profiler_session
     )
@@ -60,34 +57,6 @@ def test_profiler_with_profiler_class(profiler_session, db_parameters):
     pro.disable()
 
     pro.register_modules([])
-    print(res)
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="session.sql is not supported in localtesting",
-)
-@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
-def test_single_return_value_of_sp(
-    is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
-):
-    @sproc(name="single_value_sp", replace=True)
-    def single_value_sp(session: snowflake.snowpark.Session) -> str:
-        return "success"
-
-    profiler_session.stored_procedure_profiler.register_modules(["single_value_sp"])
-    profiler_session.stored_procedure_profiler.set_target_stage(
-        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
-    )
-
-    profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
-
-    profiler_session.call("single_value_sp")
-    res = profiler_session.stored_procedure_profiler.get_output()
-
-    profiler_session.stored_procedure_profiler.disable()
-
-    profiler_session.stored_procedure_profiler.register_modules()
     assert res is not None
     assert "Modules Profiled" in res
 
@@ -96,27 +65,27 @@ def test_single_return_value_of_sp(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-@pytest.mark.xfail(reason="stored proc registry changes not yet reflected.")
-def test_anonymous_procedure(
-    is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
-):
-    def single_value_sp(session: snowflake.snowpark.Session) -> str:
-        return "success"
-
-    single_value_sp = profiler_session.sproc.register(single_value_sp, anonymous=True)
-
-    profiler_session.stored_procedure_profiler.set_target_stage(
-        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
+def test_anonymous_udf(profiler_session):
+    add_one = udf(
+        lambda x: x + 1,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        session=profiler_session,
     )
 
-    profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
+    pro = profiler_session.udf_profiler
+    pro.register_modules(["str_udf"])
 
-    single_value_sp()
-    res = profiler_session.stored_procedure_profiler.get_output()
+    pro.set_active_profiler("LINE")
 
-    profiler_session.stored_procedure_profiler.disable()
+    df = profiler_session.create_dataframe([[1, 2], [3, 4]]).to_df("a", "b")
+    df.select(add_one("a")).collect()
+    # there is a latency in getting udf profiler result
+    time.sleep(5)
+    res = pro.get_output()
+    pro.disable()
 
-    profiler_session.stored_procedure_profiler.register_modules()
+    pro.register_modules([])
     assert res is not None
     assert "Modules Profiled" in res
 
@@ -125,20 +94,14 @@ def test_anonymous_procedure(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_set_incorrect_active_profiler(
-    profiler_session, db_parameters, tmp_stage_name, caplog
-):
-    with pytest.raises(ValueError) as e:
-        profiler_session.stored_procedure_profiler.set_target_stage(f"{tmp_stage_name}")
-    assert "stage name must be fully qualified name" in str(e)
-
+def test_set_incorrect_active_profiler(profiler_session, caplog):
     with caplog.at_level(logging.WARNING):
-        profiler_session.stored_procedure_profiler.set_target_stage(
-            f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
-        )
         profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
         profiler_session.stored_procedure_profiler.get_output()
-    assert "last executed stored procedure does not exist" in caplog.text
+    assert (
+        "You are seeing this warning because last executed stored procedure or UDF does not exist"
+        in caplog.text
+    )
 
     with pytest.raises(ValueError) as e:
         profiler_session.stored_procedure_profiler.set_active_profiler(
@@ -147,70 +110,34 @@ def test_set_incorrect_active_profiler(
     assert "active_profiler expect 'LINE', 'MEMORY'" in str(e)
 
 
-@pytest.mark.parametrize(
-    "sp_call_sql",
-    [
-        """WITH myProcedure AS PROCEDURE ()
-      RETURNS TABLE ( )
-      LANGUAGE PYTHON
-      RUNTIME_VERSION = '3.9'
-      PACKAGES = ( 'snowflake-snowpark-python==1.2.0', 'pandas==1.3.3' )
-      IMPORTS = ( '@my_stage/file1.py', '@my_stage/file2.py' )
-      HANDLER = 'my_function'
-      RETURNS NULL ON NULL INPUT
-    AS 'fake'
-    CALL myProcedure()INTO :result
-        """,
-        """CALL MY_SPROC()""",
-        """    CALL MY_SPROC()""",
-        """WITH myProcedure AS PROCEDURE () CALL  myProcedure""",
-        """   WITH myProcedure AS PROCEDURE ... CALL  myProcedure""",
-    ],
-)
-def test_sp_call_match(profiler_session, sp_call_sql):
-    pro = profiler_session.stored_procedure_profiler
-
-    assert pro._is_procedure_or_function_call(sp_call_sql)
-
-
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_query_history_destroyed_after_finish_profiling(
-    profiler_session, db_parameters, tmp_stage_name
-):
-    profiler_session.stored_procedure_profiler.set_target_stage(
-        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
-    )
+def test_query_history_destroyed_after_finish_profiling(profiler_session):
 
-    profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
+    profiler_session.udf_profiler.set_active_profiler("LINE")
     assert (
-        profiler_session.stored_procedure_profiler._query_history
+        profiler_session.udf_profiler._query_history
         in profiler_session._conn._query_listeners
     )
 
-    profiler_session.stored_procedure_profiler.disable()
+    profiler_session.udf_profiler.disable()
     assert (
-        profiler_session.stored_procedure_profiler._query_history
+        profiler_session.udf_profiler._query_history
         not in profiler_session._conn._query_listeners
     )
 
-    profiler_session.stored_procedure_profiler.register_modules()
+    profiler_session.udf_profiler.register_modules()
 
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_thread_safe_on_activate_and_disable(
-    profiler_session, db_parameters, tmp_stage_name
-):
-    pro = profiler_session.stored_procedure_profiler
+def test_thread_safe_on_activate_and_disable(profiler_session):
+    pro = profiler_session.udf_profiler
     pro.register_modules(["table_sp"])
-    pro.set_target_stage(
-        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
-    )
     with ThreadPoolExecutor(max_workers=2) as tpe:
         for _ in range(6):
             tpe.submit(multi_thread_helper_function, pro)
@@ -222,82 +149,9 @@ def test_thread_safe_on_activate_and_disable(
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql is not supported in localtesting",
 )
-def test_create_temp_stage(profiler_session):
-    pro = profiler_session.stored_procedure_profiler
-    db_name = Utils.random_temp_database()
-    schema_name = Utils.random_temp_schema()
-    temp_stage = Utils.random_stage_name()
-    current_db = profiler_session.sql("select current_database()").collect()[0][0]
-    try:
-        profiler_session.sql(f"create database {db_name}").collect()
-        profiler_session.sql(f"create schema {schema_name}").collect()
-        pro.set_target_stage(f"{db_name}.{schema_name}.{temp_stage}")
+def test_set_active_profiler_failed(profiler_session, caplog):
+    pro = profiler_session.udf_profiler
 
-        res = profiler_session.sql(
-            f"show stages like '{temp_stage}' in schema {db_name}.{schema_name}"
-        ).collect()
-        assert len(res) != 0
-    finally:
-        profiler_session.sql(f"drop database if exists {db_name}").collect()
-        profiler_session.sql(f"use database {current_db}").collect()
-
-
-@pytest.mark.skip(reason="SNOW-1945207")
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="session.sql is not supported in localtesting",
-)
-def test_stored_proc_error(
-    is_profiler_function_exist, profiler_session, db_parameters, tmp_stage_name
-):
-    function_name = f"oom_sp_{Utils.random_function_name()}"
-
-    @sproc(name=function_name, session=profiler_session, replace=True)
-    def oom_sp(session: snowflake.snowpark.Session) -> str:
-        raise ValueError("fake out of memory")
-
-    profiler_session.stored_procedure_profiler.register_modules(["oom_sp"])
-    profiler_session.stored_procedure_profiler.set_target_stage(
-        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
-    )
-
-    profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
-
-    with pytest.raises(SnowparkSQLException, match="fake out of memory") as err:
-        profiler_session.call(function_name)
-        query_id = profiler_session.stored_procedure_profiler._get_last_query_id()
-        assert query_id in str(err)
-
-    profiler_session.stored_procedure_profiler.disable()
-
-    profiler_session.stored_procedure_profiler.register_modules()
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="session.sql is not supported in localtesting",
-)
-def test_profiler_without_target_stage(profiler_session, caplog):
-    pro = profiler_session.stored_procedure_profiler
-    with caplog.at_level(logging.INFO):
-        pro.set_active_profiler("LINE")
-        assert (
-            "Target stage for profiler not found, using default stage of current session."
-            in str(caplog.text)
-        )
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="session.sql is not supported in localtesting",
-)
-def test_set_active_profiler_failed(
-    profiler_session, caplog, tmp_stage_name, db_parameters
-):
-    pro = profiler_session.stored_procedure_profiler
-    pro.set_target_stage(
-        f"{db_parameters['database']}.{db_parameters['schema']}.{tmp_stage_name}"
-    )
     with mock.patch(
         "snowflake.snowpark.DataFrame._internal_collect_with_tag_no_telemetry",
         side_effect=Exception,
@@ -308,7 +162,7 @@ def test_set_active_profiler_failed(
 
 
 def test_when_sp_profiler_not_enabled(profiler_session):
-    pro = profiler_session.stored_procedure_profiler
+    pro = profiler_session.udf_profiler
     # direct call get_output when profiler is not enabled
     res = pro.get_output()
     assert res == ""
