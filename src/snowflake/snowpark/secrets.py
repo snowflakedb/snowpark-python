@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import logging
 import os
 from abc import ABC, abstractmethod
 
@@ -8,7 +9,9 @@ from abc import ABC, abstractmethod
 # https://docs.snowflake.com/en/developer-guide/external-network-access/secret-api-reference#python-api-for-secret-access
 
 # As per contract with SCLS SPCS, secret path is stored in an environment variable
-SCLS_SPCS_SECRET_ENV_NAME = "SNOWFLAKE_CONTAINER_SERVICES_SECRET_PATH_PREFIX"
+_SCLS_SPCS_SECRET_ENV_NAME = "SNOWFLAKE_CONTAINER_SERVICES_SECRET_PATH_PREFIX"
+
+_logger = logging.getLogger(__name__)
 
 __all__ = [
     "get_generic_secret_string",
@@ -90,35 +93,36 @@ class _SnowflakeSecretsSPCS(_SnowflakeSecrets):
     """Secret instance for SPCS container environment (file-based secrets)."""
 
     def _get_scls_spcs_base_path(self):
-        base = os.getenv(SCLS_SPCS_SECRET_ENV_NAME, None)
+        base = os.getenv(_SCLS_SPCS_SECRET_ENV_NAME, None)
         if not base:
             raise RuntimeError(
-                f"Environment variable '{SCLS_SPCS_SECRET_ENV_NAME}' is not set or empty. "
+                f"Environment variable '{_SCLS_SPCS_SECRET_ENV_NAME}' is not set or empty. "
                 f"This variable must be set to the SPCS secret base path."
             )
         return base
-
-    def _get_scls_spcs_secret_dir(self, secret_name: str) -> str:
-        base = self._get_scls_spcs_base_path()
-        secret_dir = os.path.join(base, secret_name)
-        if not os.path.exists(secret_dir):
-            raise FileNotFoundError(f"Secret directory not found: {secret_dir}")
-        if not os.path.isdir(secret_dir):
-            raise NotADirectoryError(f"Secret path is not a directory: {secret_dir}")
-        return secret_dir
 
     def _read_scls_spcs_secret_file(self, secret_name: str, filename: str) -> str:
         base = self._get_scls_spcs_base_path()
         secret_path = os.path.join(base, secret_name, filename)
         if not os.path.exists(secret_path):
-            raise FileNotFoundError(f"Secret file not found: {secret_path}")
+            _logger.debug(f"Secret file not found: {secret_path}")
+            raise ValueError(f"Secret '{secret_name}' does not exist or not authorized")
         if not os.path.isfile(secret_path):
-            raise FileNotFoundError(f"Secret path is not a file: {secret_path}")
+            _logger.debug(f"Secret path is not a file: {secret_path}")
+            raise ValueError(f"Secret '{secret_name}' does not exist or not authorized")
         with open(secret_path, encoding="utf-8") as f:
             return f.read().rstrip("\r\n")
 
     def _get_scls_spcs_secret_type(self, secret_name: str) -> str:
-        secret_dir = self._get_scls_spcs_secret_dir(secret_name)
+        base = self._get_scls_spcs_base_path()
+        secret_dir = os.path.join(base, secret_name)
+        if not os.path.exists(secret_dir):
+            _logger.debug(f"Secret directory not found: {secret_dir}")
+            raise ValueError(f"Secret '{secret_name}' does not exist or not authorized")
+        if not os.path.isdir(secret_dir):
+            _logger.debug(f"Secret path is not a directory: {secret_dir}")
+            raise ValueError(f"Secret '{secret_name}' does not exist or not authorized")
+
         entries = os.listdir(secret_dir)
         files = {
             f.upper()
@@ -127,7 +131,8 @@ class _SnowflakeSecretsSPCS(_SnowflakeSecrets):
         }
 
         if len(files) == 0:
-            raise FileNotFoundError(f"No secret files found in directory: {secret_dir}")
+            _logger.debug(f"No secret files found in directory: {secret_dir}")
+            raise ValueError(f"Secret '{secret_name}' does not exist or not authorized")
         if files == {"USERNAME", "PASSWORD"}:
             return "PASSWORD"
         if len(files) == 1:
@@ -137,12 +142,14 @@ class _SnowflakeSecretsSPCS(_SnowflakeSecrets):
             elif file == "ACCESS_TOKEN":
                 return "OAUTH2"
             else:
-                raise ValueError(
+                _logger.debug(
                     f"Unknown secret file type '{file}' in directory: {secret_dir}"
                 )
-        raise ValueError(
+                raise ValueError(f"Unknown secret type for '{secret_name}'")
+        _logger.debug(
             f"Secret directory contains unexpected files: {sorted(files)} in {secret_dir}"
         )
+        raise ValueError(f"Unknown secret type for '{secret_name}'")
 
     def get_generic_secret_string(self, secret_name: str) -> str:
         return self._read_scls_spcs_secret_file(secret_name, "secret_string")
@@ -166,7 +173,7 @@ class _SnowflakeSecretsSPCS(_SnowflakeSecrets):
 
 
 def _is_spcs_environment() -> bool:
-    return os.getenv(SCLS_SPCS_SECRET_ENV_NAME, None) is not None
+    return os.getenv(_SCLS_SPCS_SECRET_ENV_NAME, None) is not None
 
 
 def _get_secrets_instance() -> _SnowflakeSecrets:
@@ -184,7 +191,7 @@ def _get_secrets_instance() -> _SnowflakeSecrets:
         else:
             raise NotImplementedError(
                 "Secret API is only supported on Snowflake server and Spark Classic's SPCS container environments."
-            )
+            ) from None
 
 
 def get_generic_secret_string(secret_name: str) -> str:
@@ -195,7 +202,7 @@ def get_generic_secret_string(secret_name: str) -> str:
         The secret value as a string.
     Raises:
         NotImplementedError: If running outside Snowflake server or SPCS environment.
-        FileNotFoundError: If the secret files don't exist (SPCS only).
+        ValueError: If the secret does not exist or is not authorized (SPCS only).
     """
     return _get_secrets_instance().get_generic_secret_string(secret_name)
 
@@ -208,7 +215,7 @@ def get_oauth_access_token(secret_name: str) -> str:
         The OAuth2 access token as a string.
     Raises:
         NotImplementedError: If running outside Snowflake server or SPCS environment.
-        FileNotFoundError: If the secret files don't exist (SPCS only).
+        ValueError: If the secret does not exist or is not authorized (SPCS only).
     """
     return _get_secrets_instance().get_oauth_access_token(secret_name)
 
@@ -221,9 +228,7 @@ def get_secret_type(secret_name: str) -> str:
         The type of the secret as a string.
     Raises:
         NotImplementedError: If running outside Snowflake server or SPCS environment.
-        FileNotFoundError: If the secret directory or files don't exist (SPCS only).
-        NotADirectoryError: If the secret path is not a directory (SPCS only).
-        ValueError: If the secret directory contains unexpected files (SPCS only).
+        ValueError: If the secret does not exist, is not authorized, or has unknown type (SPCS only).
     """
     return _get_secrets_instance().get_secret_type(secret_name)
 
@@ -236,7 +241,7 @@ def get_username_password(secret_name: str) -> UsernamePassword:
         UsernamePassword: An object with attributes ``username`` and ``password``.
     Raises:
         NotImplementedError: If running outside Snowflake server or SPCS environment.
-        FileNotFoundError: If the secret files don't exist (SPCS only).
+        ValueError: If the secret does not exist or is not authorized (SPCS only).
     """
     return _get_secrets_instance().get_username_password(secret_name)
 

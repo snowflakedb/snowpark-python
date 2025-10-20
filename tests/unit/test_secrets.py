@@ -14,7 +14,7 @@ from snowflake.snowpark.secrets import (
     get_cloud_provider_token,
     UsernamePassword,
     CloudProviderToken,
-    SCLS_SPCS_SECRET_ENV_NAME,
+    _SCLS_SPCS_SECRET_ENV_NAME,
 )
 
 
@@ -55,18 +55,18 @@ def test_secrets_mock_server_paths():
 
 @pytest.fixture
 def scls_spcs_mock_env(tmp_path):
-    secret_base = tmp_path / "test_scls_spcs_creds"
+    secret_base = tmp_path / ".test_scls_spcs_creds"
     secret_base.mkdir()
 
-    original_env = os.environ.get(SCLS_SPCS_SECRET_ENV_NAME)
-    os.environ[SCLS_SPCS_SECRET_ENV_NAME] = str(secret_base)
+    original_env = os.environ.get(_SCLS_SPCS_SECRET_ENV_NAME)
+    os.environ[_SCLS_SPCS_SECRET_ENV_NAME] = str(secret_base)
 
     yield secret_base
 
     if original_env is not None:
-        os.environ[SCLS_SPCS_SECRET_ENV_NAME] = original_env
+        os.environ[_SCLS_SPCS_SECRET_ENV_NAME] = original_env
     else:
-        os.environ.pop(SCLS_SPCS_SECRET_ENV_NAME, None)
+        os.environ.pop(_SCLS_SPCS_SECRET_ENV_NAME, None)
 
 
 def test_secrets_mock_scls_spcs(scls_spcs_mock_env):
@@ -110,29 +110,39 @@ def test_secrets_mock_scls_spcs_error_cases(scls_spcs_mock_env):
     file_as_dir = scls_spcs_mock_env / "notdir"
     file_as_dir.write_text("fake")
 
+    unknown_type_dir = scls_spcs_mock_env / "unknown_secret"
+    unknown_type_dir.mkdir()
+    (unknown_type_dir / "unknown_file").write_text("data")
+
     with patch.dict("sys.modules", {"_snowflake": None}):
         assert get_generic_secret_string("edge") == "value"
 
-        with pytest.raises(ValueError, match="unexpected files"):
+        with pytest.raises(ValueError, match="Unknown secret type"):
             get_secret_type("edge")
 
-        with pytest.raises(FileNotFoundError, match="Secret directory not found"):
+        with pytest.raises(ValueError, match="does not exist or not authorized"):
             get_secret_type("nonexistent")
 
-        with pytest.raises(FileNotFoundError, match="Secret file not found"):
+        with pytest.raises(ValueError, match="does not exist or not authorized"):
             get_generic_secret_string("empty")
 
-        with pytest.raises(FileNotFoundError, match="No secret files found"):
+        with pytest.raises(ValueError, match="does not exist or not authorized"):
             get_secret_type("empty")
 
-        with pytest.raises(NotADirectoryError, match="not a directory"):
+        with pytest.raises(ValueError, match="does not exist or not authorized"):
             get_secret_type("notdir")
+
+        with pytest.raises(NotImplementedError):
+            get_cloud_provider_token("any_secret")
+
+        with pytest.raises(ValueError, match="Unknown secret type"):
+            get_secret_type("unknown_secret")
 
 
 def test_secrets_import_error_paths():
-    original_env = os.environ.get(SCLS_SPCS_SECRET_ENV_NAME)
-    if SCLS_SPCS_SECRET_ENV_NAME in os.environ:
-        del os.environ[SCLS_SPCS_SECRET_ENV_NAME]
+    original_env = os.environ.get(_SCLS_SPCS_SECRET_ENV_NAME)
+    if _SCLS_SPCS_SECRET_ENV_NAME in os.environ:
+        del os.environ[_SCLS_SPCS_SECRET_ENV_NAME]
 
     try:
         with patch.dict("sys.modules", {"_snowflake": None}):
@@ -151,4 +161,4 @@ def test_secrets_import_error_paths():
             get_cloud_provider_token("c1")
     finally:
         if original_env is not None:
-            os.environ[SCLS_SPCS_SECRET_ENV_NAME] = original_env
+            os.environ[_SCLS_SPCS_SECRET_ENV_NAME] = original_env
