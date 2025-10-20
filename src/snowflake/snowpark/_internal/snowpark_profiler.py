@@ -36,7 +36,7 @@ class SnowparkProfiler:
         Register modules to generate profiles for them.
 
         Args:
-            stored_procedures: List of names of stored procedures. Registered modules will be overwritten by this input.
+            modules: List of names of stored procedures. Registered modules will be overwritten by this input.
             Input None or an empty list will remove registered modules.
         """
         module_string = ",".join(modules) if modules is not None else ""

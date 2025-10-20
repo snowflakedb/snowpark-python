@@ -74,7 +74,7 @@ def test_anonymous_udf(profiler_session):
     )
 
     pro = profiler_session.udf_profiler
-    pro.register_modules(["str_udf"])
+    pro.register_modules(["add_one"])
 
     pro.set_active_profiler("LINE")
 
@@ -161,7 +161,11 @@ def test_set_active_profiler_failed(profiler_session, caplog):
             assert "Set active profiler failed because of" in caplog.text
 
 
-def test_when_sp_profiler_not_enabled(profiler_session):
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql is not supported in localtesting",
+)
+def test_when_udf_profiler_not_enabled(profiler_session):
     pro = profiler_session.udf_profiler
     # direct call get_output when profiler is not enabled
     res = pro.get_output()
