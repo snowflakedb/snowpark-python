@@ -16040,6 +16040,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             # even the dataframe. For example, pd.DataFrame(list(range(1000))).sample(n=1, random_state=0) and
             # pd.DataFrame(list(range(1000))[::-1]).sample(n=1, random_state=0)
             # select the same row position.
+            # We use this alternate implementation rather than the generator
+            # one that we use for replace=True because we can avoid a join.
             if n is not None:
                 post_sampling_rowcount = n
             else:
