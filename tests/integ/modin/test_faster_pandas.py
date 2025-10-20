@@ -124,9 +124,9 @@ def test_read_filter_join_on_index(session):
     )
 
 
-@sql_count_checker(query_count=3)
-def test_read_filter_groupby_agg(session):
-    # test a chain of operations that are not fully supported in faster pandas
+@sql_count_checker(query_count=3, join_count=2)
+def test_read_filter_iloc_index(session):
+    # test a chain of operations that are not yet fully supported in faster pandas
 
     # create tables
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -136,19 +136,19 @@ def test_read_filter_groupby_agg(session):
 
     # create snow dataframes
     df = pd.read_snowflake(table_name)
-    snow_result = df[df["B"] > 11].groupby("A").min()
+    snow_result = df.iloc[[1], :]
 
     # verify that the input dataframe has a populated relaxed query compiler
     assert df._query_compiler._relaxed_query_compiler is not None
     assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
     # verify that the output dataframe has an empty relaxed query compiler
-    # because groupby() and min() are not supported in faster pandas yet
+    # because iloc for index is not supported in faster pandas yet
     assert snow_result._query_compiler._relaxed_query_compiler is None
     assert snow_result._query_compiler._dummy_row_pos_mode is False
 
     # create pandas dataframes
     native_df = df.to_pandas()
-    native_result = native_df[native_df["B"] > 11].groupby("A").min()
+    native_result = native_df.iloc[[1], :]
 
     # compare results
     assert_frame_equal(snow_result, native_result)
@@ -306,6 +306,61 @@ def test_duplicated(session):
 
     # compare results
     assert_series_equal(snow_result, native_result)
+
+
+@pytest.mark.parametrize(
+    "func",
+    [
+        "min",
+        "max",
+        "count",
+        "sum",
+        "mean",
+        "median",
+        "std",
+        "var",
+    ],
+)
+@sql_count_checker(query_count=6)
+def test_groupby_agg(session, func):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[2, 12], [2, 11], [3, 13]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result1 = getattr(df.groupby("A"), func)()
+    snow_result2 = df.groupby("A").agg([func])
+    snow_result3 = getattr(df.groupby("A")["B"], func)()
+    snow_result4 = df.groupby("A")["B"].agg([func])
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result1._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result1._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+    assert snow_result2._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result2._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result1 = getattr(native_df.groupby("A"), func)()
+    native_result2 = native_df.groupby("A").agg([func])
+    native_result3 = getattr(native_df.groupby("A")["B"], func)()
+    native_result4 = native_df.groupby("A")["B"].agg([func])
+
+    # compare results
+    assert_frame_equal(snow_result1, native_result1, check_dtype=False)
+    assert_frame_equal(snow_result2, native_result2, check_dtype=False)
+    assert_series_equal(snow_result3, native_result3, check_dtype=False)
+    assert_frame_equal(snow_result4, native_result4, check_dtype=False)
 
 
 @sql_count_checker(query_count=5)

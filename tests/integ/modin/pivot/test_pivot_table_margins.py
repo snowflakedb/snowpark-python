@@ -134,7 +134,7 @@ def test_pivot_table_multiple_columns_values_with_margins(
         ),
     ],
 )
-@sql_count_checker(query_count=1, join_count=5, union_count=1)
+@sql_count_checker(query_count=1, join_count=6, union_count=1)
 def test_pivot_table_multiple_pivot_values_null_data_with_margins(
     df_data_with_nulls, index, fill_value
 ):
@@ -144,7 +144,7 @@ def test_pivot_table_multiple_pivot_values_null_data_with_margins(
             "index": index,
             "columns": "C",
             "values": "F",
-            "aggfunc": ["count", "sum", "mean"],
+            "aggfunc": ["count", "sum", "mean", "nunique"],
             "dropna": False,
             "fill_value": fill_value,
             "margins": True,
