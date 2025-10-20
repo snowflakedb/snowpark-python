@@ -87,6 +87,7 @@
 
 #### New Features
 - Added support for the `dtypes` parameter of `pd.get_dummies`
+- Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
 
 #### Improvements
 
