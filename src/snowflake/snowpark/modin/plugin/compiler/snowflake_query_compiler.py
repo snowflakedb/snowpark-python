@@ -15972,10 +15972,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 raise ValueError(
                     "Replace has to be set to `True` when upsampling the population `frac` > 1."
                 )
-            if n is not None and n > self.get_axis_len(axis=0):
-                raise ValueError(
-                    "Cannot take a larger sample than population when 'replace=False'"
-                )
 
         frame = self._modin_frame
 

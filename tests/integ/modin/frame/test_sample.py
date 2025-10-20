@@ -220,22 +220,6 @@ def test_df_sample_negative_frac_larger_than_1_no_replace(random_state):
     )
 
 
-@pytest.mark.parametrize("random_state", [None, 0])
-@sql_count_checker(query_count=0)
-def test_df_sample_negative_n_larger_than_size_no_replace(random_state):
-    snow_df, native_df = create_test_dfs(list(range(30)))
-    eval_snowpark_pandas_result(
-        snow_df,
-        native_df,
-        lambda df: df.sample(n=31, random_state=random_state),
-        expect_exception=True,
-        expect_exception_type=ValueError,
-        expect_exception_match=re.escape(
-            "Cannot take a larger sample than population when 'replace=False'"
-        ),
-    )
-
-
 @sql_count_checker(query_count=0)
 def test_df_sample_negative_valid_non_integer_random_state():
     with pytest.raises(

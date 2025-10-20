@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import re
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
@@ -12,8 +11,7 @@ import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import (
     assert_index_equal,
     assert_series_equal,
-    create_test_series,
-    eval_snowpark_pandas_result,
+    assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
@@ -141,16 +139,23 @@ def test_series_sample_negative_value_error(ops):
         ops(pd.Series(range(10)))
 
 
-@sql_count_checker(query_count=0)
-@pytest.mark.parametrize("random_state", [None, 0])
-def test_series_n_larger_than_length_replace_False(random_state):
-    eval_snowpark_pandas_result(
-        *create_test_series(["a"]),
-        lambda s: s.sample(n=2, replace=False, random_state=random_state),
-        expect_exception=True,
-        assert_exception_equal=False,
-        expect_exception_type=ValueError,
-        expect_exception_match=re.escape(
-            "Cannot take a larger sample than population when 'replace=False'"
+@pytest.mark.parametrize(
+    "ops",
+    [
+        lambda s: s.sample(n=100),
+    ],
+)
+@pytest.mark.parametrize("random_state,query_count", [(None, 2), (0, 1)])
+def test_series_sample_over_size_n(ops, random_state, query_count):
+    with pytest.raises(
+        ValueError,
+        match="Cannot take a larger sample than population when 'replace=False'",
+    ):
+        native_pd.Series(range(10)).sample(n=100)
+
+    with SqlCounter(query_count=query_count):
+        assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
+            # sort_values() because sample() may change order.
+            pd.Series(range(10)).sample(n=100, random_state=random_state).sort_values(),
+            native_pd.Series(range(10)),
         )
-    )
