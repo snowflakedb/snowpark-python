@@ -582,8 +582,8 @@ def create_data_source_table_and_stage(
     session.sql(sql_create_temp_stage, _emit_ast=False).collect(
         statement_params=statements_params_for_telemetry, _emit_ast=False
     )
-    
-    
+
+
 def track_data_source_statement_params(
     dataframe, statement_params: Optional[Dict] = None
 ) -> Optional[Dict]:
