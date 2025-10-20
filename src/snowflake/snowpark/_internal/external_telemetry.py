@@ -1,7 +1,6 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import atexit
 import importlib
 import logging
 from abc import ABC
@@ -202,8 +201,6 @@ class ExternalTelemetry:
         self._tracer_provider_enabled = False
         self._logger_provider_enabled = False
         self.session = session
-
-        atexit.register(self._opentelemetry_shutdown)
 
     def enable_event_table_telemetry_collection(
         self,

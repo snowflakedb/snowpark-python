@@ -827,6 +827,7 @@ class Session:
         """
         with _session_management_lock:
             try:
+                self._external_telemetry._opentelemetry_shutdown()
                 self.close()
             except Exception:
                 pass
