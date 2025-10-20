@@ -146,6 +146,15 @@
   - `median`
   - `std`
   - `var`
+  - `groupby.agg`
+  - `groupby.min`
+  - `groupby.max`
+  - `groupby.count`
+  - `groupby.sum`
+  - `groupby.mean`
+  - `groupby.median`
+  - `groupby.std`
+  - `groupby.var`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
