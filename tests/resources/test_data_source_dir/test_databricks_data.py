@@ -27,6 +27,7 @@ from snowflake.snowpark.types import (
     ShortType,
     FloatType,
 )
+from snowflake.snowpark._internal.server_connection import MAX_STRING_SIZE
 
 TEST_TABLE_NAME = "ALL_TYPE_TABLE_3"  # ALL_TYPE_TABLE_3 contains None data while ALL_TYPE_TABLE doesn't
 TZ_INFO = pytz.timezone("America/Los_Angeles")
@@ -153,7 +154,7 @@ databricks_schema = StructType(
         StructField("COL_FLOAT", FloatType(), nullable=True),
         StructField("COL_DOUBLE", DoubleType(), nullable=True),
         StructField("COL_DECIMAL", DecimalType(10, 2), nullable=True),
-        StructField("COL_STRING", StringType(), nullable=True),
+        StructField("COL_STRING", StringType(MAX_STRING_SIZE), nullable=True),
         StructField("COL_BOOLEAN", BooleanType(), nullable=True),
         StructField("COL_BINARY", BinaryType(), nullable=True),
         StructField("COL_DATE", DateType(), nullable=True),
@@ -168,19 +169,27 @@ databricks_schema = StructType(
             nullable=True,
         ),
         StructField("COL_ARRAY", ArrayType(IntegerType()), nullable=True),
-        StructField("COL_MAP", MapType(StringType(), IntegerType()), nullable=True),
+        StructField(
+            "COL_MAP",
+            MapType(StringType(MAX_STRING_SIZE), IntegerType()),
+            nullable=True,
+        ),
         StructField(
             "COL_STRUCT",
             StructType(
                 [
-                    StructField("FIELD1", StringType(), nullable=True),
-                    StructField("FIELD2", StringType(), nullable=True),
+                    StructField("FIELD1", StringType(MAX_STRING_SIZE), nullable=True),
+                    StructField("FIELD2", StringType(MAX_STRING_SIZE), nullable=True),
                 ]
             ),
             nullable=True,
         ),
-        StructField("COL_INTERVAL_YEAR_MONTH", StringType(), nullable=True),
-        StructField("COL_INTERVAL_DAY_TIME", StringType(), nullable=True),
+        StructField(
+            "COL_INTERVAL_YEAR_MONTH", StringType(MAX_STRING_SIZE), nullable=True
+        ),
+        StructField(
+            "COL_INTERVAL_DAY_TIME", StringType(MAX_STRING_SIZE), nullable=True
+        ),
     ]
 )
 
@@ -202,7 +211,7 @@ databricks_more_column_schema = StructType(
         StructField("COL_FLOAT", FloatType(), nullable=True),
         StructField("COL_DOUBLE", DoubleType(), nullable=True),
         StructField("COL_DECIMAL", DecimalType(10, 2), nullable=True),
-        StructField("COL_STRING", StringType(), nullable=True),
+        StructField("COL_STRING", StringType(MAX_STRING_SIZE), nullable=True),
         StructField("COL_BOOLEAN", BooleanType(), nullable=True),
         StructField("COL_BINARY", BinaryType(), nullable=True),
         StructField("COL_DATE", DateType(), nullable=True),
@@ -217,19 +226,27 @@ databricks_more_column_schema = StructType(
             nullable=True,
         ),
         StructField("COL_ARRAY", ArrayType(IntegerType()), nullable=True),
-        StructField("COL_MAP", MapType(StringType(), IntegerType()), nullable=True),
+        StructField(
+            "COL_MAP",
+            MapType(StringType(MAX_STRING_SIZE), IntegerType()),
+            nullable=True,
+        ),
         StructField(
             "COL_STRUCT",
             StructType(
                 [
-                    StructField("FIELD1", StringType(), nullable=True),
-                    StructField("FIELD2", StringType(), nullable=True),
+                    StructField("FIELD1", StringType(MAX_STRING_SIZE), nullable=True),
+                    StructField("FIELD2", StringType(MAX_STRING_SIZE), nullable=True),
                 ]
             ),
             nullable=True,
         ),
-        StructField("COL_INTERVAL_YEAR_MONTH", StringType(), nullable=True),
-        StructField("COL_INTERVAL_DAY_TIME", StringType(), nullable=True),
+        StructField(
+            "COL_INTERVAL_YEAR_MONTH", StringType(MAX_STRING_SIZE), nullable=True
+        ),
+        StructField(
+            "COL_INTERVAL_DAY_TIME", StringType(MAX_STRING_SIZE), nullable=True
+        ),
     ]
 )
 
@@ -242,7 +259,7 @@ EXPECTED_TYPE = StructType(
         StructField("COL_FLOAT", DoubleType(), nullable=True),
         StructField("COL_DOUBLE", DoubleType(), nullable=True),
         StructField("COL_DECIMAL", DecimalType(10, 2), nullable=True),
-        StructField("COL_STRING", StringType(), nullable=True),
+        StructField("COL_STRING", StringType(MAX_STRING_SIZE), nullable=True),
         StructField("COL_BOOLEAN", BooleanType(), nullable=True),
         StructField("COL_BINARY", BinaryType(), nullable=True),
         StructField("COL_DATE", DateType(), nullable=True),
@@ -259,26 +276,30 @@ EXPECTED_TYPE = StructType(
         StructField("COL_ARRAY", VariantType(), nullable=True),
         StructField("COL_MAP", VariantType(), nullable=True),
         StructField("COL_STRUCT", VariantType(), nullable=True),
-        StructField("COL_INTERVAL_YEAR_MONTH", StringType(), nullable=True),
-        StructField("COL_INTERVAL_DAY_TIME", StringType(), nullable=True),
+        StructField(
+            "COL_INTERVAL_YEAR_MONTH", StringType(MAX_STRING_SIZE), nullable=True
+        ),
+        StructField(
+            "COL_INTERVAL_DAY_TIME", StringType(MAX_STRING_SIZE), nullable=True
+        ),
     ]
 )
 
 databricks_unicode_schema = StructType(
     [
         StructField('"编号"', LongType(), nullable=True),
-        StructField('"姓名"', StringType(), nullable=True),
-        StructField('"国家"', StringType(), nullable=True),
-        StructField('"备注"', StringType(), nullable=True),
+        StructField('"姓名"', StringType(MAX_STRING_SIZE), nullable=True),
+        StructField('"国家"', StringType(MAX_STRING_SIZE), nullable=True),
+        StructField('"备注"', StringType(MAX_STRING_SIZE), nullable=True),
     ]
 )
 
 databricks_double_quoted_schema = StructType(
     [
         StructField('"id"', LongType(), nullable=True),
-        StructField('"name"', StringType(), nullable=True),
-        StructField('"country"', StringType(), nullable=True),
-        StructField('"remarks"', StringType(), nullable=True),
+        StructField('"name"', StringType(MAX_STRING_SIZE), nullable=True),
+        StructField('"country"', StringType(MAX_STRING_SIZE), nullable=True),
+        StructField('"remarks"', StringType(MAX_STRING_SIZE), nullable=True),
     ]
 )
 
