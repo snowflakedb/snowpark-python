@@ -2315,6 +2315,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @snowpark_pandas_type_immutable_check
     def set_columns(self, new_pandas_labels: Axes) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _set_columns_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._set_columns_internal(
+                new_pandas_labels=new_pandas_labels
+            )
+        qc = self._set_columns_internal(new_pandas_labels=new_pandas_labels)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _set_columns_internal(
+        self, new_pandas_labels: Axes
+    ) -> "SnowflakeQueryCompiler":
+        """
         Set pandas column labels with the new column labels
 
         Args:
@@ -4490,6 +4504,50 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )  # pragma: no cover
 
     def groupby_agg(
+        self,
+        by: Any,
+        agg_func: AggFuncType,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+        how: str = "axis_wise",
+        numeric_only: bool = False,
+        is_series_groupby: bool = False,
+        drop: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _groupby_agg_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._groupby_agg_internal(
+                by=by,
+                agg_func=agg_func,
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+                agg_args=agg_args,
+                agg_kwargs=agg_kwargs,
+                how=how,
+                numeric_only=numeric_only,
+                is_series_groupby=is_series_groupby,
+                drop=drop,
+            )
+        qc = self._groupby_agg_internal(
+            by=by,
+            agg_func=agg_func,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+            how=how,
+            numeric_only=numeric_only,
+            is_series_groupby=is_series_groupby,
+            drop=drop,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _groupby_agg_internal(
         self,
         by: Any,
         agg_func: AggFuncType,
@@ -7098,6 +7156,33 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return query_compiler
 
     def agg(
+        self,
+        func: AggFuncType,
+        axis: int,
+        args: Any,
+        kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _agg_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._agg_internal(
+                func=func,
+                axis=axis,
+                args=args,
+                kwargs=kwargs,
+            )
+        qc = self._agg_internal(
+            func=func,
+            axis=axis,
+            args=args,
+            kwargs=kwargs,
+        )
+        qc = self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+        return qc
+
+    def _agg_internal(
         self,
         func: AggFuncType,
         axis: int,
@@ -10723,6 +10808,36 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         columns: Union["SnowflakeQueryCompiler", slice, int, bool, list, AnyArrayLike],
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _take_2d_positional_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and (
+            index == slice(None, None, None)
+            or (
+                isinstance(index, slice)
+                and (index.start is None or index.start == 0)
+                and (index.step is None or index.step == 1)
+            )
+        ):
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._take_2d_positional_internal(
+                    index=index,
+                    columns=columns,
+                )
+            )
+
+        qc = self._take_2d_positional_internal(
+            index=index,
+            columns=columns,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _take_2d_positional_internal(
+        self,
+        index: Union["SnowflakeQueryCompiler", slice],
+        columns: Union["SnowflakeQueryCompiler", slice, int, bool, list, AnyArrayLike],
+    ) -> "SnowflakeQueryCompiler":
+        """
         Index QueryCompiler with passed keys.
 
         Parameters
@@ -11434,6 +11549,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def invert(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _invert_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._invert_internal()
+        qc = self._invert_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _invert_internal(self) -> "SnowflakeQueryCompiler":
         """
         Apply bitwise inversion for each element of the QueryCompiler.
 
@@ -17224,6 +17349,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(result_frame)
 
     def duplicated(
+        self,
+        subset: Union[Hashable, Sequence[Hashable]] = None,
+        keep: DropKeep = "first",
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _duplicated_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._duplicated_internal(
+                subset=subset,
+                keep=keep,
+            )
+        qc = self._duplicated_internal(
+            subset=subset,
+            keep=keep,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _duplicated_internal(
         self,
         subset: Union[Hashable, Sequence[Hashable]] = None,
         keep: DropKeep = "first",

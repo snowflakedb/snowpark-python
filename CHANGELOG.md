@@ -50,6 +50,14 @@
     - `st_y`
     - `st_ymax`
     - `st_ymin`
+    - `st_geogfromgeohash`
+    - `st_geogpointfromgeohash`
+    - `st_geographyfromwkb`
+    - `st_geographyfromwkt`
+    - `st_geometryfromwkb`
+    - `st_geometryfromwkt`
+    - `try_to_geography`
+    - `try_to_geometry`
 
 
 #### Bug Fixes
@@ -68,6 +76,7 @@
 #### New Features
 
 - Added support for the `dtypes` parameter of `pd.get_dummies`
+- Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
 - Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
 
 #### Improvements
@@ -114,6 +123,29 @@
   - `loc` (setting columns)
   - `to_datetime`
   - `drop`
+  - `invert`
+  - `duplicated`
+  - `iloc`
+  - `head`
+  - `columns` (e.g., df.columns = ["A", "B"])
+  - `agg`
+  - `min`
+  - `max`
+  - `count`
+  - `sum`
+  - `mean`
+  - `median`
+  - `std`
+  - `var`
+  - `groupby.agg`
+  - `groupby.min`
+  - `groupby.max`
+  - `groupby.count`
+  - `groupby.sum`
+  - `groupby.mean`
+  - `groupby.median`
+  - `groupby.std`
+  - `groupby.var`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
