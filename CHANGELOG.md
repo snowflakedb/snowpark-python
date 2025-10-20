@@ -58,7 +58,7 @@
     - `st_geometryfromwkt`
     - `try_to_geography`
     - `try_to_geometry`
-
+  
   - String and Binary functions:
     - `base64_decode_binary`
     - `compress`
@@ -70,7 +70,8 @@
     - `sha1_binary`
     - `sha2_binary`
     - `soundex_p123`
-
+    
+- Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
 
 #### Bug Fixes
 
@@ -79,6 +80,10 @@
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 - Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0.
 
+#### Improvements
+
+- The default maximum length for inferred StringType columns during schema inference in `DataFrameReader.dbapi` is now increased from 16MB to 128MB in parquet file based ingestion.
+
 #### Dependency Updates
 
 - Updated dependency of `snowflake-connector-python>=3.17,<5.0.0`.
@@ -86,8 +91,10 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Added support for the `dtypes` parameter of `pd.get_dummies`
 - Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
+- Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
 
 #### Improvements
 
