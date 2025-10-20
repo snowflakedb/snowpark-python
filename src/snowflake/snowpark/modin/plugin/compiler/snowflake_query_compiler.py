@@ -78,6 +78,7 @@ from pandas.api.types import (
     is_bool,
     is_bool_dtype,
     is_datetime64_any_dtype,
+    is_integer,
     is_integer_dtype,
     is_named_tuple,
     is_numeric_dtype,
@@ -151,7 +152,6 @@ from snowflake.snowpark.functions import (
     object_keys,
     pandas_udf,
     quarter,
-    random,
     rank,
     regexp_replace,
     reverse,
@@ -15950,23 +15950,46 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         # handle axis = 0
+
         if weights is not None:
             ErrorMessage.not_implemented("`weights` is not supported.")
+        if isinstance(
+            random_state,
+            (
+                np.ndarray,
+                np.random.BitGenerator,
+                np.random.RandomState,
+                np.random.Generator,
+            ),
+        ):
+            ErrorMessage.not_implemented("non-integer `random_state` is not supported.")
 
-        if random_state is not None:
-            ErrorMessage.not_implemented("`random_state` is not supported.")
-
+        if random_state is not None and not is_integer(random_state):
+            raise ValueError("random_state must be an integer or None.")
         assert n is not None or frac is not None
-        frame = self._modin_frame
-        if replace:
-            sampled_row_position_identifier = (
-                generate_snowflake_quoted_identifiers_helper(
-                    pandas_labels=[
-                        SAMPLED_ROW_POSITION_COLUMN_LABEL,
-                    ]
-                )[0]
-            )
+        if not replace:
+            if frac is not None and frac > 1:
+                raise ValueError(
+                    "Replace has to be set to `True` when upsampling the population `frac` > 1."
+                )
+            if n is not None and n > self.get_axis_len(axis=0):
+                raise ValueError(
+                    "Cannot take a larger sample than population when 'replace=False'"
+                )
 
+        frame = self._modin_frame
+
+        # use builtin('random') instead of snowflake.snowpark.functions.random
+        # because the latter does not take Column inputs, but we want to use
+        # pandas_lit() to create the seed.
+        # if random_state is None, we have to call random() with no arguments.
+        # random(NULL) is not valid.
+        random_maybe_with_state = builtin("random")(
+            *(tuple() if random_state is None else (pandas_lit(random_state),))
+        )
+        if replace:
+            # If `replace=True`, we can't use snowflake's built-in SAMPLE, which
+            # samples without replacement.
             pre_sampling_rowcount = self.get_axis_len(axis=0)
             if n is not None:
                 post_sampling_rowcount = n
@@ -15974,35 +15997,72 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 assert frac is not None
                 post_sampling_rowcount = round(frac * pre_sampling_rowcount)
 
-            sampled_row_position_col = uniform(
-                0, pre_sampling_rowcount - 1, random()
-            ).as_(sampled_row_position_identifier)
-
+            sampled_row_position_identifier = (
+                generate_snowflake_quoted_identifiers_helper(
+                    pandas_labels=[
+                        SAMPLED_ROW_POSITION_COLUMN_LABEL,
+                    ]
+                )[0]
+            )
             sampled_row_positions_snowpark_frame = pd.session.generator(
-                sampled_row_position_col,
+                uniform(0, pre_sampling_rowcount - 1, random_maybe_with_state).as_(
+                    sampled_row_position_identifier
+                ),
                 rowcount=post_sampling_rowcount,
             )
-
             sampled_row_positions_odf = OrderedDataFrame(
                 dataframe_ref=DataFrameReference(sampled_row_positions_snowpark_frame),
                 projected_column_snowflake_quoted_identifiers=[
                     sampled_row_position_identifier
                 ],
             )
-            sampled_odf = cache_result(
-                sampled_row_positions_odf.join(
-                    right=self._modin_frame.ordered_dataframe,
-                    left_on_cols=[sampled_row_position_identifier],
-                    right_on_cols=[
-                        self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
-                    ],
+            sampled_odf = sampled_row_positions_odf.join(
+                right=self._modin_frame.ordered_dataframe,
+                left_on_cols=[sampled_row_position_identifier],
+                right_on_cols=[
+                    self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
+                ],
+            )
+            # if random_state is not None, the result is already deterministic.
+            if random_state is None:
+                logging.warning(
+                    "Snowpark pandas `sample` will create a temp table for "
+                    + "sampled results to keep it deterministic."
                 )
+                sampled_odf = cache_result(sampled_odf)
+        elif random_state is not None:
+            # Snowflake's SAMPLE only accepts a seed when sampling from a
+            # table. A snowflake query compiler does not necessarily correspond
+            # to a particular snowflake table, and even though we could sample
+            # an intermediate table produce with cache_result(), we need to
+            # select a set of rows that is deterministic with respect to the
+            # table length rather than with respect to the query compiler or
+            # even the dataframe. For example, pd.DataFrame(list(range(1000))).sample(n=1, random_state=0) and
+            # pd.DataFrame(list(range(1000))[::-1]).sample(n=1, random_state=0)
+            # select the same row position.
+            if n is not None:
+                post_sampling_rowcount = n
+            else:
+                assert frac is not None
+                pre_sampling_rowcount = self.get_axis_len(axis=0)
+                post_sampling_rowcount = round(frac * pre_sampling_rowcount)
+            # Choose the top `post_sampling_rowcount` rows according to a random
+            # order.
+            new_identifier = self._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=["random_row_position"]
+            )[
+                0
+            ]
+            sampled_odf = (
+                self._modin_frame.ordered_dataframe.select(
+                    *self._modin_frame.ordered_dataframe.projected_column_snowflake_quoted_identifiers,
+                    random_maybe_with_state.as_(new_identifier),
+                )
+                .sort(OrderingColumn(new_identifier))
+                .limit(post_sampling_rowcount)
             )
         else:
             sampled_odf = frame.ordered_dataframe.sample(n=n, frac=frac)
-        logging.warning(
-            "Snowpark pandas `sample` will create a temp table for sampled results to keep it deterministic."
-        )
         res = SnowflakeQueryCompiler(
             InternalFrame.create(
                 ordered_dataframe=sampled_odf,
