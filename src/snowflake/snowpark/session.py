@@ -36,7 +36,6 @@ from typing import (
 
 import cloudpickle
 import importlib.metadata
-
 from packaging.requirements import Requirement
 from packaging.version import parse as parse_version
 
@@ -230,7 +229,6 @@ from snowflake.snowpark.types import (
 from snowflake.snowpark.udaf import UDAFRegistration
 from snowflake.snowpark.udf import UDFRegistration
 from snowflake.snowpark.udtf import UDTFRegistration
-
 
 if TYPE_CHECKING:
     import modin.pandas  # pragma: no cover
