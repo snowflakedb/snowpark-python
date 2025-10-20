@@ -644,7 +644,7 @@ def register_query_compiler_method_not_implemented(
     without meaningful benefit.
 
     Args:
-        api_cls_names: Frontend class names (e.g. "BasePandasDataset", "Series", "DataFrame", or None). It can be a list if multiple api_clas_names are needed.
+        api_cls_names: Frontend class names (e.g. "BasePandasDataset", "Series", "DataFrame", or None). It can be a list if multiple api_cls_names are needed.
         method_name: Method name to register.
         unsupported_args: UnsupportedArgsRule for args-based auto-switching.
                           If None, method is treated as completely unimplemented.
