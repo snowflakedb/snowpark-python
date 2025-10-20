@@ -7,6 +7,7 @@ import threading
 from unittest.mock import patch, MagicMock
 import pytest
 
+from snowflake.snowpark._internal.external_telemetry import ExternalTelemetry
 from tests.utils import RUNNING_ON_GH
 
 try:
@@ -48,8 +49,8 @@ pytestmark = [
     ),
 ]
 
-mock_tracer_results = {}
-mock_log_results = {}
+mock_tracer_results = []
+mock_log_results = []
 lock = threading.RLock()
 
 
@@ -59,10 +60,7 @@ class MockOTLPLogExporter(OTLPLogExporter):
             return LogExportResult.FAILURE
 
         with lock:
-            if self._endpoint in mock_log_results:
-                mock_log_results[self._endpoint].extend(batch)
-            else:
-                mock_log_results[self._endpoint] = batch
+            mock_log_results.extend(batch)
             return LogExportResult.SUCCESS
 
 
@@ -71,10 +69,7 @@ class MockOTLPSpanExporter(OTLPSpanExporter):
         if self._shutdown:
             return SpanExportResult.FAILURE
         with lock:
-            if self._endpoint in mock_tracer_results:
-                mock_tracer_results[self._endpoint].extend(batch)
-            else:
-                mock_tracer_results[self._endpoint] = batch
+            mock_tracer_results.extend(batch)
             return SpanExportResult.SUCCESS
 
 
@@ -110,17 +105,15 @@ def mock_session(session):
     return session
 
 
-def test_basic_end_to_end(session, request):
-    current_endpoint = request.node.name
-    log_endpoint = f"https://{current_endpoint}/v1/logs"
-    trace_endpoint = f"https://{current_endpoint}/v1/traces"
+def test_end_to_end(session):
+    external_telemetry = session.external_telemetry
 
-    mock_response = create_mock_response(current_endpoint)
+    mock_response = create_mock_response("https://fake_endpoint")
 
     # test with mock exporter and authentication
     with (
         patch(
-            "snowflake.snowpark.session.create_attestation",
+            "snowflake.snowpark._internal.external_telemetry.create_attestation",
             return_value=FakeAttestation(),
         ),
         patch("requests.get", return_value=mock_response),
@@ -133,97 +126,20 @@ def test_basic_end_to_end(session, request):
             side_effect=make_mock_log_exporter,
         ),
     ):
-        session.enable_event_table_telemetry_collection("db.sc.tb", logging.INFO, True)
-
-        tracer = trace.get_tracer("external_telemetry")
-        with tracer.start_as_current_span("code_store") as span:
-            span.set_attribute("code.lineno", "21")
-            span.set_attribute("code.content", "session.sql(...)")
-            logging.info("Trace being sent to event table")
-            logging.info("second log recorded")
-
-        session.disable_event_table_telemetry_collection()
-    # force batch processor to send telemetry
-    session._proxy_tracer_provider.force_flush(1000)
-    session._proxy_log_provider.force_flush(1000)
-    assert mock_tracer_results[trace_endpoint][0].attributes == {
-        "code.lineno": "21",
-        "code.content": "session.sql(...)",
-    }
-    assert (
-        mock_log_results[log_endpoint][0].log_record.body
-        == "Trace being sent to event table"
-    )
-    assert mock_log_results[log_endpoint][1].log_record.body == "second log recorded"
-
-
-def test_send_telemetry_out_of_scope(session, request):
-    current_endpoint = request.node.name
-    log_endpoint = f"https://{current_endpoint}/v1/logs"
-    trace_endpoint = f"https://{current_endpoint}/v1/traces"
-
-    # mock authentication
-    mock_response = create_mock_response(current_endpoint)
-
-    # test with mock exporter and authentication
-    with (
-        patch(
-            "snowflake.snowpark.session.create_attestation",
-            return_value=FakeAttestation(),
-        ),
-        patch("requests.get", return_value=mock_response),
-        patch(
-            "opentelemetry.exporter.otlp.proto.http.trace_exporter.OTLPSpanExporter",
-            side_effect=make_mock_trace_exporter,
-        ),
-        patch(
-            "opentelemetry.exporter.otlp.proto.http._log_exporter.OTLPLogExporter",
-            side_effect=make_mock_log_exporter,
-        ),
-    ):
+        # out of scope trace and log
         tracer = trace.get_tracer("external_telemetry")
         with tracer.start_as_current_span("code_store") as span:
             span.set_attribute("code.pos", "before_enable")
             logging.info("log before enable")
-        session.enable_event_table_telemetry_collection("db.sc.tb", logging.INFO, True)
-        session.disable_event_table_telemetry_collection()
-        with tracer.start_as_current_span("code_store") as span:
-            span.set_attribute("code.pos", "after_enable")
-            logging.info("log after enable")
-    # force batch processor to send telemetry
-    session._proxy_tracer_provider.force_flush(1000)
-    session._proxy_log_provider.force_flush(1000)
 
-    assert trace_endpoint not in mock_tracer_results
-    assert log_endpoint not in mock_log_results
+        assert len(mock_tracer_results) == 0
+        assert len(mock_log_results) == 0
 
+        external_telemetry.enable_event_table_telemetry_collection(
+            "db.sc.tb", logging.INFO, True
+        )
 
-def test_re_enable(session, request):
-    current_endpoint = request.node.name
-    log_endpoint = f"https://{current_endpoint}/v1/logs"
-    trace_endpoint = f"https://{current_endpoint}/v1/traces"
-
-    mock_response = create_mock_response(current_endpoint)
-
-    # test with mock exporter and authentication
-    with (
-        patch(
-            "snowflake.snowpark.session.create_attestation",
-            return_value=FakeAttestation(),
-        ),
-        patch("requests.get", return_value=mock_response),
-        patch(
-            "opentelemetry.exporter.otlp.proto.http.trace_exporter.OTLPSpanExporter",
-            side_effect=make_mock_trace_exporter,
-        ),
-        patch(
-            "opentelemetry.exporter.otlp.proto.http._log_exporter.OTLPLogExporter",
-            side_effect=make_mock_log_exporter,
-        ),
-    ):
-        session.enable_event_table_telemetry_collection("db.sc.tb", logging.INFO, True)
-        session.disable_event_table_telemetry_collection()
-        session.enable_event_table_telemetry_collection("db.sc.tb", logging.INFO, True)
+        # in scope trace and log
         tracer = trace.get_tracer("external_telemetry")
         with tracer.start_as_current_span("code_store") as span:
             span.set_attribute("code.lineno", "21")
@@ -231,34 +147,71 @@ def test_re_enable(session, request):
             logging.info("Trace being sent to event table")
             logging.info("second log recorded")
 
-    # force batch processor to send telemetry
-    session._proxy_tracer_provider.force_flush(1000)
-    session._proxy_log_provider.force_flush(1000)
-    assert mock_tracer_results[trace_endpoint][0].attributes == {
-        "code.lineno": "21",
-        "code.content": "session.sql(...)",
-    }
-    assert (
-        mock_log_results[log_endpoint][0].log_record.body
-        == "Trace being sent to event table"
-    )
-    assert mock_log_results[log_endpoint][1].log_record.body == "second log recorded"
+        external_telemetry.disable_event_table_telemetry_collection()
+        # force batch processor to send telemetry
+        external_telemetry._proxy_tracer_provider.force_flush(1000)
+        external_telemetry._proxy_log_provider.force_flush(1000)
+        assert mock_tracer_results[0].attributes == {
+            "code.lineno": "21",
+            "code.content": "session.sql(...)",
+        }
+        assert mock_log_results[0].log_record.body == "Trace being sent to event table"
+        assert mock_log_results[1].log_record.body == "second log recorded"
+
+        # clean up after disable
+        mock_log_results.clear()
+        mock_tracer_results.clear()
+
+        # out of scope trace and log
+        with tracer.start_as_current_span("code_store") as span:
+            span.set_attribute("code.pos", "after_enable")
+            logging.info("log after enable")
+
+        assert len(mock_tracer_results) == 0
+        assert len(mock_log_results) == 0
+
+        # re-enable external telemetry
+        external_telemetry.enable_event_table_telemetry_collection(
+            "db.sc.tb", logging.INFO, True
+        )
+
+        tracer = trace.get_tracer("external_telemetry")
+        with tracer.start_as_current_span("code_store") as span:
+            span.set_attribute("code.lineno", "21")
+            span.set_attribute("code.content", "session.sql(...)")
+            logging.info("Trace being sent to event table")
+            logging.info("second log recorded")
+
+        # force batch processor to send telemetry
+        external_telemetry._proxy_tracer_provider.force_flush(1000)
+        external_telemetry._proxy_log_provider.force_flush(1000)
+        assert mock_tracer_results[0].attributes == {
+            "code.lineno": "21",
+            "code.content": "session.sql(...)",
+        }
+        assert mock_log_results[0].log_record.body == "Trace being sent to event table"
+        assert mock_log_results[1].log_record.body == "second log recorded"
 
 
 def test_negative_case(session, caplog):
-    session.enable_event_table_telemetry_collection("db.sc.tb", None, False)
+    external_telemetry = ExternalTelemetry(session)
+    external_telemetry.enable_event_table_telemetry_collection("db.sc.tb", None, False)
     assert (
         "Snowpark python log_level and trace_level are not enabled to collect telemetry into event table:"
         in caplog.text
     )
 
-    session.enable_event_table_telemetry_collection(
+    external_telemetry.enable_event_table_telemetry_collection(
         "no_fully_qualified", logging.INFO, True
     )
     assert "Input event table is converted to fully qualified name:" in caplog.text
 
-    with patch("snowflake.snowpark.session.installed_opentelemery", False):
-        session.enable_event_table_telemetry_collection("db.sc.tb", logging.INFO, True)
+    with patch(
+        "snowflake.snowpark._internal.external_telemetry.installed_opentelemetry", False
+    ):
+        external_telemetry.enable_event_table_telemetry_collection(
+            "db.sc.tb", logging.INFO, True
+        )
         assert (
             "Opentelemetry dependencies are missing, no telemetry export into event table:"
             in caplog.text
