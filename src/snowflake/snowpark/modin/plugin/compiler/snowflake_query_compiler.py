@@ -4321,6 +4321,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 The row or rows to sort by.
             ascending : bool, default: True
                 Sort in ascending order (True) or descending order (False).
+            axis: Always set to 1. Required because the decorator compares frontend
+                  method arguments during stay_cost computation (returning COST_IMPOSSIBLE)
+                  but examines QC method arguments when calling the wrapped method.
             **kwargs : dict
                 Serves the compatibility purpose. Does not affect the result.
 
