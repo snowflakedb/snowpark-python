@@ -150,6 +150,7 @@
   - `groupby.median`
   - `groupby.std`
   - `groupby.var`
+  - `drop_duplicates`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
