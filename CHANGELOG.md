@@ -144,6 +144,8 @@
   - `groupby.median`
   - `groupby.std`
   - `groupby.var`
+  - `groupby.nunique`
+  - `groupby.size`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes

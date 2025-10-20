@@ -319,6 +319,8 @@ def test_duplicated(session):
         "median",
         "std",
         "var",
+        "nunique",
+        "size",
     ],
 )
 @sql_count_checker(query_count=6)
@@ -357,7 +359,10 @@ def test_groupby_agg(session, func):
     native_result4 = native_df.groupby("A")["B"].agg([func])
 
     # compare results
-    assert_frame_equal(snow_result1, native_result1, check_dtype=False)
+    if func == "size":
+        assert_series_equal(snow_result1, native_result1, check_dtype=False)
+    else:
+        assert_frame_equal(snow_result1, native_result1, check_dtype=False)
     assert_frame_equal(snow_result2, native_result2, check_dtype=False)
     assert_series_equal(snow_result3, native_result3, check_dtype=False)
     assert_frame_equal(snow_result4, native_result4, check_dtype=False)
