@@ -666,7 +666,11 @@ def test_create_from_pandas_basic_pandas_types(session):
     )
     assert isinstance(sp_df, Table)
     # If max string size is not 16mb then it shows up in the schema definition
-    max_size = "" if session._conn.max_string_size == 2**24 else "16777216"
+    max_size = ""
+    if session._conn.max_string_size == 2**24:
+        max_size = "16777216"
+    if session._conn.max_string_size == 2**27:
+        max_size = "134217728"
     assert (
         str(sp_df.schema)
         == f"""\
