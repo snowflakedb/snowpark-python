@@ -58,7 +58,7 @@
     - `st_geometryfromwkt`
     - `try_to_geography`
     - `try_to_geometry`
-
+- Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
 
 #### Bug Fixes
 
