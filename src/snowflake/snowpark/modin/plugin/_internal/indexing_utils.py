@@ -1130,7 +1130,9 @@ def get_frame_by_row_label(
 
     # boolean indexer
     if isinstance(key_datatype, BooleanType):
-        return _get_frame_by_row_label_boolean_frame(internal_frame, key)
+        return _get_frame_by_row_label_boolean_frame(
+            internal_frame, key, dummy_row_pos_mode
+        )
 
     return _get_frame_by_row_label_non_boolean_frame(
         internal_frame, key, dummy_row_pos_mode
@@ -1470,6 +1472,7 @@ def _get_frame_by_row_label_slice(
 def _get_frame_by_row_label_boolean_frame(
     internal_frame: InternalFrame,
     key: InternalFrame,
+    dummy_row_pos_mode: bool = False,
 ) -> InternalFrame:
     """
     Select rows with boolean frame key. Here, if the frame and key's index are aligned, then the join is on their row
@@ -1488,6 +1491,7 @@ def _get_frame_by_row_label_boolean_frame(
         internal_frame,
         key,
         "coalesce",
+        dummy_row_pos_mode,
     )
 
     key_bool_val_col = col(
