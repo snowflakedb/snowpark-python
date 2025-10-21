@@ -1321,3 +1321,15 @@ class TestTimedelta:
             ),
             lambda df: df.groupby("A").var(),
         )
+
+    @sql_count_checker(query_count=1)
+    def test_groupby_agg_named_aggregation_codepath(self):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                {
+                    "team": ["A", "B"],
+                    "score": [10, 15],
+                }
+            ),
+            lambda df: df.groupby("team").agg({"score": [("total_score", "sum")]}),
+        )
