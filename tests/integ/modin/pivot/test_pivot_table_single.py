@@ -54,6 +54,7 @@ def test_pivot_table_no_index_single_column_single_value(df_data):
         np.std,
         "var",
         np.var,
+        "nunique",
     ),
 )
 @sql_count_checker(query_count=1)
@@ -77,6 +78,7 @@ def test_pivot_table_single_index_single_column_single_value(df_data, aggfunc):
         "min",
         "max",
         "mean",
+        "nunique",
     ],
 )
 @sql_count_checker(query_count=1)
@@ -95,6 +97,7 @@ def test_pivot_table_multi_index_single_column_single_value(df_data, aggfunc):
         "min",
         "max",
         "mean",
+        "nunique",
     ],
 )
 @sql_count_checker(query_count=1)
@@ -201,6 +204,7 @@ def test_pivot_table_with_duplicate_values(
     [
         "count",
         "sum",
+        "nunique",
     ],
 )
 @pytest.mark.parametrize(
@@ -228,6 +232,7 @@ def test_pivot_table_with_sum_and_count_null_and_empty_values_matching_behavior(
     [
         "count",
         "sum",
+        "nunique",
     ],
 )
 def test_pivot_table_with_sum_and_count_null_and_empty_values_matching_behavior_skipped(
