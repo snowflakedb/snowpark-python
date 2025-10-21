@@ -6,6 +6,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug where `session.udf|udtf|udaf|sproc.register` failed when an extra session argument was passed. These methods do not expect a session argument; please remove it if provided.
+
 ### Snowpark pandas API Updates
 
 #### Bug Fixes
