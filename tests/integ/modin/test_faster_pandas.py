@@ -392,6 +392,37 @@ def test_groupby_agg(session, func):
     assert_frame_equal(snow_result4, native_result4, check_dtype=False)
 
 
+@sql_count_checker(query_count=9, join_count=1, udtf_count=1)
+def test_groupby_apply(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[2, 12], [2, 11], [3, 13]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name).sort_values("B", ignore_index=True)
+    snow_result = df.groupby("A").apply(lambda x: x + 1)
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = native_df.groupby("A").apply(lambda x: x + 1)
+
+    # compare results
+    assert_frame_equal(
+        snow_result, native_result, check_dtype=False, check_index_type=False
+    )
+
+
 @sql_count_checker(query_count=5)
 def test_iloc_head(session):
     # create tables
