@@ -1511,6 +1511,122 @@ class BasePandasDataset:
         in Snowpark pandas.
         """
 
+    def interpolate():
+        """
+        Fill NaN values using an interpolation method.
+
+        Snowpark pandas only supports ``method='linear'``, ``'pad'``/``'ffill'``, and
+        ``'bfill'``/``'backfill'``. See below for additional restrictions on other parameters.
+
+        Only ``method='linear'`` is supported for DataFrame/Series with a MultiIndex.
+
+        Parameters
+        ----------
+        method : str, default 'linear'
+            Interpolation technique to use. One of:
+
+            * 'linear': Ignore the index and treat the values as equally
+              spaced. This is the only method supported on MultiIndexes.
+            * 'pad': Fill in NaNs using existing values.
+
+        axis : {{0 or 'index', 1 or 'columns', None}}, default None
+            Axis to interpolate along. For `Series` this parameter is unused
+            and defaults to 0. Snowpark pandas only supports ``axis=0``.
+        limit : int, optional
+            Maximum number of consecutive NaNs to fill. Unsupported by Snowpark pandas.
+        inplace : bool, default False
+            Update the data in place if possible.
+        limit_direction : {{'forward', 'backward', 'both'}}, Optional
+            Consecutive NaNs will be filled in this direction.
+
+            If limit is specified:
+                * If 'method' is 'pad' or 'ffill', 'limit_direction' must be 'forward'.
+                * If 'method' is 'backfill' or 'bfill', 'limit_direction' must be
+                  'backwards'.
+
+            If 'limit' is not specified:
+                * If 'method' is 'backfill' or 'bfill', the default is 'backward'
+                * else the default is 'forward'
+
+            raises ValueError if `limit_direction` is 'forward' or 'both' and
+                method is 'backfill' or 'bfill'.
+            raises ValueError if `limit_direction` is 'backward' or 'both' and
+                method is 'pad' or 'ffill'.
+
+        limit_area : {{`None`, 'inside', 'outside'}}, default None
+            If limit is specified, consecutive NaNs will be filled with this
+            restriction.
+
+            * ``None``: No fill restriction.
+            * 'inside': Only fill NaNs surrounded by valid values
+              (interpolate).
+            * 'outside': Only fill NaNs outside valid values (extrapolate).
+
+            Snowpark pandas does not support 'outside'. Snowpark pandas only supports
+            'inside' if ``method='linear'``.
+
+        downcast : optional, 'infer' or None, defaults to None
+            Downcast dtypes if possible. Unsupported by Snowpark pandas.
+
+        ``**kwargs`` : optional
+            Keyword arguments to pass on to the interpolating function. Ignored by Snowpark pandas.
+
+        Returns
+        -------
+        Series or DataFrame or None
+            Returns the same object type as the caller, interpolated at
+            some or all ``NaN`` values or None if ``inplace=True``.
+
+        See Also
+        --------
+        fillna : Fill missing values using different methods.
+
+        Examples
+        --------
+        Filling in ``NaN`` in a :class:`~pandas.Series` via linear
+        interpolation.
+
+        >>> s = pd.Series([0, 1, np.nan, 3])
+        >>> s
+        0    0.0
+        1    1.0
+        2    NaN
+        3    3.0
+        dtype: float64
+        >>> s.interpolate()  # doctest: +SKIP
+        0    0.0
+        1    1.0
+        2    2.0
+        3    3.0
+        dtype: float64
+
+        Fill the DataFrame forward (that is, going down) along each column
+        using linear interpolation.
+
+        Note how the last entry in column 'a' is interpolated differently,
+        because there is no entry after it to use for interpolation.
+        Note how the first entry in column 'b' remains ``NaN``, because there
+        is no entry before it to use for interpolation.
+
+        >>> df = pd.DataFrame([(0.0, np.nan, -1.0, 1.0),
+        ...                    (np.nan, 2.0, np.nan, np.nan),
+        ...                    (2.0, 3.0, np.nan, 9.0),
+        ...                    (np.nan, 4.0, -4.0, 16.0)],
+        ...                   columns=list('abcd'))
+        >>> df
+             a    b    c     d
+        0  0.0  NaN -1.0   1.0
+        1  NaN  2.0  NaN   NaN
+        2  2.0  3.0  NaN   9.0
+        3  NaN  4.0 -4.0  16.0
+        >>> df.interpolate(method='linear', limit_direction='forward', axis=0)  # doctest: +SKIP
+             a    b    c     d
+        0  0.0  NaN -1.0   1.0
+        1  1.0  2.0 -2.0   5.0
+        2  2.0  3.0 -3.0   9.0
+        3  2.0  4.0 -4.0  16.0
+        """
+
     def convert_dtypes():
         """
         Convert columns to best possible dtypes using dtypes supporting ``pd.NA``.

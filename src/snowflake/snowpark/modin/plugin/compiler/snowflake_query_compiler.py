@@ -4517,6 +4517,50 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         drop: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _groupby_agg_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._groupby_agg_internal(
+                by=by,
+                agg_func=agg_func,
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+                agg_args=agg_args,
+                agg_kwargs=agg_kwargs,
+                how=how,
+                numeric_only=numeric_only,
+                is_series_groupby=is_series_groupby,
+                drop=drop,
+            )
+        qc = self._groupby_agg_internal(
+            by=by,
+            agg_func=agg_func,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+            how=how,
+            numeric_only=numeric_only,
+            is_series_groupby=is_series_groupby,
+            drop=drop,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _groupby_agg_internal(
+        self,
+        by: Any,
+        agg_func: AggFuncType,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+        how: str = "axis_wise",
+        numeric_only: bool = False,
+        is_series_groupby: bool = False,
+        drop: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         compute groupby with aggregation functions.
         Note: groupby with categorical data type expands all categories during groupby, for example,
         with a dataframe created with following:
@@ -15350,6 +15394,209 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         return SnowflakeQueryCompiler(internal_frame)
+
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "interpolate",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: args.get("method")
+                    not in {"linear", "ffill", "pad", "bfill", "backfill"},
+                    lambda args: f"method = '{args.get('method')}' is not supported. Snowpark pandas currently only supports method = 'linear', 'ffill', 'pad', 'bfill', and 'backfill'",
+                ),
+                ("axis", 1),
+                (
+                    lambda args: args.get("limit") is not None,
+                    lambda args: f"limit = {args.get('limit')} is not supported. Snowpark pandas currently only supports limit = None",
+                ),
+                (
+                    lambda args: args.get("downcast") is not None,
+                    lambda args: f"downcast = '{args.get('downcast')}' is not supported. Snowpark pandas currently only supports downcast = None",
+                ),
+            ]
+        ),
+    )
+    def interpolate(
+        self,
+        method: str = "linear",
+        axis: int = 0,
+        limit: Optional[int] = None,
+        inplace: bool = False,
+        limit_direction: Literal["forward", "backward", "both", None] = None,
+        limit_area: Literal[None, "inside", "outside"] = None,
+        downcast: Literal["infer", None] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Interpolate missing values in a dataframe.
+
+        Only numeric and datetime columns are affected; other columns are left untouched.
+
+        Parameters
+        ----------
+        method: str, default: "linear"
+            The method of interpolation. Native pandas supports a wide range of values for this argument,
+            and uses it to call an appropriate scipy interpolation function. Snowflake only supports the
+            "linear", "bfill", and "pad" methods; the "index"/"values" method can also be easily supported
+            but is left as an exercise for some future implementor.
+        axis: int, default: 0
+            The axis across which to interpolate. Snowflake only supports 0 (columnar).
+        limit: Optional[int], default: None
+            The maximum number of consecutive NaN values to fill. Not supported by Snowpark pandas.
+        inplace: bool, default: False
+            Whether or not the interpolation occurs in-place. This argument is ignored and only provided
+            for compatibility with Modin.
+        limit_direction: Literal["forward", "backward", "both", None], default: None
+            The direction in which to fill consecutive NaN values. If `method` is "pad" or "ffill"
+            this must be "forward"; if `method` is "bfill" or "backfill" this must be "backward".
+
+            The default value is "backward" for "bfill"/"backfill", and "forward" otherwise.
+        limit_area: Literal["inside", "outside", None], default: None
+            Restrictions on how consecutive NaN values should be filled. None means all NaN values
+            are replaced, "inside" means only NaNs between valid values are replaced, and "outside"
+            means only NaNs outside valid values are replaced.
+
+            If the method is "linear", only "inside" and None are supported.
+
+            If the method is "pad"/"ffill" or "backfill"/"bfill", only None is supported.
+        downcast: Literal["infer", None], default: None
+            Whether to downcast dtypes if possible. Not supported by Snowpark pandas.
+
+        Returns
+        -------
+        SnowflakeQueryCompiler
+            A query compiler containing the interpolated result.
+        """
+        if method == "linear":
+            sql_fill_method = "interpolate_linear"
+        elif method == "pad" or method == "ffill":
+            sql_fill_method = "interpolate_ffill"
+        elif method == "backfill" or method == "bfill":
+            sql_fill_method = "interpolate_bfill"
+        else:
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas does not yet support interpolate with method = {method}"
+            )
+        # The high-level approaches for each supported fill method are as follows.
+        # Linear fill:
+        # - limit_area=None: INTERPOLATE_LINEAR, then
+        #   - INTERPOLATE_FFILL if limit_direction = "forward"
+        #   - INTERPOLATE_BFILL if limit_direction = "backward"
+        #   - do both FFILL and BFILL if limit_direction = "both"
+        # - limit_area="inside": INTERPOLATE_LINEAR only
+        # - limit_area="outside": unsupported
+        # Forwards fill: (direction is restricted to "forwards")
+        # - limit_area=None: FFILL once
+        # - limit_area="inside": unsupported
+        # - limit_area="outside": unsupported
+        # Backwards fill: (direction is restricted to "backwards")
+        # - limit_area=None: BFILL once
+        # - limit_area="inside": unsupported
+        # - limit_area="outside": unsupported
+        #
+        # "outside" configurations could theoretically be done by finding the max/min row position
+        # of non-null values in the table, but this gets complicated.
+        if (
+            (
+                sql_fill_method == "interpolate_ffill"
+                or sql_fill_method == "interpolate_bfill"
+            )
+            and limit_area is not None
+        ) or (sql_fill_method == "interpolate_linear" and limit_area == "outside"):
+            ErrorMessage.not_implemented(
+                f"Snowpark pandas does not yet support interpolate with limit_area = {limit_area} for method = {method}"
+            )
+        # Validate limit_direction (these are actual ValueErrors, not unimplemented parameter combinations)
+        if (
+            sql_fill_method == "interpolate_ffill"
+            and limit_direction is not None
+            and limit_direction != "forward"
+        ):
+            raise ValueError(
+                f"`limit_direction` must be 'forward' for method `{method}`"
+            )
+        if (
+            sql_fill_method == "interpolate_bfill"
+            and limit_direction is not None
+            and limit_direction != "backward"
+        ):
+            raise ValueError(
+                f"`limit_direction` must be 'backward' for method `{method}`"
+            )
+        # pandas only supports linear interpolation for MultiIndex rows.
+        if self.is_multiindex(axis=0) and sql_fill_method != "interpolate_linear":
+            raise ValueError(
+                "Only `method=linear` interpolation is supported on MultiIndexes."
+            )
+        if self.get_axis_len(1) == 0:
+            # If there's no columns, do nothing.
+            return self
+        if limit_direction is None:
+            limit_direction = (
+                "backward" if sql_fill_method == "interpolate_bfill" else "forward"
+            )
+        frame = self._modin_frame.ensure_row_position_column()
+        original_identifiers = (
+            self._modin_frame.data_column_snowflake_quoted_identifiers
+        )
+        # Linear interpolation touches only numeric and datetime columns, but ffill and bfill work
+        # on non-numeric data as well.
+        # SNOW-2405318: Tests that hit this branch are skipped due to a SQL bug with INTERPOLATE_LINEAR.
+        if sql_fill_method == "interpolate_linear":  # pragma: no cover
+            columns_to_interpolate = [
+                identifier
+                for identifier, dtype in zip(
+                    original_identifiers, self._get_dtypes(original_identifiers)
+                )
+                if is_datetime64_any_dtype(dtype) or is_numeric_dtype(dtype)
+            ]
+        else:
+            columns_to_interpolate = original_identifiers
+        pos_window = Window.order_by(frame.row_position_snowflake_quoted_identifier)
+        # SNOW-2405318: Tests that hit this branch are skipped due to a SQL bug with INTERPOLATE_LINEAR.
+        # The branch was tested manually with the INTERPOLATE_LINEAR invocation replaced with
+        # INTERPOLATE_FFILL to ensure it otherwise works; coverage should be returned after the
+        # server-side bug is addressed.
+        if (
+            sql_fill_method == "interpolate_linear" and limit_area is None
+        ):  # pragma: no cover
+            # If the fill method is linear and limit_area is None, we need to fill leading/trailing
+            # NULL values as well since the SQL function ordinarily does not touch them. Because
+            # window functions cannot be nested, we implement this by adding 1 column with the FFILL
+            # result (covers trailing NULLs), and 1 column with the BFILL result (covers leading
+            # NULLs), then coalescing each interpolation together.
+            # Note that this may create a SQL expression with 3x the columns of the original frame,
+            # so it may become expensive. However, we expect most interpolations to occur on
+            # single-column frames or Series, so this overhead is acceptable.
+            #
+            # Example:
+            #   pd.Series([nan, 0.0, nan, 1.0, nan]).interpolate(method="linear", limit_area=None)
+            # 1. input column               nan 0.0 nan 1.0 nan
+            # 2. after linear interpolation nan 0.0 0.5 1.0 nan
+            # 3. after ffill                nan 0.0 0.5 1.0 1.0
+            # 4. after bfill                0.0 0.0 0.5 1.0 1.0
+            update_expr = {}
+            for column_identifier in columns_to_interpolate:
+                column = col(column_identifier)
+                cols = [builtin("interpolate_linear")(column).over(pos_window)]
+                if limit_direction == "forward" or limit_direction == "both":
+                    cols.append(builtin("interpolate_ffill")(column).over(pos_window))
+                if limit_direction == "backward" or limit_direction == "both":
+                    cols.append(builtin("interpolate_bfill")(column).over(pos_window))
+                update_expr[column_identifier] = coalesce(*cols)
+        else:
+            # Other parameter combinations map directly to SQL behavior.
+            update_expr = {
+                column_identifier: builtin(sql_fill_method)(
+                    col(column_identifier)
+                ).over(pos_window)
+                for column_identifier in columns_to_interpolate
+            }
+        return SnowflakeQueryCompiler(
+            frame.update_snowflake_quoted_identifiers_with_expressions(update_expr)[
+                0
+            ].ensure_row_position_column()
+        )
 
     @register_query_compiler_method_not_implemented(
         "BasePandasDataset",
