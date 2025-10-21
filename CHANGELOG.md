@@ -59,7 +59,7 @@
     - `try_to_geography`
     - `try_to_geometry`
 - Added support for `Session.udf_profiler`.
-
+- Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
 
 #### Bug Fixes
 
@@ -67,6 +67,12 @@
 - Added a fix for floating point precision discrepancies in `interval_day_time_from_parts`.
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 - Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0.
+- Fixed a bug where `modin` would unintentionally be imported during session initialization in some scenarios.
+- Fixed a bug where `session.udf|udtf|udaf|sproc.register` failed when an extra session argument was passed. These methods do not expect a session argument; please remove it if provided.
+
+#### Improvements
+
+- The default maximum length for inferred StringType columns during schema inference in `DataFrameReader.dbapi` is now increased from 16MB to 128MB in parquet file based ingestion.
 
 #### Dependency Updates
 
@@ -75,7 +81,10 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Added support for the `dtypes` parameter of `pd.get_dummies`
+- Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
+- Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
 
 #### Improvements
 
@@ -123,6 +132,28 @@
   - `drop`
   - `invert`
   - `duplicated`
+  - `iloc`
+  - `head`
+  - `columns` (e.g., df.columns = ["A", "B"])
+  - `agg`
+  - `min`
+  - `max`
+  - `count`
+  - `sum`
+  - `mean`
+  - `median`
+  - `std`
+  - `var`
+  - `groupby.agg`
+  - `groupby.min`
+  - `groupby.max`
+  - `groupby.count`
+  - `groupby.sum`
+  - `groupby.mean`
+  - `groupby.median`
+  - `groupby.std`
+  - `groupby.var`
+  - `drop_duplicates`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes

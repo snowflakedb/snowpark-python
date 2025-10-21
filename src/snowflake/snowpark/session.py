@@ -757,7 +757,7 @@ class Session:
             )
         )
 
-        if importlib.util.find_spec("modin"):
+        if "modin" in sys.modules:
             try:
                 from modin.config import AutoSwitchBackend
 
