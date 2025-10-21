@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.data_source.datasource_typing import (
     Connection,
     Cursor,
 )
+from snowflake.snowpark._internal.server_connection import MAX_STRING_SIZE
 from snowflake.snowpark._internal.utils import (
     get_sorted_key_for_version,
     measure_time,
@@ -27,6 +28,7 @@ from snowflake.snowpark.types import (
     BinaryType,
     DateType,
     BooleanType,
+    StringType,
 )
 import snowflake.snowpark
 import logging
@@ -103,7 +105,16 @@ class BaseDriver:
         query_input_alias: str,
     ) -> StructType:
         self.get_raw_schema(table_or_query, cursor, is_query, query_input_alias)
-        return self.to_snow_type(self.raw_schema)
+        generated_schema = self.to_snow_type(self.raw_schema)
+        # snowflake will default string length to 128MB in the bundle which will be enabled in 2026-01
+        # https://docs.snowflake.com/en/release-notes/bcr-bundles/2025_07_bundle
+        # here we prematurely make the change to default string to
+        # 1. align the string length with UDTF based ingestion
+        # 2. avoid the BCR impact to dbapi feature
+        for field in generated_schema.fields:
+            if isinstance(field.datatype, StringType) and field.datatype.length is None:
+                field.datatype.length = MAX_STRING_SIZE
+        return generated_schema
 
     def infer_schema_from_description_with_error_control(
         self, table_or_query: str, is_query: bool, query_input_alias: str
@@ -177,13 +188,17 @@ class BaseDriver:
                 packages=packages or UDTF_PACKAGE_MAP.get(self.dbms_type),
                 imports=imports,
                 statement_params=statement_params,
+                _emit_ast=_emit_ast,  # internal function call, _emit_ast will be set to False by the caller
             )
         logger.debug(f"register ingestion udtf takes: {udtf_register_time()} seconds")
         call_udtf_sql = f"""
             select * from {partition_table}, table({udtf_name}({PARTITION_TABLE_COLUMN_NAME}))
             """
         res = session.sql(call_udtf_sql, _emit_ast=_emit_ast)
-        return self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast)
+        return BaseDriver.keep_nullable_attributes(
+            self.to_result_snowpark_df_udtf(res, schema, _emit_ast=_emit_ast),
+            schema,
+        )
 
     def udtf_class_builder(
         self,
@@ -284,6 +299,14 @@ class BaseDriver:
         return session.table(table_name, _emit_ast=_emit_ast)
 
     @staticmethod
+    def keep_nullable_attributes(
+        selected_df: "DataFrame", schema: StructType
+    ) -> "DataFrame":
+        for attr, source_field in zip(selected_df._plan.attributes, schema.fields):
+            attr.nullable = source_field.nullable
+        return selected_df
+
+    @staticmethod
     def to_result_snowpark_df_udtf(
         res_df: "DataFrame",
         schema: StructType,
@@ -293,10 +316,7 @@ class BaseDriver:
             res_df[field.name].cast(field.datatype).alias(field.name)
             for field in schema.fields
         ]
-        selected_df = res_df.select(cols, _emit_ast=_emit_ast)
-        for attr, source_field in zip(selected_df._plan.attributes, schema.fields):
-            attr.nullable = source_field.nullable
-        return selected_df
+        return res_df.select(cols, _emit_ast=_emit_ast)
 
     def get_server_cursor_if_supported(self, conn: "Connection") -> "Cursor":
         """
