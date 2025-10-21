@@ -67,6 +67,7 @@
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 - Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0.
 - Fixed a bug where `modin` would unintentionally be imported during session initialization in some scenarios.
+- Fixed a bug with `DataFrameGroupBy.agg` where tuples are treated as multiindex level using the named aggregation code path.
 
 #### Improvements
 
