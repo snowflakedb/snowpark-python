@@ -1861,7 +1861,6 @@ class DataFrameReader:
             fetch_merge_count,
             connection_parameters,
         )
-
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
         telemetry_json_string["dbms_type"] = partitioner.dbms_type.value
