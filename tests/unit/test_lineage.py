@@ -118,11 +118,11 @@ def test_get_name_and_version():
         _ObjectField.DB: "db1",
         _ObjectField.SCHEMA: "schema1",
         _ObjectField.PROPERTIES: {_ObjectField.PARENT_NAME: "exp_parent"},
-        _ObjectField.NAME: "v42",
+        _ObjectField.NAME: "MY_RUN",
     }
     name, version = Lineage(fake_session)._get_name_and_version(graph_entity)
     assert name == "db1.schema1.exp_parent"
-    assert version == "v42"
+    assert version == "MY_RUN"
 
 
 def test_get_user_entity():
@@ -231,7 +231,7 @@ def test_get_user_entity():
         _ObjectField.DB: "db1",
         _ObjectField.SCHEMA: "schema1",
         _ObjectField.PROPERTIES: {_ObjectField.PARENT_NAME: "exp_parent"},
-        _ObjectField.NAME: "v42",
+        _ObjectField.NAME: "MY_RUN",
         _ObjectField.CREATED_ON: "123455",
         _ObjectField.STATUS: "Active",
     }
@@ -239,7 +239,7 @@ def test_get_user_entity():
     user_entity = Lineage(fake_session)._get_user_entity(graph_entity)
     assert user_entity[_ObjectField.NAME] == "db1.schema1.exp_parent"
     assert user_entity[_ObjectField.DOMAIN] == _SnowflakeDomain.EXPERIMENT
-    assert user_entity[_ObjectField.VERSION] == "v42"
+    assert user_entity[_ObjectField.VERSION] == "MY_RUN"
 
 
 def test_split_fully_qualified_name():
