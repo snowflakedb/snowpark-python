@@ -755,7 +755,7 @@ class Session:
             )
         )
 
-        if importlib.util.find_spec("modin"):
+        if "modin" in sys.modules:
             try:
                 from modin.config import AutoSwitchBackend
 
@@ -1733,8 +1733,10 @@ class Session:
             >>> from snowflake.snowpark.functions import udf
             >>> import numpy
             >>> import pandas
+            >>> import sys
             >>> # test_requirements.txt contains "numpy" and "pandas"
-            >>> session.add_requirements("tests/resources/test_requirements.txt")
+            >>> file = "test_requirements.txt" if sys.version_info < (3, 13) else "test_requirements_py313.txt"
+            >>> session.add_requirements(f"tests/resources/{file}")
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
@@ -4927,4 +4929,69 @@ class Session:
             f"SELECT * FROM DIRECTORY({stage_name})",
             _ast_stmt=stmt,
             _emit_ast=_emit_ast,
+        )
+
+    @publicapi
+    def begin_transaction(
+        self, name: Optional[str] = None, _emit_ast: bool = True
+    ) -> None:
+        """
+        Begins a new transaction in the current session.
+
+        Args:
+            name: Optional string that assigns a name to the transaction. A name helps
+                identify a transaction, but is not required and does not need to be unique.
+
+        Example::
+            >>> # Begin an anonymous transaction
+            >>> session.begin_transaction()
+
+            >>> # Begin a named transaction
+            >>> session.begin_transaction("my_transaction")
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.begin_transaction, stmt)
+            if name is not None:
+                ast.name.value = name
+
+        query = f"BEGIN TRANSACTION {('NAME ' + name) if name else ''}"
+        self.sql(query, _ast_stmt=stmt, _emit_ast=_emit_ast).collect(_emit_ast=False)
+
+    @publicapi
+    def commit(self, _emit_ast: bool = True) -> None:
+        """
+        Commits an open transaction in the current session.
+
+        Example::
+            >>> session.begin_transaction()
+            >>> session.commit()
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            with_src_position(stmt.expr.commit, stmt)
+
+        self.sql("COMMIT", _ast_stmt=stmt, _emit_ast=_emit_ast).collect(_emit_ast=False)
+
+    @publicapi
+    def rollback(self, _emit_ast: bool = True) -> None:
+        """
+        Rolls back an open transaction in the current session.
+
+        Example::
+            >>> session.begin_transaction()
+            >>> session.rollback()
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            with_src_position(stmt.expr.rollback, stmt)
+
+        self.sql("ROLLBACK", _ast_stmt=stmt, _emit_ast=_emit_ast).collect(
+            _emit_ast=False
         )

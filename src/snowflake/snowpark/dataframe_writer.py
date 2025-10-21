@@ -27,8 +27,7 @@ from snowflake.snowpark._internal.ast.utils import (
     build_table_name,
 )
 from snowflake.snowpark._internal.data_source.utils import (
-    STATEMENT_PARAMS_DATA_SOURCE,
-    DATA_SOURCE_DBAPI_SIGNATURE,
+    track_data_source_statement_params,
 )
 from snowflake.snowpark._internal.open_telemetry import open_telemetry_context_manager
 from snowflake.snowpark._internal.telemetry import (
@@ -108,24 +107,6 @@ class DataFrameWriter:
             with_src_position(writer.dataframe_writer)
             self._ast = writer
             dataframe._set_ast_ref(self._ast.dataframe_writer.df)
-
-    @staticmethod
-    def _track_data_source_statement_params(
-        dataframe, statement_params: Optional[Dict] = None
-    ) -> Optional[Dict]:
-        """
-        Helper method to initialize and update data source tracking statement_params based on dataframe attributes.
-        """
-        statement_params = statement_params or {}
-        if (
-            dataframe._plan
-            and dataframe._plan.api_calls
-            and dataframe._plan.api_calls[0].get("name") == DATA_SOURCE_DBAPI_SIGNATURE
-        ):
-            # Track data source ingestion
-            statement_params[STATEMENT_PARAMS_DATA_SOURCE] = "1"
-
-        return statement_params if statement_params else None
 
     @publicapi
     def mode(self, save_mode: str, _emit_ast: bool = True) -> "DataFrameWriter":
@@ -372,7 +353,7 @@ class DataFrameWriter:
             >>> df.write.mode("overwrite").save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
         """
 
-        statement_params = self._track_data_source_statement_params(
+        statement_params = track_data_source_statement_params(
             self._dataframe, statement_params or self._dataframe._statement_params
         )
         if _emit_ast and self._ast is not None:
@@ -688,7 +669,7 @@ class DataFrameWriter:
         # This method is not intended to be used directly by users.
         # AST.
         kwargs = {}
-        statement_params = self._track_data_source_statement_params(
+        statement_params = track_data_source_statement_params(
             self._dataframe, statement_params or self._dataframe._statement_params
         )
         if _emit_ast and self._ast is not None:

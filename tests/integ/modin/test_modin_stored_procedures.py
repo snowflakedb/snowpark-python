@@ -208,8 +208,8 @@ def test_sproc_merge(session):
         == "0    1\n1    1\n2    2\n3    3\n4    5\n5    5\nName: value_x, dtype: int64"
     )
     assert run_join() == (
-        "0      K0\n1      K1\n2      K2\n3    None\n"
-        "4    None\n5    None\nName: key_other, dtype: object"
+        "0     K0\n1     K1\n2     K2\n3    NaN\n"
+        "4    NaN\n5    NaN\nName: key_other, dtype: object"
     )
 
 
@@ -261,8 +261,8 @@ def test_sproc_pivot(session):
         return str(df_result)
 
     assert run() == (
-        "C        large  small\nA   B                \nbar one    4.0      "
-        "5\n    two    7.0      6\nfoo one    4.0      1\n    two    NaN      6"
+        "C        large  small\nA   B                \nbar one    4.0    "
+        "5.0\n    two    7.0    6.0\nfoo one    4.0    1.0\n    two    NaN    6.0"
     )
 
 

@@ -1031,7 +1031,9 @@ class DataFrameReader:
                 The default value is '_corrupt_record'.
 
               + ``ignoreNamespace``: remove namespace prefixes from XML element names when constructing result column names.
-                The default value is ``True``. Note that a given prefix isn't declared on the row tag element,
+                The default value is ``True``. Parsing uses recovery mode to tolerate malformed records (e.g., undefined
+                namespace prefixes in attributes such as ``diffgr:id`` or ``msdata:rowOrder``). When this option is enabled,
+                element name prefixes are stripped where resolvable; if a prefix isn't declared on the row tag element,
                 it cannot be resolved and will be left intact (i.e. this setting is ignored for that element).
                 For example, for the following XML data with a row tag ``abc:def``:
                 ```
@@ -1681,7 +1683,7 @@ class DataFrameReader:
     @publicapi
     def dbapi(
         self,
-        create_connection: Callable[[], "Connection"],
+        create_connection: Callable[..., "Connection"],
         *,
         table: Optional[str] = None,
         query: Optional[str] = None,
@@ -1698,27 +1700,36 @@ class DataFrameReader:
         udtf_configs: Optional[dict] = None,
         fetch_merge_count: int = 1,
         fetch_with_process: bool = False,
+        connection_parameters: Optional[dict] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
         Reads data from a database table or query into a DataFrame using a DBAPI connection,
         with support for optional partitioning, parallel processing, and query customization.
 
-        There are multiple methods to partition data and accelerate ingestion.
-        These methods can be combined to achieve optimal performance:
-
-        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
-        These must all be specified together, otherwise error will be raised.
-        2.Set max_workers to a proper positive integer.
-        This defines the maximum number of processes and threads used for parallel execution.
-        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
-        4.Use predicates to defining WHERE conditions for partitions,
-        predicates will be ignored if column is specified to generate partition.
-        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
-        column name with table in external data source.
+        Usage Notes:
+            - Ingestion performance tuning:
+                - **Partitioning**: Use ``column``, ``lower_bound``, ``upper_bound``, and ``num_partitions``
+                  together to split large tables into smaller partitions for parallel processing.
+                  All four parameters must be specified together, otherwise an error will be raised.
+                - **Parallel execution**: Set ``max_workers`` to control the maximum number of processes
+                  and threads used for parallel execution.
+                - **Fetch optimization**: Adjust ``fetch_size`` to optimize performance by reducing
+                  the number of round trips to the database.
+                - **Partition filtering**: Use ``predicates`` to define WHERE conditions for partitions.
+                  Note that ``predicates`` will be ignored if ``column`` is specified for partitioning.
+                - **Schema specification**: Set ``custom_schema`` to skip schema inference. The custom schema
+                  must have matching column names with the table in the external data source.
+            - Execution timing and error handling:
+                - **UDTF Ingestion**: Uses lazy evaluation. Errors are reported as ``SnowparkSQLException``
+                  during DataFrame actions (e.g., ``DataFrame.collect()``).
+                - **Local Ingestion**: Uses eager execution. Errors are reported immediately as
+                  ``SnowparkDataFrameReaderException`` when this method is called.
 
         Args:
-            create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
+            create_connection: A callable that returns a DB-API compatible database connection.
+                The callable can optionally accept keyword arguments via `**kwargs`.
+                If connection_parameters is provided, those will be passed as keyword arguments to this callable.
                 The callable must be picklable, as it will be passed to and executed in child processes.
             table: The name of the table in the external data source.
                 This parameter cannot be used together with the `query` parameter.
@@ -1777,6 +1788,11 @@ class DataFrameReader:
                 like Parquet file generation. When using multiprocessing, guard your script with
                 `if __name__ == "__main__":` and call `multiprocessing.freeze_support()` on Windows if needed.
                 This parameter has no effect in UDFT ingestion.
+            connection_parameters: Optional dictionary of parameters to pass to the create_connection callable.
+                If provided, these parameters will be unpacked and passed as keyword arguments
+                to create_connection(`**connection_parameters`).
+                This allows for flexible connection configuration without hardcoding values in the callable.
+                Example: {"timeout": 30, "isolation_level": "READ_UNCOMMITTED"}
 
         Example::
             .. code-block:: python
@@ -1796,8 +1812,132 @@ class DataFrameReader:
                     connection = oracledb.connect(...)
                     return connection
 
-                if __name__ == "__main__":
-                    df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
+                df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
+
+        Example::
+            .. code-block:: python
+
+                import sqlite3
+                def create_sqlite_connection(timeout=5.0, isolation_level=None, **kwargs):
+                    connection = sqlite3.connect(
+                        database=":memory:",
+                        timeout=timeout,
+                        isolation_level=isolation_level
+                    )
+                    return connection
+
+                connection_params = {"timeout": 30.0, "isolation_level": "DEFERRED"}
+                df = session.read.dbapi(
+                    create_sqlite_connection,
+                    table=...,
+                    connection_parameters=connection_params
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                # pull data from target table with parallelism using partition column
+                df_local_par_column = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    fetch_size=100000,
+                    num_partitions=4,
+                    column="ID",  # swap with the column you want your partition based on
+                    upper_bound=10000,
+                    lower_bound=0
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                # pull data from target table with parallelism using predicates
+                df_local_predicates = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    fetch_size=100000,
+                    predicates=[
+                        "ID < 3",
+                        "ID >= 3"
+                    ]
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+                udtf_configs = {
+                    "external_access_integration": "<your external access integration>"
+                }
+
+                # pull data from target table with udtf ingestion
+
+                df_udtf_basic = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    udtf_configs=udtf_configs
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+                udtf_configs = {
+                    "external_access_integration": "<your external access integration>"
+                }
+
+                # pull data from target table with udtf ingestion with parallelism using partition column
+
+                df_udtf_par_column = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    udtf_configs=udtf_configs,
+                    fetch_size=100000,
+                    num_partitions=4,
+                    column="ID",  # swap with the column you want your partition based on
+                    upper_bound=10000,
+                    lower_bound=0
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+                udtf_configs = {
+                    "external_access_integration": "<your external access integration>"
+                }
+
+                # pull data from target table with udtf ingestion with parallelism using partition column
+
+                df_udtf_predicates = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    udtf_configs=udtf_configs,
+                    fetch_size=100000,
+                    predicates=[
+                        "ID < 3",
+                        "ID >= 3"
+                    ]
+                )
+
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
@@ -1831,6 +1971,7 @@ class DataFrameReader:
             predicates,
             session_init_statement,
             fetch_merge_count,
+            connection_parameters,
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
@@ -1846,7 +1987,11 @@ class DataFrameReader:
             partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
             self._session.create_dataframe(
                 [[query] for query in partitioned_queries], schema=["partition"]
-            ).write.save_as_table(partitions_table, table_type="temp")
+            ).write.save_as_table(
+                partitions_table,
+                table_type="temp",
+                statement_params=statements_params_for_telemetry,
+            )
             df = partitioner.driver.udtf_ingestion(
                 self._session,
                 struct_schema,
@@ -1857,7 +2002,8 @@ class DataFrameReader:
                 packages=udtf_configs.get("packages", None),
                 session_init_statement=session_init_statement,
                 query_timeout=query_timeout,
-                _emit_ast=_emit_ast,
+                statement_params=statements_params_for_telemetry,
+                _emit_ast=False,  # internal API, no need to emit AST
             )
             end_time = time.perf_counter()
             telemetry_json_string["end_to_end_duration"] = end_time - start_time

@@ -5727,6 +5727,21 @@ def test_interval_year_month_from_parts(session):
     assert result_nulls[1]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
     assert result_nulls[2]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
 
+    df_literals = session.create_dataframe([(1,)], schema=["dummy"])
+    literals_schema_result_no_alias = df_literals.select(
+        interval_year_month_from_parts(lit(2), lit(5), _alias_column_name=False),
+    )
+    for field in literals_schema_result_no_alias.schema.fields:
+        assert field.datatype == YearMonthIntervalType(0, 1)
+
+    result_literals_no_alias = literals_schema_result_no_alias.collect()
+    assert (
+        result_literals_no_alias[0][
+            "CAST (CONCAT(IFF((((2 * 12) + 5) < 0), '-', ''),  CAST ( CAST (FLOOR((ABS(((2 * 12) + 5)) / 12)) AS INT) AS STRING), '-',  CAST ( CAST (FLOOR((ABS(((2 * 12) + 5)) % 12)) AS INT) AS STRING)) AS INTERVAL YEAR TO MONTH)"
+        ]
+        == "+2-05"
+    )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
@@ -5917,3 +5932,41 @@ def test_interval_day_time_from_parts(session):
     assert result_nulls[2]["INTERVAL_RESULT"] is None
     assert result_nulls[3]["INTERVAL_RESULT"] is None
     assert result_nulls[4]["INTERVAL_RESULT"] is None
+
+    df_extreme = session.create_dataframe(
+        [[1, 0, 0, 123456789012.123456]], ["days", "hours", "mins", "secs"]
+    )
+    result_extreme = df_extreme.select(
+        interval_day_time_from_parts(
+            col("days"), col("hours"), col("mins"), col("secs")
+        ).alias("extreme_interval")
+    ).collect()
+
+    interval_result = result_extreme[0]["EXTREME_INTERVAL"]
+    assert isinstance(interval_result, timedelta)
+    total_seconds = interval_result.total_seconds()
+    expected_total = 86400 + 123456789012.123456
+    import builtins
+
+    assert builtins.abs(total_seconds - expected_total) < 1e-6
+
+    result_microsecond = df_extreme.select(
+        interval_day_time_from_parts(lit(0), lit(0), lit(0), lit(0.123456)).alias(
+            "microsecond_test"
+        )
+    ).collect()
+
+    interval_result = result_microsecond[0]["MICROSECOND_TEST"]
+    expected = timedelta(seconds=0.123456)
+    assert interval_result == expected
+
+    df_literals = session.create_dataframe([(1,)], schema=["dummy"])
+    literals_schema_result_no_alias = df_literals.select(
+        interval_day_time_from_parts(
+            lit(1), lit(2), lit(3), lit(4.5), _alias_column_name=False
+        ),
+    )
+    literals_result_no_alias = literals_schema_result_no_alias.collect()
+    assert literals_result_no_alias[0][
+        "CAST (CONCAT(IFF((((((1 * 86400) + (2 * 3600)) + (3 * 60)) + 4.5) < 0), '-', ''),  CAST ( CAST (FLOOR((ABS(((((1 * 86400) + (2 * 3600)) + (3 * 60)) + 4.5)) / 86400)) AS INT) AS STRING), ' ', IFF(( CAST (FLOOR(((ABS(((((1 * 86400) + (2 * 3600)) + (3 * 60))"
+    ] == timedelta(days=1, hours=2, minutes=3, seconds=4.5)

@@ -1,8 +1,6 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import sys
-
 import pytest
 
 from snowflake.snowpark import Row
@@ -174,9 +172,6 @@ def test_unicode_column_name_postgres(session, custom_schema):
     ],
 )
 @pytest.mark.udf
-@pytest.mark.skipif(
-    sys.version_info[:2] == (3, 13), reason="driver not supported in python 3.13"
-)
 def test_udtf_ingestion_postgres(session, input_type, input_value, caplog):
     from tests.parameters import POSTGRES_CONNECTION_PARAMETERS
 
@@ -196,7 +191,7 @@ def test_udtf_ingestion_postgres(session, input_type, input_value, caplog):
         },
     ).order_by("BIGSERIAL_COL")
 
-    assert df.collect() == EXPECTED_TEST_DATA
+    assert df.collect() == EXPECTED_TEST_DATA and df.schema == postgres_schema
     # assert UDTF creation and UDTF call
     assert (
         "TEMPORARY  FUNCTION  SNOWPARK_TEMP_FUNCTION" "" in caplog.text
@@ -519,3 +514,43 @@ def test_postgres_non_retryable_error(session):
             table=POSTGRES_TABLE_NAME,
             predicates=["invalid syntax"],
         ).collect()
+
+
+@pytest.mark.parametrize(
+    "udtf_configs",
+    [
+        None,
+        {
+            "external_access_integration": POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        },
+    ],
+)
+def test_postgres_with_connection_parameters(session, udtf_configs):
+    """Test connection_parameters with local/default ingestion and UDTF ingestion."""
+
+    def create_connection_with_params(**kwargs):
+        if kwargs.get("extra_param") != "extra_value":
+            raise ValueError("extra_param should be extra_value")
+        import psycopg2
+
+        return psycopg2.connect(
+            host=kwargs["host"],
+            port=kwargs["port"],
+            dbname=kwargs["dbname"],
+            user=kwargs["user"],
+            password=kwargs["password"],
+        )
+
+    connection_params = POSTGRES_CONNECTION_PARAMETERS.copy()
+    connection_params[
+        "extra_param"
+    ] = "extra_value"  # Extra param to verify arbitrary params are passed
+
+    df = session.read.dbapi(
+        create_connection_with_params,
+        table=POSTGRES_TABLE_NAME,
+        custom_schema=postgres_schema,
+        connection_parameters=connection_params,
+        udtf_configs=udtf_configs,
+    )
+    assert df.collect() == EXPECTED_TEST_DATA

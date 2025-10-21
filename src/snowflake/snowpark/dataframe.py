@@ -172,6 +172,9 @@ from snowflake.snowpark._internal.utils import (
     string_half_width,
     warning,
 )
+from snowflake.snowpark._internal.data_source.utils import (
+    track_data_source_statement_params,
+)
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column, _to_col_if_sql_expr, _to_col_if_str
 from snowflake.snowpark.dataframe_ai_functions import DataFrameAIFunctions
@@ -836,6 +839,9 @@ class DataFrame:
         # When executing a DataFrame in any method of snowpark (either public or private),
         # we should always call this method instead of collect(), to make sure the
         # query tag is set properly.
+        statement_params = track_data_source_statement_params(
+            self, statement_params or self._statement_params
+        )
         return self._session._conn.execute(
             self._plan,
             block=block,
@@ -2591,6 +2597,29 @@ class DataFrame:
             self,
             cube_exprs,
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
+            _ast_stmt=stmt,
+        )
+
+    @df_to_relational_group_df_api_usage
+    @publicapi
+    def group_by_all(
+        self, _emit_ast: bool = True
+    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
+        """Performs a SQL
+        `GROUP BY ALL <https://docs.snowflake.com/en/sql-reference/constructs/group-by#label-group-by-all-columns>`_.
+        on the DataFrame.
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            expr = with_src_position(stmt.expr.dataframe_group_by_all, stmt)
+            self._set_ast_ref(expr.df)
+
+        return snowflake.snowpark.RelationalGroupedDataFrame(
+            self,
+            [],
+            snowflake.snowpark.relational_grouped_dataframe._GroupByAllType(),
             _ast_stmt=stmt,
         )
 
