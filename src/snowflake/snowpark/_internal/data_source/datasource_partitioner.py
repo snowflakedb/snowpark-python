@@ -7,7 +7,7 @@ import decimal
 import inspect
 from collections import defaultdict
 from functools import cached_property
-from typing import Optional, Union, List, Callable
+from typing import Optional, Union, List, Callable, Dict
 import logging
 import pytz
 from dateutil import parser
@@ -191,6 +191,7 @@ class DataSourcePartitioner:
         packages: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
         query_timeout: Optional[int] = 0,
+        statement_params: Optional[Dict[str, str]] = None,
         _emit_ast: bool = True,
     ) -> "snowflake.snowpark.DataFrame":
         return self.driver.udtf_ingestion(
@@ -203,6 +204,7 @@ class DataSourcePartitioner:
             packages,
             session_init_statement,
             query_timeout,
+            statement_params,
             _emit_ast,
         )
 
