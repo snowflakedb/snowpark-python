@@ -7121,8 +7121,8 @@ def test_sort_by_all(session):
         Utils.check_answer(result_py_desc, result_sql_desc.collect())
 
         # Test int parameter vs SQL
-        Utils.check_answer(df.orderByAll(ascending=1), result_sql_asc.collect())
-        Utils.check_answer(df.sortByAll(ascending=0), result_sql_desc.collect())
+        Utils.check_answer(df.orderBy(ascending=1), result_sql_asc.collect())
+        Utils.check_answer(df.sort(ascending=0), result_sql_desc.collect())
     finally:
         Utils.drop_table(session, table_name)
 
