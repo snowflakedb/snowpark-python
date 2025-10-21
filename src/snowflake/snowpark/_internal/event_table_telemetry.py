@@ -187,7 +187,7 @@ class ProxyLogProvider(BaseLogProvider):
             self._real_provider.force_flush(timeout_millis)
 
 
-class ExternalTelemetry:
+class EventTableTelemetry:
     def __init__(self, session: "snowflake.snowpark.Session") -> None:
         self._tracer_provider = None
         self._span_processor = None
@@ -209,11 +209,11 @@ class ExternalTelemetry:
         enable_trace_level: bool = False,
     ) -> None:
         """
-        Enable user to send external telemetry to designated event table when necessary dependencies are installed.
+        Enable user to send telemetry to designated event table when necessary dependencies are installed.
 
-        Only traces and logs between `client_telemetry.enable_external_telemetry` and
-        `client_telemetry.disable_external_telemetry` will be sent to event table.
-        You can call `client_telemetry.enable_external_telemetry` again to re-enable external
+        Only traces and logs between `client_telemetry.enable_event_table_telemetry_collection` and
+        `client_telemetry.disable_event_table_telemetry_collection` will be sent to event table.
+        You can call `client_telemetry.enable_event_table_telemetry_collection` again to re-enable external
         telemetry after it is turned off.
 
         Note:
@@ -227,8 +227,8 @@ class ExternalTelemetry:
             .. code-block:: python
 
             ext = session.client_telemetry
-            ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.INFO, True)
-            tracer = trace.get_tracer("external_telemetry")
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.INFO, True)
+            tracer = trace.get_tracer("my_tracer")
             with tracer.start_as_current_span("code_store") as span:
                 span.set_attribute("code.lineno", "21")
                 span.set_attribute("code.content", "session.sql(...)")
@@ -239,9 +239,9 @@ class ExternalTelemetry:
             .. code-block:: python
 
             ext = session.client_telemetry
-            logging.info("log before enable external telemetry") # this log is not sent to event table
-            ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.INFO, True)
-            tracer = trace.get_tracer("external_telemetry")
+            logging.info("log before enable event table telemetry collection") # this log is not sent to event table
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.INFO, True)
+            tracer = trace.get_tracer("my_tracer")
             with tracer.start_as_current_span("code_store") as span:
                  span.set_attribute("code.lineno", "21")
                 span.set_attribute("code.content", "session.sql(...)")
@@ -249,7 +249,7 @@ class ExternalTelemetry:
             ext.disable_event_table_telemetry_collection()
             logging.info("out of scope log")  # this log is not sent to event table
             ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.DEBUG, True)
-            logging.debug("debug log") # this log is sent to event table because external telemetry is re-enabled
+            logging.debug("debug log") # this log is sent to event table because event table telemetry collection is re-enabled
             ext.disable_event_table_telemetry_collection()
 
         """

@@ -7,7 +7,7 @@ import threading
 from unittest.mock import patch, MagicMock
 import pytest
 
-from snowflake.snowpark._internal.external_telemetry import ExternalTelemetry
+from snowflake.snowpark._internal.event_table_telemetry import EventTableTelemetry
 from tests.utils import RUNNING_ON_GH
 
 try:
@@ -194,7 +194,7 @@ def test_end_to_end(session):
 
 
 def test_negative_case(session, caplog):
-    external_telemetry = ExternalTelemetry(session)
+    external_telemetry = EventTableTelemetry(session)
     external_telemetry.enable_event_table_telemetry_collection("db.sc.tb", None, False)
     assert (
         "Snowpark python log_level and trace_level are not enabled to collect telemetry into event table:"

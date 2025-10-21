@@ -78,7 +78,7 @@ from snowflake.snowpark._internal.ast.utils import (
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
-from snowflake.snowpark._internal.external_telemetry import ExternalTelemetry
+from snowflake.snowpark._internal.event_table_telemetry import EventTableTelemetry
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
@@ -810,7 +810,7 @@ class Session:
         self._sp_profiler = StoredProcedureProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
-        self._client_telemetry = ExternalTelemetry(session=self)
+        self._client_telemetry = EventTableTelemetry(session=self)
 
         self._ast_batch = AstBatch(self)
 
@@ -4318,15 +4318,15 @@ class Session:
         return self._sp_profiler
 
     @property
-    def client_telemetry(self) -> ExternalTelemetry:
+    def client_telemetry(self) -> EventTableTelemetry:
         """
-        Returns a :class:`external_telemetry.ExternalTelemetry` object that you can use to send telemetry to snowflake event table.
-        See details of how to use this object in :class:`external_telemetry.ExternalTelemetry`.
+        Returns a :class:`event_table_telemetry.EventTableTelemetry` object that you can use to send telemetry to snowflake event table.
+        See details of how to use this object in :class:`event_table_telemetry.EventTableTelemetry`.
 
-        `Session.client_telemetry` object enable user to send external telemetry to designated event table
+        `Session.client_telemetry` object enable user to send telemetry to designated event table
         when necessary dependencies are installed. Only traces and logs between
-        `client_telemetry.enable_external_telemetry` and `client_telemetry.disable_external_telemetry`
-        will be sent to event table. You can call `client_telemetry.enable_external_telemetry` again to re-enable external
+        `client_telemetry.enable_event_table_telemetry_collection` and `client_telemetry.disable_event_table_telemetry_collection`
+        will be sent to event table. You can call `client_telemetry.enable_event_table_telemetry_collection` again to re-enable external
         telemetry after it is turned off.
 
         Note:
@@ -4340,8 +4340,8 @@ class Session:
             .. code-block:: python
 
             ext = session.client_telemetry
-            ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.INFO, True)
-            tracer = trace.get_tracer("external_telemetry")
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.INFO, True)
+            tracer = trace.get_tracer("my_tracer")
             with tracer.start_as_current_span("code_store") as span:
                 span.set_attribute("code.lineno", "21")
                 span.set_attribute("code.content", "session.sql(...)")
@@ -4353,8 +4353,8 @@ class Session:
 
             ext = session.client_telemetry
             logging.info("log before enable external telemetry") # this log is not sent to event table
-            ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.INFO, True)
-            tracer = trace.get_tracer("external_telemetry")
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.INFO, True)
+            tracer = trace.get_tracer("my_tracer")
             with tracer.start_as_current_span("code_store") as span:
                  span.set_attribute("code.lineno", "21")
                 span.set_attribute("code.content", "session.sql(...)")
