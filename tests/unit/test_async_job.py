@@ -3,6 +3,7 @@
 #
 
 import sys
+import uuid
 from types import SimpleNamespace
 from unittest import mock
 from unittest.mock import MagicMock
@@ -46,10 +47,12 @@ def test_async_job_cancel_executes_sys_func_in_regular_client(monkeypatch):
         "snowflake.snowpark.async_job.is_in_stored_procedure", lambda: False
     )
 
-    job = AsyncJob(query_id="qid-123", query=None, session=session)
+    qid = str(uuid.uuid4())
+
+    job = AsyncJob(query_id=qid, query=None, session=session)
     job.cancel()
 
-    mock_cursor.execute.assert_called_once_with("select SYSTEM$CANCEL_QUERY('qid-123')")
+    mock_cursor.execute.assert_called_once_with(f"select SYSTEM$CANCEL_QUERY('{qid}')")
 
 
 def test_async_job_cancel_in_sproc_success(monkeypatch):
@@ -65,7 +68,7 @@ def test_async_job_cancel_in_sproc_success(monkeypatch):
     fake_mod = SimpleNamespace(cancel_query=cancel_mock)
     monkeypatch.setitem(sys.modules, "_snowflake", fake_mod)
 
-    qid = "qid-abc"
+    qid = str(uuid.uuid4())
     job = AsyncJob(query_id=qid, query=None, session=session)
     job.cancel()  # should not raise
 
@@ -87,7 +90,9 @@ def test_async_job_cancel_in_sproc_success(monkeypatch):
         ("{", TsetOnlyCancelQueryErrorType.INVALID_JSON),
     ],
 )
-def test_async_job_cancel_in_sproc_failure_raises(monkeypatch, fake_response_and_type):
+def test_async_job_cancel_in_sproc_failure_in_cancel_query(
+    monkeypatch, fake_response_and_type
+):
     session, _ = _make_session_with_cursor()
 
     # Test with sproc path.
@@ -100,7 +105,7 @@ def test_async_job_cancel_in_sproc_failure_raises(monkeypatch, fake_response_and
     fake_mod = SimpleNamespace(cancel_query=lambda qid: fake_response)
     monkeypatch.setitem(sys.modules, "_snowflake", fake_mod)
 
-    job = AsyncJob(query_id="qid-fail", query=None, session=session)
+    job = AsyncJob(query_id=str(uuid.uuid4()), query=None, session=session)
     with pytest.raises(DatabaseError, match="Failed to cancel query") as exc_info:
         job.cancel()
     if error_type == TsetOnlyCancelQueryErrorType.VALID_JSON_BUT_FAIL:
@@ -109,3 +114,22 @@ def test_async_job_cancel_in_sproc_failure_raises(monkeypatch, fake_response_and
         assert "Error parsing response" in str(exc_info.value)
     else:
         raise ValueError(f"Invalid test case: {fake_response_and_type}")
+
+
+def test_async_job_cancel_in_sproc_failure_in_uuid_validation(monkeypatch):
+    session, _ = _make_session_with_cursor()
+
+    # Test with sproc path.
+    monkeypatch.setattr(
+        "snowflake.snowpark.async_job.is_in_stored_procedure", lambda: True
+    )
+
+    # Inject a fake _snowflake module with a mock cancel_query.
+    cancel_mock = mock.MagicMock(return_value='{"success": true}')
+    fake_mod = SimpleNamespace(cancel_query=cancel_mock)
+    monkeypatch.setitem(sys.modules, "_snowflake", fake_mod)
+
+    qid = "qid-invalid-123"
+    job = AsyncJob(query_id=qid, query=None, session=session)
+    with pytest.raises(ValueError, match=f"Invalid UUID: '{qid}'"):
+        job.cancel()

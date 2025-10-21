@@ -286,6 +286,12 @@ class AsyncJob:
         ):
             import _snowflake
             import json
+            import uuid
+
+            try:
+                uuid.UUID(self.query_id)
+            except ValueError:
+                raise ValueError(f"Invalid UUID: '{self.query_id}'")
 
             raw_cancel_resp = _snowflake.cancel_query(self.query_id)
 
