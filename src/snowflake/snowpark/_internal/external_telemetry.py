@@ -211,45 +211,46 @@ class ExternalTelemetry:
         """
         Enable user to send external telemetry to designated event table when necessary dependencies are installed.
 
-        Only traces and logs between `session.enable_external_telemetry` and `session.disable_external_telemetry`
-        will be sent to event table. You can call `session.enable_external_telemetry` again to re-enable external
+        Only traces and logs between `client_telemetry.enable_external_telemetry` and
+        `client_telemetry.disable_external_telemetry` will be sent to event table.
+        You can call `client_telemetry.enable_external_telemetry` again to re-enable external
         telemetry after it is turned off.
 
         Note:
             This function requires the `opentelemetry` extra from Snowpark.
             Install it via pip:
+                .. code-block:: bash
 
                 pip install "snowflake-snowpark-python[opentelemetry]"
 
-        Args:
-            event_table: A string of the name of the event table where external telemetry will be stored, must be a fully qualified name.
-            log_level: A int value indicate log level, typically one of Python’s standard logging levels (e.g., DEBUG, INFO), no log exported if it is None. Must be valid for the logging system.
-            enable_trace_level: A bool value indicate whether traces are collected into event_table
-
         Examples 1
             .. code-block:: python
-                session.external_telemetry.enable_event_table_telemetry_collection("db.sc.external_et", logging.INFO, True)
-                tracer = trace.get_tracer("external_telemetry")
-                with tracer.start_as_current_span("code_store") as span:
-                    span.set_attribute("code.lineno", "21")
-                    span.set_attribute("code.content", "session.sql(...)")
-                    logging.info("Trace being sent to event table")
-                session.external_telemetry.disable_event_table_telemetry_collection()
+
+            ext = session.client_telemetry
+            ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.INFO, True)
+            tracer = trace.get_tracer("external_telemetry")
+            with tracer.start_as_current_span("code_store") as span:
+                span.set_attribute("code.lineno", "21")
+                span.set_attribute("code.content", "session.sql(...)")
+                logging.info("Trace being sent to event table")
+            ext.disable_event_table_telemetry_collection()
 
         Examples 2
             .. code-block:: python
-                logging.info("log before enable external telemetry") # this log is not sent to event table
-                session.external_telemetry.enable_event_table_telemetry_collection("db.sc.external_et", logging.INFO, True)
-                tracer = trace.get_tracer("external_telemetry")
-                with tracer.start_as_current_span("code_store") as span:
-                     span.set_attribute("code.lineno", "21")
-                    span.set_attribute("code.content", "session.sql(...)")
-                    logging.info("Trace being sent to event table")
-                session.external_telemetry.disable_event_table_telemetry_collection()
-                logging.info("out of scope log")  # this log is not sent to event table
-                session.external_telemetry.enable_event_table_telemetry_collection("db.sc.external_et", logging.DEBUG, True)
-                logging.debug("debug log") # this log is sent to event table because external telemetry is re-enabled
-                session.external_telemetry.disable_event_table_telemetry_collection()
+
+            ext = session.client_telemetry
+            logging.info("log before enable external telemetry") # this log is not sent to event table
+            ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.INFO, True)
+            tracer = trace.get_tracer("external_telemetry")
+            with tracer.start_as_current_span("code_store") as span:
+                 span.set_attribute("code.lineno", "21")
+                span.set_attribute("code.content", "session.sql(...)")
+                logging.info("Trace being sent to event table")
+            ext.disable_event_table_telemetry_collection()
+            logging.info("out of scope log")  # this log is not sent to event table
+            ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.DEBUG, True)
+            logging.debug("debug log") # this log is sent to event table because external telemetry is re-enabled
+            ext.disable_event_table_telemetry_collection()
 
         """
         if not installed_opentelemetry:

@@ -106,7 +106,7 @@ def mock_session(session):
 
 
 def test_end_to_end(session):
-    external_telemetry = session.external_telemetry
+    external_telemetry = session.client_telemetry
 
     mock_response = create_mock_response("https://fake_endpoint")
 
