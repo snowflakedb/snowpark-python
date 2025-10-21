@@ -723,7 +723,7 @@ def test_agg_sort_snowpark_connect_compatible(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="ORDER BY ALL is not supported in local testing mode",
+    reason="ORDER BY is not supported in local testing mode",
 )
 def test_agg_sort_by_all_snowpark_connect_compatible(session):
     original_value = context._is_snowpark_connect_compatible_mode
@@ -747,7 +747,7 @@ def test_agg_sort_by_all_snowpark_connect_compatible(session):
 
         # Test ascending, nulls_first
         df1_sort_by_all = (
-            df.group_by("country").agg(sum_("value").alias("total")).sort_by_all()
+            df.group_by("country").agg(sum_("value").alias("total")).sort()
         )
         Utils.check_answer(
             df1_sort_by_all,
@@ -765,7 +765,7 @@ def test_agg_sort_by_all_snowpark_connect_compatible(session):
         df2_sort_by_all = (
             df.group_by("country")
             .agg(sum_("value").alias("total"))
-            .order_by_all(ascending=False)
+            .sort(ascending=False)
         )
         Utils.check_answer(
             df2_sort_by_all,
@@ -783,7 +783,7 @@ def test_agg_sort_by_all_snowpark_connect_compatible(session):
         multi_agg_df = df.group_by("country").agg(
             sum_("value").alias("sum_value"), count("state").alias("count_state")
         )
-        result_sort_by_all = multi_agg_df.sort_by_all(ascending=False)
+        result_sort_by_all = multi_agg_df.order_by(ascending=False)
         result_manual = multi_agg_df.sort(
             col("country").desc_nulls_last(),
             col("sum_value").desc_nulls_last(),
@@ -791,18 +791,12 @@ def test_agg_sort_by_all_snowpark_connect_compatible(session):
         )
         Utils.check_answer(result_sort_by_all, result_manual.collect())
 
-        result_group_by_all = (
-            df.group_by_all().agg(count("*").alias("cnt")).order_by_all()
-        )
+        result_group_by_all = df.group_by_all().agg(count("*").alias("cnt")).order_by()
         Utils.check_answer(result_group_by_all, [Row(CNT=10)])
 
         # Test int parameter: 0=desc, 1=asc
-        Utils.check_answer(
-            df.sortByAll(ascending=0), df.order_by_all(ascending=False).collect()
-        )
-        Utils.check_answer(
-            df.orderByAll(ascending=1), df.sort_by_all(ascending=True).collect()
-        )
+        Utils.check_answer(df.sort(ascending=0), df.orderBy(ascending=False).collect())
+        Utils.check_answer(df.order_by(ascending=1), df.sort(ascending=True).collect())
     finally:
         context._is_snowpark_connect_compatible_mode = original_value
 

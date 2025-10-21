@@ -7107,14 +7107,14 @@ def test_sort_by_all(session):
 
     try:
         # Test ascending vs SQL
-        result_py_asc = df.order_by_all(ascending=True)
+        result_py_asc = df.sort(ascending=True)
         result_sql_asc = session.sql(
             f"SELECT * FROM {table_name} ORDER BY ALL ASC NULLS FIRST"
         )
         Utils.check_answer(result_py_asc, result_sql_asc.collect())
 
         # Test descending vs SQL
-        result_py_desc = df.sort_by_all(ascending=False)
+        result_py_desc = df.sort(ascending=False)
         result_sql_desc = session.sql(
             f"SELECT * FROM {table_name} ORDER BY ALL DESC NULLS LAST"
         )

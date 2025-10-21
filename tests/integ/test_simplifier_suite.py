@@ -1799,12 +1799,12 @@ def test_sort_by_all_sql_simplifier(session, use_simplified_query_generation):
             [[3, "c", 30], [1, "a", 10], [2, "b", 20]], schema=["a", "b", "c"]
         )
 
-        df1 = df.select("a", "b").sort_by_all(ascending=True)
+        df1 = df.select("a", "b").orderBy(ascending=True)
         assert "ORDER BY" and "ALL" in df1.queries["queries"][0].upper()
         Utils.check_answer(df1, [Row(1, "a"), Row(2, "b"), Row(3, "c")])
 
         # Test descending
-        df2 = df.select("a", "b", "c").sort_by_all(ascending=False)
+        df2 = df.select("a", "b", "c").sort(ascending=False)
         assert "ORDER BY" and "ALL" in df2.queries["queries"][0].upper()
         Utils.check_answer(df2, [Row(3, "c", 30), Row(2, "b", 20), Row(1, "a", 10)])
     finally:

@@ -2104,6 +2104,8 @@ class DataFrame:
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
 
+        When called with no column arguments, sorts by all columns (ORDER BY ALL).
+
         Examples::
 
             >>> from snowflake.snowpark.functions import col
@@ -2140,22 +2142,54 @@ class DataFrame:
             -------------
             <BLANKLINE>
 
-        Args:
-            *cols: A column name as :class:`str` or :class:`Column`, or a list of
-             columns to sort by.
-            ascending: A :class:`bool` or a list of :class:`bool` for sorting the
-             DataFrame, where ``True`` sorts a column in ascending order and ``False``
-             sorts a column in descending order . If you specify a list of multiple
-             sort orders, the length of the list must equal the number of columns.
-        """
-        if not cols:
-            raise ValueError("sort() needs at least one sort expression.")
-        # This code performs additional type checks, run first.
-        exprs = self._convert_cols_to_exprs("sort()", *cols)
-        if not exprs:
-            raise ValueError("sort() needs at least one sort expression.")
+            >>> # Sort by all columns (ORDER BY ALL) - no columns specified
+            >>> df.sort().show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |1    |4    |
+            |3    |4    |
+            -------------
+            <BLANKLINE>
 
-        # AST.
+            >>> df.sort(ascending=False).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |3    |4    |
+            |1    |4    |
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
+        Args:
+            *cols: Column names as :class:`str`, :class:`Column` objects, or a list of
+             columns to sort by. If no columns are provided, the DataFrame is sorted
+             by all columns in the order they appear (equivalent to ``ORDER BY ALL`` in SQL).
+            ascending: Sort order specification.
+
+             - When sorting **specific columns**: A :class:`bool`, :class:`int`, or list of
+               :class:`bool`/:class:`int` values. ``True`` (or 1) for ascending, ``False``
+               (or 0) for descending. If a list is provided, its length must match the number
+               of columns.
+             - When sorting **all columns** (no columns specified): Must be a single
+               :class:`bool` or :class:`int`, not a list. Applies the same sort order to
+               all columns.
+             - Defaults to ``True`` (ascending) when not specified.
+
+        Note:
+            The aliases ``order_by()`` and ``orderBy()`` have the same behavior.
+        """
+
+        is_order_by_all = not cols
+        if is_order_by_all and isinstance(ascending, (list, tuple)):
+            raise TypeError(
+                "When no columns are specified (ORDER BY ALL), "
+                "ascending must be bool or int, not a list. "
+                "To sort specific columns with different orders, specify the columns."
+            )
+
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.bind()
@@ -2168,59 +2202,68 @@ class DataFrame:
             ast.cols.variadic = is_variadic
             self._set_ast_ref(ast.df)
 
-        orders = []
-        # `ascending` is represented by Expr in the AST.
-        # Therefore, construct the required bool, int, or list and copy from that.
-        asc_expr_ast = None
-        if _emit_ast:
+            # Populate ascending as Expr
             asc_expr_ast = proto.Expr()
-        if ascending is not None:
-            if isinstance(ascending, (list, tuple)):
-                orders = [Ascending() if asc else Descending() for asc in ascending]
-                if _emit_ast:
-                    # Here asc_expr_ast is a list of bools and ints.
-                    for asc in ascending:
-                        asc_ast = proto.Expr()
-                        if isinstance(asc, bool):
-                            asc_ast.bool_val.v = asc
-                        else:
-                            asc_ast.int64_val.v = asc
-                        asc_expr_ast.list_val.vs.append(asc_ast)
-            elif isinstance(ascending, (bool, int)):
-                orders = [Ascending() if ascending else Descending()]
-                if _emit_ast:
-                    # Here asc_expr_ast is either a bool or an int.
-                    if isinstance(ascending, bool):
-                        asc_expr_ast.bool_val.v = ascending
+            asc_value = True if ascending is None else ascending
+            if isinstance(asc_value, (list, tuple)):
+                for asc in asc_value:
+                    asc_ast = proto.Expr()
+                    if isinstance(asc, bool):
+                        asc_ast.bool_val.v = asc
                     else:
-                        asc_expr_ast.int64_val.v = ascending
-            else:
-                raise TypeError(
-                    "ascending can only be boolean or list,"
-                    " but got {}".format(str(type(ascending)))
-                )
-            if _emit_ast:
-                ast.ascending.CopyFrom(asc_expr_ast)
-            if len(exprs) != len(orders):
-                raise ValueError(
-                    "The length of col ({}) should be same with"
-                    " the length of ascending ({}).".format(len(exprs), len(orders))
-                )
+                        asc_ast.int64_val.v = asc
+                    asc_expr_ast.list_val.vs.append(asc_ast)
+            elif isinstance(asc_value, (bool, int)):
+                if isinstance(asc_value, bool):
+                    asc_expr_ast.bool_val.v = asc_value
+                else:
+                    asc_expr_ast.int64_val.v = asc_value
+            ast.ascending.CopyFrom(asc_expr_ast)
 
-        sort_exprs = []
-        for idx in range(len(exprs)):
-            # orders will overwrite current orders in expression (but will not overwrite null ordering)
-            # if no order is provided, use ascending order
-            if isinstance(exprs[idx], SortOrder):
-                sort_exprs.append(
-                    SortOrder(exprs[idx].child, orders[idx], exprs[idx].null_ordering)
-                    if orders
-                    else exprs[idx]
-                )
-            else:
-                sort_exprs.append(
-                    SortOrder(exprs[idx], orders[idx] if orders else Ascending())
-                )
+        # Build sort expressions
+        if is_order_by_all:
+            asc_value = True if ascending is None else ascending
+            order = Ascending() if bool(asc_value) else Descending()
+            sort_exprs = [SortByAllOrder(order)]
+        else:
+            exprs = self._convert_cols_to_exprs("sort()", *cols)
+            if not exprs:
+                raise ValueError("sort() needs at least one sort expression.")
+
+            orders = []
+            if ascending is not None:
+                if isinstance(ascending, (list, tuple)):
+                    orders = [Ascending() if asc else Descending() for asc in ascending]
+                elif isinstance(ascending, (bool, int)):
+                    orders = [Ascending() if ascending else Descending()]
+                else:
+                    raise TypeError(
+                        "ascending can only be boolean or list,"
+                        " but got {}".format(str(type(ascending)))
+                    )
+
+                if len(exprs) != len(orders):
+                    raise ValueError(
+                        "The length of col ({}) should be same with"
+                        " the length of ascending ({}).".format(len(exprs), len(orders))
+                    )
+
+            sort_exprs = []
+            for idx in range(len(exprs)):
+                # orders will overwrite current orders in expression (but will not overwrite null ordering)
+                # if no order is provided, use ascending order
+                if isinstance(exprs[idx], SortOrder):
+                    sort_exprs.append(
+                        SortOrder(
+                            exprs[idx].child, orders[idx], exprs[idx].null_ordering
+                        )
+                        if orders
+                        else exprs[idx]
+                    )
+                else:
+                    sort_exprs.append(
+                        SortOrder(exprs[idx], orders[idx] if orders else Ascending())
+                    )
 
         # In snowpark_connect_compatible mode, we need to handle
         # the sorting for dataframe after aggregation without nesting
@@ -2251,101 +2294,6 @@ class DataFrame:
                 if self._select_statement
                 else self._with_plan(
                     Sort(sort_exprs, self._plan, is_order_by_append=False)
-                )
-            )
-
-            if _emit_ast:
-                df._ast_id = stmt.uid
-
-            return df
-
-    @df_api_usage
-    @publicapi
-    def sort_by_all(
-        self,
-        ascending: Union[bool, int] = True,
-        _emit_ast: bool = True,
-    ) -> "DataFrame":
-        """Sorts a DataFrame by all columns (similar to ORDER BY ALL in SQL).
-
-        This method orders the DataFrame by all columns using the same sort order
-        for each column. Unlike :meth:`sort`, this method does not accept column
-        parameters as it automatically sorts by all columns.
-
-        Examples::
-
-            >>> df = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
-            >>> df.sort_by_all(ascending=True).show()
-            -------------
-            |"A"  |"B"  |
-            -------------
-            |1    |2    |
-            |1    |4    |
-            |3    |4    |
-            -------------
-            <BLANKLINE>
-
-            >>> df.order_by_all(ascending=0).show()
-            -------------
-            |"A"  |"B"  |
-            -------------
-            |3    |4    |
-            |1    |4    |
-            |1    |2    |
-            -------------
-            <BLANKLINE>
-
-        Args:
-            ascending: A :class:`bool` or :class:`int` for sorting the DataFrame,
-             where ``True`` (or 1) sorts all columns in ascending order and ``False``
-             (or 0) sorts all columns in descending order. If not specified, defaults
-             to ``True`` (ascending order).
-
-        Note:
-            This method is equivalent to SQL's ``ORDER BY ALL`` clause and will
-            sort by all columns in the DataFrame in the same order they appear
-            in the schema.
-        """
-
-        # AST.
-        stmt = None
-        if _emit_ast:
-            stmt = self._session._ast_batch.bind()
-            ast = with_src_position(stmt.expr.dataframe_sort_by_all, stmt)
-            self._set_ast_ref(ast.df)
-            ast.ascending = bool(ascending)
-
-        order = Ascending() if bool(ascending) else Descending()
-        sort_expr = [SortByAllOrder(order)]
-        # In snowpark_connect_compatible mode, we need to handle
-        # the sorting for dataframe after aggregation without nesting
-        if (
-            context._is_snowpark_connect_compatible_mode
-            and self._ops_after_agg is not None
-            and "sort" not in self._ops_after_agg
-        ):
-            sort_plan = Sort(sort_expr, self._plan, is_order_by_append=True)
-            if self._select_statement:
-                df = self._with_plan(
-                    self._session._analyzer.create_select_statement(
-                        from_=self._session._analyzer.create_select_snowflake_plan(
-                            sort_plan, analyzer=self._session._analyzer
-                        ),
-                        analyzer=self._session._analyzer,
-                    ),
-                    _ast_stmt=stmt,
-                )
-            else:
-                df = self._with_plan(sort_plan, _ast_stmt=stmt)
-            df._ops_after_agg = self._ops_after_agg.copy()
-            df._ops_after_agg.add("sort")
-            return df
-        else:
-            df = (
-                self._with_plan(self._select_statement.sort(sort_expr))
-                if self._select_statement
-                else self._with_plan(
-                    Sort(sort_expr, self._plan, is_order_by_append=False)
                 )
             )
 
@@ -6881,9 +6829,6 @@ Query List:
     randomSplit = random_split
     order_by = sort
     orderBy = order_by
-    order_by_all = sort_by_all
-    sortByAll = sort_by_all
-    orderByAll = order_by_all
     printSchema = print_schema
 
     # These methods are not needed for code migration. So no aliases for them.

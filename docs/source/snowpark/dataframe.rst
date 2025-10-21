@@ -67,8 +67,6 @@ DataFrame
     DataFrame.natural_join
     DataFrame.orderBy
     DataFrame.order_by
-    DataFrame.orderByAll
-    DataFrame.order_by_all
     DataFrame.pivot
     DataFrame.print_schema
     DataFrame.printSchema
@@ -85,8 +83,6 @@ DataFrame
     DataFrame.select_expr
     DataFrame.show
     DataFrame.sort
-    DataFrame.sortByAll
-    DataFrame.sort_by_all
     DataFrame.subtract
     DataFrame.take
     DataFrame.toDF
