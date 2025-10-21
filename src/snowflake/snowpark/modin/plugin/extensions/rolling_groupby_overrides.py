@@ -217,7 +217,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_count", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
@@ -241,7 +241,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_sem", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
@@ -265,7 +265,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_var", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
@@ -289,7 +289,7 @@ class RollingGroupby(metaclass=TelemetryMeta):
         **kwargs: Any,
     ) -> Union[pd.DataFrame, pd.Series]:
         self._series_not_implemented()
-        WarningMessage.warning_if_engine_args_is_set("rolling_min", args, kwargs)
+        WarningMessage.warning_if_engine_args_is_set("rolling_std", args, kwargs)
 
         agg_kwargs = dict(numeric_only=numeric_only, min_count=min_count)
         is_series = not self._dataframe._is_dataframe
