@@ -138,6 +138,7 @@ class _SnowflakeDomain:
     VIEW = "VIEW"
     COLUMN = "COLUMN"
     SNOWSERVICE_INSTANCE = "SNOWSERVICE_INSTANCE"
+    EXPERIMENT = "EXPERIMENT"
 
 
 class _DGQLQueryBuilder:
@@ -274,6 +275,7 @@ class Lineage:
             _UserDomain.FEATURE_VIEW,
             _UserDomain.MODEL,
             _SnowflakeDomain.DATASET,
+            _SnowflakeDomain.EXPERIMENT,
         }
 
     def _get_lineage(

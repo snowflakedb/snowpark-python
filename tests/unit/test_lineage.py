@@ -112,6 +112,18 @@ def test_get_name_and_version():
         in str(exc)
     )
 
+    # EXPERIMENT is a versioned domain similar to DATASET/MODEL
+    graph_entity = {
+        _ObjectField.USER_DOMAIN: _SnowflakeDomain.EXPERIMENT,
+        _ObjectField.DB: "db1",
+        _ObjectField.SCHEMA: "schema1",
+        _ObjectField.PROPERTIES: {_ObjectField.PARENT_NAME: "exp_parent"},
+        _ObjectField.NAME: "v42",
+    }
+    name, version = Lineage(fake_session)._get_name_and_version(graph_entity)
+    assert name == "db1.schema1.exp_parent"
+    assert version == "v42"
+
 
 def test_get_user_entity():
     fake_session = mock.create_autospec(Session, _session_id=123456)
@@ -212,6 +224,22 @@ def test_get_user_entity():
     assert _ObjectField.CREATED_ON in user_entity
     assert _ObjectField.TYPE in user_entity
     assert user_entity[_ObjectField.TYPE] == "TABLE"
+
+    # EXPERIMENT should surface name and version
+    graph_entity = {
+        _ObjectField.USER_DOMAIN: _SnowflakeDomain.EXPERIMENT,
+        _ObjectField.DB: "db1",
+        _ObjectField.SCHEMA: "schema1",
+        _ObjectField.PROPERTIES: {_ObjectField.PARENT_NAME: "exp_parent"},
+        _ObjectField.NAME: "v42",
+        _ObjectField.CREATED_ON: "123455",
+        _ObjectField.STATUS: "Active",
+    }
+
+    user_entity = Lineage(fake_session)._get_user_entity(graph_entity)
+    assert user_entity[_ObjectField.NAME] == "db1.schema1.exp_parent"
+    assert user_entity[_ObjectField.DOMAIN] == _SnowflakeDomain.EXPERIMENT
+    assert user_entity[_ObjectField.VERSION] == "v42"
 
 
 def test_split_fully_qualified_name():
