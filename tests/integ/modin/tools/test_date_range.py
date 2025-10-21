@@ -186,6 +186,7 @@ def test_irregular_range(kwargs, date_range_func):
     ],
 )
 @sql_count_checker(query_count=0)
+@pytest.mark.skip_hybrid
 def test_irregular_range_not_implemented(freq, date_range_func):
     with pytest.raises(NotImplementedError):
         getattr(pd, date_range_func)(start="1/1/2018", periods=5, freq=freq)
