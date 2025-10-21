@@ -112,7 +112,6 @@ def test_get_name_and_version():
         in str(exc)
     )
 
-    # EXPERIMENT is a versioned domain similar to DATASET/MODEL
     graph_entity = {
         _ObjectField.USER_DOMAIN: _SnowflakeDomain.EXPERIMENT,
         _ObjectField.DB: "db1",
