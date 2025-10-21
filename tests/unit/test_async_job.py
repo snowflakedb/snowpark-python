@@ -16,7 +16,9 @@ from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.session import Session
 
 
-class TsetOnlyCancelQueryErrorType(Enum):
+class CancelQueryErrorType(Enum):
+    """This is test-only enum to indicate what error we should mock for."""
+
     VALID_JSON_BUT_FAIL = 0
     INVALID_JSON = 1
 
@@ -84,10 +86,10 @@ def test_async_job_cancel_in_sproc_success(monkeypatch):
         # Valid JSON, but success=false.
         (
             '{"success": false, "error": "boom"}',
-            TsetOnlyCancelQueryErrorType.VALID_JSON_BUT_FAIL,
+            CancelQueryErrorType.VALID_JSON_BUT_FAIL,
         ),
         # Invalid JSON.
-        ("{", TsetOnlyCancelQueryErrorType.INVALID_JSON),
+        ("{", CancelQueryErrorType.INVALID_JSON),
     ],
 )
 def test_async_job_cancel_in_sproc_failure_in_cancel_query(
@@ -108,9 +110,9 @@ def test_async_job_cancel_in_sproc_failure_in_cancel_query(
     job = AsyncJob(query_id=str(uuid.uuid4()), query=None, session=session)
     with pytest.raises(DatabaseError, match="Failed to cancel query") as exc_info:
         job.cancel()
-    if error_type == TsetOnlyCancelQueryErrorType.VALID_JSON_BUT_FAIL:
+    if error_type == CancelQueryErrorType.VALID_JSON_BUT_FAIL:
         assert "Error parsing response" not in str(exc_info.value)
-    elif error_type == TsetOnlyCancelQueryErrorType.INVALID_JSON:
+    elif error_type == CancelQueryErrorType.INVALID_JSON:
         assert "Error parsing response" in str(exc_info.value)
     else:
         raise ValueError(f"Invalid test case: {fake_response_and_type}")
