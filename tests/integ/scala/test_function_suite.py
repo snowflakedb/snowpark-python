@@ -5735,20 +5735,16 @@ def test_interval_year_month_from_parts(session):
         assert field.datatype == YearMonthIntervalType(0, 1)
 
     result_literals_no_alias = literals_schema_result_no_alias.collect()
-    assert (
-        result_literals_no_alias[0][
-            "CAST (CONCAT(IFF((((2 * 12) + 5) < 0), '-', ''),  CAST ( CAST (FLOOR((ABS(((2 * 12) + 5)) / 12)) AS INT) AS STRING), '-',  CAST ( CAST (FLOOR((ABS(((2 * 12) + 5)) % 12)) AS INT) AS STRING)) AS INTERVAL YEAR TO MONTH)"
-        ]
-        == "+2-05"
-    )
+    if session.eliminate_numeric_sql_value_cast_enabled:
+        column_name = "CAST (CONCAT(IFF((((2 * 12) + 5) < 0), '-', ''),  CAST ( CAST (FLOOR((ABS(((2 * 12) + 5)) / 12)) AS INT) AS STRING), '-',  CAST ( CAST (FLOOR((ABS(((2 * 12) + 5)) % 12)) AS INT) AS STRING)) AS INTERVAL YEAR TO MONTH)"
+    else:
+        column_name = "CAST (CONCAT(IFF((((2 :: INT * 12 :: INT) + 5 :: INT) < 0 :: INT), '-', ''),  CAST ( CAST (FLOOR((ABS(((2 :: INT * 12 :: INT) + 5 :: INT)) / 12 :: INT)) AS INT) AS STRING), '-',  CAST ( CAST (FLOOR((ABS(((2 :: INT * 12 :: INT) + 5 :: INT)) % 12 :: INT)) A"
+    assert result_literals_no_alias[0][column_name] == "+2-05"
 
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: Alter Session not supported in local testing",
-)
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
 )
 def test_interval_day_time_from_parts(session):
     test_cases = [
@@ -5967,6 +5963,10 @@ def test_interval_day_time_from_parts(session):
         ),
     )
     literals_result_no_alias = literals_schema_result_no_alias.collect()
-    assert literals_result_no_alias[0][
-        "CAST (CONCAT(IFF((((((1 * 86400) + (2 * 3600)) + (3 * 60)) + 4.5) < 0), '-', ''),  CAST ( CAST (FLOOR((ABS(((((1 * 86400) + (2 * 3600)) + (3 * 60)) + 4.5)) / 86400)) AS INT) AS STRING), ' ', IFF(( CAST (FLOOR(((ABS(((((1 * 86400) + (2 * 3600)) + (3 * 60))"
-    ] == timedelta(days=1, hours=2, minutes=3, seconds=4.5)
+    if session.eliminate_numeric_sql_value_cast_enabled:
+        column_name = "CAST (CONCAT(IFF((((((1 * 86400) + (2 * 3600)) + (3 * 60)) + 4.5) < 0), '-', ''),  CAST ( CAST (FLOOR((ABS(((((1 * 86400) + (2 * 3600)) + (3 * 60)) + 4.5)) / 86400)) AS INT) AS STRING), ' ', IFF(( CAST (FLOOR(((ABS(((((1 * 86400) + (2 * 3600)) + (3 * 60))"
+    else:
+        column_name = "CAST (CONCAT(IFF((((((1 :: INT * 86400 :: INT) + (2 :: INT * 3600 :: INT)) + (3 :: INT * 60 :: INT)) + '4.5' :: FLOAT) < 0 :: INT), '-', ''),  CAST ( CAST (FLOOR((ABS(((((1 :: INT * 86400 :: INT) + (2 :: INT * 3600 :: INT)) + (3 :: INT * 60 :: INT)) + '4."
+    assert literals_result_no_alias[0][column_name] == timedelta(
+        days=1, hours=2, minutes=3, seconds=4.5
+    )
