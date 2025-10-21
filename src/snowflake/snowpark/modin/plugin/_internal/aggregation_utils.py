@@ -899,7 +899,9 @@ def _is_supported_snowflake_agg_func(
     if isinstance(agg_func, tuple) and len(agg_func) == 2:
         # For named aggregations, like `df.agg(new_col=("old_col", "sum"))`,
         # take the second part of the named aggregation.
-        agg_func = agg_func[1]
+        agg_func = (
+            agg_func.func if isinstance(agg_func, AggFuncWithLabel) else agg_func[1]
+        )
 
     if get_snowflake_agg_func(agg_func, agg_kwargs, axis, _is_df_agg) is None:
         return AggregationSupportResult(

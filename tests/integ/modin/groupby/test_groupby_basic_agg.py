@@ -1323,7 +1323,7 @@ class TestTimedelta:
         )
 
     @sql_count_checker(query_count=1)
-    def test_groupby_agg_named_aggregation_codepath(self):
+    def test_groupby_agg_named_aggregation_implicit(self):
         eval_snowpark_pandas_result(
             *create_test_dfs(
                 {
@@ -1332,4 +1332,12 @@ class TestTimedelta:
                 }
             ),
             lambda df: df.groupby("team").agg({"score": [("total_score", "sum")]}),
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_groupby_agg_named_aggregation_explicit(self):
+        agg1 = pd.NamedAgg(column="score", aggfunc="sum")
+        eval_snowpark_pandas_result(
+            *create_test_dfs({"team": ["A", "B"], "score": [10, 15]}),
+            lambda df: df.groupby("team").agg(total_score=agg1),
         )
