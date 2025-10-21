@@ -22,6 +22,7 @@ from snowflake.snowpark.functions import (
     min as min_,
     object_construct,
     sum as sum_,
+    count_distinct,
 )
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     get_pandas_aggr_func_name,
@@ -775,7 +776,7 @@ def prepare_pivot_aggregation_for_handling_missing_and_null_values(
       bar  | 0.0   | Nan   | 0.0 | Nan
       foo  | 1.0   | 1.0   | 0.0 | 1.0
 
-    To match pandas behavior, we do an upfront group-by aggregation for count and sum to get the correct
+    To match pandas behavior, we do an upfront group-by aggregation for count, nunique and sum to get the correct
     values for all null values via snowflake query:
 
     select a, b, coalesce(sum(C), 0) as sum_c, count(C) as cnt_c from df_small_data group by a, b;
@@ -799,16 +800,21 @@ def prepare_pivot_aggregation_for_handling_missing_and_null_values(
         Snowpark dataframe that has done an pre-pivot aggregation needed for matching pandas pivot behavior as
         described earlier.
     """
-    if snowpark_aggr_func in [sum_, count]:
-        agg_expr = (
-            coalesce(sum_(aggr_snowflake_quoted_identifier), pandas_lit(0)).as_(
+    if snowpark_aggr_func in [sum_, count, count_distinct]:
+        if snowpark_aggr_func == sum_:
+            agg_expr = coalesce(
+                sum_(aggr_snowflake_quoted_identifier), pandas_lit(0)
+            ).as_(aggr_snowflake_quoted_identifier)
+        elif snowpark_aggr_func == count:
+            agg_expr = count(aggr_snowflake_quoted_identifier).as_(
                 aggr_snowflake_quoted_identifier
             )
-            if snowpark_aggr_func == sum_
-            else count(aggr_snowflake_quoted_identifier).as_(
+        elif snowpark_aggr_func == count_distinct:
+            agg_expr = count_distinct(aggr_snowflake_quoted_identifier).as_(
                 aggr_snowflake_quoted_identifier
             )
-        )
+        else:
+            raise NotImplementedError("Aggregate function not supported for pivot")
         pre_pivot_ordered_dataframe = pivot_ordered_dataframe.group_by(
             grouping_snowflake_quoted_identifiers, agg_expr
         )

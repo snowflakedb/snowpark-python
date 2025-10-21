@@ -1492,6 +1492,7 @@ def _get_frame_by_row_label_boolean_frame(
         key,
         dummy_row_pos_mode,
         "coalesce",
+        dummy_row_pos_mode,
     )
 
     key_bool_val_col = col(

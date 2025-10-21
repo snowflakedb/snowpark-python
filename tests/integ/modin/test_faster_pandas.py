@@ -7,6 +7,7 @@ from contextlib import contextmanager
 import modin.pandas as pd
 import pandas as native_pd
 import pytest
+from pandas._testing import assert_almost_equal
 
 from snowflake.snowpark._internal.utils import TempObjectType
 import snowflake.snowpark.modin.plugin  # noqa: F401
@@ -124,9 +125,9 @@ def test_read_filter_join_on_index(session):
     )
 
 
-@sql_count_checker(query_count=3)
-def test_read_filter_groupby_agg(session):
-    # test a chain of operations that are not fully supported in faster pandas
+@sql_count_checker(query_count=3, join_count=2)
+def test_read_filter_iloc_index(session):
+    # test a chain of operations that are not yet fully supported in faster pandas
 
     # create tables
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -136,19 +137,19 @@ def test_read_filter_groupby_agg(session):
 
     # create snow dataframes
     df = pd.read_snowflake(table_name)
-    snow_result = df[df["B"] > 11].groupby("A").min()
+    snow_result = df.iloc[[1], :]
 
     # verify that the input dataframe has a populated relaxed query compiler
     assert df._query_compiler._relaxed_query_compiler is not None
     assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
     # verify that the output dataframe has an empty relaxed query compiler
-    # because groupby() and min() are not supported in faster pandas yet
+    # because iloc for index is not supported in faster pandas yet
     assert snow_result._query_compiler._relaxed_query_compiler is None
     assert snow_result._query_compiler._dummy_row_pos_mode is False
 
     # create pandas dataframes
     native_df = df.to_pandas()
-    native_result = native_df[native_df["B"] > 11].groupby("A").min()
+    native_result = native_df.iloc[[1], :]
 
     # compare results
     assert_frame_equal(snow_result, native_result)
@@ -195,6 +196,61 @@ def test_read_filter_join_flag_disabled(session):
         assert_frame_equal(snow_result, native_result)
 
 
+@pytest.mark.parametrize(
+    "func",
+    [
+        "min",
+        "max",
+        "count",
+        "sum",
+        "mean",
+        "median",
+        "std",
+        "var",
+    ],
+)
+@sql_count_checker(query_count=6)
+def test_agg(session, func):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[2, 12], [1, 11], [3, 13]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result1 = getattr(df, func)()
+    snow_result2 = df.agg([func])
+    snow_result3 = getattr(df["B"], func)()
+    snow_result4 = df["B"].agg([func])
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result1._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result1._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+    assert snow_result2._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result2._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result1 = getattr(native_df, func)()
+    native_result2 = native_df.agg([func])
+    native_result3 = getattr(native_df["B"], func)()
+    native_result4 = native_df["B"].agg([func])
+
+    # compare results
+    assert_series_equal(snow_result1, native_result1, check_dtype=False)
+    assert_frame_equal(snow_result2, native_result2, check_dtype=False)
+    assert_almost_equal(snow_result3, native_result3)
+    assert_series_equal(snow_result4, native_result4, check_dtype=False)
+
+
 @sql_count_checker(query_count=3)
 def test_drop(session):
     # create tables
@@ -219,6 +275,35 @@ def test_drop(session):
     # create pandas dataframes
     native_df = df.to_pandas()
     native_result = native_df.drop(columns=["B"])
+
+    # compare results
+    assert_frame_equal(snow_result, native_result)
+
+
+@sql_count_checker(query_count=3, join_count=2)
+def test_drop_duplicates(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[2, 12], [2, 12], [3, 13]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result = df.drop_duplicates()
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = native_df.drop_duplicates()
 
     # compare results
     assert_frame_equal(snow_result, native_result)
@@ -251,6 +336,104 @@ def test_duplicated(session):
 
     # compare results
     assert_series_equal(snow_result, native_result)
+
+
+@pytest.mark.parametrize(
+    "func",
+    [
+        "min",
+        "max",
+        "count",
+        "sum",
+        "mean",
+        "median",
+        "std",
+        "var",
+    ],
+)
+@sql_count_checker(query_count=6)
+def test_groupby_agg(session, func):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[2, 12], [2, 11], [3, 13]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result1 = getattr(df.groupby("A"), func)()
+    snow_result2 = df.groupby("A").agg([func])
+    snow_result3 = getattr(df.groupby("A")["B"], func)()
+    snow_result4 = df.groupby("A")["B"].agg([func])
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result1._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result1._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+    assert snow_result2._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result2._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result1 = getattr(native_df.groupby("A"), func)()
+    native_result2 = native_df.groupby("A").agg([func])
+    native_result3 = getattr(native_df.groupby("A")["B"], func)()
+    native_result4 = native_df.groupby("A")["B"].agg([func])
+
+    # compare results
+    assert_frame_equal(snow_result1, native_result1, check_dtype=False)
+    assert_frame_equal(snow_result2, native_result2, check_dtype=False)
+    assert_series_equal(snow_result3, native_result3, check_dtype=False)
+    assert_frame_equal(snow_result4, native_result4, check_dtype=False)
+
+
+@sql_count_checker(query_count=5)
+def test_iloc_head(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[1, 11], [2, 12], [3, 13]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result1 = df.iloc[:, [1]]
+    snow_result2 = df.iloc[0:2:1, [1]]
+    snow_result3 = df.head()
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result1._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result1._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+    assert snow_result2._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result2._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+    assert snow_result3._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result3._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result1 = native_df.iloc[:, [1]]
+    native_result2 = native_df.iloc[0:2:1, [1]]
+    native_result3 = native_df.head()
+
+    # compare results
+    assert_frame_equal(snow_result1, native_result1)
+    assert_frame_equal(snow_result2, native_result2)
+    assert_frame_equal(snow_result3, native_result3)
 
 
 @sql_count_checker(query_count=3)
@@ -660,6 +843,37 @@ def test_set_2d_labels_from_different_df(session, input_df2):
     native_df3 = native_df1
     native_df3["C"] = native_df2["B"] + 1
     native_result = native_df3
+
+    # compare results
+    assert_frame_equal(snow_result, native_result)
+
+
+@sql_count_checker(query_count=3)
+def test_set_columns(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[2, 12], [1, 11], [3, 13]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result = df
+    snow_result.columns = ["X", "Y"]
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = native_df
+    native_result.columns = ["X", "Y"]
 
     # compare results
     assert_frame_equal(snow_result, native_result)
