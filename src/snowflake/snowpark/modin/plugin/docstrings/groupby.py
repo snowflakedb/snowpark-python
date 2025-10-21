@@ -2435,20 +2435,20 @@ class DataFrameGroupBy:
         window : int, timedelta, str, offset, or BaseIndexer subclass
             Size of the moving window.
             If an integer, the fixed number of observations used for each window.
-            If a timedelta, str, or offset, the time period of each window. Each window will be a variable sized based on the observations included in the time-period. This is only valid for datetimelike indexes. To learn more about the offsets & frequency strings, please see this link.
-            If a BaseIndexer subclass, the window boundaries based on the defined get_window_bounds method. Additional rolling keyword arguments, namely min_periods, center, closed and step will be passed to get_window_bounds.
+            If a timedelta, str, or offset, the time period of each window. Each window will be a variable sized based on the observations included in the time-period. This is only valid for datetimelike indexes. To learn more about the offsets & frequency strings, please see `this link <https://pandas.pydata.org/pandas-docs/stable/user_guide/timeseries.html#offset-aliases>`.
+            If a BaseIndexer subclass, the window boundaries based on the defined `get_window_bounds` method. Additional rolling keyword arguments, namely `min_periods`, `center`, `closed` and `step` will be passed to `get_window_bounds`.
 
         min_periods : int, default None
-            Minimum number of observations in window required to have a value; otherwise, result is np.nan.
-            For a window that is specified by an offset, min_periods will default to 1.
-            For a window that is specified by an integer, min_periods will default to the size of the window.
+            Minimum number of observations in window required to have a value; otherwise, result is `np.nan`.
+            For a window that is specified by an offset, `min_periods` will default to 1.
+            For a window that is specified by an integer, `min_periods` will default to the size of the window.
 
         center : bool, default False
             If False, set the window labels as the right edge of the window index.
             If True, set the window labels as the center of the window index.
 
         win_type : str, default None
-            If None, all points are evenly weighted.
+            If `None`, all points are evenly weighted.
             If a string, it must be a valid scipy.signal window function.
             Certain Scipy window types require additional parameters to be passed in the aggregation function. The additional parameters must match the keywords specified in the Scipy window type method signature.
 
@@ -2457,20 +2457,20 @@ class DataFrameGroupBy:
             Provided integer column is ignored and excluded from result since an integer index is not used to calculate the rolling window.
 
         axis : int or str, default 0
-            If 0 or 'index', roll across the rows.
-            If 1 or 'columns', roll across the columns.
+            If `0` or `'index'`, roll across the rows.
+            If `1` or `'columns'`, roll across the columns.
             For Series this parameter is unused and defaults to 0.
 
         closed : str, default None
-            If 'right', the first point in the window is excluded from calculations.
-            If 'left', the last point in the window is excluded from calculations.
-            If 'both', no points in the window are excluded from calculations.
-            If 'neither', the first and last points in the window are excluded from calculations.
-            Default None ('right').
+            If `'right'`, the first point in the window is excluded from calculations.
+            If `'left'`, the last point in the window is excluded from calculations.
+            If `'both'`, no points in the window are excluded from calculations.
+            If `'neither'`, the first and last points in the window are excluded from calculations.
+            Default `None` (`'right'`).
 
         method : str {'single', 'table'}, default 'single'
-            Execute the rolling operation per single column or row ('single') or over the entire object ('table').
-            This argument is only implemented when specifying engine='numba' in the method call.
+            Execute the rolling operation per single column or row (`'single'`) or over the entire object (`'table'`).
+            This argument is only implemented when specifying `engine='numba'` in the method call.
 
         Returns
         -------

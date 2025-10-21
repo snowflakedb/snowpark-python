@@ -85,9 +85,13 @@ def test_groupby_rolling_by_multiple_cols():
 
 
 @sql_count_checker(query_count=1)
-def test_groupby_rolling_dropna():
+def test_groupby_rolling_dropna_false():
     native_df = native_pd.DataFrame(
-        {"A": [1, 1, np.nan, 2], "B": [1, 2, 3, 4], "C": [0.362, 0.227, np.nan, np.nan]}
+        {
+            "A": [1, 1, np.nan, np.nan, 2],
+            "B": [1, 2, 3, 4, 5],
+            "C": [0.1, 0.2, 0.3, 0.4, 0.5],
+        }
     )
     snow_df = pd.DataFrame(native_df)
     eval_snowpark_pandas_result(
@@ -151,11 +155,11 @@ def test_groupby_rolling_with_named_index():
     )
 
 
-@sql_count_checker(query_count=2)
+@sql_count_checker(query_count=1)
 def test_groupby_rolling_with_multiindex_index():
-    arrays = [["A", "A", "B", "B"], [1, 2, 1, 2]]
-    tuples = list(zip(*arrays))
-    index = native_pd.MultiIndex.from_tuples(tuples, names=["letter", "number"])
+    index = native_pd.MultiIndex.from_tuples(
+        (("A", 1), ("A", 2), ("B", 1), ("B", 2)), names=["letter", "number"]
+    )
 
     native_df = native_pd.DataFrame(
         {

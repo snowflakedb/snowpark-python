@@ -5833,7 +5833,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         if by_labels:
-            original_index_names = result_qc.index.names
+            original_index_names = result_qc.get_index_names()
             is_multiindex = len(original_index_names) > 1
 
             result_qc = result_qc.reset_index()
@@ -16435,27 +16435,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         )
 
                 if partition_identifiers:
-                    if dropna:
-                        # Standard partitioning - NULLs are excluded by Snowflake
-                        window_expr = window_expr.partitionBy(
-                            *[col(pid) for pid in partition_identifiers]
-                        )
-                    else:
-                        # For dropna=False, we need to ensure NULLs form their own partition
-                        # Use COALESCE to replace NULL with a sentinel value for partitioning
-                        from snowflake.snowpark.functions import coalesce, lit
-
-                        partition_exprs = []
-                        for pid in partition_identifiers:
-                            # Use a numeric sentinel value for partitioning
-                            # This ensures NULL values form their own partition group
-                            sentinel_value = -999999999999999
-
-                            # Replace NULL with sentinel value for proper partitioning
-                            partition_exprs.append(
-                                coalesce(col(pid), lit(sentinel_value))
-                            )
-                        window_expr = window_expr.partitionBy(*partition_exprs)
+                    window_expr = window_expr.partitionBy(
+                        *[col(pid) for pid in partition_identifiers]
+                    )
             if window_func == WindowFunction.ROLLING:
                 # min_periods defaults to the size of the window if window is specified by an integer
                 min_periods = window if min_periods is None else min_periods
