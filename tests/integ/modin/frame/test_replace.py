@@ -23,9 +23,9 @@ def snow_df():
     )
 
 
-@sql_count_checker(query_count=4)
-def test_replace_mauricio_dataframe():
-    test_sdf = pd.DataFrame(
+@sql_count_checker(query_count=3)
+def test_replace_SNOW_2390752_dataframe():
+    test_ndf = native_pd.DataFrame(
         {
             "col1": ["one", "two", "two", "three", "two", "four"],
             "col2": [
@@ -38,7 +38,7 @@ def test_replace_mauricio_dataframe():
             ],
         }
     )
-    test_ndf = test_sdf.to_pandas()
+    test_sdf = pd.DataFrame(test_ndf)
     test_mdf = test_sdf.move_to("Pandas")
     assert test_mdf.get_backend() == "Pandas"
 
@@ -50,11 +50,12 @@ def test_replace_mauricio_dataframe():
     assert modin_result.to_pandas().equals(snow_result.to_pandas())
 
 
-@sql_count_checker(query_count=4, join_count=2)
-def test_replace_mauricio_series():
-
-    input_dict = pd.Series({"a": "apple", "socks": "socks are darned", "b": "bee"})
-    input_dict_native = input_dict.to_pandas()
+@sql_count_checker(query_count=3, join_count=2)
+def test_replace_SNOW_2390752_series():
+    input_dict_native = native_pd.Series(
+        {"a": "apple", "socks": "socks are darned", "b": "bee"}
+    )
+    input_dict = pd.Series(input_dict_native)
     input_dict_pandas_modin = input_dict.move_to("Pandas")
     assert input_dict_pandas_modin.get_backend() == "Pandas"
     expected = input_dict_native["socks"].replace("darned", "clean")
