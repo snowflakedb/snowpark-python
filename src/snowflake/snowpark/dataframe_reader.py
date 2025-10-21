@@ -1838,18 +1838,29 @@ class DataFrameReader:
             "udtf_ingestion" if udtf_configs is not None else "local_ingestion"
         )
 
-        # prepare parameter for data source partitioner
-        ds_par_params = locals()
-        ds_par_params["table_or_query"] = table or query
-        ds_par_params["is_query"] = True if table is None else False
+        table_or_query = table or query
+        is_query = True if table is None else False
         statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
-
         start_time = time.perf_counter()
         logger.debug(f"ingestion start at: {start_time}")
         if session_init_statement and isinstance(session_init_statement, str):
             session_init_statement = [session_init_statement]
-            ds_par_params["session_init_statement"] = session_init_statement
-        partitioner = DataSourcePartitioner.from_dict(ds_par_params)
+        partitioner = DataSourcePartitioner(
+            create_connection,
+            table_or_query,
+            is_query,
+            column,
+            lower_bound,
+            upper_bound,
+            num_partitions,
+            query_timeout,
+            fetch_size,
+            custom_schema,
+            predicates,
+            session_init_statement,
+            fetch_merge_count,
+            connection_parameters,
+        )
 
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions

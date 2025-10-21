@@ -4,7 +4,6 @@
 
 import datetime
 import decimal
-import inspect
 from collections import defaultdict
 from functools import cached_property
 from typing import Optional, Union, List, Callable, Dict
@@ -88,13 +87,6 @@ class DataSourcePartitioner:
             if is_query
             else None
         )
-
-    @classmethod
-    def from_dict(cls, init_dict: dict) -> "DataSourcePartitioner":
-        """Create safely from a dict, ignoring extra fields."""
-        params = inspect.signature(cls).parameters
-        filtered = {k: v for k, v in init_dict.items() if k in params}
-        return cls(**filtered)
 
     def reader(self) -> DataSourceReader:
         return DataSourceReader(
