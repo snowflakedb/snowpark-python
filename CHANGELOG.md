@@ -58,6 +58,7 @@
     - `st_geometryfromwkt`
     - `try_to_geography`
     - `try_to_geometry`
+- Added support for `Session.udf_profiler`.
 
 
 #### Bug Fixes
