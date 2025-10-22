@@ -23,7 +23,6 @@ from snowflake.snowpark._internal.analyzer.grouping_set import (
     Cube,
     GroupingSetsExpression,
     Rollup,
-    GroupByAll,
 )
 from snowflake.snowpark._internal.analyzer.unary_expression import (
     Alias,
@@ -100,10 +99,6 @@ class _CubeType(_GroupType):
 
 
 class _RollupType(_GroupType):
-    pass
-
-
-class _GroupByAllType(_GroupType):
     pass
 
 
@@ -234,12 +229,6 @@ class RelationalGroupedDataFrame:
         elif isinstance(self._group_type, _CubeType):
             group_plan = Aggregate(
                 [Cube(unaliased_grouping)],
-                aliased_agg,
-                self._dataframe._select_statement or self._dataframe._plan,
-            )
-        elif isinstance(self._group_type, _GroupByAllType):
-            group_plan = Aggregate(
-                [GroupByAll([])],
                 aliased_agg,
                 self._dataframe._select_statement or self._dataframe._plan,
             )
