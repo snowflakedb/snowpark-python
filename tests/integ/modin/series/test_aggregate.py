@@ -85,6 +85,7 @@ def validate_scalar_result(res1, res2):
         ),
     ],
 )
+@pytest.mark.skip_hybrid
 def test_agg_series(
     func, is_scalar, has_count_aggregate, data, dtype, expected_union_count
 ):
