@@ -7,7 +7,6 @@
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
-- Added a new function `group_by_all()` to the `DataFrame` class.
 - Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following functions in `functions.py`:
@@ -81,6 +80,7 @@
 - Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0.
 - Fixed a bug where `modin` would unintentionally be imported during session initialization in some scenarios.
 - Fixed a bug where `session.udf|udtf|udaf|sproc.register` failed when an extra session argument was passed. These methods do not expect a session argument; please remove it if provided.
+- Fixed a bug in `DataFrameGroupBuy.agg` where func is a list of tuples used to set the names of the output columns.
 
 #### Improvements
 
@@ -141,6 +141,7 @@
   - `sort_values`
   - `loc` (setting columns)
   - `to_datetime`
+  - `rename`
   - `drop`
   - `invert`
   - `duplicated`
@@ -165,6 +166,8 @@
   - `groupby.median`
   - `groupby.std`
   - `groupby.var`
+  - `groupby.nunique`
+  - `groupby.size`
   - `drop_duplicates`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
