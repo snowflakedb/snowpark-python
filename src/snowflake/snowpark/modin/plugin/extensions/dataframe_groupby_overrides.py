@@ -114,9 +114,6 @@ def __init__(
         "group_keys": group_keys,
     }
     self._kwargs.update(kwargs)
-    if "apply_op" not in self._kwargs:
-        # Can be "apply", "transform", "filter" or "aggregate"
-        self._kwargs.update({"apply_op": "apply"})
 
 
 @register_df_groupby_override("ngroups")
@@ -172,7 +169,7 @@ def indices(self) -> dict[Hashable, npt.NDArray[np.intp]]:
 
 
 @register_df_groupby_override("apply")
-def apply(self, func, *args, include_groups=True, **kwargs):
+def apply(self, func, *args, include_groups=True, _is_transform=False, **kwargs):
     # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
     # TODO: SNOW-1244717: Explore whether window function are performant and can be used
     #       whenever `func` is an aggregation function.
@@ -188,6 +185,7 @@ def apply(self, func, *args, include_groups=True, **kwargs):
             agg_kwargs=kwargs,
             series_groupby=False,
             include_groups=include_groups,
+            is_transform=_is_transform,
         )
     )
     if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
@@ -320,11 +318,10 @@ def transform(
         dropna=False,
         sort=self._sort,
     )
-    groupby_obj._kwargs["apply_op"] = "transform"
-
     # Apply the transform function to each group.
     res = groupby_obj.apply(
-        create_groupby_transform_func(func, by, level, *args, **kwargs)
+        create_groupby_transform_func(func, by, level, *args, **kwargs),
+        _is_transform=True,
     )
 
     dropna = self._kwargs.get("dropna", True)
@@ -436,8 +433,9 @@ def cumcount(self, ascending: bool = True):
 @register_df_groupby_override("cummax")
 def cummax(self, axis: Axis = 0, numeric_only: bool = False, **kwargs):
     # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
+    agg_kwargs = {"numeric_only": numeric_only, **kwargs}
     qc = self._query_compiler.groupby_cummax(
-        self._by, self._axis, numeric_only, self._kwargs
+        self._by, self._axis, self._kwargs, agg_kwargs
     )
     return (
         pd.Series(query_compiler=qc)
