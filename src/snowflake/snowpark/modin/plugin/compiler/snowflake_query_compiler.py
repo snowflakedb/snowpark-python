@@ -6126,6 +6126,43 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         **kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _groupby_size_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._groupby_size_internal(
+                    by=by,
+                    axis=axis,
+                    groupby_kwargs=groupby_kwargs,
+                    agg_args=agg_args,
+                    agg_kwargs=agg_kwargs,
+                    drop=drop,
+                    **kwargs,
+                )
+            )
+        qc = self._groupby_size_internal(
+            by=by,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+            drop=drop,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _groupby_size_internal(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: tuple[Any],
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
         compute groupby with size.
         With a dataframe created with following:
         import pandas as pd
@@ -6533,6 +6570,43 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def groupby_nunique(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _groupby_nunique_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._groupby_nunique_internal(
+                    by=by,
+                    axis=axis,
+                    groupby_kwargs=groupby_kwargs,
+                    agg_args=agg_args,
+                    agg_kwargs=agg_kwargs,
+                    drop=drop,
+                    **kwargs,
+                )
+            )
+        qc = self._groupby_nunique_internal(
+            by=by,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+            drop=drop,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _groupby_nunique_internal(
         self,
         by: Any,
         axis: int,
