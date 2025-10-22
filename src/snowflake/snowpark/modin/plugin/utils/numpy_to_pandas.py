@@ -243,7 +243,7 @@ def percentile_mapper(
     Numpy np.percentile signature:
     Return the q-th percentile(s) of an array, Series, or DataFrame (a).
 
-    Pandas pd.unique signature:
+    Pandas Series.quantile signature:
     Return the q-th quantile(s) of a Series or DataFrame.
 
     Parameters
@@ -278,7 +278,7 @@ def percentile_mapper(
     if interpolation is not None:
         return NotImplemented
     input_values = a
-    if isinstance(q, float):
+    if isinstance(q, (float, int)):
         q = q / 100
     else:
         q = [percentage / 100 for percentage in q]

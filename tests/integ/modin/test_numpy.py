@@ -165,19 +165,19 @@ def test_np_percentile(q):
     # Verify that numpy throws type errors when we return NotImplemented
     # when using optional parameters
     with pytest.raises(TypeError):
-        np.percentile(y_true_snow_2d, axis=1)
+        np.percentile(y_true_snow_2d, 50, axis=1)
     with pytest.raises(TypeError):
-        np.percentile(y_true_snow_2d, out=np.zeros(1))
+        np.percentile(y_true_snow_2d, 50, out=np.zeros(1))
     with pytest.raises(TypeError):
-        np.percentile(y_true_snow_2d, overwrite_input=True)
+        np.percentile(y_true_snow_2d, 50, overwrite_input=True)
     with pytest.raises(TypeError):
-        np.percentile(y_true_snow_2d, method="inverted_cdf")
+        np.percentile(y_true_snow_2d, 50, method="inverted_cdf")
     with pytest.raises(TypeError):
-        np.percentile(y_true_snow_2d, keepdims=True)
+        np.percentile(y_true_snow_2d, 50, keepdims=True)
     with pytest.raises(TypeError):
-        np.percentile(y_true_snow_2d, weights=[0.25, 0.25, 0.25, 0.25])
+        np.percentile(y_true_snow_2d, 50, weights=[0.25, 0.25, 0.25, 0.25])
     with pytest.raises(TypeError):
-        np.percentile(y_true_snow_2d, interpolation="inverted_cdf")
+        np.percentile(y_true_snow_2d, 50, interpolation="inverted_cdf")
 
 
 def test_logical_operators():
