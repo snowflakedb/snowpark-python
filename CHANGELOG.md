@@ -168,6 +168,7 @@
   - `groupby.var`
   - `groupby.nunique`
   - `groupby.size`
+  - `groupby.apply`
   - `drop_duplicates`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
