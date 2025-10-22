@@ -68,7 +68,10 @@ DEVELOPMENT_REQUIREMENTS = [
     "lxml",  # used in XML reader unit tests
 ]
 MODIN_DEVELOPMENT_REQUIREMENTS = [
-    "scipy",  # Snowpark pandas 3rd party library testing
+    # Snowpark pandas 3rd party library testing. Cap the scipy version because
+    # Snowflake cannot find newer versions of scipy for python 3.11+. See
+    # SNOW-2452791.
+    "scipy<=1.16.0",
     "statsmodels",  # Snowpark pandas 3rd party library testing
     "scikit-learn",  # Snowpark pandas 3rd party library testing
     # plotly version restricted due to foreseen change in query counts in version 6.0.0+
