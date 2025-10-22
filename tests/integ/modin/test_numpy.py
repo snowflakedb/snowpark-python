@@ -147,6 +147,39 @@ def test_full_like():
         np.full_like(snow_df, 1234, dtype=int)
 
 
+@pytest.mark.parametrize("q", [50, [50, 75]])
+@sql_count_checker(query_count=2)
+def test_np_percentile(q):
+    y_true_np = np.array([0, 0, 1, 1])
+    y_true_snow = pd.Series([0, 0, 1, 1])
+    res_np = np.percentile(y_true_np, q)
+    res_snow = np.percentile(y_true_snow, q)
+    assert (res_np == res_snow).all()
+
+    y_true_np_2d = np.array([[1, 2, 5, 6], [1, 2, 3, 4]])
+    y_true_snow_2d = pd.DataFrame({"a": [1, 2, 5, 6], "b": [1, 2, 3, 4]})
+    res_np = np.percentile(y_true_np_2d, q)
+    res_snow = np.percentile(y_true_snow_2d, q)
+    assert (res_np == res_snow).all()
+
+    # Verify that numpy throws type errors when we return NotImplemented
+    # when using optional parameters
+    with pytest.raises(TypeError):
+        np.percentile(y_true_snow_2d, axis=1)
+    with pytest.raises(TypeError):
+        np.percentile(y_true_snow_2d, out=np.zeros(1))
+    with pytest.raises(TypeError):
+        np.percentile(y_true_snow_2d, overwrite_input=True)
+    with pytest.raises(TypeError):
+        np.percentile(y_true_snow_2d, method="inverted_cdf")
+    with pytest.raises(TypeError):
+        np.percentile(y_true_snow_2d, keepdims=True)
+    with pytest.raises(TypeError):
+        np.percentile(y_true_snow_2d, weights=[0.25, 0.25, 0.25, 0.25])
+    with pytest.raises(TypeError):
+        np.percentile(y_true_snow_2d, interpolation="inverted_cdf")
+
+
 def test_logical_operators():
     data = {
         "A": [0, 1, 2, 0, 1, 2, 0, 1, 2],

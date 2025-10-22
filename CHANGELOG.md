@@ -84,6 +84,7 @@
 - Added support for the `dtypes` parameter of `pd.get_dummies`
 - Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
 - Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
+- Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
 
 #### Improvements
 
