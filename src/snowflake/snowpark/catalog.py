@@ -4,10 +4,10 @@
 
 from ctypes import ArgumentError
 import re
-from typing import List, Optional, Union
+from typing import List, Optional, Union, TYPE_CHECKING
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
-from snowflake.snowpark.exceptions import SnowparkSQLException
+from snowflake.snowpark.exceptions import SnowparkSQLException, NotFoundError
 
 try:
     from snowflake.core.database import Database  # type: ignore
@@ -23,9 +23,6 @@ except ImportError as e:
         "Missing optional dependency: 'snowflake.core'."
     ) from e  # pragma: no cover
 
-
-from snowflake.connector.cursor import DictCursor
-from snowflake.snowpark.session import Session
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
     type_string_to_type_object,
@@ -33,15 +30,8 @@ from snowflake.snowpark._internal.type_utils import (
 from snowflake.snowpark.functions import lit, parse_json
 from snowflake.snowpark.types import DataType
 
-
-class NotFoundError(Exception):
-    """Raised when we encounter an object is not found."""
-
-    def __init__(
-        self,
-        *args,
-    ) -> None:
-        super().__init__(*args)
+if TYPE_CHECKING:
+    from snowflake.snowpark.session import Session
 
 
 class Catalog:
@@ -50,9 +40,8 @@ class Catalog:
     views, functions, etc.
     """
 
-    def __init__(self, session: Session) -> None:  # type: ignore
+    def __init__(self, session: "Session") -> None:  # type: ignore
         self._session = session
-        self._cursor = session._conn._conn.cursor(DictCursor)
         self._python_regex_udf = None
 
     def _parse_database(
