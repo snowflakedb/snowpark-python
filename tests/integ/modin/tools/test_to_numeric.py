@@ -109,6 +109,7 @@ def test_series_to_numeric(input, dtype, expected_dtype):
     ],
 )
 @sql_count_checker(query_count=1)
+@pytest.mark.skip_hybrid
 def test_scalar_to_numeric(input, dtype):
     snow = pd.to_numeric(input)
     assert snow.dtype == dtype
@@ -120,6 +121,7 @@ def test_scalar_to_numeric(input, dtype):
 
 
 @sql_count_checker(query_count=1)
+@pytest.mark.skip_hybrid
 def test_scalar_timedelta_to_numeric():
     # Test this case separately because of a bug in pandas: https://github.com/pandas-dev/pandas/issues/59944
     input = native_pd.Timedelta(1)
