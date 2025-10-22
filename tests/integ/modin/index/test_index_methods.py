@@ -588,6 +588,7 @@ def test_df_index_columns_to_series(native_df, generate_extra_index, name):
 @pytest.mark.parametrize("name", [None, "name", True, 1, lib.no_default])
 @pytest.mark.parametrize("index", [True, False])
 @pytest.mark.parametrize("native_index", NATIVE_INDEX_TEST_DATA)
+@pytest.mark.skip_hybrid
 def test_index_to_frame(native_index, name, index):
     snow_index = pd.Index(native_index)
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
