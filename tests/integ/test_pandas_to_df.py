@@ -667,6 +667,11 @@ def test_create_from_pandas_basic_pandas_types(session):
     assert isinstance(sp_df, Table)
     # If max string size is not 16mb then it shows up in the schema definition
     max_size = "" if session._conn.max_string_size == 2**24 else "16777216"
+    # TL;DR: max_string_size is not reliable in stored procedure due to SNOW-2055478
+    # in snowflake 2025_07 BCR bundle, the default string length becomes 128MB, however, SNOW-2055478 currently
+    # blocks us from using it.
+    if is_in_stored_procedure():
+        max_size = "134217728"
     assert (
         str(sp_df.schema)
         == f"""\
