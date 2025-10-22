@@ -6,8 +6,6 @@ from ctypes import ArgumentError
 import re
 from typing import List, Optional, Union
 
-from snowflake.core import view
-
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark.exceptions import SnowparkSQLException
 
@@ -459,7 +457,7 @@ class Catalog:
             )[0]
         except IndexError:
             raise NotFoundError(
-                f"View with name {view} could not be found in schema '{db_name}.{schema_name}'"
+                f"View with name {view_name} could not be found in schema '{db_name}.{schema_name}'"
             )
 
     def get_procedure(
