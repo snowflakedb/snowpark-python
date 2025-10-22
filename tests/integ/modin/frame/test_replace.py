@@ -25,7 +25,7 @@ def snow_df():
 
 @sql_count_checker(query_count=3)
 def test_replace_SNOW_2390752_dataframe():
-    test_ndf = native_pd.DataFrame(
+    native_df = native_pd.DataFrame(
         {
             "col1": ["one", "two", "two", "three", "two", "four"],
             "col2": [
@@ -38,15 +38,15 @@ def test_replace_SNOW_2390752_dataframe():
             ],
         }
     )
-    test_sdf = pd.DataFrame(test_ndf)
-    test_mdf = test_sdf.move_to("Pandas")
-    assert test_mdf.get_backend() == "Pandas"
+    snow_df = pd.DataFrame(native_df)
+    modin_df = snow_df.move_to("Pandas")
+    assert modin_df.get_backend() == "Pandas"
 
     eval_snowpark_pandas_result(
-        test_sdf, test_ndf, lambda df: df["col1"].replace(["two"], ["a"])
+        snow_df, native_df, lambda df: df["col1"].replace(["two"], ["a"])
     )
-    snow_result = test_sdf["col1"].replace(["two"], ["a"])
-    modin_result = test_mdf["col1"].replace(["two"], ["a"])
+    snow_result = snow_df["col1"].replace(["two"], ["a"])
+    modin_result = modin_df["col1"].replace(["two"], ["a"])
     assert modin_result.to_pandas().equals(snow_result.to_pandas())
 
 
