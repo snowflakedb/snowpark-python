@@ -987,6 +987,127 @@ def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
 
 
 @pytest.mark.parametrize(
+    "method,method_kwargs,query_count",
+    [
+        ("fillna", {"value": 0, "axis": 1}, 1),
+        ("fillna", {"value": 0, "downcast": "infer"}, 1),
+        ("cummin", {"axis": 1}, 1),
+        ("cumsum", {"axis": 1}, 1),
+        ("cummax", {"axis": 1}, 1),
+        ("first", {"min_count": 2}, 1),
+        ("last", {"min_count": 2}, 1),
+        ("rank", {"axis": 1}, 1),
+        ("shift", {"freq": "D"}, 3),
+        ("shift", {"axis": 1}, 1),
+    ],
+)
+def test_auto_switch_unsupported_dataframe_groupby(method, method_kwargs, query_count):
+    # Test unsupported GroupBy operations that should switch to Pandas backend.
+    with SqlCounter(query_count=query_count):
+        test_data = {"A": [1, 2, 3], "B": [4, 5, 6]}
+
+        # Special handling for shift with freq parameter because it requires DatetimeIndex
+        if method == "shift" and "freq" in method_kwargs:
+            datetime_index = native_pd.date_range("2023-01-01", periods=3, freq="D")
+            snowpark_index = pd.DatetimeIndex(datetime_index)
+            df = pd.DataFrame(test_data, index=snowpark_index).move_to("Snowflake")
+        else:
+            df = pd.DataFrame(test_data).move_to("Snowflake")
+        assert df.get_backend() == "Snowflake"
+
+        groupby_obj = df.groupby("A")
+
+        _test_stay_cost(
+            data_obj=groupby_obj,
+            api_cls_name="DataFrameGroupBy",
+            method_name=method,
+            args=method_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        if method == "shift" and "freq" in method_kwargs:
+            pandas_df = pd.DataFrame(test_data, index=pd.DatetimeIndex(datetime_index))
+        else:
+            pandas_df = pd.DataFrame(test_data)
+
+        pandas_groupby_obj = pandas_df.groupby("A")
+        _test_move_to_me_cost(
+            pandas_qc=pandas_groupby_obj._query_compiler,
+            api_cls_name="DataFrameGroupBy",
+            method_name=method,
+            args=method_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        _test_expected_backend(
+            data_obj=groupby_obj,
+            method_name=method,
+            args=method_kwargs,
+            expected_backend="Pandas",
+            is_top_level=False,
+        )
+
+        if method == "shift" and "freq" in method_kwargs:
+            native_df = native_pd.DataFrame(
+                test_data, index=native_pd.DatetimeIndex(datetime_index, freq=None)
+            )
+        else:
+            native_df = native_pd.DataFrame(test_data)
+
+        eval_snowpark_pandas_result(
+            df,
+            native_df,
+            lambda df: getattr(df.groupby("A"), method)(**method_kwargs),
+        )
+
+
+@pytest.mark.parametrize(
+    "method,method_kwargs",
+    [
+        ("fillna", {"axis": 0, "value": 0}),
+        ("cummin", {"axis": 0}),
+        ("cumsum", {"axis": 0}),
+        ("cummax", {"numeric_only": True, "axis": 0}),
+        ("first", {"min_count": -1}),
+        ("last", {"min_count": -1}),
+        ("rank", {"axis": 0}),
+        ("shift", {"axis": 0}),
+    ],
+)
+def test_auto_switch_supported_dataframe_groupby(method, method_kwargs):
+    # Test supported GroupBy operations that should stay on Snowflake backend.
+    test_data = {"A": [1, 2, 3, 1, 2], "B": [4, 5, 6, 7, 8]}
+
+    with SqlCounter(query_count=1):
+        df = pd.DataFrame(test_data).move_to("Snowflake")
+        assert df.get_backend() == "Snowflake"
+
+        groupby_obj = df.groupby("A")
+
+        _test_stay_cost(
+            data_obj=groupby_obj,
+            api_cls_name="DataFrameGroupBy",
+            method_name=method,
+            args=method_kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        _test_expected_backend(
+            data_obj=groupby_obj,
+            method_name=method,
+            args=method_kwargs,
+            expected_backend="Snowflake",
+            is_top_level=False,
+        )
+
+        eval_snowpark_pandas_result(
+            df,
+            native_pd.DataFrame(test_data),
+            lambda df: getattr(df.groupby("A"), method)(**method_kwargs),
+        )
+
+
+@pytest.mark.parametrize(
     "method,kwargs",
     [
         ("skew", {"numeric_only": False}),
