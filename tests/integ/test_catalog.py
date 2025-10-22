@@ -10,7 +10,6 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quot
 from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
-from snowflake.core.exceptions import APIError
 
 
 pytestmark = [
@@ -18,10 +17,6 @@ pytestmark = [
         "config.getoption('local_testing_mode', default=False)",
         reason="deepcopy is not supported and required by local testing",
         run=False,
-    ),
-    pytest.mark.xfail(
-        raises=APIError,
-        reason="Failure due to warehouse overload",
     ),
 ]
 
