@@ -898,7 +898,7 @@ def _is_supported_snowflake_agg_func(
     """
     if isinstance(agg_func, tuple) and len(agg_func) == 2:
         # For named aggregations, like `df.agg(new_col=("old_col", "sum"))`,
-        # take the second part of the named aggregation.
+        # take the aggregation part of the named aggregation.
         agg_func = (
             agg_func.func if isinstance(agg_func, AggFuncWithLabel) else agg_func[1]
         )
@@ -1380,7 +1380,7 @@ def get_agg_func_to_col_map(
     return agg_func_to_col_map
 
 
-def get_pandas_aggr_func_name(aggfunc: AggFuncTypeBase) -> Union[str, Any, None]:
+def get_pandas_aggr_func_name(aggfunc: AggFuncTypeBase) -> str:
     """
     Returns the friendly name for the aggr function.  For example, if it is a callable, it will return __name__
     otherwise the same string name value. If aggfunc is a tuple, treat as named aggregation and return
@@ -1390,7 +1390,7 @@ def get_pandas_aggr_func_name(aggfunc: AggFuncTypeBase) -> Union[str, Any, None]
         getattr(
             aggfunc,
             "__name__",
-            aggfunc[0] if isinstance(aggfunc, tuple) else str(aggfunc),
+            str(aggfunc[0]) if isinstance(aggfunc, tuple) else str(aggfunc),
         )
         if not isinstance(aggfunc, str)
         else aggfunc
