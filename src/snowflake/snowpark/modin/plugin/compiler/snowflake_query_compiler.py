@@ -16602,8 +16602,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # pandas_lit() to create the seed.
         # if random_state is None, we have to call random() with no arguments.
         # random(NULL) is not valid.
-        random_maybe_with_state = builtin("random")(
-            *(tuple() if random_state is None else (pandas_lit(random_state),))
+        builtin_random = builtin("random")
+        random_column = (
+            builtin_random()
+            if random_state is None
+            else builtin_random(pandas_lit(random_state))
         )
         if replace:
             # If `replace=True`, we can't use snowflake's built-in SAMPLE, which
@@ -16623,7 +16626,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )[0]
             )
             sampled_row_positions_snowpark_frame = pd.session.generator(
-                uniform(0, pre_sampling_rowcount - 1, random_maybe_with_state).as_(
+                uniform(0, pre_sampling_rowcount - 1, random_column).as_(
                     sampled_row_position_identifier
                 ),
                 rowcount=post_sampling_rowcount,
@@ -16676,7 +16679,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             sampled_odf = (
                 self._modin_frame.ordered_dataframe.select(
                     *self._modin_frame.ordered_dataframe.projected_column_snowflake_quoted_identifiers,
-                    random_maybe_with_state.as_(new_identifier),
+                    random_column.as_(new_identifier),
                 )
                 .sort(OrderingColumn(new_identifier))
                 .limit(post_sampling_rowcount)
