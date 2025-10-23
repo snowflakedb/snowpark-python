@@ -53,7 +53,9 @@ def test_df_sample_cols_random_state():
     )
     # two samples with different random states should have different columns with very
     # high probability.
-    assert not sampled_with_random_state_1_1.columns.equals(sampled_with_random_state_2.columns)
+    assert not sampled_with_random_state_1_1.columns.equals(
+        sampled_with_random_state_2.columns
+    )
 
 
 @pytest.mark.parametrize("n", [0, 1, 10, 20])

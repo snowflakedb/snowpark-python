@@ -85,7 +85,7 @@
 - Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
 - Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
 - Added support for `Dataframe.groupby.rolling()`.
-- Added support for the `random_state` parameter of `DataFrame.sample` and `Series.sample`
+- Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`
 
 #### Improvements
 
