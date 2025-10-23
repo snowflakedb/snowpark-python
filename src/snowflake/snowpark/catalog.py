@@ -14,7 +14,7 @@ try:
     from snowflake.core.database._generated.models import Database as ModelDatabase  # type: ignore
     from snowflake.core.procedure import Procedure
     from snowflake.core.schema import Schema  # type: ignore
-    from snowflake.core.schema._generated.models import ModelSchema  # type: ignore
+    from snowflake.core.schema._generated.models import Schema as ModelSchema  # type: ignore
     from snowflake.core.table import Table, TableColumn
     from snowflake.core.user_defined_function import UserDefinedFunction
     from snowflake.core.view import View
@@ -40,7 +40,7 @@ class Catalog:
     views, functions, etc.
     """
 
-    def __init__(self, session: "Session") -> None:  # type: ignore
+    def __init__(self, session: "Session") -> None:
         self._session = session
         self._python_regex_udf = None
 
