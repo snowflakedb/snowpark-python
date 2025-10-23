@@ -1,5 +1,13 @@
 # Release History
 
+## 1.42.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `Session.udf_profiler`.
+
 ## 1.41.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -95,16 +103,6 @@
   - `skew()` with `axis=1` or `numeric_only=False` parameters
   - `round()` with `decimals` parameter as a Series
   - `corr()` with `method!=pearson` parameter
-  - `shift()` with `suffix` or non-integer `periods` parameters
-  - `sort_index()` with `axis=1` or `key` parameters
-  - `sort_values()` with `axis=1`
-  - `melt()` with `col_level` parameter
-  - `apply()` with `result_type` parameter for DataFrame
-  - `pivot_table()` with `sort=True`, non-string `index` list, non-string `columns` list, non-string `values` list, or `aggfunc` dict with non-string values
-  - `fillna()` with `downcast` parameter or using `limit` together with `value`
-  - `dropna()` with `axis=1`
-
-
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for the following in faster pandas:
   - `isin`
@@ -166,7 +164,6 @@
   - `groupby.var`
   - `groupby.nunique`
   - `groupby.size`
-  - `groupby.apply`
   - `drop_duplicates`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
