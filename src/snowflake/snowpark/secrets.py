@@ -4,6 +4,7 @@
 import logging
 import os
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
 # Reference for Python API for Secret Access:
 # https://docs.snowflake.com/en/developer-guide/external-network-access/secret-api-reference#python-api-for-secret-access
@@ -24,17 +25,17 @@ __all__ = [
 ]
 
 
+@dataclass
 class UsernamePassword:
-    def __init__(self, username, password) -> None:
-        self.username = username
-        self.password = password
+    username: str
+    password: str
 
 
+@dataclass
 class CloudProviderToken:
-    def __init__(self, id, key, token) -> None:
-        self.access_key_id = id
-        self.secret_access_key = key
-        self.token = token
+    access_key_id: str
+    secret_access_key: str
+    token: str
 
 
 class _SnowflakeSecrets(ABC):
