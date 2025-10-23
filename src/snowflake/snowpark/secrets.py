@@ -96,10 +96,11 @@ class _SnowflakeSecretsSPCS(_SnowflakeSecrets):
     def _get_scls_spcs_base_path(self):
         base = os.getenv(_SCLS_SPCS_SECRET_ENV_NAME, None)
         if not base:
-            raise RuntimeError(
+            _logger.debug(
                 f"Environment variable '{_SCLS_SPCS_SECRET_ENV_NAME}' is not set or empty. "
                 f"This variable must be set to the SPCS secret base path."
             )
+            raise ValueError("Secret configuration is not available")
         return base
 
     def _read_scls_spcs_secret_file(self, secret_name: str, filename: str) -> str:
