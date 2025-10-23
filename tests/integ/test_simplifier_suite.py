@@ -805,7 +805,6 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
     assert Utils.normalize_sql(df2.queries["queries"][-1]) == Utils.normalize_sql(
         f'SELECT "A", "B" FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
-
     # flatten if a regular new column is in the projection
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).filter(
         (col("a") > 1) & (col("b") > 2)
