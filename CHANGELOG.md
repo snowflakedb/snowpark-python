@@ -57,6 +57,17 @@
     - `st_geometryfromwkt`
     - `try_to_geography`
     - `try_to_geometry`
+  - String and binary functions:
+    - `hex_decode_string`
+    - `jarowinkler_similarity`
+    - `parse_url`
+    - `regexp_instr`
+    - `regexp_like`
+    - `regexp_substr`
+    - `regexp_substr_all`
+    - `rtrimmed_length`
+    - `space`
+    - `split_part`
 - Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
 
 #### Bug Fixes
