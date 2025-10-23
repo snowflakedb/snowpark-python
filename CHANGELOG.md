@@ -1,5 +1,13 @@
 # Release History
 
+## 1.42.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `Session.udf_profiler`.
+
 ## 1.41.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -84,6 +92,7 @@
 - Added support for the `dtypes` parameter of `pd.get_dummies`
 - Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
 - Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
+- Added support for `Dataframe.groupby.rolling()`.
 
 #### Improvements
 
@@ -155,7 +164,6 @@
   - `groupby.var`
   - `groupby.nunique`
   - `groupby.size`
-  - `groupby.apply`
   - `drop_duplicates`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
