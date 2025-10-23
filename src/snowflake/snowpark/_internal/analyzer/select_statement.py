@@ -20,6 +20,7 @@ from typing import (
     Sequence,
     Set,
     Union,
+    Literal,
 )
 
 import snowflake.snowpark._internal.utils
@@ -1362,9 +1363,9 @@ class SelectStatement(Selectable):
         ):
             # TODO: Clean up, this entire if case is parameter protection
             can_be_flattened = False
-        elif (self.where or self.order_by or self.limit_) and has_data_generator_exp(
-            cols
-        ):
+        elif (
+            self.where or self.order_by or self.limit_
+        ) and has_data_generator_or_window_function_exp(cols):
             can_be_flattened = False
         elif self.where and (
             (subquery_dependent_columns := derive_dependent_columns(self.where))
@@ -1453,9 +1454,9 @@ class SelectStatement(Selectable):
         can_be_flattened = (
             (not self.flatten_disabled)
             and can_clause_dependent_columns_flatten(
-                derive_dependent_columns(col), self.column_states
+                derive_dependent_columns(col), self.column_states, "filter"
             )
-            and not has_data_generator_exp(self.projection)
+            and not has_data_generator_or_window_function_exp(self.projection)
             and not (self.order_by and self.limit_ is not None)
         )
         if can_be_flattened:
@@ -1490,7 +1491,7 @@ class SelectStatement(Selectable):
             and (not self.limit_)
             and (not self.offset)
             and can_clause_dependent_columns_flatten(
-                derive_dependent_columns(*cols), self.column_states
+                derive_dependent_columns(*cols), self.column_states, "sort"
             )
             and not has_data_generator_exp(self.projection)
         )
@@ -1529,7 +1530,7 @@ class SelectStatement(Selectable):
             # .order_by(col1).select(col2).distinct() cannot be flattened because
             # SELECT DISTINCT B FROM TABLE ORDER BY A is not valid SQL
             and (not (self.order_by and self.has_projection))
-            and not has_data_generator_exp(self.projection)
+            and not has_data_generator_or_window_function_exp(self.projection)
         )
         if can_be_flattened:
             new = copy(self)
@@ -2020,7 +2021,12 @@ def can_projection_dependent_columns_be_flattened(
 def can_clause_dependent_columns_flatten(
     dependent_columns: Optional[AbstractSet[str]],
     subquery_column_states: ColumnStateDict,
+    clause: Literal["filter", "sort"],
 ) -> bool:
+    if clause not in ["filter", "sort"]:
+        raise ValueError(
+            f"Invalid clause called in can_clause_dependent_columns_flatten: {clause}"
+        )
     if dependent_columns == COLUMN_DEPENDENCY_DOLLAR:
         return False
     elif (
@@ -2034,15 +2040,10 @@ def can_clause_dependent_columns_flatten(
         for dc in dependent_columns:
             dc_state = subquery_column_states.get(dc)
             if dc_state:
-                if dc_state.change_state == ColumnChangeState.CHANGED_EXP:
-                    return False
-                elif dc_state.change_state == ColumnChangeState.NEW:
-                    # Most of the time this can be flattened. But if a new column uses window function and this column
-                    # is used in a clause, the sql doesn't work in Snowflake.
-                    # For instance `select a, rank() over(order by b) as d from test_table where d = 1` doesn't work.
-                    # But `select a, b as d from test_table where d = 1` works
-                    # We can inspect whether the referenced new column uses window function. Here we are being
-                    # conservative for now to not flatten the SQL.
+                if (
+                    dc_state.change_state == ColumnChangeState.CHANGED_EXP
+                    and clause == "filter"
+                ):
                     return False
     return True
 
@@ -2264,8 +2265,6 @@ def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
     if expressions is None:
         return False
     for exp in expressions:
-        if isinstance(exp, WindowExpression):
-            return True
         if isinstance(exp, FunctionExpression) and (
             exp.is_data_generator
             or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
@@ -2275,3 +2274,20 @@ def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
         if exp is not None and has_data_generator_exp(exp.children):
             return True
     return False
+
+
+def has_window_function_exp(expressions: Optional[List["Expression"]]) -> bool:
+    if expressions is None:
+        return False
+    for exp in expressions:
+        if isinstance(exp, WindowExpression):
+            return True
+        if exp is not None and has_window_function_exp(exp.children):
+            return True
+    return False
+
+
+def has_data_generator_or_window_function_exp(
+    expressions: Optional[List["Expression"]],
+) -> bool:
+    return has_data_generator_exp(expressions) or has_window_function_exp(expressions)

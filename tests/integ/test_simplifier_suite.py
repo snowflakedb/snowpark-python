@@ -9,7 +9,7 @@ from typing import Tuple
 
 import pytest
 
-from snowflake.snowpark import Row
+from snowflake.snowpark import Row, Window
 from snowflake.snowpark._internal.analyzer.select_statement import (
     SET_EXCEPT,
     SET_INTERSECT,
@@ -30,6 +30,7 @@ from snowflake.snowpark.functions import (
     sum as sum_,
     table_function,
     udtf,
+    rank,
 )
 from tests.utils import TestData, Utils
 
@@ -754,21 +755,35 @@ def test_order_by(setup_reduce_cast, session, simplifier_table):
         f'SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
-    # no flatten because c is a new column
+    # flatten if a new column is used in the order by clause
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).sort("a", "b", "c")
     assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
-        f'SELECT * FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST, "C" ASC NULLS FIRST'
+        f'SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST, "C" ASC NULLS FIRST'
     )
 
-    # no flatten because a and be are changed
+    # still flatten even if a is changed because it's used in the order by clause
     df4 = df.select((col("a") + 1).as_("a"), ((col("b") + 1).as_("b"))).sort("a", "b")
     assert Utils.normalize_sql(df4.queries["queries"][-1]) == Utils.normalize_sql(
-        f'SELECT * FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+        f'SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
-    # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
-    df5 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d")).sort("a", "b")
+    # still flatten if a window function is used in the projection
+    df5 = df.select("a", "b", rank().over(Window.order_by("b")).alias("c")).sort(
+        "a", "b"
+    )
     assert Utils.normalize_sql(df5.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT "A", "B", rank() OVER (ORDER BY "B" ASC NULLS FIRST) AS "C" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+    )
+
+    # No flatten if a data generator is used in the projection
+    df6 = df.select("a", "b", seq1().alias("c")).sort("a", "b")
+    assert Utils.normalize_sql(df6.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT "A", "B", seq1(0) AS "C" FROM {simplifier_table}) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+    )
+
+    # subquery has sql text so unable to figure out if a data generator is used in the projection. No flatten.
+    df7 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d")).sort("a", "b")
+    assert Utils.normalize_sql(df7.queries["queries"][-1]) == Utils.normalize_sql(
         f'SELECT * FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT * FROM {simplifier_table} ) ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
@@ -791,32 +806,56 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
         f'SELECT "A", "B" FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
-    # no flatten because c is a new column
+    # flatten if a regular new column is in the projection
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).filter(
-        (col("a") > 1) & (col("b") > 2) & (col("c") < 1)
+        (col("a") > 1) & (col("b") > 2)
     )
     assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
-        f'SELECT * FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ) WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
+        f'SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
+    )
+
+    # flatten if a regular new column is used in the filter clause
+    df4 = df.select("a", "b", (col("a") - col("b")).as_("c")).filter(
+        (col("a") > 1) & (col("b") > 2) & (col("c") < 1)
+    )
+    assert Utils.normalize_sql(df4.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
+    )
+
+    # no flatten if a window function is used in the projection
+    df5 = df.select("a", "b", rank().over(Window.order_by("b")).alias("c")).filter(
+        (col("a") > 1) & (col("b") > 2) & (col("c") < 1)
+    )
+    assert Utils.normalize_sql(df5.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT "A", "B", rank() OVER (ORDER BY "B" ASC NULLS FIRST) AS "C" FROM {simplifier_table} ) WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
+    )
+
+    # no flatten if a data generator is used in the projection
+    df6 = df.select("a", "b", seq1().alias("c")).filter(
+        (col("a") > 1) & (col("b") > 2) & (col("c") < 1)
+    )
+    assert Utils.normalize_sql(df6.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT "A", "B", seq1(0) AS "C" FROM {simplifier_table} ) WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
     )
 
     # no flatten because a and be are changed
-    df4 = df.select((col("a") + 1).as_("a"), (col("b") + 1).as_("b")).filter(
+    df7 = df.select((col("a") + 1).as_("a"), (col("b") + 1).as_("b")).filter(
         (col("a") > 1) & (col("b") > 2)
     )
-    assert Utils.normalize_sql(df4.queries["queries"][-1]) == Utils.normalize_sql(
+    assert Utils.normalize_sql(df7.queries["queries"][-1]) == Utils.normalize_sql(
         f'SELECT * FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ) WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
-    df5 = df4.select("a")
-    assert Utils.normalize_sql(df5.queries["queries"][-1]) == Utils.normalize_sql(
+    df8 = df7.select("a")
+    assert Utils.normalize_sql(df8.queries["queries"][-1]) == Utils.normalize_sql(
         f'SELECT "A" FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ) WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
     )
 
     # subquery has sql text so unable to figure out same-level dependency, so assuming d depends on c. No flatten.
-    df6 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d")).filter(
+    df9 = df.select("a", "b", lit(3).as_("c"), sql_expr("1 + 1 as d")).filter(
         col("a") > 1
     )
-    assert Utils.normalize_sql(df6.queries["queries"][-1]) == Utils.normalize_sql(
+    assert Utils.normalize_sql(df9.queries["queries"][-1]) == Utils.normalize_sql(
         f'SELECT * FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT * FROM {simplifier_table} ) ) WHERE ("A" > 1{integer_literal_postfix})'
     )
 
