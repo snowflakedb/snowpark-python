@@ -103,7 +103,7 @@ def test_series_sample_frac_random_state():
 
 @pytest.mark.parametrize("frac", [None, 0, 0.1, 0.5, 0.8, 1, 1.1, 1.5, 1.8, 2])
 @sql_count_checker(query_count=3, join_count=1)
-def test_series_sample_frac_reply(frac, ignore_index):
+def test_series_sample_frac_replace(frac, ignore_index):
     s = pd.Series(range(100, 110)).sample(
         frac=frac, replace=True, ignore_index=ignore_index
     )
