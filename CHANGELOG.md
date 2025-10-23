@@ -1,5 +1,13 @@
 # Release History
 
+## 1.42.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `Session.udf_profiler`.
+
 ## 1.41.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
@@ -58,7 +66,6 @@
     - `st_geometryfromwkt`
     - `try_to_geography`
     - `try_to_geometry`
-- Added support for `Session.udf_profiler`.
 - Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
 
 #### Bug Fixes
