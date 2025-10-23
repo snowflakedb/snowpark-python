@@ -4367,9 +4367,10 @@ class Session:
             ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.DEBUG, True)
             logging.debug("debug log") # this log is sent to event table because external telemetry is re-enabled
             ext.disable_event_table_telemetry_collection()
+
         """
         return self._client_telemetry
-      
+
     @property
     def udf_profiler(self) -> UDFProfiler:
         """
