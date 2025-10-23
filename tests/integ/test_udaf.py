@@ -63,6 +63,36 @@ def test_basic_udaf(session):
     Utils.assert_executed_with_query_tag(session, query_tag)
 
 
+def test_basic_udaf_snow_2436917(session):
+    class PythonCountUDAFHandler:
+        def __init__(self) -> None:
+            self._count = 0
+
+        @property
+        def aggregate_state(self):
+            return self._count
+
+        def accumulate(self, input_value):
+            if input_value is not None:
+                self._count += 1
+
+        def merge(self, other_count):
+            self._count += other_count
+
+        def finish(self):
+            return self._count
+
+    count_udaf = session.udaf.register(
+        PythonCountUDAFHandler,
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        immutable=True,
+        session=session,
+    )
+    df = session.create_dataframe([[1], [2], [None], [3]]).to_df("a")
+    Utils.check_answer(df.agg(count_udaf("a")), [Row(3)])
+
+
 # TODO: use data class as state. This triggers a bug in UDF server during pickling/unpickling of a state.
 def test_int(session):
     @udaf
