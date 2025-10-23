@@ -202,7 +202,8 @@ def test_negative_case(session, caplog):
     assert "Input event table is converted to fully qualified name:" in caplog.text
 
     with patch(
-        "snowflake.snowpark._internal.external_telemetry.installed_opentelemetry", False
+        "snowflake.snowpark._internal.event_table_telemetry.installed_opentelemetry",
+        False,
     ):
         external_telemetry.enable_event_table_telemetry_collection(
             "db.sc.tb", logging.INFO, True
