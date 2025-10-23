@@ -8,7 +8,6 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 from snowflake.snowpark._internal.event_table_telemetry import EventTableTelemetry
-from tests.utils import RUNNING_ON_GH
 
 try:
     from opentelemetry import trace
@@ -38,10 +37,6 @@ pytestmark = [
     pytest.mark.skipif(
         "config.getoption('local_testing_mode', default=False)",
         reason="feature not available in local testing",
-    ),
-    pytest.mark.skipif(
-        RUNNING_ON_GH,
-        reason="tests only suppose to run on snowfort",
     ),
     pytest.mark.skipif(
         dependencies_missing,
