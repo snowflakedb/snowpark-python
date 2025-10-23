@@ -219,7 +219,7 @@ def validate_out_of_bound(key_max: Any, key_min: Any, axis_len: int) -> None:
 def get_frame_by_row_pos_frame(
     internal_frame: InternalFrame,
     key: InternalFrame,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Select rows from this internal_frame by row positions in the key frame

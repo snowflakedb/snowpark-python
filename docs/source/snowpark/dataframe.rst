@@ -57,7 +57,6 @@ DataFrame
     DataFrame.flatten
     DataFrame.groupBy
     DataFrame.group_by
-    DataFrame.group_by_all
     DataFrame.group_by_grouping_sets
     DataFrame.intersect
     DataFrame.join
