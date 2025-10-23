@@ -7136,7 +7136,7 @@ def array_contains(
         array: Column containing the ARRAY to search.
 
             If this is a semi-structured array, you're required to explicitly cast the following SQL types into a VARIANT:
-            
+
             - `String & Binary <https://docs.snowflake.com/en/sql-reference/data-types-text>`_
             - `Date & Time <https://docs.snowflake.com/en/sql-reference/data-types-datetime>`_
 
