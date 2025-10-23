@@ -241,6 +241,7 @@ Functions
     haversine
     hex
     hex_decode_binary
+    hex_decode_string
     hex_encode
     hour
     h3_cell_to_boundary
@@ -306,6 +307,7 @@ Functions
     is_timestamp_ntz
     is_timestamp_tz
     is_varchar
+    jarowinkler_similarity
     json_extract_path_text
     kurtosis
     lag
@@ -375,6 +377,7 @@ Functions
     pandas_udf
     pandas_udtf
     parse_json
+    parse_url
     parse_xml
     percent_rank
     percentile_approx
@@ -395,8 +398,12 @@ Functions
     regr_avgy
     regr_count
     regr_intercept
+    regexp_instr
+    regexp_like
     regr_r2
     regr_slope
+    regexp_substr
+    regexp_substr_all
     regr_sxx
     regr_sxy
     regr_syy
@@ -408,6 +415,7 @@ Functions
     row_number
     rpad
     rtrim
+    rtrimmed_length
     second
     seq1
     seq2
@@ -425,7 +433,9 @@ Functions
     snowflake_cortex_summarize
     sort_array
     soundex
+    space
     split
+    split_part
     sproc
     sql_expr
     sqrt
