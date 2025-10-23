@@ -113,7 +113,7 @@ def test_end_to_end(session):
     # test with mock exporter and authentication
     with (
         patch(
-            "snowflake.snowpark._internal.event_table_telemetry.py.create_attestation",
+            "snowflake.snowpark._internal.event_table_telemetry.create_attestation",
             return_value=FakeAttestation(),
         ),
         patch("requests.get", return_value=mock_response),
