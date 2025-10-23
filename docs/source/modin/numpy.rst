@@ -39,7 +39,7 @@ NumPy ufuncs called with Snowpark pandas arguments will ignore kwargs.
 +-----------------------------+----------------------------------------------------+
 | ``np.percentile``           | Mapped to Series.quantile, will stack a DataFrame  |
 |                             | to convert to Series. Always returns an ndarray or |
-|                             | scalar like pd.percentile. Does not implement any  |
+|                             | scalar like np.percentile. Does not implement any  |
 |                             | arguments other than the input array and           |
 |                             | percentage(s).                                     |
 +-----------------------------+----------------------------------------------------+

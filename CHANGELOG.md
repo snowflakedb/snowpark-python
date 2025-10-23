@@ -84,6 +84,7 @@
 - Added support for the `dtypes` parameter of `pd.get_dummies`
 - Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
 - Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
+- Added support for `Dataframe.groupby.rolling()`.
 - Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
 
 #### Improvements
@@ -95,6 +96,16 @@
   - `skew()` with `axis=1` or `numeric_only=False` parameters
   - `round()` with `decimals` parameter as a Series
   - `corr()` with `method!=pearson` parameter
+  - `shift()` with `suffix` or non-integer `periods` parameters
+  - `sort_index()` with `axis=1` or `key` parameters
+  - `sort_values()` with `axis=1`
+  - `melt()` with `col_level` parameter
+  - `apply()` with `result_type` parameter for DataFrame
+  - `pivot_table()` with `sort=True`, non-string `index` list, non-string `columns` list, non-string `values` list, or `aggfunc` dict with non-string values
+  - `fillna()` with `downcast` parameter or using `limit` together with `value`
+  - `dropna()` with `axis=1`
+
+
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for the following in faster pandas:
   - `isin`
