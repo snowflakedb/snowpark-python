@@ -8616,6 +8616,57 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sort: Optional[bool] = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _concat_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if (
+            self._relaxed_query_compiler is not None
+            and all([qc._relaxed_query_compiler is not None for qc in other])
+            and axis == 0
+        ):
+            new_other = [
+                qc._relaxed_query_compiler
+                for qc in other
+                if qc._relaxed_query_compiler is not None
+            ]
+            relaxed_query_compiler = self._relaxed_query_compiler._concat_internal(
+                axis=axis,
+                other=new_other,
+                join=join,
+                ignore_index=ignore_index,
+                keys=keys,
+                levels=levels,
+                names=names,
+                verify_integrity=verify_integrity,
+                sort=sort,
+            )
+        qc = self._concat_internal(
+            axis=axis,
+            other=other,
+            join=join,
+            ignore_index=ignore_index,
+            keys=keys,
+            levels=levels,
+            names=names,
+            verify_integrity=verify_integrity,
+            sort=sort,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _concat_internal(
+        self,
+        axis: Axis,
+        other: list["SnowflakeQueryCompiler"],
+        *,
+        join: Optional[Literal["outer", "inner"]] = "outer",
+        ignore_index: bool = False,
+        keys: Optional[Sequence[Hashable]] = None,
+        levels: Optional[list[Sequence[Hashable]]] = None,
+        names: Optional[list[Hashable]] = None,
+        verify_integrity: Optional[bool] = False,
+        sort: Optional[bool] = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Concatenate `self` with passed query compilers along specified axis.
         Args:
             axis : {0, 1}
