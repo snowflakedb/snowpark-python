@@ -15967,11 +15967,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if random_state is not None and not is_integer(random_state):
             raise ValueError("random_state must be an integer or None.")
         assert n is not None or frac is not None
-        if not replace:
-            if frac is not None and frac > 1:
-                raise ValueError(
-                    "Replace has to be set to `True` when upsampling the population `frac` > 1."
-                )
+        if not replace and frac is not None and frac > 1:
+            raise ValueError(
+                "Replace has to be set to `True` when upsampling the population `frac` > 1."
+            )
 
         frame = self._modin_frame
 
