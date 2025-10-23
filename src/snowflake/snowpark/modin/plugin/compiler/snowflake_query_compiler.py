@@ -16018,7 +16018,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
                 ],
             )
-            # if random_state is not None, the result is already deterministic.
+            # if random_state is not None, the result is seeded and already deterministic.
             if random_state is None:
                 logging.warning(
                     "Snowpark pandas `sample` will create a temp table for "
