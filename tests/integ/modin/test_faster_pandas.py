@@ -115,13 +115,12 @@ def test_read_filter_join_on_index(session):
 
     # compare results
     # first ensure that indexes are the same
-    assert_index_equal(snow_result.index, native_result.index, exact=False)
+    assert_index_equal(snow_result.index, native_result.index)
     # then compare the data columns exclduing the index column
     # (because row position assignement is not necessarily idential)
     assert_frame_equal(
         snow_result.to_pandas().sort_values(by="A").reset_index(drop=True),
         native_result.sort_values(by="A").reset_index(drop=True),
-        check_index_type=False,
     )
 
 
