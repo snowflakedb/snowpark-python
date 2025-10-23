@@ -1,5 +1,13 @@
 # Release History
 
+## 1.42.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `Session.udf_profiler`.
+
 ## 1.41.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
