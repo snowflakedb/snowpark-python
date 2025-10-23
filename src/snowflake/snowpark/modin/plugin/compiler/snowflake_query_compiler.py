@@ -16652,17 +16652,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 )
                 sampled_odf = cache_result(sampled_odf)
         elif random_state is not None:
-            # Snowflake's SAMPLE only accepts a seed when sampling from a
-            # table. A snowflake query compiler does not necessarily correspond
-            # to a particular snowflake table, and even though we could sample
-            # an intermediate table produce with cache_result(), we need to
-            # select a set of rows that is deterministic with respect to the
-            # table length rather than with respect to the query compiler or
-            # even the dataframe. For example, pd.DataFrame(list(range(1000))).sample(n=1, random_state=0) and
+            # Snowflake's SAMPLE, while more performant than this appraoch,
+            # only accepts a seed when sampling from a table. A snowflake query
+            # compiler does not necessarily correspond to a particular snowflake
+            # table, and even though we could sample an intermediate table
+            # produced with cache_result(), we need to select a set of rows that
+            # is deterministic with respect to the table length rather than with
+            # respect to the query compiler or even the dataframe. For example,
+            # pd.DataFrame(list(range(1000))).sample(n=1, random_state=0) and
             # pd.DataFrame(list(range(1000))[::-1]).sample(n=1, random_state=0)
             # select the same row position.
-            # We use this alternate implementation rather than the generator
-            # one that we use for replace=True because we can avoid a join.
+            # We use this alternate implementation rather than the generator one
+            # that we use for replace=True because we can avoid a join.
             if n is not None:
                 post_sampling_rowcount = n
             else:
