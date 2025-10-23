@@ -101,6 +101,7 @@
 #### Improvements
 
 - The default maximum length for inferred StringType columns during schema inference in `DataFrameReader.dbapi` is now increased from 16MB to 128MB in parquet file based ingestion.
+- Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
 
 #### Dependency Updates
 
@@ -183,6 +184,7 @@
   - `groupby.std`
   - `groupby.var`
   - `drop_duplicates`
+  - `concat`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes
