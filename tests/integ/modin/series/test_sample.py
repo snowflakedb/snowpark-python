@@ -49,7 +49,7 @@ def test_series_sample_n_random_state():
 
     # Two different samples with the same random state should be equal.
     sample_random_state_42_2 = s.sample(n=1, random_state=42)
-    sample_random_state_42_2_pandsas = sample_random_state_42_2.to_pandas()
+    sample_random_state_42_2_pandas = sample_random_state_42_2.to_pandas()
     assert_series_equal(
         sample_random_state_42_1_pandas, sample_random_state_42_2_pandsas
     )
