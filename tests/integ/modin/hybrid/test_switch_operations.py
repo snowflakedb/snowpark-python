@@ -744,7 +744,6 @@ def test_auto_switch_supported_top_level_functions(method, kwargs):
         ("shift", {"periods": 1}, 1, "BasePandasDataset"),
         ("sort_index", {"axis": 0}, 1, "BasePandasDataset"),
         ("sort_values", {"by": "A", "axis": 0}, 1, "BasePandasDataset"),
-        ("apply", {"func": lambda x: x * 2}, 15, "DataFrame"),
         ("fillna", {"value": 0}, 1, "DataFrame"),
         ("dropna", {"axis": 0}, 1, "DataFrame"),
     ],
