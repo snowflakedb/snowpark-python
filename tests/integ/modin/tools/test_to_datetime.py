@@ -385,6 +385,7 @@ class TestTimeConversionFormats:
         ],
     )
     @sql_count_checker(query_count=1)
+    @pytest.mark.skip_hybrid
     def test_to_datetime_format_time(self, cache, value, format, dt):
         assert (
             to_datetime(pd.Index([value]), format=format, cache=cache).to_pandas() == dt
@@ -670,6 +671,7 @@ class TestToDatetime:
         ],
     )
     @sql_count_checker(query_count=1)
+    @pytest.mark.skip_hybrid
     def test_to_datetime_dict(self, sample):
         assert_snowpark_pandas_equal_to_pandas(
             pd.to_datetime(sample),

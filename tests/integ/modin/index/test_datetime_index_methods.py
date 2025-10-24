@@ -220,6 +220,7 @@ def test_dt_property_with_tz(property_name):
     "freq", ["d", "h", "min", "s", "y", "m", "D", "3m", "ms", "us", "ns"]
 )
 @sql_count_checker(query_count=1)
+@pytest.mark.skip_hybrid
 def test_dt_properties(property_name, freq):
     native_index = native_pd.date_range(start="2021-01-01", periods=5, freq=freq)
     native_index = native_index.append(native_pd.DatetimeIndex([pd.NaT]))
