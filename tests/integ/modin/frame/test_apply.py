@@ -147,6 +147,37 @@ def test_axis_1_index_passed_as_name(df, row_label):
     with SqlCounter(query_count=4, join_count=0, udtf_count=0):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=1))
 
+@pytest.mark.parametrize("index", [
+    None, 
+    ['a', 'b'], 
+    [100, 200]
+])
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+def test_apply_axis_1_index_preservation(index):
+    """Test that apply(axis=1) preserves index values correctly."""
+    # Test with default RangeIndex
+    native_df = native_pd.DataFrame([[1, 2], [3, 4]], index=index)
+    snow_df = pd.DataFrame(native_df)
+    
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda x: x.apply(lambda row : row.name, axis=1)
+    )
+
+
+@sql_count_checker(query_count=4, join_count=0, udf_count=1)
+def test_apply_axis_1_multiindex_preservation():
+    """Test that apply(axis=1) preserves MultiIndex values correctly."""
+    # Test with MultiIndex
+    multi_index = pd.MultiIndex.from_tuples([('A', 1), ('B', 2), ('C', 3)], names=['letter', 'number'])
+    native_df = native_pd.DataFrame([[1, 2], [3, 4], [5, 6]], index=multi_index)
+    snow_df = pd.DataFrame(native_df)
+    
+    
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda x: x.apply(lambda row : row.name, axis=1)
+    )
+
+
 
 @pytest.mark.xfail(strict=True, raises=NotImplementedError)
 @sql_count_checker(query_count=0)
