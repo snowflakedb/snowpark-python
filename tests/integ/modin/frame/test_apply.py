@@ -164,7 +164,7 @@ def test_apply_axis_1_index_preservation(index):
     )
 
 
-@sql_count_checker(query_count=4, join_count=0, udf_count=1)
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
 def test_apply_axis_1_multiindex_preservation():
     """Test that apply(axis=1) preserves MultiIndex values correctly."""
     # Test with MultiIndex
