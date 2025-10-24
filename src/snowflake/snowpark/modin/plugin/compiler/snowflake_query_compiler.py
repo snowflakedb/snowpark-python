@@ -4898,22 +4898,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return query_compiler if as_index else query_compiler.reset_index(drop=drop)
 
-    @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
-        "apply",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                (
-                    lambda args: not check_is_groupby_supported_by_snowflake(
-                        args.get("by"),
-                        args.get("groupby_kwargs", {}).get("level"),
-                        args.get("axis"),
-                    ),
-                    f"GroupBy.apply {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
-                ),
-            ],
-        ),
-    )
     def groupby_apply(
         self,
         by: Any,
