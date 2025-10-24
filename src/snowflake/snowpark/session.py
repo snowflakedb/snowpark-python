@@ -4364,7 +4364,7 @@ class Session:
                 logging.info("Trace being sent to event table")
             ext.disable_event_table_telemetry_collection()
             logging.info("out of scope log")  # this log is not sent to event table
-            ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.DEBUG, True)
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.DEBUG, True)
             logging.debug("debug log") # this log is sent to event table because external telemetry is re-enabled
             ext.disable_event_table_telemetry_collection()
 
