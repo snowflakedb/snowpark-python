@@ -223,6 +223,77 @@ def full_like_mapper(
     return NotImplemented
 
 
+def percentile_mapper(
+    a: Union[pd.DataFrame, pd.Series],
+    q: Union[float, list[float]],
+    axis: Union[int, tuple[int], None] = None,
+    out: Optional[np.ndarray] = None,
+    overwrite_input: Optional[bool] = False,
+    method: Optional[str] = "linear",
+    keepdims: Optional[bool] = False,
+    *,
+    weights: Optional[list[float]] = None,
+    interpolation: Optional[str] = None,
+) -> np.ndarray:
+    """
+    Maps and executes the numpy percentile signature to the pandas quantile signature
+    if it can be handled, otherwise returns NotImplemented. No parameters
+    are supported beyond the input a and q parameters.
+
+    Numpy np.percentile signature:
+    Return the q-th percentile(s) of an array, Series, or DataFrame (a).
+
+    Pandas Series.quantile signature:
+    Return the q-th quantile(s) of a Series or DataFrame.
+
+    Parameters
+    ----------
+    a : A modin pandas DataFrame or Series
+    q : array_like of float
+    axis: NotImplemented
+    out: NotImplemented
+    overwrite_input: NotImplemented
+    method: NotImplemented
+    keepdims: NotImplemented
+    weights: NotImplemented
+    interpolation: NotImplemented
+
+    Returns
+    -------
+    Returns an ndarray
+
+    """
+    if axis is not None:
+        return NotImplemented
+    if out is not None:
+        return NotImplemented
+    if overwrite_input:
+        return NotImplemented
+    if method != "linear":
+        return NotImplemented
+    if keepdims:
+        return NotImplemented
+    if weights is not None:
+        return NotImplemented
+    if interpolation is not None:
+        return NotImplemented
+    input_values = a
+    if isinstance(q, (float, int)):
+        q = q / 100
+    else:
+        q = [percentage / 100 for percentage in q]
+
+    # We stack any input dataframe into a Series to match numpy behavior.
+    if isinstance(input_values, pd.DataFrame):
+        input_values = input_values.stack().reset_index(drop=True)
+
+    result = input_values.quantile(q)
+    if isinstance(result, pd.Series):
+        result = result.values
+
+    return result
+
+
 # We also need to convert everything to booleans, since numpy will
 # do this implicitly on logical operators and pandas does not.
 def map_to_bools(inputs: Any) -> Any:
@@ -238,6 +309,7 @@ numpy_to_pandas_func_map = {
     "unique": unique_mapper,
     "may_share_memory": may_share_memory_mapper,
     "full_like": full_like_mapper,
+    "percentile": percentile_mapper,
 }
 
 # Map that associates a numpy universal function name that operates on
