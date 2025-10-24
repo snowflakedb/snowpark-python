@@ -1263,14 +1263,14 @@ def test_auto_switch_unsupported_dataframe_groupby_method(
 @pytest.mark.parametrize(
     "method,method_kwargs",
     [
-        ("fillna", {"axis": 0, "value": 0}),
-        ("cummin", {"axis": 0}),
-        ("cumsum", {"axis": 0}),
-        ("cummax", {"numeric_only": True, "axis": 0}),
+        ("fillna", {"value": 0}),
+        ("cummin", {}),
+        ("cumsum", {}),
+        ("cummax", {}),
         ("first", {"min_count": -1}),
         ("last", {"min_count": -1}),
-        ("rank", {"axis": 0}),
-        ("shift", {"axis": 0}),
+        ("rank", {}),
+        ("shift", {}),
     ],
 )
 def test_auto_switch_supported_dataframe_groupby(method, method_kwargs):
@@ -1279,9 +1279,8 @@ def test_auto_switch_supported_dataframe_groupby(method, method_kwargs):
 
     with SqlCounter(query_count=1):
         df = pd.DataFrame(test_data).move_to("Snowflake")
-        assert df.get_backend() == "Snowflake"
-
-        groupby_obj = df.groupby("A")
+        groupby_obj = df.groupby("A").move_to("Snowflake")
+        assert groupby_obj.get_backend() == "Snowflake"
 
         _test_stay_cost(
             data_obj=groupby_obj,
