@@ -12,6 +12,10 @@
 
 - Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
 
+#### Dependency Updates
+
+- Catalog API no longer uses types declared in `snowflake.core` and therefore this dependency was removed.
+
 ### Snowpark pandas API Updates
 
 #### New Features
