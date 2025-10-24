@@ -9602,7 +9602,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # The apply function is encapsulated in a UDTF and run as a stored procedure on the pandas dataframe.
         # Determine if we should pass index columns to the UDTF
         # We pass index columns when the index is not the row position itself
-        index_columns_for_udtf = new_internal_df.index_column_snowflake_quoted_identifiers
+        index_columns_for_udtf = (
+            new_internal_df.index_column_snowflake_quoted_identifiers
+        )
         if row_position_snowflake_quoted_identifier in index_columns_for_udtf:
             # The row position IS the index (e.g., RangeIndex), don't pass index columns
             index_columns_for_udtf = []
@@ -9611,8 +9613,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         else:
             # Pass the actual index columns to the UDTF
             num_index_columns = len(index_columns_for_udtf)
-            index_column_pandas_labels_for_udtf = new_internal_df.index_column_pandas_labels
-        
+            index_column_pandas_labels_for_udtf = (
+                new_internal_df.index_column_pandas_labels
+            )
+
         func_udtf = create_udtf_for_apply_axis_1(
             row_position_snowflake_quoted_identifier,
             func,
@@ -10386,7 +10390,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             column_index = try_convert_index_to_native(
                 self._modin_frame.data_columns_index
             )
-            
+
             # get input types of index and data columns from the dataframe
             data_input_types = self._modin_frame.get_snowflake_type(
                 self._modin_frame.data_column_snowflake_quoted_identifiers
