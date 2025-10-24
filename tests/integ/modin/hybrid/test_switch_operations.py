@@ -899,6 +899,7 @@ def test_auto_switch_supported_post_op_switch_point_series(method, kwargs):
         ("get_dummies", {"drop_first": True}),
         ("melt", {"col_level": 0}),
         ("pivot_table", {"values": "B", "index": "A", "sort": False}),
+        ("pivot_table", {"values": "B", "index": "A", "observed": True}),
         ("pivot_table", {"index": ["A", 0], "columns": "B", "values": "B"}),
         ("pivot_table", {"index": "A", "columns": ["B", 0], "values": "B"}),
         ("pivot_table", {"index": "A", "columns": "B", "values": ["B", 0]}),

@@ -113,10 +113,20 @@ def test_pivot_table_not_supported_aggfunc_with_empty_list(df_data):
 def test_pivot_table_not_implemented_or_supported(df_data):
     snow_df = pd.DataFrame(df_data)
 
-    with pytest.raises(NotImplementedError, match="Not implemented observed"):
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Snowpark pandas pivot_table does not yet support the parameter combination because observed = True is not supported"
+        ),
+    ):
         snow_df.pivot_table(index="A", columns="C", values="E", observed=True)
 
-    with pytest.raises(NotImplementedError, match="Not implemented not sorted"):
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Snowpark pandas pivot_table does not yet support the parameter combination because sort = False is not supported"
+        ),
+    ):
         snow_df.pivot_table(index="A", columns="C", values="E", sort=False)
 
     class Foo:
@@ -139,13 +149,28 @@ def test_pivot_table_not_implemented_or_supported(df_data):
     foo = Foo()
     baz = Baz()
 
-    with pytest.raises(NotImplementedError, match="Not implemented non-string"):
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Snowpark pandas pivot_table does not yet support the parameter combination because non-string of list of string index is not yet supported for pivot_table"
+        ),
+    ):
         snow_df2.pivot_table(index=[foo], columns="B", values="C")
 
-    with pytest.raises(NotImplementedError, match="Not implemented non-string"):
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Snowpark pandas pivot_table does not yet support the parameter combination because non-string of list of string columns is not yet supported for pivot_table"
+        ),
+    ):
         snow_df2.pivot_table(index="A", columns=[foo], values="E")
 
-    with pytest.raises(NotImplementedError, match="Not implemented non-string"):
+    with pytest.raises(
+        NotImplementedError,
+        match=re.escape(
+            "Snowpark pandas pivot_table does not yet support the parameter combination because non-string of list of string values is not yet supported for pivot_table"
+        ),
+    ):
         snow_df2.pivot_table(index="A", columns="B", values=[baz])
 
 

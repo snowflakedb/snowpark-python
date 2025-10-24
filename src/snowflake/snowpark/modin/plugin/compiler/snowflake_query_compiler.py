@@ -10760,6 +10760,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         "pivot_table",
         UnsupportedArgsRule(
             unsupported_conditions=[
+                ("observed", True),
                 ("sort", False),
                 (
                     lambda args: (
