@@ -78,6 +78,7 @@ from pandas.api.types import (
     is_bool,
     is_bool_dtype,
     is_datetime64_any_dtype,
+    is_integer,
     is_integer_dtype,
     is_named_tuple,
     is_numeric_dtype,
@@ -151,7 +152,6 @@ from snowflake.snowpark.functions import (
     object_keys,
     pandas_udf,
     quarter,
-    random,
     rank,
     regexp_replace,
     reverse,
@@ -8629,6 +8629,57 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sort: Optional[bool] = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _concat_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if (
+            self._relaxed_query_compiler is not None
+            and all([qc._relaxed_query_compiler is not None for qc in other])
+            and axis == 0
+        ):
+            new_other = [
+                qc._relaxed_query_compiler
+                for qc in other
+                if qc._relaxed_query_compiler is not None
+            ]
+            relaxed_query_compiler = self._relaxed_query_compiler._concat_internal(
+                axis=axis,
+                other=new_other,
+                join=join,
+                ignore_index=ignore_index,
+                keys=keys,
+                levels=levels,
+                names=names,
+                verify_integrity=verify_integrity,
+                sort=sort,
+            )
+        qc = self._concat_internal(
+            axis=axis,
+            other=other,
+            join=join,
+            ignore_index=ignore_index,
+            keys=keys,
+            levels=levels,
+            names=names,
+            verify_integrity=verify_integrity,
+            sort=sort,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _concat_internal(
+        self,
+        axis: Axis,
+        other: list["SnowflakeQueryCompiler"],
+        *,
+        join: Optional[Literal["outer", "inner"]] = "outer",
+        ignore_index: bool = False,
+        keys: Optional[Sequence[Hashable]] = None,
+        levels: Optional[list[Sequence[Hashable]]] = None,
+        names: Optional[list[Hashable]] = None,
+        verify_integrity: Optional[bool] = False,
+        sort: Optional[bool] = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Concatenate `self` with passed query compilers along specified axis.
         Args:
             axis : {0, 1}
@@ -16411,23 +16462,44 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         # handle axis = 0
+
         if weights is not None:
             ErrorMessage.not_implemented("`weights` is not supported.")
+        if isinstance(
+            random_state,
+            (
+                np.ndarray,
+                np.random.BitGenerator,
+                np.random.RandomState,
+                np.random.Generator,
+            ),
+        ):
+            ErrorMessage.not_implemented("non-integer `random_state` is not supported.")
 
-        if random_state is not None:
-            ErrorMessage.not_implemented("`random_state` is not supported.")
-
+        if random_state is not None and not is_integer(random_state):
+            raise ValueError("random_state must be an integer or None.")
         assert n is not None or frac is not None
-        frame = self._modin_frame
-        if replace:
-            sampled_row_position_identifier = (
-                generate_snowflake_quoted_identifiers_helper(
-                    pandas_labels=[
-                        SAMPLED_ROW_POSITION_COLUMN_LABEL,
-                    ]
-                )[0]
+        if not replace and frac is not None and frac > 1:
+            raise ValueError(
+                "Replace has to be set to `True` when upsampling the population `frac` > 1."
             )
 
+        frame = self._modin_frame
+
+        # use builtin('random') instead of snowflake.snowpark.functions.random
+        # because the latter does not take Column inputs, but we want to use
+        # pandas_lit() to create the seed.
+        # if random_state is None, we have to call random() with no arguments.
+        # random(NULL) is not valid.
+        builtin_random = builtin("random")
+        random_column = (
+            builtin_random()
+            if random_state is None
+            else builtin_random(pandas_lit(random_state))
+        )
+        if replace:
+            # If `replace=True`, we can't use snowflake's built-in SAMPLE, which
+            # samples without replacement.
             pre_sampling_rowcount = self.get_axis_len(axis=0)
             if n is not None:
                 post_sampling_rowcount = n
@@ -16435,36 +16507,76 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 assert frac is not None
                 post_sampling_rowcount = round(frac * pre_sampling_rowcount)
 
-            sampled_row_position_col = uniform(
-                0, pre_sampling_rowcount - 1, random()
-            ).as_(sampled_row_position_identifier)
-
+            sampled_row_position_identifier = (
+                generate_snowflake_quoted_identifiers_helper(
+                    pandas_labels=[
+                        SAMPLED_ROW_POSITION_COLUMN_LABEL,
+                    ]
+                )[0]
+            )
             sampled_row_positions_snowpark_frame = pd.session.generator(
-                sampled_row_position_col,
+                uniform(0, pre_sampling_rowcount - 1, random_column).as_(
+                    sampled_row_position_identifier
+                ),
                 rowcount=post_sampling_rowcount,
             )
-
             sampled_row_positions_odf = OrderedDataFrame(
                 dataframe_ref=DataFrameReference(sampled_row_positions_snowpark_frame),
                 projected_column_snowflake_quoted_identifiers=[
                     sampled_row_position_identifier
                 ],
             )
-            sampled_odf = cache_result(
-                sampled_row_positions_odf.join(
-                    right=self._modin_frame.ordered_dataframe,
-                    left_on_cols=[sampled_row_position_identifier],
-                    dummy_row_pos_mode=self._dummy_row_pos_mode,
-                    right_on_cols=[
-                        self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
-                    ],
+            sampled_odf = sampled_row_positions_odf.join(
+                right=self._modin_frame.ordered_dataframe,
+                left_on_cols=[sampled_row_position_identifier],
+                dummy_row_pos_mode=self._dummy_row_pos_mode,
+                right_on_cols=[
+                    self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
+                ],
+            )
+            # if random_state is not None, the result is seeded and already deterministic.
+            if random_state is None:
+                logging.warning(
+                    "Snowpark pandas `sample` will create a temp table for "
+                    + "sampled results to keep it deterministic."
                 )
+                sampled_odf = cache_result(sampled_odf)
+        elif random_state is not None:
+            # Snowflake's SAMPLE, while more performant than this appraoch,
+            # only accepts a seed when sampling from a table. A snowflake query
+            # compiler does not necessarily correspond to a particular snowflake
+            # table, and even though we could sample an intermediate table
+            # produced with cache_result(), we need to select a set of rows that
+            # is deterministic with respect to the table length rather than with
+            # respect to the query compiler or even the dataframe. For example,
+            # pd.DataFrame(list(range(1000))).sample(n=1, random_state=0) and
+            # pd.DataFrame(list(range(1000))[::-1]).sample(n=1, random_state=0)
+            # select the same row position.
+            # We use this alternate implementation rather than the generator one
+            # that we use for replace=True because we can avoid a join.
+            if n is not None:
+                post_sampling_rowcount = n
+            else:
+                assert frac is not None
+                pre_sampling_rowcount = self.get_axis_len(axis=0)
+                post_sampling_rowcount = round(frac * pre_sampling_rowcount)
+            # Choose the top `post_sampling_rowcount` rows according to a random
+            # order.
+            new_identifier = self._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=["random_row_position"]
+            )[
+                0
+            ]
+            sampled_odf = (
+                self._modin_frame.ordered_dataframe.select(
+                    *self._modin_frame.ordered_dataframe.projected_column_snowflake_quoted_identifiers,
+                    random_column.as_(new_identifier),
+                )
+                .sort(OrderingColumn(new_identifier))
+                .limit(post_sampling_rowcount)
             )
         else:
             sampled_odf = frame.ordered_dataframe.sample(n=n, frac=frac)
-        logging.warning(
-            "Snowpark pandas `sample` will create a temp table for sampled results to keep it deterministic."
-        )
         res = SnowflakeQueryCompiler(
             InternalFrame.create(
                 ordered_dataframe=sampled_odf,
