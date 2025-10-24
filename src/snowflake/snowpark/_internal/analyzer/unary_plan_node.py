@@ -17,7 +17,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan import LogicalPlan
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     DynamicTableCreateMode,
 )
-from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
+from snowflake.snowpark._internal.analyzer.sort_expression import (
+    SortOrder,
+    SortByAllOrder,
+)
 
 
 class UnaryNode(LogicalPlan):
@@ -90,7 +93,7 @@ class SampleBy(UnaryNode):
 class Sort(UnaryNode):
     def __init__(
         self,
-        order: List[SortOrder],
+        order: Union[List[SortOrder], List[SortByAllOrder]],
         child: LogicalPlan,
         is_order_by_append: bool = False,
     ) -> None:
