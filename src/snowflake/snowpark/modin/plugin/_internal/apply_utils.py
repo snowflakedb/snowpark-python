@@ -720,7 +720,7 @@ def create_groupby_transform_func(
     # index. Therefore, the groupby parameters group_keys, sort, and as_index do not
     # affect the result of transform, and are not explicitly specified.
 
-    return lambda df: (
+    return lambda df, **apply_kwargs: (
         df.groupby(by=by, level=level, dropna=False).transform(func, *args, **kwargs)
     )
 
