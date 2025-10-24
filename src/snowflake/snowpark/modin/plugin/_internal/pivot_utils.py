@@ -83,6 +83,7 @@ def perform_pivot_and_concatenate(
     pivot_snowflake_quoted_identifiers: list[str],
     should_join_along_columns: bool,
     original_aggfunc: AggFuncType,
+    dummy_row_pos_mode: bool,
 ) -> PivotedOrderedDataFrameResult:
     """
     Helper function to perform a full pivot (including joining in the case of multiple aggrs or values) on an OrderedDataFrame.
@@ -133,6 +134,7 @@ def perform_pivot_and_concatenate(
             if should_join_along_columns:
                 last_ordered_dataframe = last_ordered_dataframe.join(
                     right=new_pivot_ordered_dataframe,
+                    dummy_row_pos_mode=dummy_row_pos_mode,
                     left_on_cols=groupby_snowflake_quoted_identifiers,
                     right_on_cols=groupby_snowflake_quoted_identifiers,
                     how="left",
@@ -170,6 +172,7 @@ def pivot_helper(
     multiple_values: bool,
     index: Optional[list],
     original_aggfunc: AggFuncType,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Helper function that that performs a full pivot on an InternalFrame.
@@ -362,6 +365,7 @@ def pivot_helper(
                 pivot_snowflake_quoted_identifiers,
                 True,
                 original_aggfunc,
+                dummy_row_pos_mode,
             )
             if last_ordered_dataframe is None:
                 last_ordered_dataframe = pivot_ordered_dataframe
@@ -395,6 +399,7 @@ def pivot_helper(
             pivot_snowflake_quoted_identifiers,
             should_join_along_columns,
             original_aggfunc,
+            dummy_row_pos_mode,
         )
 
     # When there are no groupby columns, the index is the first column in the OrderedDataFrame.
@@ -453,7 +458,9 @@ def pivot_helper(
         # Ensure the cartesian product of index / group by rows.  For example, if there are index values
         # (a, b) and (c, z), then the cartesian product would be (a, b), (a, z), (c, b), (c, z).
         ordered_dataframe = expand_dataframe_with_cartesian_product_on_index(
-            index_column_snowflake_quoted_identifiers, ordered_dataframe
+            index_column_snowflake_quoted_identifiers,
+            ordered_dataframe,
+            dummy_row_pos_mode,
         )
 
         # Ensure the cartesian product of pivot output columns based on the pandas labels.  For example, if there
@@ -1029,6 +1036,7 @@ def get_pandas_aggr_func_and_prefix(
 def expand_dataframe_with_cartesian_product_on_index(
     groupby_snowflake_quoted_identifiers: list[str],
     ordered_dataframe: OrderedDataFrame,
+    dummy_row_pos_mode: bool,
 ) -> OrderedDataFrame:
     """
     Generate the cartesian product on group by snowflake identifiers.  For example, if there are only
@@ -1076,13 +1084,14 @@ def expand_dataframe_with_cartesian_product_on_index(
     ]
 
     full_na_ordered_dataframe = reduce(
-        lambda df1, df2: df1.join(df2, how="cross"),
+        lambda df1, df2: df1.join(df2, dummy_row_pos_mode, how="cross"),
         distinct_groupby_ordered_dataframes,
     )
 
     # Join the full set of group-by permutations with original data to create null rows for any missing.
     ordered_dataframe = full_na_ordered_dataframe.join(
         right=ordered_dataframe,
+        dummy_row_pos_mode=dummy_row_pos_mode,
         left_on_cols=groupby_snowflake_quoted_identifiers,
         right_on_cols=groupby_snowflake_quoted_identifiers,
         how="outer",
@@ -1275,6 +1284,7 @@ def expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
     values: list[str],
     margins_name: str,
     original_aggfunc: AggFuncType,
+    dummy_row_pos_mode: bool,
 ) -> "SnowflakeQueryCompiler":  # type: ignore[name-defined] # noqa: F821
     names = pivot_qc.columns.names
     margins_frame = pivot_helper(
@@ -1289,6 +1299,7 @@ def expand_pivot_result_with_pivot_table_margins_no_groupby_columns(
         (isinstance(values, list) and len(values) > 1),
         None,  # There is no index.
         original_aggfunc,
+        dummy_row_pos_mode,
     )
     if len(columns) > 1:
         # If there is a multiindex on the pivot result, we need to add the margin_name to the margins frame's data column
@@ -1443,6 +1454,7 @@ def expand_pivot_result_with_pivot_table_margins(
     pivot_snowflake_quoted_identifiers: list[str],
     original_ordered_dataframe: OrderedDataFrame,
     pivoted_qc: "SnowflakeQueryCompiler",  # type: ignore[name-defined] # noqa: F821
+    dummy_row_pos_mode: bool,
     margins_name: Optional[str] = None,
     fill_value: Optional[Scalar] = None,
 ) -> "SnowflakeQueryCompiler":  # type: ignore[name-defined] # noqa: F821
@@ -1702,6 +1714,7 @@ def expand_pivot_result_with_pivot_table_margins(
 
     pivoted_ordered_dataframe = pivoted_frame.ordered_dataframe.join(
         right=margin_columns_ordered_dataframe,
+        dummy_row_pos_mode=dummy_row_pos_mode,
         left_on_cols=groupby_snowflake_quoted_identifiers,
         right_on_cols=groupby_snowflake_quoted_identifiers,
         how="outer",
