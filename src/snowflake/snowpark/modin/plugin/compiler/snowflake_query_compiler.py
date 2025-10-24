@@ -1162,11 +1162,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
                 return QCCoercionCost.COST_IMPOSSIBLE
 
-            return QCCoercionCost.COST_ZERO
-
         # Strongly discourage the use of these methods in snowflake
         if operation in HYBRID_ALL_EXPENSIVE_METHODS:
             return QCCoercionCost.COST_HIGH
+
+        if method_key in HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS:
+            return QCCoercionCost.COST_ZERO
+
         return super().stay_cost(api_cls_name, operation, arguments)
 
     @classmethod
