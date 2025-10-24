@@ -2,28 +2,56 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
+from ctypes import ArgumentError
 import re
-from typing import List, Optional, Union
+from typing import (
+    List,
+    Optional,
+    Union,
+    TYPE_CHECKING,
+)
 
-try:
-    from snowflake.core import Root  # type: ignore
-    from snowflake.core.database import Database  # type: ignore
-    from snowflake.core.exceptions import NotFoundError
-    from snowflake.core.procedure import Procedure
-    from snowflake.core.schema import Schema  # type: ignore
-    from snowflake.core.table import Table, TableColumn
-    from snowflake.core.user_defined_function import UserDefinedFunction
-    from snowflake.core.view import View
-except ImportError as e:
-    raise ImportError(
-        "Missing optional dependency: 'snowflake.core'."
-    ) from e  # pragma: no cover
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
+from snowflake.snowpark._immutable_attr_dict import ImmutableAttrDict
+from snowflake.snowpark.exceptions import SnowparkSQLException, NotFoundError
 
-
-import snowflake.snowpark
-from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
+from snowflake.snowpark._internal.type_utils import (
+    convert_sp_to_sf_type,
+    type_string_to_type_object,
+)
 from snowflake.snowpark.functions import lit, parse_json
 from snowflake.snowpark.types import DataType
+
+if TYPE_CHECKING:
+    from snowflake.snowpark.session import Session
+
+
+class Database(ImmutableAttrDict):
+    ...
+
+
+class Schema(ImmutableAttrDict):
+    ...
+
+
+class View(ImmutableAttrDict):
+    ...
+
+
+class Procedure(ImmutableAttrDict):
+    ...
+
+
+class UserDefinedFunction(ImmutableAttrDict):
+    ...
+
+
+class Table(ImmutableAttrDict):
+    ...
+
+
+class TableColumn(ImmutableAttrDict):
+    ...
 
 
 class Catalog:
@@ -32,14 +60,13 @@ class Catalog:
     views, functions, etc.
     """
 
-    def __init__(self, session: "snowflake.snowpark.session.Session") -> None:  # type: ignore
+    def __init__(self, session: "Session") -> None:
         self._session = session
-        self._root = Root(session)
         self._python_regex_udf = None
 
     def _parse_database(
         self,
-        database: Optional[Union[str, Database]],
+        database: object,
         model_obj: Optional[
             Union[str, Schema, Table, View, Procedure, UserDefinedFunction]
         ] = None,
@@ -66,7 +93,7 @@ class Catalog:
 
     def _parse_schema(
         self,
-        schema: Optional[Union[str, Schema]],
+        schema: object,
         model_obj: Optional[
             Union[str, Table, View, Procedure, UserDefinedFunction]
         ] = None,
@@ -166,11 +193,28 @@ class Catalog:
             pattern: the python regex pattern of name to match. Defaults to None.
             like: the sql style pattern for name to match. Default to None.
         """
-        iter = self._root.databases.iter(like=like)
+        like_str = f"LIKE '{like}'" if like else ""
+        df = self._session.sql(f"SHOW AS RESOURCE DATABASES {like_str}")
         if pattern:
-            iter = filter(lambda x: re.match(pattern, x.name), iter)
+            # initialize udf
+            self._initialize_regex_udf()
+            assert self._python_regex_udf is not None  # pyright
 
-        return list(iter)
+            # The result of SHOW AS RESOURCE query is a json string which contains
+            # key 'name' to store the name of the object. We parse json for the returned
+            # result and apply the filter on name.
+            df = df.filter(
+                self._python_regex_udf(
+                    lit(pattern), parse_json('"As Resource"')["name"]
+                )
+            )
+
+        return list(
+            map(
+                lambda row: Database.from_json(str(row[0])),
+                df.collect(),
+            )
+        )
 
     def list_schemas(
         self,
@@ -188,10 +232,28 @@ class Catalog:
             like: the sql style pattern for name to match. Default to None.
         """
         db_name = self._parse_database(database)
-        iter = self._root.databases[db_name].schemas.iter(like=like)
+        like_str = f"LIKE '{like}'" if like else ""
+        df = self._session.sql(f"SHOW AS RESOURCE SCHEMAS {like_str} IN {db_name}")
         if pattern:
-            iter = filter(lambda x: re.match(pattern, x.name), iter)
-        return list(iter)
+            # initialize udf
+            self._initialize_regex_udf()
+            assert self._python_regex_udf is not None  # pyright
+
+            # The result of SHOW AS RESOURCE query is a json string which contains
+            # key 'name' to store the name of the object. We parse json for the returned
+            # result and apply the filter on name.
+            df = df.filter(
+                self._python_regex_udf(
+                    lit(pattern), parse_json('"As Resource"')["name"]
+                )
+            )
+
+        return list(
+            map(
+                lambda row: Schema.from_json(str(row[0])),
+                df.collect(),
+            )
+        )
 
     def list_tables(
         self,
@@ -329,14 +391,27 @@ class Catalog:
 
     def get_database(self, database: str) -> Database:
         """Name of the database to get"""
-        return self._root.databases[database].fetch()
+        try:
+            return self.list_databases(like=unquote_if_quoted(database))[0]
+        except IndexError:
+            raise NotFoundError(f"Database with name {database} could not be found")
 
     def get_schema(
         self, schema: str, *, database: Optional[Union[str, Database]] = None
     ) -> Schema:
         """Name of the schema to get."""
         db_name = self._parse_database(database)
-        return self._root.databases[db_name].schemas[schema].fetch()
+        try:
+            return self.list_schemas(database=db_name, like=unquote_if_quoted(schema))[
+                0
+            ]
+        except (
+            IndexError,  # schema with this name doesn't exist
+            SnowparkSQLException,  # database in which we are looking doesn't exist
+        ):
+            raise NotFoundError(
+                f"Schema with name {schema} could not be found in database '{db_name}'"
+            )
 
     def get_table(
         self,
@@ -355,12 +430,16 @@ class Catalog:
         """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
-        return (
-            self._root.databases[db_name]
-            .schemas[schema_name]
-            .tables[table_name]
-            .fetch()
-        )
+        try:
+            return self.listTables(
+                database=db_name,
+                schema=schema_name,
+                like=unquote_if_quoted(table_name),
+            )[0]
+        except IndexError:
+            raise NotFoundError(
+                f"Table with name {table_name} could not be found in schema '{db_name}.{schema_name}'"
+            )
 
     def get_view(
         self,
@@ -379,9 +458,16 @@ class Catalog:
         """
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
-        return (
-            self._root.databases[db_name].schemas[schema_name].views[view_name].fetch()
-        )
+        try:
+            return self.list_views(
+                database=db_name,
+                schema=schema_name,
+                like=unquote_if_quoted(view_name),
+            )[0]
+        except IndexError:
+            raise NotFoundError(
+                f"View with name {view_name} could not be found in schema '{db_name}.{schema_name}'"
+            )
 
     def get_procedure(
         self,
@@ -403,12 +489,19 @@ class Catalog:
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         procedure_id = self._parse_function_or_procedure(procedure_name, arg_types)
-        return (
-            self._root.databases[db_name]
-            .schemas[schema_name]
-            .procedures[procedure_id]
-            .fetch()
-        )
+
+        try:
+            procedures = self._session.sql(
+                f"DESCRIBE AS RESOURCE PROCEDURE {db_name}.{schema_name}.{procedure_id}"
+            ).collect()
+            return Procedure.from_json(str(procedures[0][0]))
+        except (
+            IndexError,  # when sql returned no results
+            SnowparkSQLException,  # when database, or schema doesn't exist
+        ):
+            raise NotFoundError(
+                f"Procedure with name {procedure_name} and arguments {arg_types} could not be found in schema '{db_name}.{schema_name}'"
+            )
 
     def get_user_defined_function(
         self,
@@ -431,12 +524,19 @@ class Catalog:
         db_name = self._parse_database(database)
         schema_name = self._parse_schema(schema)
         function_id = self._parse_function_or_procedure(udf_name, arg_types)
-        return (
-            self._root.databases[db_name]
-            .schemas[schema_name]
-            .user_defined_functions[function_id]
-            .fetch()
-        )
+
+        try:
+            procedures = self._session.sql(
+                f"DESCRIBE AS RESOURCE FUNCTION {db_name}.{schema_name}.{function_id}"
+            ).collect()
+            return UserDefinedFunction.from_json(str(procedures[0][0]))
+        except (
+            IndexError,  # when sql returned no results
+            SnowparkSQLException,  # when database, or schema doesn't exist
+        ):
+            raise NotFoundError(
+                f"Function with name {udf_name} and arguments {arg_types} could not be found in schema '{db_name}.{schema_name}'"
+            )
 
     # set methods
     def set_current_database(self, database: Union[str, Database]) -> None:
@@ -466,7 +566,7 @@ class Catalog:
         """
         db_name = self._parse_database(database)
         try:
-            self._root.databases[db_name].fetch()
+            self.get_database(db_name)
             return True
         except NotFoundError:
             return False
@@ -487,7 +587,7 @@ class Catalog:
         db_name = self._parse_database(database, schema)
         schema_name = self._parse_schema(schema)
         try:
-            self._root.databases[db_name].schemas[schema_name].fetch()
+            self.get_schema(schema=schema_name, database=db_name)
             return True
         except NotFoundError:
             return False
@@ -511,9 +611,7 @@ class Catalog:
         schema_name = self._parse_schema(schema, table)
         table_name = table if isinstance(table, str) else table.name
         try:
-            self._root.databases[db_name].schemas[schema_name].tables[
-                table_name
-            ].fetch()
+            self.get_table(table_name=table_name, database=db_name, schema=schema_name)
             return True
         except NotFoundError:
             return False
@@ -537,7 +635,7 @@ class Catalog:
         schema_name = self._parse_schema(schema, view)
         view_name = view if isinstance(view, str) else view.name
         try:
-            self._root.databases[db_name].schemas[schema_name].views[view_name].fetch()
+            self.get_view(view_name=view_name, database=db_name, schema=schema_name)
             return True
         except NotFoundError:
             return False
@@ -559,14 +657,24 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, procedure)
-        schema_name = self._parse_schema(schema, procedure)
-        procedure_id = self._parse_function_or_procedure(procedure, arg_types)
-
         try:
-            self._root.databases[db_name].schemas[schema_name].procedures[
-                procedure_id
-            ].fetch()
+            if isinstance(procedure, Procedure):
+                if arg_types is not None or database is not None or schema is not None:
+                    raise ArgumentError(
+                        "When provided procedure is a Procedure class no other arguments can be provided"
+                    )
+                database = procedure.database_name
+                schema = procedure.schema_name
+                arg_types = [
+                    type_string_to_type_object(a.datatype) for a in procedure.arguments
+                ]
+                procedure = procedure.name
+            self.get_procedure(
+                procedure_name=procedure,
+                arg_types=arg_types,
+                database=database,
+                schema=schema,
+            )
             return True
         except NotFoundError:
             return False
@@ -590,14 +698,24 @@ class Catalog:
             database: database name or ``Database`` object. Defaults to None.
             schema: schema name or ``Schema`` object. Defaults to None.
         """
-        db_name = self._parse_database(database, udf)
-        schema_name = self._parse_schema(schema, udf)
-        function_id = self._parse_function_or_procedure(udf, arg_types)
-
         try:
-            self._root.databases[db_name].schemas[schema_name].user_defined_functions[
-                function_id
-            ].fetch()
+            if isinstance(udf, UserDefinedFunction):
+                if arg_types is not None or database is not None or schema is not None:
+                    raise ArgumentError(
+                        "When provided udf is a UserDefinedFunction class no other arguments can be provided"
+                    )
+                database = udf.database_name
+                schema = udf.schema_name
+                arg_types = [
+                    type_string_to_type_object(a.datatype) for a in udf.arguments
+                ]
+                udf = udf.name
+            self.get_user_defined_function(
+                udf_name=udf,
+                arg_types=arg_types,
+                database=database,
+                schema=schema,
+            )
             return True
         except NotFoundError:
             return False
@@ -610,7 +728,7 @@ class Catalog:
             database: database name or ``Database`` object.
         """
         db_name = self._parse_database(database)
-        self._root.databases[db_name].drop()
+        self._session.sql(f"DROP DATABASE {db_name}").collect()
 
     def drop_schema(
         self,
@@ -627,7 +745,7 @@ class Catalog:
         """
         db_name = self._parse_database(database, schema)
         schema_name = self._parse_schema(schema)
-        self._root.databases[db_name].schemas[schema_name].drop()
+        self._session.sql(f"DROP SCHEMA {db_name}.{schema_name}").collect()
 
     def drop_table(
         self,
@@ -648,7 +766,7 @@ class Catalog:
         schema_name = self._parse_schema(schema, table)
         table_name = table if isinstance(table, str) else table.name
 
-        self._root.databases[db_name].schemas[schema_name].tables[table_name].drop()
+        self._session.sql(f"DROP TABLE {db_name}.{schema_name}.{table_name}").collect()
 
     def drop_view(
         self,
@@ -669,7 +787,7 @@ class Catalog:
         schema_name = self._parse_schema(schema, view)
         view_name = view if isinstance(view, str) else view.name
 
-        self._root.databases[db_name].schemas[schema_name].views[view_name].drop()
+        self._session.sql(f"DROP VIEW {db_name}.{schema_name}.{view_name}").collect()
 
     # aliases
     listDatabases = list_databases

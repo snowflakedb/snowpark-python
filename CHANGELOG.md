@@ -1,6 +1,42 @@
 # Release History
 
-## 1.41.0 (YYYY-MM-DD)
+## 1.42.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `Session.client_telemetry`.
+- Added support for `Session.udf_profiler`.
+
+#### Improvements
+
+- Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
+
+#### Dependency Updates
+
+- Catalog API no longer uses types declared in `snowflake.core` and therefore this dependency was removed.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `Dataframe.groupby.rolling()`.
+- Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
+- Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
+
+#### Improvements
+
+- Add support for the following in faster pandas:
+  - `groupby.nunique`
+  - `groupby.size`
+  - `concat`
+
+## 1.41.0 (2025-10-23)
 
 ### Snowpark Python API Updates
 
@@ -67,7 +103,6 @@
 - Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0.
 - Fixed a bug where `modin` would unintentionally be imported during session initialization in some scenarios.
 - Fixed a bug where `session.udf|udtf|udaf|sproc.register` failed when an extra session argument was passed. These methods do not expect a session argument; please remove it if provided.
-- Fixed a bug in `DataFrameGroupBuy.agg` where func is a list of tuples used to set the names of the output columns.
 
 #### Improvements
 
@@ -84,7 +119,6 @@
 - Added support for the `dtypes` parameter of `pd.get_dummies`
 - Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
 - Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
-- Added support for `Dataframe.groupby.rolling()`.
 
 #### Improvements
 
@@ -95,16 +129,6 @@
   - `skew()` with `axis=1` or `numeric_only=False` parameters
   - `round()` with `decimals` parameter as a Series
   - `corr()` with `method!=pearson` parameter
-  - `shift()` with `suffix` or non-integer `periods` parameters
-  - `sort_index()` with `axis=1` or `key` parameters
-  - `sort_values()` with `axis=1`
-  - `melt()` with `col_level` parameter
-  - `apply()` with `result_type` parameter for DataFrame
-  - `pivot_table()` with `sort=True`, non-string `index` list, non-string `columns` list, non-string `values` list, or `aggfunc` dict with non-string values
-  - `fillna()` with `downcast` parameter or using `limit` together with `value`
-  - `dropna()` with `axis=1`
-
-
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for the following in faster pandas:
   - `isin`
@@ -164,9 +188,6 @@
   - `groupby.median`
   - `groupby.std`
   - `groupby.var`
-  - `groupby.nunique`
-  - `groupby.size`
-  - `groupby.apply`
   - `drop_duplicates`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
