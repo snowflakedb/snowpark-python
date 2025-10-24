@@ -86,6 +86,7 @@ def get_groupby_cumagg_frame_axis0(
     groupby_kwargs: dict[str, Any],
     cumagg_func: Callable,
     cumagg_func_name: str,
+    dummy_row_pos_mode: bool,
     ascending: bool = True,
 ) -> InternalFrame:
     """
@@ -124,7 +125,7 @@ def get_groupby_cumagg_frame_axis0(
         )
 
     qc, by_list = resample_and_extract_groupby_column_pandas_labels(
-        query_compiler, by, level
+        query_compiler, by, level, dummy_row_pos_mode
     )
 
     if numeric_only:
