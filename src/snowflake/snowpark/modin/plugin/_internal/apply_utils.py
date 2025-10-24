@@ -464,13 +464,13 @@ def create_udtf_for_apply_axis_1(
         def end_partition(self, df):  # type: ignore[no-untyped-def] # pragma: no cover
             # First column is row position, extract it for later use
             row_positions = df.iloc[:, 0]
-            
+
             # If we have index columns, set them as the index
             if num_index_columns > 0:
                 # Columns after row position are index columns, then data columns
-                index_cols = df.iloc[:, 1:1+num_index_columns]
-                data_cols = df.iloc[:, 1+num_index_columns:]
-                
+                index_cols = df.iloc[:, 1 : 1 + num_index_columns]
+                data_cols = df.iloc[:, 1 + num_index_columns :]
+
                 # Set the index using the index columns
                 if num_index_columns == 1:
                     index = index_cols.iloc[:, 0]
@@ -480,7 +480,9 @@ def create_udtf_for_apply_axis_1(
                     # Multi-index case
                     index = native_pd.MultiIndex.from_arrays(
                         [index_cols.iloc[:, i] for i in range(num_index_columns)],
-                        names=index_column_pandas_labels if index_column_pandas_labels else None
+                        names=index_column_pandas_labels
+                        if index_column_pandas_labels
+                        else None,
                     )
                 data_cols.index = index
                 df = data_cols
@@ -488,7 +490,7 @@ def create_udtf_for_apply_axis_1(
                 # No index columns, use row position as index (original behavior)
                 df = df.iloc[:, 1:]
                 df.index = row_positions
-            
+
             df.columns = column_index
             df = df.apply(
                 func, axis=1, raw=raw, result_type=result_type, args=args, **kwargs
@@ -523,10 +525,10 @@ def create_udtf_for_apply_axis_1(
             # - VALUE contains the result at this position.
             if isinstance(df, native_pd.DataFrame):
                 result = []
-                for idx, (row_position_index, series) in enumerate(df.iterrows()):
+                for idx, (_row_position_index, series) in enumerate(df.iterrows()):
                     # Use the actual row position from row_positions, not the index value
                     actual_row_position = row_positions.iloc[idx]
-                    
+
                     for i, (label, value) in enumerate(series.items()):
                         # If this is a tuple then we store each component with a 0-based
                         # lookup.  For example, (a,b,c) is stored as (0:a, 1:b, 2:c).
