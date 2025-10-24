@@ -424,6 +424,8 @@ def create_udtf_for_apply_axis_1(
     column_index: native_pd.Index,
     input_types: list[DataType],
     session: Session,
+    index_column_pandas_labels: list[Hashable] | None = None,
+    num_index_columns: int = 0,
     **kwargs: Any,
 ) -> UserDefinedTableFunction:
     """
@@ -443,7 +445,9 @@ def create_udtf_for_apply_axis_1(
         result_type: pandas parameter controlling apply within the UDTF.
         args: pandas parameter controlling apply within the UDTF.
         column_index: The columns of the callee DataFrame, i.e. df.columns as pd.Index object.
-        input_types: Snowpark column types of the input data columns.
+        input_types: Snowpark column types of the input data columns (including index columns).
+        index_column_pandas_labels: The pandas labels for the index columns, if any.
+        num_index_columns: Number of index columns being passed into the UDTF.
         **kwargs: pandas parameter controlling apply within the UDTF.
 
     Returns:
@@ -458,9 +462,33 @@ def create_udtf_for_apply_axis_1(
 
     class ApplyFunc:
         def end_partition(self, df):  # type: ignore[no-untyped-def] # pragma: no cover
-            # First column is row position, set as index.
-            df = df.set_index(df.columns[0])
-
+            # First column is row position, extract it for later use
+            row_positions = df.iloc[:, 0]
+            
+            # If we have index columns, set them as the index
+            if num_index_columns > 0:
+                # Columns after row position are index columns, then data columns
+                index_cols = df.iloc[:, 1:1+num_index_columns]
+                data_cols = df.iloc[:, 1+num_index_columns:]
+                
+                # Set the index using the index columns
+                if num_index_columns == 1:
+                    index = index_cols.iloc[:, 0]
+                    if index_column_pandas_labels:
+                        index.name = index_column_pandas_labels[0]
+                else:
+                    # Multi-index case
+                    index = native_pd.MultiIndex.from_arrays(
+                        [index_cols.iloc[:, i] for i in range(num_index_columns)],
+                        names=index_column_pandas_labels if index_column_pandas_labels else None
+                    )
+                data_cols.index = index
+                df = data_cols
+            else:
+                # No index columns, use row position as index (original behavior)
+                df = df.iloc[:, 1:]
+                df.index = row_positions
+            
             df.columns = column_index
             df = df.apply(
                 func, axis=1, raw=raw, result_type=result_type, args=args, **kwargs
@@ -495,8 +523,10 @@ def create_udtf_for_apply_axis_1(
             # - VALUE contains the result at this position.
             if isinstance(df, native_pd.DataFrame):
                 result = []
-                for row_position_index, series in df.iterrows():
-
+                for idx, (row_position_index, series) in enumerate(df.iterrows()):
+                    # Use the actual row position from row_positions, not the index value
+                    actual_row_position = row_positions.iloc[idx]
+                    
                     for i, (label, value) in enumerate(series.items()):
                         # If this is a tuple then we store each component with a 0-based
                         # lookup.  For example, (a,b,c) is stored as (0:a, 1:b, 2:c).
@@ -508,7 +538,7 @@ def create_udtf_for_apply_axis_1(
                         obj_label["pos"] = i
                         result.append(
                             [
-                                row_position_index,
+                                actual_row_position,
                                 json.dumps(obj_label),
                                 value,
                             ]
@@ -531,7 +561,9 @@ def create_udtf_for_apply_axis_1(
             elif isinstance(df, native_pd.Series):
                 result = df.to_frame(name="value")
                 result.insert(0, "label", json.dumps({"0": MODIN_UNNAMED_SERIES_LABEL}))
-                result.reset_index(names="__row__", inplace=True)
+                # Use the row_positions (integer positions) rather than the index values
+                result.insert(0, "__row__", row_positions.values)
+                result = result[["__row__", "label", "value"]]
             else:
                 raise TypeError(f"Unsupported data type {df} from df.apply")
 
