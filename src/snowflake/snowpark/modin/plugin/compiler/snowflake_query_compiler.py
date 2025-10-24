@@ -9605,12 +9605,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         index_columns_for_udtf = (
             new_internal_df.index_column_snowflake_quoted_identifiers
         )
-        if row_position_snowflake_quoted_identifier in index_columns_for_udtf:
-            # The row position IS the index (e.g., RangeIndex), don't pass index columns
-            index_columns_for_udtf = []
-            num_index_columns = 0
-            index_column_pandas_labels_for_udtf = None
-        else:
+        if row_position_snowflake_quoted_identifier not in index_columns_for_udtf:
             # Pass the actual index columns to the UDTF
             num_index_columns = len(index_columns_for_udtf)
             index_column_pandas_labels_for_udtf = (
