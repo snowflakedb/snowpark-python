@@ -22,6 +22,7 @@
 
 - Added support for `Dataframe.groupby.rolling()`.
 - Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
+- Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
 
 #### Bug Fixes
 
