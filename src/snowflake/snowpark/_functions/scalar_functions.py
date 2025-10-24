@@ -4743,4 +4743,4 @@ def uuid_string(
     elif uuid is not None:
         return builtin("uuid_string", _emit_ast=_emit_ast)(uuid)
     else:
-        builtin("uuid_string", _emit_ast=_emit_ast)(name)
+        return builtin("uuid_string", _emit_ast=_emit_ast)(name)
