@@ -152,9 +152,23 @@ def test_axis_1_index_passed_as_name(df, row_label):
 @sql_count_checker(query_count=5, join_count=2, udtf_count=1)
 def test_apply_axis_1_index_preservation(index):
     """Test that apply(axis=1) preserves index values correctly."""
-    # Test with default RangeIndex
     native_df = native_pd.DataFrame([[1, 2], [3, 4]], index=index)
     snow_df = pd.DataFrame(native_df)
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda x: x.apply(lambda row: row.name, axis=1)
+    )
+
+
+@sql_count_checker(query_count=5, join_count=2, udtf_count=1)
+def test_apply_axis_1_index_from_col():
+    """Test that apply(axis=1) preserves an index when set from a column"""
+    native_df = native_pd.DataFrame(
+        [[1, 2, 3], [4, 5, 6], [7, 8, 9]], columns=["a", "b", "c"]
+    )
+    snow_df = pd.DataFrame(native_df)
+    snow_df = snow_df.set_index("a")
+    native_df = native_df.set_index("a")
 
     eval_snowpark_pandas_result(
         snow_df, native_df, lambda x: x.apply(lambda row: row.name, axis=1)
