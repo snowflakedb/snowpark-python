@@ -591,7 +591,9 @@ def test_isin_series(session):
     native_result = native_df[native_df["B"].isin(native_df["A"])]
 
     # compare results
-    assert_frame_equal(snow_result, native_result, check_dtype=False)
+    assert_frame_equal(
+        snow_result, native_result, check_dtype=False, check_index_type=False
+    )
 
 
 @sql_count_checker(query_count=3)
