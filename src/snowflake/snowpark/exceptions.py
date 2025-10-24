@@ -283,3 +283,9 @@ class SnowparkInvalidObjectNameException(SnowparkGeneralException):
     """
 
     pass
+
+
+class NotFoundError(SnowparkClientException):
+    """Raised when we encounter an object is not found."""
+
+    pass
