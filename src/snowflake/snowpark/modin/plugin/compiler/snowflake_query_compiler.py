@@ -4502,6 +4502,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )  # pragma: no cover
 
+    @register_query_compiler_method_not_implemented(
+        "DataFrameGroupBy",
+        "agg",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not check_is_groupby_supported_by_snowflake(
+                        args.get("by"), args.get("level"), args.get("axis", 0)
+                    ),
+                    _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
+                )
+            ]
+        ),
+    )
     def groupby_agg(
         self,
         by: Any,
@@ -6009,6 +6023,31 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             result_qc = SnowflakeQueryCompiler(new_frame)
         return result_qc
 
+    @register_query_compiler_method_not_implemented(
+        "DataFrameGroupBy",
+        "shift",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not check_is_groupby_supported_by_snowflake(
+                        args.get("by"),
+                        args.get("groupby_kwargs", {}).get("level"),
+                        args.get("axis"),
+                    ),
+                    f"GroupBy.shift {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+                ),
+                (
+                    lambda args: args.get("freq") is not None,
+                    "'freq' argument is not supported yet in Snowpark pandas",
+                ),
+                (
+                    lambda args: args.get("groupby_kwargs", {}).get("level") is not None
+                    and args.get("groupby_kwargs", {}).get("level") != 0,
+                    "GroupBy.shift with level != 0 is not supported yet in Snowpark pandas",
+                ),
+            ],
+        ),
+    )
     def groupby_shift(
         self,
         by: Any,
@@ -6230,6 +6269,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    @register_query_compiler_method_not_implemented(
+        "DataFrameGroupBy",
+        "get_group",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not check_is_groupby_supported_by_snowflake(
+                        args.get("by"), args.get("level"), args.get("axis", 0)
+                    ),
+                    f"GroupBy get_group {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+                ),
+            ]
+        ),
+    )
     def groupby_get_group(
         self,
         by: Any,
@@ -6276,6 +6329,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             slice(None),
         )
 
+    @register_query_compiler_method_not_implemented(
+        "DataFrameGroupBy",
+        "size",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not check_is_groupby_supported_by_snowflake(
+                        args.get("by"), args.get("level"), args.get("axis", 0)
+                    ),
+                    f"GroupBy size {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+                ),
+            ]
+        ),
+    )
     def groupby_size(
         self,
         by: Any,
@@ -6802,6 +6869,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
+    @register_query_compiler_method_not_implemented(
+        "DataFrameGroupBy",
+        "nunique",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not check_is_groupby_supported_by_snowflake(
+                        args.get("by"), args.get("level"), args.get("axis", 0)
+                    ),
+                    f"GroupBy nunique {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+                ),
+            ]
+        ),
+    )
     def groupby_nunique(
         self,
         by: Any,
@@ -6862,6 +6943,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             drop=drop,
         )
 
+    @register_query_compiler_method_not_implemented(
+        "DataFrameGroupBy",
+        "any",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not check_is_groupby_supported_by_snowflake(
+                        args.get("by"), args.get("level"), args.get("axis", 0)
+                    ),
+                    f"GroupBy any {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+                ),
+            ]
+        ),
+    )
     def groupby_any(
         self,
         by: Any,
@@ -6886,6 +6981,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             drop=drop,
         )
 
+    @register_query_compiler_method_not_implemented(
+        "DataFrameGroupBy",
+        "all",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not check_is_groupby_supported_by_snowflake(
+                        args.get("by"), args.get("level"), args.get("axis", 0)
+                    ),
+                    f"GroupBy all {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+                ),
+            ]
+        ),
+    )
     def groupby_all(
         self,
         by: Any,
@@ -6910,6 +7019,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             drop=drop,
         )
 
+    @register_query_compiler_method_not_implemented(
+        "DataFrameGroupBy",
+        "value_counts",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not check_is_groupby_supported_by_snowflake(
+                        args.get("by"), args.get("level"), args.get("axis", 0)
+                    ),
+                    f"GroupBy value_counts {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+                ),
+            ]
+        ),
+    )
     def groupby_value_counts(
         self,
         by: Any,
@@ -7080,7 +7203,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ),
                 (
                     lambda args: args.get("downcast") is not None,
-                    "'downcast' argument is not supported yet in Snowpark pandas.",
+                    "'downcast' argument is not supported yet in Snowpark pandas",
                 ),
             ],
         ),
@@ -7370,6 +7493,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
+    @register_query_compiler_method_not_implemented(
+        "DataFrameGroupBy",
+        "pct_change",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: not check_is_groupby_supported_by_snowflake(
+                        args.get("by"), args.get("level"), args.get("axis", 0)
+                    ),
+                    f"GroupBy pct_change {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+                ),
+            ]
+        ),
+    )
     def groupby_pct_change(
         self,
         by: Any,
