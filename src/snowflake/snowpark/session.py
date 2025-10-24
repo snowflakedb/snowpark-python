@@ -754,7 +754,7 @@ class Session:
 
         self._dummy_row_pos_optimization_enabled: bool = (
             self._conn._get_client_side_session_parameter(
-                _SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED, True
+                _SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED, False
             )
         )
 
