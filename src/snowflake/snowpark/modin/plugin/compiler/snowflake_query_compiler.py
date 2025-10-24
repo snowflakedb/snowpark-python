@@ -5547,7 +5547,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     lambda args: not check_is_groupby_supported_by_snowflake(
                         args.get("by"),
                         args.get("groupby_kwargs", {}).get("level"),
-                        args.get("axis"),
+                        args.get("axis") if args.get("axis") is not None else 0,
                     ),
                     f"GroupBy.rank {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
                 ),
@@ -6016,7 +6016,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     lambda args: not check_is_groupby_supported_by_snowflake(
                         args.get("by"),
                         args.get("groupby_kwargs", {}).get("level"),
-                        args.get("axis"),
+                        args.get("axis") if args.get("axis") is not None else 0,
                     ),
                     f"GroupBy.shift {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
                 ),
@@ -6648,7 +6648,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     lambda args: not check_is_groupby_supported_by_snowflake(
                         args.get("by"),
                         args.get("groupby_kwargs", {}).get("level"),
-                        args.get("axis"),
+                        args.get("axis") if args.get("axis") is not None else 0,
                     ),
                     f"GroupBy.cumcount {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
                 ),
@@ -6701,7 +6701,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     lambda args: not check_is_groupby_supported_by_snowflake(
                         args.get("by"),
                         args.get("groupby_kwargs", {}).get("level"),
-                        args.get("axis"),
+                        args.get("axis") if args.get("axis") is not None else 0,
                     ),
                     f"GroupBy.cummax {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
                 ),
@@ -6756,7 +6756,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     lambda args: not check_is_groupby_supported_by_snowflake(
                         args.get("by"),
                         args.get("groupby_kwargs", {}).get("level"),
-                        args.get("axis"),
+                        args.get("axis") if args.get("axis") is not None else 0,
                     ),
                     f"GroupBy.cummin {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
                 ),
@@ -6808,7 +6808,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     lambda args: not check_is_groupby_supported_by_snowflake(
                         args.get("by"),
                         args.get("groupby_kwargs", {}).get("level"),
-                        args.get("axis"),
+                        args.get("axis") if args.get("axis") is not None else 0,
                     ),
                     f"GroupBy.cumsum {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
                 ),
@@ -6853,20 +6853,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         )
 
-    @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
-        "nunique",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                (
-                    lambda args: not check_is_groupby_supported_by_snowflake(
-                        args.get("by"), args.get("level"), args.get("axis", 0)
-                    ),
-                    f"GroupBy nunique {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
-                ),
-            ]
-        ),
-    )
     def groupby_nunique(
         self,
         by: Any,
@@ -7181,7 +7167,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     lambda args: not check_is_groupby_supported_by_snowflake(
                         args.get("by"),
                         args.get("groupby_kwargs", {}).get("level"),
-                        args.get("axis"),
+                        args.get("axis") if args.get("axis") is not None else 0,
                     ),
                     f"GroupBy.fillna {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
                 ),
