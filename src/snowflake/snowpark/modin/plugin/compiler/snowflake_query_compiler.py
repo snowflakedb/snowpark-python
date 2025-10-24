@@ -10822,7 +10822,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             and None not in args.get("index")
                         )
                     ),
-                    "non-string of list of string index is not yet supported for pivot_table",
+                    "non-string of list of string index is not yet supported",
                 ),
                 (
                     lambda args: (
@@ -10835,7 +10835,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             and None not in args.get("columns")
                         )
                     ),
-                    "non-string of list of string columns is not yet supported for pivot_table",
+                    "non-string of list of string columns is not yet supported",
                 ),
                 (
                     lambda args: (
@@ -10848,7 +10848,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             and None not in args.get("values")
                         )
                     ),
-                    "non-string of list of string values is not yet supported for pivot_table",
+                    "non-string of list of string values is not yet supported",
                 ),
                 (
                     lambda args: (

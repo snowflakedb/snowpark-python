@@ -1094,17 +1094,17 @@ def test_auto_switch_unsupported_series(method, kwargs, api_cls_name):
         (
             "pivot_table",
             {"index": ["A", 0], "columns": "B", "values": "B"},
-            "non-string of list of string index is not yet supported for pivot_table",
+            "non-string of list of string index is not yet supported",
         ),
         (
             "pivot_table",
             {"index": "A", "columns": ["B", 0], "values": "B"},
-            "non-string of list of string columns is not yet supported for pivot_table",
+            "non-string of list of string columns is not yet supported",
         ),
         (
             "pivot_table",
             {"index": "A", "columns": "B", "values": ["B", 0]},
-            "non-string of list of string values is not yet supported for pivot_table",
+            "non-string of list of string values is not yet supported",
         ),
         (
             "pivot_table",
