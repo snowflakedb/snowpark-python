@@ -40,6 +40,7 @@ __all__ = [
     "QueryListener",
     "AsyncJob",
     "StoredProcedureProfiler",
+    "UDFProfiler",
 ]
 
 
@@ -54,6 +55,7 @@ __version__ = ".".join(str(x) for x in VERSION if x is not None)
 from snowflake.snowpark.async_job import AsyncJob
 from snowflake.snowpark.column import CaseExpr, Column
 from snowflake.snowpark.stored_procedure_profiler import StoredProcedureProfiler
+from snowflake.snowpark.udf_profiler import UDFProfiler
 from snowflake.snowpark.dataframe import DataFrame
 from snowflake.snowpark.dataframe_ai_functions import DataFrameAIFunctions
 from snowflake.snowpark.dataframe_analytics_functions import DataFrameAnalyticsFunctions
