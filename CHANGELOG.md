@@ -37,8 +37,6 @@
   - `fillna()` with `downcast` parameter or using `limit` together with `value`
   - `dropna()` with `axis=1`
 
-## 1.41.0 (YYYY-MM-DD)
-
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
