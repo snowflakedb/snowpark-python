@@ -13,7 +13,10 @@ from snowflake.snowpark.modin.plugin._internal.utils import pandas_lit
 
 
 def align_axis_0_left(
-    frame: InternalFrame, other_frame: InternalFrame, join: str
+    frame: InternalFrame,
+    other_frame: InternalFrame,
+    join: str,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Gets the left align results.
@@ -27,7 +30,9 @@ def align_axis_0_left(
         New InternalFrame representing aligned left frame.
     """
     if join == "right":
-        left_result, left_column_mapper = align_on_index(other_frame, frame, how="left")
+        left_result, left_column_mapper = align_on_index(
+            other_frame, frame, dummy_row_pos_mode, how="left"
+        )
         left_frame_data_ids = left_column_mapper.map_right_quoted_identifiers(
             frame.data_column_snowflake_quoted_identifiers
         )
@@ -36,7 +41,9 @@ def align_axis_0_left(
             left_frame_data_ids + left_index_ids
         )
     else:
-        left_result, left_column_mapper = align_on_index(frame, other_frame, how=join)
+        left_result, left_column_mapper = align_on_index(
+            frame, other_frame, dummy_row_pos_mode, how=join
+        )
         left_frame_data_ids = left_column_mapper.map_left_quoted_identifiers(
             frame.data_column_snowflake_quoted_identifiers
         )
@@ -58,7 +65,10 @@ def align_axis_0_left(
 
 
 def align_axis_0_right(
-    frame: InternalFrame, other_frame: InternalFrame, join: str
+    frame: InternalFrame,
+    other_frame: InternalFrame,
+    join: str,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Gets the right align results.
@@ -72,7 +82,9 @@ def align_axis_0_right(
         New InternalFrame representing aligned right frame.
     """
     if join == "left":
-        right_result, right_column_mapper = align_on_index(frame, other_frame, how=join)
+        right_result, right_column_mapper = align_on_index(
+            frame, other_frame, dummy_row_pos_mode, how=join
+        )
         right_frame_data_ids = right_column_mapper.map_right_quoted_identifiers(
             other_frame.data_column_snowflake_quoted_identifiers
         )
@@ -82,7 +94,7 @@ def align_axis_0_right(
         )
     elif join == "right":
         right_result, right_column_mapper = align_on_index(
-            other_frame, frame, how="left"
+            other_frame, frame, dummy_row_pos_mode, how="left"
         )
         right_frame_data_ids = right_column_mapper.map_left_quoted_identifiers(
             other_frame.data_column_snowflake_quoted_identifiers
@@ -92,7 +104,9 @@ def align_axis_0_right(
             right_frame_data_ids + right_index_ids
         )
     else:
-        right_result, right_column_mapper = align_on_index(other_frame, frame, how=join)
+        right_result, right_column_mapper = align_on_index(
+            other_frame, frame, dummy_row_pos_mode, how=join
+        )
         right_frame_data_ids = right_column_mapper.map_left_quoted_identifiers(
             other_frame.data_column_snowflake_quoted_identifiers
         )
