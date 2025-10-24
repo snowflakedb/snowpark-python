@@ -22087,9 +22087,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return qc
 
     @register_query_compiler_method_not_implemented(
-        "DataFrame",
-        "corr",
-        UnsupportedArgsRule(
+        api_cls_names="DataFrame",
+        method_name="corr",
+        unsupported_args=UnsupportedArgsRule(
             unsupported_conditions=[
                 (
                     lambda args: not isinstance(args.get("method", "pearson"), str),
