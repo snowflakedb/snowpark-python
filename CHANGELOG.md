@@ -20,6 +20,9 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+- Added support for `Dataframe.groupby.rolling()`.
+- Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
+- Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
 
 #### Improvements
 
@@ -34,9 +37,6 @@
   - `dropna()` with `axis=1`
 
 ## 1.41.0 (YYYY-MM-DD)
-- Added support for `Dataframe.groupby.rolling()`.
-- Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
-- Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
 
 #### Bug Fixes
 
