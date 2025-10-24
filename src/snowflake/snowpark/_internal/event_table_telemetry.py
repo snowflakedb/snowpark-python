@@ -243,12 +243,12 @@ class EventTableTelemetry:
             ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.INFO, True)
             tracer = trace.get_tracer("my_tracer")
             with tracer.start_as_current_span("code_store") as span:
-                 span.set_attribute("code.lineno", "21")
+                span.set_attribute("code.lineno", "21")
                 span.set_attribute("code.content", "session.sql(...)")
                 logging.info("Trace being sent to event table")
             ext.disable_event_table_telemetry_collection()
             logging.info("out of scope log")  # this log is not sent to event table
-            ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.DEBUG, True)
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.DEBUG, True)
             logging.debug("debug log") # this log is sent to event table because event table telemetry collection is re-enabled
             ext.disable_event_table_telemetry_collection()
 
