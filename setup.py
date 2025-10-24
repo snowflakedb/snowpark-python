@@ -63,7 +63,6 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
     "tox",  # used for setting up testing environments
-    "snowflake.core>=1.0.0, <2",  # Catalog
     "psutil",  # testing for telemetry
     "lxml",  # used in XML reader unit tests
 ]
