@@ -44,6 +44,8 @@ import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 from snowflake.connector.pandas_tools import write_pandas
+
+from snowflake.snowpark import UDFProfiler
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -78,6 +80,7 @@ from snowflake.snowpark._internal.ast.utils import (
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.event_table_telemetry import EventTableTelemetry
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
@@ -807,8 +810,10 @@ class Session:
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+        self._udf_profiler = UDFProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
+        self._client_telemetry = EventTableTelemetry(session=self)
 
         self._ast_batch = AstBatch(self)
 
@@ -825,6 +830,7 @@ class Session:
         """
         with _session_management_lock:
             try:
+                self._client_telemetry._opentelemetry_shutdown()
                 self.close()
             except Exception:
                 pass
@@ -4313,6 +4319,65 @@ class Session:
         See details of how to use this object in :class:`stored_procedure_profiler.StoredProcedureProfiler`.
         """
         return self._sp_profiler
+
+    @property
+    def client_telemetry(self) -> EventTableTelemetry:
+        """
+        Returns a :class:`event_table_telemetry.EventTableTelemetry` object that you can use to send telemetry to snowflake event table.
+        See details of how to use this object in :class:`event_table_telemetry.EventTableTelemetry`.
+
+        `Session.client_telemetry` object enable user to send telemetry to designated event table
+        when necessary dependencies are installed. Only traces and logs between
+        `client_telemetry.enable_event_table_telemetry_collection` and `client_telemetry.disable_event_table_telemetry_collection`
+        will be sent to event table. You can call `client_telemetry.enable_event_table_telemetry_collection` again to re-enable external
+        telemetry after it is turned off.
+
+        Note:
+            This function requires the `opentelemetry` extra from Snowpark.
+            Install it via pip:
+                .. code-block:: bash
+
+                pip install "snowflake-snowpark-python[opentelemetry]"
+
+        Examples 1
+            .. code-block:: python
+
+            ext = session.client_telemetry
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.INFO, True)
+            tracer = trace.get_tracer("my_tracer")
+            with tracer.start_as_current_span("code_store") as span:
+                span.set_attribute("code.lineno", "21")
+                span.set_attribute("code.content", "session.sql(...)")
+                logging.info("Trace being sent to event table")
+            ext.disable_event_table_telemetry_collection()
+
+        Examples 2
+            .. code-block:: python
+
+            ext = session.client_telemetry
+            logging.info("log before enable external telemetry") # this log is not sent to event table
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.INFO, True)
+            tracer = trace.get_tracer("my_tracer")
+            with tracer.start_as_current_span("code_store") as span:
+                 span.set_attribute("code.lineno", "21")
+                span.set_attribute("code.content", "session.sql(...)")
+                logging.info("Trace being sent to event table")
+            ext.disable_event_table_telemetry_collection()
+            logging.info("out of scope log")  # this log is not sent to event table
+            ext.enable_event_table_telemetry_collection("db.sc.external_et", logging.DEBUG, True)
+            logging.debug("debug log") # this log is sent to event table because external telemetry is re-enabled
+            ext.disable_event_table_telemetry_collection()
+
+        """
+        return self._client_telemetry
+
+    @property
+    def udf_profiler(self) -> UDFProfiler:
+        """
+        Returns a :class:`udf_profiler.UDFProfiler` object that you can use to profile UDFs.
+        See details of how to use this object in :class:`udf_profiler.UDFProfiler`.
+        """
+        return self._udf_profiler
 
     @property
     def dataframe_profiler(self) -> DataframeProfiler:

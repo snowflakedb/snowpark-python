@@ -78,6 +78,7 @@ from pandas.api.types import (
     is_bool,
     is_bool_dtype,
     is_datetime64_any_dtype,
+    is_integer,
     is_integer_dtype,
     is_named_tuple,
     is_numeric_dtype,
@@ -151,7 +152,6 @@ from snowflake.snowpark.functions import (
     object_keys,
     pandas_udf,
     quarter,
-    random,
     rank,
     regexp_replace,
     reverse,
@@ -626,7 +626,7 @@ HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS: dict[MethodKey, UnsupportedArgsRule] = {}
 
 
 def register_query_compiler_method_not_implemented(
-    api_cls_names: Union[list[Optional[str]], Optional[str]],
+    api_cls_name: Optional[str],
     method_name: str,
     unsupported_args: Optional["UnsupportedArgsRule"] = None,
 ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
@@ -644,30 +644,22 @@ def register_query_compiler_method_not_implemented(
     without meaningful benefit.
 
     Args:
-        api_cls_names: Frontend class names (e.g. "BasePandasDataset", "Series", "DataFrame", or None). It can be a list if multiple api_cls_names are needed.
+        api_cls_name: Frontend class name (e.g., "BasePandasDataset", "Series", "DataFrame", "None").
         method_name: Method name to register.
         unsupported_args: UnsupportedArgsRule for args-based auto-switching.
                           If None, method is treated as completely unimplemented.
     """
+    reg_key = MethodKey(api_cls_name, method_name)
 
-    if isinstance(api_cls_names, str) or api_cls_names is None:
-        api_cls_names = [api_cls_names]
-    assert (
-        api_cls_names
-    ), "api_cls_names must be a string (e.g., 'DataFrame', 'Series') or a list of strings (e.g., ['DataFrame', 'Series']) or None for top-level functions"
+    # register the method in the hybrid switch for unsupported args
+    if unsupported_args is None:
+        HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(reg_key)
+    else:
+        HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[reg_key] = unsupported_args
 
-    for api_cls_name in api_cls_names:
-        reg_key = MethodKey(api_cls_name, method_name)
-
-        # register the method in the hybrid switch for unsupported args
-        if unsupported_args is None:
-            HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS.add(reg_key)
-        else:
-            HYBRID_SWITCH_FOR_UNSUPPORTED_ARGS[reg_key] = unsupported_args
-
-        register_function_for_pre_op_switch(
-            class_name=api_cls_name, backend="Snowflake", method=method_name
-        )
+    register_function_for_pre_op_switch(
+        class_name=api_cls_name, backend="Snowflake", method=method_name
+    )
 
     def decorator(query_compiler_method: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(query_compiler_method)
@@ -2613,22 +2605,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         # TODO: SNOW-1023324, implement shifting index only.
         ErrorMessage.not_implemented("shifting index values not yet supported.")
 
-    @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
-        "shift",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                (
-                    lambda args: args.get("suffix") is not None,
-                    "the 'suffix' parameter is not yet supported",
-                ),
-                (
-                    lambda args: not isinstance(args.get("periods"), int),
-                    "only int 'periods' is currently supported",
-                ),
-            ]
-        ),
-    )
     def shift(
         self,
         periods: Union[int, Sequence[int]] = 1,
@@ -4216,19 +4192,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
         return None
 
-    @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
-        "sort_index",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                ("axis", 1),
-                (
-                    lambda args: args.get("key") is not None,
-                    "the 'key' parameter is not yet supported",
-                ),
-            ]
-        ),
-    )
     def sort_index(
         self,
         *,
@@ -4291,7 +4254,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         1.0    c
         dtype: object
         """
-        if axis == 1:
+        if axis in (1, "index"):
             ErrorMessage.not_implemented(
                 "sort_index is not supported yet on axis=1 in Snowpark pandas."
             )
@@ -4315,17 +4278,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             include_indexer=include_indexer,
         )
 
-    @register_query_compiler_method_not_implemented(
-        "BasePandasDataset",
-        "sort_values",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                ("axis", 1),
-            ]
-        ),
-    )
     def sort_columns_by_row_values(
-        self, rows: IndexLabel, ascending: bool = True, axis: int = 1, **kwargs: Any
+        self, rows: IndexLabel, ascending: bool = True, **kwargs: Any
     ) -> None:
         """
         Reorder the columns based on the lexicographic order of the given rows.
@@ -4335,9 +4289,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 The row or rows to sort by.
             ascending : bool, default: True
                 Sort in ascending order (True) or descending order (False).
-            axis: Always set to 1. Required because the decorator compares frontend
-                  method arguments during stay_cost computation (returning COST_IMPOSSIBLE)
-                  but examines QC method arguments when calling the wrapped method.
             **kwargs : dict
                 Serves the compatibility purpose. Does not affect the result.
 
@@ -4935,52 +4886,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return query_compiler if as_index else query_compiler.reset_index(drop=drop)
 
     def groupby_apply(
-        self,
-        by: Any,
-        agg_func: AggFuncType,
-        axis: int,
-        groupby_kwargs: dict[str, Any],
-        agg_args: Any,
-        agg_kwargs: dict[str, Any],
-        series_groupby: bool,
-        include_groups: bool,
-        force_single_group: bool = False,
-        force_list_like_to_series: bool = False,
-    ) -> "SnowflakeQueryCompiler":
-        """
-        Wrapper around _groupby_apply_internal to be supported in faster pandas.
-        """
-        relaxed_query_compiler = None
-        if self._relaxed_query_compiler is not None:
-            relaxed_query_compiler = (
-                self._relaxed_query_compiler._groupby_apply_internal(
-                    by=by,
-                    agg_func=agg_func,
-                    axis=axis,
-                    groupby_kwargs=groupby_kwargs,
-                    agg_args=agg_args,
-                    agg_kwargs=agg_kwargs,
-                    series_groupby=series_groupby,
-                    include_groups=include_groups,
-                    force_single_group=force_single_group,
-                    force_list_like_to_series=force_list_like_to_series,
-                )
-            )
-        qc = self._groupby_apply_internal(
-            by=by,
-            agg_func=agg_func,
-            axis=axis,
-            groupby_kwargs=groupby_kwargs,
-            agg_args=agg_args,
-            agg_kwargs=agg_kwargs,
-            series_groupby=series_groupby,
-            include_groups=include_groups,
-            force_single_group=force_single_group,
-            force_list_like_to_series=force_list_like_to_series,
-        )
-        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
-
-    def _groupby_apply_internal(
         self,
         by: Any,
         agg_func: Callable,
@@ -8711,6 +8616,57 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         sort: Optional[bool] = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _concat_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if (
+            self._relaxed_query_compiler is not None
+            and all([qc._relaxed_query_compiler is not None for qc in other])
+            and axis == 0
+        ):
+            new_other = [
+                qc._relaxed_query_compiler
+                for qc in other
+                if qc._relaxed_query_compiler is not None
+            ]
+            relaxed_query_compiler = self._relaxed_query_compiler._concat_internal(
+                axis=axis,
+                other=new_other,
+                join=join,
+                ignore_index=ignore_index,
+                keys=keys,
+                levels=levels,
+                names=names,
+                verify_integrity=verify_integrity,
+                sort=sort,
+            )
+        qc = self._concat_internal(
+            axis=axis,
+            other=other,
+            join=join,
+            ignore_index=ignore_index,
+            keys=keys,
+            levels=levels,
+            names=names,
+            verify_integrity=verify_integrity,
+            sort=sort,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _concat_internal(
+        self,
+        axis: Axis,
+        other: list["SnowflakeQueryCompiler"],
+        *,
+        join: Optional[Literal["outer", "inner"]] = "outer",
+        ignore_index: bool = False,
+        keys: Optional[Sequence[Hashable]] = None,
+        levels: Optional[list[Sequence[Hashable]]] = None,
+        names: Optional[list[Hashable]] = None,
+        verify_integrity: Optional[bool] = False,
+        sort: Optional[bool] = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Concatenate `self` with passed query compilers along specified axis.
         Args:
             axis : {0, 1}
@@ -9056,18 +9012,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).frame
         )
 
-    @register_query_compiler_method_not_implemented(
-        None,
-        "melt",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                (
-                    lambda args: args.get("col_level") is not None,
-                    "col_level argument is not yet supported",
-                ),
-            ]
-        ),
-    )
     def melt(
         self,
         id_vars: list[str],
@@ -10133,18 +10077,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return left_qc, right_qc
 
-    @register_query_compiler_method_not_implemented(
-        "DataFrame",
-        "apply",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                (
-                    lambda args: args.get("result_type") is not None,
-                    "the 'result_type' parameter is not yet supported",
-                ),
-            ]
-        ),
-    )
     def apply(
         self,
         func: Union[AggFuncType, UserDefinedFunction],
@@ -10822,63 +10754,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             sort=True,
         )
 
-    @register_query_compiler_method_not_implemented(
-        None,
-        "pivot_table",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                ("sort", False),
-                (
-                    lambda args: (
-                        args.get("index") is not None
-                        and (
-                            not isinstance(args.get("index"), str)
-                            and not all([isinstance(v, str) for v in args.get("index")])
-                            and None not in args.get("index")
-                        )
-                    ),
-                    "non-string of list of string index is not yet supported for pivot_table",
-                ),
-                (
-                    lambda args: (
-                        args.get("columns") is not None
-                        and (
-                            not isinstance(args.get("columns"), str)
-                            and not all(
-                                [isinstance(v, str) for v in args.get("columns")]
-                            )
-                            and None not in args.get("columns")
-                        )
-                    ),
-                    "non-string of list of string columns is not yet supported for pivot_table",
-                ),
-                (
-                    lambda args: (
-                        args.get("values") is not None
-                        and (
-                            not isinstance(args.get("values"), str)
-                            and not all(
-                                [isinstance(v, str) for v in args.get("values")]
-                            )
-                            and None not in args.get("values")
-                        )
-                    ),
-                    "non-string of list of string values is not yet supported for pivot_table",
-                ),
-                (
-                    lambda args: (
-                        isinstance(args.get("aggfunc"), dict)
-                        and any(
-                            not isinstance(af, str)
-                            for af in args.get("aggfunc").values()
-                        )
-                        and args.get("index") is None
-                    ),
-                    "dictionary aggfunc with non-string aggregation functions is not yet supported for pivot_table with margins or when index is None",
-                ),
-            ]
-        ),
-    )
     def pivot_table(
         self,
         index: Any,
@@ -10954,7 +10829,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             index = [index]
 
         # TODO: SNOW-857485 Support for non-str and list of non-str for index/columns/values
-        if index is not None and (
+        if index and (
             not isinstance(index, str)
             and not all([isinstance(v, str) for v in index])
             and None not in index
@@ -10963,7 +10838,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Not implemented non-string of list of string {index}."
             )
 
-        if values is not None and (
+        if values and (
             not isinstance(values, str)
             and not all([isinstance(v, str) for v in values])
             and None not in values
@@ -10972,7 +10847,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 f"Not implemented non-string of list of string {values}."
             )
 
-        if columns is not None and (
+        if columns and (
             not isinstance(columns, str)
             and not all([isinstance(v, str) for v in columns])
             and None not in columns
@@ -13073,23 +12948,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 *columns_to_include,
             )
 
-    @register_query_compiler_method_not_implemented(
-        ["DataFrame", "Series"],
-        "fillna",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                (
-                    lambda kwargs: kwargs.get("value") is not None
-                    and kwargs.get("limit") is not None,
-                    "the 'limit' parameter with 'value' parameter is not yet supported",
-                ),
-                (
-                    lambda kwargs: kwargs.get("downcast") is not None,
-                    "the 'downcast' parameter is not yet supported",
-                ),
-            ]
-        ),
-    )
     def fillna(
         self,
         value: Optional[Union[Hashable, Mapping, "pd.DataFrame", "pd.Series"]] = None,
@@ -13335,15 +13193,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             ).frame
         )
 
-    @register_query_compiler_method_not_implemented(
-        "DataFrame",
-        "dropna",
-        UnsupportedArgsRule(
-            unsupported_conditions=[
-                ("axis", 1),
-            ]
-        ),
-    )
     def dropna(
         self,
         axis: int,
@@ -16596,23 +16445,44 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             )
 
         # handle axis = 0
+
         if weights is not None:
             ErrorMessage.not_implemented("`weights` is not supported.")
+        if isinstance(
+            random_state,
+            (
+                np.ndarray,
+                np.random.BitGenerator,
+                np.random.RandomState,
+                np.random.Generator,
+            ),
+        ):
+            ErrorMessage.not_implemented("non-integer `random_state` is not supported.")
 
-        if random_state is not None:
-            ErrorMessage.not_implemented("`random_state` is not supported.")
-
+        if random_state is not None and not is_integer(random_state):
+            raise ValueError("random_state must be an integer or None.")
         assert n is not None or frac is not None
-        frame = self._modin_frame
-        if replace:
-            sampled_row_position_identifier = (
-                generate_snowflake_quoted_identifiers_helper(
-                    pandas_labels=[
-                        SAMPLED_ROW_POSITION_COLUMN_LABEL,
-                    ]
-                )[0]
+        if not replace and frac is not None and frac > 1:
+            raise ValueError(
+                "Replace has to be set to `True` when upsampling the population `frac` > 1."
             )
 
+        frame = self._modin_frame
+
+        # use builtin('random') instead of snowflake.snowpark.functions.random
+        # because the latter does not take Column inputs, but we want to use
+        # pandas_lit() to create the seed.
+        # if random_state is None, we have to call random() with no arguments.
+        # random(NULL) is not valid.
+        builtin_random = builtin("random")
+        random_column = (
+            builtin_random()
+            if random_state is None
+            else builtin_random(pandas_lit(random_state))
+        )
+        if replace:
+            # If `replace=True`, we can't use snowflake's built-in SAMPLE, which
+            # samples without replacement.
             pre_sampling_rowcount = self.get_axis_len(axis=0)
             if n is not None:
                 post_sampling_rowcount = n
@@ -16620,35 +16490,75 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 assert frac is not None
                 post_sampling_rowcount = round(frac * pre_sampling_rowcount)
 
-            sampled_row_position_col = uniform(
-                0, pre_sampling_rowcount - 1, random()
-            ).as_(sampled_row_position_identifier)
-
+            sampled_row_position_identifier = (
+                generate_snowflake_quoted_identifiers_helper(
+                    pandas_labels=[
+                        SAMPLED_ROW_POSITION_COLUMN_LABEL,
+                    ]
+                )[0]
+            )
             sampled_row_positions_snowpark_frame = pd.session.generator(
-                sampled_row_position_col,
+                uniform(0, pre_sampling_rowcount - 1, random_column).as_(
+                    sampled_row_position_identifier
+                ),
                 rowcount=post_sampling_rowcount,
             )
-
             sampled_row_positions_odf = OrderedDataFrame(
                 dataframe_ref=DataFrameReference(sampled_row_positions_snowpark_frame),
                 projected_column_snowflake_quoted_identifiers=[
                     sampled_row_position_identifier
                 ],
             )
-            sampled_odf = cache_result(
-                sampled_row_positions_odf.join(
-                    right=self._modin_frame.ordered_dataframe,
-                    left_on_cols=[sampled_row_position_identifier],
-                    right_on_cols=[
-                        self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
-                    ],
+            sampled_odf = sampled_row_positions_odf.join(
+                right=self._modin_frame.ordered_dataframe,
+                left_on_cols=[sampled_row_position_identifier],
+                right_on_cols=[
+                    self._modin_frame.ordered_dataframe.row_position_snowflake_quoted_identifier
+                ],
+            )
+            # if random_state is not None, the result is seeded and already deterministic.
+            if random_state is None:
+                logging.warning(
+                    "Snowpark pandas `sample` will create a temp table for "
+                    + "sampled results to keep it deterministic."
                 )
+                sampled_odf = cache_result(sampled_odf)
+        elif random_state is not None:
+            # Snowflake's SAMPLE, while more performant than this appraoch,
+            # only accepts a seed when sampling from a table. A snowflake query
+            # compiler does not necessarily correspond to a particular snowflake
+            # table, and even though we could sample an intermediate table
+            # produced with cache_result(), we need to select a set of rows that
+            # is deterministic with respect to the table length rather than with
+            # respect to the query compiler or even the dataframe. For example,
+            # pd.DataFrame(list(range(1000))).sample(n=1, random_state=0) and
+            # pd.DataFrame(list(range(1000))[::-1]).sample(n=1, random_state=0)
+            # select the same row position.
+            # We use this alternate implementation rather than the generator one
+            # that we use for replace=True because we can avoid a join.
+            if n is not None:
+                post_sampling_rowcount = n
+            else:
+                assert frac is not None
+                pre_sampling_rowcount = self.get_axis_len(axis=0)
+                post_sampling_rowcount = round(frac * pre_sampling_rowcount)
+            # Choose the top `post_sampling_rowcount` rows according to a random
+            # order.
+            new_identifier = self._modin_frame.ordered_dataframe.generate_snowflake_quoted_identifiers(
+                pandas_labels=["random_row_position"]
+            )[
+                0
+            ]
+            sampled_odf = (
+                self._modin_frame.ordered_dataframe.select(
+                    *self._modin_frame.ordered_dataframe.projected_column_snowflake_quoted_identifiers,
+                    random_column.as_(new_identifier),
+                )
+                .sort(OrderingColumn(new_identifier))
+                .limit(post_sampling_rowcount)
             )
         else:
             sampled_odf = frame.ordered_dataframe.sample(n=n, frac=frac)
-        logging.warning(
-            "Snowpark pandas `sample` will create a temp table for sampled results to keep it deterministic."
-        )
         res = SnowflakeQueryCompiler(
             InternalFrame.create(
                 ordered_dataframe=sampled_odf,
@@ -22041,7 +21951,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return qc
 
     @register_query_compiler_method_not_implemented(
-        api_cls_names="DataFrame",
+        api_cls_name="DataFrame",
         method_name="corr",
         unsupported_args=UnsupportedArgsRule(
             unsupported_conditions=[
