@@ -242,7 +242,7 @@ class TestNotImplemented:
     @sql_count_checker(query_count=0)
     def test_result_type(self, result_type):
         snow_df = pd.DataFrame([[1, 2], [3, 4]])
-        msg = "Snowpark pandas apply API doesn't yet support 'result_type' parameter"
+        msg = "Snowpark pandas apply does not yet support the parameter combination because the 'result_type' parameter is not yet supported."
         with pytest.raises(NotImplementedError, match=msg):
             snow_df.apply(lambda x: [1, 2], axis=0, result_type=result_type)
 

@@ -72,7 +72,7 @@ def test_how_all_with_subset(test_dropna_df):
 
 @sql_count_checker(query_count=0)
 def test_axis_1_not_implemented(test_dropna_df):
-    msg = "Snowpark pandas dropna API doesn't yet support axis == 1"
+    msg = "Snowpark pandas dropna does not yet support the parameter combination because axis = 1 is not supported"
     with pytest.raises(NotImplementedError, match=msg):
         df = pd.DataFrame(test_dropna_df)
         df.dropna(axis="columns")
@@ -118,7 +118,7 @@ def test_dropna_negative(test_dropna_df):
 
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas dropna API doesn't yet support axis == 1",
+        match="Snowpark pandas dropna does not yet support the parameter combination because axis = 1 is not supported",
     ):
         df = pd.DataFrame(test_dropna_df)
         df.dropna(subset=["invalid"], axis=1)
