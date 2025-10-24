@@ -28,6 +28,7 @@
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
+- Preserve index values when using `df.apply(axis=1)`.
 
 #### Improvements
 
