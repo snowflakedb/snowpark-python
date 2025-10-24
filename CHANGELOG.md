@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Added support for `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
 
 #### Improvements
