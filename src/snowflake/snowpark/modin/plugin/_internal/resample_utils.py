@@ -649,7 +649,11 @@ def get_expected_resample_bins_frame(
 
 
 def fill_missing_resample_bins_for_frame(
-    frame: InternalFrame, rule: str, start_date: str, end_date: str
+    frame: InternalFrame,
+    rule: str,
+    start_date: str,
+    end_date: str,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Returns a new InternalFrame created using 2 rules.
@@ -736,6 +740,7 @@ def fill_missing_resample_bins_for_frame(
         left=frame,
         right=expected_resample_bins_frame,
         how="right",
+        dummy_row_pos_mode=dummy_row_pos_mode,
         left_on=frame.index_column_snowflake_quoted_identifiers,
         right_on=expected_resample_bins_frame.index_column_snowflake_quoted_identifiers,
         inherit_join_index=InheritJoinIndex.FROM_RIGHT,
@@ -755,7 +760,10 @@ def fill_missing_resample_bins_for_frame(
 
 
 def perform_asof_join_on_frame(
-    preserving_frame: InternalFrame, referenced_frame: InternalFrame, fill_method: str
+    preserving_frame: InternalFrame,
+    referenced_frame: InternalFrame,
+    fill_method: str,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Returns a new InternalFrame that performs an ASOF join on the preserving
@@ -814,6 +822,7 @@ def perform_asof_join_on_frame(
         left=preserving_frame,
         right=referenced_frame,
         how="asof",
+        dummy_row_pos_mode=dummy_row_pos_mode,
         left_match_col=left_timecol_snowflake_quoted_identifier,
         right_match_col=right_timecol_snowflake_quoted_identifier,
         match_comparator=(
