@@ -36,7 +36,8 @@ SELECT_QUERY = "SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARC
 EMPTY_QUERY = "SELECT * FROM ALL_TYPE_TABLE_JDBC WHERE 1=0"
 POSTGRES_SELECT_QUERY = "select BIGINT_COL, BIGSERIAL_COL, BIT_COL, BIT_VARYING_COL, BOOLEAN_COL, BOX_COL, BYTEA_COL, CHAR_COL, VARCHAR_COL, CIDR_COL, CIRCLE_COL, DATE_COL, DOUBLE_PRECISION_COL, INET_COL, INTEGER_COL, INTERVAL_COL, JSON_COL, JSONB_COL, LINE_COL, LSEG_COL, MACADDR_COL, MACADDR8_COL, NUMERIC_COL, PATH_COL, PG_LSN_COL, PG_SNAPSHOT_COL, POINT_COL, POLYGON_COL, REAL_COL, SMALLINT_COL, SMALLSERIAL_COL, SERIAL_COL, TEXT_COL, TIME_COL, TIMESTAMP_COL, TIMESTAMPTZ_COL, TSQUERY_COL, TSVECTOR_COL, TXID_SNAPSHOT_COL, UUID_COL, XML_COL from test_schema.ALL_TYPE_TABLE"
 TABLE_NAME = "ALL_TYPE_TABLE_JDBC"
-
+ORACLEDB_PROPERTIES = {"oracle.net.CONNECT_TIMEOUT": "60000"}
+POSTGRES_PROPERTIES = {"loginTimeout": "60", "connectTimeout": "60"}
 
 pytestmark = [
     pytest.mark.skipif(
@@ -108,6 +109,7 @@ def test_basic_jdbc(session, udtf_configs):
         num_partitions=3,
         upper_bound=10,
         lower_bound=0,
+        properties=ORACLEDB_PROPERTIES,
     ).order_by("ID")
     assert df.collect() == expected_data
 
@@ -117,6 +119,7 @@ def test_basic_jdbc(session, udtf_configs):
         udtf_configs=udtf_configs,
         query=SELECT_QUERY,
         predicates=["ID < 6", "ID >= 6"],
+        properties=ORACLEDB_PROPERTIES,
     ).order_by("ID")
     assert df.collect() == expected_data
 
@@ -126,6 +129,7 @@ def test_basic_jdbc(session, udtf_configs):
         .option("url", URL)
         .option("udtf_configs", udtf_configs)
         .option("query", SELECT_QUERY)
+        .option("properties", ORACLEDB_PROPERTIES)
         .load()
         .order_by("ID")
     )
@@ -142,7 +146,11 @@ def test_basic_jdbc(session, udtf_configs):
 )
 def test_query_and_table(session, table, query, udtf_configs):
     df = session.read.jdbc(
-        url=URL, udtf_configs=udtf_configs, query=query, table=table
+        url=URL,
+        udtf_configs=udtf_configs,
+        query=query,
+        table=table,
+        properties=ORACLEDB_PROPERTIES,
     ).order_by("ID")
     assert df.collect() == expected_data
 
@@ -157,6 +165,7 @@ def test_partitions(session, jar_path):
         imports=[jar_path],
         is_query=True,
         secret=SECRET,
+        properties=ORACLEDB_PROPERTIES,
     )
     assert [
         re.sub(
@@ -181,6 +190,7 @@ def test_partitions(session, jar_path):
         num_partitions=3,
         upper_bound=10,
         lower_bound=0,
+        properties=ORACLEDB_PROPERTIES,
     )
     assert [
         re.sub(
@@ -201,6 +211,7 @@ def test_partitions(session, jar_path):
         is_query=True,
         secret=SECRET,
         predicates=["ID < 6", "ID >= 6"],
+        properties=ORACLEDB_PROPERTIES,
     )
     assert [
         re.sub(
@@ -256,6 +267,7 @@ def test_data_ingestion(session, jar_path):
         imports=[jar_path],
         is_query=True,
         secret=SECRET,
+        properties=ORACLEDB_PROPERTIES,
     )
     client.schema
     partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
@@ -319,6 +331,7 @@ def test_connect_postgres(session, postgres_udtf_configs):
         url=POSTGRES_URL,
         udtf_configs=postgres_udtf_configs,
         query=POSTGRES_SELECT_QUERY,
+        properties=POSTGRES_PROPERTIES,
     ).order_by("BIGSERIAL_COL")
     assert df.collect() == postgres_expected_data
 
@@ -339,4 +352,5 @@ def test_postgres_session_init_statement(
             query=POSTGRES_SELECT_QUERY,
             query_timeout=1,
             session_init_statement=session_init_statement,
+            properties=POSTGRES_PROPERTIES,
         ).collect()
