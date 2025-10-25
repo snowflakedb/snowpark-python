@@ -737,25 +737,23 @@ def test_auto_switch_supported_top_level_functions(method, kwargs):
 
 
 @pytest.mark.parametrize(
-    "method,kwargs,query_count,api_cls_name",
+    "method,kwargs,api_cls_name",
     [
-        ("skew", {"numeric_only": True}, 1, "BasePandasDataset"),
-        ("round", {"decimals": 1}, 1, "BasePandasDataset"),
-        ("shift", {"periods": 1}, 1, "BasePandasDataset"),
-        ("sort_index", {"axis": 0}, 1, "BasePandasDataset"),
-        ("sort_values", {"by": "A", "axis": 0}, 1, "BasePandasDataset"),
-        ("fillna", {"value": 0}, 1, "DataFrame"),
-        ("dropna", {"axis": 0}, 1, "DataFrame"),
+        ("skew", {"numeric_only": True}, "BasePandasDataset"),
+        ("round", {"decimals": 1}, "BasePandasDataset"),
+        ("shift", {"periods": 1}, "BasePandasDataset"),
+        ("sort_index", {"axis": 0}, "BasePandasDataset"),
+        ("sort_values", {"by": "A", "axis": 0}, "BasePandasDataset"),
+        ("fillna", {"value": 0}, "DataFrame"),
+        ("dropna", {"axis": 0}, "DataFrame"),
     ],
 )
-def test_auto_switch_supported_dataframe(method, kwargs, query_count, api_cls_name):
+def test_auto_switch_supported_dataframe(method, kwargs, api_cls_name):
     # Test supported DataFrame operations that should stay on Snowflake backend.
     test_data = {"A": [1.23, None, 3.89], "B": [4.12, 5.26, 6.34]}
 
     with SqlCounter(
-        query_count=query_count,
-        high_count_expected=query_count > 10,
-        high_count_reason="Some operations require multiple SQL queries to execute",
+        query_count=1,
     ):
         df = pd.DataFrame(test_data).move_to("Snowflake")
         assert df.get_backend() == "Snowflake"
@@ -782,22 +780,20 @@ def test_auto_switch_supported_dataframe(method, kwargs, query_count, api_cls_na
 
 
 @pytest.mark.parametrize(
-    "method,kwargs,is_result_scalar,query_count,api_cls_name",
+    "method,kwargs,is_result_scalar,api_cls_name",
     [
-        ("skew", {"numeric_only": True}, True, 1, "BasePandasDataset"),
-        ("round", {"decimals": 1}, False, 1, "BasePandasDataset"),
-        ("shift", {"periods": 1}, False, 1, "BasePandasDataset"),
-        ("sort_index", {"axis": 0}, False, 1, "BasePandasDataset"),
-        ("fillna", {"value": 0}, False, 1, "Series"),
+        ("skew", {"numeric_only": True}, True, "BasePandasDataset"),
+        ("round", {"decimals": 1}, False, "BasePandasDataset"),
+        ("shift", {"periods": 1}, False, "BasePandasDataset"),
+        ("sort_index", {"axis": 0}, False, "BasePandasDataset"),
+        ("fillna", {"value": 0}, False, "Series"),
     ],
 )
-def test_auto_switch_supported_series(
-    method, kwargs, is_result_scalar, query_count, api_cls_name
-):
+def test_auto_switch_supported_series(method, kwargs, is_result_scalar, api_cls_name):
     # Test supported Series operations that should stay on Snowflake backend.
     test_data = [1.89, 2.95, 3.12, None, 5.23, 6.34]
 
-    with SqlCounter(query_count=query_count):
+    with SqlCounter(query_count=1):
         series = pd.Series(test_data).move_to("Snowflake")
         assert series.get_backend() == "Snowflake"
 
