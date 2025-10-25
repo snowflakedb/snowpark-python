@@ -7135,10 +7135,15 @@ def array_contains(
         variant: Column containing the VARIANT to find.
         array: Column containing the ARRAY to search.
 
+            If this is a semi-structured array, you're required to explicitly cast the following SQL types into a VARIANT:
+
+            - `String & Binary <https://docs.snowflake.com/en/sql-reference/data-types-text>`_
+            - `Date & Time <https://docs.snowflake.com/en/sql-reference/data-types-datetime>`_
+
     Example::
         >>> from snowflake.snowpark import Row
-        >>> df = session.create_dataframe([Row([1, 2]), Row([1, 3])], schema=["a"])
-        >>> df.select(array_contains(lit(2), "a").alias("result")).show()
+        >>> df = session.create_dataframe([Row(["apple", "banana"]), Row(["apple", "orange"])], schema=["a"])
+        >>> df.select(array_contains(lit("banana").cast("variant"), "a").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
