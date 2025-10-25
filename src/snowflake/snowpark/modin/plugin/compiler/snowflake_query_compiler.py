@@ -10822,7 +10822,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             and None not in args.get("index")
                         )
                     ),
-                    "non-string of list of string index is not yet supported",
+                    "index argument should be a string or a list of strings",
                 ),
                 (
                     lambda args: (
@@ -10835,7 +10835,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             and None not in args.get("columns")
                         )
                     ),
-                    "non-string of list of string columns is not yet supported",
+                    "columns argument should be a string or a list of strings",
                 ),
                 (
                     lambda args: (
@@ -10848,7 +10848,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                             and None not in args.get("values")
                         )
                     ),
-                    "non-string of list of string values is not yet supported",
+                    "values argument should be a string or a list of strings",
                 ),
                 (
                     lambda args: (
@@ -10859,7 +10859,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         )
                         and args.get("index") is None
                     ),
-                    "dictionary aggfunc with non-string aggregation functions is not yet supported for pivot_table with margins or when index is None",
+                    "dictionary aggfunc with non-string aggregation functions is not yet supported for pivot_table when index is None",
                 ),
             ]
         ),
