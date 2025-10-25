@@ -495,6 +495,11 @@ Functions
     st_geographyfromwkt
     st_geometryfromwkb
     st_geometryfromwkt
+    strtok
+    try_base64_decode_binary
+    try_base64_decode_string
+    try_hex_decode_binary
+    try_hex_decode_string
     try_to_geography
     try_to_geometry
     substr
@@ -540,6 +545,8 @@ Functions
     udf
     udtf
     unbase64
+    unicode
+    uuid_string
     uniform
     unix_timestamp
     upper

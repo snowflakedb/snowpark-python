@@ -3971,3 +3971,227 @@ def try_to_geometry(
         return builtin("try_to_geometry", _emit_ast=_emit_ast)(c, allow_invalid_col)
     else:
         return builtin("try_to_geometry", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def strtok(
+    string: ColumnOrName,
+    delimiter: ColumnOrName = None,
+    part_nr: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Tokenizes a string with the given set of delimiters and returns the requested part.
+
+    Args:
+        string (ColumnOrName): The string to be tokenized.
+        delimiter (ColumnOrName, optional): A set of delimiters. Each character in the delimiter string is treated as a delimiter. If not specified, defaults to a single space character.
+        part_nr (ColumnOrName, optional): The requested part number (1-based). If not specified, returns the entire string.
+
+    Returns:
+        Column: The requested part of the tokenized string.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([["a.b.c"]], schema=["string_col"])
+        >>> df.select(strtok(col("string_col")).alias("result")).collect()
+        [Row(RESULT='a.b.c')]
+        >>> df.select(strtok(col("string_col"), lit(".")).alias("result")).collect()
+        [Row(RESULT='a')]
+        >>> df.select(strtok(col("string_col"), lit("."), lit(2)).alias("result")).collect()
+        [Row(RESULT='b')]
+        >>> df2 = session.create_dataframe([["user@snowflake.com"]], schema=["string_col"])
+        >>> df2.select(strtok(col("string_col"), lit("@."), lit(1)).alias("result")).collect()
+        [Row(RESULT='user')]
+        >>> df2.select(strtok(col("string_col"), lit("@."), lit(3)).alias("result")).collect()
+        [Row(RESULT='com')]
+    """
+    string_col = _to_col_if_str(string, "strtok")
+
+    if delimiter is None and part_nr is None:
+        return builtin("strtok", _emit_ast=_emit_ast)(string_col)
+    elif part_nr is None:
+        delimiter_col = _to_col_if_str(delimiter, "strtok")
+        return builtin("strtok", _emit_ast=_emit_ast)(string_col, delimiter_col)
+    else:
+        delimiter_col = (
+            _to_col_if_str(delimiter, "strtok") if delimiter is not None else lit(" ")
+        )
+        part_nr_col = _to_col_if_str(part_nr, "strtok")
+        return builtin("strtok", _emit_ast=_emit_ast)(
+            string_col, delimiter_col, part_nr_col
+        )
+
+
+@publicapi
+def try_base64_decode_binary(
+    input_expr: ColumnOrName, alphabet: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Decodes a base64-encoded string to binary data. Returns None if the input is not valid base64.
+
+    Args:
+        input_expr (ColumnOrName): The base64-encoded string to decode.
+        alphabet (ColumnOrName, optional): The base64 alphabet to use for decoding. If not specified, uses the standard base64 alphabet.
+
+    Returns:
+        Column: A column containing the decoded binary data, or None if the input is invalid.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import base64_encode
+        >>> df = session.create_dataframe(["HELP", "TEST"], schema=["input"])
+        >>> df.select(try_base64_decode_binary(base64_encode(df["input"]))).collect()
+        [Row(TRY_BASE64_DECODE_BINARY(BASE64_ENCODE("INPUT"))=bytearray(b'HELP')), Row(TRY_BASE64_DECODE_BINARY(BASE64_ENCODE("INPUT"))=bytearray(b'TEST'))]
+
+        >>> df2 = session.create_dataframe(["SEVMUA==", "VEVTVA=="], schema=["encoded"])
+        >>> df2.select(try_base64_decode_binary(df2["encoded"])).collect()
+        [Row(TRY_BASE64_DECODE_BINARY("ENCODED")=bytearray(b'HELP')), Row(TRY_BASE64_DECODE_BINARY("ENCODED")=bytearray(b'TEST'))]
+
+        >>> df3 = session.create_dataframe(["invalid_base64!"], schema=["bad_input"])
+        >>> df3.select(try_base64_decode_binary(df3["bad_input"])).collect()
+        [Row(TRY_BASE64_DECODE_BINARY("BAD_INPUT")=None)]
+    """
+    input_col = _to_col_if_str(input_expr, "try_base64_decode_binary")
+
+    if alphabet is not None:
+        alphabet_col = _to_col_if_str(alphabet, "try_base64_decode_binary")
+        return builtin("try_base64_decode_binary", _emit_ast=_emit_ast)(
+            input_col, alphabet_col
+        )
+    else:
+        return builtin("try_base64_decode_binary", _emit_ast=_emit_ast)(input_col)
+
+
+@publicapi
+def try_base64_decode_string(
+    input_expr: ColumnOrName, alphabet: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Decodes a base64-encoded string and returns the result. If the input is not a valid base64-encoded string, returns NULL instead of raising an error.
+
+    Args:
+        input_expr (ColumnOrName): A base64-encoded string to decode.
+        alphabet (ColumnOrName, optional): The base64 alphabet to use for decoding. If not specified, uses the standard base64 alphabet.
+
+    Returns:
+        Column: The decoded string, or NULL if the input is not valid base64.
+
+    Examples::
+        >>> df = session.create_dataframe([["SEVMTE8="]], schema=["encoded"])
+        >>> df.select(try_base64_decode_string(df["encoded"]).alias('result')).collect()
+        [Row(RESULT='HELLO')]
+
+        >>> df = session.create_dataframe([["invalid_base64"]], schema=["encoded"])
+        >>> df.select(try_base64_decode_string(df["encoded"]).alias('result')).collect()
+        [Row(RESULT=None)]
+
+        >>> df = session.create_dataframe([["SEVMTE8="]], schema=["encoded"])
+        >>> df.select(try_base64_decode_string(df["encoded"], lit('$')).alias('result')).collect()
+        [Row(RESULT='HELLO')]
+    """
+    c = _to_col_if_str(input_expr, "try_base64_decode_string")
+    if alphabet is not None:
+        alphabet_col = _to_col_if_str(alphabet, "try_base64_decode_string")
+        return builtin("try_base64_decode_string", _emit_ast=_emit_ast)(c, alphabet_col)
+    else:
+        return builtin("try_base64_decode_string", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def try_hex_decode_binary(input_expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Decodes a hex-encoded string to binary data. Returns None if the input is not a valid hex string.
+
+    Args:
+        input_expr (ColumnOrName): A hex-encoded string to decode to binary data.
+
+    Returns:
+        Column: The decoded binary data as bytearray, or None if input is invalid.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["41426162"], ["48656C6C6F"], ["576F726C64"]], schema=["hex_string"])
+        >>> df.select(try_hex_decode_binary(col("hex_string")).alias("decoded_binary")).collect()
+        [Row(DECODED_BINARY=bytearray(b'ABab')), Row(DECODED_BINARY=bytearray(b'Hello')), Row(DECODED_BINARY=bytearray(b'World'))]
+    """
+    c = _to_col_if_str(input_expr, "try_hex_decode_binary")
+    return builtin("try_hex_decode_binary", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def try_hex_decode_string(input_expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Decodes a hex-encoded string to its original string value. Returns None if the input is not a valid hex string.
+
+    Args:
+        input_expr (ColumnOrName): The hex-encoded string to decode.
+
+    Returns:
+        Column: The decoded string, or None if the input is not valid hex.
+
+    Examples::
+        >>> df = session.create_dataframe([["41614262"], ["127"], ["invalid_hex"]], schema=["hex_input"])
+        >>> df.select(try_hex_decode_string(df["hex_input"]).alias("decoded")).collect()
+        [Row(DECODED='AaBb'), Row(DECODED=None), Row(DECODED=None)]
+    """
+    c = _to_col_if_str(input_expr, "try_hex_decode_string")
+    return builtin("try_hex_decode_string", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def unicode(input_str: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the Unicode code point of the first character in a string.
+
+    Args:
+        input_str (ColumnOrName): The input string column or string value to get the Unicode code point from.
+
+    Returns:
+        Column: The Unicode code point of the first character. Returns 0 for empty strings.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([['a'], ['❄'], ['cde'], ['']], schema=["input_str"])
+        >>> df.select(unicode(col("input_str")).alias("unicode_result")).collect()
+        [Row(UNICODE_RESULT=97), Row(UNICODE_RESULT=10052), Row(UNICODE_RESULT=99), Row(UNICODE_RESULT=0)]
+    """
+    c = _to_col_if_str(input_str, "unicode")
+    return builtin("unicode", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def uuid_string(
+    uuid: ColumnOrName = None, name: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns a universally unique identifier (UUID) as a string.
+
+    Args:
+        uuid (ColumnOrName, optional): The namespace UUID as a string. If provided, generates a UUID based on this namespace.
+        name (ColumnOrName, optional): The name to use for UUID generation. Used in combination with uuid parameter.
+
+    Returns:
+        Column: The UUID string.
+
+    Examples::
+        >>> df = session.create_dataframe([["test"]], schema=["a"])
+        >>> df.select(uuid_string().alias("random_uuid")).collect()  # doctest: +SKIP
+        [Row(RANDOM_UUID='...')]
+
+        >>> df.select(uuid_string("fe971b24-9572-4005-b22f-351e9c09274d", "foo").alias("named_uuid")).collect()  # doctest: +SKIP
+        [Row(NAMED_UUID='...')]
+
+        >>> df.select(uuid_string("fe971b24-9572-4005-b22f-351e9c09274d").alias("uuid_with_namespace")).collect()  # doctest: +SKIP
+        [Row(UUID_WITH_NAMESPACE='...')]
+
+        >>> df.select(uuid_string(name="foo").alias("uuid_with_name")).collect()  # doctest: +SKIP
+        [Row(UUID_WITH_NAME='...')]
+    """
+    if uuid is None and name is None:
+        return builtin("uuid_string", _emit_ast=_emit_ast)()
+    elif uuid is not None and name is not None:
+        return builtin("uuid_string", _emit_ast=_emit_ast)(uuid, name)
+    elif uuid is not None:
+        return builtin("uuid_string", _emit_ast=_emit_ast)(uuid)
+    else:
+        builtin("uuid_string", _emit_ast=_emit_ast)(name)
