@@ -6,11 +6,16 @@
 
 #### New Features
 
+- Added support for `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
 
 #### Improvements
 
 - Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
+
+#### Dependency Updates
+
+- Catalog API no longer uses types declared in `snowflake.core` and therefore this dependency was removed.
 
 ### Snowpark pandas API Updates
 
@@ -18,6 +23,7 @@
 
 - Added support for `Dataframe.groupby.rolling()`.
 - Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
+- Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
 
 #### Bug Fixes
 
@@ -29,6 +35,7 @@
   - `groupby.nunique`
   - `groupby.size`
   - `concat`
+  - `copy`
 
 ## 1.41.0 (2025-10-23)
 
