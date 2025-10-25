@@ -94,6 +94,19 @@
     - `st_geometryfromwkt`
     - `try_to_geography`
     - `try_to_geometry`
+  
+  - String and Binary functions:
+    - `base64_decode_binary`
+    - `compress`
+    - `decompress_binary`
+    - `decompress_string`
+    - `md5_binary`
+    - `md5_number_lower64`
+    - `md5_number_upper64`
+    - `sha1_binary`
+    - `sha2_binary`
+    - `soundex_p123`
+    
 - Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
 
 #### Bug Fixes
