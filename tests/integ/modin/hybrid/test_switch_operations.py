@@ -15,7 +15,7 @@ from pytest import param
 from modin.config import context as config_context, Backend
 import modin.pandas as pd
 import snowflake.snowpark.functions as snowpark_functions
-from tests.utils import running_on_jenkins
+from tests.utils import running_on_jenkins, IS_WINDOWS
 from types import MappingProxyType
 import re
 from snowflake.snowpark.modin.config import SnowflakePandasTransferThreshold
@@ -1221,3 +1221,28 @@ def test_malformed_decorator_conditions():
         )
         def test_method_callable_non_string_reason(self):
             pass
+
+def test_read_csv_s3_hybrid(session):
+    host = pd.session.connection.host
+    if any(platform in host.split(".") for platform in ["gcp", "azure"]):
+        pytest.skip(reason="Skipping test for Azure and GCP deployment")
+    if IS_WINDOWS:
+        pytest.skip(
+            reason="Skipping test for Windows because the schema cannot be found"
+        )
+    with SqlCounter(query_count=0):
+        df = pd.read_csv(
+            "s3://sfquickstarts/frostbyte_tastybytes/analytics/menu_item_aggregate_v.csv"
+        )
+        assert df.get_backend() == "Pandas"
+        assert len(df.columns) == 12
+
+    # Create a temporary stage for testing and clean it up after tests complete.
+    try:
+        session.sql(f"CREATE OR REPLACE STAGE FROSTY_TMP URL = 's3://sfquickstarts/frostbyte_tastybytes'").collect()
+        menu_item = pd.read_csv("@FROSTY_TMP/analytics/menu_item_aggregate_v.csv")
+
+    finally:
+        session.sql(f"DROP STAGE IF EXISTS FROSTY_TMP").collect()
+    
+        
