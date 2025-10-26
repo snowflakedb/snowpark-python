@@ -1318,6 +1318,158 @@ def test_auto_switch_unsupported_series(method, kwargs):
 
 
 @pytest.mark.parametrize(
+    "groupby_kwargs",
+    [
+        {"level": 0},
+        {"by": pd.Grouper()},
+    ],
+)
+def test_auto_switch_supported_series_groupby(groupby_kwargs):
+    # Test supported SeriesGroupBy operations that should stay on Snowflake backend.
+    test_data = [1, 2, 3, 4, 5, 6]
+
+    with SqlCounter(query_count=0):
+        series = pd.Series(test_data).move_to("Snowflake")
+        assert series.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="Series",
+            method_name="groupby",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        groupby_obj = series.groupby(**groupby_kwargs)
+        assert groupby_obj.get_backend() == "Snowflake"
+
+
+@pytest.mark.parametrize(
+    "groupby_kwargs",
+    [
+        {"level": 0, "axis": 1},
+        {"by": [1, 1, 2, 2, 3, 3], "level": 0},
+        {"by": lambda x: x % 2},
+        {"by": np.array([1, 2, 1, 2, 1, 2])},
+        {"by": pd.Grouper(axis=1)},
+    ],
+)
+def test_auto_switch_unsupported_series_groupby(groupby_kwargs):
+    # Test unsupported SeriesGroupBy operations that should switch to Pandas backend.
+    test_data = [1, 2, 3, 4, 5, 6]
+
+    with SqlCounter(query_count=1):
+        series = pd.Series(test_data).move_to("Snowflake")
+        assert series.get_backend() == "Snowflake"
+
+        # Convert list to Snowpark pandas Series in groupby_kwargs
+        converted_kwargs = groupby_kwargs.copy()
+        if "by" in converted_kwargs and isinstance(converted_kwargs["by"], list):
+            converted_kwargs["by"] = pd.Series(converted_kwargs["by"])
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="Series",
+            method_name="groupby",
+            args=converted_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_series = pd.Series(test_data)
+        _test_move_to_me_cost(
+            pandas_qc=pandas_series._query_compiler,
+            api_cls_name="Series",
+            method_name="groupby",
+            args=converted_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        groupby_obj = series.groupby(**converted_kwargs)
+        assert groupby_obj.get_backend() == "Pandas"
+
+
+@pytest.mark.parametrize(
+    "method,method_kwargs, groupby_kwargs, query_count",
+    [
+        ("agg", {"func": "sum"}, {"by": [1, 1, 2, 2, 3, 3], "level": 0}, 1),
+        ("agg", {"func": "sum"}, {"by": lambda x: x % 2}, 1),
+        (
+            "apply",
+            {"func": lambda x: x.sum()},
+            {"by": [1, 1, 2, 2, 3, 3], "level": 0},
+            1,
+        ),
+        ("apply", {"func": lambda x: x.sum()}, {"by": lambda x: x % 2}, 1),
+        ("size", {}, {"by": [1, 1, 2, 2, 3, 3], "level": 0}, 1),
+        ("size", {}, {"by": lambda x: x % 2}, 1),
+        ("value_counts", {}, {"by": [1, 1, 2, 2, 3, 3], "level": 0}, 1),
+        ("unique", {}, {"by": [1, 1, 2, 2, 3, 3], "level": 0}, 1),
+        ("unique", {}, {"by": lambda x: x % 2}, 1),
+        ("cummin", {}, {"by": lambda x: x % 2}, 1),
+        ("cummin", {}, {"by": [1, 1, 2, 2, 3, 3], "level": 0}, 1),
+        ("cumsum", {}, {"by": lambda x: x % 2}, 1),
+        ("cumsum", {}, {"by": [1, 1, 2, 2, 3, 3], "level": 0}, 1),
+        ("cummax", {}, {"by": [1, 1, 2, 2, 3, 3], "level": 0}, 1),
+        ("cummax", {}, {"by": lambda x: x % 2}, 1),
+        ("cumcount", {}, {"by": [1, 1, 2, 2, 3, 3], "level": 0}, 1),
+        ("cumcount", {}, {"by": lambda x: x % 2}, 1),
+        ("rank", {}, {"by": [1, 1, 2, 2, 3, 3], "level": 0}, 1),
+        ("rank", {}, {"by": lambda x: x % 2}, 1),
+        ("shift", {}, {"by": [1, 1, 2, 2, 3, 3], "level": 0}, 1),
+        ("shift", {}, {"by": lambda x: x % 2}, 1),
+    ],
+)
+def test_auto_switch_unsupported_series_groupby_with_supported_method(
+    method, method_kwargs, groupby_kwargs, query_count
+):
+    # Test unsupported SeriesGroupBy operations with supported methods that should switch to Pandas backend.
+    with SqlCounter(query_count=query_count):
+        test_data = [1, 2, 3, 4, 5, 6]
+
+        series = pd.Series(test_data).move_to("Snowflake")
+        assert series.get_backend() == "Snowflake"
+
+        # Convert list to Snowpark pandas Series in groupby_kwargs
+        converted_kwargs = groupby_kwargs.copy()
+        if "by" in converted_kwargs and isinstance(converted_kwargs["by"], list):
+            converted_kwargs["by"] = pd.Series(converted_kwargs["by"])
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="Series",
+            method_name="groupby",
+            args=converted_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_series = pd.Series(test_data)
+        _test_move_to_me_cost(
+            pandas_qc=pandas_series._query_compiler,
+            api_cls_name="Series",
+            method_name="groupby",
+            args=converted_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        groupby_obj = series.groupby(**converted_kwargs)
+        assert groupby_obj.get_backend() == "Pandas"
+
+        _test_expected_backend(
+            data_obj=groupby_obj,
+            method_name=method,
+            args=method_kwargs,
+            expected_backend="Pandas",
+            is_top_level=False,
+        )
+
+        eval_snowpark_pandas_result(
+            groupby_obj,
+            native_pd.Series(test_data).groupby(**groupby_kwargs),
+            lambda s: getattr(s, method)(**method_kwargs),
+        )
+
+
+@pytest.mark.parametrize(
     "method,kwargs,expected_reason",
     [
         (
@@ -1589,4 +1741,38 @@ def test_error_handling_unsupported_dataframe_groupby_with_supported_method_when
             ),
         ):
             groupby_obj = df.groupby("A", level=0)
+            getattr(groupby_obj, method)(**method_kwargs)
+
+
+@pytest.mark.parametrize(
+    "method, method_kwargs",
+    [
+        ("apply", {"func": lambda x: x.sum()}),
+        ("size", {}),
+        ("value_counts", {}),
+        ("agg", {"func": "sum"}),
+        ("cummin", {}),
+        ("cumsum", {}),
+        ("cummax", {}),
+        ("cumcount", {}),
+        ("rank", {}),
+        ("shift", {}),
+        ("unique", {}),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_error_handling_unsupported_series_groupby_with_supported_method_when_auto_switch_disabled(
+    method, method_kwargs
+):
+    # Test that unsupported SeriesGroupBy args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        series = pd.Series([1, 2, 3, 4, 5, 6]).move_to("Snowflake")
+
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                "does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
+            ),
+        ):
+            groupby_obj = series.groupby(by=pd.Series([1, 1, 2, 2, 3, 3]), level=0)
             getattr(groupby_obj, method)(**method_kwargs)
