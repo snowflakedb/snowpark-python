@@ -152,7 +152,7 @@ def test_pivot_table_not_implemented_or_supported(df_data):
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            "Snowpark pandas pivot_table does not yet support the parameter combination because non-string of list of string index is not yet supported"
+            "Snowpark pandas pivot_table does not yet support the parameter combination because index argument should be a string or a list of strings"
         ),
     ):
         snow_df2.pivot_table(index=[foo], columns="B", values="C")
@@ -160,7 +160,7 @@ def test_pivot_table_not_implemented_or_supported(df_data):
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            "Snowpark pandas pivot_table does not yet support the parameter combination because non-string of list of string columns is not yet supported"
+            "Snowpark pandas pivot_table does not yet support the parameter combination because columns argument should be a string or a list of strings"
         ),
     ):
         snow_df2.pivot_table(index="A", columns=[foo], values="E")
@@ -168,7 +168,7 @@ def test_pivot_table_not_implemented_or_supported(df_data):
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            "Snowpark pandas pivot_table does not yet support the parameter combination because non-string of list of string values is not yet supported"
+            "Snowpark pandas pivot_table does not yet support the parameter combination because values argument should be a string or a list of strings"
         ),
     ):
         snow_df2.pivot_table(index="A", columns="B", values=[baz])
