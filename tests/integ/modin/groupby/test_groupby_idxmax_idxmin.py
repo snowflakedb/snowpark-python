@@ -157,7 +157,7 @@ def test_df_groupby_idxmax_idxmin_on_groupby_axis_1_unimplemented(func):
     native_res = df.groupby(by=grouper, axis=1).idxmax(axis=0)
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas GroupBy.aggregate does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels.",
+        match="GroupBy does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels.",
     ):
         snow_res = pd.DataFrame(df).groupby(by=grouper, axis=1).idxmax(axis=0)
         assert_frame_equal(native_res, snow_res, check_index_type=False)
