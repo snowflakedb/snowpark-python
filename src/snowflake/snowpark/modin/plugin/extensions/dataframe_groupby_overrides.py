@@ -95,7 +95,7 @@ register_df_groupby_override = functools.partial(
                     args.get("level"),
                     args.get("axis", 0),
                 ),
-                _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
+                f"Groupby {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
             )
         ]
     ),
