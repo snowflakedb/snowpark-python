@@ -40,11 +40,6 @@ from modin.core.computation.eval import eval as _eval
 from modin.core.storage_formats.pandas.query_compiler_caster import (
     register_function_for_pre_op_switch,
 )
-from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-    register_query_compiler_method_not_implemented,
-    UnsupportedArgsRule,
-    _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
-)
 from pandas._libs.lib import NoDefault, no_default
 from pandas._typing import (
     AggFuncType,
@@ -81,9 +76,6 @@ from pandas.util._validators import validate_bool_kwarg
 
 from snowflake.snowpark.modin.plugin._internal.aggregation_utils import (
     is_snowflake_agg_func,
-)
-from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
-    check_is_groupby_supported_by_snowflake,
 )
 from snowflake.snowpark.modin.plugin._internal.utils import (
     new_snow_series,
@@ -1174,22 +1166,6 @@ def fillna(
 
 # Snowpark pandas does different validation and returns a custom GroupBy object.
 @register_dataframe_accessor("groupby")
-@register_query_compiler_method_not_implemented(
-    "DataFrame",
-    "groupby",
-    UnsupportedArgsRule(
-        unsupported_conditions=[
-            (
-                lambda args: not check_is_groupby_supported_by_snowflake(
-                    args.get("by"),
-                    args.get("level"),
-                    0 if args.get("axis") is no_default else args.get("axis", 0),
-                ),
-                _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
-            )
-        ]
-    ),
-)
 def groupby(
     self,
     by=None,
