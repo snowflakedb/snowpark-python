@@ -50,8 +50,14 @@ from pandas.util._validators import validate_bool_kwarg
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     create_groupby_transform_func,
 )
+from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
+    check_is_groupby_supported_by_snowflake,
+)
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
+    UnsupportedArgsRule,
+    _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
+    register_query_compiler_method_not_implemented,
 )
 
 # the following import is used in doctests
@@ -78,6 +84,22 @@ register_df_groupby_override = functools.partial(
 
 
 @register_df_groupby_override("__init__")
+@register_query_compiler_method_not_implemented(
+    "DataFrameGroupBy",
+    "__init__",
+    UnsupportedArgsRule(
+        unsupported_conditions=[
+            (
+                lambda args: not check_is_groupby_supported_by_snowflake(
+                    args.get("by"),
+                    args.get("level"),
+                    args.get("axis", 0),
+                ),
+                _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
+            )
+        ]
+    ),
+)
 def __init__(
     self,
     df,

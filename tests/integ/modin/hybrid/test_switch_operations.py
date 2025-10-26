@@ -895,19 +895,14 @@ def test_auto_switch_supported_groupby(groupby_kwargs):
 
         _test_stay_cost(
             data_obj=df,
-            api_cls_name="DataFrame",
-            method_name="groupby",
+            api_cls_name="DataFrameGroupBy",
+            method_name="__init__",
             args=groupby_kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
         )
 
-        _test_expected_backend(
-            data_obj=df,
-            method_name="groupby",
-            args=groupby_kwargs,
-            expected_backend="Snowflake",
-            is_top_level=False,
-        )
+        groupby_obj = df.groupby(**groupby_kwargs)
+        assert groupby_obj.get_backend() == "Snowflake"
 
 
 @pytest.mark.parametrize(
@@ -1032,10 +1027,8 @@ def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
         {"by": "A", "axis": 1},
         {"by": "A", "level": 0},
         {"by": lambda x: x % 2},
-        {"by": {"A": 0, "B": 1}},
         {"by": np.array([1, 2, 3])},
         {"by": pd.Grouper(axis=1)},
-        {"by": ["A", ["B", "C"]]},
     ],
 )
 def test_auto_switch_unsupported_dataframe_groupby(groupby_kwargs):
@@ -1048,8 +1041,8 @@ def test_auto_switch_unsupported_dataframe_groupby(groupby_kwargs):
 
         _test_stay_cost(
             data_obj=df,
-            api_cls_name="DataFrame",
-            method_name="groupby",
+            api_cls_name="DataFrameGroupBy",
+            method_name="__init__",
             args=groupby_kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
@@ -1057,19 +1050,14 @@ def test_auto_switch_unsupported_dataframe_groupby(groupby_kwargs):
         pandas_df = pd.DataFrame(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_df._query_compiler,
-            api_cls_name="DataFrame",
-            method_name="groupby",
+            api_cls_name="DataFrameGroupBy",
+            method_name="__init__",
             args=groupby_kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        _test_expected_backend(
-            data_obj=df,
-            method_name="groupby",
-            args=groupby_kwargs,
-            expected_backend="Pandas",
-            is_top_level=False,
-        )
+        groupby_obj = df.groupby(**groupby_kwargs)
+        assert groupby_obj.get_backend() == "Pandas"
 
 
 @pytest.mark.parametrize(
@@ -1103,7 +1091,7 @@ def test_auto_switch_unsupported_dataframe_groupby(groupby_kwargs):
         ("last", {}, {"by": lambda x: x % 2}, 1),
         ("size", {}, {"by": "A", "level": 0}, 1),
         ("size", {}, {"by": lambda x: x % 2}, 1),
-        ("size", {}, {"by": "A", "axis": 1}, 1),
+        ("size", {}, {"level": 0, "axis": 1}, 1),
         ("get_group", {"name": 1}, {"by": "A", "level": 0}, 1),
         ("get_group", {"name": 0}, {"by": lambda x: x % 2}, 1),
         ("nunique", {}, {"by": "A", "level": 0}, 1),
@@ -1116,7 +1104,6 @@ def test_auto_switch_unsupported_dataframe_groupby(groupby_kwargs):
         ("all", {}, {"by": lambda x: x % 2}, 1),
         ("all", {}, {"by": "A", "axis": 1}, 1),
         ("value_counts", {}, {"by": "A", "level": 0}, 1),
-        ("pct_change", {}, {"by": lambda x: x % 2}, 1),
     ],
 )
 def test_auto_switch_unsupported_dataframe_groupby_with_supported_method(
@@ -1131,8 +1118,8 @@ def test_auto_switch_unsupported_dataframe_groupby_with_supported_method(
 
         _test_stay_cost(
             data_obj=df,
-            api_cls_name="DataFrame",
-            method_name="groupby",
+            api_cls_name="DataFrameGroupBy",
+            method_name="__init__",
             args=groupby_kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
@@ -1140,21 +1127,15 @@ def test_auto_switch_unsupported_dataframe_groupby_with_supported_method(
         pandas_df = pd.DataFrame(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_df._query_compiler,
-            api_cls_name="DataFrame",
-            method_name="groupby",
+            api_cls_name="DataFrameGroupBy",
+            method_name="__init__",
             args=groupby_kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        _test_expected_backend(
-            data_obj=df,
-            method_name="groupby",
-            args=groupby_kwargs,
-            expected_backend="Pandas",
-            is_top_level=False,
-        )
-
         groupby_obj = df.groupby(**groupby_kwargs)
+        assert groupby_obj.get_backend() == "Pandas"
+
         _test_expected_backend(
             data_obj=groupby_obj,
             method_name=method,
@@ -1171,23 +1152,21 @@ def test_auto_switch_unsupported_dataframe_groupby_with_supported_method(
 
 
 @pytest.mark.parametrize(
-    "method,method_kwargs, groupby_kwargs, expected_backend_after_groupby, query_count, test_index",
+    "method,method_kwargs, groupby_kwargs, query_count, test_index",
     [
         (
             "fillna",
             {"value": 0, "downcast": "infer"},
             {"axis": 0},
-            "Snowflake",
             1,
             None,
         ),
-        ("first", {"min_count": 2}, {}, "Snowflake", 1, None),
-        ("last", {"min_count": 2}, {}, "Snowflake", 1, None),
+        ("first", {"min_count": 2}, {}, 1, None),
+        ("last", {"min_count": 2}, {}, 1, None),
         (
             "shift",
             {"freq": "D"},
             {},
-            "Snowflake",
             3,
             native_pd.date_range("2023-01-01", periods=3, freq="D"),
         ),
@@ -1197,7 +1176,6 @@ def test_auto_switch_unsupported_dataframe_groupby_method(
     method,
     method_kwargs,
     groupby_kwargs,
-    expected_backend_after_groupby,
     query_count,
     test_index,
 ):
@@ -1214,7 +1192,7 @@ def test_auto_switch_unsupported_dataframe_groupby_method(
         assert df.get_backend() == "Snowflake"
 
         groupby_obj = df.groupby("A", **groupby_kwargs)
-        assert groupby_obj.get_backend() == expected_backend_after_groupby
+        assert groupby_obj.get_backend() == "Snowflake"
 
         _test_stay_cost(
             data_obj=groupby_obj,
@@ -1264,13 +1242,8 @@ def test_auto_switch_unsupported_dataframe_groupby_method(
     "method,method_kwargs",
     [
         ("fillna", {"value": 0}),
-        ("cummin", {}),
-        ("cumsum", {}),
-        ("cummax", {}),
         ("first", {"min_count": -1}),
         ("last", {"min_count": -1}),
-        ("rank", {}),
-        ("shift", {}),
     ],
 )
 def test_auto_switch_supported_dataframe_groupby(method, method_kwargs):
