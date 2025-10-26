@@ -178,7 +178,7 @@ def test_select_cols_with_axis_1_raise(single_row_dfs):
         lambda df: df.groupby("A", axis=1)["B"],
         expect_exception=True,
         expect_exception_type=NotImplementedError,
-        expect_exception_match="GroupBy does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels.",
+        expect_exception_match="Groupby does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels.",
     )
 
 
