@@ -11,6 +11,7 @@
 
 #### Improvements
 
+- Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
 - Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
 
 #### Dependency Updates
@@ -98,7 +99,6 @@
 
 #### Improvements
 
-- Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
 - Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
 
 #### Bug Fixes
