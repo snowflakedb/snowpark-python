@@ -63,12 +63,14 @@ DEVELOPMENT_REQUIREMENTS = [
     "pytest-assume",  # sql counter check
     "decorator",  # sql counter check
     "tox",  # used for setting up testing environments
-    "snowflake.core>=1.0.0, <2",  # Catalog
     "psutil",  # testing for telemetry
     "lxml",  # used in XML reader unit tests
 ]
 MODIN_DEVELOPMENT_REQUIREMENTS = [
-    "scipy",  # Snowpark pandas 3rd party library testing
+    # Snowpark pandas 3rd party library testing. Cap the scipy version because
+    # Snowflake cannot find newer versions of scipy for python 3.11+. See
+    # SNOW-2452791.
+    "scipy<=1.16.0",
     "statsmodels",  # Snowpark pandas 3rd party library testing
     "scikit-learn",  # Snowpark pandas 3rd party library testing
     # plotly version restricted due to foreseen change in query counts in version 6.0.0+
@@ -228,6 +230,7 @@ setup(
         "opentelemetry": [
             "opentelemetry-api>=1.0.0, <2.0.0",
             "opentelemetry-sdk>=1.0.0, <2.0.0",
+            "opentelemetry-exporter-otlp>=1.0.0, <2.0.0",
         ],
     },
     classifiers=[

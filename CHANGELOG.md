@@ -1,13 +1,50 @@
 # Release History
 
-## 1.41.0 (YYYY-MM-DD)
+## 1.42.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `Session.client_telemetry`.
+- Added support for `Session.udf_profiler`.
+
+#### Improvements
+
+- Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
+
+#### Dependency Updates
+
+- Catalog API no longer uses types declared in `snowflake.core` and therefore this dependency was removed.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `Dataframe.groupby.rolling()`.
+- Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
+- Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
+
+#### Improvements
+
+- Add support for the following in faster pandas:
+  - `groupby.nunique`
+  - `groupby.size`
+  - `concat`
+  - `copy`
+- Make faster pandas disabled by default (opt-in instead of opt-out).
+
+## 1.41.0 (2025-10-23)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
-- Added a new function `group_by_all()` to the `DataFrame` class.
 - Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following functions in `functions.py`:
@@ -132,6 +169,7 @@
   - `sort_values`
   - `loc` (setting columns)
   - `to_datetime`
+  - `rename`
   - `drop`
   - `invert`
   - `duplicated`
