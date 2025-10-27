@@ -11,6 +11,7 @@
 
 #### Improvements
 
+- Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
 - Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
 
 #### Dependency Updates
@@ -36,6 +37,15 @@
   - `groupby.size`
   - `concat`
   - `copy`
+  - `str.isdigit`
+  - `str.islower`
+  - `str.isupper`
+  - `str.istitle`
+  - `str.lower`
+  - `str.upper`
+  - `str.title`
+  
+- Make faster pandas disabled by default (opt-in instead of opt-out).
 
 ## 1.41.0 (2025-10-23)
 
@@ -94,6 +104,9 @@
     - `st_geometryfromwkt`
     - `try_to_geography`
     - `try_to_geometry`
+
+#### Improvements
+
 - Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
 
 #### Bug Fixes
