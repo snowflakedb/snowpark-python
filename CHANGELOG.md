@@ -36,6 +36,7 @@
   - `groupby.size`
   - `concat`
   - `copy`
+- Make faster pandas disabled by default (opt-in instead of opt-out).
 
 ## 1.41.0 (2025-10-23)
 
