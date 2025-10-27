@@ -10816,7 +10816,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ("sort", False),
                 (
                     lambda args: check_pivot_table_unsupported_args(args) is not None,
-                    lambda args: check_pivot_table_unsupported_args(args),
+                    check_pivot_table_unsupported_args
                 ),
             ]
         ),
