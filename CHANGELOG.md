@@ -1,5 +1,13 @@
 # Release History
 
+## 1.42.0 (2025-10-29)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Snowpark python DB-api is now generally available. Access this feature with `DataFrameReader.dbapi()` to read data from a database table or query into a DataFrame using a DBAPI connection.
+
 ## 1.41.0 (2025-10-23)
 
 ### Snowpark Python API Updates
