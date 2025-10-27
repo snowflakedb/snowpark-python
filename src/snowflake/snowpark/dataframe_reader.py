@@ -1679,7 +1679,6 @@ class DataFrameReader:
             df, jdbc_client.schema, _emit_ast=_emit_ast
         )
 
-    @private_preview(version="1.29.0")
     @publicapi
     def dbapi(
         self,
