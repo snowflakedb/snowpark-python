@@ -9623,12 +9623,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         index_columns_for_udtf = (
             new_internal_df.index_column_snowflake_quoted_identifiers
         )
-        if row_position_snowflake_quoted_identifier not in index_columns_for_udtf:
-            # Pass the actual index columns to the UDTF
-            num_index_columns = len(index_columns_for_udtf)
-            index_column_pandas_labels_for_udtf = (
-                new_internal_df.index_column_pandas_labels
-            )
+        index_column_pandas_labels_for_udtf = new_internal_df.index_column_pandas_labels
 
         func_udtf = create_udtf_for_apply_axis_1(
             row_position_snowflake_quoted_identifier,
@@ -9640,7 +9635,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             input_types,
             self._modin_frame.ordered_dataframe.session,
             index_column_pandas_labels=index_column_pandas_labels_for_udtf,
-            num_index_columns=num_index_columns,
             **kwargs,
         )
 
