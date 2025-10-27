@@ -484,12 +484,12 @@ def create_udtf_for_apply_axis_1(
                         if index_column_pandas_labels
                         else None,
                     )
-                data_cols.index = index
+                data_cols.set_index(index, inplace=True)
                 df = data_cols
             else:
                 # No index columns, use row position as index (original behavior)
                 df = df.iloc[:, 1:]
-                df.index = row_positions
+                df.set_index(row_positions, inplace=True)
 
             df.columns = column_index
             df = df.apply(
