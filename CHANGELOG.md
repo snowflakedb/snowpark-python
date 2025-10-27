@@ -32,6 +32,7 @@
 #### Improvements
 
 - Add support for the following in faster pandas:
+  - `groupby.apply`
   - `groupby.nunique`
   - `groupby.size`
   - `concat`
