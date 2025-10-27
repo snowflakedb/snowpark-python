@@ -1376,7 +1376,18 @@ class SelectStatement(Selectable):
                     subquery_dependent_columns & new_column_states.active_columns
                 )
             )
+            or (
+                new_column_states.dropped_columns
+                and any(
+                    new_column_states[_col].change_state == ColumnChangeState.DROPPED
+                    and self.column_states[_col].change_state
+                    in (ColumnChangeState.NEW, ColumnChangeState.CHANGED_EXP)
+                    and _col in subquery_dependent_columns
+                    for _col in (new_column_states.dropped_columns)
+                )
+            )
         ):
+            # or (new_column_states[_col].change_state == ColumnChangeState.DROPPED and self.column_states[_col].change_state in (ColumnChangeState.NEW, ColumnChangeState.CHANGED_EXP))
             can_be_flattened = False
         elif self.order_by and (
             (subquery_dependent_columns := derive_dependent_columns(*self.order_by))
@@ -1386,6 +1397,16 @@ class SelectStatement(Selectable):
                 in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW)
                 for _col in (
                     subquery_dependent_columns & new_column_states.active_columns
+                )
+            )
+            or (
+                new_column_states.dropped_columns
+                and any(
+                    new_column_states[_col].change_state == ColumnChangeState.DROPPED
+                    and self.column_states[_col].change_state
+                    in (ColumnChangeState.NEW, ColumnChangeState.CHANGED_EXP)
+                    and _col in subquery_dependent_columns
+                    for _col in (new_column_states.dropped_columns)
                 )
             )
         ):
