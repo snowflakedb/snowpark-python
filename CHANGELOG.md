@@ -36,6 +36,7 @@
   - `groupby.nunique`
   - `groupby.size`
   - `concat`
+  - `copy`
 
 ## 1.41.0 (2025-10-23)
 

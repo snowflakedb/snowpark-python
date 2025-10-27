@@ -1483,6 +1483,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @snowpark_pandas_type_immutable_check
     def copy(self) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _copy_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._copy_internal()
+        qc = self._copy_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _copy_internal(self) -> "SnowflakeQueryCompiler":
+        """
         Make a copy of this object.
 
         Returns:

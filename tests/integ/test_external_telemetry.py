@@ -4,10 +4,13 @@
 
 import logging
 import threading
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 import pytest
 
-from snowflake.snowpark._internal.event_table_telemetry import EventTableTelemetry
+from snowflake.snowpark._internal.event_table_telemetry import (
+    EventTableTelemetry,
+    RetryWithTokenRefreshAdapter,
+)
 
 try:
     from opentelemetry import trace
@@ -212,3 +215,121 @@ def test_negative_case(session, caplog):
             "Opentelemetry dependencies are missing, no telemetry export into event table:"
             in caplog.text
         )
+
+
+def test_external_telemetry_adapter(session):
+    # Create mock session
+    mock_session = Mock()
+    mock_session._get_external_telemetry_auth_token.return_value = {
+        "Authorization": "Bearer new_token"
+    }
+
+    # Test data
+    initial_header = {"Authorization": "Bearer initial_token"}
+    max_retries = 2
+
+    # Create adapter instance
+    adapter = RetryWithTokenRefreshAdapter(
+        session_instance=mock_session, header=initial_header, max_retries=max_retries
+    )
+
+    # Create mock request
+    mock_request = Mock()
+    mock_request.headers = {}
+
+    # Test 1: Successful request on first attempt (200 status)
+    with patch.object(adapter.__class__.__bases__[0], "send") as mock_super_send:
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_super_send.return_value = mock_response
+
+        result = adapter.send(mock_request)
+
+        # Verify successful response
+        assert result == mock_response
+        assert mock_request.headers == initial_header
+        mock_super_send.assert_called_once_with(mock_request)
+        mock_session._get_external_telemetry_auth_token.assert_not_called()
+
+    # Reset mocks
+    mock_super_send.reset_mock()
+    mock_session._get_external_telemetry_auth_token.reset_mock()
+    mock_request.headers = {}
+
+    # Test 2: Retry on 401 status code with token refresh (successful on retry)
+    with patch.object(adapter.__class__.__bases__[0], "send") as mock_super_send:
+        # First call returns 401, second call returns 200
+        mock_response_401 = Mock()
+        mock_response_401.status_code = 401
+        mock_response_200 = Mock()
+        mock_response_200.status_code = 200
+        mock_super_send.side_effect = [mock_response_401, mock_response_200]
+
+        result = adapter.send(mock_request)
+
+        # Verify retry with token refresh
+        assert result == mock_response_200
+        assert mock_super_send.call_count == 2
+        assert mock_session._get_external_telemetry_auth_token.call_count == 1
+        assert adapter.header == {"Authorization": "Bearer new_token"}
+
+    # Reset mocks
+    mock_super_send.reset_mock()
+    mock_session._get_external_telemetry_auth_token.reset_mock()
+    mock_request.headers = {}
+    adapter.header = initial_header.copy()
+
+    # Test 3: Retry on generic Exception with token refresh (successful on retry)
+    with patch.object(adapter.__class__.__bases__[0], "send") as mock_super_send:
+        # First call raises generic Exception, second call succeeds
+        mock_super_send.side_effect = [
+            Exception("Generic error"),
+            Mock(status_code=200),
+        ]
+
+        result = adapter.send(mock_request)
+
+        assert result.status_code == 200
+        assert mock_super_send.call_count == 2
+        assert mock_session._get_external_telemetry_auth_token.call_count == 1
+        assert adapter.header == {"Authorization": "Bearer new_token"}
+
+    # Reset mocks
+    mock_super_send.reset_mock()
+    mock_session._get_external_telemetry_auth_token.reset_mock()
+    mock_request.headers = {}
+    adapter.header = initial_header.copy()
+
+    # Test 4: Exhaust all retries and raise exception (401 status)
+    with patch.object(adapter.__class__.__bases__[0], "send") as mock_super_send:
+        # All calls return 401
+        mock_response_401 = Mock()
+        mock_response_401.status_code = 401
+        mock_super_send.return_value = mock_response_401
+
+        result = adapter.send(mock_request)
+
+        # Verify all retries exhausted and final 401 returned
+        assert result == mock_response_401
+        assert mock_super_send.call_count == max_retries + 1  # 3 total attempts
+        assert mock_session._get_external_telemetry_auth_token.call_count == max_retries
+        assert adapter.header == {"Authorization": "Bearer new_token"}
+
+    # Reset mocks
+    mock_super_send.reset_mock()
+    mock_session._get_external_telemetry_auth_token.reset_mock()
+    mock_request.headers = {}
+    adapter.header = initial_header.copy()
+
+    # Test 5: Exhaust all retries and raise exception (generic Exception)
+    with patch.object(adapter.__class__.__bases__[0], "send") as mock_super_send:
+        # All calls raise generic Exception
+        mock_super_send.side_effect = Exception("Persistent generic error")
+
+        with pytest.raises(Exception, match="Persistent generic error"):
+            adapter.send(mock_request)
+
+        # Verify all retries attempted
+        assert mock_super_send.call_count == max_retries + 1  # 3 total attempts
+        assert mock_session._get_external_telemetry_auth_token.call_count == max_retries
+        assert adapter.header == {"Authorization": "Bearer new_token"}

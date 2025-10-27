@@ -288,6 +288,35 @@ def test_concat(session):
 
 
 @sql_count_checker(query_count=3)
+def test_copy(session):
+    # create tables
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe(
+        native_pd.DataFrame([[2, True], [1, False], [3, False]], columns=["A", "B"])
+    ).write.save_as_table(table_name, table_type="temp")
+
+    # create snow dataframes
+    df = pd.read_snowflake(table_name)
+    snow_result = df.copy()
+
+    # verify that the input dataframe has a populated relaxed query compiler
+    assert df._query_compiler._relaxed_query_compiler is not None
+    assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    # verify that the output dataframe also has a populated relaxed query compiler
+    assert snow_result._query_compiler._relaxed_query_compiler is not None
+    assert (
+        snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+    )
+
+    # create pandas dataframes
+    native_df = df.to_pandas()
+    native_result = native_df.copy()
+
+    # compare results
+    assert_frame_equal(snow_result, native_result)
+
+
+@sql_count_checker(query_count=3)
 def test_drop(session):
     # create tables
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
