@@ -18894,6 +18894,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_isdigit(self) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_isdigit_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._str_isdigit_internal()
+            )
+
+        qc = self._str_isdigit_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_isdigit_internal(self) -> "SnowflakeQueryCompiler":
+        """
         Check whether all characters in each string are digits.
 
         Returns
@@ -18909,6 +18922,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error("isspace", "Series.str")
 
     def str_islower(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_islower_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._str_islower_internal()
+            )
+
+        qc = self._str_islower_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_islower_internal(self) -> "SnowflakeQueryCompiler":
         """
         Check whether all characters in each string are lowercase.
 
@@ -18928,6 +18954,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_isupper(self) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_isupper_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._str_isupper_internal()
+            )
+
+        qc = self._str_isupper_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_isupper_internal(self) -> "SnowflakeQueryCompiler":
+        """
         Check whether all characters in each string are uppercase.
 
         Returns
@@ -18945,6 +18984,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_istitle(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_istitle_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._str_istitle_internal()
+            )
+
+        qc = self._str_istitle_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_istitle_internal(self) -> "SnowflakeQueryCompiler":
         """
         Check whether each string is titlecase.
         We do a regex matching as follows
@@ -18974,6 +19026,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_lower(self) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_lower_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_lower_internal()
+
+        qc = self._str_lower_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_lower_internal(self) -> "SnowflakeQueryCompiler":
+        """
         Convert strings to lowercase.
 
         Returns
@@ -18987,6 +19050,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_upper(self) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_upper_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_upper_internal()
+
+        qc = self._str_upper_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_upper_internal(self) -> "SnowflakeQueryCompiler":
+        """
         Convert strings to uppercase.
 
         Returns
@@ -18999,6 +19073,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_title(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_title_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_title_internal()
+
+        qc = self._str_title_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_title_internal(self) -> "SnowflakeQueryCompiler":
         """
         Titlecase the string
 
