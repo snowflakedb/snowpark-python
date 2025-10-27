@@ -228,7 +228,7 @@ def get_dummies_helper(
     prefixes: list[Hashable],
     prefix_sep: str,
     dtype: Any,
-    dummy_row_pos_mode: bool = False,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Helper function for get dummies to perform encoding on given columns
@@ -348,6 +348,7 @@ def get_dummies_helper(
             left_on=result_internal_frame.index_column_snowflake_quoted_identifiers,
             right_on=pivoted_internal_frame.index_column_snowflake_quoted_identifiers,
             how="inner",
+            dummy_row_pos_mode=dummy_row_pos_mode,
         ).result_frame
 
     # optimization: keep the original row position column as the result ordered frame

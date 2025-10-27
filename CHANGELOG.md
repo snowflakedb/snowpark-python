@@ -47,6 +47,16 @@
   - `groupby.nunique`
   - `groupby.size`
   - `concat`
+  - `copy`
+  - `str.isdigit`
+  - `str.islower`
+  - `str.isupper`
+  - `str.istitle`
+  - `str.lower`
+  - `str.upper`
+  - `str.title`
+  
+- Make faster pandas disabled by default (opt-in instead of opt-out).
 
 ## 1.41.0 (2025-10-23)
 
