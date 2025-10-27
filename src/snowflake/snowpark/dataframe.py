@@ -2183,7 +2183,11 @@ class DataFrame:
         """
 
         is_order_by_all = not cols
-        if is_order_by_all and not isinstance(ascending, (bool, int)):
+        if (
+            is_order_by_all
+            and ascending is not None
+            and not isinstance(ascending, (bool, int))
+        ):
             raise TypeError(
                 "When no columns are specified (ORDER BY ALL), "
                 "ascending must be bool or int, not a list. "

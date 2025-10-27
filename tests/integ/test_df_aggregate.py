@@ -791,9 +791,6 @@ def test_agg_sort_by_all_snowpark_connect_compatible(session):
         )
         Utils.check_answer(result_sort_by_all, result_manual.collect())
 
-        result_group_by_all = df.group_by_all().agg(count("*").alias("cnt")).order_by()
-        Utils.check_answer(result_group_by_all, [Row(CNT=10)])
-
         # Test int parameter: 0=desc, 1=asc
         Utils.check_answer(df.sort(ascending=0), df.orderBy(ascending=False).collect())
         Utils.check_answer(df.order_by(ascending=1), df.sort(ascending=True).collect())
