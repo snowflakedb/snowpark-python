@@ -298,6 +298,7 @@ from snowflake.snowpark.modin.plugin._internal.ordered_dataframe import (
     OrderingColumn,
 )
 from snowflake.snowpark.modin.plugin._internal.pivot_utils import (
+    check_pivot_table_unsupported_args,
     expand_pivot_result_with_pivot_table_margins,
     expand_pivot_result_with_pivot_table_margins_no_groupby_columns,
     generate_pivot_aggregation_value_label_snowflake_quoted_identifier_mappings,
@@ -10814,52 +10815,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 ("observed", True),
                 ("sort", False),
                 (
-                    lambda args: (
-                        args.get("index") is not None
-                        and (
-                            not isinstance(args.get("index"), str)
-                            and not all([isinstance(v, str) for v in args.get("index")])
-                            and None not in args.get("index")
-                        )
-                    ),
-                    "index argument should be a string or a list of strings",
-                ),
-                (
-                    lambda args: (
-                        args.get("columns") is not None
-                        and (
-                            not isinstance(args.get("columns"), str)
-                            and not all(
-                                [isinstance(v, str) for v in args.get("columns")]
-                            )
-                            and None not in args.get("columns")
-                        )
-                    ),
-                    "columns argument should be a string or a list of strings",
-                ),
-                (
-                    lambda args: (
-                        args.get("values") is not None
-                        and (
-                            not isinstance(args.get("values"), str)
-                            and not all(
-                                [isinstance(v, str) for v in args.get("values")]
-                            )
-                            and None not in args.get("values")
-                        )
-                    ),
-                    "values argument should be a string or a list of strings",
-                ),
-                (
-                    lambda args: (
-                        isinstance(args.get("aggfunc"), dict)
-                        and any(
-                            not isinstance(af, str)
-                            for af in args.get("aggfunc").values()
-                        )
-                        and args.get("index") is None
-                    ),
-                    "dictionary aggfunc with non-string aggregation functions is not yet supported for pivot_table when index is None",
+                    lambda args: check_pivot_table_unsupported_args(args) is not None,
+                    lambda args: check_pivot_table_unsupported_args(args),
                 ),
             ]
         ),

@@ -1853,3 +1853,58 @@ def generate_column_prefix_groupings(
         )
 
     return list(zip(margin_data_column_prefixes, margin_data_column_groupings))
+
+
+def check_pivot_table_unsupported_args(args: dict) -> Optional[str]:
+    """
+    Validate pivot_table arguments for unsupported conditions.
+
+    This helper function checks various argument combinations that are not yet
+    supported by Snowpark pandas pivot_table implementation.
+
+    Args:
+        args : dictionary of arguments passed to pivot_table
+
+    Returns:
+        Error message if an unsupported condition is found, None otherwise
+    """
+    # Check if index argument is a string or list of strings
+    index = args.get("index")
+    if (
+        index is not None
+        and not isinstance(index, str)
+        and not all(isinstance(v, str) for v in index)
+        and None not in index
+    ):
+        return "index argument should be a string or a list of strings"
+
+    # Check if columns argument is a string or list of strings
+    columns = args.get("columns")
+    if (
+        columns is not None
+        and not isinstance(columns, str)
+        and not all(isinstance(v, str) for v in columns)
+        and None not in columns
+    ):
+        return "columns argument should be a string or a list of strings"
+
+    # Check if values argument is a string or list of strings
+    values = args.get("values")
+    if (
+        values is not None
+        and not isinstance(values, str)
+        and not all(isinstance(v, str) for v in values)
+        and None not in values
+    ):
+        return "values argument should be a string or a list of strings"
+
+    # Check for dictionary aggfunc with non-string functions when index is None
+    aggfunc = args.get("aggfunc")
+    if (
+        isinstance(aggfunc, dict)
+        and any(not isinstance(af, str) for af in aggfunc.values())
+        and args.get("index") is None
+    ):
+        return "dictionary aggfunc with non-string aggregation functions is not yet supported for pivot_table when index is None"
+
+    return None
