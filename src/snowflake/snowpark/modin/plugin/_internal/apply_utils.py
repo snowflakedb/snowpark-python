@@ -425,7 +425,6 @@ def create_udtf_for_apply_axis_1(
     input_types: list[DataType],
     session: Session,
     index_column_pandas_labels: list[Hashable] | None = None,
-    num_index_columns: int = 0,
     **kwargs: Any,
 ) -> UserDefinedTableFunction:
     """
@@ -466,6 +465,7 @@ def create_udtf_for_apply_axis_1(
             row_positions = df.iloc[:, 0]
 
             # If we have index columns, set them as the index
+            num_index_columns = len(index_column_pandas_labels)
             if num_index_columns > 0:
                 # Columns after row position are index columns, then data columns
                 index_cols = df.iloc[:, 1 : 1 + num_index_columns]
