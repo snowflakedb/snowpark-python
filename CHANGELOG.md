@@ -57,7 +57,15 @@
   - `str.lower`
   - `str.upper`
   - `str.title`
-  
+  - `dt.tz_localize`
+  - `dt.tz_convert`
+  - `dt.ceil`
+  - `dt.round`
+  - `dt.floor`
+  - `dt.normalize`
+  - `dt.month_name`
+  - `dt.day_name`
+  - `dt.strftime`  
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 
 ## 1.41.0 (2025-10-23)
