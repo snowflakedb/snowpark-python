@@ -5500,7 +5500,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 (
                     lambda args: args.get("agg_kwargs", {}).get("min_count", -1) > 1
                     or args.get("min_count", -1) > 1,
-                    "GroupBy.first does not yet support min_count > 1",
+                    "GroupBy.last does not yet support min_count > 1",
                 ),
             ],
         ),
