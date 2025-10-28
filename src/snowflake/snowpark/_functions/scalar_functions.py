@@ -4089,21 +4089,11 @@ def regexp_instr(
         option (ColumnOrName, optional): Specifies whether to return the position of the first character of the match (0) or the position of the first character following the match (1). Default is 0.
         regexp_parameters (ColumnOrName, optional): String of one or more characters that specifies the parameters for the regular expression. Default is 'c' (case-sensitive).
             Supported values:
-
-            +-----+-----------------------------------------------+
-            | Parameter | Description                         |
-            +=====+===============================================+
-            | c   | Case-sensitive matching                     |
-            +-----+-----------------------------------------------+
-            | i   | Case-insensitive matching                   |
-            +-----+-----------------------------------------------+
-            | m   | Multi-line mode                             |
-            +-----+-----------------------------------------------+
-            | e   | Extract submatches                          |
-            +-----+-----------------------------------------------+
-            | s   | Single-line mode POSIX wildcard character  |
-            |     | . matches \\n                               |
-            +-----+-----------------------------------------------+
+                - `c`: Case-sensitive matching
+                - `i`: Case-insensitive matching
+                - `m`: Multi-line mode
+                - `e`: Extract submatches
+                - `s`: Single-line mode (POSIX wildcard character `.` matches `\n`)
 
         group_num (ColumnOrName, optional): Specifies which capture group to return the position for. Default is None, which returns the position of the entire match.
 
@@ -4266,21 +4256,11 @@ def regexp_substr(
         occurrence (ColumnOrName, optional): Which occurrence of the pattern to return. Defaults to 1.
         regex_parameters (ColumnOrName, optional): String of one or more characters that specifies the parameters for the regular expression. Default is 'c' (case-sensitive).
             Supported values:
-
-            +-----+-----------------------------------------------+
-            | Parameter | Description                         |
-            +=====+===============================================+
-            | c   | Case-sensitive matching                     |
-            +-----+-----------------------------------------------+
-            | i   | Case-insensitive matching                   |
-            +-----+-----------------------------------------------+
-            | m   | Multi-line mode                             |
-            +-----+-----------------------------------------------+
-            | e   | Extract submatches                          |
-            +-----+-----------------------------------------------+
-            | s   | Single-line mode POSIX wildcard character  |
-            |     | . matches \\n                               |
-            +-----+-----------------------------------------------+
+                - `c`: Case-sensitive matching
+                - `i`: Case-insensitive matching
+                - `m`: Multi-line mode
+                - `e`: Extract submatches
+                - `s`: Single-line mode (POSIX wildcard character `.` matches `\n`)
 
         group_num (ColumnOrName, optional): The group number in the regular expression to extract. Defaults to None, which extracts the entire match.
 
@@ -4376,21 +4356,11 @@ def regexp_substr_all(
         occurrence (ColumnOrName, optional): Which occurrence of the pattern to return.
         regex_parameters (ColumnOrName, optional): String of one or more characters that specifies the parameters for the regular expression. Default is 'c' (case-sensitive).
             Supported values:
-
-                +-----+-----------------------------------------------+
-                | Parameter | Description                         |
-                +=====+===============================================+
-                | c   | Case-sensitive matching                     |
-                +-----+-----------------------------------------------+
-                | i   | Case-insensitive matching                   |
-                +-----+-----------------------------------------------+
-                | m   | Multi-line mode                             |
-                +-----+-----------------------------------------------+
-                | e   | Extract submatches                          |
-                +-----+-----------------------------------------------+
-                | s   | Single-line mode POSIX wildcard character  |
-                |     | . matches \\n                               |
-                +-----+-----------------------------------------------+
+                - `c`: Case-sensitive matching
+                - `i`: Case-insensitive matching
+                - `m`: Multi-line mode
+                - `e`: Extract submatches
+                - `s`: Single-line mode (POSIX wildcard character `.` matches `\n`)
         group_num (ColumnOrName, optional): The group number in the regular expression to extract. Defaults to None, which extracts the entire match.
 
     Returns:
