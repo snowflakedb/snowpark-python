@@ -4900,6 +4900,52 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     def groupby_apply(
         self,
         by: Any,
+        agg_func: AggFuncType,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+        series_groupby: bool,
+        include_groups: bool,
+        force_single_group: bool = False,
+        force_list_like_to_series: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _groupby_apply_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._groupby_apply_internal(
+                    by=by,
+                    agg_func=agg_func,
+                    axis=axis,
+                    groupby_kwargs=groupby_kwargs,
+                    agg_args=agg_args,
+                    agg_kwargs=agg_kwargs,
+                    series_groupby=series_groupby,
+                    include_groups=include_groups,
+                    force_single_group=force_single_group,
+                    force_list_like_to_series=force_list_like_to_series,
+                )
+            )
+        qc = self._groupby_apply_internal(
+            by=by,
+            agg_func=agg_func,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+            series_groupby=series_groupby,
+            include_groups=include_groups,
+            force_single_group=force_single_group,
+            force_list_like_to_series=force_list_like_to_series,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _groupby_apply_internal(
+        self,
+        by: Any,
         agg_func: Callable,
         axis: int,
         groupby_kwargs: dict[str, Any],
