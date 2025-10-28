@@ -9644,7 +9644,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             column_index,
             input_types,
             self._modin_frame.ordered_dataframe.session,
-            index_column_pandas_labels=index_column_pandas_labels_for_udtf,
+            index_column_labels=index_column_pandas_labels_for_udtf,
             **kwargs,
         )
 

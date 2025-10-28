@@ -424,7 +424,7 @@ def create_udtf_for_apply_axis_1(
     column_index: native_pd.Index,
     input_types: list[DataType],
     session: Session,
-    index_column_pandas_labels: list[Hashable] | None = None,
+    index_column_labels: list[Hashable] | None = None,
     **kwargs: Any,
 ) -> UserDefinedTableFunction:
     """
@@ -445,8 +445,7 @@ def create_udtf_for_apply_axis_1(
         args: pandas parameter controlling apply within the UDTF.
         column_index: The columns of the callee DataFrame, i.e. df.columns as pd.Index object.
         input_types: Snowpark column types of the input data columns (including index columns).
-        index_column_pandas_labels: The pandas labels for the index columns, if any.
-        num_index_columns: Number of index columns being passed into the UDTF.
+        index_column_labels: index column labels, assuming this is not a RangeIndex
         **kwargs: pandas parameter controlling apply within the UDTF.
 
     Returns:
@@ -465,7 +464,9 @@ def create_udtf_for_apply_axis_1(
             row_positions = df.iloc[:, 0]
 
             # If we have index columns, set them as the index
-            num_index_columns = len(index_column_pandas_labels)
+            num_index_columns = (
+                0 if index_column_labels is None else len(index_column_labels)
+            )
             if num_index_columns > 0:
                 # Columns after row position are index columns, then data columns
                 index_cols = df.iloc[:, 1 : 1 + num_index_columns]
@@ -474,15 +475,13 @@ def create_udtf_for_apply_axis_1(
                 # Set the index using the index columns
                 if num_index_columns == 1:
                     index = index_cols.iloc[:, 0]
-                    if index_column_pandas_labels:
-                        index.name = index_column_pandas_labels[0]
+                    if index_column_labels:
+                        index.name = index_column_labels[0]
                 else:
                     # Multi-index case
                     index = native_pd.MultiIndex.from_arrays(
                         [index_cols.iloc[:, i] for i in range(num_index_columns)],
-                        names=index_column_pandas_labels
-                        if index_column_pandas_labels
-                        else None,
+                        names=index_column_labels if index_column_labels else None,
                     )
                 data_cols.set_index(index, inplace=True)
                 df = data_cols
