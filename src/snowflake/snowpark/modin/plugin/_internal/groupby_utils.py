@@ -471,6 +471,7 @@ def resample_and_extract_groupby_column_pandas_labels(
     query_compiler: "snowflake_query_compiler.SnowflakeQueryCompiler",
     by: Any,
     level: Optional[IndexLabel],
+    dummy_row_pos_mode: bool,
     *,
     skip_resample: bool = False,
 ) -> tuple[
@@ -614,6 +615,7 @@ def resample_and_extract_groupby_column_pandas_labels(
                 right=expected_resample_bins_frame,
                 # Perform an outer join to preserve additional index columns.
                 how="outer",
+                dummy_row_pos_mode=dummy_row_pos_mode,
                 # identifier might get mangled by binning operation; look it up again
                 left_on=binned_frame.get_snowflake_quoted_identifiers_group_by_pandas_labels(
                     [original_label]
@@ -658,6 +660,7 @@ def get_frame_with_groupby_columns_as_index(
     by: Any,
     level: Optional[Union[Hashable, int]],
     dropna: bool,
+    dummy_row_pos_mode: bool,
 ) -> Optional["snowflake_query_compiler.SnowflakeQueryCompiler"]:
     """
     Returns a new dataframe with the following properties:
@@ -753,7 +756,7 @@ def get_frame_with_groupby_columns_as_index(
     )
 
     query_compiler, by_list = resample_and_extract_groupby_column_pandas_labels(
-        query_compiler, by, level
+        query_compiler, by, level, dummy_row_pos_mode
     )
 
     if by_list is None:
@@ -918,6 +921,7 @@ def fill_missing_groupby_resample_bins_for_frame(
     by_list: list,
     orig_datetime_index_col_label: str,
     datetime_index_col_identifier: str,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Returns a new InternalFrame created using 2 rules.
@@ -1028,6 +1032,7 @@ def fill_missing_groupby_resample_bins_for_frame(
         frame,
         multi_expected_resample_bins_snowpark_frame,
         how="right",
+        dummy_row_pos_mode=dummy_row_pos_mode,
         left_on=frame.index_column_snowflake_quoted_identifiers,
         right_on=multi_expected_resample_bins_snowpark_frame.index_column_snowflake_quoted_identifiers,
         sort=False,
