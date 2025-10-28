@@ -455,9 +455,8 @@ def cumcount(self, ascending: bool = True):
 @register_df_groupby_override("cummax")
 def cummax(self, axis: Axis = 0, numeric_only: bool = False, **kwargs):
     # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    agg_kwargs = {"numeric_only": numeric_only, **kwargs}
     qc = self._query_compiler.groupby_cummax(
-        self._by, self._axis, self._kwargs, agg_kwargs
+        self._by, self._axis, numeric_only, self._kwargs
     )
     return (
         pd.Series(query_compiler=qc)

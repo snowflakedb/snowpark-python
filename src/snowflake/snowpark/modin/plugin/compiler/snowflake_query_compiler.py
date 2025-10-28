@@ -6736,9 +6736,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self,
         by: Any,
         axis: int,
+        numeric_only: bool,
         groupby_kwargs: dict[str, Any],
-        agg_kwargs: dict[str, Any],
-        drop: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Cumulative max for each group.
@@ -6756,8 +6755,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
         """
         self._raise_not_implemented_error_for_timedelta()
-
-        numeric_only = agg_kwargs.get("numeric_only", False)
 
         return SnowflakeQueryCompiler(
             get_groupby_cumagg_frame_axis0(
