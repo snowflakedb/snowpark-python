@@ -162,7 +162,7 @@ def test_sort_values_axis_1(sort_op):
     df = pd.DataFrame(
         [[1, 1, 2], [3, 1, 0], [4, 5, 6]], index=[1, 2, 3], columns=list("ABC")
     )
-    msg = "Snowpark pandas sort_values API doesn't yet support axis == 1"
+    msg = "Snowpark pandas sort_values does not yet support the parameter combination because axis = 1 is not supported."
     with pytest.raises(NotImplementedError, match=msg):
         sort_op(df)
 
@@ -184,7 +184,7 @@ def test_sort_values_axis_1_inplace(sort_op):
     df = pd.DataFrame(
         [[1, 1, 2], [3, 1, 0], [4, 5, 6]], index=[1, 2, 3], columns=list("ABC")
     )
-    msg = "Snowpark pandas sort_values API doesn't yet support axis == 1"
+    msg = "Snowpark pandas sort_values does not yet support the parameter combination because axis = 1 is not supported."
     with pytest.raises(NotImplementedError, match=msg):
         sort_op(df)
 
