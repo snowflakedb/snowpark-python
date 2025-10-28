@@ -23,8 +23,8 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
 
 
-def values_property_getter(index: pd.Index | native_pd.Index) -> np.ndarray:
-    return index.values
+def values_property_getter(object) -> np.ndarray:
+    return object.values
 
 
 @pytest.mark.parametrize(
