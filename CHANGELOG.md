@@ -57,6 +57,22 @@
   - `str.lower`
   - `str.upper`
   - `str.title`
+  - `str.match`
+  - `str.capitalize`
+  - `str.__getitem__`
+  - `str.center`
+  - `str.count`
+  - `str.get`
+  - `str.pad`
+  - `str.len`
+  - `str.ljust`
+  - `str.rjust`  
+  - `str.split`  
+  - `str.replace`  
+  - `str.strip`  
+  - `str.lstrip`  
+  - `str.rstrip`  
+  - `str.translate`  
   - `dt.tz_localize`
   - `dt.tz_convert`
   - `dt.ceil`
