@@ -1649,6 +1649,22 @@ def test_chained_sort(session):
             .filter(col("A") > 2),
             'SELECT "A", "B", 12 :: INT AS "TWELVE" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) WHERE (("A" > 1{POSTFIX}) AND ("A" > 2{POSTFIX}))',
         ),
+        # Flattened if the dropped columns are not used in filter
+        (
+            lambda df: df.filter(col("A") >= 1)
+            .select(col("A").alias("C"), col("B").alias("D"))
+            .filter(col("C") > 2)
+            .select(col("C")),
+            'SELECT "A" AS "C" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" >= 1{POSTFIX}) AND ("C" > 2{POSTFIX}))',
+        ),
+        # Flattened if the dropped columns are not in the filter clause's dependent columns
+        (
+            lambda df: df.filter(col("A") >= 1)
+            .select(col("A").alias("C"), col("B").alias("D"))
+            .filter((col("C") + 1) > 2)
+            .select(col("C")),
+            'SELECT "A" AS "C" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" >= 1{POSTFIX}) AND (("C" + 1{POSTFIX}) > 2{POSTFIX}))',
+        ),
         # Not fully flattened, since col("A") > 1 and col("A") > 2 are referring to different columns
         (
             lambda df: df.filter(col("A") > 1)
@@ -1670,6 +1686,29 @@ def test_chained_sort(session):
         (
             lambda df: df.filter(col("$1") > 1).select(col("B"), col("A")),
             'SELECT "B", "A" FROM ( SELECT * FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ) WHERE ("$1" > 1{POSTFIX}) )',
+        ),
+        # Not flattened if a dropped column is used in the filter clause
+        (
+            lambda df: df.filter(col("A") >= 1)
+            .select(col("A"), col("B").alias("D"))
+            .filter(col("D") > -3)
+            .select(col("A").alias("E")),
+            'SELECT "A" AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" >= 1{POSTFIX}) AND ("D" > -3{POSTFIX})))',
+        ),
+        # Not flattened if a dropped column is used in the select clause's dependent columns
+        (
+            lambda df: df.filter(col("A") >= 1)
+            .select(col("A"), col("B").alias("D"))
+            .filter((col("D") - 1) > -4)
+            .select((col("A") + 1).alias("E")),
+            'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" >= 1{POSTFIX}) AND (("D" - 1{POSTFIX}) > -4{POSTFIX})))',
+        ),
+        # Not flattened if a dropped column that was changed expression is used in the select clause's dependent columns
+        (
+            lambda df: df.select(col("A"), (col("B") + 1).alias("B"))
+            .filter((col("B") - 1) > -4)
+            .select((col("A") + 1).alias("E")),
+            'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", ("B" + 1{POSTFIX}) AS "B" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) WHERE (("B" - 1{POSTFIX}) > -4{POSTFIX})',
         ),
     ],
 )
@@ -1739,6 +1778,46 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
             .order_by(col("B"))
             .select(col("A")),
             'SELECT "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY "B" ASC NULLS FIRST, "A" ASC NULLS FIRST',
+            True,
+        ),
+        # Flattened if the dropped columns are not used in filter
+        (
+            lambda df: df.select(col("A").alias("C"), col("B").alias("D"))
+            .order_by(col("C"))
+            .select(col("C")),
+            'SELECT "A" AS "C" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "C" ASC NULLS FIRST',
+            True,
+        ),
+        # Flattened if the dropped columns are not in the order by clause's dependent columns
+        (
+            lambda df: df.select(col("A").alias("C"), col("B").alias("D"))
+            .order_by(col("C") + 1)
+            .select(col("C")),
+            'SELECT "A" AS "C" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY ("C" + 1{POSTFIX}) ASC NULLS FIRST',
+            True,
+        ),
+        # Not flattened if a dropped new column is used in the order by clause
+        (
+            lambda df: df.select(col("A"), col("B").alias("D"))
+            .order_by(col("D"))
+            .select(col("A").alias("E")),
+            'SELECT "A" AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "D" ASC NULLS FIRST)',
+            True,
+        ),
+        # Not flattened if a dropped new column is used in the order by clause's dependent columns
+        (
+            lambda df: df.select(col("A"), col("B").alias("D"))
+            .order_by(col("D") - 1)
+            .select((col("A") + 1).alias("E")),
+            'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY ("D" - 1{POSTFIX}) ASC NULLS FIRST)',
+            True,
+        ),
+        # Not flattened if a dropped column that was changed expression is used in the select clause's dependent columns
+        (
+            lambda df: df.select(col("A"), (col("B") + 1).alias("B"))
+            .filter((col("B") - 1) > -4)
+            .select((col("A") + 1).alias("E")),
+            'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", ("B" + 1{POSTFIX}) AS "B" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) WHERE (("B" - 1{POSTFIX}) > -4{POSTFIX})',
             True,
         ),
     ],
