@@ -1523,8 +1523,12 @@ def drop_duplicates(
         df = self[subset]
     else:
         df = self
-    duplicated = df.duplicated(keep=keep)
-    result = self[~duplicated]
+    if pd.session.dummy_row_pos_optimization_enabled and keep in ["first", "last"]:
+        result_qc = df._query_compiler.drop_duplicates()
+        result = self.__constructor__(query_compiler=result_qc)
+    else:
+        duplicated = df.duplicated(keep=keep)
+        result = self[~duplicated]
     if ignore_index:
         result.index = pandas.RangeIndex(stop=len(result))
     if inplace:

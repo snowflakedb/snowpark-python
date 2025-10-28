@@ -373,7 +373,7 @@ def test_drop(session):
         assert_frame_equal(snow_result, native_result)
 
 
-@sql_count_checker(query_count=3, join_count=2)
+@sql_count_checker(query_count=3)
 def test_drop_duplicates(session):
     with session_parameter_override(
         session, "dummy_row_pos_optimization_enabled", True
@@ -381,7 +381,7 @@ def test_drop_duplicates(session):
         # create tables
         table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
         session.create_dataframe(
-            native_pd.DataFrame([[2, 12], [2, 12], [3, 13]], columns=["A", "B"])
+            native_pd.DataFrame([[2, 12], [3, 13], [2, 12]], columns=["A", "B"])
         ).write.save_as_table(table_name, table_type="temp")
 
         # create snow dataframes
@@ -403,7 +403,7 @@ def test_drop_duplicates(session):
         native_result = native_df.drop_duplicates()
 
         # compare results
-        assert_frame_equal(snow_result, native_result)
+        assert_frame_equal(snow_result, native_result, check_index_type=False)
 
 
 @sql_count_checker(query_count=3, join_count=1)
