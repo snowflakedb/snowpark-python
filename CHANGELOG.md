@@ -45,7 +45,22 @@
   - `str.lower`
   - `str.upper`
   - `str.title`
-  
+  - `str.match`
+  - `str.capitalize`
+  - `str.__getitem__`
+  - `str.center`
+  - `str.count`
+  - `str.get`
+  - `str.pad`
+  - `str.len`
+  - `str.ljust`
+  - `str.rjust`  
+  - `str.split`  
+  - `str.replace`  
+  - `str.strip`  
+  - `str.lstrip`  
+  - `str.rstrip`  
+  - `str.translate`  
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 
 ## 1.41.0 (2025-10-23)

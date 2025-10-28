@@ -18866,6 +18866,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self, pat: str, case: bool = True, flags: int = 0, na: object = None
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_match_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_match_internal(
+                pat=pat, case=case, flags=flags, na=na
+            )
+
+        qc = self._str_match_internal(pat=pat, case=case, flags=flags, na=na)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_match_internal(
+        self, pat: str, case: bool = True, flags: int = 0, na: object = None
+    ) -> "SnowflakeQueryCompiler":
+        """
         Determine if each string starts with a match of a regular expression.
 
         Parameters
@@ -18915,6 +18930,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error("extractall", "Series.str")
 
     def str_capitalize(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_capitalize_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._str_capitalize_internal()
+            )
+
+        qc = self._str_capitalize_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_capitalize_internal(self) -> "SnowflakeQueryCompiler":
         """
         Capitalize the string
 
@@ -19172,6 +19200,21 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str___getitem__(self, key: Union[Scalar, slice]) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str___getitem___internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._str___getitem___internal(key=key)
+            )
+
+        qc = self._str___getitem___internal(key=key)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str___getitem___internal(
+        self, key: Union[Scalar, slice]
+    ) -> "SnowflakeQueryCompiler":
+        """
         Retrieve character(s) or substring(s) from each element in the Series or Index according to `key`.
 
         Parameters
@@ -19225,6 +19268,25 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             return self.str_slice(key.start, key.stop, key.step)
 
     def str_center(self, width: int, fillchar: str = " ") -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_center_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_center_internal(
+                width=width,
+                fillchar=fillchar,
+            )
+
+        qc = self._str_center_internal(
+            width=width,
+            fillchar=fillchar,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_center_internal(
+        self, width: int, fillchar: str = " "
+    ) -> "SnowflakeQueryCompiler":
         if not isinstance(width, int):
             raise TypeError(
                 f"width must be of integer type, not {type(width).__name__}"
@@ -19350,6 +19412,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self, pat: str, flags: int = 0, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_count_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_count_internal(
+                pat=pat,
+                flags=flags,
+                **kwargs,
+            )
+
+        qc = self._str_count_internal(
+            pat=pat,
+            flags=flags,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_count_internal(
+        self, pat: str, flags: int = 0, **kwargs: Any
+    ) -> "SnowflakeQueryCompiler":
+        """
         Count occurrences of pattern in each string of the Series/Index.
 
         This function is used to count the number of times a particular regex pattern is repeated in each of the string elements of the Series.
@@ -19386,6 +19469,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_get(self, i: Union[None, int, str]) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_get_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_get_internal(i=i)
+        qc = self._str_get_internal(i=i)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_get_internal(self, i: Union[None, int, str]) -> "SnowflakeQueryCompiler":
         """
         Extract element from each component at specified position or with specified key.
 
@@ -19514,6 +19607,29 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         side: Literal["left", "right", "both"] = "left",
         fillchar: str = " ",
     ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_pad_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_pad_internal(
+                width=width,
+                side=side,
+                fillchar=fillchar,
+            )
+        qc = self._str_pad_internal(
+            width=width,
+            side=side,
+            fillchar=fillchar,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_pad_internal(
+        self,
+        width: int,
+        side: Literal["left", "right", "both"] = "left",
+        fillchar: str = " ",
+    ) -> "SnowflakeQueryCompiler":
         if side == "left":
             return self.str_rjust(width, fillchar)
         elif side == "right":
@@ -19530,6 +19646,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error("rpartition", "Series.str")
 
     def str_len(self, **kwargs: Any) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_len_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_len_internal(
+                **kwargs
+            )
+        qc = self._str_len_internal(**kwargs)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_len_internal(self, **kwargs: Any) -> "SnowflakeQueryCompiler":
         """
         Compute the length of each element in the Series/Index
 
@@ -19571,6 +19699,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def str_ljust(self, width: int, fillchar: str = " ") -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_ljust_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_ljust_internal(
+                width=width, fillchar=fillchar
+            )
+        qc = self._str_ljust_internal(width=width, fillchar=fillchar)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_ljust_internal(
+        self, width: int, fillchar: str = " "
+    ) -> "SnowflakeQueryCompiler":
+        """
         Pad right side of strings in the Series/Index.
 
         Equivalent to str.ljust().
@@ -19611,6 +19753,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(new_internal_frame)
 
     def str_rjust(self, width: int, fillchar: str = " ") -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_rjust_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_rjust_internal(
+                width=width, fillchar=fillchar
+            )
+        qc = self._str_rjust_internal(width=width, fillchar=fillchar)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_rjust_internal(
+        self, width: int, fillchar: str = " "
+    ) -> "SnowflakeQueryCompiler":
         """
         Pad left side of strings in the Series/Index.
 
@@ -19872,6 +20028,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         regex: Optional[bool] = None,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_split_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_split_internal(
+                pat=pat,
+                n=n,
+                expand=expand,
+                regex=regex,
+            )
+        qc = self._str_split_internal(
+            pat=pat,
+            n=n,
+            expand=expand,
+            regex=regex,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_split_internal(
+        self,
+        pat: Optional[str] = None,
+        n: int = -1,
+        expand: bool = False,
+        regex: Optional[bool] = None,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Split strings around given separator/delimiter.
 
         Splits the string in the Series/Index from the beginning, at the specified delimiter string.
@@ -20099,6 +20281,38 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         regex: bool = True,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_replace_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_replace_internal(
+                pat=pat,
+                repl=repl,
+                n=n,
+                case=case,
+                flags=flags,
+                regex=regex,
+            )
+        qc = self._str_replace_internal(
+            pat=pat,
+            repl=repl,
+            n=n,
+            case=case,
+            flags=flags,
+            regex=regex,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_replace_internal(
+        self,
+        pat: str,
+        repl: Union[str, Callable],
+        n: int = -1,
+        case: Optional[bool] = None,
+        flags: int = 0,
+        regex: bool = True,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Replace each occurrence of pattern/regex in the Series/Index.
 
         Equivalent to str.replace() or re.sub(), depending on the regex value.
@@ -20253,6 +20467,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @snowpark_pandas_type_immutable_check
     def str_strip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_strip_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_strip_internal(
+                to_strip=to_strip
+            )
+        qc = self._str_strip_internal(to_strip=to_strip)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_strip_internal(
+        self, to_strip: Union[str, None] = None
+    ) -> "SnowflakeQueryCompiler":
+        """
         Remove leading and trailing characters.
 
         Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from left and right sides. Replaces any non-strings in Series with NaNs. Equivalent to str.strip().
@@ -20273,6 +20501,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     @snowpark_pandas_type_immutable_check
     def str_lstrip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _str_lstrip_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_lstrip_internal(
+                to_strip=to_strip
+            )
+        qc = self._str_lstrip_internal(to_strip=to_strip)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_lstrip_internal(
+        self, to_strip: Union[str, None] = None
+    ) -> "SnowflakeQueryCompiler":
+        """
         Remove leading characters.
 
         Strip whitespaces (including newlines) or a set of specified characters from each string in the Series/Index from left side. Replaces any non-strings in Series with NaNs. Equivalent to str.lstrip().
@@ -20292,6 +20534,20 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     @snowpark_pandas_type_immutable_check
     def str_rstrip(self, to_strip: Union[str, None] = None) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_rstrip_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._str_rstrip_internal(
+                to_strip=to_strip
+            )
+        qc = self._str_rstrip_internal(to_strip=to_strip)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_rstrip_internal(
+        self, to_strip: Union[str, None] = None
+    ) -> "SnowflakeQueryCompiler":
         """
         Remove trailing characters.
 
@@ -20315,6 +20571,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     @snowpark_pandas_type_immutable_check
     def str_translate(self, table: dict) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _str_translate_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._str_translate_internal(table=table)
+            )
+        qc = self._str_translate_internal(table=table)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _str_translate_internal(self, table: dict) -> "SnowflakeQueryCompiler":
         """
         Map all characters in the string through the given mapping table.
 
