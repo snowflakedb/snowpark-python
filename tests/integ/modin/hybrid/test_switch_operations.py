@@ -1650,12 +1650,12 @@ def test_malformed_decorator_conditions():
         (
             "first",
             {"min_count": 2},
-            "does not yet support min_count > 1",
+            "GroupBy.first does not yet support min_count > 1",
         ),
         (
             "last",
             {"min_count": 2},
-            "does not yet support min_count > 1",
+            "GroupBy.last does not yet support min_count > 1",
         ),
         (
             "shift",
