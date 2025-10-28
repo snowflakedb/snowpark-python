@@ -11,6 +11,7 @@
 
 #### Improvements
 
+- Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
 - Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
 
 #### Dependency Updates
@@ -25,6 +26,18 @@
 - Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
 - Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
 
+#### Improvements
+
+- Enhanced autoswitching functionality from Snowflake to native Pandas for methods with unsupported argument combinations:
+  - `shift()` with `suffix` or non-integer `periods` parameters
+  - `sort_index()` with `axis=1` or `key` parameters
+  - `sort_values()` with `axis=1`
+  - `melt()` with `col_level` parameter
+  - `apply()` with `result_type` parameter for DataFrame
+  - `pivot_table()` with `sort=True`, non-string `index` list, non-string `columns` list, non-string `values` list, or `aggfunc` dict with non-string values
+  - `fillna()` with `downcast` parameter or using `limit` together with `value`
+  - `dropna()` with `axis=1`
+
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
@@ -32,10 +45,20 @@
 #### Improvements
 
 - Add support for the following in faster pandas:
+  - `groupby.apply`
   - `groupby.nunique`
   - `groupby.size`
   - `concat`
   - `copy`
+  - `str.isdigit`
+  - `str.islower`
+  - `str.isupper`
+  - `str.istitle`
+  - `str.lower`
+  - `str.upper`
+  - `str.title`
+  
+- Make faster pandas disabled by default (opt-in instead of opt-out).
 
 ## 1.41.0 (2025-10-23)
 
@@ -94,6 +117,9 @@
     - `st_geometryfromwkt`
     - `try_to_geography`
     - `try_to_geometry`
+
+#### Improvements
+
 - Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
 
 #### Bug Fixes

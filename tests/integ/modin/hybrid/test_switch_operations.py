@@ -698,6 +698,8 @@ def _test_expected_backend(
     "method,kwargs",
     [
         ("get_dummies", {}),
+        ("melt", {"id_vars": ["A"], "value_vars": ["B"]}),
+        ("pivot_table", {"values": "B", "index": "A"}),
     ],
 )
 def test_auto_switch_supported_top_level_functions(method, kwargs):
@@ -739,15 +741,20 @@ def test_auto_switch_supported_top_level_functions(method, kwargs):
     [
         ("skew", {"numeric_only": True}, "BasePandasDataset"),
         ("round", {"decimals": 1}, "BasePandasDataset"),
-        ("corr", {"method": "pearson"}, "DataFrame"),
-        ("corr", {}, "DataFrame"),
+        ("shift", {"periods": 1}, "BasePandasDataset"),
+        ("sort_index", {"axis": 0}, "BasePandasDataset"),
+        ("sort_values", {"by": "A", "axis": 0}, "BasePandasDataset"),
+        ("fillna", {"value": 0}, "DataFrame"),
+        ("dropna", {"axis": 0}, "DataFrame"),
     ],
 )
 def test_auto_switch_supported_dataframe(method, kwargs, api_cls_name):
     # Test supported DataFrame operations that should stay on Snowflake backend.
-    test_data = {"A": [1.23, 2.57, 3.89], "B": [4.12, 5.26, 6.34]}
+    test_data = {"A": [1.23, None, 3.89], "B": [4.12, 5.26, 6.34]}
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(
+        query_count=1,
+    ):
         df = pd.DataFrame(test_data).move_to("Snowflake")
         assert df.get_backend() == "Snowflake"
 
@@ -773,15 +780,18 @@ def test_auto_switch_supported_dataframe(method, kwargs, api_cls_name):
 
 
 @pytest.mark.parametrize(
-    "method,kwargs,is_result_scalar",
+    "method,kwargs,is_result_scalar,api_cls_name",
     [
-        ("skew", {"numeric_only": True}, True),
-        ("round", {"decimals": 1}, False),
+        ("skew", {"numeric_only": True}, True, "BasePandasDataset"),
+        ("round", {"decimals": 1}, False, "BasePandasDataset"),
+        ("shift", {"periods": 1}, False, "BasePandasDataset"),
+        ("sort_index", {"axis": 0}, False, "BasePandasDataset"),
+        ("fillna", {"value": 0}, False, "Series"),
     ],
 )
-def test_auto_switch_supported_series(method, kwargs, is_result_scalar):
+def test_auto_switch_supported_series(method, kwargs, is_result_scalar, api_cls_name):
     # Test supported Series operations that should stay on Snowflake backend.
-    test_data = [1.89, 2.95, 3.12, 4.17, 5.23, 6.34]
+    test_data = [1.89, 2.95, 3.12, None, 5.23, 6.34]
 
     with SqlCounter(query_count=1):
         series = pd.Series(test_data).move_to("Snowflake")
@@ -789,7 +799,7 @@ def test_auto_switch_supported_series(method, kwargs, is_result_scalar):
 
         _test_stay_cost(
             data_obj=series,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
@@ -811,6 +821,7 @@ def test_auto_switch_supported_series(method, kwargs, is_result_scalar):
             comparator=np.testing.assert_allclose
             if is_result_scalar
             else assert_snowpark_pandas_equal_to_pandas,
+            test_attrs=False,
         )
 
 
@@ -909,15 +920,22 @@ def test_auto_switch_supported_groupby(groupby_kwargs):
     "method,kwargs",
     [
         ("get_dummies", {"dummy_na": True}),
+        ("get_dummies", {"drop_first": True}),
+        ("melt", {"col_level": 0}),
+        ("pivot_table", {"values": "B", "index": "A", "sort": False}),
+        ("pivot_table", {"values": "B", "index": "A", "observed": True}),
+        ("pivot_table", {"index": ["A", 0], "columns": "B", "values": "B"}),
+        ("pivot_table", {"index": "A", "columns": ["B", 0], "values": "B"}),
+        ("pivot_table", {"index": "A", "columns": "B", "values": ["B", 0]}),
         (
-            "get_dummies",
-            {"drop_first": True},
+            "pivot_table",
+            {"index": None, "columns": "A", "values": ["B"], "aggfunc": {"B": max}},
         ),
     ],
 )
 def test_auto_switch_unsupported_top_level_functions(method, kwargs):
     # Test unsupported top-level functions that should switch to Pandas backend.
-    test_data = {"A": ["x", "y", "z"], "B": [1, 2, 3]}
+    test_data = {"A": ["x", "y", "z"], "B": [1, 2, 3], 0: [4, 5, 6], 1: [7, 8, 9]}
 
     with SqlCounter(query_count=1):
         df = pd.DataFrame(test_data).move_to("Snowflake")
@@ -966,8 +984,17 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
         ("cummin", {"axis": 1}, "BasePandasDataset"),
         ("cummax", {"axis": 1}, "BasePandasDataset"),
         ("round", {"decimals": native_pd.Series([0, 1, 1])}, "BasePandasDataset"),
+        ("shift", {"periods": [1, 2], "suffix": "suffix"}, "BasePandasDataset"),
+        ("shift", {"periods": [1, 2]}, "BasePandasDataset"),
+        ("sort_index", {"axis": 1}, "BasePandasDataset"),
+        ("sort_index", {"key": lambda x: x}, "BasePandasDataset"),
+        ("sort_values", {"by": 0, "axis": 1}, "BasePandasDataset"),
+        ("apply", {"func": lambda x: x * 2, "result_type": "expand"}, "DataFrame"),
         ("corr", {"method": "kendall"}, "DataFrame"),
         ("corr", {"method": lambda x, y: np.corrcoef(x, y)[0, 1]}, "DataFrame"),
+        ("dropna", {"axis": 1}, "DataFrame"),
+        ("fillna", {"value": 0, "limit": 1}, "DataFrame"),
+        ("fillna", {"downcast": "infer", "value": 0}, "DataFrame"),
     ],
 )
 def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
@@ -1279,12 +1306,17 @@ def test_auto_switch_supported_dataframe_groupby(method, method_kwargs):
 
 
 @pytest.mark.parametrize(
-    "method,kwargs",
+    "method,kwargs,api_cls_name",
     [
-        ("skew", {"numeric_only": False}),
+        ("skew", {"numeric_only": False}, "BasePandasDataset"),
+        ("shift", {"suffix": "_suffix"}, "BasePandasDataset"),
+        ("shift", {"periods": [1, 2]}, "BasePandasDataset"),
+        ("fillna", {"value": 0, "limit": 1}, "Series"),
+        ("fillna", {"downcast": "infer", "value": 0}, "Series"),
+        ("sort_index", {"key": lambda x: x}, "BasePandasDataset"),
     ],
 )
-def test_auto_switch_unsupported_series(method, kwargs):
+def test_auto_switch_unsupported_series(method, kwargs, api_cls_name):
     # Test unsupported Series operations that should switch to Pandas backend.
     test_data = [1, 2, 3, 4, 5, 6]
 
@@ -1294,7 +1326,7 @@ def test_auto_switch_unsupported_series(method, kwargs):
 
         _test_stay_cost(
             data_obj=series,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
@@ -1303,7 +1335,7 @@ def test_auto_switch_unsupported_series(method, kwargs):
         pandas_series = pd.Series(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_series._query_compiler,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
@@ -1314,6 +1346,7 @@ def test_auto_switch_unsupported_series(method, kwargs):
             native_pd.Series(test_data),
             lambda series: getattr(series, method)(**kwargs),
             comparator=np.testing.assert_allclose,
+            test_attrs=False,
         )
 
 
@@ -1330,6 +1363,36 @@ def test_auto_switch_unsupported_series(method, kwargs):
             {"drop_first": True},
             "drop_first = True is not supported",
         ),
+        (
+            "melt",
+            {"col_level": 0},
+            "col_level argument is not yet supported",
+        ),
+        (
+            "pivot_table",
+            {"sort": False},
+            "sort = False is not supported",
+        ),
+        (
+            "pivot_table",
+            {"index": ["A", 0], "columns": "B", "values": "B"},
+            "index argument should be a string or a list of strings",
+        ),
+        (
+            "pivot_table",
+            {"index": "A", "columns": ["B", 0], "values": "B"},
+            "columns argument should be a string or a list of strings",
+        ),
+        (
+            "pivot_table",
+            {"index": "A", "columns": "B", "values": ["B", 0]},
+            "values argument should be a string or a list of strings",
+        ),
+        (
+            "pivot_table",
+            {"index": None, "columns": "A", "values": ["B"], "aggfunc": {"B": max}},
+            "dictionary aggfunc with non-string aggregation functions is not yet supported for pivot_table when index is None",
+        ),
     ],
 )
 @sql_count_checker(query_count=0)
@@ -1338,7 +1401,9 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
 ):
     # Test that unsupported top-level function args raise NotImplementedError when auto-switch is disabled.
     with config_context(AutoSwitchBackend=False):
-        df = pd.DataFrame({"A": ["x", "y", "z"], "B": [1, 2, 3]}).move_to("Snowflake")
+        df = pd.DataFrame(
+            {"A": ["x", "y", "z"], "B": [1, 2, 3], 0: [4, 5, 6], 1: [7, 8, 9]}
+        ).move_to("Snowflake")
 
         with pytest.raises(
             NotImplementedError,
@@ -1378,6 +1443,51 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
             "axis = 1 is not supported",
         ),
         (
+            "shift",
+            {"suffix": "_suffix"},
+            "the 'suffix' parameter is not yet supported",
+        ),
+        (
+            "shift",
+            {"periods": [1, 2]},
+            "only int 'periods' is currently supported",
+        ),
+        (
+            "sort_index",
+            {"axis": 1},
+            "axis = 1 is not supported",
+        ),
+        (
+            "sort_index",
+            {"key": lambda x: x},
+            "the 'key' parameter is not yet supported",
+        ),
+        (
+            "sort_values",
+            {"by": "A", "axis": 1},
+            "axis = 1 is not supported",
+        ),
+        (
+            "apply",
+            {"func": lambda x: x * 2, "result_type": "expand"},
+            "the 'result_type' parameter is not yet supported",
+        ),
+        (
+            "fillna",
+            {"downcast": "infer", "value": 0},
+            "the 'downcast' parameter is not yet supported",
+        ),
+        (
+            "fillna",
+            {"limit": 1, "value": 0},
+            "the 'limit' parameter with 'value' parameter is not yet supported",
+        ),
+        (
+            "dropna",
+            {"axis": 1},
+            "axis = 1 is not supported",
+        ),
+        (
             "corr",
             {"method": "kendall"},
             "method = 'kendall' is not supported. Snowpark pandas currently only supports method = 'pearson'.",
@@ -1413,6 +1523,26 @@ def test_error_handling_dataframe_when_auto_switch_disabled(
             "skew",
             {"numeric_only": False},
             "numeric_only = False argument not supported for skew",
+        ),
+        (
+            "shift",
+            {"suffix": "_suffix"},
+            "the 'suffix' parameter is not yet supported",
+        ),
+        (
+            "shift",
+            {"periods": [1, 2]},
+            "only int 'periods' is currently supported",
+        ),
+        (
+            "fillna",
+            {"downcast": "infer", "value": 0},
+            "the 'downcast' parameter is not yet supported",
+        ),
+        (
+            "fillna",
+            {"limit": 1, "value": 0},
+            "the 'limit' parameter with 'value' parameter is not yet supported",
         ),
     ],
 )
