@@ -6749,10 +6749,10 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             by: mapping, series, callable, label, pd.Grouper, BaseQueryCompiler, list of such.
                 Used to determine the groups for the groupby.
             axis : 0 (index), 1 (columns)
+            numeric_only: bool
+                Include only float, int, boolean columns.
             groupby_kwargs: Dict[str, Any]
                 keyword arguments passed for the groupby.
-            agg_kwargs: keyword arguments for the aggregation
-            drop: whether to drop by columns
 
         Returns:
             SnowflakeQueryCompiler: with a newly constructed internal dataframe
