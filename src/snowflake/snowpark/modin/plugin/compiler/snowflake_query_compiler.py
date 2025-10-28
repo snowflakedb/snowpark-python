@@ -4960,6 +4960,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         include_groups: bool,
         force_single_group: bool = False,
         force_list_like_to_series: bool = False,
+        is_transform: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Wrapper around _groupby_apply_internal to be supported in faster pandas.
@@ -4978,6 +4979,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     include_groups=include_groups,
                     force_single_group=force_single_group,
                     force_list_like_to_series=force_list_like_to_series,
+                    is_transform=is_transform,
                 )
             )
         qc = self._groupby_apply_internal(
@@ -4991,6 +4993,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             include_groups=include_groups,
             force_single_group=force_single_group,
             force_list_like_to_series=force_list_like_to_series,
+            is_transform=is_transform,
         )
         return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
 
