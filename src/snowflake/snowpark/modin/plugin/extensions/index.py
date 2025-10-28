@@ -917,10 +917,6 @@ class Index(metaclass=TelemetryMeta):
 
     @materialization_warning
     def __array__(self, dtype: Any = None) -> np.ndarray:
-        # Ensure that the existing index dtype is preserved in the returned array
-        # if no other dtype is given.
-        if dtype is None:
-            dtype = self.dtype
         return self.to_pandas().__array__(dtype=dtype)
 
     def __repr__(self) -> str:

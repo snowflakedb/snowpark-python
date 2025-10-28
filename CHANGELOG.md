@@ -29,6 +29,7 @@
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
+- Fixed a bug where converting a modin datetime series with a timezone to a numpy array with `np.asarray` would cause a `TypeError`.
 
 #### Improvements
 
