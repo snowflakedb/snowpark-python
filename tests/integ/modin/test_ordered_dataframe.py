@@ -278,12 +278,20 @@ def test_join_no_column_conflict(session, df1, df2, how):
     if how == "cross":
         left_on_cols = None
         right_on_cols = None
-        joined_ordered_df = ordered_df1.join(ordered_df2, how=how)
+        joined_ordered_df = ordered_df1.join(
+            ordered_df2,
+            how=how,
+            dummy_row_pos_mode=False,
+        )
     else:
         left_on_cols = ['"B"']
         right_on_cols = ['"F"']
         joined_ordered_df = ordered_df1.join(
-            ordered_df2, left_on_cols=left_on_cols, right_on_cols=right_on_cols, how=how
+            ordered_df2,
+            False,
+            left_on_cols=left_on_cols,
+            right_on_cols=right_on_cols,
+            how=how,
         )
 
     # verify joined ordered df have the final ordering column correct
@@ -347,12 +355,17 @@ def test_join_with_column_conflict(session, df1, df2, how):
     if how == "cross":
         left_on_cols = None
         right_on_cols = None
-        joined_ordered_df = ordered_df1.join(ordered_df2, how=how)
+        joined_ordered_df = ordered_df1.join(
+            ordered_df2,
+            how=how,
+            dummy_row_pos_mode=False,
+        )
     else:
         left_on_cols = ['"C"', '"row_pos"']
         right_on_cols = ['"C"', '"row_pos"']
         joined_ordered_df = ordered_df1.join(
             ordered_df2,
+            False,
             left_on_cols=left_on_cols,
             right_on_cols=right_on_cols,
             how=how,
@@ -425,6 +438,7 @@ def test_align_on_matching_columns(session, how):
         left_on_cols=['"B"', '"row_pos"'],
         right_on_cols=['"B_2"', '"row_pos_2"'],
         how=how,
+        dummy_row_pos_mode=False,
     )
 
     # verify the aligned result have projected columns started with left and right
@@ -481,6 +495,7 @@ def test_align_on_mismatch_columns(session, df1, df2, how):
         left_on_cols=['"C"'],
         right_on_cols=['"C"'],
         how=how,
+        dummy_row_pos_mode=False,
     )
 
     # verify the underneath dataframe reference is not shared
@@ -530,6 +545,7 @@ def test_align_on_matching_columns_right_negative(session):
             left_on_cols=['"B"', '"row_pos"'],
             right_on_cols=['"B_2"', '"row_pos_2"'],
             how=how,
+            dummy_row_pos_mode=False,
         )
 
 
@@ -541,6 +557,7 @@ def test_self_join_on_row_position_column(ordered_df, how):
             left_on_cols=[ordered_df.row_position_snowflake_quoted_identifier],
             right_on_cols=[right.row_position_snowflake_quoted_identifier],
             how=how,
+            dummy_row_pos_mode=False,
         )
         with SqlCounter(query_count=1, join_count=0):
             joined_ordered_df.collect()
@@ -564,6 +581,7 @@ def test_self_cross_join_on_row_position_column(ordered_df):
     joined_ordered_df = ordered_df.join(
         ordered_df,
         how="cross",
+        dummy_row_pos_mode=False,
     )
     # we can't optimize cross join, so it still happens
     with SqlCounter(query_count=1, join_count=1):
@@ -945,6 +963,7 @@ def test_self_align_optimizable(session, df1, how, align_on_cols):
         left_on_cols=align_on_cols,
         right_on_cols=align_on_cols,
         how=how,
+        dummy_row_pos_mode=False,
     )
 
     # verify the result frame share the same frame as ordered_df1
@@ -1007,6 +1026,7 @@ def test_self_align_not_optimizable(
         left_on_cols=left_on_cols,
         right_on_cols=right_on_cols,
         how=how,
+        dummy_row_pos_mode=False,
     )
 
     # verify the result frame do not share the same frame as ordered_df1
@@ -1163,9 +1183,19 @@ def test_ordered_dataframe_row_count(session, columns):
     assert ordered_df2.row_count_upper_bound == 3
 
     # Ensure ALIGN and JOIN set row_count_upper_bound to row_count_upper_bound * other.row_count_upper_bound
-    ordered_df2 = ordered_df2.join(ordered_df1, ['"A"'], ['"A"'])
+    ordered_df2 = ordered_df2.join(
+        ordered_df1,
+        False,
+        ['"A"'],
+        ['"A"'],
+    )
     assert ordered_df2.row_count_upper_bound == 30  # Set upper bound to 3 * 10 = 30
-    ordered_df2 = ordered_df2.align(ordered_df1, ['"C"'], ['"C"'])
+    ordered_df2 = ordered_df2.align(
+        ordered_df1,
+        ['"C"'],
+        ['"C"'],
+        False,
+    )
     assert ordered_df2.row_count_upper_bound == 40  # Set upper bound to 30 + 10 = 40
 
     # Ensure UNION_ALL sets row_count_upper_bound to row_count_upper_bound + other.row_count_upper_bound
