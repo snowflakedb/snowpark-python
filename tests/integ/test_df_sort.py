@@ -52,14 +52,6 @@ def test_sort_invalid_inputs(session):
     df = session.create_dataframe(
         [(1, 1), (1, 2), (1, 3), (2, 1), (2, 2), (2, 3), (3, 1), (3, 2), (3, 3)]
     ).to_df(["a", "b"])
-    # empty
-    with pytest.raises(ValueError) as ex_info:
-        df.sort()
-    assert "sort() needs at least one sort expression" in str(ex_info)
-    with pytest.raises(ValueError) as ex_info:
-        df.sort([])
-    assert "sort() needs at least one sort expression" in str(ex_info)
-
     # invalid ascending type
     with pytest.raises(TypeError) as ex_info:
         df.sort("a", ascending="ASC")

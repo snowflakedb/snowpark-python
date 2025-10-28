@@ -118,7 +118,9 @@ def scalar_isin_expression(
 
 
 def compute_isin_with_series(
-    frame: InternalFrame, values_series: InternalFrame
+    frame: InternalFrame,
+    values_series: InternalFrame,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Computes new InternalFrame holding the result of DataFrame.isin(<Series obj>).
@@ -154,6 +156,7 @@ def compute_isin_with_series(
         index_is_bool_indexer=False,
         deduplicate_columns=False,
         frame_is_df_and_item_is_series=False,
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
 
     # apply isin operation for all columns except the appended agg_label/agg_identifier column.
@@ -185,7 +188,9 @@ def compute_isin_with_series(
 
 
 def compute_isin_with_dataframe(
-    frame: InternalFrame, values_frame: InternalFrame
+    frame: InternalFrame,
+    values_frame: InternalFrame,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Computes new InternalFrame holding the result of DataFrame.isin(<DataFra e obj>).
@@ -275,6 +280,7 @@ def compute_isin_with_dataframe(
         False,
         False,
         False,
+        dummy_row_pos_mode,
     )
 
     isin_identifiers = [
