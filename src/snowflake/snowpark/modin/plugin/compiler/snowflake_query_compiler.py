@@ -21257,6 +21257,34 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _dt_tz_localize_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_tz_localize_internal(
+                    tz=tz,
+                    ambiguous=ambiguous,
+                    nonexistent=nonexistent,
+                    include_index=include_index,
+                )
+            )
+        qc = self._dt_tz_localize_internal(
+            tz=tz,
+            ambiguous=ambiguous,
+            nonexistent=nonexistent,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_tz_localize_internal(
+        self,
+        tz: Union[str, tzinfo],
+        ambiguous: str = "raise",
+        nonexistent: str = "raise",
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Localize tz-naive to tz-aware.
         Args:
             tz : str, pytz.timezone, optional
@@ -21297,6 +21325,28 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _dt_tz_convert_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_tz_convert_internal(
+                    tz=tz,
+                    include_index=include_index,
+                )
+            )
+        qc = self._dt_tz_convert_internal(
+            tz=tz,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_tz_convert_internal(
+        self,
+        tz: Union[str, tzinfo],
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Convert time-series data to the specified time zone.
 
         Args:
@@ -21323,6 +21373,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def dt_ceil(
+        self,
+        freq: Frequency,
+        ambiguous: str = "raise",
+        nonexistent: str = "raise",
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_ceil_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_ceil_internal(
+                freq=freq,
+                ambiguous=ambiguous,
+                nonexistent=nonexistent,
+                include_index=include_index,
+            )
+        qc = self._dt_ceil_internal(
+            freq=freq,
+            ambiguous=ambiguous,
+            nonexistent=nonexistent,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_ceil_internal(
         self,
         freq: Frequency,
         ambiguous: str = "raise",
@@ -21406,6 +21482,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def dt_round(
+        self,
+        freq: Frequency,
+        ambiguous: str = "raise",
+        nonexistent: str = "raise",
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_round_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_round_internal(
+                freq=freq,
+                ambiguous=ambiguous,
+                nonexistent=nonexistent,
+                include_index=include_index,
+            )
+        qc = self._dt_round_internal(
+            freq=freq,
+            ambiguous=ambiguous,
+            nonexistent=nonexistent,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_round_internal(
         self,
         freq: Frequency,
         ambiguous: str = "raise",
@@ -21574,6 +21676,32 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         include_index: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _dt_floor_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_floor_internal(
+                freq=freq,
+                ambiguous=ambiguous,
+                nonexistent=nonexistent,
+                include_index=include_index,
+            )
+        qc = self._dt_floor_internal(
+            freq=freq,
+            ambiguous=ambiguous,
+            nonexistent=nonexistent,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_floor_internal(
+        self,
+        freq: Frequency,
+        ambiguous: str = "raise",
+        nonexistent: str = "raise",
+        include_index: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Args:
             freq: The frequency level to floor the index to.
             ambiguous: 'infer', bool-ndarray, 'NaT', default 'raise'
@@ -21643,6 +21771,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
     def dt_normalize(self, include_index: bool = False) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _dt_normalize_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_normalize_internal(
+                    include_index=include_index
+                )
+            )
+        qc = self._dt_normalize_internal(include_index=include_index)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_normalize_internal(
+        self, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
+        """
         Set the time component of each date-time value to midnight.
 
         Args:
@@ -21665,6 +21809,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def dt_month_name(
+        self, locale: Optional[str] = None, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_month_name_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._dt_month_name_internal(
+                    locale=locale,
+                    include_index=include_index,
+                )
+            )
+        qc = self._dt_month_name_internal(
+            locale=locale,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_month_name_internal(
         self, locale: Optional[str] = None, include_index: bool = False
     ) -> "SnowflakeQueryCompiler":
         """
@@ -21699,6 +21863,24 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def dt_day_name(
+        self, locale: Optional[str] = None, include_index: bool = False
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_day_name_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_day_name_internal(
+                locale=locale,
+                include_index=include_index,
+            )
+        qc = self._dt_day_name_internal(
+            locale=locale,
+            include_index=include_index,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_day_name_internal(
         self, locale: Optional[str] = None, include_index: bool = False
     ) -> "SnowflakeQueryCompiler":
         """
@@ -21755,6 +21937,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def dt_strftime(self, date_format: str) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _dt_strftime_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._dt_strftime_internal(
+                date_format=date_format
+            )
+        qc = self._dt_strftime_internal(date_format=date_format)
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _dt_strftime_internal(self, date_format: str) -> "SnowflakeQueryCompiler":
         """
         Format underlying date-time data using specified format.
 
