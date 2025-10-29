@@ -1,6 +1,6 @@
 # Release History
 
-## 1.42.0 (YYYY-MM-DD)
+## 1.43.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
 
@@ -58,8 +58,40 @@
   - `str.lower`
   - `str.upper`
   - `str.title`
-  
+  - `str.match`
+  - `str.capitalize`
+  - `str.__getitem__`
+  - `str.center`
+  - `str.count`
+  - `str.get`
+  - `str.pad`
+  - `str.len`
+  - `str.ljust`
+  - `str.rjust`  
+  - `str.split`  
+  - `str.replace`  
+  - `str.strip`  
+  - `str.lstrip`  
+  - `str.rstrip`  
+  - `str.translate`  
+  - `dt.tz_localize`
+  - `dt.tz_convert`
+  - `dt.ceil`
+  - `dt.round`
+  - `dt.floor`
+  - `dt.normalize`
+  - `dt.month_name`
+  - `dt.day_name`
+  - `dt.strftime`  
 - Make faster pandas disabled by default (opt-in instead of opt-out).
+
+## 1.42.0 (2025-10-28)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Snowpark python DB-api is now generally available. Access this feature with `DataFrameReader.dbapi()` to read data from a database table or query into a DataFrame using a DBAPI connection.
 
 ## 1.41.0 (2025-10-23)
 
@@ -157,6 +189,11 @@
   - `skew()` with `axis=1` or `numeric_only=False` parameters
   - `round()` with `decimals` parameter as a Series
   - `corr()` with `method!=pearson` parameter
+  - `df.groupby()` with `axis=1`, `by!=None and level!=None`, or by containing any non-pandas hashable labels.
+  - `groupby_fillna()` with `downcast` parameter
+  - `groupby_first()` with `min_count>1`
+  - `groupby_last()` with `min_count>1`
+  - `shift()` with `freq` parameter
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for the following in faster pandas:
   - `isin`
