@@ -5649,6 +5649,40 @@ def test_df_join_how_on_overwrite(session):
     Utils.check_answer(df, [Row(1, 1, "1"), Row(2, 3, "5")])
 
 
+def test_lateral_join_how_on_overwrite(session):
+    table1 = Utils.random_table_name()
+    table2 = Utils.random_table_name()
+
+    try:
+        session.sql(f"CREATE TEMP TABLE {table1} (a INT, b INT)").collect()
+        session.sql(f"CREATE TEMP TABLE {table2} (a INT, c INT)").collect()
+        session.sql(f"INSERT INTO {table1} VALUES (1, 2), (3, 4), (5, 6)").collect()
+        session.sql(f"INSERT INTO {table2} VALUES (1, 7), (3, 8)").collect()
+
+        df1 = session.table(table1)
+        df2 = session.table(table2)
+
+        # Test join_type overwriting how parameter
+        df_inner = df1.lateral_join(df2, df1.a == df2.a, how="left", join_type="inner")
+        df_left = df1.lateral_join(df2, df1.a == df2.a, how="inner", join_type="left")
+
+        # Compare with equivalent SQL - inner lateral join
+        sql_inner = session.sql(
+            f"SELECT * FROM {table1}, LATERAL (SELECT * FROM {table2} WHERE {table1}.a = {table2}.a)"
+        )
+        Utils.check_answer(df_inner, sql_inner)
+
+        # Compare with equivalent SQL - left outer lateral join
+        sql_left = session.sql(
+            f"SELECT * FROM {table1} LEFT OUTER JOIN LATERAL (SELECT * FROM {table2} WHERE {table1}.a = {table2}.a) ON TRUE"
+        )
+        Utils.check_answer(df_left, sql_left)
+
+    finally:
+        session.sql(f"DROP TABLE IF EXISTS {table1}").collect()
+        session.sql(f"DROP TABLE IF EXISTS {table2}").collect()
+
+
 def test_create_dataframe_special_char_column_name(session):
     df1 = session.create_dataframe(
         [[1, 2, 3], [1, 2, 3]], schema=["a b", '"abc"', "@%!^@&#"]

@@ -214,6 +214,12 @@ class SnowparkClientExceptionMessages:
             error_code="1115",
         )
 
+    @staticmethod
+    def DF_JOIN_INVALID_LATERAL_JOIN_TYPE(tpe: str) -> SnowparkJoinException:
+        return SnowparkJoinException(
+            f"Unsupported lateral join type '{tpe}'.", error_code="1116"
+        )
+
     # Plan Analysis error codes 02XX
 
     @staticmethod

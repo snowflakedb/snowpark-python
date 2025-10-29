@@ -6,6 +6,7 @@ import pytest
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Join,
+    LateralJoin,
     NaturalJoin,
     UsingJoin,
     create_join_type,
@@ -41,3 +42,32 @@ def test_mix_set_operator():
     assert UsingJoin(create_join_type("inner"), ["col1"]).sql == "USING INNER"
 
     assert Join(None, None, create_join_type("Inner"), None, None).sql == "INNER"
+
+    with pytest.raises(SnowparkJoinException) as ex_info:
+        LateralJoin(create_join_type("right"))
+    assert ex_info.value.error_code == "1116"
+    assert ex_info.value.message.startswith(
+        "Unsupported lateral join type 'RightOuter'."
+    )
+    with pytest.raises(SnowparkJoinException) as ex_info:
+        LateralJoin(create_join_type("full"))
+    assert ex_info.value.error_code == "1116"
+    assert ex_info.value.message.startswith(
+        "Unsupported lateral join type 'FullOuter'."
+    )
+    with pytest.raises(SnowparkJoinException) as ex_info:
+        LateralJoin(create_join_type("semi"))
+    assert ex_info.value.error_code == "1116"
+    assert ex_info.value.message.startswith("Unsupported lateral join type 'LeftSemi'.")
+    with pytest.raises(SnowparkJoinException) as ex_info:
+        LateralJoin(create_join_type("anti"))
+    assert ex_info.value.error_code == "1116"
+    assert ex_info.value.message.startswith("Unsupported lateral join type 'LeftAnti'.")
+    with pytest.raises(SnowparkJoinException) as ex_info:
+        LateralJoin(create_join_type("asof"))
+    assert ex_info.value.error_code == "1116"
+    assert ex_info.value.message.startswith("Unsupported lateral join type 'AsOf'.")
+
+    assert LateralJoin(create_join_type("inner")).sql == "INNER JOIN LATERAL"
+    assert LateralJoin(create_join_type("left")).sql == "LEFT OUTER JOIN LATERAL"
+    assert LateralJoin(create_join_type("cross")).sql == "CROSS JOIN LATERAL"
