@@ -1396,16 +1396,11 @@ def test_auto_switch_unsupported_series_groupby(groupby_kwargs):
         series = pd.Series(test_data).move_to("Snowflake")
         assert series.get_backend() == "Snowflake"
 
-        # Convert list to Snowpark pandas Series in groupby_kwargs
-        converted_kwargs = groupby_kwargs.copy()
-        if "by" in converted_kwargs and isinstance(converted_kwargs["by"], list):
-            converted_kwargs["by"] = pd.Series(converted_kwargs["by"])
-
         _test_stay_cost(
             data_obj=series,
             api_cls_name="Series",
             method_name="groupby",
-            args=converted_kwargs,
+            args=groupby_kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
@@ -1414,11 +1409,11 @@ def test_auto_switch_unsupported_series_groupby(groupby_kwargs):
             pandas_qc=pandas_series._query_compiler,
             api_cls_name="Series",
             method_name="groupby",
-            args=converted_kwargs,
+            args=groupby_kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        groupby_obj = series.groupby(**converted_kwargs)
+        groupby_obj = series.groupby(**groupby_kwargs)
         assert groupby_obj.get_backend() == "Pandas"
 
 
@@ -1470,16 +1465,11 @@ def test_auto_switch_unsupported_series_groupby_with_supported_method(
         series = pd.Series(test_data).move_to("Snowflake")
         assert series.get_backend() == "Snowflake"
 
-        # Convert list to Snowpark pandas Series in groupby_kwargs
-        converted_kwargs = groupby_kwargs.copy()
-        if "by" in converted_kwargs and isinstance(converted_kwargs["by"], list):
-            converted_kwargs["by"] = pd.Series(converted_kwargs["by"])
-
         _test_stay_cost(
             data_obj=series,
             api_cls_name="Series",
             method_name="groupby",
-            args=converted_kwargs,
+            args=groupby_kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
@@ -1488,11 +1478,11 @@ def test_auto_switch_unsupported_series_groupby_with_supported_method(
             pandas_qc=pandas_series._query_compiler,
             api_cls_name="Series",
             method_name="groupby",
-            args=converted_kwargs,
+            args=groupby_kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        groupby_obj = series.groupby(**converted_kwargs)
+        groupby_obj = series.groupby(**groupby_kwargs)
         assert groupby_obj.get_backend() == "Pandas"
 
         _test_expected_backend(
