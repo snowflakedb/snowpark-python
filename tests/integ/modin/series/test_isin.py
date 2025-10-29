@@ -219,3 +219,11 @@ def test_isin_ignores_index():
             snow_df["B"].isin(snow_rhs),
             native_df["B"].isin(native_rhs),
         )
+
+
+@sql_count_checker(query_count=1)
+def test_isin_series_length_mismatch():
+    rhs = native_pd.Series([1, 0])
+    eval_snowpark_pandas_result(
+        *create_test_series([0, 1, 1, 2, 1]), lambda s: s.isin(rhs)
+    )
