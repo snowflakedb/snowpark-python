@@ -1,22 +1,11 @@
 # This workflow automatically creates a test branch from a release tag
 # For example, when release v1.40.0 is published, it creates test-v1.40.0 branch
-# Can also be triggered manually to create a test branch from any existing tag
 
 name: Create Test Branch from Release
 
 on:
   release:
     types: [published]
-  workflow_dispatch:
-    inputs:
-      tag_name:
-        description: 'Tag name to create test branch from (e.g., v1.40.0)'
-        required: true
-        type: string
-      test_branch_name:
-        description: 'Test branch name (optional, defaults to test-<tag_name>)'
-        required: false
-        type: string
 
 permissions:
   contents: write
@@ -29,18 +18,8 @@ jobs:
     - name: Extract tag name
       id: extract_tag
       run: |
-        # Determine tag name based on trigger type
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          TAG_NAME=${{ inputs.tag_name }}
-          if [ -n "${{ inputs.test_branch_name }}" ]; then
-            TEST_BRANCH_NAME=${{ inputs.test_branch_name }}
-          else
-            TEST_BRANCH_NAME="test-${TAG_NAME}"
-          fi
-        else
-          TAG_NAME=${{ github.event.release.tag_name }}
-          TEST_BRANCH_NAME="test-${TAG_NAME}"
-        fi
+        TAG_NAME=${{ github.event.release.tag_name }}
+        TEST_BRANCH_NAME="test-${TAG_NAME}"
 
         echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
         echo "test_branch_name=${TEST_BRANCH_NAME}" >> $GITHUB_OUTPUT
