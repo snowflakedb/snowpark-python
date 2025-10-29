@@ -3618,6 +3618,10 @@ class DataFrame:
                 raise ValueError(f"Unsupported join type {join_type}")
             if condition_expr is not None:
                 build_expr_from_snowpark_column(ast.join_expr, condition)
+            if lsuffix:
+                ast.lsuffix.value = lsuffix
+            if rsuffix:
+                ast.rsuffix.value = rsuffix
 
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
