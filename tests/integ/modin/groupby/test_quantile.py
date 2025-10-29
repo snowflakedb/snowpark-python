@@ -114,7 +114,7 @@ def test_quantile_array():
     # https://github.com/pandas-dev/pandas/issues/27526
     df = pd.DataFrame({"A": [0, 1, 2, 3, 4]})
     key = np.array([0, 0, 1, 1, 1], dtype=np.int64)
-    result = df.groupby(key).quantile([0.25])
+    result = df.groupby(level=0).quantile([0.25])
 
     index = native_pd.MultiIndex.from_product([[0, 1], [0.25]])
     expected = native_pd.DataFrame({"A": [0.25, 2.50]}, index=index)
@@ -163,7 +163,7 @@ def test_quantile_array_list_like_q():
 def test_quantile_array_no_sort():
     df = pd.DataFrame({"A": [0, 1, 2], "B": [3, 4, 5]})
     key = np.array([1, 0, 1], dtype=np.int64)
-    result = df.groupby(key, sort=False).quantile([0.25, 0.5, 0.75])
+    result = df.groupby(by="A", sort=False).quantile([0.25, 0.5, 0.75])
     expected = native_pd.DataFrame(
         {"A": [0.5, 1.0, 1.5, 1.0, 1.0, 1.0], "B": [3.5, 4.0, 4.5, 4.0, 4.0, 4.0]},
         index=pd.MultiIndex.from_product([[1, 0], [0.25, 0.5, 0.75]]),

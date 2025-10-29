@@ -53,6 +53,7 @@
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
+- Fixed a bug where converting a modin datetime index with a timezone to a numpy array with `np.asarray` would cause a `TypeError`.
 
 #### Improvements
 
@@ -200,6 +201,11 @@
   - `skew()` with `axis=1` or `numeric_only=False` parameters
   - `round()` with `decimals` parameter as a Series
   - `corr()` with `method!=pearson` parameter
+  - `df.groupby()` with `axis=1`, `by!=None and level!=None`, or by containing any non-pandas hashable labels.
+  - `groupby_fillna()` with `downcast` parameter
+  - `groupby_first()` with `min_count>1`
+  - `groupby_last()` with `min_count>1`
+  - `shift()` with `freq` parameter
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for the following in faster pandas:
   - `isin`
