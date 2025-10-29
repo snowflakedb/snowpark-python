@@ -14954,6 +14954,30 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "asfreq",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: args.get("how") is not None,
+                    "the 'how' parameter is not yet supported",
+                ),
+                ("normalize", True),
+                (
+                    lambda args: args.get("fill_value") is not None,
+                    "the 'fill_value' parameter is not yet supported",
+                ),
+                (
+                    lambda args: rule_to_snowflake_width_and_slice_unit(
+                        args.get("freq")
+                    )[1]
+                    not in RULE_SECOND_TO_DAY,
+                    "'freq' argument does not support week, month, quarter, or year",
+                ),
+            ],
+        ),
+    )
     def asfreq(
         self,
         freq: str,
