@@ -5649,6 +5649,10 @@ def test_df_join_how_on_overwrite(session):
     Utils.check_answer(df, [Row(1, 1, "1"), Row(2, 3, "5")])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Lateral join is not supported in Local Testing",
+)
 def test_lateral_join_how_on_overwrite(session):
     table1 = Utils.random_table_name()
     table2 = Utils.random_table_name()

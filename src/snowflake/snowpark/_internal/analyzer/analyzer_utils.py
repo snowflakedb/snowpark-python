@@ -884,7 +884,7 @@ def asof_join_statement(
 def lateral_join_statement(
     left: str,
     right: str,
-    join_type: JoinType,
+    join_type: LateralJoin,
     join_condition: str,
     use_constant_subquery_alias: bool,
 ) -> str:

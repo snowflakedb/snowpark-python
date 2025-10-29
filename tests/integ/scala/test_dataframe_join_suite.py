@@ -1671,6 +1671,10 @@ def test_dataframe_alias_map_unmodified(session):
 
 @pytest.mark.parametrize("how", ["inner", "left", "cross", None])
 @pytest.mark.parametrize("with_condition", [True, False])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Lateral join is not supported in Local Testing",
+)
 def test_lateral_join_behaviors(session, how, with_condition):
     df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
     df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
