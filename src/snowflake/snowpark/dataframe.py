@@ -3528,8 +3528,10 @@ class DataFrame:
         right: "DataFrame",
         condition: Optional[Column] = None,
         how: Optional[str] = None,
+        *,
+        lsuffix: str = "",
+        rsuffix: str = "",
         _emit_ast: bool = True,
-        **kwargs,
     ) -> "DataFrame":
         """Performs a lateral join of the specified type (``how``) with the
         current DataFrame and another DataFrame (``right``).
@@ -3545,9 +3547,12 @@ class DataFrame:
                 - Left outer join: "left", "leftouter"
                 - Cross join: "cross"
 
-                You can also use ``join_type`` keyword to specify this condition.
-                Note that to avoid breaking changes, currently when ``join_type`` is specified,
-                it overrides ``how``.
+            lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
+            rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
+
+        Note:
+            When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
+            You can reference to these randomly named columns using :meth:`Column.alias`.
 
         Examples::
             >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
@@ -3571,10 +3576,21 @@ class DataFrame:
             |5      |NULL   |6    |NULL  |
             ------------------------------
             <BLANKLINE>
+
+            >>> df1.lateral_join(df2, df1.b * 2 > df2.c, how="left", lsuffix="_l", rsuffix="_r").show()
+            ------------------------------
+            |"A_L"  |"B"  |"A_R"  |"C"   |
+            ------------------------------
+            |3      |4    |1      |7     |
+            |5      |6    |1      |7     |
+            |5      |6    |3      |8     |
+            |1      |2    |NULL   |NULL  |
+            ------------------------------
+            <BLANKLINE>
         """
-        join_type = create_join_type(kwargs.get("join_type") or how or "inner")
+        join_type = create_join_type(how or "inner")
         (lhs, rhs) = _disambiguate(
-            self, right, LateralJoin(join_type), [], lsuffix="", rsuffix=""
+            self, right, LateralJoin(join_type), [], lsuffix=lsuffix, rsuffix=rsuffix
         )
 
         condition_expr = condition._expression if condition is not None else None

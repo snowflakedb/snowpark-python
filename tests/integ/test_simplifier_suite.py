@@ -1132,7 +1132,7 @@ def test_lateral_join_simplifier(session, use_simplified_query_generation):
         Utils.check_answer(df, [Row(3, 4, 3, 8)])
 
         df_chained = (
-            df1.lateral_join(df2, df1.id == df2.id)
+            df1.lateral_join(df2, df1.id == df2.id, lsuffix="_l", rsuffix="_r")
             .select("value", "amount")
             .filter(col("value") > 1)
             .sort("value")

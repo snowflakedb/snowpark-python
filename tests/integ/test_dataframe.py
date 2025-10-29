@@ -5653,7 +5653,7 @@ def test_df_join_how_on_overwrite(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="Lateral join is not supported in Local Testing",
 )
-def test_lateral_join_how_on_overwrite(session):
+def test_lateral_join(session):
     table1 = Utils.random_table_name()
     table2 = Utils.random_table_name()
 
@@ -5666,17 +5666,16 @@ def test_lateral_join_how_on_overwrite(session):
         df1 = session.table(table1)
         df2 = session.table(table2)
 
-        # Test join_type overwriting how parameter
-        df_inner = df1.lateral_join(df2, df1.a == df2.a, how="left", join_type="inner")
-        df_left = df1.lateral_join(df2, df1.a == df2.a, how="inner", join_type="left")
+        df_inner = df1.lateral_join(df2, df1.a == df2.a, how="inner")
+        df_left = df1.lateral_join(df2, df1.a == df2.a, how="left")
 
-        # Compare with equivalent SQL - inner lateral join
+        # Test inner lateral join vs SQL
         sql_inner = session.sql(
             f"SELECT * FROM {table1}, LATERAL (SELECT * FROM {table2} WHERE {table1}.a = {table2}.a)"
         )
         Utils.check_answer(df_inner, sql_inner)
 
-        # Compare with equivalent SQL - left outer lateral join
+        # Test left outer lateral join vs SQL
         sql_left = session.sql(
             f"SELECT * FROM {table1} LEFT OUTER JOIN LATERAL (SELECT * FROM {table2} WHERE {table1}.a = {table2}.a) ON TRUE"
         )
