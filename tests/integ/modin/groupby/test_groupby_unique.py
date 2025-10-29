@@ -7,7 +7,6 @@ import pytest
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from tests.integ.modin.utils import eval_snowpark_pandas_result, create_test_dfs
-import re
 from tests.integ.utils.sql_counter import sql_count_checker
 import json
 
@@ -58,7 +57,7 @@ def test_all_params(by, level, as_index, sort, dropna, axis):
             by=by, level=level, as_index=as_index, sort=sort, dropna=dropna, axis=axis
         )["breed"].unique(),
         # pandas fails to propagate attrs through SeriesGroupBy.unique()
-        test_attrs=False
+        test_attrs=False,
     )
 
 
@@ -93,7 +92,7 @@ def test_aggregating_string_column_with_nulls():
         ),
         lambda df: df.groupby("animal")["breed"].unique(),
         # pandas fails to propagate attrs through SeriesGroupBy.unique()
-        test_attrs=False
+        test_attrs=False,
     )
 
 
@@ -103,6 +102,7 @@ def test_axis_1():
         *create_test_dfs([["a", "a"], ["c", "d"]]),
         lambda df: df.groupby(0, axis=1)[1],
         expect_exception=True,
-        expect_exception_type=ValueError,
-        expect_exception_match=re.escape(r"Cannot subset columns when using axis=1")
+        expect_exception_type=NotImplementedError,
+        expect_exception_match="Groupby does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels.",
+        assert_exception_equal=False,
     )
