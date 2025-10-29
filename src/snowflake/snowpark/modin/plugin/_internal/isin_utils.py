@@ -117,9 +117,62 @@ def scalar_isin_expression(
     return array_contains(to_variant(column), values)
 
 
+# def compute_series_isin_with_series(
+#     frame: InternalFrame,
+#     values_series: InternalFrame,
+#     dummy_row_pos_mode: bool,
+# ) -> InternalFrame:
+#     """
+#     Computes new InternalFrame holding the result of Series.isin(<Series obj>).
+
+#     ``frame`` must be non-empty.
+
+#     This operation joins the two arguments on positional indices, ignoring any existing labels.
+#     The operation preserves the name and index of the LHS series.
+
+#     Parameters
+#     ----------
+#     frame: InternalFrame
+#         LHS of the isin operation. Must represent a Series.
+#     values_series: InternalFrame
+#         RHS of the isin operation.
+
+#     Returns
+#     -------
+#     InternalFrame
+#         The result of the isin computation.
+#     """
+#     agg_label = generate_new_labels(
+#         pandas_labels=["agg"],
+#         excluded=frame.data_column_pandas_labels,
+#     )[0]
+
+#     new_frame = set_frame_2d_labels(
+#         frame,
+#         slice(None),
+#         [agg_label],
+#         values_series,
+#         matching_item_columns_by_label=False,
+#         matching_item_rows_by_label=False,
+#         index_is_bool_indexer=False,
+#         deduplicate_columns=False,
+#         frame_is_df_and_item_is_series=False,
+#         dummy_row_pos_mode=dummy_row_pos_mode,
+#     )
+#     # local import to avoid circular import
+#     from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+#         SnowflakeQueryCompiler,
+#     )
+#     return SnowflakeQueryCompiler(
+#         frame=new_frame.update_snowflake_quoted_identifiers_with_expressions(
+#         )
+#     )
+
+
 def compute_isin_with_series(
     frame: InternalFrame,
     values_series: InternalFrame,
+    lhs_is_series: bool,
     dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
@@ -152,7 +205,8 @@ def compute_isin_with_series(
         [agg_label],
         values_series,
         matching_item_columns_by_label=False,
-        matching_item_rows_by_label=True,
+        # If the LHS is a Series, join positionally instead of on labels.
+        matching_item_rows_by_label=not lhs_is_series,
         index_is_bool_indexer=False,
         deduplicate_columns=False,
         frame_is_df_and_item_is_series=False,
@@ -190,6 +244,7 @@ def compute_isin_with_series(
 def compute_isin_with_dataframe(
     frame: InternalFrame,
     values_frame: InternalFrame,
+    lhs_is_series: bool,
     dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
@@ -205,6 +260,14 @@ def compute_isin_with_dataframe(
     Returns:
         InternalFrame
     """
+    if lhs_is_series:
+        # a series-DF isin operation always returns False at all positions
+        return frame.update_snowflake_quoted_identifiers_with_expressions(
+            {
+                quoted_identifier: pandas_lit(False)
+                for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+            }
+        )[0]
     # similar logic to series, however do not create a single column but multiple colunms
     # set values via set_frame_2d_labels then
 

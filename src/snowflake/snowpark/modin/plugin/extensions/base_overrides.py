@@ -1037,7 +1037,9 @@ def fillna(
 # Snowpark pandas passes the query compiler object from a BasePandasDataset, which Modin does not do.
 @register_base_override("isin")
 def isin(
-    self, values: BasePandasDataset | ListLike | dict[Hashable, ListLike]
+    self,
+    values: BasePandasDataset | ListLike | dict[Hashable, ListLike],
+    self_is_series: bool = False,
 ) -> BasePandasDataset:  # noqa: PR01, RT01, D200
     """
     Whether elements in `BasePandasDataset` are contained in `values`.
@@ -1056,7 +1058,11 @@ def isin(
     ):
         values = list(values)
 
-    return self.__constructor__(query_compiler=self._query_compiler.isin(values=values))
+    return self.__constructor__(
+        query_compiler=self._query_compiler.isin(
+            values=values, self_is_series=self_is_series
+        )
+    )
 
 
 # Snowpark pandas uses the single `quantiles_along_axis0` query compiler method, while upstream

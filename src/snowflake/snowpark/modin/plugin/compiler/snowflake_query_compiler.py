@@ -14507,6 +14507,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         values: Union[
             list[Any], np.ndarray, "SnowflakeQueryCompiler", dict[Hashable, ListLike]
         ],
+        self_is_series: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
         Wrapper around _isin_internal to be supported in faster pandas.
@@ -14521,10 +14522,11 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 assert values._relaxed_query_compiler is not None
                 new_values = values._relaxed_query_compiler
             relaxed_query_compiler = self._relaxed_query_compiler._isin_internal(
-                values=new_values
+                values=new_values,
+                self_is_series=self_is_series,
             )
 
-        qc = self._isin_internal(values=values)
+        qc = self._isin_internal(values=values, self_is_series=self_is_series)
         return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
 
     def _isin_internal(
@@ -14532,15 +14534,18 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         values: Union[
             list[Any], np.ndarray, "SnowflakeQueryCompiler", dict[Hashable, ListLike]
         ],
+        self_is_series: bool = False,
     ) -> "SnowflakeQueryCompiler":  # noqa: PR02
         """
         Check for each element of `self` whether it's contained in passed `values`.
+
         Parameters
         ----------
         values : list-like, np.array, SnowflakeQueryCompiler or dict of pandas labels -> listlike
             Values to check elements of self in. If given as dict, match ListLike to column label given as key.
         **kwargs : dict
             Serves the compatibility purpose. Does not affect the result.
+
         Returns
         -------
         SnowflakeQueryCompiler
@@ -14548,7 +14553,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             position is contained in `values`.
         """
         is_snowflake_query_compiler = isinstance(values, SnowflakeQueryCompiler)  # type: ignore[union-attr]
-        is_series = is_snowflake_query_compiler and values.is_series_like()  # type: ignore[union-attr]
+        is_rhs_series = is_snowflake_query_compiler and values.is_series_like()  # type: ignore[union-attr]
 
         # convert list-like values to [lit(...), ..., lit(...)] and determine type
         # which is required to produce correct isin expression using array_contains(...) below
@@ -14621,13 +14626,19 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 # idempotent operation
                 return self
 
-            if is_series:
+            if is_rhs_series:
                 new_frame = compute_isin_with_series(
-                    self._modin_frame, values._modin_frame, self._dummy_row_pos_mode
+                    self._modin_frame,
+                    values._modin_frame,
+                    lhs_is_series=self_is_series,
+                    dummy_row_pos_mode=self._dummy_row_pos_mode,
                 )
             else:
                 new_frame = compute_isin_with_dataframe(
-                    self._modin_frame, values._modin_frame, self._dummy_row_pos_mode
+                    self._modin_frame,
+                    values._modin_frame,
+                    lhs_is_series=self_is_series,
+                    dummy_row_pos_mode=self._dummy_row_pos_mode,
                 )
 
         return SnowflakeQueryCompiler(new_frame)
