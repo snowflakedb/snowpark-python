@@ -5548,7 +5548,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return result
 
     @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
+        ["DataFrameGroupBy", "SeriesGroupBy"],
         "first",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -5594,7 +5594,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
+        ["DataFrameGroupBy", "SeriesGroupBy"],
         "last",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -5640,7 +5640,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
+        ["DataFrameGroupBy", "SeriesGroupBy"],
         "rank",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -6102,7 +6102,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return result_qc
 
     @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
+        ["DataFrameGroupBy", "SeriesGroupBy"],
         "shift",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -7107,7 +7107,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
+        ["DataFrameGroupBy", "SeriesGroupBy"],
         "fillna",
         UnsupportedArgsRule(
             unsupported_conditions=[
