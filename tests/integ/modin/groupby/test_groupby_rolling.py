@@ -110,7 +110,7 @@ def test_groupby_rolling_series_negative():
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            "Snowpark pandas does not yet support the method GroupBy.rolling for Series"
+            "Groupby does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels"
         ),
     ):
         snow_ser.groupby(snow_ser.index).rolling(2).sum()
