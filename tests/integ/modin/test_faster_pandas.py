@@ -688,7 +688,7 @@ def test_isin_list(session):
         assert_frame_equal(snow_result, native_result, check_dtype=False)
 
 
-@sql_count_checker(query_count=3)
+@sql_count_checker(query_count=3, join_count=2)
 def test_isin_series(session):
     with session_parameter_override(
         session, "dummy_row_pos_optimization_enabled", True
