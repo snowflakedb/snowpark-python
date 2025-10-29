@@ -37,6 +37,7 @@
   - `pivot_table()` with `sort=True`, non-string `index` list, non-string `columns` list, non-string `values` list, or `aggfunc` dict with non-string values
   - `fillna()` with `downcast` parameter or using `limit` together with `value`
   - `dropna()` with `axis=1`
+- Slightly improved the performance of `agg`, `nunique`, `describe`, and related methods on 1-column DataFrame and Series objects.
 
 #### Bug Fixes
 
