@@ -19,7 +19,11 @@ from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN = re.escape(
-    f"Snowpark pandas GroupBy.aggregate {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
+    f"Snowpark pandas GroupBy.aggregate {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}."
+)
+
+GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN = re.escape(
+    _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE
 )
 
 
@@ -58,7 +62,7 @@ def test_groupby_axis_1(group_name):
     snow_df = pd.DataFrame(pandas_df)
 
     with pytest.raises(
-        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+        NotImplementedError, match=GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN
     ):
         snow_df.groupby(axis=1, by=group_name).max()
 
@@ -75,12 +79,12 @@ def test_groupby_axis_1_mi(group_name):
     snow_df_mi = pd.DataFrame(pandas_df_mi)
 
     with pytest.raises(
-        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+        NotImplementedError, match=GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN
     ):
         snow_df_mi.groupby(axis=1, by=group_name).sum()
 
     with pytest.raises(
-        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+        NotImplementedError, match=GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN
     ):
         snow_df_mi.groupby(axis=1, level=0).min()
 
@@ -96,7 +100,7 @@ def test_groupby_axis_1_mi(group_name):
 @sql_count_checker(query_count=0)
 def test_groupby_with_callable_and_array(basic_snowpark_pandas_df, by) -> None:
     with pytest.raises(
-        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+        NotImplementedError, match=GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN
     ):
         basic_snowpark_pandas_df.groupby(by).min()
 
@@ -107,7 +111,7 @@ def test_timeseries_groupby_with_callable(tsframe):
     with pytest.raises(
         AttributeError, match="'SeriesGroupBy' object has no attribute np.percentile"
     ):
-        snow_ts_df.groupby(lambda x: x.month).agg(np.percentile, 80, axis=0)
+        snow_ts_df.groupby(level=0).agg(np.percentile, 80, axis=0)
 
 
 @sql_count_checker(query_count=0)
@@ -138,14 +142,14 @@ def test_groupby_with_external_series(basic_snowpark_pandas_df) -> None:
 
     with SqlCounter(query_count=0):
         with pytest.raises(
-            NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+            NotImplementedError, match=GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN
         ):
             basic_snowpark_pandas_df.groupby(by=snowpark_pandas_series).sum()
 
     with SqlCounter(query_count=0):
         by_list = ["col1", "col2", snowpark_pandas_series]
         with pytest.raises(
-            NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+            NotImplementedError, match=GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN
         ):
             basic_snowpark_pandas_df.groupby(by=by_list).sum()
 
@@ -243,7 +247,7 @@ def test_groupby_level_mapper(mapper, level):
         columns=native_pd.Index(["A", "B", "C"], name="exp"),
     )
     with pytest.raises(
-        NotImplementedError, match=AGGREGATE_UNSUPPORTED_GROUPING_ERROR_PATTERN
+        NotImplementedError, match=GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN
     ):
         snow_df.groupby(mapper, level=level).sum()
 
@@ -277,9 +281,7 @@ def test_groupby_ngroups_axis_1():
 
     with pytest.raises(
         NotImplementedError,
-        match=re.escape(
-            f"Snowpark pandas GroupBy.ngroups {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
-        ),
+        match=GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN,
     ):
         snow_df.groupby(by=by, axis=1).ngroups
 
@@ -296,9 +298,7 @@ def test_groupby_ngroups_axis_1_mi():
 
     with pytest.raises(
         NotImplementedError,
-        match=re.escape(
-            f"Snowpark pandas GroupBy.ngroups {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}"
-        ),
+        match=GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN,
     ):
         snow_df.groupby(by=by, axis=1).ngroups
 
