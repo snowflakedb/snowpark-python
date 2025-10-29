@@ -1,6 +1,6 @@
 # Release History
 
-## 1.42.0 (YYYY-MM-DD)
+## 1.43.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
 
@@ -83,6 +83,14 @@
   - `dt.day_name`
   - `dt.strftime`  
 - Make faster pandas disabled by default (opt-in instead of opt-out).
+
+## 1.42.0 (2025-10-28)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Snowpark python DB-api is now generally available. Access this feature with `DataFrameReader.dbapi()` to read data from a database table or query into a DataFrame using a DBAPI connection.
 
 ## 1.41.0 (2025-10-23)
 
