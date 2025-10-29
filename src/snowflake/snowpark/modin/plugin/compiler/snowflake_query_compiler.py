@@ -11875,10 +11875,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self._raise_not_implemented_error_for_timedelta()
 
         frame = self._modin_frame
-
+        input_column_count = len(frame.data_columns_index)
         # Handle case where the dataframe has empty columns.
-        if len(frame.data_columns_index) == 0:
+        if input_column_count == 0:
             return transpose_empty_df(frame)
+        if input_column_count == 1:
+            # If the frame is 1x1, then the datatype is already preserved; we need only set the only entry
+            # in the index column to be the original index label.
+            return SnowflakeQueryCompiler(
+                frame.update_snowflake_quoted_identifiers_with_expressions(
+                    {
+                        frame.index_column_snowflake_quoted_identifiers[0]: pandas_lit(
+                            frame.data_column_pandas_labels[0]
+                        ),
+                    }
+                )[0]
+            ).set_columns([None])
 
         # This follows the same approach used in SnowflakeQueryCompiler.transpose().
         # However, as an optimization, only steps (1), (2), and (4) from the four steps described in
@@ -11909,6 +11921,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unpivot_result.variable_name_quoted_snowflake_identifier,
             unpivot_result.object_name_quoted_snowflake_identifier,
         )
+        new_internal_frame.ordered_dataframe.row_count = 1
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11922,8 +11935,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         frame = self._modin_frame
 
+        original_col_count = len(frame.data_columns_index)
         # Handle case where the dataframe has empty columns.
-        if len(frame.data_columns_index) == 0:
+        if original_col_count == 0:
             return transpose_empty_df(frame)
 
         # The following approach to implementing transpose relies on combining unpivot and pivot operations to flip
@@ -12061,6 +12075,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unpivot_result.variable_name_quoted_snowflake_identifier,
             unpivot_result.object_name_quoted_snowflake_identifier,
         )
+        new_internal_frame.ordered_dataframe.row_count = original_col_count
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
