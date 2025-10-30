@@ -11898,6 +11898,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                     new_index_column_identifiers,
                     list(map(pandas_lit, frame.data_column_pandas_labels[0])),
                 )
+                new_odf.row_count = 1
                 return SnowflakeQueryCompiler(
                     InternalFrame.create(
                         ordered_dataframe=new_odf,
