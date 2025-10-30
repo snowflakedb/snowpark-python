@@ -28,7 +28,7 @@
 
 #### Improvements
 
-- Enhanced autoswitching functionality from Snowflake to native Pandas for methods with unsupported argument combinations:
+- Enhanced autoswitching functionality from Snowflake to native pandas for methods with unsupported argument combinations:
   - `shift()` with `suffix` or non-integer `periods` parameters
   - `sort_index()` with `axis=1` or `key` parameters
   - `sort_values()` with `axis=1`
@@ -37,11 +37,17 @@
   - `pivot_table()` with `sort=True`, non-string `index` list, non-string `columns` list, non-string `values` list, or `aggfunc` dict with non-string values
   - `fillna()` with `downcast` parameter or using `limit` together with `value`
   - `dropna()` with `axis=1`
+  - `groupby()` with `axis=1`, `by!=None and level!=None`, or by containing any non-pandas hashable labels.
+  - `groupby_fillna()` with `downcast` parameter
+  - `groupby_first()` with `min_count>1`
+  - `groupby_last()` with `min_count>1`
+  - `shift()` with `freq` parameter
 
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
 - Fixed a bug where converting a modin datetime index with a timezone to a numpy array with `np.asarray` would cause a `TypeError`.
+- Fixed a bug where `Series.isin` with a Series argument matched index labels instead of the row position.
 
 #### Improvements
 
@@ -83,6 +89,23 @@
   - `dt.month_name`
   - `dt.day_name`
   - `dt.strftime`  
+  - `rolling.min`
+  - `rolling.max`
+  - `rolling.count`
+  - `rolling.sum`
+  - `rolling.mean`
+  - `rolling.std`
+  - `rolling.var`
+  - `rolling.sem`
+  - `rolling.corr`
+  - `expanding.min`
+  - `expanding.max`
+  - `expanding.count`
+  - `expanding.sum`
+  - `expanding.mean`
+  - `expanding.std`
+  - `expanding.var`
+  - `expanding.sem`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 
 ## 1.42.0 (2025-10-28)
@@ -189,11 +212,6 @@
   - `skew()` with `axis=1` or `numeric_only=False` parameters
   - `round()` with `decimals` parameter as a Series
   - `corr()` with `method!=pearson` parameter
-  - `df.groupby()` with `axis=1`, `by!=None and level!=None`, or by containing any non-pandas hashable labels.
-  - `groupby_fillna()` with `downcast` parameter
-  - `groupby_first()` with `min_count>1`
-  - `groupby_last()` with `min_count>1`
-  - `shift()` with `freq` parameter
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for the following in faster pandas:
   - `isin`
