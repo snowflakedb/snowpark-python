@@ -40,7 +40,7 @@
 
 #### Improvements
 
-- Enhanced autoswitching functionality from Snowflake to native Pandas for methods with unsupported argument combinations:
+- Enhanced autoswitching functionality from Snowflake to native pandas for methods with unsupported argument combinations:
   - `shift()` with `suffix` or non-integer `periods` parameters
   - `sort_index()` with `axis=1` or `key` parameters
   - `sort_values()` with `axis=1`
@@ -54,6 +54,7 @@
 
 - Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
 - Fixed a bug where converting a modin datetime index with a timezone to a numpy array with `np.asarray` would cause a `TypeError`.
+- Fixed a bug where `Series.isin` with a Series argument matched index labels instead of the row position.
 
 #### Improvements
 
