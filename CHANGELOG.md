@@ -106,6 +106,14 @@
   - `rolling.var`
   - `rolling.sem`
   - `rolling.corr`
+  - `expanding.min`
+  - `expanding.max`
+  - `expanding.count`
+  - `expanding.sum`
+  - `expanding.mean`
+  - `expanding.std`
+  - `expanding.var`
+  - `expanding.sem`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 
 ## 1.42.0 (2025-10-28)
