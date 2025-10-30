@@ -14973,7 +14973,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         args.get("freq")
                     )[1]
                     not in RULE_SECOND_TO_DAY,
-                    "'freq' argument does not support week, month, quarter, or year",
+                    "the 'freq' parameter does not support week, month, quarter, or year",
                 ),
             ],
         ),
