@@ -11880,19 +11880,48 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         if input_column_count == 0:
             return transpose_empty_df(frame)
         if input_column_count == 1:
-            # If the frame is 1x1, then the datatype is already preserved; we need only set the only entry
-            # in the index column to be the original index label.
-            return SnowflakeQueryCompiler(
-                frame.update_snowflake_quoted_identifiers_with_expressions(
-                    {
-                        frame.index_column_snowflake_quoted_identifiers[0]: pandas_lit(
-                            frame.data_column_pandas_labels[0]
-                        ),
-                    },
-                    # Swap the name of the index/columns objects
-                    new_index_column_pandas_labels=frame.data_column_pandas_index_names,
-                )[0]
-            ).set_columns([None])
+            # If the frame is 1x1, then the datatype is already preserved; we need only set the entry
+            # in the index columns to match the original index labels.
+            if len(frame.data_column_index_names) > 1:
+                # If the columns object has a multi-index name, we need to project new columns for
+                # the extra labels.
+                data_odf = frame.ordered_dataframe.select(
+                    frame.data_column_snowflake_quoted_identifiers
+                )
+                new_index_column_identifiers = (
+                    data_odf.generate_snowflake_quoted_identifiers(
+                        pandas_labels=frame.data_column_pandas_index_names
+                    )
+                )
+                new_odf = append_columns(
+                    data_odf,
+                    new_index_column_identifiers,
+                    list(map(pandas_lit, frame.data_column_pandas_labels[0])),
+                )
+                return SnowflakeQueryCompiler(
+                    InternalFrame.create(
+                        ordered_dataframe=new_odf,
+                        data_column_pandas_labels=[None],
+                        data_column_pandas_index_names=[None],
+                        data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
+                        index_column_pandas_labels=frame.data_column_pandas_index_names,
+                        index_column_snowflake_quoted_identifiers=new_index_column_identifiers,
+                        data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                        index_column_types=None,
+                    )
+                )
+            else:
+                return SnowflakeQueryCompiler(
+                    frame.update_snowflake_quoted_identifiers_with_expressions(
+                        {
+                            frame.index_column_snowflake_quoted_identifiers[
+                                0
+                            ]: pandas_lit(frame.data_column_pandas_labels[0]),
+                        },
+                        # Swap the name of the index/columns objects
+                        new_index_column_pandas_labels=frame.data_column_pandas_index_names,
+                    )[0]
+                ).set_columns([None])
 
         # This follows the same approach used in SnowflakeQueryCompiler.transpose().
         # However, as an optimization, only steps (1), (2), and (4) from the four steps described in
