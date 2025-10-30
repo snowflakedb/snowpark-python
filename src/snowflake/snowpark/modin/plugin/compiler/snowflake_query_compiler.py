@@ -9112,15 +9112,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         relaxed_query_compiler = None
         if self._relaxed_query_compiler is not None:
             relaxed_query_compiler = self._relaxed_query_compiler._cumsum_internal(
-                # axis=axis,
-                # skipna=skipna,
-                *args,
+                axis=axis,
+                skipna=skipna,
                 **kwargs,
             )
         qc = self._cumsum_internal(
-            # axis=axis,
-            # skipna=skipna,
-            *args,
+            axis=axis,
+            skipna=skipna,
             **kwargs,
         )
         return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
@@ -9172,15 +9170,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         relaxed_query_compiler = None
         if self._relaxed_query_compiler is not None:
             relaxed_query_compiler = self._relaxed_query_compiler._cummin_internal(
-                # axis=axis,
-                # skipna=skipna,
-                *args,
+                axis=axis,
+                skipna=skipna,
                 **kwargs,
             )
         qc = self._cummin_internal(
-            # axis=axis,
-            # skipna=skipna,
-            *args,
+            axis=axis,
+            skipna=skipna,
             **kwargs,
         )
         return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
@@ -9232,15 +9228,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         relaxed_query_compiler = None
         if self._relaxed_query_compiler is not None:
             relaxed_query_compiler = self._relaxed_query_compiler._cummax_internal(
-                # axis=axis,
-                # skipna=skipna,
-                *args,
+                axis=axis,
+                skipna=skipna,
                 **kwargs,
             )
         qc = self._cummax_internal(
-            # axis=axis,
-            # skipna=skipna,
-            *args,
+            axis=axis,
+            skipna=skipna,
             **kwargs,
         )
         return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)

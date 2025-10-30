@@ -354,7 +354,7 @@ def test_cumulative_functions(session, func):
 
         # create snow dataframes
         df = pd.read_snowflake(table_name)
-        snow_result = df[getattr(df["B"], func)() > 0]
+        snow_result = getattr(df["B"], func)()
 
         # verify that the input dataframe has a populated relaxed query compiler
         assert df._query_compiler._relaxed_query_compiler is not None
@@ -368,10 +368,10 @@ def test_cumulative_functions(session, func):
 
         # create pandas dataframes
         native_df = df.to_pandas()
-        native_result = native_df[getattr(native_df["B"], func)() > 0]
+        native_result = getattr(native_df["B"], func)()
 
         # compare results
-        assert_frame_equal(snow_result, native_result)
+        assert_series_equal(snow_result, native_result)
 
 
 @sql_count_checker(query_count=3)
