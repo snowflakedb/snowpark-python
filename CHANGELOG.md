@@ -83,6 +83,15 @@
   - `dt.month_name`
   - `dt.day_name`
   - `dt.strftime`  
+  - `rolling.min`
+  - `rolling.max`
+  - `rolling.count`
+  - `rolling.sum`
+  - `rolling.mean`
+  - `rolling.std`
+  - `rolling.var`
+  - `rolling.sem`
+  - `rolling.corr`
   - `expanding.min`
   - `expanding.max`
   - `expanding.count`

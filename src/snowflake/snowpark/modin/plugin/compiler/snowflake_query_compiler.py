@@ -16894,6 +16894,35 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rolling_count_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._rolling_count_internal(
+                    fold_axis=fold_axis,
+                    rolling_kwargs=rolling_kwargs,
+                    numeric_only=numeric_only,
+                    **kwargs,
+                )
+            )
+        qc = self._rolling_count_internal(
+            fold_axis=fold_axis,
+            rolling_kwargs=rolling_kwargs,
+            numeric_only=numeric_only,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rolling_count_internal(
+        self,
+        fold_axis: Union[int, str],
+        rolling_kwargs: dict,
+        numeric_only: bool = False,
+        *args: Any,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
         return self._window_agg(
             window_func=WindowFunction.ROLLING,
             agg_func="count",
@@ -16902,6 +16931,39 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def rolling_sum(
+        self,
+        fold_axis: Union[int, str],
+        rolling_kwargs: dict,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rolling_sum_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._rolling_sum_internal(
+                fold_axis=fold_axis,
+                rolling_kwargs=rolling_kwargs,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+                **kwargs,
+            )
+        qc = self._rolling_sum_internal(
+            fold_axis=fold_axis,
+            rolling_kwargs=rolling_kwargs,
+            numeric_only=numeric_only,
+            engine=engine,
+            engine_kwargs=engine_kwargs,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rolling_sum_internal(
         self,
         fold_axis: Union[int, str],
         rolling_kwargs: dict,
@@ -16922,6 +16984,41 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def rolling_mean(
+        self,
+        fold_axis: Union[int, str],
+        rolling_kwargs: dict,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rolling_mean_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._rolling_mean_internal(
+                    fold_axis=fold_axis,
+                    rolling_kwargs=rolling_kwargs,
+                    numeric_only=numeric_only,
+                    engine=engine,
+                    engine_kwargs=engine_kwargs,
+                    **kwargs,
+                )
+            )
+        qc = self._rolling_mean_internal(
+            fold_axis=fold_axis,
+            rolling_kwargs=rolling_kwargs,
+            numeric_only=numeric_only,
+            engine=engine,
+            engine_kwargs=engine_kwargs,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rolling_mean_internal(
         self,
         fold_axis: Union[int, str],
         rolling_kwargs: dict,
@@ -16963,6 +17060,42 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rolling_var_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._rolling_var_internal(
+                fold_axis=fold_axis,
+                rolling_kwargs=rolling_kwargs,
+                ddof=ddof,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+                **kwargs,
+            )
+        qc = self._rolling_var_internal(
+            fold_axis=fold_axis,
+            rolling_kwargs=rolling_kwargs,
+            ddof=ddof,
+            numeric_only=numeric_only,
+            engine=engine,
+            engine_kwargs=engine_kwargs,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rolling_var_internal(
+        self,
+        fold_axis: Union[int, str],
+        rolling_kwargs: dict,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_var", engine, engine_kwargs
         )
@@ -16974,6 +17107,42 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def rolling_std(
+        self,
+        fold_axis: Union[int, str],
+        rolling_kwargs: dict,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rolling_std_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._rolling_std_internal(
+                fold_axis=fold_axis,
+                rolling_kwargs=rolling_kwargs,
+                ddof=ddof,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+                **kwargs,
+            )
+        qc = self._rolling_std_internal(
+            fold_axis=fold_axis,
+            rolling_kwargs=rolling_kwargs,
+            ddof=ddof,
+            numeric_only=numeric_only,
+            engine=engine,
+            engine_kwargs=engine_kwargs,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rolling_std_internal(
         self,
         fold_axis: Union[int, str],
         rolling_kwargs: dict,
@@ -17004,6 +17173,39 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rolling_min_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._rolling_min_internal(
+                fold_axis=fold_axis,
+                rolling_kwargs=rolling_kwargs,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+                **kwargs,
+            )
+        qc = self._rolling_min_internal(
+            fold_axis=fold_axis,
+            rolling_kwargs=rolling_kwargs,
+            numeric_only=numeric_only,
+            engine=engine,
+            engine_kwargs=engine_kwargs,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rolling_min_internal(
+        self,
+        fold_axis: Union[int, str],
+        rolling_kwargs: dict,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_min", engine, engine_kwargs
         )
@@ -17024,6 +17226,39 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         *args: Any,
         **kwargs: Any,
     ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rolling_max_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._rolling_max_internal(
+                fold_axis=fold_axis,
+                rolling_kwargs=rolling_kwargs,
+                numeric_only=numeric_only,
+                engine=engine,
+                engine_kwargs=engine_kwargs,
+                **kwargs,
+            )
+        qc = self._rolling_max_internal(
+            fold_axis=fold_axis,
+            rolling_kwargs=rolling_kwargs,
+            numeric_only=numeric_only,
+            engine=engine,
+            engine_kwargs=engine_kwargs,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rolling_max_internal(
+        self,
+        fold_axis: Union[int, str],
+        rolling_kwargs: dict,
+        numeric_only: bool = False,
+        engine: Optional[Literal["cython", "numba"]] = None,
+        engine_kwargs: Optional[dict[str, bool]] = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
         WarningMessage.warning_if_engine_args_is_set(
             "rolling_max", engine, engine_kwargs
         )
@@ -17035,6 +17270,57 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def rolling_corr(
+        self,
+        fold_axis: Union[int, str],
+        rolling_kwargs: dict,
+        other: Optional[SnowparkDataFrame] = None,
+        pairwise: Optional[bool] = None,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rolling_corr_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None and (
+            not isinstance(other, (Series, DataFrame))
+            or other._query_compiler._relaxed_query_compiler is not None
+        ):
+            if isinstance(other, (Series, DataFrame)):
+                if isinstance(other, Series):
+                    new_other = Series(
+                        query_compiler=other._query_compiler._relaxed_query_compiler
+                    )
+                else:  # DataFrame
+                    new_other = DataFrame(
+                        query_compiler=other._query_compiler._relaxed_query_compiler
+                    )
+            else:
+                new_other = other
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._rolling_corr_internal(
+                    fold_axis=fold_axis,
+                    rolling_kwargs=rolling_kwargs,
+                    other=new_other,
+                    pairwise=pairwise,
+                    ddof=ddof,
+                    numeric_only=numeric_only,
+                    **kwargs,
+                )
+            )
+        qc = self._rolling_corr_internal(
+            fold_axis=fold_axis,
+            rolling_kwargs=rolling_kwargs,
+            other=other,
+            pairwise=pairwise,
+            ddof=ddof,
+            numeric_only=numeric_only,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rolling_corr_internal(
         self,
         fold_axis: Union[int, str],
         rolling_kwargs: dict,
@@ -17126,6 +17412,36 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ErrorMessage.method_not_implemented_error(name="quantile", class_="Rolling")
 
     def rolling_sem(
+        self,
+        fold_axis: Union[int, str],
+        rolling_kwargs: dict,
+        ddof: int = 1,
+        numeric_only: bool = False,
+        *args: Any,
+        **kwargs: Any,
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _rolling_sem_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._rolling_sem_internal(
+                fold_axis=fold_axis,
+                rolling_kwargs=rolling_kwargs,
+                ddof=ddof,
+                numeric_only=numeric_only,
+                **kwargs,
+            )
+        qc = self._rolling_sem_internal(
+            fold_axis=fold_axis,
+            rolling_kwargs=rolling_kwargs,
+            ddof=ddof,
+            numeric_only=numeric_only,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _rolling_sem_internal(
         self,
         fold_axis: Union[int, str],
         rolling_kwargs: dict,
