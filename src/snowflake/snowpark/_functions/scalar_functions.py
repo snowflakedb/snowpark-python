@@ -3971,3 +3971,254 @@ def try_to_geometry(
         return builtin("try_to_geometry", _emit_ast=_emit_ast)(c, allow_invalid_col)
     else:
         return builtin("try_to_geometry", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def booland_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns True if all input values are True (or equivalent to True). Returns False if any input value is False (or equivalent to False). None values are ignored unless all values are None, in which case None is returned.
+
+    Args:
+        e (ColumnOrName): The boolean values to aggregate.
+
+    Returns:
+        Column: True if all values are True, False if any value is False, or None if all values are None.
+
+    Examples::
+        >>> df = session.create_dataframe([True, True, True], schema=["a"])
+        >>> df.select(booland_agg("a")).collect()
+        [Row(BOOLAND_AGG("A")=True)]
+        >>> df = session.create_dataframe([True, False, True], schema=["a"])
+        >>> df.select(booland_agg("a")).collect()
+        [Row(BOOLAND_AGG("A")=False)]
+        >>> df = session.create_dataframe([1, 2, 3], schema=["a"])
+        >>> df.select(booland_agg("a")).collect()
+        [Row(BOOLAND_AGG("A")=True)]
+        >>> df = session.create_dataframe([1, 0, 2], schema=["a"])
+        >>> df.select(booland_agg("a")).collect()
+        [Row(BOOLAND_AGG("A")=False)]
+    """
+    c = _to_col_if_str(e, "booland_agg")
+    return builtin("booland_agg", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def boolxor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the logical XOR of all non-None records in a group. If all records inside a group are None, returns None.
+
+    Args:
+        e (ColumnOrName): The boolean values to aggregate.
+
+    Returns:
+        Column: The logical XOR result of all non-None boolean values in the group.
+
+    Examples::
+
+        >>> df = session.create_dataframe([
+        ...     [True],
+        ...     [False],
+        ...     [False],
+        ...     [False]
+        ... ], schema=["col1"])
+        >>> df.select(boolxor_agg(df["col1"])).collect()
+        [Row(BOOLXOR_AGG("COL1")=True)]
+
+        >>> df = session.create_dataframe([
+        ...     [True],
+        ...     [True],
+        ...     [False],
+        ...     [False]
+        ... ], schema=["col1"])
+        >>> df.select(boolxor_agg(df["col1"])).collect()
+        [Row(BOOLXOR_AGG("COL1")=False)]
+
+        >>> df = session.create_dataframe([
+        ...     [False],
+        ...     [False],
+        ...     [False],
+        ...     [False]
+        ... ], schema=["col1"])
+        >>> df.select(boolxor_agg(df["col1"])).collect()
+        [Row(BOOLXOR_AGG("COL1")=False)]
+    """
+    c = _to_col_if_str(e, "boolxor_agg")
+    return builtin("boolxor_agg", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def regr_valy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the y value for each row where x is not None. If x is None, returns None.
+    This function is used in linear regression calculations to get the dependent variable values
+    for valid data points.
+
+    Args:
+        y (ColumnOrName): The dependent variable column or column name.
+        x (ColumnOrName): The independent variable column or column name.
+
+    Returns:
+        Column: A column containing the y values where x is not None, None otherwise.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([(2.0, 1.0), (None, 3.0), (6.0, None)], schema=["col_y", "col_x"])
+        >>> df.select(regr_valy(col("col_y"), col("col_x")).alias("result")).collect()
+        [Row(RESULT=2.0), Row(RESULT=None), Row(RESULT=None)]
+    """
+    y_col = _to_col_if_str(y, "regr_valy")
+    x_col = _to_col_if_str(x, "regr_valy")
+    return builtin("regr_valy", _emit_ast=_emit_ast)(y_col, x_col)
+
+
+@publicapi
+def zeroifnull(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns zero if the input expression is None; otherwise, returns the input expression.
+
+    Args:
+        expr (ColumnOrName): The input expression to evaluate for None values.
+
+    Returns:
+        Column: Zero if the input expression is None, otherwise the original value.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[1], [None], [5], [0]], schema=["a"])
+        >>> df.select(zeroifnull(col("a")).alias("result")).collect()
+        [Row(RESULT=1), Row(RESULT=0), Row(RESULT=5), Row(RESULT=0)]
+    """
+    c = _to_col_if_str(expr, "zeroifnull")
+    return builtin("zeroifnull", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def cot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Computes the cotangent of the input column. The input should be expressed in radians.
+
+    Args:
+        e (ColumnOrName): The input column or column name containing values in radians.
+
+    Returns:
+        Column: A column containing the cotangent values.
+
+    Examples::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1.0471975512], [0.7853981634], [1.5707963268]], schema=["a"])
+        >>> df.select(cot(df["a"]).cast(DecimalType(scale=10)).alias("cot_result")).collect()
+        [Row(COT_RESULT=Decimal('0.5773502692')), Row(COT_RESULT=Decimal('1.0000000000')), Row(COT_RESULT=Decimal('0E-10'))]
+    """
+    c = _to_col_if_str(e, "cot")
+    return builtin("cot", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def mod(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the remainder of expr1 divided by expr2.
+
+    Args:
+        expr1 (ColumnOrName): The dividend column or column name.
+        expr2 (ColumnOrName): The divisor column or column name.
+
+    Returns:
+        Column: The remainder of expr1 divided by expr2.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[10, 3], [15, 4], [7, 2]], schema=["a", "b"])
+        >>> df.select(mod(col("a"), col("b")).alias("mod_result")).collect()
+        [Row(MOD_RESULT=1), Row(MOD_RESULT=3), Row(MOD_RESULT=1)]
+    """
+    c1 = _to_col_if_str(expr1, "mod")
+    c2 = _to_col_if_str(expr2, "mod")
+    return builtin("mod", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def pi(_emit_ast: bool = True) -> Column:
+    """
+    Returns the mathematical constant pi (approximately 3.141592654).
+
+    Returns:
+        Column: The value of pi.
+
+    Examples::
+        >>> df = session.create_dataframe([[1]], schema=["dummy"])
+        >>> df.select(pi().alias("pi_value")).collect()
+        [Row(PI_VALUE=3.141592653589793)]
+    """
+    from snowflake.snowpark.functions import builtin
+
+    return builtin("pi", _emit_ast=_emit_ast)()
+
+
+@publicapi
+def square(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the square of a numeric expression (expr * expr).
+
+    Args:
+        expr (ColumnOrName): The numeric values to be squared.
+
+    Returns:
+        Column: The square of the input values.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[-2.0], [3.15]], schema=["a"])
+        >>> df.select(square(col("a")).alias("square")).collect()
+        [Row(SQUARE=4.0), Row(SQUARE=9.9225)]
+        >>> df = session.create_dataframe([[4], [5]], schema=["a"])
+        >>> df.select(square(col("a"), _emit_ast=False).alias("square")).collect()
+        [Row(SQUARE=16.0), Row(SQUARE=25.0)]
+    """
+    c = _to_col_if_str(expr, "square")
+    return builtin("square", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def width_bucket(
+    expr, min_value, max_value, num_buckets, _emit_ast: bool = True
+) -> Column:
+    """
+    Constructs equi-width histograms, in which the histogram range is divided
+    into intervals that have identical sizes, returning the bucket number that
+    the input expression would be assigned to.
+
+    Args:
+        expr (ColumnOrName): The expression to evaluate and assign to a bucket.
+        min_value (ColumnOrName): The minimum value of the histogram range.
+        max_value (ColumnOrName): The maximum value of the histogram range.
+        num_buckets (ColumnOrName): The number of buckets to create.
+
+    Returns:
+        Column: The bucket number (1-based) that the input expression falls into.
+
+    Examples::
+        >>> df = session.create_dataframe([
+        ...     [290000.00],
+        ...     [320000.00],
+        ...     [399999.99],
+        ...     [400000.00],
+        ...     [470000.00],
+        ...     [510000.00]
+        ... ], schema=["price"])
+        >>> df.select(width_bucket(df["price"], lit(200000), lit(600000), lit(4)).alias("sales_group")).collect()
+        [Row(SALES_GROUP=1), Row(SALES_GROUP=2), Row(SALES_GROUP=2), Row(SALES_GROUP=3), Row(SALES_GROUP=3), Row(SALES_GROUP=4)]
+        >>> df = session.create_dataframe([[150000.00]], schema=["price"])
+        >>> df.select(width_bucket(df["price"], lit(200000), lit(600000), lit(4)).alias("sales_group")).collect()
+        [Row(SALES_GROUP=0)]
+        >>> df = session.create_dataframe([[700000.00]], schema=["price"])
+        >>> df.select(width_bucket(df["price"], lit(200000), lit(9600000), lit(4)).alias("sales_group")).collect()
+        [Row(SALES_GROUP=1)]
+    """
+    expr_col = _to_col_if_str(expr, "width_bucket")
+    min_val_col = _to_col_if_str(min_value, "width_bucket")
+    max_val_col = _to_col_if_str(max_value, "width_bucket")
+    num_buckets_col = _to_col_if_str(num_buckets, "width_bucket")
+
+    return builtin("width_bucket", _emit_ast=_emit_ast)(
+        expr_col, min_val_col, max_val_col, num_buckets_col
+    )

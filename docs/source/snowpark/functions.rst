@@ -113,9 +113,11 @@ Functions
     bitxor_agg
     boolor_agg
     booland
+    booland_agg
     boolnot
     boolor
     boolxor
+    boolxor_agg
     build_stage_file_url
     builtin
     bround
@@ -150,6 +152,7 @@ Functions
     count_distinct
     covar_pop
     covar_samp
+    cot
     create_map
     cume_dist
     current_account
@@ -348,6 +351,7 @@ Functions
     min
     min_by
     minute
+    mod
     mode
     model
     monotonically_increasing_id
@@ -381,6 +385,7 @@ Functions
     percentile_cont
     position
     pow
+    pi
     previous_day
     prompt
     quarter
@@ -401,6 +406,7 @@ Functions
     regr_sxy
     regr_syy
     regr_valx
+    regr_valy
     repeat
     replace
     right
@@ -428,6 +434,7 @@ Functions
     split
     sproc
     sql_expr
+    square
     sqrt
     startswith
     stddev
@@ -550,6 +557,7 @@ Functions
     vector_inner_product
     vector_l2_distance
     weekofyear
+    width_bucket
     when
     when_matched
     when_not_matched
@@ -565,3 +573,4 @@ Functions
     xpath_short
     xpath_string
     year
+    zeroifnull
