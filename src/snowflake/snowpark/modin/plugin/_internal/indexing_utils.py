@@ -962,7 +962,7 @@ def get_valid_col_pos_list_from_columns(
 
         # convert float like keys to integers
         elif not is_integer_dtype(pos_array.dtype):
-            assert is_float_dtype(
+            assert pos_array.size == 0 or is_float_dtype(
                 pos_array.dtype
             ), "list-like key must be list of int or float"
             pos_list = pos_array.astype(int)
