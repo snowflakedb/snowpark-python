@@ -4551,7 +4551,7 @@ def try_base64_decode_binary(
         alphabet (ColumnOrName, optional): The base64 alphabet to use for decoding. If not specified, uses the standard base64 alphabet.
 
     Returns:
-        Column: A column containing the decoded binary data, or None if the input is invalid.
+        Column: The decoded binary data, or None if the input is invalid.
 
     Examples::
         >>> from snowflake.snowpark.functions import base64_encode
@@ -4566,6 +4566,10 @@ def try_base64_decode_binary(
         >>> df3 = session.create_dataframe(["invalid_base64!"], schema=["bad_input"])
         >>> df3.select(try_base64_decode_binary(df3["bad_input"])).collect()
         [Row(TRY_BASE64_DECODE_BINARY("BAD_INPUT")=None)]
+
+        >>> df4 = session.create_dataframe(["SEVMTE8="], schema=["encoded"])
+        >>> df4.select(try_base64_decode_binary(df4["encoded"]), lit("+/=")).collect()
+        [Row(TRY_BASE64_DECODE_BINARY("ENCODED")=bytearray(b'HELLO'), '+/='='+/=')]
     """
     input_col = _to_col_if_str(input_expr, "try_base64_decode_binary")
 
