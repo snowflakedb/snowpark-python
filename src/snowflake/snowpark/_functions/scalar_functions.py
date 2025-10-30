@@ -4010,7 +4010,7 @@ def strtok(
 
     if delimiter is None and part_nr is None:
         return builtin("strtok", _emit_ast=_emit_ast)(string_col)
-    elif part_nr is None:
+    elif delimiter is not None and part_nr is None:
         delimiter_col = _to_col_if_str(delimiter, "strtok")
         return builtin("strtok", _emit_ast=_emit_ast)(string_col, delimiter_col)
     else:
