@@ -794,7 +794,7 @@ def isin(self, values: set | ListLike) -> Series:
     if isinstance(values, set):
         values = list(values)
 
-    return super(Series, self).isin(values)
+    return super(Series, self).isin(values, self_is_series=True)
 
 
 # Snowpark pandas raises a warning before materializing data and passing to `plot`.
