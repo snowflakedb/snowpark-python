@@ -737,58 +737,23 @@ def test_auto_switch_supported_top_level_functions(method, kwargs):
 
 
 @pytest.mark.parametrize(
-    "method,kwargs,api_cls_name, test_index, expected_query_count",
+    "method,kwargs,api_cls_name",
     [
-        ("skew", {"numeric_only": True}, "BasePandasDataset", None, 1),
-        ("round", {"decimals": 1}, "BasePandasDataset", None, 1),
-        ("shift", {"periods": 1}, "BasePandasDataset", None, 1),
-        ("sort_index", {"axis": 0}, "BasePandasDataset", None, 1),
-        ("sort_values", {"by": "A", "axis": 0}, "BasePandasDataset", None, 1),
-        ("fillna", {"value": 0}, "DataFrame", None, 1),
-        ("dropna", {"axis": 0}, "DataFrame", None, 1),
-        (
-            "asfreq",
-            {"freq": "min"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-            4,
-        ),
-        (
-            "asfreq",
-            {"freq": "S"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="S"),
-            4,
-        ),
-        (
-            "asfreq",
-            {"freq": "H"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="H"),
-            4,
-        ),
-        (
-            "asfreq",
-            {"freq": "D"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="D"),
-            4,
-        ),
+        ("skew", {"numeric_only": True}, "BasePandasDataset"),
+        ("round", {"decimals": 1}, "BasePandasDataset"),
+        ("shift", {"periods": 1}, "BasePandasDataset"),
+        ("sort_index", {"axis": 0}, "BasePandasDataset"),
+        ("sort_values", {"by": "A", "axis": 0}, "BasePandasDataset"),
+        ("fillna", {"value": 0}, "DataFrame"),
+        ("dropna", {"axis": 0}, "DataFrame"),
     ],
 )
-def test_auto_switch_supported_dataframe(
-    method, kwargs, api_cls_name, test_index, expected_query_count
-):
+def test_auto_switch_supported_dataframe(method, kwargs, api_cls_name):
     # Test supported DataFrame operations that should stay on Snowflake backend.
     test_data = {"A": [1.23, None, 3.89], "B": [4.12, 5.26, 6.34]}
 
-    with SqlCounter(
-        query_count=expected_query_count,
-    ):
-        df = pd.DataFrame(
-            test_data,
-            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
-        ).move_to("Snowflake")
+    with SqlCounter(query_count=1):
+        df = pd.DataFrame(test_data).move_to("Snowflake")
         assert df.get_backend() == "Snowflake"
 
         _test_stay_cost(
@@ -807,74 +772,68 @@ def test_auto_switch_supported_dataframe(
             is_top_level=False,
         )
 
-        # For asfreq, we need to disable freq checking since Snowpark pandas doesn't preserve
-        # the freq attribute yet (SNOW-971642).
-        extra_kwargs = {"check_freq": False} if method == "asfreq" else {}
-
-        native_df = native_pd.DataFrame(
-            test_data,
-            index=native_pd.DatetimeIndex(test_index)
-            if test_index is not None
-            else None,
-        )
+        native_df = native_pd.DataFrame(test_data)
         eval_snowpark_pandas_result(
-            df, native_df, lambda df: getattr(df, method)(**kwargs), **extra_kwargs
+            df, native_df, lambda df: getattr(df, method)(**kwargs)
         )
 
 
 @pytest.mark.parametrize(
-    "method,kwargs,is_result_scalar,api_cls_name,test_index,expected_query_count",
+    "kwargs",
     [
-        ("skew", {"numeric_only": True}, True, "BasePandasDataset", None, 1),
-        ("round", {"decimals": 1}, False, "BasePandasDataset", None, 1),
-        ("shift", {"periods": 1}, False, "BasePandasDataset", None, 1),
-        ("sort_index", {"axis": 0}, False, "BasePandasDataset", None, 1),
-        ("fillna", {"value": 0}, False, "Series", None, 1),
-        (
-            "asfreq",
-            {"freq": "min"},
-            False,
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="min"),
-            4,
-        ),
-        (
-            "asfreq",
-            {"freq": "S"},
-            False,
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="S"),
-            4,
-        ),
-        (
-            "asfreq",
-            {"freq": "H"},
-            False,
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="H"),
-            4,
-        ),
-        (
-            "asfreq",
-            {"freq": "D"},
-            False,
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="D"),
-            4,
-        ),
+        {"freq": "min"},
+        {"freq": "S"},
+        {"freq": "H"},
+        {"freq": "D"},
     ],
 )
-def test_auto_switch_supported_series(
-    method, kwargs, is_result_scalar, api_cls_name, test_index, expected_query_count
-):
+def test_auto_switch_supported_dataframe_asfreq(kwargs):
+    # Test supported DataFrame operations that should stay on Snowflake backend.
+    test_data = {"A": [1.23, None, 3.89], "B": [4.12, 5.26, 6.34]}
+
+    with SqlCounter(query_count=4):
+        index = native_pd.date_range("2023-01-01", periods=3, freq=kwargs["freq"])
+        df = pd.DataFrame(test_data, index=pd.DatetimeIndex(index)).move_to("Snowflake")
+        assert df.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=df,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        _test_expected_backend(
+            data_obj=df,
+            method_name="asfreq",
+            args=kwargs,
+            expected_backend="Snowflake",
+            is_top_level=False,
+        )
+
+        native_df = native_pd.DataFrame(test_data, index=native_pd.DatetimeIndex(index))
+        eval_snowpark_pandas_result(
+            df, native_df, lambda df: df.asfreq(**kwargs), check_freq=False
+        )
+
+
+@pytest.mark.parametrize(
+    "method,kwargs,is_result_scalar,api_cls_name",
+    [
+        ("skew", {"numeric_only": True}, True, "BasePandasDataset"),
+        ("round", {"decimals": 1}, False, "BasePandasDataset"),
+        ("shift", {"periods": 1}, False, "BasePandasDataset"),
+        ("sort_index", {"axis": 0}, False, "BasePandasDataset"),
+        ("fillna", {"value": 0}, False, "Series"),
+    ],
+)
+def test_auto_switch_supported_series(method, kwargs, is_result_scalar, api_cls_name):
     # Test supported Series operations that should stay on Snowflake backend.
     test_data = [1.89, 2.95, 3.12, None, 5.23, 6.34]
 
-    with SqlCounter(query_count=expected_query_count):
-        series = pd.Series(
-            test_data,
-            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
-        ).move_to("Snowflake")
+    with SqlCounter(query_count=1):
+        series = pd.Series(test_data).move_to("Snowflake")
         assert series.get_backend() == "Snowflake"
 
         _test_stay_cost(
@@ -894,18 +853,7 @@ def test_auto_switch_supported_series(
                 is_top_level=False,
             )
 
-        native_series = native_pd.Series(
-            test_data,
-            index=native_pd.DatetimeIndex(test_index)
-            if test_index is not None
-            else None,
-        )
-
-        # For asfreq, we need to disable freq checking since Snowpark pandas doesn't preserve
-        # the freq attribute yet (SNOW-971642).
-        extra_kwargs = (
-            {"check_freq": False} if method == "asfreq" and not is_result_scalar else {}
-        )
+        native_series = native_pd.Series(test_data)
 
         eval_snowpark_pandas_result(
             series,
@@ -915,7 +863,55 @@ def test_auto_switch_supported_series(
             if is_result_scalar
             else assert_snowpark_pandas_equal_to_pandas,
             test_attrs=False,
-            **extra_kwargs,
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"freq": "min"},
+        {"freq": "S"},
+        {"freq": "H"},
+        {"freq": "D"},
+    ],
+)
+def test_auto_switch_supported_series_asfreq(kwargs):
+    # Test supported Series asfreq operations that should stay on Snowflake backend.
+    test_data = [1.89, 2.95, 3.12, None, 5.23, 6.34]
+
+    with SqlCounter(query_count=4):
+        index = native_pd.date_range("2023-01-01", periods=6, freq=kwargs["freq"])
+        series = pd.Series(test_data, index=pd.DatetimeIndex(index)).move_to(
+            "Snowflake"
+        )
+        assert series.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        _test_expected_backend(
+            data_obj=series,
+            method_name="asfreq",
+            args=kwargs,
+            expected_backend="Snowflake",
+            is_top_level=False,
+        )
+
+        native_series = native_pd.Series(
+            test_data, index=native_pd.DatetimeIndex(index)
+        )
+
+        eval_snowpark_pandas_result(
+            series,
+            native_series,
+            lambda series: series.asfreq(**kwargs),
+            test_attrs=False,
+            check_freq=False,
         )
 
 
@@ -1070,118 +1066,33 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
 
 
 @pytest.mark.parametrize(
-    "method,kwargs,api_cls_name,test_index, expected_query_count",
+    "method,kwargs,api_cls_name",
     [
-        ("skew", {"axis": 1}, "BasePandasDataset", None, 1),
-        ("skew", {"numeric_only": False}, "BasePandasDataset", None, 1),
-        ("cumsum", {"axis": 1}, "BasePandasDataset", None, 1),
-        ("cummin", {"axis": 1}, "BasePandasDataset", None, 1),
-        ("cummax", {"axis": 1}, "BasePandasDataset", None, 1),
-        (
-            "round",
-            {"decimals": native_pd.Series([0, 1, 1])},
-            "BasePandasDataset",
-            None,
-            1,
-        ),
-        (
-            "shift",
-            {"periods": [1, 2], "suffix": "suffix"},
-            "BasePandasDataset",
-            None,
-            1,
-        ),
-        ("shift", {"periods": [1, 2]}, "BasePandasDataset", None, 1),
-        ("sort_index", {"axis": 1}, "BasePandasDataset", None, 1),
-        ("sort_index", {"key": lambda x: x}, "BasePandasDataset", None, 1),
-        ("sort_values", {"by": 0, "axis": 1}, "BasePandasDataset", None, 1),
-        (
-            "apply",
-            {"func": lambda x: x * 2, "result_type": "expand"},
-            "DataFrame",
-            None,
-            1,
-        ),
-        ("corr", {"method": "kendall"}, "DataFrame", None, 1),
-        (
-            "corr",
-            {"method": lambda x, y: np.corrcoef(x, y)[0, 1]},
-            "DataFrame",
-            None,
-            1,
-        ),
-        ("dropna", {"axis": 1}, "DataFrame", None, 1),
-        ("fillna", {"value": 0, "limit": 1}, "DataFrame", None, 1),
-        ("fillna", {"downcast": "infer", "value": 0}, "DataFrame", None, 1),
-        (
-            "asfreq",
-            {"freq": "Q"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="Q"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"freq": "W"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="W"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"freq": "M"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="M"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"freq": "Y"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="Y"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"how": "start", "freq": "min"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"how": "end", "freq": "min"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"normalize": True, "freq": "min"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"fill_value": 0, "freq": "min"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-            3,
-        ),
+        ("skew", {"axis": 1}, "BasePandasDataset"),
+        ("skew", {"numeric_only": False}, "BasePandasDataset"),
+        ("cumsum", {"axis": 1}, "BasePandasDataset"),
+        ("cummin", {"axis": 1}, "BasePandasDataset"),
+        ("cummax", {"axis": 1}, "BasePandasDataset"),
+        ("round", {"decimals": native_pd.Series([0, 1, 1])}, "BasePandasDataset"),
+        ("shift", {"periods": [1, 2], "suffix": "suffix"}, "BasePandasDataset"),
+        ("shift", {"periods": [1, 2]}, "BasePandasDataset"),
+        ("sort_index", {"axis": 1}, "BasePandasDataset"),
+        ("sort_index", {"key": lambda x: x}, "BasePandasDataset"),
+        ("sort_values", {"by": 0, "axis": 1}, "BasePandasDataset"),
+        ("apply", {"func": lambda x: x * 2, "result_type": "expand"}, "DataFrame"),
+        ("corr", {"method": "kendall"}, "DataFrame"),
+        ("corr", {"method": lambda x, y: np.corrcoef(x, y)[0, 1]}, "DataFrame"),
+        ("dropna", {"axis": 1}, "DataFrame"),
+        ("fillna", {"value": 0, "limit": 1}, "DataFrame"),
+        ("fillna", {"downcast": "infer", "value": 0}, "DataFrame"),
     ],
 )
-def test_auto_switch_unsupported_dataframe(
-    method, kwargs, api_cls_name, test_index, expected_query_count
-):
+def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
     # Test unsupported DataFrame operations that should switch to Pandas backend.
     test_data = {"A": [1.234, 2.567, 9.101], "B": [3.891, 4.123, 5.912]}
 
-    with SqlCounter(query_count=expected_query_count):
-        df = pd.DataFrame(
-            test_data,
-            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
-        ).move_to("Snowflake")
+    with SqlCounter(query_count=1):
+        df = pd.DataFrame(test_data).move_to("Snowflake")
 
         snowpark_kwargs = {
             k: pd.Series(v) if isinstance(v, native_pd.Series) else v
@@ -1196,10 +1107,7 @@ def test_auto_switch_unsupported_dataframe(
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        pandas_df = pd.DataFrame(
-            test_data,
-            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
-        )
+        pandas_df = pd.DataFrame(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_df._query_compiler,
             api_cls_name=api_cls_name,
@@ -1216,18 +1124,67 @@ def test_auto_switch_unsupported_dataframe(
             is_top_level=False,
         )
 
-        native_df = native_pd.DataFrame(
-            test_data,
-            index=native_pd.DatetimeIndex(test_index)
-            if test_index is not None
-            else None,
-        )
+        native_df = native_pd.DataFrame(test_data)
         eval_snowpark_pandas_result(
             df,
             native_df,
             lambda df: getattr(df, method)(
                 **(kwargs if isinstance(df, native_pd.DataFrame) else snowpark_kwargs)
             ),
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"freq": "Q"},
+        {"freq": "W"},
+        {"freq": "M"},
+        {"freq": "Y"},
+        {"how": "start", "freq": "min"},
+        {"how": "end", "freq": "min"},
+        {"normalize": True, "freq": "min"},
+        {"fill_value": 0, "freq": "min"},
+    ],
+)
+def test_auto_switch_unsupported_dataframe_asfreq(kwargs):
+    # Test unsupported DataFrame operations that should switch to Pandas backend.
+    test_data = {"A": [1.234, 2.567, 9.101], "B": [3.891, 4.123, 5.912]}
+
+    with SqlCounter(query_count=3):
+        index = native_pd.date_range("2023-01-01", periods=3, freq=kwargs["freq"])
+        df = pd.DataFrame(test_data, index=pd.DatetimeIndex(index)).move_to("Snowflake")
+
+        _test_stay_cost(
+            data_obj=df,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_df = pd.DataFrame(test_data, index=pd.DatetimeIndex(index))
+        _test_move_to_me_cost(
+            pandas_qc=pandas_df._query_compiler,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        _test_expected_backend(
+            data_obj=df,
+            method_name="asfreq",
+            args=kwargs,
+            expected_backend="Pandas",
+            is_top_level=False,
+        )
+
+        native_df = native_pd.DataFrame(test_data, index=native_pd.DatetimeIndex(index))
+        eval_snowpark_pandas_result(
+            df,
+            native_df,
+            lambda df: df.asfreq(**kwargs),
         )
 
 
@@ -1487,83 +1444,22 @@ def test_auto_switch_supported_dataframe_groupby(method, method_kwargs):
 
 
 @pytest.mark.parametrize(
-    "method,kwargs,api_cls_name, test_index, expected_query_count",
+    "method,kwargs,api_cls_name",
     [
-        ("skew", {"numeric_only": False}, "BasePandasDataset", None, 1),
-        ("shift", {"suffix": "_suffix"}, "BasePandasDataset", None, 1),
-        ("shift", {"periods": [1, 2]}, "BasePandasDataset", None, 1),
-        ("fillna", {"value": 0, "limit": 1}, "Series", None, 1),
-        ("fillna", {"downcast": "infer", "value": 0}, "Series", None, 1),
-        ("sort_index", {"key": lambda x: x}, "BasePandasDataset", None, 1),
-        (
-            "asfreq",
-            {"freq": "Q"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="Q"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"freq": "W"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="W"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"freq": "M"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="M"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"freq": "Y"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="Y"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"how": "start", "freq": "min"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="min"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"how": "end", "freq": "min"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="min"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"normalize": True, "freq": "min"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="min"),
-            3,
-        ),
-        (
-            "asfreq",
-            {"fill_value": 0, "freq": "min"},
-            "BasePandasDataset",
-            native_pd.date_range("2023-01-01", periods=6, freq="min"),
-            3,
-        ),
+        ("skew", {"numeric_only": False}, "BasePandasDataset"),
+        ("shift", {"suffix": "_suffix"}, "BasePandasDataset"),
+        ("shift", {"periods": [1, 2]}, "BasePandasDataset"),
+        ("fillna", {"value": 0, "limit": 1}, "Series"),
+        ("fillna", {"downcast": "infer", "value": 0}, "Series"),
+        ("sort_index", {"key": lambda x: x}, "BasePandasDataset"),
     ],
 )
-def test_auto_switch_unsupported_series(
-    method, kwargs, api_cls_name, test_index, expected_query_count
-):
+def test_auto_switch_unsupported_series(method, kwargs, api_cls_name):
     # Test unsupported Series operations that should switch to Pandas backend.
     test_data = [1, 2, 3, 4, 5, 6]
 
-    with SqlCounter(query_count=expected_query_count):
-        series = pd.Series(
-            test_data,
-            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
-        ).move_to("Snowflake")
+    with SqlCounter(query_count=1):
+        series = pd.Series(test_data).move_to("Snowflake")
         assert series.get_backend() == "Snowflake"
 
         _test_stay_cost(
@@ -1574,10 +1470,7 @@ def test_auto_switch_unsupported_series(
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        pandas_series = pd.Series(
-            test_data,
-            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
-        )
+        pandas_series = pd.Series(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_series._query_compiler,
             api_cls_name=api_cls_name,
@@ -1586,18 +1479,62 @@ def test_auto_switch_unsupported_series(
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        native_series = native_pd.Series(
-            test_data,
-            index=native_pd.DatetimeIndex(test_index)
-            if test_index is not None
-            else None,
-        )
+        native_series = native_pd.Series(test_data)
         eval_snowpark_pandas_result(
             series,
             native_series,
             lambda series: getattr(series, method)(**kwargs),
             comparator=np.testing.assert_allclose,
             test_attrs=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"freq": "Q"},
+        {"freq": "W"},
+        {"freq": "M"},
+        {"freq": "Y"},
+        {"how": "start", "freq": "min"},
+        {"how": "end", "freq": "min"},
+        {"normalize": True, "freq": "min"},
+        {"fill_value": 0, "freq": "min"},
+    ],
+)
+def test_auto_switch_unsupported_series_asfreq(kwargs):
+    # Test unsupported Series operations that should switch to Pandas backend.
+    test_data = [1, 2, 3, 4, 5, 6]
+
+    with SqlCounter(query_count=3):
+        index = native_pd.date_range("2023-01-01", periods=6, freq=kwargs["freq"])
+        series = pd.Series(test_data, index=pd.DatetimeIndex(index)).move_to(
+            "Snowflake"
+        )
+        assert series.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_series = pd.Series(test_data, index=pd.DatetimeIndex(index))
+        _test_move_to_me_cost(
+            pandas_qc=pandas_series._query_compiler,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        native_series = native_pd.Series(
+            test_data, index=native_pd.DatetimeIndex(index)
+        )
+        eval_snowpark_pandas_result(
+            series, native_series, lambda series: series.asfreq(**kwargs)
         )
 
 
@@ -1900,292 +1837,200 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
 
 
 @pytest.mark.parametrize(
-    "method,kwargs,expected_reason, test_index, expected_query_count",
+    "method,kwargs,expected_reason",
     [
         (
             "skew",
             {"axis": 1},
             "axis = 1 is not supported",
-            None,
-            0,
         ),
         (
             "skew",
             {"numeric_only": False},
             "numeric_only = False argument not supported for skew",
-            None,
-            0,
         ),
         (
             "cumsum",
             {"axis": 1},
             "axis = 1 is not supported",
-            None,
-            0,
         ),
         (
             "cummin",
             {"axis": 1},
             "axis = 1 is not supported",
-            None,
-            0,
         ),
         (
             "cummax",
             {"axis": 1},
             "axis = 1 is not supported",
-            None,
-            0,
         ),
         (
             "shift",
             {"suffix": "_suffix"},
             "the 'suffix' parameter is not yet supported",
-            None,
-            0,
         ),
         (
             "shift",
             {"periods": [1, 2]},
             "only int 'periods' is currently supported",
-            None,
-            0,
         ),
         (
             "sort_index",
             {"axis": 1},
             "axis = 1 is not supported",
-            None,
-            0,
         ),
         (
             "sort_index",
             {"key": lambda x: x},
             "the 'key' parameter is not yet supported",
-            None,
-            0,
         ),
         (
             "sort_values",
             {"by": "A", "axis": 1},
             "axis = 1 is not supported",
-            None,
-            0,
         ),
         (
             "apply",
             {"func": lambda x: x * 2, "result_type": "expand"},
             "the 'result_type' parameter is not yet supported",
-            None,
-            0,
         ),
         (
             "fillna",
             {"downcast": "infer", "value": 0},
             "the 'downcast' parameter is not yet supported",
-            None,
-            0,
         ),
         (
             "fillna",
             {"limit": 1, "value": 0},
             "the 'limit' parameter with 'value' parameter is not yet supported",
-            None,
-            0,
         ),
         (
             "dropna",
             {"axis": 1},
             "axis = 1 is not supported",
-            None,
-            0,
         ),
         (
             "corr",
             {"method": "kendall"},
             "method = 'kendall' is not supported. Snowpark pandas currently only supports method = 'pearson'.",
-            None,
-            0,
         ),
         (
             "corr",
             {"method": 123},
             "method parameter must be a string. Snowpark pandas currently only supports method = 'pearson'.",
-            None,
-            0,
-        ),
-        (
-            "asfreq",
-            {"freq": "Q"},
-            "the 'freq' parameter does not support week, month, quarter, or year",
-            native_pd.date_range("2023-01-01", periods=3, freq="Q"),
-            1,
-        ),
-        (
-            "asfreq",
-            {"freq": "W"},
-            "the 'freq' parameter does not support week, month, quarter, or year",
-            native_pd.date_range("2023-01-01", periods=3, freq="W"),
-            1,
-        ),
-        (
-            "asfreq",
-            {"freq": "M"},
-            "the 'freq' parameter does not support week, month, quarter, or year",
-            native_pd.date_range("2023-01-01", periods=3, freq="M"),
-            1,
-        ),
-        (
-            "asfreq",
-            {"freq": "Y"},
-            "the 'freq' parameter does not support week, month, quarter, or year",
-            native_pd.date_range("2023-01-01", periods=3, freq="Y"),
-            1,
-        ),
-        (
-            "asfreq",
-            {"how": "start", "freq": "min"},
-            "the 'how' parameter is not yet supported",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-            1,
-        ),
-        (
-            "asfreq",
-            {"how": "end", "freq": "min"},
-            "the 'how' parameter is not yet supported",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-            1,
-        ),
-        (
-            "asfreq",
-            {"normalize": True, "freq": "min"},
-            "normalize = True is not supported",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-            1,
-        ),
-        (
-            "asfreq",
-            {"fill_value": 0, "freq": "min"},
-            "the 'fill_value' parameter is not yet supported",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-            1,
         ),
     ],
 )
+@sql_count_checker(query_count=0)
 def test_error_handling_dataframe_when_auto_switch_disabled(
-    method, kwargs, expected_reason, test_index, expected_query_count
+    method, kwargs, expected_reason
 ):
     # Test that unsupported DataFrame args raise NotImplementedError when auto-switch is disabled.
     with config_context(AutoSwitchBackend=False):
-        with SqlCounter(query_count=expected_query_count):
-            test_data = {"A": [1, 2, 3], "B": [4, 5, 6]}
-            df = pd.DataFrame(
-                test_data,
-                index=pd.DatetimeIndex(test_index) if test_index is not None else None,
-            ).move_to("Snowflake")
+        df = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]}).move_to("Snowflake")
 
-            with pytest.raises(
-                NotImplementedError,
-                match=re.escape(
-                    f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
-                ),
-            ):
-                getattr(df, method)(**kwargs)
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                f"Snowpark pandas {method} does not yet support the parameter combination because {expected_reason}"
+            ),
+        ):
+            getattr(df, method)(**kwargs)
 
 
 @pytest.mark.parametrize(
-    "method,kwargs,expected_reason, test_index",
+    "kwargs,expected_reason",
+    [
+        (
+            {"freq": "Q"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "W"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "M"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "Y"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"how": "start", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"how": "end", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"normalize": True, "freq": "min"},
+            "normalize = True is not supported",
+        ),
+        (
+            {"fill_value": 0, "freq": "min"},
+            "the 'fill_value' parameter is not yet supported",
+        ),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_error_handling_dataframe_asfreq_when_auto_switch_disabled(
+    kwargs, expected_reason
+):
+    # Test that unsupported DataFrame asfreq args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        index = native_pd.date_range("2023-01-01", periods=3, freq=kwargs["freq"])
+        df = pd.DataFrame(
+            {"A": [1, 2, 3], "B": [4, 5, 6]}, index=pd.DatetimeIndex(index)
+        ).move_to("Snowflake")
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                f"Snowpark pandas asfreq does not yet support the parameter combination because {expected_reason}"
+            ),
+        ):
+            df.asfreq(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "method,kwargs,expected_reason",
     [
         (
             "skew",
             {"numeric_only": False},
             "numeric_only = False argument not supported for skew",
-            None,
         ),
         (
             "shift",
             {"suffix": "_suffix"},
             "the 'suffix' parameter is not yet supported",
-            None,
         ),
         (
             "shift",
             {"periods": [1, 2]},
             "only int 'periods' is currently supported",
-            None,
         ),
         (
             "fillna",
             {"downcast": "infer", "value": 0},
             "the 'downcast' parameter is not yet supported",
-            None,
         ),
         (
             "fillna",
             {"limit": 1, "value": 0},
             "the 'limit' parameter with 'value' parameter is not yet supported",
-            None,
-        ),
-        (
-            "asfreq",
-            {"freq": "Q"},
-            "the 'freq' parameter does not support week, month, quarter, or year",
-            native_pd.date_range("2023-01-01", periods=3, freq="Q"),
-        ),
-        (
-            "asfreq",
-            {"freq": "W"},
-            "the 'freq' parameter does not support week, month, quarter, or year",
-            native_pd.date_range("2023-01-01", periods=3, freq="W"),
-        ),
-        (
-            "asfreq",
-            {"freq": "M"},
-            "the 'freq' parameter does not support week, month, quarter, or year",
-            native_pd.date_range("2023-01-01", periods=3, freq="M"),
-        ),
-        (
-            "asfreq",
-            {"freq": "Y"},
-            "the 'freq' parameter does not support week, month, quarter, or year",
-            native_pd.date_range("2023-01-01", periods=3, freq="Y"),
-        ),
-        (
-            "asfreq",
-            {"how": "start", "freq": "min"},
-            "the 'how' parameter is not yet supported",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-        ),
-        (
-            "asfreq",
-            {"how": "end", "freq": "min"},
-            "the 'how' parameter is not yet supported",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-        ),
-        (
-            "asfreq",
-            {"normalize": True, "freq": "min"},
-            "normalize = True is not supported",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
-        ),
-        (
-            "asfreq",
-            {"fill_value": 0, "freq": "min"},
-            "the 'fill_value' parameter is not yet supported",
-            native_pd.date_range("2023-01-01", periods=3, freq="min"),
         ),
     ],
 )
 @sql_count_checker(query_count=0)
 def test_error_handling_series_when_auto_switch_disabled(
-    method, kwargs, expected_reason, test_index
+    method, kwargs, expected_reason
 ):
     # Test that unsupported Series args raise NotImplementedError when auto-switch is disabled.
     with config_context(AutoSwitchBackend=False):
-        series = pd.Series(
-            [1, 2, 3, 4, 5, 6],
-            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
-        ).move_to("Snowflake")
+        series = pd.Series([1, 2, 3, 4, 5, 6]).move_to("Snowflake")
 
         with pytest.raises(
             NotImplementedError,
@@ -2194,6 +2039,63 @@ def test_error_handling_series_when_auto_switch_disabled(
             ),
         ):
             getattr(series, method)(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected_reason",
+    [
+        (
+            {"freq": "Q"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "W"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "M"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "Y"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"how": "start", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"how": "end", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"normalize": True, "freq": "min"},
+            "normalize = True is not supported",
+        ),
+        (
+            {"fill_value": 0, "freq": "min"},
+            "the 'fill_value' parameter is not yet supported",
+        ),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_error_handling_series_asfreq_when_auto_switch_disabled(
+    kwargs, expected_reason
+):
+    # Test that unsupported Series asfreq args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        index = native_pd.date_range("2023-01-01", periods=6, freq=kwargs["freq"])
+        series = pd.Series([1, 2, 3, 4, 5, 6], index=pd.DatetimeIndex(index)).move_to(
+            "Snowflake"
+        )
+
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                f"Snowpark pandas asfreq does not yet support the parameter combination because {expected_reason}"
+            ),
+        ):
+            series.asfreq(**kwargs)
 
 
 @sql_count_checker(query_count=0)
