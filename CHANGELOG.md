@@ -93,6 +93,14 @@
   - `rolling.var`
   - `rolling.sem`
   - `rolling.corr`
+  - `expanding.min`
+  - `expanding.max`
+  - `expanding.count`
+  - `expanding.sum`
+  - `expanding.mean`
+  - `expanding.std`
+  - `expanding.var`
+  - `expanding.sem`
   - `cumsum`
   - `cummin`
   - `cummax`
