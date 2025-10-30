@@ -11888,7 +11888,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                         frame.index_column_snowflake_quoted_identifiers[0]: pandas_lit(
                             frame.data_column_pandas_labels[0]
                         ),
-                    }
+                    },
+                    # Swap the name of the index/columns objects
+                    new_index_column_pandas_labels=frame.data_column_pandas_index_names,
                 )[0]
             ).set_columns([None])
 

@@ -193,7 +193,9 @@ def test_string_sum_with_nulls():
     with pytest.raises(TypeError):
         pandas_df.sum(numeric_only=False)
     snow_result = snow_df.sum(numeric_only=False)
-    assert_series_equal(snow_result.to_pandas(), native_pd.Series(["ab"]))
+    assert_series_equal(
+        snow_result.to_pandas(), native_pd.Series(["ab"]), check_index_type=False
+    )
 
 
 class TestTimedelta:
