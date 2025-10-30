@@ -521,6 +521,20 @@ class Session:
                 _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
+                if context._is_snowpark_connect_compatible_mode:
+                    for sql in [
+                        """select function_name from information_schema.functions where is_aggregate = 'YES'""",
+                        """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
+                    ]:
+                        try:
+                            context._aggregation_function_set.update(
+                                {r[0] for r in session.sql(sql).collect()}
+                            )
+                        except BaseException as e:
+                            _logger.debug(
+                                "Unable to get aggregation functions from the database: %s",
+                                e,
+                            )
 
             if self._app_name:
                 if self._format_json:

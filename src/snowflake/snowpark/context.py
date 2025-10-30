@@ -31,6 +31,7 @@ _use_structured_type_semantics_lock = threading.RLock()
 
 # This is an internal-only global flag, used to determine whether the api code which will be executed is compatible with snowflake.snowpark_connect
 _is_snowpark_connect_compatible_mode = False
+_aggregation_function_set = set()
 
 # Following are internal-only global flags, used to enable development features.
 _enable_dataframe_trace_on_error = False
