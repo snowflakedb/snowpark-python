@@ -4568,8 +4568,8 @@ def try_base64_decode_binary(
         [Row(TRY_BASE64_DECODE_BINARY("BAD_INPUT")=None)]
 
         >>> df4 = session.create_dataframe(["SEVMTE8="], schema=["encoded"])
-        >>> df4.select(try_base64_decode_binary(df4["encoded"]), lit("+/=")).collect()
-        [Row(TRY_BASE64_DECODE_BINARY("ENCODED")=bytearray(b'HELLO'), '+/='='+/=')]
+        >>> df4.select(try_base64_decode_binary(df4["encoded"], lit("+/="))).collect()
+        [Row(TRY_BASE64_DECODE_BINARY("ENCODED", '+/=')=bytearray(b'HELLO'))]
     """
     input_col = _to_col_if_str(input_expr, "try_base64_decode_binary")
 
