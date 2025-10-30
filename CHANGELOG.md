@@ -95,6 +95,15 @@
   - `dt.month_name`
   - `dt.day_name`
   - `dt.strftime`  
+  - `rolling.min`
+  - `rolling.max`
+  - `rolling.count`
+  - `rolling.sum`
+  - `rolling.mean`
+  - `rolling.std`
+  - `rolling.var`
+  - `rolling.sem`
+  - `rolling.corr`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 
 ## 1.42.0 (2025-10-28)
