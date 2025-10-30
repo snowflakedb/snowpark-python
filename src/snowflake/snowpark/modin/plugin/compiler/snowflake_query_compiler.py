@@ -11923,7 +11923,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unpivot_result.variable_name_quoted_snowflake_identifier,
             unpivot_result.object_name_quoted_snowflake_identifier,
         )
-        new_internal_frame.ordered_dataframe.row_count = 1
+        new_internal_frame.ordered_dataframe.row_count = input_column_count
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
