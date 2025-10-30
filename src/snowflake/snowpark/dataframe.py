@@ -2183,6 +2183,13 @@ class DataFrame:
         """
 
         is_order_by_all = not cols
+
+        # This code performs additional type checks, run first.
+        exprs = self._convert_cols_to_exprs("sort()", *cols)
+        if not is_order_by_all:
+            if not exprs:
+                raise ValueError("sort() needs at least one sort expression.")
+
         if (
             is_order_by_all
             and ascending is not None
@@ -2230,10 +2237,6 @@ class DataFrame:
             order = Ascending() if bool(asc_value) else Descending()
             sort_exprs = [SortByAllOrder(order)]
         else:
-            exprs = self._convert_cols_to_exprs("sort()", *cols)
-            if not exprs:
-                raise ValueError("sort() needs at least one sort expression.")
-
             orders = []
             if ascending is not None:
                 if isinstance(ascending, (list, tuple)):
