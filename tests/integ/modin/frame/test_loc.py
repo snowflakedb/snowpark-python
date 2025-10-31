@@ -505,16 +505,20 @@ def test_mi_df_loc_get_non_boolean_list_col_key(mi_table_df, key, native_error):
 )
 def test_mi_df_loc_get_non_boolean_list_row_key(mi_table_df, key, native_error):
     df = pd.DataFrame(mi_table_df)
+    union_count = 0
     if isinstance(key, tuple) or is_scalar(key):
         # it uses filter so no join count
         query_count, join_count = 1, 0
         if isinstance(key, tuple) and len(key) == 2:
             # multiindex full lookup requires squeeze to run
             query_count += 1
+            union_count = 1
     else:
         # other list like key
         query_count, join_count = 1, 1
-    with SqlCounter(query_count=query_count, join_count=join_count):
+    with SqlCounter(
+        query_count=query_count, join_count=join_count, union_count=union_count
+    ):
         if native_error:
             with pytest.raises(native_error):
                 _ = mi_table_df.loc[key]
@@ -576,6 +580,7 @@ def test_mi_df_loc_get_non_boolean_list_row_key(mi_table_df, key, native_error):
 )
 def test_mi_df_loc_get_non_boolean_list_tuple_key(mi_table_df, row, col):
     df = pd.DataFrame(mi_table_df)
+    union_count = 0
     if isinstance(row, tuple) or is_scalar(row):
         # it uses filter so no join count
         query_count, join_count = 1, 0
@@ -586,10 +591,18 @@ def test_mi_df_loc_get_non_boolean_list_tuple_key(mi_table_df, row, col):
         ):
             # multiindex full lookup requires squeeze to run
             query_count += 1
+            if not (
+                isinstance(col, tuple)
+                and len(col) == 2
+                and not any(isinstance(c, slice) for c in col)
+            ):
+                union_count = 1
     else:
         # other list like key
         query_count, join_count = 1, 1
-    with SqlCounter(query_count=query_count, join_count=join_count):
+    with SqlCounter(
+        query_count=query_count, join_count=join_count, union_count=union_count
+    ):
         if (
             isinstance(row, tuple)
             and len(row) == 2
