@@ -64,6 +64,7 @@ def add_snowpark_session(doctest_namespace, pytestconfig):
         session.sql_simplifier_enabled = (
             os.environ.get("USE_SQL_SIMPLIFIER") == "1" or LOCAL_TESTING_MODE
         )
+        # TODO: SNOW-2346239: Set parameter on user level instead of in config file
         session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true")
         if RUNNING_ON_GH:
             session.sql(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}").collect()
