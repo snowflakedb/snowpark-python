@@ -132,7 +132,7 @@ def current_transaction(_emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def bitand_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def bitand_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the bitwise AND of all non-NULL records in a group. If all records inside a group are NULL, returns NULL.
 
@@ -142,12 +142,12 @@ def bitand_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(bitand_agg("a")).collect()
         [Row(BITAND_AGG("A")=8)]
     """
-    c = _to_col_if_str(e, "bitand_agg")
+    c = _to_col_if_str(expr, "bitand_agg")
     return builtin("bitand_agg", _emit_ast=_emit_ast)(c)
 
 
 @publicapi
-def bitor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def bitor_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the bitwise OR of all non-NULL records in a group. If all records inside a group are NULL, a NULL is returned.
 
@@ -157,12 +157,12 @@ def bitor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(bitor_agg("a").alias("result")).collect()
         [Row(RESULT=31)]
     """
-    c = _to_col_if_str(e, "bitor_agg")
+    c = _to_col_if_str(expr, "bitor_agg")
     return builtin("bitor_agg", _emit_ast=_emit_ast)(c)
 
 
 @publicapi
-def bitxor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def bitxor_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the bitwise XOR of all non-NULL records in a group. If all records inside a group are NULL, the function returns NULL.
 
@@ -172,7 +172,7 @@ def bitxor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(bitxor_agg("a")).collect()
         [Row(BITXOR_AGG("A")=25)]
     """
-    c = _to_col_if_str(e, "bitxor_agg")
+    c = _to_col_if_str(expr, "bitxor_agg")
     return builtin("bitxor_agg", _emit_ast=_emit_ast)(c)
 
 
@@ -817,12 +817,12 @@ def as_boolean(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def boolor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def boolor_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the logical OR of all non-NULL records in a group. If all records are NULL, returns NULL.
 
     Args:
-        e (ColumnOrName): Boolean values to aggregate.
+        expr (ColumnOrName): Boolean values to aggregate.
 
     Returns:
         Column: The logical OR aggregation result.
@@ -842,7 +842,7 @@ def boolor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         ... ).collect()
         [Row(BOOLOR_A=True, BOOLOR_B=True, BOOLOR_C=True)]
     """
-    c = _to_col_if_str(e, "boolor_agg")
+    c = _to_col_if_str(expr, "boolor_agg")
     return builtin("boolor_agg", _emit_ast=_emit_ast)(c)
 
 
@@ -1054,14 +1054,14 @@ def booland(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) ->
 
 
 @publicapi
-def boolnot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def boolnot(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Computes the Boolean NOT of a single numeric expression. In accordance with Boolean semantics:
         - Non-zero values (including negative numbers) are regarded as True.
         - Zero values are regarded as False.
 
     Args:
-        e (ColumnOrName): A numeric expression to be evaluated.
+        expr (ColumnOrName): A numeric expression to be evaluated.
 
     Returns:
         - True if the expression is zero.
@@ -1074,7 +1074,7 @@ def boolnot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(boolnot("a")).collect()
         [Row(BOOLNOT("A")=True), Row(BOOLNOT("A")=False), Row(BOOLNOT("A")=False)]
     """
-    c = _to_col_if_str(e, "boolnot")
+    c = _to_col_if_str(expr, "boolnot")
     return builtin("boolnot", _emit_ast=_emit_ast)(c)
 
 
@@ -3974,12 +3974,12 @@ def try_to_geometry(
 
 
 @publicapi
-def booland_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def booland_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns True if all input values are True (or equivalent to True). Returns False if any input value is False (or equivalent to False). None values are ignored unless all values are None, in which case None is returned.
 
     Args:
-        e (ColumnOrName): The boolean values to aggregate.
+        expr (ColumnOrName): The boolean values to aggregate.
 
     Returns:
         Column: True if all values are True, False if any value is False, or None if all values are None.
@@ -3998,17 +3998,17 @@ def booland_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(booland_agg("a")).collect()
         [Row(BOOLAND_AGG("A")=False)]
     """
-    c = _to_col_if_str(e, "booland_agg")
+    c = _to_col_if_str(expr, "booland_agg")
     return builtin("booland_agg", _emit_ast=_emit_ast)(c)
 
 
 @publicapi
-def boolxor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def boolxor_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the logical XOR of all non-None records in a group. If all records inside a group are None, returns None.
 
     Args:
-        e (ColumnOrName): The boolean values to aggregate.
+        expr (ColumnOrName): The boolean values to aggregate.
 
     Returns:
         Column: The logical XOR result of all non-None boolean values in the group.
@@ -4042,7 +4042,7 @@ def boolxor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(boolxor_agg(df["col1"])).collect()
         [Row(BOOLXOR_AGG("COL1")=False)]
     """
-    c = _to_col_if_str(e, "boolxor_agg")
+    c = _to_col_if_str(expr, "boolxor_agg")
     return builtin("boolxor_agg", _emit_ast=_emit_ast)(c)
 
 
@@ -4093,12 +4093,12 @@ def zeroifnull(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def cot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def cot(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Computes the cotangent of the input column. The input should be expressed in radians.
 
     Args:
-        e (ColumnOrName): The input column or column name containing values in radians.
+        expr (ColumnOrName): The input column or column name containing values in radians.
 
     Returns:
         Column: A column containing the cotangent values.
@@ -4109,7 +4109,7 @@ def cot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(cot(df["a"]).cast(DecimalType(scale=10)).alias("cot_result")).collect()
         [Row(COT_RESULT=Decimal('0.5773502692')), Row(COT_RESULT=Decimal('1.0000000000')), Row(COT_RESULT=Decimal('0E-10'))]
     """
-    c = _to_col_if_str(e, "cot")
+    c = _to_col_if_str(expr, "cot")
     return builtin("cot", _emit_ast=_emit_ast)(c)
 
 
@@ -4180,7 +4180,11 @@ def square(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 @publicapi
 def width_bucket(
-    expr, min_value, max_value, num_buckets, _emit_ast: bool = True
+    expr: ColumnOrName,
+    min_value: ColumnOrName,
+    max_value: ColumnOrName,
+    num_buckets: ColumnOrName,
+    _emit_ast: bool = True,
 ) -> Column:
     """
     Constructs equi-width histograms, in which the histogram range is divided
