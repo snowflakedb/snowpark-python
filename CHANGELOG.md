@@ -8,6 +8,7 @@
 
 - Added support for `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
+- Added support for `functions.ai_translate`.
 
 #### Improvements
 
@@ -43,6 +44,7 @@
   - `groupby_first()` with `min_count>1`
   - `groupby_last()` with `min_count>1`
   - `groupby_shift()` with `freq` parameter
+- Slightly improved the performance of `agg`, `nunique`, `describe`, and related methods on 1-column DataFrame and Series objects.
 
 #### Bug Fixes
 
