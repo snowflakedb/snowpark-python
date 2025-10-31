@@ -2306,52 +2306,89 @@ def derive_column_states_from_subquery(
     return column_states
 
 
+def _check_expressions_for_types(
+    expressions: Optional[List["Expression"]],
+    check_data_gen: bool = False,
+    check_window: bool = False,
+    check_aggregation: bool = False,
+) -> bool:
+    """Efficiently check if expressions contain specific types in a single pass.
+
+    Args:
+        expressions: List of expressions to check
+        check_data_gen: Check for data generator functions
+        check_window: Check for window functions
+        check_aggregation: Check for aggregation functions
+
+    Returns:
+        True if any requested type is found
+    """
+    if expressions is None:
+        return False
+
+    for exp in expressions:
+        if exp is None:
+            continue
+
+        # Check window functions
+        if check_window and isinstance(exp, WindowExpression):
+            return True
+
+        # Check data generators (including window in non-connect mode)
+        if check_data_gen:
+            # In non-connect mode, windows are treated as data generators
+            if not context._is_snowpark_connect_compatible_mode and isinstance(
+                exp, WindowExpression
+            ):
+                return True
+            # Check actual data generator functions
+            if isinstance(exp, FunctionExpression) and (
+                exp.is_data_generator
+                or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
+            ):
+                # https://docs.snowflake.com/en/sql-reference/functions-data-generation
+                return True
+
+        # Check aggregation functions
+        if check_aggregation and isinstance(exp, FunctionExpression):
+            if exp.name.lower() in context._aggregation_function_set:
+                return True
+
+        # Recursively check children
+        if _check_expressions_for_types(
+            exp.children, check_data_gen, check_window, check_aggregation
+        ):
+            return True
+
+    return False
+
+
 def has_data_generator_exp(expressions: Optional[List["Expression"]]) -> bool:
-    if expressions is None:
-        return False
-    for exp in expressions:
-        if not context._is_snowpark_connect_compatible_mode and isinstance(
-            exp, WindowExpression
-        ):
-            return True
-        if isinstance(exp, FunctionExpression) and (
-            exp.is_data_generator
-            or exp.name.lower() in SEQUENCE_DEPENDENT_DATA_GENERATION
-        ):
-            # https://docs.snowflake.com/en/sql-reference/functions-data-generation
-            return True
-        if exp is not None and has_data_generator_exp(exp.children):
-            return True
-    return False
+    """Check if expressions contain data generator functions.
 
-
-def has_window_function_exp(expressions: Optional[List["Expression"]]) -> bool:
-    if expressions is None:
-        return False
-    for exp in expressions:
-        if isinstance(exp, WindowExpression):
-            return True
-        if exp is not None and has_window_function_exp(exp.children):
-            return True
-    return False
+    Note:
+        In non-connect mode, check_data_gen check both data generator and window expressions for backward compatibility.
+        In connect mode, check_data_gen only checks data generator expressions.
+    """
+    return _check_expressions_for_types(expressions, check_data_gen=True)
 
 
 def has_data_generator_or_window_function_exp(
     expressions: Optional[List["Expression"]],
 ) -> bool:
+    """Check if expressions contain data generators or window functions.
+
+    Optimized to do a single pass checking both types simultaneously.
+    """
     if not context._is_snowpark_connect_compatible_mode:
-        return has_data_generator_exp(expressions)
-    return has_data_generator_exp(expressions) or has_window_function_exp(expressions)
+        # In non-connect mode, windows are already treated as data generators
+        return _check_expressions_for_types(expressions, check_data_gen=True)
+    # In connect mode, check both in a single pass
+    return _check_expressions_for_types(
+        expressions, check_data_gen=True, check_window=True
+    )
 
 
 def has_aggregation_function_exp(expressions: Optional[List["Expression"]]) -> bool:
-    if expressions is None:
-        return False
-    for exp in expressions:
-        if isinstance(exp, FunctionExpression) and (
-            exp.name.lower() in context._aggregation_function_set
-        ):
-            return True
-        if exp is not None and has_aggregation_function_exp(exp.children):
-            return True
-    return False
+    """Check if expressions contain aggregation functions."""
+    return _check_expressions_for_types(expressions, check_aggregation=True)
