@@ -33,6 +33,7 @@ Functions
     ai_similarity
     ai_summarize_agg
     ai_transcribe
+    ai_translate
     any_value
     all_user_names
     approx_count_distinct
