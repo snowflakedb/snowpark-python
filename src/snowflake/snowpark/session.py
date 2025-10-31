@@ -518,20 +518,6 @@ class Session:
                 _add_session(session)
             else:
                 session = self._create_internal(self._options.get("connection"))
-                if context._is_snowpark_connect_compatible_mode:
-                    for sql in [
-                        """select function_name from information_schema.functions where is_aggregate = 'YES'""",
-                        """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
-                    ]:
-                        try:
-                            context._aggregation_function_set.update(
-                                {r[0] for r in session.sql(sql).collect()}
-                            )
-                        except BaseException as e:
-                            _logger.debug(
-                                "Unable to get aggregation functions from the database: %s",
-                                e,
-                            )
 
             if self._app_name:
                 if self._format_json:
@@ -4873,6 +4859,31 @@ class Session:
             set_api_call_source(df, "Session.call")
             # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
             return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
+
+    def _retrieve_aggregation_function_list(self) -> None:
+        """Retrieve the list of aggregation functions which will later be used in sql simplifier."""
+        if (
+            not context._is_snowpark_connect_compatible_mode
+            or context._aggregation_function_set
+        ):
+            return
+
+        retrieved_set = set()
+
+        for sql in [
+            """select function_name from information_schema.functions where is_aggregate = 'YES'""",
+            """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
+        ]:
+            try:
+                retrieved_set.update({r[0].lower() for r in self.sql(sql).collect()})
+            except BaseException as e:
+                _logger.debug(
+                    "Unable to get aggregation functions from the database: %s",
+                    e,
+                )
+
+        with context._aggregation_function_set_lock:
+            context._aggregation_function_set.update(retrieved_set)
 
     def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
         """
