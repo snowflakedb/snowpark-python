@@ -9,6 +9,19 @@
 - Added support for `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
 - Added support for `functions.ai_translate`.
+- Added support for the following functions in `functions.py`:
+  - Conditional expressions:
+    - `booland_agg`
+    - `boolxor_agg`
+    - `regr_valy`
+    - `zeroifnull`
+    
+  - Numeric expressions:
+    - `cot`
+    - `mod`
+    - `pi`
+    - `square`
+    - `width_bucket`
 
 #### Improvements
 
