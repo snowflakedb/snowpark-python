@@ -5548,7 +5548,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return result
 
     @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
+        ["DataFrameGroupBy", "SeriesGroupBy"],
         "first",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -5594,7 +5594,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
+        ["DataFrameGroupBy", "SeriesGroupBy"],
         "last",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -5640,7 +5640,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
+        ["DataFrameGroupBy", "SeriesGroupBy"],
         "rank",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -6102,7 +6102,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return result_qc
 
     @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
+        ["DataFrameGroupBy", "SeriesGroupBy"],
         "shift",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -7107,7 +7107,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     @register_query_compiler_method_not_implemented(
-        "DataFrameGroupBy",
+        ["DataFrameGroupBy", "SeriesGroupBy"],
         "fillna",
         UnsupportedArgsRule(
             unsupported_conditions=[
@@ -11875,10 +11875,54 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self._raise_not_implemented_error_for_timedelta()
 
         frame = self._modin_frame
-
+        input_column_count = len(frame.data_columns_index)
         # Handle case where the dataframe has empty columns.
-        if len(frame.data_columns_index) == 0:
+        if input_column_count == 0:
             return transpose_empty_df(frame)
+        if input_column_count == 1:
+            # If the frame is 1x1, then the datatype is already preserved; we need only set the entry
+            # in the index columns to match the original index labels.
+            if len(frame.data_column_index_names) > 1:
+                # If the columns object has a multi-index name, we need to project new columns for
+                # the extra labels.
+                data_odf = frame.ordered_dataframe.select(
+                    frame.data_column_snowflake_quoted_identifiers
+                )
+                new_index_column_identifiers = (
+                    data_odf.generate_snowflake_quoted_identifiers(
+                        pandas_labels=frame.data_column_pandas_index_names
+                    )
+                )
+                new_odf = append_columns(
+                    data_odf,
+                    new_index_column_identifiers,
+                    list(map(pandas_lit, frame.data_column_pandas_labels[0])),
+                )
+                new_odf.row_count = 1
+                return SnowflakeQueryCompiler(
+                    InternalFrame.create(
+                        ordered_dataframe=new_odf,
+                        data_column_pandas_labels=[None],
+                        data_column_pandas_index_names=[None],
+                        data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
+                        index_column_pandas_labels=frame.data_column_pandas_index_names,
+                        index_column_snowflake_quoted_identifiers=new_index_column_identifiers,
+                        data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                        index_column_types=None,
+                    )
+                )
+            else:
+                return SnowflakeQueryCompiler(
+                    frame.update_snowflake_quoted_identifiers_with_expressions(
+                        {
+                            frame.index_column_snowflake_quoted_identifiers[
+                                0
+                            ]: pandas_lit(frame.data_column_pandas_labels[0]),
+                        },
+                        # Swap the name of the index/columns objects
+                        new_index_column_pandas_labels=frame.data_column_pandas_index_names,
+                    )[0]
+                ).set_columns([None])
 
         # This follows the same approach used in SnowflakeQueryCompiler.transpose().
         # However, as an optimization, only steps (1), (2), and (4) from the four steps described in
@@ -11909,6 +11953,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unpivot_result.variable_name_quoted_snowflake_identifier,
             unpivot_result.object_name_quoted_snowflake_identifier,
         )
+        new_internal_frame.ordered_dataframe.row_count = input_column_count
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11922,8 +11967,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         frame = self._modin_frame
 
+        original_col_count = len(frame.data_columns_index)
         # Handle case where the dataframe has empty columns.
-        if len(frame.data_columns_index) == 0:
+        if original_col_count == 0:
             return transpose_empty_df(frame)
 
         # The following approach to implementing transpose relies on combining unpivot and pivot operations to flip
@@ -12061,6 +12107,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unpivot_result.variable_name_quoted_snowflake_identifier,
             unpivot_result.object_name_quoted_snowflake_identifier,
         )
+        new_internal_frame.ordered_dataframe.row_count = original_col_count
 
         return SnowflakeQueryCompiler(new_internal_frame)
 

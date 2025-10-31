@@ -59,6 +59,12 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
 )
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     HYBRID_SWITCH_FOR_UNIMPLEMENTED_METHODS,
+    UnsupportedArgsRule,
+    _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
+    register_query_compiler_method_not_implemented,
+)
+from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
+    check_is_groupby_supported_by_snowflake,
 )
 from snowflake.snowpark.modin.plugin._typing import DropKeep, ListLike
 from snowflake.snowpark.modin.plugin.extensions.snow_partition_iterator import (
@@ -1549,6 +1555,22 @@ def fillna(
 
 # Snowpark pandas defines a custom GroupBy object
 @register_series_accessor("groupby")
+@register_query_compiler_method_not_implemented(
+    "Series",
+    "groupby",
+    UnsupportedArgsRule(
+        unsupported_conditions=[
+            (
+                lambda args: not check_is_groupby_supported_by_snowflake(
+                    args.get("by"),
+                    args.get("level"),
+                    args.get("axis", 0),
+                ),
+                f"Groupby {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+            )
+        ]
+    ),
+)
 def groupby(
     self,
     by=None,
