@@ -102,7 +102,7 @@ def test_groupby_rolling_dropna_false():
     )
 
 
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=0)
 def test_groupby_rolling_series_negative():
     date_idx = pd.date_range("1/1/2000", periods=8, freq="min")
     date_idx.names = ["grp_col"]
@@ -110,10 +110,10 @@ def test_groupby_rolling_series_negative():
     with pytest.raises(
         NotImplementedError,
         match=re.escape(
-            "Groupby does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels"
+            "Snowpark pandas does not yet support the method GroupBy.rolling for Series"
         ),
     ):
-        snow_ser.groupby(snow_ser.index).rolling(2).sum()
+        snow_ser.groupby(level=0).rolling(2).sum()
 
 
 @pytest.mark.parametrize(
