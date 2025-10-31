@@ -64,6 +64,7 @@ def add_snowpark_session(doctest_namespace, pytestconfig):
         session.sql_simplifier_enabled = (
             os.environ.get("USE_SQL_SIMPLIFIER") == "1" or LOCAL_TESTING_MODE
         )
+        session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true")
         if RUNNING_ON_GH:
             session.sql(f"CREATE SCHEMA IF NOT EXISTS {TEST_SCHEMA}").collect()
             # This is needed for test_get_schema_database_works_after_use_role in test_session_suite
