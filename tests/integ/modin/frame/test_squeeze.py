@@ -31,11 +31,7 @@ def test_n_by_1(axis, dtype):
 
 @pytest.mark.parametrize("dtype", ["int", "timedelta64[ns]"])
 def test_1_by_n(axis, dtype):
-    if axis is None:
-        expected_query_count = 2
-    else:
-        expected_query_count = 1
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             *create_test_dfs({"a": [1], "b": [2], "c": [3]}, dtype=dtype),
             lambda df: df.squeeze(axis=axis),
