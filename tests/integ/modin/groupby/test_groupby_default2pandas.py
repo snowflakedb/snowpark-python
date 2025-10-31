@@ -130,7 +130,7 @@ def test_groupby_with_numpy_array(basic_snowpark_pandas_df) -> None:
 @sql_count_checker(query_count=0)
 def test_groupby_series_with_numpy_array(native_series_multi_numeric, by_list) -> None:
     with pytest.raises(
-        NotImplementedError, match=GROUPBY_UNSUPPORTED_GROUPING_ERROR_PATTERN
+        NotImplementedError, match=_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE
     ):
         pd.Series(native_series_multi_numeric).groupby(by=by_list).max()
 
