@@ -350,6 +350,10 @@ def session(
             session, db_parameters, unparser_jar
         )
 
+    session.sql(
+        "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';"
+    ).collect()
+
     try:
         yield session
 
