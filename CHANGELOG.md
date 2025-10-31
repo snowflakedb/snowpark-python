@@ -8,6 +8,7 @@
 
 - Added support for `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
+- Added support for `functions.ai_translate`.
 - Added support for the following functions in `functions.py`:
     - String and Binary functions:
       - `base64_decode_binary`
