@@ -93,7 +93,12 @@ def test_axis_1_basic_types_without_type_hints(data, func, return_type):
     native_df = native_pd.DataFrame(data, columns=["A", "b"])
     snow_df = pd.DataFrame(data, columns=["A", "b"])
     # np.min is mapped to sql builtin function.
-    with SqlCounter(query_count=1 if func == np.min else 5):
+    query_count = 1 if func == np.min else 5
+    join_count = 0 if func == np.min else 2
+    udtf_count = 0 if func == np.min else 1
+    with SqlCounter(
+        query_count=query_count, join_count=join_count, udtf_count=udtf_count
+    ):
         eval_snowpark_pandas_result(snow_df, native_df, lambda x: x.apply(func, axis=1))
 
 
@@ -107,7 +112,7 @@ def test_axis_1_basic_types_with_type_hints(data, func, return_type):
     snow_df = pd.DataFrame(data, columns=["A", "b"])
     func_with_type_hint = create_func_with_return_type_hint(func, return_type)
     #  Invoking a single UDF typically requires 3 queries (package management, code upload, UDF registration) upfront.
-    with SqlCounter(query_count=4, join_count=0, udtf_count=0):
+    with SqlCounter(query_count=4, join_count=0, udtf_count=0, udf_count=1):
         eval_snowpark_pandas_result(
             snow_df, native_df, lambda x: x.apply(func_with_type_hint, axis=1)
         )
@@ -144,7 +149,7 @@ def test_axis_1_index_passed_as_name(df, row_label):
 
     snow_df = pd.DataFrame(df)
     #  Invoking a single UDF typically requires 3 queries (package management, code upload, UDF registration) upfront.
-    with SqlCounter(query_count=4, join_count=0, udtf_count=0):
+    with SqlCounter(query_count=4, join_count=0, udtf_count=0, udf_count=1):
         eval_snowpark_pandas_result(snow_df, df, lambda x: x.apply(foo, axis=1))
 
 
@@ -640,6 +645,8 @@ def test_basic_dataframe_transform(data, apply_func, expected_query_count):
         snow_df = pd.DataFrame(data)
         with SqlCounter(
             query_count=expected_query_count,
+            join_count=5,
+            udtf_count=3,
             high_count_expected=expected_query_count > 8,
             high_count_reason=msg,
         ):
@@ -900,6 +907,7 @@ def test_apply_axis1_with_3rd_party_libraries_and_decorator(
 
     with SqlCounter(
         query_count=expected_query_count,
+        udf_count=1,
         high_count_expected=True,
         high_count_reason="Snowpark package upload requires many queries.",
     ):

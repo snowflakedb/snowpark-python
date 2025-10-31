@@ -2094,7 +2094,7 @@ def test_binary_add_dataframe_and_series_axis0(df, s):
     snow_s = pd.Series(s)
 
     # DataFrame <op> Series
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         ans = df.add(s, axis=0)
         snow_ans = snow_df.add(snow_s, axis=0)
 
@@ -2160,7 +2160,7 @@ def test_binary_op_between_dataframe_and_series_axis0(opname, df, s):
     snow_s = pd.Series(s)
 
     # DataFrame <op> Series
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         ans = getattr(df, opname)(s, axis=0)
         snow_ans = getattr(snow_df, opname)(snow_s, axis=0)
 
@@ -2385,12 +2385,12 @@ def test_binary_sub_dataframe_and_dataframe(df1, df2):
     snow_df1 = pd.DataFrame(df1)
     snow_df2 = pd.DataFrame(df2)
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             (snow_df1, snow_df2), (df1, df2), lambda t: t[0] - t[1]
         )
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             (snow_df2, snow_df1), (df2, df1), lambda t: t[0] - t[1]
         )
@@ -2402,14 +2402,14 @@ def test_binary_sub_dataframe_and_dataframe_with_fill_value(df1, df2, fill_value
     snow_df1 = pd.DataFrame(df1)
     snow_df2 = pd.DataFrame(df2)
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             (snow_df1, snow_df2),
             (df1, df2),
             lambda t: t[0].sub(t[1], fill_value=fill_value),
         )
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             (snow_df2, snow_df1),
             (df2, df1),
