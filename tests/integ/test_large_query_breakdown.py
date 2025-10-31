@@ -168,7 +168,7 @@ def test_large_query_breakdown_external_cte_ref(session):
     df2 = df2.group_by("B").agg(sum_distinct(col("A")).alias("A"))
     final_df = df1.union_all(df2)
 
-    with SqlCounter(query_count=3, describe_count=0):
+    with SqlCounter(query_count=3, union_count=4, describe_count=0):
         check_result_with_and_without_breakdown(session, final_df)
 
     with patch.object(
@@ -212,7 +212,7 @@ def test_breakdown_at_with_query_node(session):
     for i in range(5):
         final_df = final_df.with_column("A", col("A") + i + col("A"))
 
-    with SqlCounter(query_count=5, describe_count=0):
+    with SqlCounter(query_count=5, union_count=2, describe_count=0):
         check_result_with_and_without_breakdown(session, final_df)
 
     queries = final_df.queries
@@ -250,7 +250,7 @@ def test_large_query_breakdown_with_cte_optimization(session):
     #   1 CREATE TEMP TABLE QUERY
     #   the actual query
     #   1 drop temp table query
-    with SqlCounter(query_count=5, describe_count=0):
+    with SqlCounter(query_count=5, join_count=2, union_count=4, describe_count=0):
         check_result_with_and_without_breakdown(session, df4)
 
     with patch.object(
@@ -280,7 +280,7 @@ def test_save_as_table(session, large_query_df):
     table_name = Utils.random_table_name()
     with session.query_history() as history:
         # one describe call coming from the save_as_table resolve at frontend dataframe layer
-        with SqlCounter(query_count=4, describe_count=1):
+        with SqlCounter(query_count=4, union_count=1, describe_count=1):
             large_query_df.write.save_as_table(table_name, mode="overwrite")
 
     assert len(history.queries) == 4
@@ -336,7 +336,7 @@ def test_update_delete_merge(session, large_query_df):
     # update
     with session.query_history() as history:
         # 3 describe call triggered due to column state extraction
-        with SqlCounter(query_count=4, describe_count=2):
+        with SqlCounter(query_count=4, union_count=1, describe_count=2):
             t.update({"B": 0}, t.a == large_query_df.a, large_query_df)
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
@@ -346,7 +346,7 @@ def test_update_delete_merge(session, large_query_df):
 
     # delete
     with session.query_history() as history:
-        with SqlCounter(query_count=4, describe_count=0):
+        with SqlCounter(query_count=4, union_count=1, describe_count=0):
             t.delete(t.a == large_query_df.a, large_query_df)
     assert len(history.queries) == 4
     assert history.queries[0].sql_text == "SELECT CURRENT_TRANSACTION()"
@@ -356,7 +356,7 @@ def test_update_delete_merge(session, large_query_df):
 
     # merge
     with session.query_history() as history:
-        with SqlCounter(query_count=4, describe_count=0):
+        with SqlCounter(query_count=4, union_count=1, describe_count=0):
             t.merge(
                 large_query_df,
                 t.a == large_query_df.a,
@@ -372,7 +372,7 @@ def test_update_delete_merge(session, large_query_df):
 def test_copy_into_location(session, large_query_df):
     remote_file_path = f"{session.get_session_stage()}/df.parquet"
     with session.query_history() as history:
-        with SqlCounter(query_count=4, describe_count=0):
+        with SqlCounter(query_count=4, union_count=1, describe_count=0):
             large_query_df.write.copy_into_location(
                 remote_file_path,
                 file_format_type="parquet",
@@ -456,7 +456,7 @@ def test_pivot_unpivot(session):
     join_df = df_pivot.join(df_unpivot, "A")
     final_df = join_df.with_column("A", col("A") + lit(1))
 
-    with SqlCounter(query_count=5, describe_count=0):
+    with SqlCounter(query_count=5, join_count=2, describe_count=0):
         check_result_with_and_without_breakdown(session, final_df)
 
     plan_queries = final_df.queries
@@ -486,7 +486,7 @@ def test_sort(session):
     union_df = df1.union_all(df2)
     final_df = union_df.with_column("A", col("A") + lit(1)).order_by("A")
 
-    with SqlCounter(query_count=5, describe_count=0):
+    with SqlCounter(query_count=5, union_count=2, describe_count=0):
         check_result_with_and_without_breakdown(session, final_df)
 
     with SqlCounter(query_count=1, describe_count=0):
@@ -522,6 +522,7 @@ def test_multiple_query_plan(session):
 
         with SqlCounter(
             query_count=11,
+            union_count=2,
             describe_count=0,
             high_count_expected=True,
             high_count_reason="low array bind threshold",
@@ -551,7 +552,7 @@ def test_optimization_skipped_with_transaction(session, large_query_df, caplog):
     assert Utils.is_active_transaction(session)
     with caplog.at_level(logging.DEBUG):
         with session.query_history() as history:
-            with SqlCounter(query_count=2, describe_count=0):
+            with SqlCounter(query_count=2, union_count=1, describe_count=0):
                 with patch.object(
                     session._conn._telemetry_client,
                     "send_query_compilation_summary_telemetry",
@@ -667,13 +668,13 @@ def test_optimization_skipped_with_no_active_db_or_schema(
 
 def test_async_job_with_large_query_breakdown(large_query_df):
     """Test large query breakdown gives same result for async and non-async jobs"""
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=3, union_count=1):
         # 1 for current transaction
         # 1 for created temp table; main query submitted as multi-statement query
         # 1 for post action
         job = large_query_df.collect(block=False)
         result = job.result()
-    with SqlCounter(query_count=4):
+    with SqlCounter(query_count=4, union_count=1):
         # 1 for current transaction
         # 1 for created temp table
         # 1 for main query
