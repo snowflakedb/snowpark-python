@@ -2508,14 +2508,14 @@ def test_binary_op_between_dataframe_and_dataframe_exhaustive(
     snow_df1 = pd.DataFrame(df1)
     snow_df2 = pd.DataFrame(df2)
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             (snow_df1, snow_df2),
             (df1, df2),
             lambda t: getattr(t[0], opname)(t[1], fill_value=fill_value),
         )
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             (snow_df2, snow_df1),
             (df2, df1),
