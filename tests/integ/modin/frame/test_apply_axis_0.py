@@ -88,6 +88,7 @@ def test_axis_0_basic_types_without_type_hints(data, func, return_type):
         query_count=1 if func == np.min else 11,
         join_count=0 if func == np.min else 2,
         udtf_count=0 if func == np.min else 2,
+        union_count=1,
         high_count_expected=func != np.min,
         high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
@@ -108,6 +109,7 @@ def test_axis_0_basic_types_with_type_hints(data, func, return_type):
         query_count=11,
         join_count=2,
         udtf_count=2,
+        union_count=1,
         high_count_expected=True,
         high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):
@@ -161,6 +163,7 @@ def test_axis_0_index_passed_as_name(df, row_label):
         query_count=11,
         join_count=2,
         udtf_count=2,
+        union_count=1,
         high_count_expected=True,
         high_count_reason="SNOW-1650644 & SNOW-1345395: Avoid extra caching and repeatedly creating same temp function",
     ):

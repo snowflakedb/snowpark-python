@@ -191,13 +191,14 @@ def test_series_loc_get_basic(series, key):
     # returns single element for series
     with SqlCounter(
         query_count=query_count,
+        join_count=1,
         high_count_expected=expect_high_count,
         high_count_reason=high_count_reason,
     ):
         assert pd.Series(series).loc[key] == series.loc[key]
 
 
-@sql_count_checker(query_count=1, join_count=0)
+@sql_count_checker(query_count=1, join_count=1)
 def test_series_loc_get_all_rows():
     data = [1, 2, 3]
     columns = ["A"]
@@ -548,7 +549,7 @@ def test_series_loc_get_key_non_boolean_series(
 @pytest.mark.parametrize("monotonic_decreasing", [False, True])
 # to_pandas with variant columns added one more query
 # TODO: SNOW-933782 should resolve it
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_series_loc_get_key_slice(
     monotonic_decreasing,
     default_index_snowpark_pandas_series,
@@ -596,7 +597,7 @@ def multiindex_series():
         lambda s: s.loc["mark v":"mark vi"],
     ],
 )
-@sql_count_checker(query_count=1)
+@sql_count_checker(query_count=1, join_count=1)
 def test_mi_series_loc_get_slice_key(multiindex_series, loc_with_slice):
     s = pd.Series(multiindex_series)
     eval_snowpark_pandas_result(
