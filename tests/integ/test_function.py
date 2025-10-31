@@ -1614,9 +1614,7 @@ def test_arrays_zip(session, data, expected):
     df = session.create_dataframe(data)
     df = df.select(arrays_zip(*df.columns).as_("zipped"))
 
-    Utils.check_answer(
-        df, expected, statement_params={"enable_arrays_zip_function": "TRUE"}
-    )
+    Utils.check_answer(df, expected)
 
 
 @pytest.mark.skipif(
