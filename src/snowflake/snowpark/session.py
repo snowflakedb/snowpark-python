@@ -4881,6 +4881,10 @@ class Session:
                     "Unable to get aggregation functions from the database: %s",
                     e,
                 )
+                # we raise error here as a pessimistic tactics
+                # the reason is that if we fail to retrieve the aggregation function list, we have empty set
+                # the simplifier will flatten the query which contains aggregation functions leading to incorrect results
+                raise
 
         with context._aggregation_function_set_lock:
             context._aggregation_function_set.update(retrieved_set)
