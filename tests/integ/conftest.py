@@ -349,10 +349,10 @@ def session(
         full_ast_validation_listener = setup_full_ast_validation_mode(
             session, db_parameters, unparser_jar
         )
-
-    session.sql(
-        "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';"
-    ).collect()
+    if not local_testing_mode:
+        session.sql(
+            "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';"
+        ).collect()
 
     try:
         yield session
