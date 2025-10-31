@@ -42,6 +42,7 @@
   - `groupby_first()` with `min_count>1`
   - `groupby_last()` with `min_count>1`
   - `shift()` with `freq` parameter
+- Slightly improved the performance of `agg`, `nunique`, `describe`, and related methods on 1-column DataFrame and Series objects.
 
 #### Bug Fixes
 
