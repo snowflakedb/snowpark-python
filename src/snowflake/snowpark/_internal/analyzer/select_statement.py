@@ -1480,6 +1480,7 @@ class SelectStatement(Selectable):
         return new
 
     def filter(self, col: Expression) -> "SelectStatement":
+        self._session._retrieve_aggregation_function_list()
         can_be_flattened = (
             (not self.flatten_disabled)
             and can_clause_dependent_columns_flatten(
@@ -1527,6 +1528,9 @@ class SelectStatement(Selectable):
                 derive_dependent_columns(*cols), self.column_states, "sort"
             )
             and not has_data_generator_exp(self.projection)
+            # we do not check aggregation function here like filter
+            # in the case when aggregation function is in the projection
+            # order by is evaluated after aggregation, row info are not taken in the calculation
         )
         if can_be_flattened:
             new = copy(self)

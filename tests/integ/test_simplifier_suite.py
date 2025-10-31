@@ -737,7 +737,19 @@ def test_reference_non_exist_columns(session, simplifier_table):
         df.select(col("c") + 1).collect()
 
 
-def test_order_by(setup_reduce_cast, session, simplifier_table):
+@pytest.mark.parametrize("is_snowpark_connect_compatible_mode", [True, False])
+def test_order_by(
+    setup_reduce_cast,
+    session,
+    simplifier_table,
+    is_snowpark_connect_compatible_mode,
+    monkeypatch,
+):
+    if is_snowpark_connect_compatible_mode:
+        import snowflake.snowpark.context as context
+
+        monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+
     df = session.table(simplifier_table)
 
     # flatten
@@ -755,24 +767,42 @@ def test_order_by(setup_reduce_cast, session, simplifier_table):
         f'SELECT "A", "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
-    # flatten if a new column is used in the order by clause
+    # snowpark connect compatible mode: flatten if a new column is used in the order by clause
+    # snowflake mode: no flatten because c is a new column
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).sort("a", "b", "c")
-    assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
+    compare_sql = (
         f'SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST, "C" ASC NULLS FIRST'
+        if is_snowpark_connect_compatible_mode
+        else f'SELECT * FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST, "C" ASC NULLS FIRST'
+    )
+    assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
+        compare_sql
     )
 
-    # still flatten even if a is changed because it's used in the order by clause
+    # snowpark connect compatible mode: flatten even if a is changed because it's used in the order by clause
+    # snowflake mode: no flatten because a and be are changed
     df4 = df.select((col("a") + 1).as_("a"), ((col("b") + 1).as_("b"))).sort("a", "b")
-    assert Utils.normalize_sql(df4.queries["queries"][-1]) == Utils.normalize_sql(
+    compare_sql = (
         f'SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+        if is_snowpark_connect_compatible_mode
+        else f'SELECT * FROM ( SELECT ("A" + 1{integer_literal_postfix}) AS "A", ("B" + 1{integer_literal_postfix}) AS "B" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+    )
+    assert Utils.normalize_sql(df4.queries["queries"][-1]) == Utils.normalize_sql(
+        compare_sql
     )
 
-    # still flatten if a window function is used in the projection
+    # snowpark connect compatible mode: flatten if a window function is used in the projection
+    # snowflake mode: no flatten because c is a new column
     df5 = df.select("a", "b", rank().over(Window.order_by("b")).alias("c")).sort(
         "a", "b"
     )
-    assert Utils.normalize_sql(df5.queries["queries"][-1]) == Utils.normalize_sql(
+    compare_sql = (
         f'SELECT "A", "B", rank() OVER (ORDER BY "B" ASC NULLS FIRST) AS "C" FROM {simplifier_table} ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+        if is_snowpark_connect_compatible_mode
+        else f'SELECT * FROM ( SELECT "A", "B", rank() OVER (ORDER BY "B" ASC NULLS FIRST) AS "C" FROM {simplifier_table} ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
+    )
+    assert Utils.normalize_sql(df5.queries["queries"][-1]) == Utils.normalize_sql(
+        compare_sql
     )
 
     # No flatten if a data generator is used in the projection
@@ -787,8 +817,30 @@ def test_order_by(setup_reduce_cast, session, simplifier_table):
         f'SELECT * FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT * FROM {simplifier_table} ) ) ORDER BY "A" ASC NULLS FIRST, "B" ASC NULLS FIRST'
     )
 
+    df8 = df.select("a", sum_(col("b")).alias("c")).sort("c")
+    compare_sql = (
+        f'SELECT "A", sum("B") AS "C" FROM {simplifier_table} ORDER BY "C" ASC NULLS FIRST'
+        if is_snowpark_connect_compatible_mode
+        else f'SELECT * FROM ( SELECT "A", sum("B") AS "C" FROM {simplifier_table} ) ORDER BY "C" ASC NULLS FIRST'
+    )
+    assert Utils.normalize_sql(df8.queries["queries"][-1]) == Utils.normalize_sql(
+        compare_sql
+    )
 
-def test_filter(setup_reduce_cast, session, simplifier_table):
+
+@pytest.mark.parametrize("is_snowpark_connect_compatible_mode", [True, False])
+def test_filter(
+    setup_reduce_cast,
+    session,
+    simplifier_table,
+    is_snowpark_connect_compatible_mode,
+    monkeypatch,
+):
+    if is_snowpark_connect_compatible_mode:
+        import snowflake.snowpark.context as context
+
+        monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+
     df = session.table(simplifier_table)
     integer_literal_postfix = (
         "" if session.eliminate_numeric_sql_value_cast_enabled else " :: INT"
@@ -807,18 +859,15 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
     )
     # flatten if a regular new column is in the projection
     df3 = df.select("a", "b", (col("a") - col("b")).as_("c")).filter(
-        (col("a") > 1) & (col("b") > 2)
-    )
-    assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
-        f'SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} WHERE (("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix}))'
-    )
-
-    # flatten if a regular new column is used in the filter clause
-    df4 = df.select("a", "b", (col("a") - col("b")).as_("c")).filter(
         (col("a") > 1) & (col("b") > 2) & (col("c") < 1)
     )
-    assert Utils.normalize_sql(df4.queries["queries"][-1]) == Utils.normalize_sql(
+    compare_sql = (
         f'SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
+        if is_snowpark_connect_compatible_mode
+        else f'SELECT * FROM ( SELECT "A", "B", ("A" - "B") AS "C" FROM {simplifier_table} ) WHERE ((("A" > 1{integer_literal_postfix}) AND ("B" > 2{integer_literal_postfix})) AND ("C" < 1{integer_literal_postfix}))'
+    )
+    assert Utils.normalize_sql(df3.queries["queries"][-1]) == Utils.normalize_sql(
+        compare_sql
     )
 
     # no flatten if a window function is used in the projection
@@ -856,6 +905,12 @@ def test_filter(setup_reduce_cast, session, simplifier_table):
     )
     assert Utils.normalize_sql(df9.queries["queries"][-1]) == Utils.normalize_sql(
         f'SELECT * FROM ( SELECT "A", "B", 3 :: INT AS "C", 1 + 1 as d FROM ( SELECT * FROM {simplifier_table} ) ) WHERE ("A" > 1{integer_literal_postfix})'
+    )
+
+    # no flatten if a aggregation function is used in the projection
+    df10 = df.select("a", sum_(col("b")).alias("c")).filter(col("c") < 1)
+    assert Utils.normalize_sql(df10.queries["queries"][-1]) == Utils.normalize_sql(
+        f'SELECT * FROM ( SELECT "A", sum("B") AS "C" FROM {simplifier_table} ) WHERE ("C" < 1{integer_literal_postfix})'
     )
 
 
@@ -1629,18 +1684,21 @@ def test_chained_sort(session):
     )
 
 
+@pytest.mark.parametrize("snowpark_connect_compatible_mode", [True, False])
 @pytest.mark.parametrize(
-    "operation,simplified_query",
+    "operation,simplified_query,snowpark_connect_simplified_query",
     [
         # Flattened
         (
             lambda df: df.filter(col("A") > 1).select(col("B") + 1),
             'SELECT ("B" + 1{POSTFIX}) FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) WHERE ("A" > 1{POSTFIX})',
+            None,
         ),
         # Flattened, if there are duplicate column names across the parent/child, WHERE is evaluated on subquery first, so we could flatten in this case
         (
             lambda df: df.filter(col("A") > 1).select((col("B") + 1).alias("A")),
             'SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) WHERE ("A" > 1{POSTFIX})',
+            None,
         ),
         # Flattened
         (
@@ -1648,21 +1706,26 @@ def test_chained_sort(session):
             .select(col("A"), col("B"), lit(12).alias("TWELVE"))
             .filter(col("A") > 2),
             'SELECT "A", "B", 12 :: INT AS "TWELVE" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) WHERE (("A" > 1{POSTFIX}) AND ("A" > 2{POSTFIX}))',
+            None,
         ),
-        # Flattened if the dropped columns are not used in filter
+        # Flattened if the dropped columns are not used in filter in snowpark connect compatible mode
+        # Notice the local inner flattening happening to WHERE clauses because in snowpark connect compatible mode, NEW column "D" can be flattened into the new query
         (
             lambda df: df.filter(col("A") >= 1)
             .select(col("A").alias("C"), col("B").alias("D"))
             .filter(col("C") > 2)
             .select(col("C")),
+            'SELECT "C" FROM (SELECT "A" AS "C", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" >= 1{POSTFIX})) WHERE ("C" > 2{POSTFIX})',
             'SELECT "A" AS "C" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" >= 1{POSTFIX}) AND ("C" > 2{POSTFIX}))',
         ),
-        # Flattened if the dropped columns are not in the filter clause's dependent columns
+        # Flattened if the dropped columns are not in the filter clause's dependent columns in snowpark connect compatible mode
+        # Notice the local inner flattening happening to WHERE clauses because in snowpark connect compatible mode, NEW column "D" can be flattened into the new query
         (
             lambda df: df.filter(col("A") >= 1)
             .select(col("A").alias("C"), col("B").alias("D"))
             .filter((col("C") + 1) > 2)
             .select(col("C")),
+            'SELECT "C" FROM (SELECT "A" AS "C", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" >= 1{POSTFIX})) WHERE (("C" + 1{POSTFIX}) > 2{POSTFIX})',
             'SELECT "A" AS "C" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" >= 1{POSTFIX}) AND (("C" + 1{POSTFIX}) > 2{POSTFIX}))',
         ),
         # Not fully flattened, since col("A") > 1 and col("A") > 2 are referring to different columns
@@ -1671,36 +1734,44 @@ def test_chained_sort(session):
             .select((col("B") + 1).alias("A"))
             .filter(col("A") > 2),
             'SELECT * FROM ( SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) WHERE ("A" > 1{POSTFIX}) ) WHERE ("A" > 2{POSTFIX})',
+            None,
         ),
         # Not flattened, since A is updated in the select after filter.
         (
             lambda df: df.filter(col("A") > 1).select("A", seq1(0)),
             'SELECT "A", seq1(0) FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) WHERE ("A" > 1{POSTFIX}) )',
+            None,
         ),
         # Not flattened, since we cannot detect dependent columns from sql_expr
         (
             lambda df: df.filter(sql_expr("A > 1")).select(col("B"), col("A")),
             'SELECT "B", "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) WHERE A > 1 )',
+            None,
         ),
         # Not flattened, since we cannot flatten when the subquery uses positional parameter ($1)
         (
             lambda df: df.filter(col("$1") > 1).select(col("B"), col("A")),
             'SELECT "B", "A" FROM ( SELECT * FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ) WHERE ("$1" > 1{POSTFIX}) )',
+            None,
         ),
         # Not flattened if a dropped column is used in the filter clause
+        # Notice the local inner flattening happening to WHERE clauses because in snowpark connect compatible mode, NEW column "D" can be flattened into the new query
         (
             lambda df: df.filter(col("A") >= 1)
             .select(col("A"), col("B").alias("D"))
             .filter(col("D") > -3)
             .select(col("A").alias("E")),
+            'SELECT "A" AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" >= 1{POSTFIX})) WHERE ("D" > -3{POSTFIX})',
             'SELECT "A" AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" >= 1{POSTFIX}) AND ("D" > -3{POSTFIX})))',
         ),
         # Not flattened if a dropped column is used in the select clause's dependent columns
+        # Notice the local inner flattening happening to WHERE clauses because in snowpark connect compatible mode, NEW column "D" can be flattened into the new query
         (
             lambda df: df.filter(col("A") >= 1)
             .select(col("A"), col("B").alias("D"))
             .filter((col("D") - 1) > -4)
             .select((col("A") + 1).alias("E")),
+            'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE ("A" >= 1{POSTFIX})) WHERE (("D" - 1{POSTFIX}) > -4{POSTFIX})',
             'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) WHERE (("A" >= 1{POSTFIX}) AND (("D" - 1{POSTFIX}) > -4{POSTFIX})))',
         ),
         # Not flattened if a dropped column that was changed expression is used in the select clause's dependent columns
@@ -1709,10 +1780,25 @@ def test_chained_sort(session):
             .filter((col("B") - 1) > -4)
             .select((col("A") + 1).alias("E")),
             'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", ("B" + 1{POSTFIX}) AS "B" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) WHERE (("B" - 1{POSTFIX}) > -4{POSTFIX})',
+            None,
         ),
     ],
 )
-def test_select_after_filter(setup_reduce_cast, session, operation, simplified_query):
+def test_select_after_filter(
+    setup_reduce_cast,
+    session,
+    operation,
+    simplified_query,
+    snowpark_connect_compatible_mode,
+    monkeypatch,
+    snowpark_connect_simplified_query,
+):
+    if snowpark_connect_compatible_mode:
+        import snowflake.snowpark.context as context
+
+        monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+        simplified_query = snowpark_connect_simplified_query or simplified_query
+
     session.sql_simplifier_enabled = False
     df1 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
 
@@ -1732,43 +1818,50 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
     ) == Utils.normalize_sql(simplified_query)
 
 
+@pytest.mark.parametrize("snowpark_connect_compatible_mode", [True, False])
 @pytest.mark.parametrize(
-    "operation,simplified_query,execute_sql",
+    "operation,simplified_query,snowpark_connect_simplified_query,execute_sql",
     [
         # Flattened
         (
             lambda df: df.order_by(col("A")).select(col("B") + 1),
             'SELECT ("B" + 1{POSTFIX}) FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY "A" ASC NULLS FIRST',
+            None,
             True,
         ),
         # Not flattened because SEQ1() is a data generator.
         (
             lambda df: df.order_by(col("A")).select(seq1(0)),
             'SELECT seq1(0) FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY "A" ASC NULLS FIRST )',
+            None,
             True,
         ),
         # Not flattened, unlike filter, current query takes precendence when there are duplicate column names from a ORDERBY clause
         (
             lambda df: df.order_by(col("A")).select((col("B") + 1).alias("A")),
             'SELECT ("B" + 1{POSTFIX}) AS "A" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY "A" ASC NULLS FIRST )',
+            None,
             True,
         ),
         # Not flattened, since we cannot detect dependent columns from sql_expr
         (
             lambda df: df.order_by(sql_expr("A")).select(col("B")),
             'SELECT "B" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY A ASC NULLS FIRST )',
+            None,
             True,
         ),
         # Not flattened, since we cannot flatten when the subquery uses positional parameter ($1)
         (
             lambda df: df.order_by(col("$1")).select(col("B")),
             'SELECT "B" FROM ( SELECT * FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ) ORDER BY "$1" ASC NULLS FIRST )',
+            None,
             True,
         ),
         # Not flattened, skip execution since this would result in SnowparkSQLException
         (
             lambda df: df.order_by(col("C")).select((col("A") + col("B")).alias("C")),
             'SELECT ("A" + "B") AS "C" FROM ( SELECT "A", "B" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY "C" ASC NULLS FIRST )',
+            None,
             False,
         ),
         # Flattened
@@ -1778,13 +1871,15 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
             .order_by(col("B"))
             .select(col("A")),
             'SELECT "A" FROM ( SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT) ) ORDER BY "B" ASC NULLS FIRST, "A" ASC NULLS FIRST',
+            None,
             True,
         ),
-        # Flattened if the dropped columns are not used in filter
+        # Flattened if the dropped columns are not used in filter in the snowpark connect compatible mode
         (
             lambda df: df.select(col("A").alias("C"), col("B").alias("D"))
             .order_by(col("C"))
             .select(col("C")),
+            'SELECT "C" FROM (SELECT "A" AS "C", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY "C" ASC NULLS FIRST',
             'SELECT "A" AS "C" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "C" ASC NULLS FIRST',
             True,
         ),
@@ -1793,6 +1888,7 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
             lambda df: df.select(col("A").alias("C"), col("B").alias("D"))
             .order_by(col("C") + 1)
             .select(col("C")),
+            'SELECT "C" FROM (SELECT "A" AS "C", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY ("C" + 1{POSTFIX}) ASC NULLS FIRST',
             'SELECT "A" AS "C" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY ("C" + 1{POSTFIX}) ASC NULLS FIRST',
             True,
         ),
@@ -1801,6 +1897,7 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
             lambda df: df.select(col("A"), col("B").alias("D"))
             .order_by(col("D"))
             .select(col("A").alias("E")),
+            'SELECT "A" AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY "D" ASC NULLS FIRST',
             'SELECT "A" AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY "D" ASC NULLS FIRST)',
             True,
         ),
@@ -1809,6 +1906,7 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
             lambda df: df.select(col("A"), col("B").alias("D"))
             .order_by(col("D") - 1)
             .select((col("A") + 1).alias("E")),
+            'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) ORDER BY ("D" - 1{POSTFIX}) ASC NULLS FIRST',
             'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", "B" AS "D" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT)) ORDER BY ("D" - 1{POSTFIX}) ASC NULLS FIRST)',
             True,
         ),
@@ -1818,13 +1916,27 @@ def test_select_after_filter(setup_reduce_cast, session, operation, simplified_q
             .filter((col("B") - 1) > -4)
             .select((col("A") + 1).alias("E")),
             'SELECT ("A" + 1{POSTFIX}) AS "E" FROM (SELECT "A", ("B" + 1{POSTFIX}) AS "B" FROM (SELECT $1 AS "A", $2 AS "B" FROM VALUES (1 :: INT, -2 :: INT), (3 :: INT, -4 :: INT))) WHERE (("B" - 1{POSTFIX}) > -4{POSTFIX})',
+            None,
             True,
         ),
     ],
 )
 def test_select_after_orderby(
-    setup_reduce_cast, session, operation, simplified_query, execute_sql
+    setup_reduce_cast,
+    session,
+    operation,
+    simplified_query,
+    execute_sql,
+    snowpark_connect_compatible_mode,
+    monkeypatch,
+    snowpark_connect_simplified_query,
 ):
+    if snowpark_connect_compatible_mode:
+        import snowflake.snowpark.context as context
+
+        monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+        simplified_query = snowpark_connect_simplified_query or simplified_query
+
     session.sql_simplifier_enabled = False
     df1 = session.create_dataframe([[1, -2], [3, -4]], schema=["a", "b"])
 
@@ -2034,3 +2146,19 @@ def test_select_distinct(
         )
     finally:
         session.conf.set("use_simplified_query_generation", original)
+
+
+def test_retrieving_aggregation_funcs(session, monkeypatch):
+    import snowflake.snowpark.context as context
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", True)
+    monkeypatch.setattr(context, "_aggregation_function_set", set())
+    assert not context._aggregation_function_set
+    session._retrieve_aggregation_function_list()
+    assert context._aggregation_function_set
+
+    monkeypatch.setattr(context, "_is_snowpark_connect_compatible_mode", False)
+    monkeypatch.setattr(context, "_aggregation_function_set", set())
+    assert not context._aggregation_function_set
+    session._retrieve_aggregation_function_list()
+    assert not context._aggregation_function_set
