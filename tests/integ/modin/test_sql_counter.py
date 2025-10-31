@@ -233,6 +233,21 @@ def test_sql_count_instances_by_query_substr():
 
 
 @pytest.mark.xfail(
+    reason="Validating that the SQL counter correctly fails when join_count is unspecified for a query with joins.",
+    strict=True,
+)
+def test_missing_join_count_sql_counter():
+    with SqlCounter(query_count=1) as sql_counter:
+        sql_counter._notify(
+            QueryRecord(
+                query_id="1",
+                sql_text="SELECT A FROM X JOIN Y JOIN W",
+                thread_id=threading.get_ident(),
+            )
+        )
+
+
+@pytest.mark.xfail(
     reason="We expect this to fail, but we don't treat as a hard failure since it is validating expect_high_count=False",
     strict=True,
 )
