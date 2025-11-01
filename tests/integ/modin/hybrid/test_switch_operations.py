@@ -752,9 +752,7 @@ def test_auto_switch_supported_dataframe(method, kwargs, api_cls_name):
     # Test supported DataFrame operations that should stay on Snowflake backend.
     test_data = {"A": [1.23, None, 3.89], "B": [4.12, 5.26, 6.34]}
 
-    with SqlCounter(
-        query_count=1,
-    ):
+    with SqlCounter(query_count=1):
         df = pd.DataFrame(test_data).move_to("Snowflake")
         assert df.get_backend() == "Snowflake"
 
@@ -774,8 +772,49 @@ def test_auto_switch_supported_dataframe(method, kwargs, api_cls_name):
             is_top_level=False,
         )
 
+        native_df = native_pd.DataFrame(test_data)
         eval_snowpark_pandas_result(
-            df, native_pd.DataFrame(test_data), lambda df: getattr(df, method)(**kwargs)
+            df, native_df, lambda df: getattr(df, method)(**kwargs)
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"freq": "min"},
+        {"freq": "S"},
+        {"freq": "H"},
+        {"freq": "D"},
+    ],
+)
+def test_auto_switch_supported_dataframe_asfreq(kwargs):
+    # Test supported DataFrame operations that should stay on Snowflake backend.
+    test_data = {"A": [1.23, None, 3.89], "B": [4.12, 5.26, 6.34]}
+
+    with SqlCounter(query_count=4):
+        index = native_pd.date_range("2023-01-01", periods=3, freq=kwargs["freq"])
+        df = pd.DataFrame(test_data, index=pd.DatetimeIndex(index)).move_to("Snowflake")
+        assert df.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=df,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        _test_expected_backend(
+            data_obj=df,
+            method_name="asfreq",
+            args=kwargs,
+            expected_backend="Snowflake",
+            is_top_level=False,
+        )
+
+        native_df = native_pd.DataFrame(test_data, index=native_pd.DatetimeIndex(index))
+        eval_snowpark_pandas_result(
+            df, native_df, lambda df: df.asfreq(**kwargs), check_freq=False
         )
 
 
@@ -814,14 +853,65 @@ def test_auto_switch_supported_series(method, kwargs, is_result_scalar, api_cls_
                 is_top_level=False,
             )
 
+        native_series = native_pd.Series(test_data)
+
         eval_snowpark_pandas_result(
             series,
-            native_pd.Series(test_data),
+            native_series,
             lambda series: getattr(series, method)(**kwargs),
             comparator=np.testing.assert_allclose
             if is_result_scalar
             else assert_snowpark_pandas_equal_to_pandas,
             test_attrs=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"freq": "min"},
+        {"freq": "S"},
+        {"freq": "H"},
+        {"freq": "D"},
+    ],
+)
+def test_auto_switch_supported_series_asfreq(kwargs):
+    # Test supported Series asfreq operations that should stay on Snowflake backend.
+    test_data = [1.89, 2.95, 3.12, None, 5.23, 6.34]
+
+    with SqlCounter(query_count=4):
+        index = native_pd.date_range("2023-01-01", periods=6, freq=kwargs["freq"])
+        series = pd.Series(test_data, index=pd.DatetimeIndex(index)).move_to(
+            "Snowflake"
+        )
+        assert series.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        _test_expected_backend(
+            data_obj=series,
+            method_name="asfreq",
+            args=kwargs,
+            expected_backend="Snowflake",
+            is_top_level=False,
+        )
+
+        native_series = native_pd.Series(
+            test_data, index=native_pd.DatetimeIndex(index)
+        )
+
+        eval_snowpark_pandas_result(
+            series,
+            native_series,
+            lambda series: series.asfreq(**kwargs),
+            test_attrs=False,
+            check_freq=False,
         )
 
 
@@ -1039,12 +1129,67 @@ def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
             is_top_level=False,
         )
 
+        native_df = native_pd.DataFrame(test_data)
         eval_snowpark_pandas_result(
             df,
-            native_pd.DataFrame(test_data),
+            native_df,
             lambda df: getattr(df, method)(
                 **(kwargs if isinstance(df, native_pd.DataFrame) else snowpark_kwargs)
             ),
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"freq": "Q"},
+        {"freq": "W"},
+        {"freq": "M"},
+        {"freq": "Y"},
+        {"how": "start", "freq": "min"},
+        {"how": "end", "freq": "min"},
+        {"normalize": True, "freq": "min"},
+        {"fill_value": 0, "freq": "min"},
+    ],
+)
+def test_auto_switch_unsupported_dataframe_asfreq(kwargs):
+    # Test unsupported DataFrame operations that should switch to Pandas backend.
+    test_data = {"A": [1.234, 2.567, 9.101], "B": [3.891, 4.123, 5.912]}
+
+    with SqlCounter(query_count=3):
+        index = native_pd.date_range("2023-01-01", periods=3, freq=kwargs["freq"])
+        df = pd.DataFrame(test_data, index=pd.DatetimeIndex(index)).move_to("Snowflake")
+
+        _test_stay_cost(
+            data_obj=df,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_df = pd.DataFrame(test_data, index=pd.DatetimeIndex(index))
+        _test_move_to_me_cost(
+            pandas_qc=pandas_df._query_compiler,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        _test_expected_backend(
+            data_obj=df,
+            method_name="asfreq",
+            args=kwargs,
+            expected_backend="Pandas",
+            is_top_level=False,
+        )
+
+        native_df = native_pd.DataFrame(test_data, index=native_pd.DatetimeIndex(index))
+        eval_snowpark_pandas_result(
+            df,
+            native_df,
+            lambda df: df.asfreq(**kwargs),
         )
 
 
@@ -1211,11 +1356,10 @@ def test_auto_switch_unsupported_dataframe_groupby_method(
         test_data = {"A": [1, 2, 3], "B": [4, 5, 6]}
 
         # Special handling for shift with freq parameter because it requires DatetimeIndex
-        if test_index is not None:
-            snowpark_index = pd.DatetimeIndex(test_index)
-            df = pd.DataFrame(test_data, index=snowpark_index).move_to("Snowflake")
-        else:
-            df = pd.DataFrame(test_data).move_to("Snowflake")
+        df = pd.DataFrame(
+            test_data,
+            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
+        ).move_to("Snowflake")
         assert df.get_backend() == "Snowflake"
 
         groupby_obj = df.groupby("A", **groupby_kwargs)
@@ -1229,11 +1373,10 @@ def test_auto_switch_unsupported_dataframe_groupby_method(
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
-        if test_index is not None:
-            pandas_df = pd.DataFrame(test_data, index=pd.DatetimeIndex(test_index))
-        else:
-            pandas_df = pd.DataFrame(test_data)
-
+        pandas_df = pd.DataFrame(
+            test_data,
+            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
+        )
         pandas_groupby_obj = pandas_df.groupby("A")
         _test_move_to_me_cost(
             pandas_qc=pandas_groupby_obj._query_compiler,
@@ -1251,12 +1394,12 @@ def test_auto_switch_unsupported_dataframe_groupby_method(
             is_top_level=False,
         )
 
-        if test_index is not None:
-            native_df = native_pd.DataFrame(
-                test_data, index=native_pd.DatetimeIndex(test_index, freq=None)
-            )
-        else:
-            native_df = native_pd.DataFrame(test_data)
+        native_df = native_pd.DataFrame(
+            test_data,
+            index=native_pd.DatetimeIndex(test_index, freq=None)
+            if test_index is not None
+            else None,
+        )
 
         eval_snowpark_pandas_result(
             df,
@@ -1341,12 +1484,62 @@ def test_auto_switch_unsupported_series(method, kwargs, api_cls_name):
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
+        native_series = native_pd.Series(test_data)
         eval_snowpark_pandas_result(
             series,
-            native_pd.Series(test_data),
+            native_series,
             lambda series: getattr(series, method)(**kwargs),
             comparator=np.testing.assert_allclose,
             test_attrs=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"freq": "Q"},
+        {"freq": "W"},
+        {"freq": "M"},
+        {"freq": "Y"},
+        {"how": "start", "freq": "min"},
+        {"how": "end", "freq": "min"},
+        {"normalize": True, "freq": "min"},
+        {"fill_value": 0, "freq": "min"},
+    ],
+)
+def test_auto_switch_unsupported_series_asfreq(kwargs):
+    # Test unsupported Series operations that should switch to Pandas backend.
+    test_data = [1, 2, 3, 4, 5, 6]
+
+    with SqlCounter(query_count=3):
+        index = native_pd.date_range("2023-01-01", periods=6, freq=kwargs["freq"])
+        series = pd.Series(test_data, index=pd.DatetimeIndex(index)).move_to(
+            "Snowflake"
+        )
+        assert series.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_series = pd.Series(test_data, index=pd.DatetimeIndex(index))
+        _test_move_to_me_cost(
+            pandas_qc=pandas_series._query_compiler,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        native_series = native_pd.Series(
+            test_data, index=native_pd.DatetimeIndex(index)
+        )
+        eval_snowpark_pandas_result(
+            series, native_series, lambda series: series.asfreq(**kwargs)
         )
 
 
@@ -1751,6 +1944,62 @@ def test_error_handling_dataframe_when_auto_switch_disabled(
 
 
 @pytest.mark.parametrize(
+    "kwargs,expected_reason",
+    [
+        (
+            {"freq": "Q"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "W"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "M"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "Y"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"how": "start", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"how": "end", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"normalize": True, "freq": "min"},
+            "normalize = True is not supported",
+        ),
+        (
+            {"fill_value": 0, "freq": "min"},
+            "the 'fill_value' parameter is not yet supported",
+        ),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_error_handling_dataframe_asfreq_when_auto_switch_disabled(
+    kwargs, expected_reason
+):
+    # Test that unsupported DataFrame asfreq args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        index = native_pd.date_range("2023-01-01", periods=3, freq=kwargs["freq"])
+        df = pd.DataFrame(
+            {"A": [1, 2, 3], "B": [4, 5, 6]}, index=pd.DatetimeIndex(index)
+        ).move_to("Snowflake")
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                f"Snowpark pandas asfreq does not yet support the parameter combination because {expected_reason}"
+            ),
+        ):
+            df.asfreq(**kwargs)
+
+
+@pytest.mark.parametrize(
     "method,kwargs,expected_reason",
     [
         (
@@ -1795,6 +2044,63 @@ def test_error_handling_series_when_auto_switch_disabled(
             ),
         ):
             getattr(series, method)(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected_reason",
+    [
+        (
+            {"freq": "Q"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "W"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "M"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "Y"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"how": "start", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"how": "end", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"normalize": True, "freq": "min"},
+            "normalize = True is not supported",
+        ),
+        (
+            {"fill_value": 0, "freq": "min"},
+            "the 'fill_value' parameter is not yet supported",
+        ),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_error_handling_series_asfreq_when_auto_switch_disabled(
+    kwargs, expected_reason
+):
+    # Test that unsupported Series asfreq args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        index = native_pd.date_range("2023-01-01", periods=6, freq=kwargs["freq"])
+        series = pd.Series([1, 2, 3, 4, 5, 6], index=pd.DatetimeIndex(index)).move_to(
+            "Snowflake"
+        )
+
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                f"Snowpark pandas asfreq does not yet support the parameter combination because {expected_reason}"
+            ),
+        ):
+            series.asfreq(**kwargs)
 
 
 @sql_count_checker(query_count=0)
