@@ -1219,11 +1219,6 @@ def test_sort(session):
         for i in range(len(sorted_rows) - 1)
     ]
 
-    # Negative test: sort() needs at least one sort expression
-    with pytest.raises(ValueError) as ex_info:
-        df.sort([])
-    assert "sort() needs at least one sort expression" in ex_info.value.args[0]
-
 
 def test_select(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(

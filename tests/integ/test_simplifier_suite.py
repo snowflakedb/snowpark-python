@@ -1807,6 +1807,10 @@ def test_sort_by_all_sql_simplifier(session, use_simplified_query_generation):
         df2 = df.select("a", "b", "c").sort(ascending=False)
         assert "ORDER BY" and "ALL" in df2.queries["queries"][0].upper()
         Utils.check_answer(df2, [Row(3, "c", 30), Row(2, "b", 20), Row(1, "a", 10)])
+
+        df3 = df.select("a", "b").orderBy([], ascending=True)
+        assert "ORDER BY" and "ALL" in df3.queries["queries"][0].upper()
+        Utils.check_answer(df3, df1)
     finally:
         session.conf.set("use_simplified_query_generation", original)
 
