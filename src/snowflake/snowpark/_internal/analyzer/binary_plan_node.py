@@ -155,6 +155,23 @@ class NaturalJoin(JoinType):
         self.tpe = tpe
 
 
+class LateralJoin(JoinType):
+    def __init__(self, tpe: JoinType) -> None:
+        if not isinstance(
+            tpe,
+            (
+                Inner,
+                LeftOuter,
+                Cross,
+            ),
+        ):
+            raise SnowparkClientExceptionMessages.DF_JOIN_INVALID_LATERAL_JOIN_TYPE(
+                tpe.__class__.__name__
+            )
+        self.sql = tpe.sql + " JOIN LATERAL"
+        self.tpe = tpe
+
+
 class UsingJoin(JoinType):
     def __init__(self, tpe: JoinType, using_columns: List[str]) -> None:
         if not isinstance(

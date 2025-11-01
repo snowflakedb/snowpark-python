@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Added support for `DataFrame.lateral_join`
 - Added support for `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
 - Added support for `functions.ai_translate`.

@@ -61,6 +61,7 @@ DataFrame
     DataFrame.intersect
     DataFrame.join
     DataFrame.join_table_function
+    DataFrame.lateral_join
     DataFrame.limit
     DataFrame.minus
     DataFrame.natural_join

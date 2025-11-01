@@ -33,14 +33,18 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     sort_statement,
     join_table_function_statement,
     lateral_statement,
+    lateral_join_statement,
     pivot_statement,
     unpivot_statement,
     sample_by_statement,
     get_options_statement,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
+    Cross,
     Inner,
     LeftAnti,
+    LeftOuter,
+    LateralJoin,
     UsingJoin,
 )
 from snowflake.snowpark._internal.utils import EMPTY_STRING
@@ -730,6 +734,57 @@ def test_lateral_statement_formatting():
         "my_table\n"
         "), \n"
         " LATERAL TABLE(split_to_table(col1, ' '))"
+    )
+
+
+def test_lateral_join_statement_formatting():
+    # Inner lateral join without condition
+    assert lateral_join_statement(
+        "SELECT * FROM table1", "SELECT * FROM table2", LateralJoin(Inner()), "", True
+    ) == (
+        " SELECT  * \n"
+        " FROM (\n"
+        "SELECT * FROM table1\n"
+        ") AS SNOWPARK_LEFT\n"
+        "INNER JOIN  LATERAL \n"
+        "(SELECT * FROM table2) AS SNOWPARK_RIGHT\n"
+    )
+
+    # Left outer lateral join with condition
+    assert lateral_join_statement(
+        "SELECT * FROM table1",
+        "SELECT * FROM table2",
+        LateralJoin(LeftOuter()),
+        '"A" = "B"',
+        True,
+    ) == (
+        " SELECT  * \n"
+        " FROM (\n"
+        "SELECT * FROM table1\n"
+        ") AS SNOWPARK_LEFT\n"
+        "LEFT OUTER JOIN  LATERAL \n"
+        "(\n"
+        ' SELECT  *  FROM (SELECT * FROM table2) WHERE "A" = "B"\n'
+        ") AS SNOWPARK_RIGHT\n"
+        " ON TRUE"
+    )
+
+    # Cross lateral join with condition
+    assert lateral_join_statement(
+        "SELECT a FROM table1",
+        "SELECT a FROM table2",
+        LateralJoin(Cross()),
+        '"table1"."a" = "table2"."a"',
+        True,
+    ) == (
+        " SELECT  * \n"
+        " FROM (\n"
+        "SELECT a FROM table1\n"
+        ") AS SNOWPARK_LEFT\n"
+        "CROSS JOIN  LATERAL \n"
+        "(\n"
+        ' SELECT  *  FROM (SELECT a FROM table2) WHERE "table1"."a" = "table2"."a"\n'
+        ") AS SNOWPARK_RIGHT\n"
     )
 
 
