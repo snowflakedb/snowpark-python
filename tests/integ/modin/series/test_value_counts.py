@@ -248,6 +248,7 @@ def test_series_value_counts(native_series, normalize, sort, ascending, dropna):
     ],
 )
 @sql_count_checker(query_count=1)
+@pytest.mark.skip_hybrid
 def test_series_value_counts_non_deterministic_pandas_behavior(
     native_series, expected, normalize, sort, ascending, dropna
 ):

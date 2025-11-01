@@ -549,6 +549,7 @@ def test_series_loc_get_key_non_boolean_series(
 # to_pandas with variant columns added one more query
 # TODO: SNOW-933782 should resolve it
 @sql_count_checker(query_count=1)
+@pytest.mark.skip_hybrid
 def test_series_loc_get_key_slice(
     monotonic_decreasing,
     default_index_snowpark_pandas_series,
