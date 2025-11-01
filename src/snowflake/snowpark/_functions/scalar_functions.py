@@ -3974,6 +3974,265 @@ def try_to_geometry(
 
 
 @publicapi
+def base64_decode_binary(
+    input_expr: ColumnOrName,
+    alphabet: Optional[ColumnOrName] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Decodes a base64-encoded string and returns the result as a binary value.
+
+    Args:
+        input_expr (ColumnOrName): A base64-encoded string to decode.
+        alphabet (ColumnOrName, optional): The base64 alphabet to use for decoding. If not specified, uses the standard base64 alphabet.
+
+    Returns:
+        Column: A binary value containing the decoded result.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe(["SEVMUA=="], schema=["input"])
+        >>> df.select(base64_decode_binary(col("input")).alias("result")).collect()
+        [Row(RESULT=bytearray(b'HELP'))]
+
+        >>> df.select(base64_decode_binary(col('input'), lit('$')).alias('result')).collect()
+        [Row(RESULT=bytearray(b'HELP'))]
+    """
+    from snowflake.snowpark.functions import builtin
+
+    input_col = _to_col_if_str(input_expr, "base64_decode_binary")
+
+    if alphabet is not None:
+        alphabet_col = _to_col_if_str(alphabet, "base64_decode_binary")
+        return builtin("base64_decode_binary", _emit_ast=_emit_ast)(
+            input_col, alphabet_col
+        )
+    else:
+        return builtin("base64_decode_binary", _emit_ast=_emit_ast)(input_col)
+
+
+@publicapi
+def compress(
+    input_val: ColumnOrName, method: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Compresses the input string using the specified compression method.
+
+    Args:
+        input_val (ColumnOrName): The input string to be compressed.
+        method (ColumnOrName): The compression method (e.g., "SNAPPY").
+
+    Returns:
+        Column: The compressed binary data.
+
+    Example::
+        >>> df = session.create_dataframe([['Snowflake'], ['Hello World']], schema=["input"])
+        >>> df.select(compress(df["input"], lit("SNAPPY")).alias("compressed")).collect()
+        [Row(COMPRESSED=bytearray(b'\\t Snowflake')), Row(COMPRESSED=bytearray(b'\\x0b(Hello World'))]
+    """
+    input_col = _to_col_if_str(input_val, "compress")
+    method_col = _to_col_if_str(method, "compress")
+    return builtin("compress", _emit_ast=_emit_ast)(input_col, method_col)
+
+
+@publicapi
+def decompress_binary(
+    input_data: ColumnOrName, method: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Decompresses binary data using the specified compression method.
+
+    Args:
+        input_data (ColumnOrName): The binary data to decompress.
+        method (ColumnOrName): The compression method used to decompress the data.
+
+    Returns:
+        Column: The decompressed binary data.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import lit
+        >>> from snowflake.snowpark.functions import to_binary, lit
+        >>> df = session.create_dataframe([['0920536E6F77666C616B65']], schema=["compressed_hex"])
+        >>> df.select(decompress_binary(to_binary(df["compressed_hex"]), lit("SNAPPY")).alias("decompressed")).collect()
+        [Row(DECOMPRESSED=bytearray(b'Snowflake'))]
+    """
+    input_col = _to_col_if_str(input_data, "decompress_binary")
+    method_col = _to_col_if_str(method, "decompress_binary")
+    return builtin("decompress_binary", _emit_ast=_emit_ast)(input_col, method_col)
+
+
+@publicapi
+def decompress_string(
+    input_data: ColumnOrName, method: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Decompresses a BINARY value using the specified compression method and returns the result as a string.
+
+    Args:
+        input_data (ColumnOrName): The compressed binary data to decompress.
+        method (ColumnOrName): The compression method used. Supported methods include 'SNAPPY', 'GZIP', etc.
+
+    Returns:
+        Column: The decompressed string.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import to_binary
+        >>> df = session.create_dataframe([['0920536E6F77666C616B65', 'SNAPPY']], schema=["compressed_hex", "method"])
+        >>> df.select(decompress_string(to_binary(df["compressed_hex"], 'HEX'), df["method"]).alias("decompressed")).collect()
+        [Row(DECOMPRESSED='Snowflake')]
+    """
+    input_col = _to_col_if_str(input_data, "decompress_string")
+    method_col = _to_col_if_str(method, "decompress_string")
+    return builtin("decompress_string", _emit_ast=_emit_ast)(input_col, method_col)
+
+
+@publicapi
+def md5_binary(msg: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the MD5 hash of the input message as a binary value.
+
+    Args:
+        msg (ColumnOrName): The input message to compute the MD5 hash for.
+
+    Returns:
+        Column: The MD5 hash as a binary value (bytearray).
+
+    Examples::
+        >>> from snowflake.snowpark import Row
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["Snowflake"], ["test"], [""]], schema=["msg"])
+        >>> result = df.select(md5_binary(col("msg")).alias("md5_result")).collect()
+
+        >>> expected = [
+        ... Row(MD5_RESULT=bytearray(b'\\xed\\xf1C\\x90u\\xa8:D\\x7f\\xb8\\xb60\\xdd\\xc9\\xc8\\xde')),  # "Snowflake"
+        ... Row(MD5_RESULT=bytearray(b"\\t\\x8fk\\xcdF!\\xd3s\\xca\\xdeN\\x83&'\\xb4\\xf6")),           # "test"
+        ... Row(MD5_RESULT=bytearray(b'\\xd4\\x1d\\x8c\\xd9\\x8f\\x00\\xb2\\x04\\xe9\\x80\\t\\x98\\xec\\xf8B~'))  # "" (empty)
+        ... ]
+
+        >>> assert result == expected
+    """
+    c = _to_col_if_str(msg, "md5_binary")
+    return builtin("md5_binary", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def md5_number_lower64(msg: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns a 64-bit number from the lower 64 bits of the MD5 hash of the input message.
+
+    Args:
+        msg (ColumnOrName): The input message to hash.
+
+    Returns:
+        Column: A 64-bit number representing the lower 64 bits of the MD5 hash.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["Snowflake"], ["test"], ["hello"]], schema=["msg"])
+        >>> df.select(md5_number_lower64(col("msg")).alias("result")).collect()
+        [Row(RESULT=9203306159527282910), Row(RESULT=14618207765679027446), Row(RESULT=13362634815750784402)]
+    """
+    c = _to_col_if_str(msg, "md5_number_lower64")
+    return builtin("md5_number_lower64", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def md5_number_upper64(msg: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the upper 64 bits of the MD5 hash of the input message as a number.
+
+    Args:
+        msg (ColumnOrName): The input message to hash.
+
+    Returns:
+        Column: A column containing the upper 64 bits of the MD5 hash as a number.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["Snowflake"], ["test"], ["hello"]], schema=["msg"])
+        >>> df.select(md5_number_upper64(col("msg")).alias("result")).collect()
+        [Row(RESULT=17145559544104499780), Row(RESULT=688887797400064883), Row(RESULT=6719722671305337462)]
+    """
+    c = _to_col_if_str(msg, "md5_number_upper64")
+    return builtin("md5_number_upper64", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def sha1_binary(msg: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the SHA-1 hash of the input message as a binary value.
+
+    Args:
+        msg (ColumnOrName): The input message to hash.
+
+    Returns:
+        Column: The SHA-1 hash as a binary value.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["Snowflake"], ["test"], ["hello"]], schema=["msg"])
+        >>> df.select(sha1_binary(col("msg")).alias("sha1_result")).collect()
+        [Row(SHA1_RESULT=bytearray(b'\\xfd\\xa7k\\x0b\\xcc\\x1e\\x87\\xcf%\\x9b\\x1d\\x1e2q\\xd7oY\\x0f\\xb5\\xdd')), Row(SHA1_RESULT=bytearray(b'\\xa9J\\x8f\\xe5\\xcc\\xb1\\x9b\\xa6\\x1cL\\x08s\\xd3\\x91\\xe9\\x87\\x98/\\xbb\\xd3')), Row(SHA1_RESULT=bytearray(b'\\xaa\\xf4\\xc6\\x1d\\xdc\\xc5\\xe8\\xa2\\xda\\xbe\\xde\\x0f;H,\\xd9\\xae\\xa9CM'))]
+    """
+    c = _to_col_if_str(msg, "sha1_binary")
+    return builtin("sha1_binary", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def sha2_binary(
+    msg: ColumnOrName, digest_size: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns a binary SHA-2 hash of the input message. The digest size determines the hash algorithm used.
+
+    Args:
+        msg (ColumnOrName): The input message to hash.
+        digest_size (ColumnOrName, optional): The digest size in bits. Valid values are 224, 256, 384, and 512. Defaults to 256 if not specified.
+
+    Returns:
+        Column: A binary representation of the SHA-2 hash.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([["Snowflake"], ["test"], ["hello"]], schema=["msg"])
+        >>> df.select(sha2_binary(col("msg")).alias("result")).collect()
+        [Row(RESULT=bytearray(b'\\x1d\\xbdY\\xf6a\\xd6\\x8b\\x90rO!\\x08C\\x96\\xb8eIqs\\xe4\\xd2qOM\\x91\\xcf\\x05\\xfa_\\xc5\\xe1\\x8d')), Row(RESULT=bytearray(b'\\x9f\\x86\\xd0\\x81\\x88L}e\\x9a/\\xea\\xa0\\xc5Z\\xd0\\x15\\xa3\\xbfO\\x1b+\\x0b\\x82,\\xd1]l\\x15\\xb0\\xf0\\n\\x08')), Row(RESULT=bytearray(b',\\xf2M\\xba_\\xb0\\xa3\\x0e&\\xe8;*\\xc5\\xb9\\xe2\\x9e\\x1b\\x16\\x1e\\\\\\x1f\\xa7B^s\\x043b\\x93\\x8b\\x98$'))]
+        >>> df.select(sha2_binary(col("msg"), lit(224)).alias("result")).collect()
+        [Row(RESULT=bytearray(b'bg\\xd3\\xd7\\xa5\\x99)\\xe6\\x86M\\xd4\\xb77\\xd9\\x8e>\\xf8V\\x9d\\x9f\\x88\\xa7FfG\\x83\\x852')), Row(RESULT=bytearray(b'\\x90\\xa3\\xed\\x9e2\\xb2\\xaa\\xf4\\xc6\\x1cA\\x0e\\xb9%Ba\\x19\\xe1\\xa9\\xdcS\\xd4(j\\xde\\x99\\xa8\\t')), Row(RESULT=bytearray(b'\\xea\\t\\xae\\x9c\\xc6v\\x8cP\\xfc\\xee\\x90>\\xd0TUn[\\xfc\\x83G\\x90\\x7f\\x12Y\\x8a\\xa2A\\x93'))]
+    """
+    c = _to_col_if_str(msg, "sha2_binary")
+    if digest_size is None:
+        return builtin("sha2_binary", _emit_ast=_emit_ast)(c)
+    else:
+        d = _to_col_if_str(digest_size, "sha2_binary")
+        return builtin("sha2_binary", _emit_ast=_emit_ast)(c, d)
+
+
+@publicapi
+def soundex_p123(varchar_expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns a phonetic representation of a string using the Soundex algorithm with P123 encoding.
+    This function converts names or words that sound similar into the same code, making it useful
+    for fuzzy matching and searching.
+
+    Args:
+        varchar_expr (ColumnOrName): The string expression to convert to Soundex P123 format.
+
+    Returns:
+        Column: The Soundex P123 encoded string.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["Pfister"], ["Lloyd"], ["Smith"], ["Johnson"]], schema=["name"])
+        >>> df.select(soundex_p123(col("name")).alias("soundex_result")).collect()
+        [Row(SOUNDEX_RESULT='P123'), Row(SOUNDEX_RESULT='L430'), Row(SOUNDEX_RESULT='S530'), Row(SOUNDEX_RESULT='J525')]
+    """
+    c = _to_col_if_str(varchar_expr, "soundex_p123")
+    return builtin("soundex_p123", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
 def strtok(
     string: ColumnOrName,
     delimiter: ColumnOrName = None,
