@@ -21,6 +21,13 @@
       - `sha1_binary`
       - `sha2_binary`
       - `soundex_p123`
+      - `strtok`
+      - `try_base64_decode_binary`
+      - `try_base64_decode_string`
+      - `try_hex_decode_binary`
+      - `try_hex_decode_string`
+      - `unicode`
+      - `uuid_string`
 
 #### Improvements
 
