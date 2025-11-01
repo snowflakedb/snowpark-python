@@ -120,6 +120,9 @@
   - `expanding.std`
   - `expanding.var`
   - `expanding.sem`
+  - `cumsum`
+  - `cummin`
+  - `cummax`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 
 ## 1.42.0 (2025-10-28)
