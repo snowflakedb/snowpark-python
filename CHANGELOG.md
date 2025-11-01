@@ -9,6 +9,18 @@
 - Added support for `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
 - Added support for `functions.ai_translate`.
+- Added support for the following functions in `functions.py`:
+    - String and Binary functions:
+      - `base64_decode_binary`
+      - `compress`
+      - `decompress_binary`
+      - `decompress_string`
+      - `md5_binary`
+      - `md5_number_lower64`
+      - `md5_number_upper64`
+      - `sha1_binary`
+      - `sha2_binary`
+      - `soundex_p123`
 
 #### Improvements
 
