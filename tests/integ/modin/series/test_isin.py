@@ -76,7 +76,10 @@ def test_isin_integer_data(values, expected_query_count):
     if isinstance(values, native_pd.Index):
         values = pd.Index(values)
     data = [3, 4, 2, 1, None, 0, 5, 4, 2, -10, -20, -42, None]
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(
+        query_count=expected_query_count,
+        join_count=int(isinstance(values, native_pd.Series)),
+    ):
         snow_series = pd.Series(data)
         native_series = native_pd.Series(data)
 
@@ -151,7 +154,10 @@ def test_isin_with_incompatible_index(values, expected_query_count):
     ],
 )
 def test_isin_various_combos(data, values, expected_query_count):
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(
+        query_count=expected_query_count,
+        join_count=int(len(data) > 0 and isinstance(values, native_pd.Series)),
+    ):
         snow_series = pd.Series(data)
         native_series = native_pd.Series(data)
 
@@ -207,13 +213,13 @@ def test_isin_with_str_negative():
 def test_isin_ignores_index():
     snow_rhs, native_rhs = create_test_series([4, 10], index=[99, 100])
     snow_df, native_df = create_test_dfs({"A": [1, 2, 3], "B": [4, 5, 6]})
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         # df-series operation
         assert_snowpark_pandas_equal_to_pandas(
             snow_df.isin(snow_rhs),
             native_df.isin(native_rhs),
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         # series-series operation (issue in the JIRA ticket)
         assert_snowpark_pandas_equal_to_pandas(
             snow_df["B"].isin(snow_rhs),

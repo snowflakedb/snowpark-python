@@ -38,7 +38,7 @@ def test_dataframe_transpose_default_index(
 ):
     snow_df = pd.DataFrame(score_test_data)
     native_df = native_pd.DataFrame(score_test_data)
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=expected_query_count, union_count=2):
         eval_snowpark_pandas_result(snow_df, native_df, transpose_operation)
 
 
@@ -48,7 +48,7 @@ def test_dataframe_transpose_set_single_index(
 ):
     snow_df = pd.DataFrame(score_test_data)
     native_df = native_pd.DataFrame(score_test_data)
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=expected_query_count, union_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -85,7 +85,7 @@ def test_dataframe_transpose_set_single_index(
 def test_dataframe_transpose_set_timedelta_index_SNOW_1652608(
     operation, score_test_data, index
 ):
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=2, union_count=1):
         eval_snowpark_pandas_result(
             *create_test_dfs(score_test_data), lambda df: operation(df.set_index(index))
         )
@@ -97,7 +97,7 @@ def test_dataframe_transpose_set_multi_index(
 ):
     snow_df = pd.DataFrame(score_test_data)
     native_df = native_pd.DataFrame(score_test_data)
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=expected_query_count, union_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -112,7 +112,7 @@ def test_dataframe_transpose_set_columns_multi_index(
     snow_df = pd.DataFrame(score_test_data)
     native_df = native_pd.DataFrame(score_test_data)
 
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=expected_query_count, union_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -137,7 +137,7 @@ def test_dataframe_transpose_set_columns_multi_index_mixed_types(
     snow_df = pd.DataFrame(score_test_data)
     native_df = native_pd.DataFrame(score_test_data)
 
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=expected_query_count, union_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -163,7 +163,7 @@ def test_dataframe_transpose_both_multi_index(
     native_df = native_pd.DataFrame(score_test_data)
     snow_df = pd.DataFrame(score_test_data)
 
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=expected_query_count, union_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -182,7 +182,7 @@ def test_dataframe_transpose_single_row(transpose_operation, expected_query_coun
     native_df = native_pd.DataFrame(single_row_data)
     snow_df = pd.DataFrame(single_row_data)
 
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=expected_query_count, union_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -286,19 +286,21 @@ def test_dataframe_all_missing():
 
 
 @pytest.mark.parametrize(
-    "test_args, expected_query_count",
+    "test_args, expected_query_count, expected_union_count",
     [
-        ((None, None), 2),
-        (([1, 2, 3], None), 2),
-        ((None, ["a", "b", "c"]), 1),
+        ((None, None), 2, 0),
+        (([1, 2, 3], None), 2, 0),
+        ((None, ["a", "b", "c"]), 1, 1),
     ],
 )
-def test_dataframe_transpose_empty(test_args, expected_query_count):
+def test_dataframe_transpose_empty(
+    test_args, expected_query_count, expected_union_count
+):
     index = test_args[0]
     columns = test_args[1]
     native_df = native_pd.DataFrame(index=index, columns=columns)
     snow_df = pd.DataFrame(index=index, columns=columns)
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=expected_query_count, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             snow_df, native_df, lambda df: df.T, check_column_type=False
         )

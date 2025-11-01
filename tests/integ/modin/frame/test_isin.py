@@ -38,7 +38,8 @@ def _test_isin_with_snowflake_logic(df: Any, values, query_count=0):  # noqa: E3
         # set expected query counts to 0 if native pandas is used.
         query_count = 0
 
-    with SqlCounter(query_count=query_count):
+    join_count = 1 if isinstance(df, pd.DataFrame) else 0
+    with SqlCounter(query_count=query_count, join_count=join_count):
         ans = df.isin(values)
 
         # Following code is to emulate Snowflake behavior:
