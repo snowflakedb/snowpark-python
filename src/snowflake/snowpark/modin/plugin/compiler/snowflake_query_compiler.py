@@ -9809,6 +9809,13 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
         # The apply function is encapsulated in a UDTF and run as a stored procedure on the pandas dataframe.
+        # Determine if we should pass index columns to the UDTF
+        # We pass index columns when the index is not the row position itself
+        index_columns_for_udtf = (
+            new_internal_df.index_column_snowflake_quoted_identifiers
+        )
+        index_column_pandas_labels_for_udtf = new_internal_df.index_column_pandas_labels
+
         func_udtf = create_udtf_for_apply_axis_1(
             row_position_snowflake_quoted_identifier,
             func,
@@ -9818,6 +9825,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             column_index,
             input_types,
             self._modin_frame.ordered_dataframe.session,
+            index_column_labels=index_column_pandas_labels_for_udtf,
             **kwargs,
         )
 
@@ -9857,13 +9865,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 _emit_ast=self._modin_frame.ordered_dataframe.session.ast_enabled,
             )
         ).as_(partition_identifier)
+        # Select columns to pass to UDTF: partition, row_position, index columns (if any), data columns
         udtf_dataframe = new_internal_df.ordered_dataframe.select(
             partition_expression,
             row_position_snowflake_quoted_identifier,
+            *index_columns_for_udtf,
             *new_internal_df.data_column_snowflake_quoted_identifiers,
         ).select(
             func_udtf(
                 row_position_snowflake_quoted_identifier,
+                *index_columns_for_udtf,
                 *new_internal_df.data_column_snowflake_quoted_identifiers,
             ).over(partition_by=[partition_identifier]),
         )
@@ -10590,11 +10601,6 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
             return qc_result
         else:
-            # get input types of all data columns from the dataframe directly
-            input_types = self._modin_frame.get_snowflake_type(
-                self._modin_frame.data_column_snowflake_quoted_identifiers
-            )
-
             from snowflake.snowpark.modin.plugin.extensions.utils import (
                 try_convert_index_to_native,
             )
@@ -10603,6 +10609,16 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             column_index = try_convert_index_to_native(
                 self._modin_frame.data_columns_index
             )
+
+            # get input types of index and data columns from the dataframe
+            data_input_types = self._modin_frame.get_snowflake_type(
+                self._modin_frame.data_column_snowflake_quoted_identifiers
+            )
+            index_input_types = self._modin_frame.get_snowflake_type(
+                self._modin_frame.index_column_snowflake_quoted_identifiers
+            )
+            # Combine index types + data types for UDTF input
+            input_types = index_input_types + data_input_types
 
             # Extract return type from annotations (or lookup for known pandas functions) for func object,
             # if no return type could be extracted the variable will hold None.
@@ -10618,7 +10634,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 return self._apply_udf_row_wise_and_reduce_to_series_along_axis_1(
                     func,
                     column_index,
-                    input_types,
+                    data_input_types,
                     return_type,
                     udf_args=args,
                     udf_kwargs=kwargs,

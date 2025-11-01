@@ -60,6 +60,7 @@
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
+- Preserve index values when using `df.apply(axis=1)`.
 - Fixed a bug where converting a modin datetime index with a timezone to a numpy array with `np.asarray` would cause a `TypeError`.
 - Fixed a bug where `Series.isin` with a Series argument matched index labels instead of the row position.
 
