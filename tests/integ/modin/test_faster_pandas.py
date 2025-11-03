@@ -619,6 +619,36 @@ def test_groupby_apply(session):
         )
 
 
+@pytest.mark.parametrize("property_name", ["groups", "indices"])
+@sql_count_checker(query_count=3)
+def test_groupby_properties(session, property_name):
+    with session_parameter_override(
+        session, "dummy_row_pos_optimization_enabled", True
+    ):
+        # create tables
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        session.create_dataframe(
+            native_pd.DataFrame([[2, 12], [2, 11], [3, 13]], columns=["A", "B"])
+        ).write.save_as_table(table_name, table_type="temp")
+
+        # create snow dataframes
+        df = pd.read_snowflake(table_name).sort_values("B", ignore_index=True)
+        snow_result = getattr(df.groupby("A"), property_name)
+
+        # verify that the input dataframe has a populated relaxed query compiler
+        assert df._query_compiler._relaxed_query_compiler is not None
+        assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+
+        # create pandas dataframes
+        native_df = df.to_pandas()
+        native_result = getattr(native_df.groupby("A"), property_name)
+
+        # compare results
+        snow_result = {k: list(v) for k, v in snow_result.items()}
+        native_result = {k: list(v) for k, v in native_result.items()}
+        assert snow_result == native_result
+
+
 @sql_count_checker(query_count=5)
 def test_iloc_head(session):
     with session_parameter_override(

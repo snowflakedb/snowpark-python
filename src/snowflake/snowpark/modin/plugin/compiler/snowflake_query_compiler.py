@@ -6515,6 +6515,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         groupby_kwargs: dict[str, Any],
     ) -> PrettyDict[Hashable, "pd.Index"]:
         """
+        Wrapper around _groupby_groups_internal to be supported in faster pandas.
+        """
+        if self._relaxed_query_compiler is not None:
+            return self._relaxed_query_compiler._groupby_groups_internal(
+                by=by,
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+            )
+        return self._groupby_groups_internal(
+            by=by,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+        )
+
+    def _groupby_groups_internal(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+    ) -> PrettyDict[Hashable, "pd.Index"]:
+        """
         Get a PrettyDict mapping group keys to row labels.
 
         Arguments:
@@ -6648,6 +6669,30 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def groupby_indices(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        values_as_np_array: bool = True,
+    ) -> dict[Hashable, np.ndarray]:
+        """
+        Wrapper around _groupby_indices_internal to be supported in faster pandas.
+        """
+        if self._relaxed_query_compiler is not None:
+            return self._relaxed_query_compiler._groupby_indices_internal(
+                by=by,
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+                values_as_np_array=values_as_np_array,
+            )
+        return self._groupby_indices_internal(
+            by=by,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            values_as_np_array=values_as_np_array,
+        )
+
+    def _groupby_indices_internal(
         self,
         by: Any,
         axis: int,
