@@ -4299,16 +4299,20 @@ def try_base64_decode_binary(
     Examples::
         >>> from snowflake.snowpark.functions import base64_encode
         >>> df = session.create_dataframe(["HELP", "TEST"], schema=["input"])
-        >>> df.select(try_base64_decode_binary(base64_encode(df["input"]))).collect()
-        [Row(TRY_BASE64_DECODE_BINARY(BASE64_ENCODE("INPUT"))=bytearray(b'HELP')), Row(TRY_BASE64_DECODE_BINARY(BASE64_ENCODE("INPUT"))=bytearray(b'TEST'))]
+        >>> df.select(try_base64_decode_binary(base64_encode(df["input"])).alias("result")).collect()
+        [Row(RESULT=bytearray(b'HELP')), Row(RESULT=bytearray(b'TEST'))]
 
         >>> df2 = session.create_dataframe(["SEVMUA==", "VEVTVA=="], schema=["encoded"])
-        >>> df2.select(try_base64_decode_binary(df2["encoded"])).collect()
-        [Row(TRY_BASE64_DECODE_BINARY("ENCODED")=bytearray(b'HELP')), Row(TRY_BASE64_DECODE_BINARY("ENCODED")=bytearray(b'TEST'))]
+        >>> df2.select(try_base64_decode_binary(df2["encoded"]).alias("result")).collect()
+        [Row(RESULT=bytearray(b'HELP')), Row(RESULT=bytearray(b'TEST'))]
 
         >>> df3 = session.create_dataframe(["invalid_base64!"], schema=["bad_input"])
-        >>> df3.select(try_base64_decode_binary(df3["bad_input"])).collect()
-        [Row(TRY_BASE64_DECODE_BINARY("BAD_INPUT")=None)]
+        >>> df3.select(try_base64_decode_binary(df3["bad_input"]).alias("result")).collect()
+        [Row(RESULT=None)]
+
+        >>> df4 = session.create_dataframe(["SEVMUA=="], schema=["encoded"])
+        >>> df4.select(try_base64_decode_binary(df4["encoded"], lit("$")).alias("result")).collect()
+        [Row(RESULT=bytearray(b'HELP'))]
     """
     input_col = _to_col_if_str(input_expr, "try_base64_decode_binary")
 
@@ -4449,8 +4453,12 @@ def uuid_string(
     if uuid is None and name is None:
         return builtin("uuid_string", _emit_ast=_emit_ast)()
     elif uuid is not None and name is not None:
-        return builtin("uuid_string", _emit_ast=_emit_ast)(uuid, name)
+        uuid_col = _to_col_if_str(uuid, "uuid_string")
+        name_col = _to_col_if_str(name, "uuid_string")
+        return builtin("uuid_string", _emit_ast=_emit_ast)(uuid_col, name_col)
     elif uuid is not None:
-        return builtin("uuid_string", _emit_ast=_emit_ast)(uuid)
+        uuid_col = _to_col_if_str(uuid, "uuid_string")
+        return builtin("uuid_string", _emit_ast=_emit_ast)(uuid_col)
     else:
-        return builtin("uuid_string", _emit_ast=_emit_ast)(name)
+        name_col = _to_col_if_str(name, "uuid_string")
+        return builtin("uuid_string", _emit_ast=_emit_ast)(name_col)
