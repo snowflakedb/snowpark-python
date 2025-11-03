@@ -9107,6 +9107,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _cumsum_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._cumsum_internal(
+                axis=axis,
+                skipna=skipna,
+                **kwargs,
+            )
+        qc = self._cumsum_internal(
+            axis=axis,
+            skipna=skipna,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _cumsum_internal(
+        self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> "SnowflakeQueryCompiler":
+        """
         Return cumulative sum over a DataFrame or Series axis.
 
         Args:
@@ -9145,6 +9165,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _cummin_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._cummin_internal(
+                axis=axis,
+                skipna=skipna,
+                **kwargs,
+            )
+        qc = self._cummin_internal(
+            axis=axis,
+            skipna=skipna,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _cummin_internal(
+        self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> "SnowflakeQueryCompiler":
+        """
         Return cumulative min over a DataFrame or Series axis.
 
         Args:
@@ -9180,6 +9220,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ),
     )
     def cummax(
+        self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _cummax_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._cummax_internal(
+                axis=axis,
+                skipna=skipna,
+                **kwargs,
+            )
+        qc = self._cummax_internal(
+            axis=axis,
+            skipna=skipna,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _cummax_internal(
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
         """
@@ -11875,10 +11935,54 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             self._raise_not_implemented_error_for_timedelta()
 
         frame = self._modin_frame
-
+        input_column_count = len(frame.data_columns_index)
         # Handle case where the dataframe has empty columns.
-        if len(frame.data_columns_index) == 0:
+        if input_column_count == 0:
             return transpose_empty_df(frame)
+        if input_column_count == 1:
+            # If the frame is 1x1, then the datatype is already preserved; we need only set the entry
+            # in the index columns to match the original index labels.
+            if len(frame.data_column_index_names) > 1:
+                # If the columns object has a multi-index name, we need to project new columns for
+                # the extra labels.
+                data_odf = frame.ordered_dataframe.select(
+                    frame.data_column_snowflake_quoted_identifiers
+                )
+                new_index_column_identifiers = (
+                    data_odf.generate_snowflake_quoted_identifiers(
+                        pandas_labels=frame.data_column_pandas_index_names
+                    )
+                )
+                new_odf = append_columns(
+                    data_odf,
+                    new_index_column_identifiers,
+                    list(map(pandas_lit, frame.data_column_pandas_labels[0])),
+                )
+                new_odf.row_count = 1
+                return SnowflakeQueryCompiler(
+                    InternalFrame.create(
+                        ordered_dataframe=new_odf,
+                        data_column_pandas_labels=[None],
+                        data_column_pandas_index_names=[None],
+                        data_column_snowflake_quoted_identifiers=frame.data_column_snowflake_quoted_identifiers,
+                        index_column_pandas_labels=frame.data_column_pandas_index_names,
+                        index_column_snowflake_quoted_identifiers=new_index_column_identifiers,
+                        data_column_types=frame.cached_data_column_snowpark_pandas_types,
+                        index_column_types=None,
+                    )
+                )
+            else:
+                return SnowflakeQueryCompiler(
+                    frame.update_snowflake_quoted_identifiers_with_expressions(
+                        {
+                            frame.index_column_snowflake_quoted_identifiers[
+                                0
+                            ]: pandas_lit(frame.data_column_pandas_labels[0]),
+                        },
+                        # Swap the name of the index/columns objects
+                        new_index_column_pandas_labels=frame.data_column_pandas_index_names,
+                    )[0]
+                ).set_columns([None])
 
         # This follows the same approach used in SnowflakeQueryCompiler.transpose().
         # However, as an optimization, only steps (1), (2), and (4) from the four steps described in
@@ -11909,6 +12013,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unpivot_result.variable_name_quoted_snowflake_identifier,
             unpivot_result.object_name_quoted_snowflake_identifier,
         )
+        new_internal_frame.ordered_dataframe.row_count = input_column_count
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -11922,8 +12027,9 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         """
         frame = self._modin_frame
 
+        original_col_count = len(frame.data_columns_index)
         # Handle case where the dataframe has empty columns.
-        if len(frame.data_columns_index) == 0:
+        if original_col_count == 0:
             return transpose_empty_df(frame)
 
         # The following approach to implementing transpose relies on combining unpivot and pivot operations to flip
@@ -12061,6 +12167,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
             unpivot_result.variable_name_quoted_snowflake_identifier,
             unpivot_result.object_name_quoted_snowflake_identifier,
         )
+        new_internal_frame.ordered_dataframe.row_count = original_col_count
 
         return SnowflakeQueryCompiler(new_internal_frame)
 
@@ -18574,6 +18681,31 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Returning the query compiler with updated columns and index.
         return SnowflakeQueryCompiler(result_frame)
+
+    def drop_duplicates(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _drop_duplicates_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._drop_duplicates_internal()
+            )
+        qc = self._drop_duplicates_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _drop_duplicates_internal(self) -> "SnowflakeQueryCompiler":
+        """
+        Return a DataFrame or Series after dropping the duplicate rows.
+        """
+        return self.groupby_agg(
+            by=self._modin_frame.data_column_pandas_labels,
+            agg_func={},
+            axis=0,
+            groupby_kwargs={"sort": False, "as_index": False, "dropna": False},
+            agg_args=[],
+            agg_kwargs={},
+        )
 
     def duplicated(
         self,

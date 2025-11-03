@@ -8,6 +8,19 @@
 
 - Added support for `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
+- Added support for `functions.ai_translate`.
+- Added support for the following functions in `functions.py`:
+    - String and Binary functions:
+      - `base64_decode_binary`
+      - `compress`
+      - `decompress_binary`
+      - `decompress_string`
+      - `md5_binary`
+      - `md5_number_lower64`
+      - `md5_number_upper64`
+      - `sha1_binary`
+      - `sha2_binary`
+      - `soundex_p123`
 
 #### Improvements
 
@@ -42,6 +55,7 @@
   - `groupby_first()` with `min_count>1`
   - `groupby_last()` with `min_count>1`
   - `shift()` with `freq` parameter
+- Slightly improved the performance of `agg`, `nunique`, `describe`, and related methods on 1-column DataFrame and Series objects.
 
 #### Bug Fixes
 
@@ -106,7 +120,11 @@
   - `expanding.std`
   - `expanding.var`
   - `expanding.sem`
+  - `cumsum`
+  - `cummin`
+  - `cummax`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
+- Improve performance of `drop_duplicates` by avoiding joins when `keep!=False` in faster pandas.
 
 ## 1.42.0 (2025-10-28)
 

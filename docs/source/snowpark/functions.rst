@@ -33,6 +33,7 @@ Functions
     ai_similarity
     ai_summarize_agg
     ai_transcribe
+    ai_translate
     any_value
     all_user_names
     approx_count_distinct
@@ -97,6 +98,7 @@ Functions
     avg
     base64
     base64_decode_string
+    base64_decode_binary
     base64_encode
     bit_length
     bitand
@@ -138,6 +140,7 @@ Functions
     collect_list
     collect_set
     column
+    compress
     concat
     concat_ws
     contains
@@ -189,6 +192,8 @@ Functions
     dayofweek
     dayofyear
     decode
+    decompress_binary
+    decompress_string
     degrees
     dense_rank
     desc
@@ -345,6 +350,9 @@ Functions
     md5
     mean
     median
+    md5_binary
+    md5_number_lower64
+    md5_number_upper64
     min
     min_by
     minute
@@ -416,7 +424,9 @@ Functions
     sequence
     service
     sha1
+    sha1_binary
     sha2
+    sha2_binary
     sin
     sinh
     size
@@ -425,6 +435,7 @@ Functions
     snowflake_cortex_summarize
     sort_array
     soundex
+    soundex_p123
     split
     sproc
     sql_expr
