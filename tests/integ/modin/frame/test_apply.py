@@ -1136,6 +1136,7 @@ def test_apply_udtf_multiindex_columns_caching():
     with SqlCounter(
         query_count=11,
         udtf_count=2,
+        join_count=3,
         high_count_expected=True,
         high_count_reason="UDTF creation on multiple columns",
     ):
@@ -1145,21 +1146,21 @@ def test_apply_udtf_multiindex_columns_caching():
             lambda df: df.apply(f, axis=0),
         )
     # A second call hits the cache.
-    with SqlCounter(query_count=5, udtf_count=2):
+    with SqlCounter(query_count=5, udtf_count=2, join_count=3):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
             lambda df: df.apply(f, axis=0),
         )
     # The same rules apply with a different axis argument.
-    with SqlCounter(query_count=5, udtf_count=1):
+    with SqlCounter(query_count=5, udtf_count=1, join_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
             lambda df: df.apply(f, axis=1),
         )
     # A second call still does not hit the cache.
-    with SqlCounter(query_count=2, udtf_count=1):
+    with SqlCounter(query_count=2, udtf_count=1, join_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -1182,6 +1183,7 @@ def test_apply_udtf_multiindex_index_caching():
     with SqlCounter(
         query_count=11,
         udtf_count=2,
+        join_count=3,
         high_count_expected=True,
         high_count_reason="UDTF creation on multiple columns",
     ):
@@ -1191,21 +1193,21 @@ def test_apply_udtf_multiindex_index_caching():
             lambda df: df.apply(f, axis=0),
         )
     # A second call hits the cache.
-    with SqlCounter(query_count=5, udtf_count=2):
+    with SqlCounter(query_count=5, udtf_count=2, join_count=3):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
             lambda df: df.apply(f, axis=0),
         )
     # The same rules apply with a different axis argument.
-    with SqlCounter(query_count=5, udtf_count=1):
+    with SqlCounter(query_count=5, udtf_count=1, join_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
             lambda df: df.apply(f, axis=1),
         )
     # A second call hits the cache.
-    with SqlCounter(query_count=2, udtf_count=1):
+    with SqlCounter(query_count=2, udtf_count=1, join_count=2):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
