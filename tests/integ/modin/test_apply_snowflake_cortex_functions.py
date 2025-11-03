@@ -53,7 +53,7 @@ def test_apply_snowflake_cortex_sentiment_df(session):
     ]
 
     content_frame = pd.DataFrame(text_list, columns=["content"])
-    with SqlCounter(query_count=4):
+    with SqlCounter(query_count=4, join_count=4):
         res = content_frame.apply(Sentiment)
         sent_row_2 = res["content"][1]
         sent_row_3 = res["content"][2]
@@ -81,7 +81,8 @@ def test_apply_snowflake_cortex_sentiment_df(session):
 def test_apply_snowflake_cortex_classify_text(
     session, is_series, operation, query_count
 ):
-    with SqlCounter(query_count=query_count):
+    join_count = 0 if is_series else 2
+    with SqlCounter(query_count=query_count, join_count=join_count):
         content = "One day I will see the world."
 
         modin_input = (pd.Series if is_series else pd.DataFrame)([content])
@@ -147,7 +148,8 @@ def test_apply_snowflake_cortex_translate(session, is_series, operation, query_c
 def test_apply_snowflake_cortex_extract_answer(
     session, is_series, operation, query_count
 ):
-    with SqlCounter(query_count=query_count):
+    join_count = 2 if is_series else 0
+    with SqlCounter(query_count=query_count, join_count=join_count):
         content = "The Snowflake company was co-founded by Thierry Cruanes, Marcin Zukowski, and Benoit Dageville in 2012 and is headquartered in Bozeman, Montana."
 
         modin_input = (pd.Series if is_series else pd.DataFrame)([content])

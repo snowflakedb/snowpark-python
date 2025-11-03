@@ -107,9 +107,9 @@ def test_cache_result_dataframe_complex_correctness(
 
     snow_df = snow_df.resample("2H").mean()
     snow_df_copy = snow_df.copy(deep=True)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=2):
         cached_snow_df = cache_and_return_df(snow_df, inplace)
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=2, join_count=2):
         assert_frame_equal(
             snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
         )
