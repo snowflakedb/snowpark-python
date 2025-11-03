@@ -390,7 +390,8 @@ def test_set_index_pass_multiindex(drop, append, native_df):
 )
 def test_set_index_verify_integrity_negative(native_df, keys, expected_query_count):
     snow_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=expected_query_count):
+    join_count = 1 if isinstance(keys[0], str) else 4
+    with SqlCounter(query_count=expected_query_count, join_count=join_count):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,

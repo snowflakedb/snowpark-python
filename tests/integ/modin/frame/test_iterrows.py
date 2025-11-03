@@ -60,7 +60,8 @@ def test_df_iterrows(native_df):
     # Test that the tuple returned is correct: (index, Series).
     snowpark_df = pd.DataFrame(native_df)
     # One query is used to retrieve each row - each query has 4 JOIN operations performed due to iloc.
-    with SqlCounter(query_count=len(native_df)):
+    num_rows = len(native_df)
+    with SqlCounter(query_count=num_rows, union_count=num_rows):
         eval_snowpark_pandas_result(
             snowpark_df,
             native_df,
