@@ -4427,7 +4427,7 @@ def uuid_string(
     uuid: ColumnOrName = None, name: ColumnOrName = None, _emit_ast: bool = True
 ) -> Column:
     """
-    Returns a universally unique identifier (UUID) as a string.
+    Returns a universally unique identifier (UUID) as a string. If the uuid is provided, also the name must be provided.
 
     Args:
         uuid (ColumnOrName, optional): The namespace UUID as a string. If provided, generates a UUID based on this namespace.
@@ -4437,28 +4437,25 @@ def uuid_string(
         Column: The UUID string.
 
     Examples::
-        >>> df = session.create_dataframe([["test"]], schema=["a"])
-        >>> df.select(uuid_string().alias("random_uuid")).collect()  # doctest: +SKIP
+        >>> from snowflake.snowpark.functions import col
+
+        >>> df = session.create_dataframe(
+        ...     [["fe971b24-9572-4005-b22f-351e9c09274d", "foo"]], schema=["uuid", "name"]
+        ... )
+
+        >>> df.select(uuid_string().alias("random_uuid")).collect()
         [Row(RANDOM_UUID='...')]
 
-        >>> df.select(uuid_string("fe971b24-9572-4005-b22f-351e9c09274d", "foo").alias("named_uuid")).collect()  # doctest: +SKIP
-        [Row(NAMED_UUID='...')]
-
-        >>> df.select(uuid_string("fe971b24-9572-4005-b22f-351e9c09274d").alias("uuid_with_namespace")).collect()  # doctest: +SKIP
-        [Row(UUID_WITH_NAMESPACE='...')]
-
-        >>> df.select(uuid_string(name="foo").alias("uuid_with_name")).collect()  # doctest: +SKIP
-        [Row(UUID_WITH_NAME='...')]
+        >>> result = df.select(
+        ...     uuid_string(col("uuid"), col("name")).alias("NAMED_UUID")
+        ... ).collect()
+        >>> expected_uuid = "dc0b6f65-fca6-5b4b-9d37-ccc3fde1f3e2"
+        >>> result[0]["NAMED_UUID"] == expected_uuid
+        True
     """
     if uuid is None and name is None:
         return builtin("uuid_string", _emit_ast=_emit_ast)()
-    elif uuid is not None and name is not None:
+    else:
         uuid_col = _to_col_if_str(uuid, "uuid_string")
         name_col = _to_col_if_str(name, "uuid_string")
         return builtin("uuid_string", _emit_ast=_emit_ast)(uuid_col, name_col)
-    elif uuid is not None:
-        uuid_col = _to_col_if_str(uuid, "uuid_string")
-        return builtin("uuid_string", _emit_ast=_emit_ast)(uuid_col)
-    else:
-        name_col = _to_col_if_str(name, "uuid_string")
-        return builtin("uuid_string", _emit_ast=_emit_ast)(name_col)
