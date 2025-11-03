@@ -21,8 +21,10 @@ TEST_SCHEMA = "GH_JOB_{}".format(str(uuid.uuid4()).replace("-", "_"))
 LOCAL_TESTING_MODE = False
 
 sys.path.append("tests/")
+# get the absolute path of rsa private key files
 params_file = os.path.abspath("tests/parameters.py")
 with open("tests/parameters.py", encoding="utf-8") as f:
+    # inject rsa private key file path so that the connection parameters can access rsa private key file correctly
     exec_globals = {"__file__": params_file}
     exec(f.read(), exec_globals)
 conn_params = exec_globals["CONNECTION_PARAMETERS"]
