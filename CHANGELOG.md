@@ -27,6 +27,10 @@
 - Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
 - Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
 
+### Bug Fixes
+
+- Fixed a bug in `DataFrame.with_column_renamed` that didn't work when a case sensitive column name has the same letters as a case-insensitive column name, for instance, `"a"` and `A`.
+
 #### Dependency Updates
 
 - Catalog API no longer uses types declared in `snowflake.core` and therefore this dependency was removed.
