@@ -2696,7 +2696,7 @@ def test_rename_with_case_sensitive_column_name(session):
     assert df2.schema.names == ["AB", "AB1"]
     Utils.check_answer(df2, [Row(1, 2)])
     df3 = df.rename({"ab": "ab1"})
-    assert df3.schema.names == ['AB1', '"ab"']
+    assert df3.schema.names == ["AB1", '"ab"']
     Utils.check_answer(df3, [Row(1, 2)])
 
 
