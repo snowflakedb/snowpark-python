@@ -10,7 +10,17 @@
 - Added support for `Session.udf_profiler`.
 - Added support for `functions.ai_translate`.
 - Added support for the following functions in `functions.py`:
-    - String and binary functions:
+    - String and Binary functions:
+      - `base64_decode_binary`
+      - `compress`
+      - `decompress_binary`
+      - `decompress_string`
+      - `md5_binary`
+      - `md5_number_lower64`
+      - `md5_number_upper64`
+      - `sha1_binary`
+      - `sha2_binary`
+      - `soundex_p123`
       - `hex_decode_string`
       - `jarowinkler_similarity`
       - `parse_url`
@@ -50,11 +60,12 @@
   - `pivot_table()` with `sort=True`, non-string `index` list, non-string `columns` list, non-string `values` list, or `aggfunc` dict with non-string values
   - `fillna()` with `downcast` parameter or using `limit` together with `value`
   - `dropna()` with `axis=1`
+  - `asfreq()` with `how` parameter, `fill_value` parameter, `normalize=True`, or `freq` parameter being week, month, quarter, or year
   - `groupby()` with `axis=1`, `by!=None and level!=None`, or by containing any non-pandas hashable labels.
   - `groupby_fillna()` with `downcast` parameter
   - `groupby_first()` with `min_count>1`
   - `groupby_last()` with `min_count>1`
-  - `shift()` with `freq` parameter
+  - `groupby_shift()` with `freq` parameter
 - Slightly improved the performance of `agg`, `nunique`, `describe`, and related methods on 1-column DataFrame and Series objects.
 
 #### Bug Fixes
@@ -120,7 +131,11 @@
   - `expanding.std`
   - `expanding.var`
   - `expanding.sem`
+  - `cumsum`
+  - `cummin`
+  - `cummax`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
+- Improve performance of `drop_duplicates` by avoiding joins when `keep!=False` in faster pandas.
 
 ## 1.42.0 (2025-10-28)
 
