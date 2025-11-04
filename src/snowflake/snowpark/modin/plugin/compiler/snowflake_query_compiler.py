@@ -823,14 +823,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     storage_format = property(lambda self: "Snowflake")
 
     def _raise_not_implemented_error_for_timedelta(
-        self, frame: InternalFrame = None
+        self, frame: InternalFrame = None, stack_depth: int = 2
     ) -> None:
         """Raise NotImplementedError for SnowflakeQueryCompiler methods which does not support timedelta yet."""
         if frame is None:
             frame = self._modin_frame
         for val in frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values():
             if isinstance(val, TimedeltaType):
-                method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
+                method_frame = inspect.currentframe()
+                for _ in range(stack_depth):
+                    method_frame = method_frame.f_back  # type: ignore[union-attr]
+                method = method_frame.f_code.co_name  # type: ignore[union-attr]
                 ErrorMessage.not_implemented_for_timedelta(method)
 
     def _warn_lost_snowpark_pandas_type(self) -> None:
@@ -6577,7 +6580,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         4    5        2                     4                     5
         0    8        9                     0                     8
         """
-        self._raise_not_implemented_error_for_timedelta()
+        self._raise_not_implemented_error_for_timedelta(stack_depth=4)
 
         original_index_names = self.get_index_names()
         frame = self._modin_frame
