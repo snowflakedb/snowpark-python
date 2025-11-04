@@ -6172,7 +6172,7 @@ class DataFrame:
             raise TypeError(f"{str(existing)} must be a column name or Column object.")
 
         to_be_renamed = [
-            x for x in self._output if x.name == quote_name(old_name)
+            x for x in self._output if quote_name(x.name) == quote_name(old_name)
         ]
         if not to_be_renamed:
             raise ValueError(
