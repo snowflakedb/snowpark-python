@@ -1139,12 +1139,6 @@ def test_lateral_join_simplifier(session, use_simplified_query_generation):
         )
         Utils.check_answer(df_chained, [Row(2, 7), Row(4, 8)])
 
-        df3 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["id", "value"])
-        df_left = df3.lateral_join(df2, df3.id == df2.id, how="left")
-        Utils.check_answer(
-            df_left, [Row(1, 2, 1, 7), Row(3, 4, 3, 8), Row(5, 6, None, None)]
-        )
-
     finally:
         session.conf.set("use_simplified_query_generation", original)
 

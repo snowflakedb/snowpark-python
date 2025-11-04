@@ -137,6 +137,10 @@ class AsOf(JoinType):
     sql = "ASOF"
 
 
+class LateralJoin(JoinType):
+    sql = "INNER JOIN LATERAL"
+
+
 class NaturalJoin(JoinType):
     def __init__(self, tpe: JoinType) -> None:
         if not isinstance(
@@ -152,23 +156,6 @@ class NaturalJoin(JoinType):
                 tpe.__class__.__name__
             )
         self.sql = "NATURAL " + tpe.sql
-        self.tpe = tpe
-
-
-class LateralJoin(JoinType):
-    def __init__(self, tpe: JoinType) -> None:
-        if not isinstance(
-            tpe,
-            (
-                Inner,
-                LeftOuter,
-                Cross,
-            ),
-        ):
-            raise SnowparkClientExceptionMessages.DF_JOIN_INVALID_LATERAL_JOIN_TYPE(
-                tpe.__class__.__name__
-            )
-        self.sql = tpe.sql + " JOIN LATERAL"
         self.tpe = tpe
 
 

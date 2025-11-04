@@ -27,7 +27,6 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     LeftSemi,
     NaturalJoin,
     LateralJoin,
-    LeftOuter,
     UsingJoin,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
@@ -171,6 +170,7 @@ PATH = " PATH "
 OUTER = " OUTER "
 RECURSIVE = " RECURSIVE "
 MODE = " MODE "
+INNER = " INNER "
 LATERAL = " LATERAL "
 PUT = " PUT "
 GET = " GET "
@@ -884,7 +884,6 @@ def asof_join_statement(
 def lateral_join_statement(
     left: str,
     right: str,
-    join_type: LateralJoin,
     join_condition: str,
     use_constant_subquery_alias: bool,
 ) -> str:
@@ -918,12 +917,6 @@ def lateral_join_statement(
     else:
         right_with_condition = LEFT_PARENTHESIS + right + RIGHT_PARENTHESIS
 
-    # ON clause is only needed for left outer lateral join with condition
-    if isinstance(join_type.tpe, LeftOuter) and join_condition:
-        on_clause = ON + "TRUE"
-    else:
-        on_clause = EMPTY_STRING
-
     return (
         SELECT
         + STAR
@@ -937,15 +930,13 @@ def lateral_join_statement(
         + AS
         + left_alias
         + NEW_LINE
-        + join_type.tpe.sql
+        + INNER
         + JOIN
         + LATERAL
         + NEW_LINE
         + right_with_condition
         + AS
         + right_alias
-        + NEW_LINE
-        + f"{on_clause if on_clause else EMPTY_STRING}"
     )
 
 
@@ -1055,7 +1046,7 @@ def join_statement(
         )
     if isinstance(join_type, LateralJoin):
         return lateral_join_statement(
-            left, right, join_type, join_condition, use_constant_subquery_alias
+            left, right, join_condition, use_constant_subquery_alias
         )
     if isinstance(join_type, UsingJoin) and isinstance(
         join_type.tpe, (LeftSemi, LeftAnti)

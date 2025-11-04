@@ -5666,20 +5666,17 @@ def test_lateral_join(session):
         df1 = session.table(table1)
         df2 = session.table(table2)
 
-        df_inner = df1.lateral_join(df2, df1.a == df2.a, how="inner")
-        df_left = df1.lateral_join(df2, df1.a == df2.a, how="left")
-
-        # Test inner lateral join vs SQL
+        df_inner = df1.lateral_join(df2, df1.a == df2.a)
         sql_inner = session.sql(
             f"SELECT * FROM {table1}, LATERAL (SELECT * FROM {table2} WHERE {table1}.a = {table2}.a)"
         )
         Utils.check_answer(df_inner, sql_inner)
 
-        # Test left outer lateral join vs SQL
-        sql_left = session.sql(
-            f"SELECT * FROM {table1} LEFT OUTER JOIN LATERAL (SELECT * FROM {table2} WHERE {table1}.a = {table2}.a) ON TRUE"
+        df_no_condition = df1.lateral_join(df2)
+        sql_no_condition = session.sql(
+            f"SELECT * FROM {table1} INNER JOIN LATERAL (SELECT * FROM {table2})"
         )
-        Utils.check_answer(df_left, sql_left)
+        Utils.check_answer(df_no_condition, sql_no_condition)
 
     finally:
         session.sql(f"DROP TABLE IF EXISTS {table1}").collect()
