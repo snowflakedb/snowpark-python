@@ -3560,13 +3560,13 @@ class DataFrame:
 
             >>> # With lsuffix and rsuffix for column disambiguation
             >>> df1.lateral_join(df2, df1.b * 2 > df2.c, lsuffix="_l", rsuffix="_r").select("*").show()
-            -------------------------
+            -----------------------------
             |"A_L"  |"B"  |"A_R"  |"C"  |
-            -------------------------
+            -----------------------------
             |3      |4    |1      |7    |
             |5      |6    |1      |7    |
             |5      |6    |3      |8    |
-            -------------------------
+            -----------------------------
             <BLANKLINE>
         """
         lateral_join_type = LateralJoin()
