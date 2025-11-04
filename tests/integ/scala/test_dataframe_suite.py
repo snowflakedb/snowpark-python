@@ -1219,11 +1219,6 @@ def test_sort(session):
         for i in range(len(sorted_rows) - 1)
     ]
 
-    # Negative test: sort() needs at least one sort expression
-    with pytest.raises(ValueError) as ex_info:
-        df.sort([])
-    assert "sort() needs at least one sort expression" in ex_info.value.args[0]
-
 
 def test_select(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
@@ -1574,53 +1569,6 @@ def test_cube(session):
         df.cube([col("country"), col("state")])
         .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
-        expected_result,
-        False,
-    )
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="DataFrame.group_by_all not supported",
-)
-def test_group_by_all(session):
-    df = session.create_dataframe(
-        [
-            ("country A", "state A", 50),
-            ("country A", "state A", 50),
-            ("country A", "state B", 5),
-            ("country A", "state B", 5),
-            ("country B", "state A", 100),
-            ("country B", "state A", 100),
-            ("country B", "state B", 10),
-            ("country B", "state B", 10),
-        ]
-    ).to_df(["country", "state", "value"])
-
-    Utils.check_answer(df.group_by_all().agg(sum_(col("value"))), Row(330))
-
-    expected_result = [
-        Row("country A", "state A", 100),
-        Row("country A", "state B", 10),
-        Row("country B", "state A", 200),
-        Row("country B", "state B", 20),
-    ]
-    Utils.check_answer(
-        df.group_by_all()
-        .agg(col("country"), col("state"), sum_(col("value")))
-        .sort(col("country"), col("state")),
-        expected_result,
-        False,
-    )
-
-    expected_result = [
-        Row("country A", "state A", 50),
-        Row("country A", "state B", 5),
-        Row("country B", "state A", 100),
-        Row("country B", "state B", 10),
-    ]
-    Utils.check_answer(
-        df.group_by_all().agg().sort(col("country"), col("state")),
         expected_result,
         False,
     )

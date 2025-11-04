@@ -1,13 +1,167 @@
 # Release History
 
-## 1.41.0 (YYYY-MM-DD)
+## 1.43.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for `Session.client_telemetry`.
+- Added support for `Session.udf_profiler`.
+- Added support for `functions.ai_translate`.
+- Added support for the following functions in `functions.py`:
+    - String and Binary functions:
+      - `base64_decode_binary`
+      - `compress`
+      - `decompress_binary`
+      - `decompress_string`
+      - `md5_binary`
+      - `md5_number_lower64`
+      - `md5_number_upper64`
+      - `sha1_binary`
+      - `sha2_binary`
+      - `soundex_p123`
+      - `strtok`
+      - `try_base64_decode_binary`
+      - `try_base64_decode_string`
+      - `try_hex_decode_binary`
+      - `try_hex_decode_string`
+      - `unicode`
+      - `uuid_string`
+      
+    - Conditional expressions:
+      - `booland_agg`
+      - `boolxor_agg`
+      - `regr_valy`
+      - `zeroifnull`
+    
+    - Numeric expressions:
+      - `cot`
+      - `mod`
+      - `pi`
+      - `square`
+      - `width_bucket`
+
+#### Improvements
+
+- Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
+- Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
+
+#### Dependency Updates
+
+- Catalog API no longer uses types declared in `snowflake.core` and therefore this dependency was removed.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `Dataframe.groupby.rolling()`.
+- Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
+- Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
+
+#### Improvements
+
+- Enhanced autoswitching functionality from Snowflake to native pandas for methods with unsupported argument combinations:
+  - `shift()` with `suffix` or non-integer `periods` parameters
+  - `sort_index()` with `axis=1` or `key` parameters
+  - `sort_values()` with `axis=1`
+  - `melt()` with `col_level` parameter
+  - `apply()` with `result_type` parameter for DataFrame
+  - `pivot_table()` with `sort=True`, non-string `index` list, non-string `columns` list, non-string `values` list, or `aggfunc` dict with non-string values
+  - `fillna()` with `downcast` parameter or using `limit` together with `value`
+  - `dropna()` with `axis=1`
+  - `asfreq()` with `how` parameter, `fill_value` parameter, `normalize=True`, or `freq` parameter being week, month, quarter, or year
+  - `groupby()` with `axis=1`, `by!=None and level!=None`, or by containing any non-pandas hashable labels.
+  - `groupby_fillna()` with `downcast` parameter
+  - `groupby_first()` with `min_count>1`
+  - `groupby_last()` with `min_count>1`
+  - `groupby_shift()` with `freq` parameter
+- Slightly improved the performance of `agg`, `nunique`, `describe`, and related methods on 1-column DataFrame and Series objects.
+
+#### Bug Fixes
+
+- Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
+- Fixed a bug where converting a modin datetime index with a timezone to a numpy array with `np.asarray` would cause a `TypeError`.
+- Fixed a bug where `Series.isin` with a Series argument matched index labels instead of the row position.
+
+#### Improvements
+
+- Add support for the following in faster pandas:
+  - `groupby.apply`
+  - `groupby.nunique`
+  - `groupby.size`
+  - `concat`
+  - `copy`
+  - `str.isdigit`
+  - `str.islower`
+  - `str.isupper`
+  - `str.istitle`
+  - `str.lower`
+  - `str.upper`
+  - `str.title`
+  - `str.match`
+  - `str.capitalize`
+  - `str.__getitem__`
+  - `str.center`
+  - `str.count`
+  - `str.get`
+  - `str.pad`
+  - `str.len`
+  - `str.ljust`
+  - `str.rjust`  
+  - `str.split`  
+  - `str.replace`  
+  - `str.strip`  
+  - `str.lstrip`  
+  - `str.rstrip`  
+  - `str.translate`  
+  - `dt.tz_localize`
+  - `dt.tz_convert`
+  - `dt.ceil`
+  - `dt.round`
+  - `dt.floor`
+  - `dt.normalize`
+  - `dt.month_name`
+  - `dt.day_name`
+  - `dt.strftime`  
+  - `rolling.min`
+  - `rolling.max`
+  - `rolling.count`
+  - `rolling.sum`
+  - `rolling.mean`
+  - `rolling.std`
+  - `rolling.var`
+  - `rolling.sem`
+  - `rolling.corr`
+  - `expanding.min`
+  - `expanding.max`
+  - `expanding.count`
+  - `expanding.sum`
+  - `expanding.mean`
+  - `expanding.std`
+  - `expanding.var`
+  - `expanding.sem`
+  - `cumsum`
+  - `cummin`
+  - `cummax`
+- Make faster pandas disabled by default (opt-in instead of opt-out).
+- Improve performance of `drop_duplicates` by avoiding joins when `keep!=False` in faster pandas.
+
+## 1.42.0 (2025-10-28)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Snowpark python DB-api is now generally available. Access this feature with `DataFrameReader.dbapi()` to read data from a database table or query into a DataFrame using a DBAPI connection.
+
+## 1.41.0 (2025-10-23)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
 - Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
-- Added a new function `group_by_all()` to the `DataFrame` class.
 - Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
 - Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
 - Added support for the following functions in `functions.py`:
@@ -50,7 +204,18 @@
     - `st_y`
     - `st_ymax`
     - `st_ymin`
+    - `st_geogfromgeohash`
+    - `st_geogpointfromgeohash`
+    - `st_geographyfromwkb`
+    - `st_geographyfromwkt`
+    - `st_geometryfromwkb`
+    - `st_geometryfromwkt`
+    - `try_to_geography`
+    - `try_to_geometry`
 
+#### Improvements
+
+- Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
 
 #### Bug Fixes
 
@@ -58,6 +223,12 @@
 - Added a fix for floating point precision discrepancies in `interval_day_time_from_parts`.
 - Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
 - Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0.
+- Fixed a bug where `modin` would unintentionally be imported during session initialization in some scenarios.
+- Fixed a bug where `session.udf|udtf|udaf|sproc.register` failed when an extra session argument was passed. These methods do not expect a session argument; please remove it if provided.
+
+#### Improvements
+
+- The default maximum length for inferred StringType columns during schema inference in `DataFrameReader.dbapi` is now increased from 16MB to 128MB in parquet file based ingestion.
 
 #### Dependency Updates
 
@@ -66,7 +237,10 @@
 ### Snowpark pandas API Updates
 
 #### New Features
+
 - Added support for the `dtypes` parameter of `pd.get_dummies`
+- Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
+- Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
 
 #### Improvements
 
@@ -111,7 +285,32 @@
   - `sort_values`
   - `loc` (setting columns)
   - `to_datetime`
+  - `rename`
   - `drop`
+  - `invert`
+  - `duplicated`
+  - `iloc`
+  - `head`
+  - `columns` (e.g., df.columns = ["A", "B"])
+  - `agg`
+  - `min`
+  - `max`
+  - `count`
+  - `sum`
+  - `mean`
+  - `median`
+  - `std`
+  - `var`
+  - `groupby.agg`
+  - `groupby.min`
+  - `groupby.max`
+  - `groupby.count`
+  - `groupby.sum`
+  - `groupby.mean`
+  - `groupby.median`
+  - `groupby.std`
+  - `groupby.var`
+  - `drop_duplicates`
 - Reuse row count from the relaxed query compiler in `get_axis_len`.
 
 #### Bug Fixes

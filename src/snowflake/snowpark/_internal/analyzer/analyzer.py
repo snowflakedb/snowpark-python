@@ -91,7 +91,6 @@ from snowflake.snowpark._internal.analyzer.expression import (
 from snowflake.snowpark._internal.analyzer.grouping_set import (
     GroupingSet,
     GroupingSetsExpression,
-    GroupByAll,
 )
 from snowflake.snowpark._internal.analyzer.select_statement import (
     Selectable,
@@ -115,7 +114,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeTable,
     SnowflakeValues,
 )
-from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
+from snowflake.snowpark._internal.analyzer.sort_expression import (
+    SortOrder,
+    SortByAllOrder,
+)
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
     GeneratorTableFunction,
@@ -347,8 +349,6 @@ class Analyzer:
             )
 
         if isinstance(expr, GroupingSet):
-            if isinstance(expr, GroupByAll):
-                return "ALL"
             return self.grouping_extractor(expr, df_aliased_col_name_to_real_col_name)
 
         if isinstance(expr, WindowExpression):
@@ -557,6 +557,13 @@ class Analyzer:
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
                 ),
+                expr.direction.sql,
+                expr.null_ordering.sql,
+            )
+
+        if isinstance(expr, SortByAllOrder):
+            return order_expression(
+                "ALL",
                 expr.direction.sql,
                 expr.null_ordering.sql,
             )

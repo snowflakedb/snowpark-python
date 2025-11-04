@@ -1144,6 +1144,8 @@ class InternalFrame:
         self,
         quoted_identifier_to_column_map: dict[str, SnowparkColumn],
         snowpark_pandas_types: Optional[list[Optional[SnowparkPandasType]]] = None,
+        *,
+        new_index_column_pandas_labels: Optional[list[Hashable]] = None,
     ) -> UpdatedInternalFrameResult:
         """
         Points Snowflake quoted identifiers to column expression given by `quoted_identifier_to_column_map`.
@@ -1171,6 +1173,8 @@ class InternalFrame:
                 must be index columns and data columns in the original internal frame.
             data_column_snowpark_pandas_types: The optional Snowpark pandas types for the new
                 expressions, in the order of the keys of quoted_identifier_to_column_map.
+            new_index_column_pandas_labels: The optional list of labels to be used as
+                index_column_pandas_labels for the result.
 
         Returns:
             UpdatedInternalFrameResult: A tuple containing the new InternalFrame with updated column references, and a mapping
@@ -1252,7 +1256,9 @@ class InternalFrame:
                 data_column_pandas_labels=self.data_column_pandas_labels,
                 data_column_snowflake_quoted_identifiers=new_data_column_snowflake_quoted_identifiers,
                 data_column_pandas_index_names=self.data_column_pandas_index_names,
-                index_column_pandas_labels=self.index_column_pandas_labels,
+                index_column_pandas_labels=self.index_column_pandas_labels
+                if new_index_column_pandas_labels is None
+                else new_index_column_pandas_labels,
                 index_column_snowflake_quoted_identifiers=new_index_column_snowflake_quoted_identifiers,
                 data_column_types=[
                     new_type_mapping[k]
@@ -1356,7 +1362,7 @@ class InternalFrame:
     def strip_duplicates(
         self: "InternalFrame",
         quoted_identifiers: list[str],
-        dummy_row_pos_mode: bool = False,
+        dummy_row_pos_mode: bool,
     ) -> "InternalFrame":
         """
         When assigning frames via index operations for duplicates only the last entry is used, as entries are repeatedly overwritten.
@@ -1403,10 +1409,10 @@ class InternalFrame:
 
         joined_ordered_dataframe = frame.ordered_dataframe.join(
             right=relevant_last_value_row_positions,
+            dummy_row_pos_mode=dummy_row_pos_mode,
             left_on_cols=[frame.row_position_snowflake_quoted_identifier],
             right_on_cols=[relevant_last_value_row_positions_quoted_identifier],
             how="inner",
-            dummy_row_pos_mode=dummy_row_pos_mode,
         )
 
         # Because we reuse row position to select the relevant columns, we need to
