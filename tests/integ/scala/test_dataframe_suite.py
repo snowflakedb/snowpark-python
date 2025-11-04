@@ -2693,8 +2693,11 @@ def test_rename_function_multiple(session):
 def test_rename_with_case_sensitive_column_name(session):
     df = session.create_dataframe([[1, 2]], schema=["ab", '"ab"'])
     df2 = df.rename('"ab"', "ab1")
-    assert df2.schema.names[0] == "AB1" and df2.schema.names[1] == '"ab"'
+    assert df2.schema.names == ["AB", "AB1"]
     Utils.check_answer(df2, [Row(1, 2)])
+    df3 = df.rename({"ab": "ab1"})
+    assert df3.schema.names == ['AB1', '"ab"']
+    Utils.check_answer(df3, [Row(1, 2)])
 
 
 @pytest.mark.skipif(
