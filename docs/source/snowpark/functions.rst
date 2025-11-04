@@ -33,6 +33,7 @@ Functions
     ai_similarity
     ai_summarize_agg
     ai_transcribe
+    ai_translate
     any_value
     all_user_names
     approx_count_distinct
@@ -97,6 +98,7 @@ Functions
     avg
     base64
     base64_decode_string
+    base64_decode_binary
     base64_encode
     bit_length
     bitand
@@ -113,9 +115,11 @@ Functions
     bitxor_agg
     boolor_agg
     booland
+    booland_agg
     boolnot
     boolor
     boolxor
+    boolxor_agg
     build_stage_file_url
     builtin
     bround
@@ -138,6 +142,7 @@ Functions
     collect_list
     collect_set
     column
+    compress
     concat
     concat_ws
     contains
@@ -150,6 +155,7 @@ Functions
     count_distinct
     covar_pop
     covar_samp
+    cot
     create_map
     cume_dist
     current_account
@@ -189,6 +195,8 @@ Functions
     dayofweek
     dayofyear
     decode
+    decompress_binary
+    decompress_string
     degrees
     dense_rank
     desc
@@ -345,9 +353,13 @@ Functions
     md5
     mean
     median
+    md5_binary
+    md5_number_lower64
+    md5_number_upper64
     min
     min_by
     minute
+    mod
     mode
     model
     monotonically_increasing_id
@@ -381,6 +393,7 @@ Functions
     percentile_cont
     position
     pow
+    pi
     previous_day
     prompt
     quarter
@@ -401,6 +414,7 @@ Functions
     regr_sxy
     regr_syy
     regr_valx
+    regr_valy
     repeat
     replace
     right
@@ -416,7 +430,9 @@ Functions
     sequence
     service
     sha1
+    sha1_binary
     sha2
+    sha2_binary
     sin
     sinh
     size
@@ -425,9 +441,11 @@ Functions
     snowflake_cortex_summarize
     sort_array
     soundex
+    soundex_p123
     split
     sproc
     sql_expr
+    square
     sqrt
     startswith
     stddev
@@ -489,6 +507,19 @@ Functions
     st_y
     st_ymax
     st_ymin
+    st_geogfromgeohash
+    st_geogpointfromgeohash
+    st_geographyfromwkb
+    st_geographyfromwkt
+    st_geometryfromwkb
+    st_geometryfromwkt
+    strtok
+    try_base64_decode_binary
+    try_base64_decode_string
+    try_hex_decode_binary
+    try_hex_decode_string
+    try_to_geography
+    try_to_geometry
     substr
     substring
     sum
@@ -532,6 +563,8 @@ Functions
     udf
     udtf
     unbase64
+    unicode
+    uuid_string
     uniform
     unix_timestamp
     upper
@@ -542,6 +575,7 @@ Functions
     vector_inner_product
     vector_l2_distance
     weekofyear
+    width_bucket
     when
     when_matched
     when_not_matched
@@ -557,3 +591,4 @@ Functions
     xpath_short
     xpath_string
     year
+    zeroifnull

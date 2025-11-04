@@ -293,7 +293,7 @@ def test_groupby_fillna_downcast_not_supported_negative():
 
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas fillna API doesn't yet support 'downcast' parameter",
+        match="Snowpark pandas fillna does not yet support the parameter combination because 'downcast' argument is not supported yet in Snowpark pandas",
     ):
         # call to_pandas to trigger the evaluation of the operation
         snow_df.groupby("I").fillna(method="ffill", downcast={"A": "str"}).to_pandas()
@@ -308,7 +308,7 @@ def test_groupby_fillna_other_not_supported_negative():
 
     with pytest.raises(
         NotImplementedError,
-        match=f"Snowpark pandas GroupBy.fillna {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+        match=f"{_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
     ):
         # call to_pandas to trigger the evaluation of the operation
         snow_df.groupby("I", axis=1).fillna(method="ffill").to_pandas()

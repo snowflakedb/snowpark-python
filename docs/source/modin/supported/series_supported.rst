@@ -243,7 +243,11 @@ Methods
 | ``info``                    | D                               |                                  | Different Index types are used in pandas but not   |
 |                             |                                 |                                  | in Snowpark pandas                                 |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``interpolate``             | N                               |                                  |                                                    |
+| ``interpolate``             | P                               |                                  | ``N`` if ``limit`` is set,                         |
+|                             |                                 |                                  | ``limit_area`` is "outside", or ``method`` is not  |
+|                             |                                 |                                  | "linear", "bfill", "backfill", "ffill", or "pad".  |
+|                             |                                 |                                  | ``limit_area="inside"`` is supported only when     |
+|                             |                                 |                                  | ``method`` is ``linear``.                          |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``isin``                    | Y                               |                                  | Snowpark pandas deviates with respect to handling  |
 |                             |                                 |                                  | NA values                                          |
@@ -379,8 +383,13 @@ Methods
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``rtruediv``                | P                               | ``level``                        | See ``truediv``                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
-| ``sample``                  | P                               |                                  | ``N`` if ``weights`` or ``random_state`` is        |
-|                             |                                 |                                  | specified when ``axis = 0``                        |
+| ``sample``                  | P                               |                                  | ``N`` if ``weights`` is specified when             |
+|                             |                                 |                                  | ``axis = 0``, or if ``random_state`` is not        |
+|                             |                                 |                                  | either an integer or ``None``. Setting             |
+|                             |                                 |                                  | ``random_state`` to a value other than ``None``    |
+|                             |                                 |                                  | may slow down this method because the ``sample``   |
+|                             |                                 |                                  | implementation will use a sort instead of the      |
+|                             |                                 |                                  | Snowflake warehouse's built-in SAMPLE construct.   |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+
 | ``searchsorted``            | N                               |                                  |                                                    |
 +-----------------------------+---------------------------------+----------------------------------+----------------------------------------------------+

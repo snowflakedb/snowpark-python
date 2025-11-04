@@ -7135,10 +7135,15 @@ def array_contains(
         variant: Column containing the VARIANT to find.
         array: Column containing the ARRAY to search.
 
+            If this is a semi-structured array, you're required to explicitly cast the following SQL types into a VARIANT:
+
+            - `String & Binary <https://docs.snowflake.com/en/sql-reference/data-types-text>`_
+            - `Date & Time <https://docs.snowflake.com/en/sql-reference/data-types-datetime>`_
+
     Example::
         >>> from snowflake.snowpark import Row
-        >>> df = session.create_dataframe([Row([1, 2]), Row([1, 3])], schema=["a"])
-        >>> df.select(array_contains(lit(2), "a").alias("result")).show()
+        >>> df = session.create_dataframe([Row(["apple", "banana"]), Row(["apple", "orange"])], schema=["a"])
+        >>> df.select(array_contains(lit("banana").cast("variant"), "a").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -11031,6 +11036,7 @@ def make_interval(
 def interval_year_month_from_parts(
     years: Optional[ColumnOrName] = None,
     months: Optional[ColumnOrName] = None,
+    _alias_column_name: Optional[bool] = True,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -11042,6 +11048,7 @@ def interval_year_month_from_parts(
     Args:
         years: The number of years, positive or negative
         months: The number of months, positive or negative
+        _alias_column_name: If true, alias the column name to a cleaner value
 
     Returns:
         A Column representing a year-month interval
@@ -11091,15 +11098,21 @@ def interval_year_month_from_parts(
     )
     interval_string = concat(sign_prefix, normalized_years, lit("-"), normalized_months)
 
-    def get_col_name(col):
-        if isinstance(col._expr1, Literal):
-            return str(col._expr1.value)
-        else:
-            return col._expression.name
+    res = cast(interval_string, "INTERVAL YEAR TO MONTH")
+    if _alias_column_name:
+        # Aliasing column names when using this in a case when will throw an error. This allows us to only alias
+        # when necessary.
 
-    alias_name = f"interval_year_month_from_parts({get_col_name(years_col)}, {get_col_name(months_col)})"
+        def get_col_name(col):
+            if isinstance(col._expr1, Literal):
+                return str(col._expr1.value)
+            else:
+                return col._expression.name
 
-    res = cast(interval_string, "INTERVAL YEAR TO MONTH").alias(alias_name)
+        alias_name = f"interval_year_month_from_parts({get_col_name(years_col)}, {get_col_name(months_col)})"
+
+        res = res.alias(alias_name)
+
     res._ast = ast
     return res
 
@@ -11114,6 +11127,7 @@ def interval_day_time_from_parts(
     hours: Optional[ColumnOrName] = None,
     mins: Optional[ColumnOrName] = None,
     secs: Optional[ColumnOrName] = None,
+    _alias_column_name: Optional[bool] = True,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -11127,6 +11141,7 @@ def interval_day_time_from_parts(
         hours: The number of hours, positive or negative
         mins: The number of minutes, positive or negative
         secs: The number of seconds, positive or negative
+        _alias_column_name: If true, alias the column name to a cleaner value
 
     Returns:
         A Column representing a day-time interval
@@ -11238,15 +11253,21 @@ def interval_day_time_from_parts(
         secs_formatted,
     )
 
-    def get_col_name(col):
-        if isinstance(col._expr1, Literal):
-            return str(col._expr1.value)
-        else:
-            return str(col._expr1)
+    res = cast(interval_value, "INTERVAL DAY TO SECOND")
+    if _alias_column_name:
+        # Aliasing column names when using this in a case when will throw an error. This allows us to only alias
+        # when necessary.
 
-    alias_name = f"interval_day_time_from_parts({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
+        def get_col_name(col):
+            if isinstance(col._expr1, Literal):
+                return str(col._expr1.value)
+            else:
+                return str(col._expr1)
 
-    res = cast(interval_value, "INTERVAL DAY TO SECOND").alias(alias_name)
+        alias_name = f"interval_day_time_from_parts({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
+
+        res = res.alias(alias_name)
+
     res._ast = ast
     return res
 
@@ -13871,3 +13892,65 @@ def ai_sentiment(
         return _call_function(
             sql_func_name, text_col, cat_col, _ast=ast, _emit_ast=_emit_ast
         )
+
+
+@publicapi
+def ai_translate(
+    text: ColumnOrLiteralStr,
+    source_language: ColumnOrLiteralStr,
+    target_language: ColumnOrLiteralStr,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Translates the given input text from one supported language to another.
+
+    Args:
+        text: A string or Column containing the text to be translated.
+        source_language: A string or Column specifying the language code for the source language.
+            Specify an empty string ``''`` to automatically detect the source language.
+        target_language: A string or Column specifying the language code for the target language.
+
+    Returns:
+        A string containing a translation of the original text into the target language.
+
+    See details in `AI_TRANSLATE <https://docs.snowflake.com/en/sql-reference/functions/ai_translate>`_.
+
+    Examples::
+
+        >>> # Translate literal text from English to German
+        >>> df = session.range(1).select(
+        ...     ai_translate('Hello world', 'en', 'de').alias('translation')
+        ... )
+        >>> df.collect()[0][0].lower()
+        'hallo welt'
+
+        >>> # Auto-detect source language and translate to English
+        >>> df = session.range(1).select(
+        ...     ai_translate('Hola mundo', '', 'en').alias('translation')
+        ... )
+        >>> df.collect()[0][0].lower()
+        'hi world'
+    """
+    sql_func_name = "ai_translate"
+
+    # Build AST
+    ast = (
+        build_function_expr(sql_func_name, [text, source_language, target_language])
+        if _emit_ast
+        else None
+    )
+
+    # Convert arguments to columns
+    text_col = _to_col_if_lit(text, sql_func_name)
+    source_lang_col = _to_col_if_lit(source_language, sql_func_name)
+    target_lang_col = _to_col_if_lit(target_language, sql_func_name)
+
+    # Call the function
+    return _call_function(
+        sql_func_name,
+        text_col,
+        source_lang_col,
+        target_lang_col,
+        _ast=ast,
+        _emit_ast=_emit_ast,
+    )
