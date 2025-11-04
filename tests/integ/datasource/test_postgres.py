@@ -1,8 +1,6 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-import sys
-
 import pytest
 
 from snowflake.snowpark import Row
@@ -174,9 +172,6 @@ def test_unicode_column_name_postgres(session, custom_schema):
     ],
 )
 @pytest.mark.udf
-@pytest.mark.skipif(
-    sys.version_info[:2] == (3, 13), reason="driver not supported in python 3.13"
-)
 def test_udtf_ingestion_postgres(session, input_type, input_value, caplog):
     from tests.parameters import POSTGRES_CONNECTION_PARAMETERS
 
@@ -196,7 +191,7 @@ def test_udtf_ingestion_postgres(session, input_type, input_value, caplog):
         },
     ).order_by("BIGSERIAL_COL")
 
-    assert df.collect() == EXPECTED_TEST_DATA
+    assert df.collect() == EXPECTED_TEST_DATA and df.schema == postgres_schema
     # assert UDTF creation and UDTF call
     assert (
         "TEMPORARY  FUNCTION  SNOWPARK_TEMP_FUNCTION" "" in caplog.text

@@ -65,6 +65,7 @@ def native_df_multiindex() -> native_pd.DataFrame:
             3,
         ),
         (lambda df: df.aggregate({"A": ["count", "max"], "B": [max, "min"]}), 2),
+        (lambda df: df.aggregate("nunique"), 0),
         (
             lambda df: df.aggregate(
                 x=pd.NamedAgg("A", "max"), y=("B", "min"), c=("A", "count")
@@ -192,7 +193,9 @@ def test_string_sum_with_nulls():
     with pytest.raises(TypeError):
         pandas_df.sum(numeric_only=False)
     snow_result = snow_df.sum(numeric_only=False)
-    assert_series_equal(snow_result.to_pandas(), native_pd.Series(["ab"]))
+    assert_series_equal(
+        snow_result.to_pandas(), native_pd.Series(["ab"]), check_index_type=False
+    )
 
 
 class TestTimedelta:
@@ -625,6 +628,16 @@ def test_agg_with_multiindex(native_df_multiindex, func, expected_union_count):
     snow_df = pd.DataFrame(native_df_multiindex)
     with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(snow_df, native_df_multiindex, func)
+
+
+def test_agg_with_one_column_multiindex(native_df_multiindex):
+    # Triggers the special 1x1 transpose code path
+    native_df_multiindex = native_df_multiindex.iloc[:, 0:1]
+    snow_df = pd.DataFrame(native_df_multiindex)
+    with SqlCounter(query_count=1):
+        eval_snowpark_pandas_result(
+            snow_df, native_df_multiindex, lambda df: df.agg("count")
+        )
 
 
 @pytest.mark.parametrize(

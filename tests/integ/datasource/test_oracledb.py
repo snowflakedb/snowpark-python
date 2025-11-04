@@ -4,7 +4,6 @@
 
 import logging
 import math
-import sys
 from collections import namedtuple
 from unittest.mock import patch
 
@@ -154,9 +153,6 @@ def test_oracledb_driver_coverage(caplog):
 
 
 @pytest.mark.udf
-@pytest.mark.skipif(
-    sys.version_info[:2] == (3, 13), reason="driver not supported in python 3.13"
-)
 def test_udtf_ingestion_oracledb(session):
     from tests.parameters import ORACLEDB_CONNECTION_PARAMETERS
 
@@ -183,6 +179,7 @@ def test_udtf_ingestion_oracledb(session):
     ).order_by("ID")
 
     Utils.check_answer(df, oracledb_real_data)
+    assert df.schema == oracledb_real_schema
 
     # check that udtf is used
     flag = False
