@@ -9,6 +9,19 @@
 - Added support for `DataFrame.lateral_join`
 - Added support for `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
+- Added support for `functions.ai_translate`.
+- Added support for the following functions in `functions.py`:
+    - String and Binary functions:
+      - `base64_decode_binary`
+      - `compress`
+      - `decompress_binary`
+      - `decompress_string`
+      - `md5_binary`
+      - `md5_number_lower64`
+      - `md5_number_upper64`
+      - `sha1_binary`
+      - `sha2_binary`
+      - `soundex_p123`
 
 #### Improvements
 
@@ -29,7 +42,7 @@
 
 #### Improvements
 
-- Enhanced autoswitching functionality from Snowflake to native Pandas for methods with unsupported argument combinations:
+- Enhanced autoswitching functionality from Snowflake to native pandas for methods with unsupported argument combinations:
   - `shift()` with `suffix` or non-integer `periods` parameters
   - `sort_index()` with `axis=1` or `key` parameters
   - `sort_values()` with `axis=1`
@@ -38,11 +51,19 @@
   - `pivot_table()` with `sort=True`, non-string `index` list, non-string `columns` list, non-string `values` list, or `aggfunc` dict with non-string values
   - `fillna()` with `downcast` parameter or using `limit` together with `value`
   - `dropna()` with `axis=1`
+  - `asfreq()` with `how` parameter, `fill_value` parameter, `normalize=True`, or `freq` parameter being week, month, quarter, or year
+  - `groupby()` with `axis=1`, `by!=None and level!=None`, or by containing any non-pandas hashable labels.
+  - `groupby_fillna()` with `downcast` parameter
+  - `groupby_first()` with `min_count>1`
+  - `groupby_last()` with `min_count>1`
+  - `groupby_shift()` with `freq` parameter
+- Slightly improved the performance of `agg`, `nunique`, `describe`, and related methods on 1-column DataFrame and Series objects.
 
 #### Bug Fixes
 
 - Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
 - Fixed a bug where converting a modin datetime index with a timezone to a numpy array with `np.asarray` would cause a `TypeError`.
+- Fixed a bug where `Series.isin` with a Series argument matched index labels instead of the row position.
 
 #### Improvements
 
@@ -84,7 +105,28 @@
   - `dt.month_name`
   - `dt.day_name`
   - `dt.strftime`  
+  - `rolling.min`
+  - `rolling.max`
+  - `rolling.count`
+  - `rolling.sum`
+  - `rolling.mean`
+  - `rolling.std`
+  - `rolling.var`
+  - `rolling.sem`
+  - `rolling.corr`
+  - `expanding.min`
+  - `expanding.max`
+  - `expanding.count`
+  - `expanding.sum`
+  - `expanding.mean`
+  - `expanding.std`
+  - `expanding.var`
+  - `expanding.sem`
+  - `cumsum`
+  - `cummin`
+  - `cummax`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
+- Improve performance of `drop_duplicates` by avoiding joins when `keep!=False` in faster pandas.
 
 ## 1.42.0 (2025-10-28)
 
@@ -190,11 +232,6 @@
   - `skew()` with `axis=1` or `numeric_only=False` parameters
   - `round()` with `decimals` parameter as a Series
   - `corr()` with `method!=pearson` parameter
-  - `df.groupby()` with `axis=1`, `by!=None and level!=None`, or by containing any non-pandas hashable labels.
-  - `groupby_fillna()` with `downcast` parameter
-  - `groupby_first()` with `min_count>1`
-  - `groupby_last()` with `min_count>1`
-  - `shift()` with `freq` parameter
 - Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
 - Add support for the following in faster pandas:
   - `isin`

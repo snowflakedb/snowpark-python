@@ -2154,7 +2154,8 @@ class DataFrame:
             -------------
             <BLANKLINE>
 
-            >>> df.sort(ascending=False).show()
+            >>> # Sort by all columns (ORDER BY ALL) - no columns specified
+            >>> df.sort([], ascending=False).show()
             -------------
             |"A"  |"B"  |
             -------------
@@ -2183,7 +2184,10 @@ class DataFrame:
             The aliases ``order_by()`` and ``orderBy()`` have the same behavior.
         """
 
-        is_order_by_all = not cols
+        # This code performs additional type checks, run first.
+        exprs = self._convert_cols_to_exprs("sort()", *cols)
+        is_order_by_all = not cols or not exprs
+
         if (
             is_order_by_all
             and ascending is not None
@@ -2231,10 +2235,6 @@ class DataFrame:
             order = Ascending() if bool(asc_value) else Descending()
             sort_exprs = [SortByAllOrder(order)]
         else:
-            exprs = self._convert_cols_to_exprs("sort()", *cols)
-            if not exprs:
-                raise ValueError("sort() needs at least one sort expression.")
-
             orders = []
             if ascending is not None:
                 if isinstance(ascending, (list, tuple)):
