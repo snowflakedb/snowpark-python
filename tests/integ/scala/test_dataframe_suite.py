@@ -2690,6 +2690,17 @@ def test_rename_function_multiple(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="DataFrame.rename is not supported in Local Testing",
 )
+def test_rename_with_case_sensitive_column_name(session):
+    df = session.create_dataframe([[1, 2]], schema=["ab", '"ab"'])
+    df2 = df.rename('"ab"', "ab1")
+    assert df2.schema.names[0] == "AB1" and df2.schema.names[1] == '"ab"'
+    Utils.check_answer(df2, [Row(1, 2)])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.rename is not supported in Local Testing",
+)
 def test_rename_join_dataframe(session):
     df_left = session.create_dataframe([[1, 2]], schema=["a", "b"])
     df_right = session.create_dataframe([[3, 4]], schema=["a", "c"])
