@@ -9107,6 +9107,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _cumsum_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._cumsum_internal(
+                axis=axis,
+                skipna=skipna,
+                **kwargs,
+            )
+        qc = self._cumsum_internal(
+            axis=axis,
+            skipna=skipna,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _cumsum_internal(
+        self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> "SnowflakeQueryCompiler":
+        """
         Return cumulative sum over a DataFrame or Series axis.
 
         Args:
@@ -9145,6 +9165,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _cummin_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._cummin_internal(
+                axis=axis,
+                skipna=skipna,
+                **kwargs,
+            )
+        qc = self._cummin_internal(
+            axis=axis,
+            skipna=skipna,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _cummin_internal(
+        self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> "SnowflakeQueryCompiler":
+        """
         Return cumulative min over a DataFrame or Series axis.
 
         Args:
@@ -9180,6 +9220,26 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         ),
     )
     def cummax(
+        self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _cummax_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = self._relaxed_query_compiler._cummax_internal(
+                axis=axis,
+                skipna=skipna,
+                **kwargs,
+            )
+        qc = self._cummax_internal(
+            axis=axis,
+            skipna=skipna,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _cummax_internal(
         self, axis: int = 0, skipna: bool = True, *args: Any, **kwargs: Any
     ) -> "SnowflakeQueryCompiler":
         """
@@ -15012,6 +15072,30 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         return SnowflakeQueryCompiler(new_frame)
 
+    @register_query_compiler_method_not_implemented(
+        "BasePandasDataset",
+        "asfreq",
+        UnsupportedArgsRule(
+            unsupported_conditions=[
+                (
+                    lambda args: args.get("how") is not None,
+                    "the 'how' parameter is not yet supported",
+                ),
+                ("normalize", True),
+                (
+                    lambda args: args.get("fill_value") is not None,
+                    "the 'fill_value' parameter is not yet supported",
+                ),
+                (
+                    lambda args: rule_to_snowflake_width_and_slice_unit(
+                        args.get("freq")
+                    )[1]
+                    not in RULE_SECOND_TO_DAY,
+                    "the 'freq' parameter does not support week, month, quarter, or year",
+                ),
+            ],
+        ),
+    )
     def asfreq(
         self,
         freq: str,
@@ -18621,6 +18705,31 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         # Returning the query compiler with updated columns and index.
         return SnowflakeQueryCompiler(result_frame)
+
+    def drop_duplicates(self) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _drop_duplicates_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._drop_duplicates_internal()
+            )
+        qc = self._drop_duplicates_internal()
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _drop_duplicates_internal(self) -> "SnowflakeQueryCompiler":
+        """
+        Return a DataFrame or Series after dropping the duplicate rows.
+        """
+        return self.groupby_agg(
+            by=self._modin_frame.data_column_pandas_labels,
+            agg_func={},
+            axis=0,
+            groupby_kwargs={"sort": False, "as_index": False, "dropna": False},
+            agg_args=[],
+            agg_kwargs={},
+        )
 
     def duplicated(
         self,
