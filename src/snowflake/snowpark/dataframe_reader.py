@@ -1991,7 +1991,7 @@ class DataFrameReader:
                 table_type="temp",
                 statement_params=statements_params_for_telemetry,
             )
-            df = partitioner.udtf_ingestion(
+            df = partitioner._udtf_ingestion(
                 self._session,
                 struct_schema,
                 partitions_table,

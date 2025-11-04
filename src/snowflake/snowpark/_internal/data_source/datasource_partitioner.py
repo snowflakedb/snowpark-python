@@ -30,7 +30,10 @@ from snowflake.snowpark.types import (
     DateType,
     DataType,
 )
-import snowflake
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import snowflake.snowpark
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +175,7 @@ class DataSourcePartitioner:
             self.num_partitions,
         )
 
-    def udtf_ingestion(
+    def _udtf_ingestion(
         self,
         session: "snowflake.snowpark.Session",
         schema: StructType,
