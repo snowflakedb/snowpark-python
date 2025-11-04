@@ -23,13 +23,13 @@ df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
 
 res1 = df1.lateral_join(df2)
 
-res2 = df1.lateral_join(df2, condition=df1["a"] == df2["a"])
+res2 = df1.lateral_join(df2, on=df1["a"] == df2["a"])
 
-res3 = df1.lateral_join(df2, condition=(df1["a"] == df2["a"]) & (df1["b"] * 2 > df2["c"]))
+res3 = df1.lateral_join(df2, on=(df1["a"] == df2["a"]) & (df1["b"] * 2 > df2["c"]))
 
 res4 = df1.lateral_join(df2, lsuffix="_L", rsuffix="_R")
 
-res5 = df1.lateral_join(df2, condition=df1["b"] < df2["a"], lsuffix="_L", rsuffix="_R")
+res5 = df1.lateral_join(df2, on=df1["b"] < df2["a"], lsuffix="_L", rsuffix="_R")
 
 ## EXPECTED ENCODED AST
 

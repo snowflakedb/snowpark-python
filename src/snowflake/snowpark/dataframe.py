@@ -3526,7 +3526,7 @@ class DataFrame:
     def lateral_join(
         self,
         right: "DataFrame",
-        condition: Optional[Column] = None,
+        on: Optional[Column] = None,
         *,
         lsuffix: str = "",
         rsuffix: str = "",
@@ -3536,7 +3536,7 @@ class DataFrame:
 
         Args:
             right: The other :class:`DataFrame` to join.
-            condition: A :class:`Column` expression for the lateral join condition.
+            on: A :class:`Column` expression for the lateral join condition.
                 This condition will be used to filter the right DataFrame in the
                 lateral subquery (e.g., `WHERE t1.a = t2.a`).
             lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
@@ -3574,12 +3574,12 @@ class DataFrame:
             self, right, lateral_join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
         )
 
-        condition_expr = condition._expression if condition is not None else None
+        on_expr = on._expression if on is not None else None
         join_plan = Join(
             lhs._plan,
             rhs._plan,
             lateral_join_type,
-            condition_expr,
+            on_expr,
             None,
         )
 
@@ -3589,8 +3589,8 @@ class DataFrame:
             ast = with_src_position(stmt.expr.dataframe_lateral_join, stmt)
             self._set_ast_ref(ast.lhs)
             right._set_ast_ref(ast.rhs)
-            if condition_expr is not None:
-                build_expr_from_snowpark_column(ast.join_expr, condition)
+            if on_expr is not None:
+                build_expr_from_snowpark_column(ast.join_expr, on)
             if lsuffix:
                 ast.lsuffix.value = lsuffix
             if rsuffix:
