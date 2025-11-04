@@ -84,6 +84,6 @@ def test_asfreq_rule_negative():
     )
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas `asfreq` does not yet support frequencies week, month, quarter, or year",
+        match="Snowpark pandas asfreq does not yet support the parameter combination because the 'freq' parameter does not support week, month, quarter, or year.",
     ):
         snow_df.asfreq(freq="3ME")
