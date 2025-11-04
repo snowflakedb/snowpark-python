@@ -38,6 +38,19 @@
       - `rtrimmed_length`
       - `space`
       - `split_part`
+      
+    - Conditional expressions:
+      - `booland_agg`
+      - `boolxor_agg`
+      - `regr_valy`
+      - `zeroifnull`
+    
+    - Numeric expressions:
+      - `cot`
+      - `mod`
+      - `pi`
+      - `square`
+      - `width_bucket`
 
 #### Improvements
 
