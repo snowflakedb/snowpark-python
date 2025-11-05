@@ -144,6 +144,17 @@
   - `cumsum`
   - `cummin`
   - `cummax`
+  - `groupby.first`
+  - `groupby.last`
+  - `groupby.rank`
+  - `groupby.shift`
+  - `groupby.cumcount`
+  - `groupby.cumsum`
+  - `groupby.cummin`
+  - `groupby.cummax`
+  - `groupby.any`
+  - `groupby.all`
+  - `groupby.unique`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 - Improve performance of `drop_duplicates` by avoiding joins when `keep!=False` in faster pandas.
 
