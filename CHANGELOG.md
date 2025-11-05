@@ -144,6 +144,7 @@
   - `cumsum`
   - `cummin`
   - `cummax`
+  - `to_snowpark`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 - Improve performance of `drop_duplicates` by avoiding joins when `keep!=False` in faster pandas.
 
