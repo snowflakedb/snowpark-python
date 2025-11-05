@@ -5812,6 +5812,40 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         agg_args: Any,
         agg_kwargs: dict[str, Any],
     ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _groupby_resample_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._groupby_resample_internal(
+                    resample_kwargs=resample_kwargs,
+                    resample_method=resample_method,
+                    groupby_kwargs=groupby_kwargs,
+                    is_series=is_series,
+                    agg_args=agg_args,
+                    agg_kwargs=agg_kwargs,
+                )
+            )
+        qc = self._groupby_resample_internal(
+            resample_kwargs=resample_kwargs,
+            resample_method=resample_method,
+            groupby_kwargs=groupby_kwargs,
+            is_series=is_series,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _groupby_resample_internal(
+        self,
+        resample_kwargs: dict[str, Any],
+        resample_method: AggFuncType,
+        groupby_kwargs: dict[str, Any],
+        is_series: bool,
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
 
         validate_groupby_resample_supported_by_snowflake(resample_kwargs)
         level = groupby_kwargs.get("level", None)
@@ -5958,6 +5992,40 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         return SnowflakeQueryCompiler(resampled_frame_all_bins)
 
     def groupby_rolling(
+        self,
+        rolling_kwargs: dict[str, Any],
+        rolling_method: AggFuncType,
+        groupby_kwargs: dict[str, Any],
+        is_series: bool,
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _groupby_rolling_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._groupby_rolling_internal(
+                    rolling_kwargs=rolling_kwargs,
+                    rolling_method=rolling_method,
+                    groupby_kwargs=groupby_kwargs,
+                    is_series=is_series,
+                    agg_args=agg_args,
+                    agg_kwargs=agg_kwargs,
+                )
+            )
+        qc = self._groupby_rolling_internal(
+            rolling_kwargs=rolling_kwargs,
+            rolling_method=rolling_method,
+            groupby_kwargs=groupby_kwargs,
+            is_series=is_series,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _groupby_rolling_internal(
         self,
         rolling_kwargs: dict[str, Any],
         rolling_method: AggFuncType,
@@ -6340,6 +6408,43 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def groupby_get_group(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        agg_args: tuple[Any],
+        agg_kwargs: dict[str, Any],
+        drop: bool = False,
+        **kwargs: dict[str, Any],
+    ) -> "SnowflakeQueryCompiler":
+        """
+        Wrapper around _groupby_get_group_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._groupby_get_group_internal(
+                    by=by,
+                    axis=axis,
+                    groupby_kwargs=groupby_kwargs,
+                    agg_args=agg_args,
+                    agg_kwargs=agg_kwargs,
+                    drop=drop,
+                    **kwargs,
+                )
+            )
+        qc = self._groupby_get_group_internal(
+            by=by,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+            drop=drop,
+            **kwargs,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _groupby_get_group_internal(
         self,
         by: Any,
         axis: int,

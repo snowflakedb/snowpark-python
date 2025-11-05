@@ -144,6 +144,9 @@
   - `cumsum`
   - `cummin`
   - `cummax`
+  - `groupby.get_group`
+  - `groupby.rolling`
+  - `groupby.resample`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 - Improve performance of `drop_duplicates` by avoiding joins when `keep!=False` in faster pandas.
 
