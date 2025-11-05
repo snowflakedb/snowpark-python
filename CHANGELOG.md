@@ -144,6 +144,19 @@
   - `cumsum`
   - `cummin`
   - `cummax`
+  - `groupby.groups`
+  - `groupby.indices`
+  - `groupby.first`
+  - `groupby.last`
+  - `groupby.rank`
+  - `groupby.shift`
+  - `groupby.cumcount`
+  - `groupby.cumsum`
+  - `groupby.cummin`
+  - `groupby.cummax`
+  - `groupby.any`
+  - `groupby.all`
+  - `groupby.unique`
   - `groupby.get_group`
   - `groupby.rolling`
   - `groupby.resample`
