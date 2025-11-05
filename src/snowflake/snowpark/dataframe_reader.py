@@ -2,17 +2,13 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import json
-import multiprocessing as mp
 import os
 import re
 import sys
 import time
-import queue
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
-import threading
 from datetime import datetime
 
 import snowflake.snowpark
@@ -39,12 +35,10 @@ from snowflake.snowpark._internal.data_source.datasource_partitioner import (
 )
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.utils import (
-    worker_process,
-    process_parquet_queue_with_threads,
     STATEMENT_PARAMS_DATA_SOURCE,
     DATA_SOURCE_DBAPI_SIGNATURE,
-    _MAX_WORKER_SCALE,
     create_data_source_table_and_stage,
+    local_ingestion,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -2016,7 +2010,7 @@ class DataFrameReader:
             set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df
 
-        # parquet ingestion
+        # create table and stage for data source
         snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
         snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
         create_data_source_table_and_stage(
@@ -2027,119 +2021,21 @@ class DataFrameReader:
             statements_params_for_telemetry=statements_params_for_telemetry,
         )
 
-        data_fetching_thread_pool_executor = None
-        data_fetching_thread_stop_event = None
-        workers = []
-        try:
-            # Determine the number of processes or threads to use
-            max_workers = max_workers or os.cpu_count()
-            queue_class = mp.Queue if fetch_with_process else queue.Queue
-            process_or_thread_error_indicator = queue_class()
-            # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
-            partition_queue = queue_class()
-            # a queue of parquet BytesIO objects to be uploaded
-            # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
-            # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
-            parquet_queue = queue_class(_MAX_WORKER_SCALE * max_workers)
-            for partition_idx, query in enumerate(partitioned_queries):
-                partition_queue.put((partition_idx, query))
+        # parquet ingestion, ingestion external data source into temporary table
 
-            # Start worker processes
-            logger.debug(
-                f"Starting {max_workers} worker processes to fetch data from the data source."
-            )
+        local_ingestion(
+            session=self._session,
+            partitioner=partitioner,
+            partitioned_queries=partitioned_queries,
+            max_workers=max_workers,
+            fetch_with_process=fetch_with_process,
+            snowflake_stage_name=snowflake_stage_name,
+            snowflake_table_name=snowflake_table_name,
+            statements_params_for_telemetry=statements_params_for_telemetry,
+            telemetry_json_string=telemetry_json_string,
+            _emit_ast=_emit_ast,
+        )
 
-            fetch_to_local_start_time = time.perf_counter()
-            logger.debug(f"fetch to local start at: {fetch_to_local_start_time}")
-
-            if fetch_with_process:
-                for _worker_id in range(max_workers):
-                    process = mp.Process(
-                        target=worker_process,
-                        args=(
-                            partition_queue,
-                            parquet_queue,
-                            process_or_thread_error_indicator,
-                            partitioner.reader(),
-                        ),
-                    )
-                    process.start()
-                    workers.append(process)
-            else:
-                data_fetching_thread_pool_executor = ThreadPoolExecutor(
-                    max_workers=max_workers
-                )
-                data_fetching_thread_stop_event = threading.Event()
-                workers = [
-                    data_fetching_thread_pool_executor.submit(
-                        worker_process,
-                        partition_queue,
-                        parquet_queue,
-                        process_or_thread_error_indicator,
-                        partitioner.reader(),
-                        data_fetching_thread_stop_event,
-                    )
-                    for _worker_id in range(max_workers)
-                ]
-
-            # Process BytesIO objects from queue and upload them using utility method
-            (
-                fetch_to_local_end_time,
-                upload_to_sf_start_time,
-                upload_to_sf_end_time,
-            ) = process_parquet_queue_with_threads(
-                session=self._session,
-                parquet_queue=parquet_queue,
-                process_or_thread_error_indicator=process_or_thread_error_indicator,
-                workers=workers,
-                total_partitions=len(partitioned_queries),
-                snowflake_stage_name=snowflake_stage_name,
-                snowflake_table_name=snowflake_table_name,
-                max_workers=max_workers,
-                statements_params=statements_params_for_telemetry,
-                on_error="abort_statement",
-                fetch_with_process=fetch_with_process,
-            )
-            logger.debug(f"upload and copy into start at: {upload_to_sf_start_time}")
-            logger.debug(
-                f"fetch to local total time: {fetch_to_local_end_time - fetch_to_local_start_time}"
-            )
-
-            telemetry_json_string["fetch_to_local_duration"] = (
-                fetch_to_local_end_time - fetch_to_local_start_time
-            )
-            telemetry_json_string["upload_and_copy_into_sf_table_duration"] = (
-                upload_to_sf_end_time - upload_to_sf_start_time
-            )
-
-        except BaseException as exc:
-            if fetch_with_process:
-                # Graceful shutdown - terminate all processes
-                for process in workers:
-                    if process.is_alive():
-                        process.terminate()
-                        process.join(timeout=5)
-            else:
-                if data_fetching_thread_stop_event:
-                    data_fetching_thread_stop_event.set()
-                for future in workers:
-                    if not future.done():
-                        future.cancel()
-                        logger.debug(
-                            f"Cancelled a remaining data fetching future {future} due to error in another thread."
-                        )
-
-            if isinstance(exc, SnowparkDataframeReaderException):
-                raise exc
-
-            raise SnowparkDataframeReaderException(
-                f"Error occurred while ingesting data from the data source: {exc!r}"
-            )
-        finally:
-            if data_fetching_thread_pool_executor:
-                data_fetching_thread_pool_executor.shutdown(wait=True)
-
-        logger.debug("All data has been successfully loaded into the Snowflake table.")
         end_time = time.perf_counter()
         telemetry_json_string["end_to_end_duration"] = end_time - start_time
 
