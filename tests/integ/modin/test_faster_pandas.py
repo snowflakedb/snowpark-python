@@ -1249,6 +1249,9 @@ def test_str_translate(session):
         "is_leap_year",
         "days_in_month",
         "daysinmonth",
+        "dayofweek",
+        "weekday",
+        "dayofyear",
     ],
 )
 @sql_count_checker(query_count=3)
@@ -1296,7 +1299,7 @@ def test_dt_properties(session, property_name):
         assert_series_equal(snow_result, native_result)
 
 
-@pytest.mark.parametrize("func", ["normalize", "month_name", "day_name"])
+@pytest.mark.parametrize("func", ["normalize", "month_name", "day_name", "isocalendar"])
 @sql_count_checker(query_count=3)
 def test_dt_functions_no_params(session, func):
     with session_parameter_override(
@@ -1338,7 +1341,10 @@ def test_dt_functions_no_params(session, func):
         native_result = getattr(native_df["A"].dt, func)()
 
         # compare results
-        assert_series_equal(snow_result, native_result)
+        if func == "isocalendar":
+            assert_frame_equal(snow_result, native_result, check_dtype=False)
+        else:
+            assert_series_equal(snow_result, native_result)
 
 
 @pytest.mark.parametrize(
