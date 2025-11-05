@@ -135,6 +135,7 @@ class _SnowflakeDomain:
     TABLE = "TABLE"
     MODULE = "MODULE"
     DATASET = "DATASET"
+    EXPERIMENT = "EXPERIMENT"
     VIEW = "VIEW"
     COLUMN = "COLUMN"
     SNOWSERVICE_INSTANCE = "SNOWSERVICE_INSTANCE"
@@ -274,6 +275,7 @@ class Lineage:
             _UserDomain.FEATURE_VIEW,
             _UserDomain.MODEL,
             _SnowflakeDomain.DATASET,
+            _SnowflakeDomain.EXPERIMENT,
         }
 
     def _get_lineage(
