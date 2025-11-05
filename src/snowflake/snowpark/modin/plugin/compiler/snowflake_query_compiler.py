@@ -823,14 +823,17 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
     storage_format = property(lambda self: "Snowflake")
 
     def _raise_not_implemented_error_for_timedelta(
-        self, frame: InternalFrame = None
+        self, frame: InternalFrame = None, stack_depth: int = 2
     ) -> None:
         """Raise NotImplementedError for SnowflakeQueryCompiler methods which does not support timedelta yet."""
         if frame is None:
             frame = self._modin_frame
         for val in frame.snowflake_quoted_identifier_to_snowpark_pandas_type.values():
             if isinstance(val, TimedeltaType):
-                method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
+                method_frame = inspect.currentframe()
+                for _ in range(stack_depth):
+                    method_frame = method_frame.f_back  # type: ignore[union-attr]
+                method = method_frame.f_code.co_name  # type: ignore[union-attr]
                 ErrorMessage.not_implemented_for_timedelta(method)
 
     def _warn_lost_snowpark_pandas_type(self) -> None:
@@ -5739,6 +5742,49 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         pct: bool = False,
     ) -> "SnowflakeQueryCompiler":
         """
+        Wrapper around _groupby_rank_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            relaxed_query_compiler = (
+                self._relaxed_query_compiler._groupby_rank_internal(
+                    by=by,
+                    groupby_kwargs=groupby_kwargs,
+                    agg_args=agg_args,
+                    agg_kwargs=agg_kwargs,
+                    axis=axis,
+                    method=method,
+                    na_option=na_option,
+                    ascending=ascending,
+                    pct=pct,
+                )
+            )
+        qc = self._groupby_rank_internal(
+            by=by,
+            groupby_kwargs=groupby_kwargs,
+            agg_args=agg_args,
+            agg_kwargs=agg_kwargs,
+            axis=axis,
+            method=method,
+            na_option=na_option,
+            ascending=ascending,
+            pct=pct,
+        )
+        return self._maybe_set_relaxed_qc(qc, relaxed_query_compiler)
+
+    def _groupby_rank_internal(
+        self,
+        by: Any,
+        groupby_kwargs: dict[str, Any],
+        agg_args: Any,
+        agg_kwargs: dict[str, Any],
+        axis: Axis = 0,
+        method: Literal["average", "min", "max", "first", "dense"] = "average",
+        na_option: Literal["keep", "top", "bottom"] = "keep",
+        ascending: bool = True,
+        pct: bool = False,
+    ) -> "SnowflakeQueryCompiler":
+        """
         Compute groupby with rank.
 
         Parameters
@@ -6626,6 +6672,27 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         groupby_kwargs: dict[str, Any],
     ) -> PrettyDict[Hashable, "pd.Index"]:
         """
+        Wrapper around _groupby_groups_internal to be supported in faster pandas.
+        """
+        if self._relaxed_query_compiler is not None:
+            return self._relaxed_query_compiler._groupby_groups_internal(
+                by=by,
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+            )
+        return self._groupby_groups_internal(
+            by=by,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+        )
+
+    def _groupby_groups_internal(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+    ) -> PrettyDict[Hashable, "pd.Index"]:
+        """
         Get a PrettyDict mapping group keys to row labels.
 
         Arguments:
@@ -6667,7 +6734,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         4    5        2                     4                     5
         0    8        9                     0                     8
         """
-        self._raise_not_implemented_error_for_timedelta()
+        self._raise_not_implemented_error_for_timedelta(stack_depth=4)
 
         original_index_names = self.get_index_names()
         frame = self._modin_frame
@@ -6759,6 +6826,30 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         )
 
     def groupby_indices(
+        self,
+        by: Any,
+        axis: int,
+        groupby_kwargs: dict[str, Any],
+        values_as_np_array: bool = True,
+    ) -> dict[Hashable, np.ndarray]:
+        """
+        Wrapper around _groupby_indices_internal to be supported in faster pandas.
+        """
+        if self._relaxed_query_compiler is not None:
+            return self._relaxed_query_compiler._groupby_indices_internal(
+                by=by,
+                axis=axis,
+                groupby_kwargs=groupby_kwargs,
+                values_as_np_array=values_as_np_array,
+            )
+        return self._groupby_indices_internal(
+            by=by,
+            axis=axis,
+            groupby_kwargs=groupby_kwargs,
+            values_as_np_array=values_as_np_array,
+        )
+
+    def _groupby_indices_internal(
         self,
         by: Any,
         axis: int,
