@@ -833,9 +833,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
                 ErrorMessage.not_implemented_for_timedelta(method)
 
-    def _warn_lost_snowpark_pandas_type(self) -> None:
+    def _warn_lost_snowpark_pandas_type(self, method: str) -> None:
         """Warn Snowpark pandas type can be lost in current operation."""
-        method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
         snowpark_pandas_types = [
             type(t).__name__
             for t in set(
@@ -2309,7 +2308,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         index_label: Optional[IndexLabel] = None,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> None:
-        self._warn_lost_snowpark_pandas_type()
+        self._warn_lost_snowpark_pandas_type("to_snowflake")
         handle_if_exists_for_to_snowflake(if_exists=if_exists, name=name)
 
         if if_exists == "fail":
@@ -2347,7 +2346,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         For details, please see comment in _to_snowpark_dataframe_of_pandas_dataframe.
         """
-        self._warn_lost_snowpark_pandas_type()
+        self._warn_lost_snowpark_pandas_type("to_snowpark")
 
         return self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
             index, index_label
