@@ -144,6 +144,8 @@
   - `cumsum`
   - `cummin`
   - `cummax`
+  - `groupby.groups`
+  - `groupby.indices`
   - `groupby.first`
   - `groupby.last`
   - `groupby.rank`
