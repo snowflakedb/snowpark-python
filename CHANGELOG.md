@@ -21,6 +21,26 @@
       - `sha1_binary`
       - `sha2_binary`
       - `soundex_p123`
+      - `strtok`
+      - `try_base64_decode_binary`
+      - `try_base64_decode_string`
+      - `try_hex_decode_binary`
+      - `try_hex_decode_string`
+      - `unicode`
+      - `uuid_string`
+      
+    - Conditional expressions:
+      - `booland_agg`
+      - `boolxor_agg`
+      - `regr_valy`
+      - `zeroifnull`
+    
+    - Numeric expressions:
+      - `cot`
+      - `mod`
+      - `pi`
+      - `square`
+      - `width_bucket`
 
 #### Improvements
 
