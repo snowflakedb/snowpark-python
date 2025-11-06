@@ -1348,7 +1348,7 @@ def test_graceful_shutdown_on_worker_process_error(session):
         with mock.patch.object(
             multiprocessing.Process, "__init__", track_process_init
         ), mock.patch(
-            "snowflake.snowpark.dataframe_reader.process_parquet_queue_with_threads",
+            "snowflake.snowpark._internal.data_source.utils.process_parquet_queue_with_threads",
             side_effect=RuntimeError("Simulated error in queue processing"),
         ):
 
