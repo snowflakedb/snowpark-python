@@ -144,6 +144,19 @@
   - `cumsum`
   - `cummin`
   - `cummax`
+  - `groupby.groups`
+  - `groupby.indices`
+  - `groupby.first`
+  - `groupby.last`
+  - `groupby.rank`
+  - `groupby.shift`
+  - `groupby.cumcount`
+  - `groupby.cumsum`
+  - `groupby.cummin`
+  - `groupby.cummax`
+  - `groupby.any`
+  - `groupby.all`
+  - `groupby.unique`
   - `to_snowflake`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 - Improve performance of `drop_duplicates` by avoiding joins when `keep!=False` in faster pandas.
