@@ -2334,6 +2334,22 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         self, index: bool = True, index_label: Optional[IndexLabel] = None
     ) -> SnowparkDataFrame:
         """
+        Wrapper around _to_snowpark_internal to be supported in faster pandas.
+        """
+        if self._relaxed_query_compiler is not None and not index:
+            return self._relaxed_query_compiler._to_snowpark_internal(
+                index=index,
+                index_label=index_label,
+            )
+        return self._to_snowpark_internal(
+            index=index,
+            index_label=index_label,
+        )
+
+    def _to_snowpark_internal(
+        self, index: bool = True, index_label: Optional[IndexLabel] = None
+    ) -> SnowparkDataFrame:
+        """
         Convert the Snowpark pandas Dataframe to Snowpark Dataframe. The Snowpark Dataframe is created by selecting
         all index columns of the Snowpark pandas Dataframe if index=True, and also all data columns.
         For example:
