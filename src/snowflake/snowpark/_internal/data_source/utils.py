@@ -162,7 +162,7 @@ DBMS_MAPPING = {
 
 def _task_fetch_data_from_source(
     worker: DataSourceReader,
-    partition: str,
+    partition: Any,
     partition_idx: int,
     parquet_queue: Union[mp.Queue, queue.Queue],
     stop_event: threading.Event = None,
@@ -202,7 +202,7 @@ def _task_fetch_data_from_source(
 
 def _task_fetch_data_from_source_with_retry(
     worker: DataSourceReader,
-    partition: str,
+    partition: Any,
     partition_idx: int,
     parquet_queue: Union[mp.Queue, queue.Queue],
     stop_event: threading.Event = None,
@@ -609,7 +609,7 @@ def track_data_source_statement_params(
 def local_ingestion(
     session: "snowflake.snowpark.Session",
     data_source: "snowflake.snowpark.DataSource",
-    partitioned_queries: List[str],
+    partitioned_queries: List[Any],
     schema: StructType,
     max_workers: int,
     snowflake_stage_name: str,
@@ -732,3 +732,30 @@ def local_ingestion(
             data_fetching_thread_pool_executor.shutdown(wait=True)
 
     logger.debug("All data has been successfully loaded into the Snowflake table.")
+
+
+def custom_data_source_udtf_class_builder(
+    data_source_class: type,
+    schema: StructType,
+):
+    import cloudpickle
+    import pickle
+
+    pickled_schema = cloudpickle.dumps(schema, protocol=pickle.HIGHEST_PROTOCOL)
+
+    class UDTFIngestion:
+        def process(self, pickled_partition: bytearray):
+            import cloudpickle
+
+            data_source_instance = data_source_class()
+            unpickled_schema = cloudpickle.loads(pickled_schema)
+            partition = cloudpickle.loads(pickled_partition)
+            reader = data_source_instance.reader(unpickled_schema)
+            for result in reader.read(partition):
+                if isinstance(result, list):
+                    yield from result
+                else:
+                    yield from list(reader.read(partition))
+                    break
+
+    return UDTFIngestion
