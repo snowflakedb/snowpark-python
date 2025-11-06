@@ -836,9 +836,8 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
                 method = method_frame.f_code.co_name  # type: ignore[union-attr]
                 ErrorMessage.not_implemented_for_timedelta(method)
 
-    def _warn_lost_snowpark_pandas_type(self) -> None:
+    def _warn_lost_snowpark_pandas_type(self, method: str) -> None:
         """Warn Snowpark pandas type can be lost in current operation."""
-        method = inspect.currentframe().f_back.f_back.f_code.co_name  # type: ignore[union-attr]
         snowpark_pandas_types = [
             type(t).__name__
             for t in set(
@@ -2284,7 +2283,35 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         index_label: Optional[IndexLabel] = None,
         table_type: Literal["", "temp", "temporary", "transient"] = "",
     ) -> None:
-        self._warn_lost_snowpark_pandas_type()
+        """
+        Wrapper around _to_snowflake_internal to be supported in faster pandas.
+        """
+        if self._relaxed_query_compiler is not None and not index:
+            self._relaxed_query_compiler._to_snowflake_internal(
+                name=name,
+                if_exists=if_exists,
+                index=index,
+                index_label=index_label,
+                table_type=table_type,
+            )
+        else:
+            self._to_snowflake_internal(
+                name=name,
+                if_exists=if_exists,
+                index=index,
+                index_label=index_label,
+                table_type=table_type,
+            )
+
+    def _to_snowflake_internal(
+        self,
+        name: Union[str, Iterable[str]],
+        if_exists: Optional[Literal["fail", "replace", "append"]] = "fail",
+        index: bool = True,
+        index_label: Optional[IndexLabel] = None,
+        table_type: Literal["", "temp", "temporary", "transient"] = "",
+    ) -> None:
+        self._warn_lost_snowpark_pandas_type("to_snowflake")
         handle_if_exists_for_to_snowflake(if_exists=if_exists, name=name)
 
         if if_exists == "fail":
@@ -2322,7 +2349,7 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
 
         For details, please see comment in _to_snowpark_dataframe_of_pandas_dataframe.
         """
-        self._warn_lost_snowpark_pandas_type()
+        self._warn_lost_snowpark_pandas_type("to_snowpark")
 
         return self._to_snowpark_dataframe_from_snowpark_pandas_dataframe(
             index, index_label
