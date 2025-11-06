@@ -124,6 +124,10 @@
   - `dt.month_name`
   - `dt.day_name`
   - `dt.strftime`  
+  - `dt.dayofweek`  
+  - `dt.weekday`  
+  - `dt.dayofyear`    
+  - `dt.isocalendar`  
   - `rolling.min`
   - `rolling.max`
   - `rolling.count`
