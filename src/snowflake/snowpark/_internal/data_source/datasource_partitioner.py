@@ -19,7 +19,10 @@ from snowflake.snowpark._internal.data_source.utils import (
     DRIVER_MAP,
 )
 
-from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
+from snowflake.snowpark._internal.data_source.datasource_reader import (
+    DbapiDataSourceReader,
+)
+from snowflake.snowpark.data_source import DataSource
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.utils import generate_random_alphanumeric
@@ -38,7 +41,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class DataSourcePartitioner:
+class DataSourcePartitioner(DataSource):
     def __init__(
         self,
         create_connection: Callable[..., "Connection"],
@@ -56,6 +59,7 @@ class DataSourcePartitioner:
         fetch_merge_count: Optional[int] = 1,
         connection_parameters: Optional[dict] = None,
     ) -> None:
+        super().__init__()
         self.create_connection = create_connection
         self.table_or_query = table_or_query
         self.is_query = is_query
@@ -91,11 +95,11 @@ class DataSourcePartitioner:
             else None
         )
 
-    def reader(self) -> DataSourceReader:
-        return DataSourceReader(
+    def reader(self, schema) -> DbapiDataSourceReader:
+        return DbapiDataSourceReader(
             self.driver_class,
             self.create_connection,
-            self.schema,
+            schema,
             self.dbms_type,
             self.fetch_size,
             self.query_timeout,

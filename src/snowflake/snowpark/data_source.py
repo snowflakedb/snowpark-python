@@ -5,7 +5,10 @@
 from typing import Any, Tuple, Iterator, Union, List
 
 from snowflake.snowpark.types import StructType
-import snowflake
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import snowflake.snowpark
 
 
 class InputPartition:
@@ -45,5 +48,5 @@ class DataSource:
             self._internal_partitions = self.reader(self.schema()).partitions()
         return self._internal_partitions
 
-    def udtf_ingestion(self) -> "snowflake.snowpark.DataFrame":
+    def _udtf_ingestion(self) -> "snowflake.snowpark.DataFrame":
         pass
