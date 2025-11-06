@@ -755,7 +755,6 @@ def custom_data_source_udtf_class_builder(
                 if isinstance(result, list):
                     yield from result
                 else:
-                    yield from list(reader.read(partition))
-                    break
+                    yield result
 
     return UDTFIngestion

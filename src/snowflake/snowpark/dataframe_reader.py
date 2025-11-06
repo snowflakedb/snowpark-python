@@ -755,6 +755,10 @@ class DataFrameReader:
             return self.dbapi(**{k.lower(): v for k, v in self._cur_options.items()})
         if format_str == "jdbc":
             return self.jdbc(**{k.lower(): v for k, v in self._cur_options.items()})
+        if format_str in self._custom_data_source_format:
+            return self._custom_data_source(
+                format_str, **{k.lower(): v for k, v in self._cur_options.items()}
+            )
 
         loader = getattr(self, self._format, None)
         if loader is not None:
@@ -2153,8 +2157,8 @@ class DataFrameReader:
         return dataframe
 
     def register_custom_data_source(self, data_source: DataSource):
-        self._data_source_format.append(data_source.name())
-        self._custom_data_source_format[data_source.name()] = data_source
+        self._data_source_format.append(data_source.name().lower())
+        self._custom_data_source_format[data_source.name().lower()] = data_source
 
     def _custom_data_source(
         self,
