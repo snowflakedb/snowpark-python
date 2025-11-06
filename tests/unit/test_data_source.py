@@ -6,7 +6,9 @@ import pytest
 import re
 from unittest.mock import Mock, patch
 from snowflake.snowpark._internal.data_source.drivers.base_driver import BaseDriver
-from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
+from snowflake.snowpark._internal.data_source.datasource_reader import (
+    DbapiDataSourceReader,
+)
 from snowflake.snowpark._internal.data_source.utils import DBMS_TYPE
 from snowflake.snowpark.types import StructType, StructField, StringType
 
@@ -67,7 +69,7 @@ def test_close_error_handling(cursor_fails, conn_fails):
     ],
 )
 def test_datasource_reader_close_error_handling(cursor_fails, conn_fails):
-    """Test that DataSourceReader handles cursor/connection close errors gracefully."""
+    """Test that DbapiDataSourceReader handles cursor/connection close errors gracefully."""
     # Setup mocks
     mock_create_connection = Mock()
     expected_schema = StructType([StructField("test_col", StringType())])
@@ -94,7 +96,7 @@ def test_datasource_reader_close_error_handling(cursor_fails, conn_fails):
     mock_driver_class = Mock(return_value=mock_driver)
 
     # Create reader with the mock driver class
-    reader = DataSourceReader(
+    reader = DbapiDataSourceReader(
         driver_class=mock_driver_class,
         create_connection=mock_create_connection,
         schema=expected_schema,

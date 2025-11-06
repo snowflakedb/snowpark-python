@@ -25,7 +25,9 @@ from snowflake.snowpark import Row
 from snowflake.snowpark._internal.data_source.datasource_partitioner import (
     DataSourcePartitioner,
 )
-from snowflake.snowpark._internal.data_source.datasource_reader import DataSourceReader
+from snowflake.snowpark._internal.data_source.datasource_reader import (
+    DbapiDataSourceReader,
+)
 from snowflake.snowpark._internal.data_source.drivers import (
     PyodbcDriver,
     SqliteDriver,
@@ -177,7 +179,7 @@ def test_dbapi_retry(session, fetch_with_process):
             SnowparkDataframeReaderException, match="\\[RuntimeError\\] Test error"
         ):
             _task_fetch_data_from_source_with_retry(
-                worker=DataSourceReader(
+                worker=DbapiDataSourceReader(
                     PyodbcDriver,
                     sql_server_create_connection,
                     StructType([StructField("col1", IntegerType(), False)]),
@@ -220,7 +222,7 @@ def test_dbapi_non_retryable_error(session, fetch_with_process):
         parquet_queue = multiprocessing.Queue() if fetch_with_process else queue.Queue()
         with pytest.raises(SnowparkDataframeReaderException, match="mock error"):
             _task_fetch_data_from_source_with_retry(
-                worker=DataSourceReader(
+                worker=DbapiDataSourceReader(
                     PyodbcDriver,
                     sql_server_create_connection,
                     StructType([StructField("col1", IntegerType(), False)]),
@@ -712,7 +714,7 @@ def test_task_fetch_from_data_source_with_fetch_size(
     parquet_queue = multiprocessing.Queue() if fetch_with_process else queue.Queue()
 
     params = {
-        "worker": DataSourceReader(
+        "worker": DbapiDataSourceReader(
             PyodbcDriver,
             sql_server_create_connection_small_data,
             schema=schema,
@@ -1147,7 +1149,7 @@ def test_fetch_merge_count_unit(fetch_size, fetch_merge_count, expected_batch_cn
     with tempfile.TemporaryDirectory() as temp_dir:
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, columns, example_data, _ = sqlite3_db(dbpath)
-        reader = DataSourceReader(
+        reader = DbapiDataSourceReader(
             SqliteDriver,
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             schema=SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,
@@ -1268,8 +1270,8 @@ def test_worker_process_unit(fetch_with_process):
         dbpath = os.path.join(temp_dir, "testsqlite3.db")
         table_name, columns, example_data, _ = sqlite3_db(dbpath)
 
-        # Create DataSourceReader for sqlite3
-        reader = DataSourceReader(
+        # Create DbapiDataSourceReader for sqlite3
+        reader = DbapiDataSourceReader(
             SqliteDriver,
             functools.partial(create_connection_to_sqlite3_db, dbpath),
             schema=SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE,

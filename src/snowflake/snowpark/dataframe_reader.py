@@ -39,6 +39,7 @@ from snowflake.snowpark._internal.data_source.utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
     create_data_source_table_and_stage,
     local_ingestion,
+    custom_data_source_udtf_class_builder,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -2154,3 +2155,97 @@ class DataFrameReader:
     def register_custom_data_source(self, data_source: DataSource):
         self._data_source_format.append(data_source.name())
         self._custom_data_source_format[data_source.name()] = data_source
+
+    def _custom_data_source(
+        self,
+        data_source_name: str,
+        max_workers: Optional[int] = None,
+        udtf_configs: Optional[dict] = None,
+        fetch_with_process: bool = False,
+        _emit_ast: bool = True,
+    ) -> DataFrame:
+
+        data_source_class = self._custom_data_source_format[data_source_name]
+        data_source_instance = data_source_class()
+        partitions = data_source_instance._partitions()
+        if partitions is None:
+            partitions = [None]
+        schema = DataSourcePartitioner.formatting_custom_schema(
+            data_source_instance.schema()
+        )
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE: "1"}
+        telemetry_json_string = {}
+
+        # udtf ingestion
+
+        if udtf_configs is not None:
+            import cloudpickle
+            import pickle
+
+            pickled_partitions = [
+                cloudpickle.dumps(par, protocol=pickle.HIGHEST_PROTOCOL)
+                for par in partitions
+            ]
+            partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
+            self._session.create_dataframe(
+                [[par] for par in pickled_partitions], schema=["partition"]
+            ).write.save_as_table(partitions_table, table_type="temp")
+
+            udtf_name = random_name_for_temp_object(TempObjectType.TABLE_FUNCTION)
+            self._session.udtf.register(
+                custom_data_source_udtf_class_builder(data_source_class, schema),
+                name=udtf_name,
+                output_schema=StructType(
+                    [
+                        StructField(field.name, VariantType(), field.nullable)
+                        for field in schema.fields
+                    ]
+                ),
+                external_access_integrations=[
+                    udtf_configs["external_access_integrations"]
+                ],
+                packages=udtf_configs["packages"],
+                imports=udtf_configs["imports"],
+            )
+            call_udtf_sql = f"""
+                            select * from {partitions_table}, table({udtf_name}(partition))
+                            """
+            res = self._session.sql(call_udtf_sql, _emit_ast=_emit_ast)
+            cols = [
+                res[field.name].cast(field.datatype).alias(field.name)
+                for field in schema.fields
+            ]
+            return res.select(cols, _emit_ast=True)
+
+        # parquet ingestion
+
+        snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+        snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
+
+        create_data_source_table_and_stage(
+            session=self._session,
+            schema=schema,
+            snowflake_table_name=snowflake_table_name,
+            snowflake_stage_name=snowflake_stage_name,
+            statements_params_for_telemetry=statements_params_for_telemetry,
+        )
+
+        local_ingestion(
+            session=self._session,
+            schema=schema,
+            data_source=data_source_instance,
+            partitioned_queries=partitions,
+            max_workers=max_workers,
+            fetch_with_process=fetch_with_process,
+            snowflake_stage_name=snowflake_stage_name,
+            snowflake_table_name=snowflake_table_name,
+            statements_params_for_telemetry=statements_params_for_telemetry,
+            telemetry_json_string=telemetry_json_string,
+            _emit_ast=_emit_ast,
+        )
+
+        res_df = self._session.table(snowflake_table_name, _emit_ast=_emit_ast)
+
+        set_api_call_source(res_df, DATA_SOURCE_DBAPI_SIGNATURE)
+
+        return res_df
