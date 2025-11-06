@@ -2027,7 +2027,8 @@ class DataFrameReader:
 
         local_ingestion(
             session=self._session,
-            partitioner=partitioner,
+            schema=struct_schema,
+            data_source=partitioner,
             partitioned_queries=partitioned_queries,
             max_workers=max_workers,
             fetch_with_process=fetch_with_process,

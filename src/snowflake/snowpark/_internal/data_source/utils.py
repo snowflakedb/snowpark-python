@@ -608,8 +608,9 @@ def track_data_source_statement_params(
 
 def local_ingestion(
     session: "snowflake.snowpark.Session",
-    partitioner: "snowflake.snowpark._internal.data_source.datasource_partitioner.DataSourcePartitioner",
+    data_source: "snowflake.snowpark.DataSource",
     partitioned_queries: List[str],
+    schema: StructType,
     max_workers: int,
     snowflake_stage_name: str,
     snowflake_table_name: str,
@@ -651,7 +652,7 @@ def local_ingestion(
                         partition_queue,
                         parquet_queue,
                         process_or_thread_error_indicator,
-                        partitioner.reader(),
+                        data_source.reader(schema),
                     ),
                 )
                 process.start()
@@ -667,7 +668,7 @@ def local_ingestion(
                     partition_queue,
                     parquet_queue,
                     process_or_thread_error_indicator,
-                    partitioner.reader(),
+                    data_source.reader(schema),
                     data_fetching_thread_stop_event,
                 )
                 for _worker_id in range(max_workers)

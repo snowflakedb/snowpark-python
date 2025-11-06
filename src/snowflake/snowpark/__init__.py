@@ -41,6 +41,9 @@ __all__ = [
     "AsyncJob",
     "StoredProcedureProfiler",
     "UDFProfiler",
+    "DataSource",
+    "DataSourceReader",
+    "InputPartition",
 ]
 
 
@@ -85,6 +88,7 @@ from snowflake.snowpark.table import (
     WhenNotMatchedClause,
 )
 from snowflake.snowpark.window import Window, WindowSpec
+from snowflake.snowpark.data_source import DataSourceReader, DataSource, InputPartition
 
 _deprecation_warning_msg = (
     "Python Runtime 3.8 reached its End-Of-Life (EOL) on October 14, 2024, there will be no further bug fixes "
