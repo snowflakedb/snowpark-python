@@ -1687,7 +1687,7 @@ def test_to_snowpark(session):
         # create snow dataframes
         df = pd.read_snowflake(table_name)
         sdf = df.to_snowpark(index=False)
-        snow_result = sdf.to_snowpark_pandas()
+        snow_result = sdf.to_snowpark_pandas().sort_values(by="A")
 
         # verify that the input dataframe has a populated relaxed query compiler
         assert df._query_compiler._relaxed_query_compiler is not None
@@ -1701,7 +1701,7 @@ def test_to_snowpark(session):
 
         # create pandas dataframes
         native_df = df.to_pandas()
-        native_result = native_df
+        native_result = native_df.sort_values(by="A")
 
         # compare results
         assert_frame_equal(snow_result, native_result)
