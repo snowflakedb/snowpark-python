@@ -6171,7 +6171,16 @@ class DataFrame:
         else:
             raise TypeError(f"{str(existing)} must be a column name or Column object.")
 
-        to_be_renamed = [x for x in self._output if x.name.upper() == old_name.upper()]
+        from snowflake.snowpark import context
+
+        if context._is_snowpark_connect_compatible_mode:
+            to_be_renamed = [
+                x for x in self._output if quote_name(x.name) == quote_name(old_name)
+            ]
+        else:  # this is wrong, but we need to keep it for backward compatibility. Should be removed in the future when Snowpark Python Client has a major version bump.
+            to_be_renamed = [
+                x for x in self._output if x.name.upper() == old_name.upper()
+            ]
         if not to_be_renamed:
             raise ValueError(
                 f'Unable to rename column "{existing}" because it doesn\'t exist.'
