@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     LeftOuter,
     LeftSemi,
     NaturalJoin,
+    LateralJoin,
     RightOuter,
     Union as UnionPlan,
     UsingJoin,
@@ -3508,6 +3509,92 @@ class DataFrame:
                 ast.join_type.join_type__full_outer = True
             else:
                 raise ValueError(f"Unsupported join type {join_type}")
+
+        if self._select_statement:
+            select_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
+                    join_plan,
+                    analyzer=self._session._analyzer,
+                ),
+                analyzer=self._session._analyzer,
+            )
+            return self._with_plan(select_plan, _ast_stmt=stmt)
+        return self._with_plan(join_plan, _ast_stmt=stmt)
+
+    @df_api_usage
+    @publicapi
+    def lateral_join(
+        self,
+        right: "DataFrame",
+        on: Optional[Column] = None,
+        *,
+        lsuffix: str = "",
+        rsuffix: str = "",
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Performs an inner lateral join with the current DataFrame and another DataFrame (``right``).
+
+        Args:
+            right: The other :class:`DataFrame` to join.
+            on: A :class:`Column` expression for the lateral join condition.
+                This condition will be used to filter the right DataFrame in the
+                lateral subquery (e.g., `WHERE t1.a = t2.a`).
+            lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
+            rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
+
+        Note:
+            When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
+            You can reference to these randomly named columns using :meth:`Column.alias`.
+
+        Examples::
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
+            >>> df1.lateral_join(df2, df1.a == df2.a).select(df1.a.alias("a_1"), df2.a.alias("a_2"), df1.b, df2.c).show()
+            -----------------------------
+            |"A_1"  |"A_2"  |"B"  |"C"  |
+            -----------------------------
+            |1      |1      |2    |7    |
+            |3      |3      |4    |8    |
+            -----------------------------
+            <BLANKLINE>
+
+            >>> # With lsuffix and rsuffix for column disambiguation
+            >>> df1.lateral_join(df2, df1.b * 2 > df2.c, lsuffix="_l", rsuffix="_r").select("*").show()
+            -----------------------------
+            |"A_L"  |"B"  |"A_R"  |"C"  |
+            -----------------------------
+            |3      |4    |1      |7    |
+            |5      |6    |1      |7    |
+            |5      |6    |3      |8    |
+            -----------------------------
+            <BLANKLINE>
+        """
+        lateral_join_type = LateralJoin()
+        (lhs, rhs) = _disambiguate(
+            self, right, lateral_join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
+        )
+
+        on_expr = on._expression if on is not None else None
+        join_plan = Join(
+            lhs._plan,
+            rhs._plan,
+            lateral_join_type,
+            on_expr,
+            None,
+        )
+
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_lateral_join, stmt)
+            self._set_ast_ref(ast.lhs)
+            right._set_ast_ref(ast.rhs)
+            if on_expr is not None:
+                build_expr_from_snowpark_column(ast.join_expr, on)
+            if lsuffix:
+                ast.lsuffix.value = lsuffix
+            if rsuffix:
+                ast.rsuffix.value = rsuffix
 
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
