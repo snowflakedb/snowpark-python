@@ -16,6 +16,7 @@ exit_code_decorator(){
 # test
 # decrypt profile
 gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/parameters.py" scripts/parameters.py.gpg
+gpg --quiet --batch --yes --decrypt --passphrase="$GPG_KEY" --output "tests/rsa_key_jenkins.p8" scripts/rsa_key_jenkins.p8.gpg
 
 # Install protoc
 pip install protoc-wheel-0==21.1 mypy-protobuf
