@@ -15754,6 +15754,42 @@ class SnowflakeQueryCompiler(BaseQueryCompiler):
         is_series: bool,
     ) -> Union["SnowflakeQueryCompiler", collections.defaultdict[Hashable, list]]:
         """
+        Wrapper around _resample_internal to be supported in faster pandas.
+        """
+        relaxed_query_compiler = None
+        if self._relaxed_query_compiler is not None:
+            result = self._relaxed_query_compiler._resample_internal(
+                resample_kwargs=resample_kwargs,
+                resample_method=resample_method,
+                resample_method_args=resample_method_args,
+                resample_method_kwargs=resample_method_kwargs,
+                is_series=is_series,
+            )
+            if isinstance(result, SnowflakeQueryCompiler):
+                relaxed_query_compiler = result
+            else:
+                return result
+        result = self._resample_internal(
+            resample_kwargs=resample_kwargs,
+            resample_method=resample_method,
+            resample_method_args=resample_method_args,
+            resample_method_kwargs=resample_method_kwargs,
+            is_series=is_series,
+        )
+        if isinstance(result, SnowflakeQueryCompiler):
+            return self._maybe_set_relaxed_qc(result, relaxed_query_compiler)
+        else:
+            return result
+
+    def _resample_internal(
+        self,
+        resample_kwargs: dict[str, Any],
+        resample_method: AggFuncType,
+        resample_method_args: tuple[Any],
+        resample_method_kwargs: dict[str, Any],
+        is_series: bool,
+    ) -> Union["SnowflakeQueryCompiler", collections.defaultdict[Hashable, list]]:
+        """
         Return new SnowflakeQueryCompiler whose ordered frame holds the result of a resample operation.
 
         Parameters

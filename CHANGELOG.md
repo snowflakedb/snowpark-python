@@ -166,6 +166,19 @@
   - `groupby.resample`
   - `to_snowflake`
   - `to_snowpark`
+  - `resample.min`
+  - `resample.max`
+  - `resample.count`
+  - `resample.sum`
+  - `resample.mean`
+  - `resample.median`
+  - `resample.std`
+  - `resample.var`
+  - `resample.size`
+  - `resample.first`
+  - `resample.last`
+  - `resample.quantile`
+  - `resample.nunique`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
 - Improve performance of `drop_duplicates` by avoiding joins when `keep!=False` in faster pandas.
 
