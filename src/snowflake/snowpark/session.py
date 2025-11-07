@@ -1122,7 +1122,6 @@ class Session:
             self._sql_simplifier_enabled = value
 
     @cte_optimization_enabled.setter
-    @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
         warn_session_config_update_in_multithreaded_mode("cte_optimization_enabled")
 
