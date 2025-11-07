@@ -124,6 +124,10 @@
   - `dt.month_name`
   - `dt.day_name`
   - `dt.strftime`  
+  - `dt.dayofweek`  
+  - `dt.weekday`  
+  - `dt.dayofyear`    
+  - `dt.isocalendar`  
   - `rolling.min`
   - `rolling.max`
   - `rolling.count`
@@ -144,6 +148,24 @@
   - `cumsum`
   - `cummin`
   - `cummax`
+  - `groupby.groups`
+  - `groupby.indices`
+  - `groupby.first`
+  - `groupby.last`
+  - `groupby.rank`
+  - `groupby.shift`
+  - `groupby.cumcount`
+  - `groupby.cumsum`
+  - `groupby.cummin`
+  - `groupby.cummax`
+  - `groupby.any`
+  - `groupby.all`
+  - `groupby.unique`
+  - `groupby.get_group`
+  - `groupby.rolling`
+  - `groupby.resample`
+  - `to_snowflake`
+  - `to_snowpark`
   - `resample.min`
   - `resample.max`
   - `resample.count`
