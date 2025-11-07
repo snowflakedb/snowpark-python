@@ -1032,6 +1032,63 @@ def test_rename(session):
 @pytest.mark.parametrize(
     "func",
     [
+        "max",
+        "min",
+        "mean",
+        "median",
+        "sum",
+        "std",
+        "var",
+        "count",
+        "size",
+        "first",
+        "last",
+        "quantile",
+        "nunique",
+    ],
+)
+@sql_count_checker(query_count=5, join_count=1)
+def test_resample(session, func):
+    with session_parameter_override(
+        session, "dummy_row_pos_optimization_enabled", True
+    ):
+        # create tables
+        table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+        session.create_dataframe(
+            native_pd.DataFrame(
+                {"A": np.random.randn(15)},
+                index=native_pd.date_range("2020-01-01", periods=15, freq="1h"),
+            ).reset_index(drop=False)
+        ).write.save_as_table(table_name, table_type="temp")
+
+        # create snow dataframes
+        df = pd.read_snowflake(table_name, index_col="index")
+        snow_result = getattr(df.resample(rule="2h", closed="left"), func)()
+
+        # verify that the input dataframe has a populated relaxed query compiler
+        assert df._query_compiler._relaxed_query_compiler is not None
+        assert df._query_compiler._relaxed_query_compiler._dummy_row_pos_mode is True
+        # verify that the output dataframe also has a populated relaxed query compiler
+        assert snow_result._query_compiler._relaxed_query_compiler is not None
+        assert (
+            snow_result._query_compiler._relaxed_query_compiler._dummy_row_pos_mode
+            is True
+        )
+
+        # create pandas dataframes
+        native_df = df.to_pandas()
+        native_result = getattr(native_df.resample(rule="2h", closed="left"), func)()
+
+        # compare results
+        if func == "size":
+            assert_series_equal(snow_result, native_result, check_freq=False)
+        else:
+            assert_frame_equal(snow_result, native_result, check_freq=False)
+
+
+@pytest.mark.parametrize(
+    "func",
+    [
         "min",
         "max",
         "count",
