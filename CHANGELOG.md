@@ -161,6 +161,9 @@
   - `groupby.any`
   - `groupby.all`
   - `groupby.unique`
+  - `groupby.get_group`
+  - `groupby.rolling`
+  - `groupby.resample`
   - `to_snowflake`
   - `to_snowpark`
 - Make faster pandas disabled by default (opt-in instead of opt-out).
