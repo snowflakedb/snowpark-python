@@ -8,14 +8,14 @@ import math
 import os
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional, Tuple, Union, Literal, Sequence
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 from snowflake.connector import ProgrammingError
 from snowflake.connector.cursor import SnowflakeCursor
 from snowflake.connector.options import pyarrow
 from snowflake.connector.pandas_tools import (
-    _create_temp_stage,
     _create_temp_file_format,
+    _create_temp_stage,
     build_location_helper,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
@@ -56,9 +56,9 @@ from snowflake.snowpark.types import DataType
 # Python 3.9 can use both
 # Python 3.10 needs to use collections.abc.Iterable because typing.Iterable is removed
 if sys.version_info <= (3, 9):
-    from typing import Iterable
+    from typing import Iterable, Iterator
 else:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Iterator
 
 LEFT_PARENTHESIS = "("
 RIGHT_PARENTHESIS = ")"
@@ -737,7 +737,9 @@ def schema_query_for_values_statement(output: List[Attribute]) -> str:
 
     query = (
         SELECT
-        + COMMA.join([f"{DOLLAR}{i+1}{AS}{attr.name}" for i, attr in enumerate(output)])
+        + COMMA.join(
+            [f"{DOLLAR}{i + 1}{AS}{attr.name}" for i, attr in enumerate(output)]
+        )
         + FROM
         + VALUES
         + LEFT_PARENTHESIS
@@ -760,7 +762,7 @@ def values_statement(output: List[Attribute], data: List[Row]) -> str:
 
     query = (
         SELECT
-        + COMMA.join([f"{DOLLAR}{i+1}{AS}{c}" for i, c in enumerate(names)])
+        + COMMA.join([f"{DOLLAR}{i + 1}{AS}{c}" for i, c in enumerate(names)])
         + FROM
         + VALUES
         + COMMA.join(rows)
@@ -1139,7 +1141,7 @@ def batch_insert_into_statement(
     if paramstyle == "qmark":
         placeholder_marks = [QUESTION_MARK] * num_cols
     elif paramstyle == "numeric":
-        placeholder_marks = [f"{SINGLE_COLON}{i+1}" for i in range(num_cols)]
+        placeholder_marks = [f"{SINGLE_COLON}{i + 1}" for i in range(num_cols)]
     elif paramstyle in ("format", "pyformat"):
         placeholder_marks = [PERCENT_S] * num_cols
     else:
@@ -2064,6 +2066,279 @@ def cte_statement(queries: List[str], table_names: List[str]) -> str:
     return f"{WITH}{result}"
 
 
+def write_parquet(
+    cursor: SnowflakeCursor,
+    parquet_files_generator: Iterator[str],
+    table_name: str,
+    column_names: Optional[List[str]] = None,
+    database: Optional[str] = None,
+    schema: Optional[str] = None,
+    compression: str = "auto",
+    on_error: str = "abort_statement",
+    use_vectorized_scanner: bool = False,
+    parallel: int = 4,
+    write_files_in_parallel: bool = True,
+    quote_identifiers: bool = True,
+    auto_create_table: bool = False,
+    overwrite: bool = False,
+    table_type: Literal["", "temp", "temporary", "transient"] = "",
+    use_logical_type: Optional[bool] = None,
+    use_scoped_temp_object: bool = False,
+) -> Tuple[
+    bool,
+    int,
+    int,
+    Sequence[
+        Tuple[
+            str,
+            str,
+            int,
+            int,
+            int,
+            int,
+            Optional[str],
+            Optional[int],
+            Optional[int],
+            Optional[str],
+        ]
+    ],
+]:
+    """Uploads parquet files to a Snowflake table.
+
+    Parquet files are uploaded to a temporary stage and then copied into the final location.
+
+    Returns whether all files were ingested correctly, number of chunks uploaded, and number of rows ingested
+    with all of the COPY INTO command's output for debugging purposes.
+
+    Args:
+        cursor: Snowflake connector cursor used to execute queries.
+        parquet_files_generator: An iterator that yields local parquet file paths to upload.
+        table_name: Table name where we want to insert into.
+        column_names: List of column names in the order they appear in the parquet files.
+            If None, column names will be inferred from the first parquet file. (Default value = None).
+        database: Database schema and table is in, if not provided the default one will be used (Default value = None).
+        schema: Schema table is in, if not provided the default one will be used (Default value = None).
+        compression: The compression used on the Parquet files, can only be auto, gzip or snappy. Gzip gives a
+            better compression, while snappy is faster. Use whichever is more appropriate (Default value = 'auto').
+        on_error: Action to take when COPY INTO statements fail, default follows documentation at:
+            https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions
+            (Default value = 'abort_statement').
+        use_vectorized_scanner: Boolean that specifies whether to use a vectorized scanner for loading Parquet files. See details at
+            `copy options <https://docs.snowflake.com/en/sql-reference/sql/copy-into-table.html#copy-options-copyoptions>`_.
+        parallel: Number of threads to be used when uploading chunks, default follows documentation at:
+            https://docs.snowflake.com/en/sql-reference/sql/put.html#optional-parameters (Default value = 4).
+        write_files_in_parallel: Whether to parallelize over the files while uploading.
+            This will pass a glob string to the PUT upload call (does not support divergent directory paths).
+            https://docs.snowflake.com/en/sql-reference/sql/put#usage-notes (Default value = True)
+        quote_identifiers: By default, identifiers, specifically database, schema, table and column names
+            will be quoted. If set to False, identifiers are passed on to Snowflake without quoting.
+            I.e. identifiers will be coerced to uppercase by Snowflake.  (Default value = True)
+        auto_create_table: When true, will automatically create a table with corresponding columns for each column in
+            the parquet files. The table will not be created if it already exists
+        table_type: The table type of to-be-created table. The supported table types include ``temp``/``temporary``
+            and ``transient``. Empty means permanent table as per SQL convention.
+        use_logical_type: Boolean that specifies whether to use Parquet logical types. With this file format option,
+            Snowflake can interpret Parquet logical types during data loading. To enable Parquet logical types,
+            set use_logical_type as True. Set to None to use Snowflakes default. For more information, see:
+            https://docs.snowflake.com/en/sql-reference/sql/create-file-format
+    """
+    if database is not None and schema is None:
+        raise ProgrammingError(
+            "Schema has to be provided to write_arrow or write_parquet when a database is provided"
+        )
+    compression_map = {
+        "gzip": "auto",
+        "snappy": "snappy",
+        "none": "none",
+        "auto": "auto",
+    }
+    if compression not in compression_map.keys():
+        raise ProgrammingError(
+            f"Invalid compression '{compression}', only acceptable values are: {compression_map.keys()}"
+        )
+
+    if table_type and table_type.lower() not in ["temp", "temporary", "transient"]:
+        raise ProgrammingError(
+            "Unsupported table type. Expected table types: temp/temporary, transient"
+        )
+
+    if use_logical_type is None:
+        sql_use_logical_type = ""
+    elif use_logical_type:
+        sql_use_logical_type = " USE_LOGICAL_TYPE = TRUE"
+    else:
+        sql_use_logical_type = " USE_LOGICAL_TYPE = FALSE"
+
+    stage_location = _create_temp_stage(
+        cursor,
+        database,
+        schema,
+        quote_identifiers,
+        compression,
+        auto_create_table,
+        overwrite,
+        use_scoped_temp_object,
+    )
+
+    if write_files_in_parallel:
+        parquet_files = list(parquet_files_generator)
+
+        # Infer column names from first parquet file.
+        if column_names is None:
+            import pyarrow.parquet  # type: ignore
+
+            column_names = pyarrow.parquet.read_table(parquet_files[0]).schema.names
+        upload_sql = (
+            "PUT /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */ "
+            "'file://{path}' @{stage_location} PARALLEL={parallel}"
+        ).format(
+            path=parquet_files[0]
+            # make a glob string out of the first file
+            .replace(os.path.basename(parquet_files[0]), "*.parquet")
+            .replace("\\", "\\\\")
+            .replace("'", "\\'"),
+            stage_location=stage_location,
+            parallel=parallel,
+        )
+
+        cursor.execute(upload_sql, _is_internal=True)
+        num_files_uploaded = len(parquet_files)
+    else:
+        # Upload all parquet files from the generator, in sequence
+        num_files_uploaded = 0
+        for chunk_path in parquet_files_generator:
+            # Infer column names from first parquet file.
+            if num_files_uploaded == 0 and column_names is None:
+                import pyarrow.parquet  # type: ignore
+
+                column_names = pyarrow.parquet.read_table(chunk_path).schema.names
+
+            upload_sql = (
+                "PUT /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_parquet() */ "
+                "'file://{path}' @{stage_location} PARALLEL={parallel}"
+            ).format(
+                path=chunk_path.replace("\\", "\\\\").replace("'", "\\'"),
+                stage_location=stage_location,
+                parallel=parallel,
+            )
+            cursor.execute(upload_sql, _is_internal=True)
+            num_files_uploaded += 1
+
+    if quote_identifiers:
+        quote = '"'
+        snowflake_column_names = [str(c).replace('"', '""') for c in column_names]
+    else:
+        quote = ""
+        snowflake_column_names = list(column_names)
+    columns = quote + f"{quote},{quote}".join(snowflake_column_names) + quote
+
+    def drop_object(name: str, object_type: str) -> None:
+        drop_sql = f"DROP {object_type.upper()} IF EXISTS {name} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_parquet() */"
+        cursor.execute(drop_sql, _is_internal=True)
+
+    if auto_create_table or overwrite:
+        file_format_location = _create_temp_file_format(
+            cursor,
+            database,
+            schema,
+            quote_identifiers,
+            compression_map[compression],
+            sql_use_logical_type,
+            use_scoped_temp_object,
+        )
+        infer_schema_sql = f"SELECT COLUMN_NAME, TYPE FROM table(infer_schema(location=>'@{stage_location}', file_format=>'{file_format_location}'))"
+        infer_result = cursor.execute(infer_schema_sql, _is_internal=True)
+        assert infer_result is not None
+        column_type_mapping = dict(infer_result.fetchall())  # pyright: ignore
+
+        target_table_location = build_location_helper(
+            database,
+            schema,
+            (
+                random_name_for_temp_object(TempObjectType.TABLE)
+                if (overwrite and auto_create_table)
+                else table_name
+            ),
+            quote_identifiers,
+        )
+
+        parquet_columns = "$1:" + ",$1:".join(
+            f"{quote}{snowflake_col}{quote}::{column_type_mapping[col]}"
+            for snowflake_col, col in zip(snowflake_column_names, column_names)
+        )
+
+        if auto_create_table:
+            create_table_columns = ", ".join(
+                [
+                    f"{quote}{snowflake_col}{quote} {column_type_mapping[col]}"
+                    for snowflake_col, col in zip(snowflake_column_names, column_names)
+                ]
+            )
+            create_table_sql = (
+                f"CREATE {table_type.upper()} TABLE IF NOT EXISTS {target_table_location} "
+                f"({create_table_columns})"
+                f" /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_parquet() */ "
+            )
+            cursor.execute(create_table_sql, _is_internal=True)
+    else:
+        target_table_location = build_location_helper(
+            database=database,
+            schema=schema,
+            name=table_name,
+            quote_identifiers=quote_identifiers,
+        )
+        parquet_columns = "$1:" + ",$1:".join(
+            f"{quote}{snowflake_col}{quote}" for snowflake_col in snowflake_column_names
+        )
+
+    try:
+        if overwrite and (not auto_create_table):
+            truncate_sql = f"TRUNCATE TABLE {target_table_location} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_parquet() */"
+            cursor.execute(truncate_sql, _is_internal=True)
+
+        copy_into_sql = (
+            f"COPY INTO {target_table_location} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_parquet() */ "
+            f"({columns}) "
+            f"FROM (SELECT {parquet_columns} FROM @{stage_location}) "
+            f"FILE_FORMAT=("
+            f"TYPE=PARQUET "
+            f"USE_VECTORIZED_SCANNER={use_vectorized_scanner} "
+            f"COMPRESSION={compression_map[compression]}"
+            f"{' BINARY_AS_TEXT=FALSE' if auto_create_table or overwrite else ''}"
+            f"{sql_use_logical_type}"
+            f") "
+            f"PURGE=TRUE ON_ERROR={on_error}"
+        )
+        copy_result = cursor.execute(copy_into_sql, _is_internal=True)
+        assert copy_result is not None
+        copy_results = copy_result.fetchall()
+
+        if overwrite and auto_create_table:
+            original_table_location = build_location_helper(
+                database=database,
+                schema=schema,
+                name=table_name,
+                quote_identifiers=quote_identifiers,
+            )
+            drop_object(original_table_location, "table")
+            rename_table_sql = f"ALTER TABLE {target_table_location} RENAME TO {original_table_location} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_parquet() */"
+            cursor.execute(rename_table_sql, _is_internal=True)
+    except ProgrammingError:
+        if overwrite and auto_create_table:
+            # drop table only if we created a new one with a random name
+            drop_object(target_table_location, "table")
+        raise
+    finally:
+        cursor.close()
+
+    return (
+        all(e[1] == "LOADED" for e in copy_results),
+        num_files_uploaded,
+        sum(int(e[3]) for e in copy_results),
+        copy_results,  # pyright: ignore
+    )
+
+
 def write_arrow(
     cursor: SnowflakeCursor,
     table: "pyarrow.Table",
@@ -2141,175 +2416,47 @@ def write_arrow(
     # It should be pushed down into the connector, but would require a minimum required version bump.
     import pyarrow.parquet  # type: ignore
 
-    if database is not None and schema is None:
-        raise ProgrammingError(
-            "Schema has to be provided to write_arrow when a database is provided"
-        )
-    compression_map = {"gzip": "auto", "snappy": "snappy", "none": "none"}
-    if compression not in compression_map.keys():
-        raise ProgrammingError(
-            f"Invalid compression '{compression}', only acceptable values are: {compression_map.keys()}"
-        )
-
-    if table_type and table_type.lower() not in ["temp", "temporary", "transient"]:
-        raise ProgrammingError(
-            "Unsupported table type. Expected table types: temp/temporary, transient"
-        )
-
     if chunk_size is None:
         chunk_size = len(table)
 
-    if use_logical_type is None:
-        sql_use_logical_type = ""
-    elif use_logical_type:
-        sql_use_logical_type = " USE_LOGICAL_TYPE = TRUE"
-    else:
-        sql_use_logical_type = " USE_LOGICAL_TYPE = FALSE"
+    # Extract column names from the Arrow table
+    column_names = list(table.schema.names)
 
-    stage_location = _create_temp_stage(
-        cursor,
-        database,
-        schema,
-        quote_identifiers,
-        compression,
-        auto_create_table,
-        overwrite,
-        use_scoped_temp_object,
-    )
-    with tempfile.TemporaryDirectory() as tmp_folder:
-        for file_number, offset in enumerate(range(0, len(table), chunk_size)):
-            # write chunk to disk
-            chunk_path = os.path.join(tmp_folder, f"{table_name}_{file_number}.parquet")
-            pyarrow.parquet.write_table(
-                table.slice(offset=offset, length=chunk_size),
-                chunk_path,
-                **kwargs,
-            )
-            # upload chunk
-            upload_sql = (
-                "PUT /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */ "
-                "'file://{path}' @{stage_location} PARALLEL={parallel}"
-            ).format(
-                path=chunk_path.replace("\\", "\\\\").replace("'", "\\'"),
-                stage_location=stage_location,
-                parallel=parallel,
-            )
-            cursor.execute(upload_sql, _is_internal=True)
-            # Remove chunk file
-            os.remove(chunk_path)
+    # Create a generator that yields parquet file paths
+    def parquet_file_generator() -> Iterator[str]:
+        with tempfile.TemporaryDirectory() as tmp_folder:
+            for file_number, offset in enumerate(range(0, len(table), chunk_size)):
+                # Write chunk to disk
+                chunk_path = os.path.join(
+                    tmp_folder, f"{table_name}_{file_number}.parquet"
+                )
+                pyarrow.parquet.write_table(
+                    table.slice(offset=offset, length=chunk_size),
+                    chunk_path,
+                    **kwargs,
+                )
+                # Yield the path for upload
+                yield chunk_path
+                # Remove chunk file
+                os.remove(chunk_path)
 
-    if quote_identifiers:
-        quote = '"'
-        snowflake_column_names = [str(c).replace('"', '""') for c in table.schema.names]
-    else:
-        quote = ""
-        snowflake_column_names = list(table.schema.names)
-    columns = quote + f"{quote},{quote}".join(snowflake_column_names) + quote
-
-    def drop_object(name: str, object_type: str) -> None:
-        drop_sql = f"DROP {object_type.upper()} IF EXISTS {name} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */"
-        cursor.execute(drop_sql, _is_internal=True)
-
-    if auto_create_table or overwrite:
-        file_format_location = _create_temp_file_format(
-            cursor,
-            database,
-            schema,
-            quote_identifiers,
-            compression_map[compression],
-            sql_use_logical_type,
-            use_scoped_temp_object,
-        )
-        infer_schema_sql = f"SELECT COLUMN_NAME, TYPE FROM table(infer_schema(location=>'@{stage_location}', file_format=>'{file_format_location}'))"
-        infer_result = cursor.execute(infer_schema_sql, _is_internal=True)
-        assert infer_result is not None
-        column_type_mapping = dict(infer_result.fetchall())  # pyright: ignore
-
-        target_table_location = build_location_helper(
-            database,
-            schema,
-            (
-                random_name_for_temp_object(TempObjectType.TABLE)
-                if (overwrite and auto_create_table)
-                else table_name
-            ),
-            quote_identifiers,
-        )
-
-        parquet_columns = "$1:" + ",$1:".join(
-            f"{quote}{snowflake_col}{quote}::{column_type_mapping[col]}"
-            for snowflake_col, col in zip(snowflake_column_names, table.schema.names)
-        )
-
-        if auto_create_table:
-            create_table_columns = ", ".join(
-                [
-                    f"{quote}{snowflake_col}{quote} {column_type_mapping[col]}"
-                    for snowflake_col, col in zip(
-                        snowflake_column_names, table.schema.names
-                    )
-                ]
-            )
-            create_table_sql = (
-                f"CREATE {table_type.upper()} TABLE IF NOT EXISTS {target_table_location} "
-                f"({create_table_columns})"
-                f" /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */ "
-            )
-            cursor.execute(create_table_sql, _is_internal=True)
-    else:
-        target_table_location = build_location_helper(
-            database=database,
-            schema=schema,
-            name=table_name,
-            quote_identifiers=quote_identifiers,
-        )
-        parquet_columns = "$1:" + ",$1:".join(
-            f"{quote}{snowflake_col}{quote}" for snowflake_col in snowflake_column_names
-        )
-
-    try:
-        if overwrite and (not auto_create_table):
-            truncate_sql = f"TRUNCATE TABLE {target_table_location} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */"
-            cursor.execute(truncate_sql, _is_internal=True)
-
-        copy_into_sql = (
-            f"COPY INTO {target_table_location} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */ "
-            f"({columns}) "
-            f"FROM (SELECT {parquet_columns} FROM @{stage_location}) "
-            f"FILE_FORMAT=("
-            f"TYPE=PARQUET "
-            f"USE_VECTORIZED_SCANNER={use_vectorized_scanner} "
-            f"COMPRESSION={compression_map[compression]}"
-            f"{' BINARY_AS_TEXT=FALSE' if auto_create_table or overwrite else ''}"
-            f"{sql_use_logical_type}"
-            f") "
-            f"PURGE=TRUE ON_ERROR={on_error}"
-        )
-        copy_result = cursor.execute(copy_into_sql, _is_internal=True)
-        assert copy_result is not None
-        copy_results = copy_result.fetchall()
-
-        if overwrite and auto_create_table:
-            original_table_location = build_location_helper(
-                database=database,
-                schema=schema,
-                name=table_name,
-                quote_identifiers=quote_identifiers,
-            )
-            drop_object(original_table_location, "table")
-            rename_table_sql = f"ALTER TABLE {target_table_location} RENAME TO {original_table_location} /* Python:snowflake.snowpark._internal.analyzer.analyzer_utils.write_arrow() */"
-            cursor.execute(rename_table_sql, _is_internal=True)
-    except ProgrammingError:
-        if overwrite and auto_create_table:
-            # drop table only if we created a new one with a random name
-            drop_object(target_table_location, "table")
-        raise
-    finally:
-        cursor.close()
-
-    return (
-        all(e[1] == "LOADED" for e in copy_results),
-        len(copy_results),
-        sum(int(e[3]) for e in copy_results),
-        copy_results,  # pyright: ignore
+    # Use write_parquet to handle the upload and COPY INTO operations
+    return write_parquet(
+        cursor=cursor,
+        parquet_files_generator=parquet_file_generator(),
+        table_name=table_name,
+        column_names=column_names,
+        database=database,
+        schema=schema,
+        compression=compression,
+        on_error=on_error,
+        use_vectorized_scanner=use_vectorized_scanner,
+        parallel=parallel,
+        write_files_in_parallel=False,
+        quote_identifiers=quote_identifiers,
+        auto_create_table=auto_create_table,
+        overwrite=overwrite,
+        table_type=table_type,
+        use_logical_type=use_logical_type,
+        use_scoped_temp_object=use_scoped_temp_object,
     )
