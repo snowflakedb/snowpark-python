@@ -4320,8 +4320,8 @@ class Session:
         """
         return self._sp_profiler
 
-    @private_preview(version="1.43.0")
     @property
+    @private_preview(version="1.43.0")
     def client_telemetry(self) -> EventTableTelemetry:
         """
         Returns a :class:`event_table_telemetry.EventTableTelemetry` object that you can use to send telemetry to snowflake event table.
