@@ -149,6 +149,7 @@ from snowflake.snowpark._internal.utils import (
     is_ast_enabled,
     AstFlagSource,
     AstMode,
+    private_preview,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
@@ -4319,6 +4320,7 @@ class Session:
         """
         return self._sp_profiler
 
+    @private_preview(version="1.43.0")
     @property
     def client_telemetry(self) -> EventTableTelemetry:
         """
