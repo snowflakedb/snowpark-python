@@ -883,6 +883,48 @@ class DataFrame:
                 ),
             )
 
+    def transform(
+        self, func: Callable[["DataFrame"], "DataFrame"], *args, **kwargs
+    ) -> "DataFrame":
+        """Applies a custom transformation function to the DataFrame, enabling chaining
+        of transformations.
+
+        This method allows you to apply a user-defined function to the current DataFrame
+        and returns the transformed DataFrame, which can be further transformed by chaining
+        additional operations.
+
+        Example::
+            >>> data = [ ("A", 100),("B", -50),("C", 150),("D", 0)]
+            >>> df = session.createDataFrame(data, ["product_id", "amount"])
+            >>> def filter_positive(df: DataFrame) -> DataFrame:
+            ...     return df.filter(df["amount"] > 0)
+            >>> def add_discount(df: DataFrame) -> DataFrame:
+            ...     return df.with_column("discounted_price", df["amount"] * 0.9)
+
+            >>> transformed_df = (
+            ...     df.transform(filter_positive)
+            ...       .transform(add_discount)
+            ...       .select("product_id", "discounted_price")
+            ... )
+            >>> transformed_df.show()
+            -------------------------------------
+            |"PRODUCT_ID"  |"DISCOUNTED_PRICE"  |
+            -------------------------------------
+            |A             |90.0                |
+            |C             |135.0               |
+            -------------------------------------
+
+        Args:
+            func: A callable that takes a DataFrame as input and returns a transformed DataFrame.
+            *args: Additional positional arguments to pass to the custom transformation function.
+            **kwargs: Additional keyword arguments to pass to the custom transformation function.
+
+        Returns:
+            DataFrame: The transformed DataFrame after applying the function.
+        """
+        result = func(self, *args, **kwargs)
+        return result
+
     @overload
     @publicapi
     def to_local_iterator(

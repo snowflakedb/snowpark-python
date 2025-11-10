@@ -5703,6 +5703,24 @@ def test_create_dataframe_with_tuple_schema(session):
     Utils.check_answer(df, [Row(20000101, 1, "x"), Row(20000101, 2, "y")])
 
 
+def test_transform(session):
+    data = [("A", 100), ("B", -50), ("C", 150), ("D", 0)]
+    df = session.createDataFrame(data, ["product_id", "amount"])
+
+    def filter_positive(df):
+        return df.filter(df["amount"] > 0)
+
+    def add_discount(df):
+        return df.with_column("discounted_price", df["amount"] * 0.9)
+
+    transformed_df = (
+        df.transform(filter_positive)
+        .transform(add_discount)
+        .select("product_id", "discounted_price")
+    )
+    Utils.check_answer(transformed_df, [Row("A", 90.0), Row("C", 135.0)])
+
+
 def test_df_join_suffix(session):
     df1 = session.create_dataframe([[1, 1, "1"], [2, 2, "3"]]).to_df(["a", "b", "c"])
     df2 = session.create_dataframe([[1, 1, "1"], [2, 3, "5"]]).to_df(["a", "b", "c"])
