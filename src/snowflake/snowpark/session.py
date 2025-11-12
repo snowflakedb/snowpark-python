@@ -4926,6 +4926,35 @@ class Session:
             # Note the collect is implicit within the stored procedure call, so should not emit_ast here.
             return df.collect(statement_params=statement_params, _emit_ast=False)[0][0]
 
+    def _retrieve_aggregation_function_list(self) -> None:
+        """Retrieve the list of aggregation functions which will later be used in sql simplifier."""
+        if (
+            not context._is_snowpark_connect_compatible_mode
+            or context._aggregation_function_set
+        ):
+            return
+
+        retrieved_set = set()
+
+        for sql in [
+            """select function_name from information_schema.functions where is_aggregate = 'YES'""",
+            """show functions ->> select "name" from $1 where "is_aggregate" = 'Y'""",
+        ]:
+            try:
+                retrieved_set.update({r[0].lower() for r in self.sql(sql).collect()})
+            except BaseException as e:
+                _logger.debug(
+                    "Unable to get aggregation functions from the database: %s",
+                    e,
+                )
+                # we raise error here as a pessimistic tactics
+                # the reason is that if we fail to retrieve the aggregation function list, we have empty set
+                # the simplifier will flatten the query which contains aggregation functions leading to incorrect results
+                raise
+
+        with context._aggregation_function_set_lock:
+            context._aggregation_function_set.update(retrieved_set)
+
     def directory(self, stage_name: str, _emit_ast: bool = True) -> DataFrame:
         """
         Returns a DataFrame representing the results of a directory table query on the specified stage.

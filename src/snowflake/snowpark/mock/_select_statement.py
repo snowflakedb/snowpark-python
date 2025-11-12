@@ -412,7 +412,7 @@ class MockSelectStatement(MockSelectable):
         else:
             dependent_columns = derive_dependent_columns(col)
             can_be_flattened = can_clause_dependent_columns_flatten(
-                dependent_columns, self.column_states
+                dependent_columns, self.column_states, "filter"
             )
         if can_be_flattened:
             new = copy(self)
@@ -433,7 +433,7 @@ class MockSelectStatement(MockSelectable):
         else:
             dependent_columns = derive_dependent_columns(*cols)
             can_be_flattened = can_clause_dependent_columns_flatten(
-                dependent_columns, self.column_states
+                dependent_columns, self.column_states, "sort"
             )
         if can_be_flattened:
             new = copy(self)
