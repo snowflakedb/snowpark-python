@@ -29,6 +29,16 @@
       - `try_hex_decode_string`
       - `unicode`
       - `uuid_string`
+      - `hex_decode_string`
+      - `jarowinkler_similarity`
+      - `parse_url`
+      - `regexp_instr`
+      - `regexp_like`
+      - `regexp_substr`
+      - `regexp_substr_all`
+      - `rtrimmed_length`
+      - `space`
+      - `split_part`
       
     - Conditional expressions:
       - `booland_agg`
