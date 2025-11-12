@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore
 from io import BytesIO
 from enum import Enum
-from typing import Any, Tuple, Optional, Callable, Dict, Union, Set
+from typing import Any, Tuple, Optional, Callable, Dict, Union, Set, List
 import logging
 from snowflake.snowpark._internal.data_source.dbms_dialects import (
     Sqlite3Dialect,
@@ -30,12 +30,16 @@ from snowflake.snowpark._internal.data_source.drivers import (
     Psycopg2Driver,
     PymysqlDriver,
 )
-import snowflake
 from snowflake.snowpark._internal.data_source import DataSourceReader
 from snowflake.snowpark._internal.type_utils import convert_sp_to_sf_type
 from snowflake.snowpark._internal.utils import get_temp_type_for_object
 from snowflake.snowpark.exceptions import SnowparkDataframeReaderException
 from snowflake.snowpark.types import StructType
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import snowflake.snowpark
 
 logger = logging.getLogger(__name__)
 
@@ -600,3 +604,130 @@ def track_data_source_statement_params(
         statement_params[STATEMENT_PARAMS_DATA_SOURCE] = "1"
 
     return statement_params if statement_params else None
+
+
+def local_ingestion(
+    session: "snowflake.snowpark.Session",
+    partitioner: "snowflake.snowpark._internal.data_source.datasource_partitioner.DataSourcePartitioner",
+    partitioned_queries: List[str],
+    max_workers: int,
+    snowflake_stage_name: str,
+    snowflake_table_name: str,
+    statements_params_for_telemetry: Dict,
+    telemetry_json_string: Dict,
+    fetch_with_process: bool = False,
+    _emit_ast: bool = True,
+) -> None:
+    data_fetching_thread_pool_executor = None
+    data_fetching_thread_stop_event = None
+    workers = []
+    try:
+        # Determine the number of processes or threads to use
+        max_workers = max_workers or os.cpu_count()
+        queue_class = mp.Queue if fetch_with_process else queue.Queue
+        process_or_thread_error_indicator = queue_class()
+        # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
+        partition_queue = queue_class()
+        # a queue of parquet BytesIO objects to be uploaded
+        # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
+        # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
+        parquet_queue = queue_class(_MAX_WORKER_SCALE * max_workers)
+        for partition_idx, query in enumerate(partitioned_queries):
+            partition_queue.put((partition_idx, query))
+
+        # Start worker processes
+        logger.debug(
+            f"Starting {max_workers} worker processes to fetch data from the data source."
+        )
+
+        fetch_to_local_start_time = time.perf_counter()
+        logger.debug(f"fetch to local start at: {fetch_to_local_start_time}")
+
+        if fetch_with_process:
+            for _worker_id in range(max_workers):
+                process = mp.Process(
+                    target=worker_process,
+                    args=(
+                        partition_queue,
+                        parquet_queue,
+                        process_or_thread_error_indicator,
+                        partitioner.reader(),
+                    ),
+                )
+                process.start()
+                workers.append(process)
+        else:
+            data_fetching_thread_pool_executor = ThreadPoolExecutor(
+                max_workers=max_workers
+            )
+            data_fetching_thread_stop_event = threading.Event()
+            workers = [
+                data_fetching_thread_pool_executor.submit(
+                    worker_process,
+                    partition_queue,
+                    parquet_queue,
+                    process_or_thread_error_indicator,
+                    partitioner.reader(),
+                    data_fetching_thread_stop_event,
+                )
+                for _worker_id in range(max_workers)
+            ]
+
+        # Process BytesIO objects from queue and upload them using utility method
+        (
+            fetch_to_local_end_time,
+            upload_to_sf_start_time,
+            upload_to_sf_end_time,
+        ) = process_parquet_queue_with_threads(
+            session=session,
+            parquet_queue=parquet_queue,
+            process_or_thread_error_indicator=process_or_thread_error_indicator,
+            workers=workers,
+            total_partitions=len(partitioned_queries),
+            snowflake_stage_name=snowflake_stage_name,
+            snowflake_table_name=snowflake_table_name,
+            max_workers=max_workers,
+            statements_params=statements_params_for_telemetry,
+            on_error="abort_statement",
+            fetch_with_process=fetch_with_process,
+        )
+        logger.debug(f"upload and copy into start at: {upload_to_sf_start_time}")
+        logger.debug(
+            f"fetch to local total time: {fetch_to_local_end_time - fetch_to_local_start_time}"
+        )
+
+        telemetry_json_string["fetch_to_local_duration"] = (
+            fetch_to_local_end_time - fetch_to_local_start_time
+        )
+        telemetry_json_string["upload_and_copy_into_sf_table_duration"] = (
+            upload_to_sf_end_time - upload_to_sf_start_time
+        )
+
+    except BaseException as exc:
+        if fetch_with_process:
+            # Graceful shutdown - terminate all processes
+            for process in workers:
+                if process.is_alive():
+                    process.terminate()
+                    process.join(timeout=5)
+        else:
+            if data_fetching_thread_stop_event:
+                data_fetching_thread_stop_event.set()
+            for future in workers:
+                if not future.done():
+                    future.cancel()
+                    logger.debug(
+                        f"Cancelled a remaining data fetching future {future} due to error in another thread."
+                    )
+
+        if isinstance(exc, SnowparkDataframeReaderException):
+            raise exc
+
+        raise SnowparkDataframeReaderException(
+            f"Error occurred while ingesting data from the data source: {exc!r}"
+        )
+    finally:
+        if data_fetching_thread_pool_executor:
+            data_fetching_thread_pool_executor.shutdown(wait=True)
+
+    logger.debug("All data has been successfully loaded into the Snowflake table.")

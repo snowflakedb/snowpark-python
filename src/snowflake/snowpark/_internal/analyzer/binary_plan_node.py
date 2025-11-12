@@ -137,6 +137,10 @@ class AsOf(JoinType):
     sql = "ASOF"
 
 
+class LateralJoin(JoinType):
+    sql = "INNER JOIN LATERAL"
+
+
 class NaturalJoin(JoinType):
     def __init__(self, tpe: JoinType) -> None:
         if not isinstance(

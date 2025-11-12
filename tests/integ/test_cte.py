@@ -2,7 +2,6 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 
-import logging
 import re
 import tracemalloc
 
@@ -28,7 +27,7 @@ from snowflake.snowpark.functions import (
 )
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
-from tests.utils import IS_IN_STORED_PROC, IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
+from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
 
 pytestmark = [
     pytest.mark.skipif(
@@ -1258,13 +1257,3 @@ def test_table_select_cte(session):
         union_count=1,
         join_count=0,
     )
-
-
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="SNOW-609328: support caplog in SP regression test"
-)
-@sql_count_checker(query_count=0)
-def test_cte_optimization_enabled_parameter(session, caplog):
-    with caplog.at_level(logging.WARNING):
-        session.cte_optimization_enabled = True
-    assert "cte_optimization_enabled is experimental" in caplog.text

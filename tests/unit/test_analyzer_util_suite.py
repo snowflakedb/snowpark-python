@@ -33,6 +33,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     sort_statement,
     join_table_function_statement,
     lateral_statement,
+    lateral_join_statement,
     pivot_statement,
     unpivot_statement,
     sample_by_statement,
@@ -730,6 +731,37 @@ def test_lateral_statement_formatting():
         "my_table\n"
         "), \n"
         " LATERAL TABLE(split_to_table(col1, ' '))"
+    )
+
+
+def test_lateral_join_statement_formatting():
+    # Inner lateral join without condition
+    assert lateral_join_statement(
+        "SELECT * FROM table1", "SELECT * FROM table2", "", True
+    ) == (
+        " SELECT  * \n"
+        " FROM (\n"
+        "SELECT * FROM table1\n"
+        ") AS SNOWPARK_LEFT\n"
+        " INNER  JOIN  LATERAL \n"
+        "(SELECT * FROM table2) AS SNOWPARK_RIGHT"
+    )
+
+    # Inner lateral join with condition
+    assert lateral_join_statement(
+        "SELECT * FROM table1",
+        "SELECT * FROM table2",
+        '"A" = "B"',
+        True,
+    ) == (
+        " SELECT  * \n"
+        " FROM (\n"
+        "SELECT * FROM table1\n"
+        ") AS SNOWPARK_LEFT\n"
+        " INNER  JOIN  LATERAL \n"
+        "(\n"
+        ' SELECT  *  FROM (SELECT * FROM table2) WHERE "A" = "B"\n'
+        ") AS SNOWPARK_RIGHT"
     )
 
 
