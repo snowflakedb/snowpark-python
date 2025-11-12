@@ -116,8 +116,25 @@ class SnowflakePandasTransferThreshold(EnvironmentVariable, type=int):
     default = 100_000
 
 
-# have to monkey patch this into modin right now to use config contexts
+class PandasToSnowflakeParquetThresholdBytes(EnvironmentVariable, type=int):
+    """
+    When a pandas-backend dataframe's shallow memory usage exceeds this
+    threshold, implement to_snowflake() by writing the dataframe to a parquet
+    file and loading the parquet file into Snowflake.
+    """
+
+    varname = "SNOWFLAKE_PANDAS_MAX_TO_SNOWFLAKE_MEMORY_BYTES"
+    # This default comes from experimentation on integer data. At about this
+    # point, insertion via parquet appears to be faster on a 3XL warehouse.
+    default = 3_000_000
+
+
+# have to monkey patch these variables into modin right now to use config
+# contexts
 modin_config.SnowflakePandasTransferThreshold = SnowflakePandasTransferThreshold
+modin_config.PandasToSnowflakeParquetThresholdBytes = (
+    PandasToSnowflakeParquetThresholdBytes
+)
 
 
 class EnvWithSibilings(

@@ -6,7 +6,7 @@ import datetime
 import decimal
 from collections import defaultdict
 from functools import cached_property
-from typing import Optional, Union, List, Callable
+from typing import Optional, Union, List, Callable, Dict
 import logging
 import pytz
 from dateutil import parser
@@ -30,6 +30,10 @@ from snowflake.snowpark.types import (
     DateType,
     DataType,
 )
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import snowflake.snowpark
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +41,7 @@ logger = logging.getLogger(__name__)
 class DataSourcePartitioner:
     def __init__(
         self,
-        create_connection: Callable[[], "Connection"],
+        create_connection: Callable[..., "Connection"],
         table_or_query: str,
         is_query: bool,
         column: Optional[str] = None,
@@ -50,6 +54,7 @@ class DataSourcePartitioner:
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[List[str]] = None,
         fetch_merge_count: Optional[int] = 1,
+        connection_parameters: Optional[dict] = None,
     ) -> None:
         self.create_connection = create_connection
         self.table_or_query = table_or_query
@@ -64,14 +69,21 @@ class DataSourcePartitioner:
         self.predicates = predicates
         self.session_init_statement = session_init_statement
         self.fetch_merge_count = fetch_merge_count
-        conn = create_connection()
+        self.connection_parameters = connection_parameters
+        conn = (
+            create_connection(**connection_parameters)
+            if connection_parameters
+            else create_connection()
+        )
         dbms_type, driver_type = detect_dbms(conn)
         self.driver_type = driver_type
         self.dbms_type = dbms_type
         self.dialect_class = DBMS_MAP.get(dbms_type, BaseDialect)
         self.driver_class = DRIVER_MAP.get(driver_type, BaseDriver)
         self.dialect = self.dialect_class()
-        self.driver = self.driver_class(create_connection, dbms_type)
+        self.driver = self.driver_class(
+            create_connection, dbms_type, connection_parameters
+        )
 
         self._query_input_alias = (
             f"SNOWPARK_DBAPI_QUERY_INPUT_ALIAS_{generate_random_alphanumeric(5).upper()}"
@@ -89,6 +101,7 @@ class DataSourcePartitioner:
             self.query_timeout,
             self.session_init_statement,
             self.fetch_merge_count,
+            self.connection_parameters,
         )
 
     @cached_property
@@ -160,6 +173,34 @@ class DataSourcePartitioner:
             self.lower_bound,
             self.upper_bound,
             self.num_partitions,
+        )
+
+    def _udtf_ingestion(
+        self,
+        session: "snowflake.snowpark.Session",
+        schema: StructType,
+        partition_table: str,
+        external_access_integrations: str,
+        fetch_size: int = 1000,
+        imports: Optional[List[str]] = None,
+        packages: Optional[List[str]] = None,
+        session_init_statement: Optional[List[str]] = None,
+        query_timeout: Optional[int] = 0,
+        statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        return self.driver.udtf_ingestion(
+            session,
+            schema,
+            partition_table,
+            external_access_integrations,
+            fetch_size,
+            imports,
+            packages,
+            session_init_statement,
+            query_timeout,
+            statement_params,
+            _emit_ast,
         )
 
     @staticmethod

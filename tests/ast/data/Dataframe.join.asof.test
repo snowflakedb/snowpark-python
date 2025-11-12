@@ -19,7 +19,7 @@ df1 = session.create_dataframe([["A", 1, 15, 3.21], ["A", 2, 16, 3.22], ["B", 1,
 
 df2 = session.create_dataframe([["A", 1, 14, 3.19], ["B", 2, 16, 3.04]], schema=["c1", "c2", "c3", "c4"])
 
-df1.join(df2, on=(df1["c1"] == df2["c1"]) & (df1["c2"] == df2["c2"]), how="asof", lsuffix="_L", rsuffix="_R", match_condition=df1["c3"] >= df2["c3"]).sort("C1_L", "C2_L").collect()
+df1.join(df2, on=(df1["c1"] == df2["c1"]) & (df1["c2"] == df2["c2"]), how="asof", lsuffix="_L", rsuffix="_R", match_condition=df1["c3"] >= df2["c3"]).sort("C1_L", "C2_L", ascending=True).collect()
 
 ## EXPECTED ENCODED AST
 
@@ -638,6 +638,11 @@ body {
   bind {
     expr {
       dataframe_sort {
+        ascending {
+          bool_val {
+            v: true
+          }
+        }
         cols {
           args {
             string_val {
@@ -729,6 +734,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 39
+  minor: 42
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

@@ -1145,6 +1145,7 @@ class OrderedDataFrame:
     def join(
         self,
         right: "OrderedDataFrame",
+        dummy_row_pos_mode: bool,
         left_on_cols: Optional[list[str]] = None,
         right_on_cols: Optional[list[str]] = None,
         left_match_col: Optional[str] = None,
@@ -1153,7 +1154,6 @@ class OrderedDataFrame:
             "MatchComparator"  # noqa: F821
         ] = None,
         how: JoinTypeLit = "inner",
-        dummy_row_pos_mode: bool = False,
     ) -> "OrderedDataFrame":
         """
         Performs equi join of the specified type (``how``) with the current
@@ -1257,8 +1257,15 @@ class OrderedDataFrame:
 
             left = left.ensure_row_position_column(dummy_row_pos_mode=True)
             if len(left_on_cols) == 1 and ROW_POSITION_COLUMN_LABEL in left_on_cols[0]:
+                left_row_position_snowflake_quoted_identifier = (
+                    left.row_position_snowflake_quoted_identifier
+                )
                 left.row_position_snowflake_quoted_identifier = None
-                left = left.ensure_row_position_column(dummy_row_pos_mode=False)
+                new_left = left.ensure_row_position_column(dummy_row_pos_mode=False)
+                left.row_position_snowflake_quoted_identifier = (
+                    left_row_position_snowflake_quoted_identifier
+                )
+                left = new_left
                 assert left.row_position_snowflake_quoted_identifier is not None
                 left_on_cols = [left.row_position_snowflake_quoted_identifier]
             right = right.ensure_row_position_column(dummy_row_pos_mode=True)
@@ -1266,8 +1273,15 @@ class OrderedDataFrame:
                 len(right_on_cols) == 1
                 and ROW_POSITION_COLUMN_LABEL in right_on_cols[0]
             ):
+                right_row_position_snowflake_quoted_identifier = (
+                    right.row_position_snowflake_quoted_identifier
+                )
                 right.row_position_snowflake_quoted_identifier = None
-                right = right.ensure_row_position_column(dummy_row_pos_mode=False)
+                new_right = right.ensure_row_position_column(dummy_row_pos_mode=False)
+                right.row_position_snowflake_quoted_identifier = (
+                    right_row_position_snowflake_quoted_identifier
+                )
+                right = new_right
                 assert right.row_position_snowflake_quoted_identifier is not None
                 right_on_cols = [right.row_position_snowflake_quoted_identifier]
 
@@ -1472,9 +1486,9 @@ class OrderedDataFrame:
         right: "OrderedDataFrame",
         left_on_cols: list[str],
         right_on_cols: list[str],
+        dummy_row_pos_mode: bool,
         how: AlignTypeLit = "outer",
         enable_default_sort: bool = True,
-        dummy_row_pos_mode: bool = False,
     ) -> "OrderedDataFrame":
         """
         Performs align operation of the specified join type (``how``) with the current
@@ -1603,10 +1617,10 @@ class OrderedDataFrame:
         # perform outer join
         joined_ordered_frame = left.join(
             right,
+            dummy_row_pos_mode,
             left_on_cols=left_on_cols,
             right_on_cols=right_on_cols,
             how=how if direct_join_map else "outer",
-            dummy_row_pos_mode=dummy_row_pos_mode,
         )
 
         sort = False

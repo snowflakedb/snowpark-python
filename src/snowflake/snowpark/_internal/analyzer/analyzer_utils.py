@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     LeftAnti,
     LeftSemi,
     NaturalJoin,
+    LateralJoin,
     UsingJoin,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
@@ -169,6 +170,7 @@ PATH = " PATH "
 OUTER = " OUTER "
 RECURSIVE = " RECURSIVE "
 MODE = " MODE "
+INNER = " INNER "
 LATERAL = " LATERAL "
 PUT = " PUT "
 GET = " GET "
@@ -276,6 +278,14 @@ def model_expression(
         else model_name
     )
     return f"{MODEL}{LEFT_PARENTHESIS}{model_args_str}{RIGHT_PARENTHESIS}{EXCLAMATION_MARK}{method_name}{LEFT_PARENTHESIS}{COMMA.join(children)}{RIGHT_PARENTHESIS}"
+
+
+def service_expression(
+    service_name: str,
+    method_name: str,
+    children: List[str],
+) -> str:
+    return f"{service_name}{EXCLAMATION_MARK}{method_name}{LEFT_PARENTHESIS}{COMMA.join(children)}{RIGHT_PARENTHESIS}"
 
 
 def function_expression(name: str, children: List[str], is_distinct: bool) -> str:
@@ -871,6 +881,65 @@ def asof_join_statement(
     )
 
 
+def lateral_join_statement(
+    left: str,
+    right: str,
+    join_condition: str,
+    use_constant_subquery_alias: bool,
+) -> str:
+    left_alias = (
+        "SNOWPARK_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+    right_alias = (
+        "SNOWPARK_RIGHT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+
+    # wrap the right side in subquery with WHERE clause if condition exists
+    if join_condition:
+        right_with_condition = (
+            LEFT_PARENTHESIS
+            + NEW_LINE
+            + SELECT
+            + STAR
+            + FROM
+            + LEFT_PARENTHESIS
+            + right
+            + RIGHT_PARENTHESIS
+            + WHERE
+            + join_condition
+            + NEW_LINE
+            + RIGHT_PARENTHESIS
+        )
+    else:
+        right_with_condition = LEFT_PARENTHESIS + right + RIGHT_PARENTHESIS
+
+    return (
+        SELECT
+        + STAR
+        + NEW_LINE
+        + FROM
+        + LEFT_PARENTHESIS
+        + NEW_LINE
+        + left
+        + NEW_LINE
+        + RIGHT_PARENTHESIS
+        + AS
+        + left_alias
+        + NEW_LINE
+        + INNER
+        + JOIN
+        + LATERAL
+        + NEW_LINE
+        + right_with_condition
+        + AS
+        + right_alias
+    )
+
+
 def snowflake_supported_join_statement(
     left: str,
     right: str,
@@ -974,6 +1043,10 @@ def join_statement(
     if isinstance(join_type, AsOf):
         return asof_join_statement(
             left, right, join_condition, match_condition, use_constant_subquery_alias
+        )
+    if isinstance(join_type, LateralJoin):
+        return lateral_join_statement(
+            left, right, join_condition, use_constant_subquery_alias
         )
     if isinstance(join_type, UsingJoin) and isinstance(
         join_type.tpe, (LeftSemi, LeftAnti)

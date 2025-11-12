@@ -177,9 +177,6 @@ def test_double_quoted_column_databricks(session, custom_schema):
     [("table", TEST_TABLE_NAME), ("query", f"(SELECT * FROM {TEST_TABLE_NAME})")],
 )
 @pytest.mark.udf
-@pytest.mark.skipif(
-    sys.version_info[:2] == (3, 13), reason="driver not supported in python 3.13"
-)
 def test_udtf_ingestion_databricks(session, input_type, input_value, caplog):
     # we define here to avoid test_databricks.py to be pickled and unpickled in UDTF
     def local_create_databricks_connection():
@@ -263,6 +260,18 @@ def test_unsupported_type():
         create_databricks_connection, DBMS_TYPE.DATABRICKS_DB
     ).to_snow_type([("test_col", "unsupported_type", True)])
     assert schema == StructType([StructField("TEST_COL", StringType(), nullable=True)])
+
+
+def test_databricks_non_retryable_error(session):
+    with pytest.raises(
+        SnowparkDataframeReaderException,
+        match="PARSE_SYNTAX_ERROR",
+    ):
+        session.read.dbapi(
+            create_databricks_connection,
+            table=TEST_TABLE_NAME,
+            predicates=["invalid syntax"],
+        )
 
 
 def test_session_init(session):

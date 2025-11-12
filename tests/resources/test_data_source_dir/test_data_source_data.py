@@ -31,6 +31,7 @@ from snowflake.snowpark.types import (
     NullType,
     TimestampTimeZone,
 )
+from snowflake.snowpark._internal.server_connection import MAX_STRING_SIZE
 
 
 # we manually mock these objects because mock object cannot be used in multi-process as they are not pickleable
@@ -95,12 +96,12 @@ oracledb_real_schema = StructType(
         StructField("NUMBER_COL", DecimalType(10, 2), nullable=True),
         StructField("BINARY_FLOAT_COL", DoubleType(), nullable=True),
         StructField("BINARY_DOUBLE_COL", DoubleType(), nullable=True),
-        StructField("VARCHAR2_COL", StringType(16777216), nullable=True),
-        StructField("CHAR_COL", StringType(16777216), nullable=True),
-        StructField("CLOB_COL", StringType(16777216), nullable=True),
-        StructField("NCHAR_COL", StringType(16777216), nullable=True),
-        StructField("NVARCHAR2_COL", StringType(16777216), nullable=True),
-        StructField("NCLOB_COL", StringType(16777216), nullable=True),
+        StructField("VARCHAR2_COL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("CHAR_COL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("CLOB_COL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("NCHAR_COL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("NVARCHAR2_COL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("NCLOB_COL", StringType(MAX_STRING_SIZE), nullable=True),
         StructField("DATE_COL", DateType(), nullable=True),
         StructField(
             "TIMESTAMP_COL", TimestampType(TimestampTimeZone.NTZ), nullable=True
@@ -131,12 +132,12 @@ oracledb_more_column_schema = StructType(
         StructField("NUMBER_COL", DecimalType(10, 2), nullable=True),
         StructField("BINARY_FLOAT_COL", DoubleType(), nullable=True),
         StructField("BINARY_DOUBLE_COL", DoubleType(), nullable=True),
-        StructField("VARCHAR2_COL", StringType(16777216), nullable=True),
-        StructField("CHAR_COL", StringType(16777216), nullable=True),
-        StructField("CLOB_COL", StringType(16777216), nullable=True),
-        StructField("NCHAR_COL", StringType(16777216), nullable=True),
-        StructField("NVARCHAR2_COL", StringType(16777216), nullable=True),
-        StructField("NCLOB_COL", StringType(16777216), nullable=True),
+        StructField("VARCHAR2_COL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("CHAR_COL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("CLOB_COL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("NCHAR_COL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("NVARCHAR2_COL", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("NCLOB_COL", StringType(MAX_STRING_SIZE), nullable=True),
         StructField("DATE_COL", DateType(), nullable=True),
         StructField(
             "TIMESTAMP_COL", TimestampType(TimestampTimeZone.NTZ), nullable=True
@@ -156,18 +157,18 @@ oracledb_more_column_schema = StructType(
 oracledb_unicode_schema = StructType(
     [
         StructField('"編號"', LongType(), nullable=False),
-        StructField('"姓名"', StringType(16777216), nullable=True),
-        StructField('"國家"', StringType(16777216), nullable=True),
-        StructField('"備註"', StringType(16777216), nullable=True),
+        StructField('"姓名"', StringType(MAX_STRING_SIZE), nullable=True),
+        StructField('"國家"', StringType(MAX_STRING_SIZE), nullable=True),
+        StructField('"備註"', StringType(MAX_STRING_SIZE), nullable=True),
     ]
 )
 
 oracledb_double_quoted_schema = StructType(
     [
         StructField("ID", LongType(), nullable=False),
-        StructField("FULLNAME", StringType(16777216), nullable=True),
-        StructField("COUNTRY", StringType(16777216), nullable=True),
-        StructField("NOTES", StringType(16777216), nullable=True),
+        StructField("FULLNAME", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("COUNTRY", StringType(MAX_STRING_SIZE), nullable=True),
+        StructField("NOTES", StringType(MAX_STRING_SIZE), nullable=True),
     ]
 )
 
@@ -961,13 +962,13 @@ def unknown_dbms_create_connection():
     )
 
 
-SQLITE3_DB_CUSTOM_SCHEMA_STRING = "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col STRING, ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL, map_col MAP, array_col ARRAY, var_col VARIANT"
+SQLITE3_DB_CUSTOM_SCHEMA_STRING = "id INTEGER, int_col INTEGER, real_col FLOAT, text_col STRING, blob_col BINARY, null_col TEXT(200), ts_col TIMESTAMP, date_col DATE, time_col TIME, short_col SHORT, long_col LONG, double_col DOUBLE, decimal_col DECIMAL(25,8), map_col MAP, array_col ARRAY, var_col VARIANT"
 SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE = StructType(
     [
         StructField("id", IntegerType()),
         StructField("int_col", IntegerType()),
         StructField("real_col", FloatType()),
-        StructField("text_col", StringType()),
+        StructField("text_col", StringType(200)),
         StructField("blob_col", BinaryType()),
         StructField("null_col", NullType()),
         StructField("ts_col", TimestampType()),
@@ -976,7 +977,7 @@ SQLITE3_DB_CUSTOM_SCHEMA_STRUCT_TYPE = StructType(
         StructField("short_col", ShortType()),
         StructField("long_col", LongType()),
         StructField("double_col", DoubleType()),
-        StructField("decimal_col", DecimalType()),
+        StructField("decimal_col", DecimalType(25, 8)),
         StructField("map_col", MapType()),
         StructField("array_col", ArrayType()),
         StructField("var_col", VariantType()),

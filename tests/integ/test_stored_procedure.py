@@ -561,6 +561,18 @@ def test_session_register_sp(session, local_testing_mode):
     )
     assert add_sp(1, 2) == 3
 
+    # testing SNOW-2436917
+    add_sp_passing_session = session.sproc.register(
+        lambda session_, x, y: session_.create_dataframe([(x, y)])
+        .to_df("a", "b")
+        .select(col("a") + col("b"))
+        .collect()[0][0],
+        session=session,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    assert add_sp_passing_session(1, 2) == 3
+
     query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     add_sp = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([(x, y)])
@@ -2327,7 +2339,7 @@ def test_sproc_artifact_repository_from_file(session, tmpdir):
 @pytest.mark.parametrize(
     "version_override, expect_warning",
     [
-        ("1.27.1", False),  # Bugfix version - no warning
+        ("1.39.1", False),  # Bugfix version - no warning
         ("999.999.999", True),  # Major version change - expect warning
     ],
 )
@@ -2350,8 +2362,8 @@ def test_snowpark_python_bugfix_version_warning(
                 plus1,
                 return_type=IntegerType(),
                 input_types=[IntegerType()],
-                # pin cloudpickle as 1.27.0 snowpark upper bounds it to <=3.0.0
-                packages=["snowflake-snowpark-python==1.27.0", "cloudpickle==3.0.0"],
+                # pin cloudpickle as 1.39.0 snowpark upper bounds it to <=3.0.0
+                packages=["snowflake-snowpark-python==1.39.0", "cloudpickle==3.0.0"],
             )
             assert plus1_sp(lit(6)) == 7
 

@@ -156,7 +156,7 @@ def test_set_incorrect_active_profiler(
         )
         profiler_session.stored_procedure_profiler.set_active_profiler("LINE")
         profiler_session.stored_procedure_profiler.get_output()
-    assert "last executed stored procedure does not exist" in caplog.text
+    assert "last executed stored procedure or UDF does not exist" in caplog.text
 
     with pytest.raises(ValueError) as e:
         profiler_session.stored_procedure_profiler.set_active_profiler(
@@ -188,7 +188,7 @@ def test_set_incorrect_active_profiler(
 def test_sp_call_match(profiler_session, sp_call_sql):
     pro = profiler_session.stored_procedure_profiler
 
-    assert pro._is_sp_call(sp_call_sql)
+    assert pro._is_procedure_or_function_call(sp_call_sql)
 
 
 @pytest.mark.skipif(

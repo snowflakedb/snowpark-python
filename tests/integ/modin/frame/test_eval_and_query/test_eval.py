@@ -5,6 +5,7 @@
 import re
 
 import pytest
+from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_37_0
 from tests.integ.modin.utils import (
     assert_snowpark_pandas_equals_to_pandas_without_dtypecheck,
     eval_snowpark_pandas_result,
@@ -12,18 +13,12 @@ from tests.integ.modin.utils import (
 import pandas as native_pd
 from tests.integ.utils.sql_counter import sql_count_checker
 import logging
-from snowflake.snowpark.modin.plugin._internal.utils import MODIN_IS_AT_LEAST_0_36_0
 from pytest import param
 from tests.integ.modin.frame.test_eval_and_query.utils import (
     ENGINE_IGNORED_MESSAGE,
     engine_parameters,
 )
 import modin.pandas as pd
-
-pytestmark = pytest.mark.skipif(
-    not MODIN_IS_AT_LEAST_0_36_0,
-    reason="Modin 0.36 had an important performant fix for eval().",
-)
 
 
 def python_eval(df, expr, *, inplace=False, **kwargs):
@@ -298,14 +293,12 @@ class TestInplace:
             param({"inplace": False}, id="inplace_False"),
         ],
     )
-    @pytest.mark.xfail(
-        strict=True,
-        raises=AssertionError,
-        reason="https://github.com/modin-project/modin/issues/7669",
-    )
+    @sql_count_checker(query_count=2)
     def test_inplace_false_with_assignment_does_not_mutate_df(
         self, test_dfs, engine_kwargs, inplace_kwargs
     ):
+        if not MODIN_IS_AT_LEAST_0_37_0:
+            pytest.xfail(reason="https://github.com/modin-project/modin/issues/7669")
         snowpark_input, pandas_input = test_dfs
         pandas_original = pandas_input.copy()
         eval_snowpark_pandas_result(
