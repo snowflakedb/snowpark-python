@@ -26,6 +26,11 @@ from tests.resources.test_data_source_dir.test_jdbc_data import (
     POSTGRES_SECRET,
     POSTGRES_URL,
     postgres_expected_data,
+    MYSQL_SECRET,
+    MYSQL_URL,
+)
+from tests.resources.test_data_source_dir.test_mysql_data import (
+    MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION,
 )
 from tests.resources.test_data_source_dir.test_postgres_data import (
     POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION,
@@ -35,6 +40,7 @@ from tests.utils import RUNNING_ON_JENKINS
 SELECT_QUERY = "SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARCHAR2_COL, CHAR_COL, CLOB_COL, NCHAR_COL, NVARCHAR2_COL, NCLOB_COL, DATE_COL, TIMESTAMP_COL, TIMESTAMP_TZ_COL, TIMESTAMP_LTZ_COL, RAW_COL, GUID_COL FROM ALL_TYPE_TABLE_JDBC"
 EMPTY_QUERY = "SELECT * FROM ALL_TYPE_TABLE_JDBC WHERE 1=0"
 POSTGRES_SELECT_QUERY = "select BIGINT_COL, BIGSERIAL_COL, BIT_COL, BIT_VARYING_COL, BOOLEAN_COL, BOX_COL, BYTEA_COL, CHAR_COL, VARCHAR_COL, CIDR_COL, CIRCLE_COL, DATE_COL, DOUBLE_PRECISION_COL, INET_COL, INTEGER_COL, INTERVAL_COL, JSON_COL, JSONB_COL, LINE_COL, LSEG_COL, MACADDR_COL, MACADDR8_COL, NUMERIC_COL, PATH_COL, PG_LSN_COL, PG_SNAPSHOT_COL, POINT_COL, POLYGON_COL, REAL_COL, SMALLINT_COL, SMALLSERIAL_COL, SERIAL_COL, TEXT_COL, TIME_COL, TIMESTAMP_COL, TIMESTAMPTZ_COL, TSQUERY_COL, TSVECTOR_COL, TXID_SNAPSHOT_COL, UUID_COL, XML_COL from test_schema.ALL_TYPE_TABLE"
+MYSQL_SELECT_QUERY = "select * from ALL_TYPES_TABLE"
 TABLE_NAME = "ALL_TYPE_TABLE_JDBC"
 
 
@@ -63,11 +69,26 @@ def postgres_jar_path(session):
 
 
 @pytest.fixture(scope="module")
+def mysql_jar_path(session):
+    stage_name = session.get_session_stage()
+    return stage_name + "/mysql-connector-j-9.5.0.jar"
+
+
+@pytest.fixture(scope="module")
 def postgres_udtf_configs(session, postgres_jar_path):
     return {
         "external_access_integration": POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION,
         "secret": POSTGRES_SECRET,
         "imports": [postgres_jar_path],
+    }
+
+
+@pytest.fixture(scope="module")
+def mysql_udtf_configs(session, mysql_jar_path):
+    return {
+        "external_access_integration": MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        "secret": MYSQL_SECRET,
+        "imports": [mysql_jar_path],
     }
 
 
@@ -88,6 +109,9 @@ def setup(session, resources_path):
     )
     session.file.put(
         resources_path + "/test_data_source_dir/postgresql-42.7.7.jar", stage_name
+    )
+    session.file.put(
+        resources_path + "/test_data_source_dir/mysql-connector-j-9.5.0.jar", stage_name
     )
     yield
 
@@ -342,12 +366,13 @@ def test_postgres_session_init_statement(
         ).collect()
 
 
-def test_postgres(session):
-    pass
-
-
-def test_mysql(session):
-    pass
+def test_connect_mysql(session, mysql_udtf_configs):
+    df = session.read.jdbc(
+        url=MYSQL_URL,
+        udtf_configs=mysql_udtf_configs,
+        query=MYSQL_SELECT_QUERY,
+    ).order_by("ID")
+    print(df.collect())
 
 
 def test_sql_server(session):

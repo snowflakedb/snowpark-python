@@ -374,3 +374,5 @@ mysql_double_quoted_schema = StructType(
         StructField('"Notes"', StringType(MAX_STRING_SIZE), nullable=True),
     ]
 )
+
+MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_mysql_test_integration"
