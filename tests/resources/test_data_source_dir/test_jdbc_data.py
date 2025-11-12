@@ -18,6 +18,7 @@ from snowflake.snowpark.types import (
 from tests.parameters import (
     ORACLEDB_CONNECTION_PARAMETERS,
     POSTGRES_CONNECTION_PARAMETERS,
+    MYSQL_CONNECTION_PARAMETERS,
 )
 
 host = ORACLEDB_CONNECTION_PARAMETERS["host"]
@@ -29,6 +30,12 @@ postgres_port = POSTGRES_CONNECTION_PARAMETERS["port"]
 postgres_dbname = POSTGRES_CONNECTION_PARAMETERS["dbname"]
 POSTGRES_URL = f"jdbc:postgresql://{postgres_host}:{postgres_port}/{postgres_dbname}"
 POSTGRES_SECRET = "ADMIN.PUBLIC.SNOWPARK_DBAPI_POSTGRES_TEST_CRED"
+
+mysql_host = MYSQL_CONNECTION_PARAMETERS["host"]
+mysql_port = MYSQL_CONNECTION_PARAMETERS["port"]
+mysql_dbname = MYSQL_CONNECTION_PARAMETERS["database"]
+MYSQL_URL = f"jdbc:mysql://{mysql_host}:{mysql_port}/{mysql_dbname}"
+MYSQL_SECRET = "ADMIN.PUBLIC.SNOWPARK_DBAPI_MYSQL_TEST_CRED"
 
 URL = f"jdbc:oracle:thin:@//{host}:{port}/{service_name}"
 EXTERNAL_ACCESS_INTEGRATION = "SNOWPARK_DBAPI_ORACLEDB_TEST_INTEGRATION"
