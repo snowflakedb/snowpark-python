@@ -340,3 +340,19 @@ def test_postgres_session_init_statement(
             query_timeout=1,
             session_init_statement=session_init_statement,
         ).collect()
+
+
+def test_postgres(session):
+    pass
+
+
+def test_mysql(session):
+    pass
+
+
+def test_sql_server(session):
+    pass
+
+
+def test_databricks(session):
+    pass
