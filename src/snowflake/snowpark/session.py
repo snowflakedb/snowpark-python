@@ -149,6 +149,7 @@ from snowflake.snowpark._internal.utils import (
     is_ast_enabled,
     AstFlagSource,
     AstMode,
+    private_preview,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
 from snowflake.snowpark.column import Column
@@ -4320,6 +4321,7 @@ class Session:
         return self._sp_profiler
 
     @property
+    @private_preview(version="1.43.0")
     def client_telemetry(self) -> EventTableTelemetry:
         """
         Returns a :class:`event_table_telemetry.EventTableTelemetry` object that you can use to send telemetry to snowflake event table.
