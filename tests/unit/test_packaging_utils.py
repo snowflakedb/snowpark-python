@@ -136,7 +136,7 @@ def test_get_downloaded_packages_for_real_python_packages(temp_directory):
     Assert that for genuine pypi packages, get_downloaded_packages() actually picks up the correct package names.
     To avoid flakiness, we only check for package names.
     """
-    packages = ["requests", "numpy", "pandas"]
+    packages = ["requests", "numpy"]
     target_folder = os.path.join(temp_directory, "packages")
     pip_install_packages_to_target_folder(packages, target_folder)
     for package in packages:
@@ -148,9 +148,9 @@ def test_get_downloaded_packages_for_real_python_packages(temp_directory):
     )
     package_names = {package.name for package in downloaded_packages_dict.keys()}
     for package_name in packages + [
-        "six",
-        "pytz",
-    ]:  # six and pytz are integral dependencies
+        "certifi",
+        "urllib3",
+    ]:  # certifi and urllib3 are integral dependencies
         assert package_name in package_names
 
 
@@ -162,7 +162,7 @@ def test_pip_timeout(temp_directory):
     """
     Assert that timeout parameter works fine.
     """
-    packages = ["requests", "numpy", "pandas"]
+    packages = ["requests", "numpy"]
     target_folder = os.path.join(temp_directory, "packages")
     with pytest.raises(TimeoutExpired):
         pip_install_packages_to_target_folder(packages, target_folder, timeout=1)
@@ -295,7 +295,7 @@ def test_identify_supported_packages_all_cases():
     reason="Subprocess calls are not allowed within stored procedures",
 )
 def test_valid_pip_install(temp_directory):
-    packages = ["requests", "numpy", "pandas"]
+    packages = ["requests", "numpy"]
     target_folder = os.path.join(temp_directory, "packages")
     pip_install_packages_to_target_folder(packages, target_folder)
     for package in packages:

@@ -1,0 +1,61 @@
+# This workflow automatically creates a test branch from a release tag
+# For example, when release v1.40.0 is published, it creates test-v1.40.0 branch
+
+name: Create Test Branch from Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  create-test-branch:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Extract tag name
+      id: extract_tag
+      run: |
+        TAG_NAME=${{ github.event.release.tag_name }}
+        TEST_BRANCH_NAME="test-${TAG_NAME}"
+
+        echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+        echo "test_branch_name=${TEST_BRANCH_NAME}" >> $GITHUB_OUTPUT
+        echo "Creating test branch: ${TEST_BRANCH_NAME} from tag: ${TAG_NAME}"
+
+    - name: Checkout release tag
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ steps.extract_tag.outputs.tag_name }}
+        fetch-depth: 0
+
+    - name: Configure git
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Create and push test branch
+      run: |
+        TEST_BRANCH=${{ steps.extract_tag.outputs.test_branch_name }}
+
+        # Check if branch already exists remotely
+        if git ls-remote --heads origin ${TEST_BRANCH} | grep -q ${TEST_BRANCH}; then
+          echo "Branch ${TEST_BRANCH} already exists remotely. Skipping creation."
+          exit 0
+        fi
+
+        # Create and push the test branch
+        git checkout -b ${TEST_BRANCH}
+        git push origin ${TEST_BRANCH}
+
+        echo "Successfully created and pushed branch: ${TEST_BRANCH}"
+
+    - name: Summary
+      run: |
+        echo "✅ Test branch created successfully" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Release Tag**: \`${{ steps.extract_tag.outputs.tag_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Test Branch**: \`${{ steps.extract_tag.outputs.test_branch_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch URL**: https://github.com/${{ github.repository }}/tree/${{ steps.extract_tag.outputs.test_branch_name }}" >> $GITHUB_STEP_SUMMARY

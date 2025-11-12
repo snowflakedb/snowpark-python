@@ -17,7 +17,14 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
     SnowparkSQLInvalidIdException,
 )
-from snowflake.snowpark.functions import coalesce, col, count, is_null, lit
+from snowflake.snowpark.functions import (
+    coalesce,
+    col,
+    count,
+    is_null,
+    lit,
+    sum as sp_sum,
+)
 from snowflake.snowpark.types import (
     IntegerType,
     StringType,
@@ -1626,3 +1633,64 @@ def test_dataframe_join_and_select_same_column_name_from_one_df(session):
     assert df1.join(df2,).select(
         df2.col("a")
     ).collect() == [Row(2)]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="SNOW-1373887: The join alias fix is not supported in Local Testing",
+)
+def test_dataframe_alias_map_unmodified(session):
+    origin = session._join_alias_fix
+    try:
+        session._join_alias_fix = True
+        df = session.create_dataframe([None], ["__DUMMY"])
+
+        cols = [lit("James"), lit(3000)]
+        df = (
+            df.with_columns(["name", "salary"], cols)
+            .select(*cols)
+            .toDF(*["name", "salary"])
+        )
+
+        def aggregate(input):
+            source_expr_to_alias = input._plan.expr_to_alias
+            ret_df = input.group_by(input.col("name").alias("new_name")).agg(
+                sp_sum(input.col("salary"))
+            )
+            assert (
+                source_expr_to_alias == input._plan.expr_to_alias
+            )  # ensure the original df alias map is not changed
+            return ret_df
+
+        Utils.check_answer(aggregate(df), [Row("James", 3000)])
+        # execute twice to make sure no side effect
+        Utils.check_answer(aggregate(df), [Row("James", 3000)])
+    finally:
+        session._join_alias_fix = origin
+
+
+@pytest.mark.parametrize("with_condition", [True, False])
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Lateral join is not supported in Local Testing",
+)
+def test_lateral_join_behaviors(session, with_condition):
+    df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+    df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
+
+    condition = df1.a == df2.a if with_condition else None
+    df = df1.lateral_join(df2, condition)
+
+    # expected results
+    matching_rows = [Row(1, 2, 1, 7), Row(3, 4, 3, 8)]
+    cartesian_product = [
+        Row(1, 2, 1, 7),
+        Row(1, 2, 3, 8),
+        Row(3, 4, 1, 7),
+        Row(3, 4, 3, 8),
+        Row(5, 6, 1, 7),
+        Row(5, 6, 3, 8),
+    ]
+
+    expected = matching_rows if with_condition else cartesian_product
+    Utils.check_answer(df, expected)

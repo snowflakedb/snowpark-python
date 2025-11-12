@@ -162,8 +162,7 @@ jobs:
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
         run: uv pip install tox --system
-      # SNOW-2213578: Re-enable the test for 3.13
-      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.13' }}
+      - if: ${{ contains('macos', matrix.os.download_name) }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -174,8 +173,7 @@ jobs:
           # Specify SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1 when adding >= python3.12 with no server-side support
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
-      - if: ${{ matrix.python-version != '3.13' }}
-        name: Run tests (excluding doctests)
+      - name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -185,17 +183,13 @@ jobs:
           SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash
-      # SNOW-2213578 : Remove the test below and run udf tests for 3.13
-      - if: ${{ matrix.python-version == '3.13' }}
-        name: Run tests (excluding udf, doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
-          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
+      - name: Install MS ODBC Driver (Ubuntu only)
+        if: ${{ matrix.os.download_name == 'linux' }}
+        run: |
+          curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+          curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
         shell: bash
       - name: Run data source tests
         # psycopg2 is not supported on macos 3.9
@@ -600,8 +594,7 @@ jobs:
         run: uv pip install -U setuptools pip wheel --system
       - name: Install tox
         run: uv pip install tox --system
-      # SNOW-2213578: Re-enable the test for 3.13
-      - if: ${{ contains('macos', matrix.os.download_name) && matrix.python-version != '3.13' }}
+      - if: ${{ contains('macos', matrix.os.download_name) }}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -610,21 +603,8 @@ jobs:
           PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
           TOX_PARALLEL_NO_SPINNER: 1
         shell: bash
-      - if: ${{ matrix.python-version != '3.13' }}
-        name: Run tests (excluding doctests)
+      - name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctest-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --disable_cte_optimization
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
-          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
-        shell: bash
-      # SNOW-2213578 : Remove the test below and run udf tests for 3.13
-      - if: ${{ matrix.python-version == '3.13' }}
-        name: Run tests (excluding udf, doctests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-dailynotdoctestnotudf-ci"
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           cloud_provider: ${{ matrix.cloud-provider }}
@@ -647,7 +627,7 @@ jobs:
             .tox/coverage.xml
 
   test-enable-fix-join-alias:
-    name: Test Fixing Join Alias py-${{ matrix.os }}-${{ matrix.python-version }}
+    name: Test Fixing Join Alias py-${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.cloud-provider }}
     needs: build
     runs-on: ${{ matrix.os }}
     strategy:
@@ -699,7 +679,7 @@ jobs:
       - name: Install tox
         run: uv pip install tox --system
       # we only run doctest on macos
-      - if: ${{ matrix.os == 'macos-latest' && matrix.python-version != '3.12'}}
+      - if: ${{ matrix.os == 'macos-latest'}}
         name: Run doctests
         run: python -m tox -e "py${PYTHON_VERSION}-doctest-notudf-ci"
         env:
@@ -711,7 +691,7 @@ jobs:
           # For example, see https://github.com/snowflakedb/snowpark-python/pull/681
         shell: bash
       # do not run other tests for macos
-      - if: ${{ matrix.os != 'macos-latest' && matrix.python-version != '3.12' }}
+      - if: ${{ matrix.os != 'macos-latest'}}
         name: Run tests (excluding doctests)
         run: python -m tox -e "py${PYTHON_VERSION/\./}-notdoctest-ci"
         env:
@@ -719,18 +699,6 @@ jobs:
           cloud_provider: ${{ matrix.cloud-provider }}
           PYTEST_ADDOPTS: --color=yes --tb=short --join_alias_fix
           TOX_PARALLEL_NO_SPINNER: 1
-          SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
-          SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
-        shell: bash
-      - if: ${{ matrix.python-version == '3.12' }}
-        name: Run tests (excluding doctests and udf tests)
-        run: python -m tox -e "py${PYTHON_VERSION/\./}-notudfdoctest-ci"
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-          cloud_provider: ${{ matrix.cloud-provider }}
-          PYTEST_ADDOPTS: --color=yes --tb=short --join_alias_fix
-          TOX_PARALLEL_NO_SPINNER: 1
-          SNOWFLAKE_IS_PYTHON_RUNTIME_TEST: 1
           SNOWPARK_PYTHON_API_TEST_BUCKET_PATH: ${{ secrets.SNOWPARK_PYTHON_API_TEST_BUCKET_PATH }}
           SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION: ${{ vars.SNOWPARK_PYTHON_API_S3_STORAGE_INTEGRATION }}
         shell: bash

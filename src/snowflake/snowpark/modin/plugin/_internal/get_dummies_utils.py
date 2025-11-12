@@ -3,6 +3,18 @@
 #
 
 from collections.abc import Hashable
+from typing import Any
+
+from pandas.api.types import (
+    is_bool_dtype,
+    is_datetime64_any_dtype,
+    is_float_dtype,
+    is_integer_dtype,
+    is_object_dtype,
+    is_timedelta64_dtype,
+    is_string_dtype,
+)
+import pandas as native_pd
 
 from snowflake.snowpark.functions import (
     col,
@@ -37,6 +49,7 @@ def single_get_dummies_pivot(
     pivot_column_snowflake_quoted_identifier: str,
     columns_to_keep_snowflake_quoted_identifiers: list[str],
     columns_to_keep_pandas_labels: list[Hashable],
+    dummy_false: Any,
 ) -> InternalFrame:
     """
     Helper function for get dummies to perform a single pivot on the encoded column.
@@ -51,6 +64,7 @@ def single_get_dummies_pivot(
             internal_frame to keep as the data column of final result internal frame.
         columns_to_keep_pandas_labels: The pandas label in the internal_frame to keep as the
             data_column of final result internal frame.
+        dummy_false: The scalar value representing that a particular column value is not present.
 
         Note: columns_to_keep_snowflake_quoted_identifiers must be the same length as columns_to_keep_pandas_labels
     Returns:
@@ -93,7 +107,7 @@ def single_get_dummies_pivot(
         columns_snowflake_quoted_identifier
     )
     # Perform pivot on the pivot column with dummy lit true column as value column.
-    # With the above example, the result of pivot will be:
+    # With the above example, the result of pivot will be (assuming dtype is bool):
     #
     #    C    a       b
     # 0  1    True    False
@@ -102,7 +116,7 @@ def single_get_dummies_pivot(
     pivoted_ordered_dataframe = ordered_dataframe.pivot(
         col(str(pivot_column_snowflake_quoted_identifier)),
         None,
-        0,
+        pandas_lit(dummy_false),
         min_(lit_true_column_snowflake_quoted_identifier),
     )
     pivoted_ordered_dataframe = pivoted_ordered_dataframe.sort(
@@ -179,12 +193,42 @@ def single_get_dummies_pivot(
     )
 
 
+def _get_dummies_true_and_false_values(dtype: Any) -> tuple[Any, Any]:
+    """
+    Get the indicator values repsresenting whether a column is equal to a particular value.
+
+    Args:
+        dtype: The dtype of the indicator column.
+
+    Returns:
+        A tuple of the indicator values. The first value reprsents that the
+        value is present, and the second value represents that the value is not
+        present.
+    """
+    if is_object_dtype(dtype):
+        raise ValueError("dtype=object is not a valid dtype for get_dummies")
+    if is_string_dtype(dtype):
+        return ("1", "")
+    if is_bool_dtype(dtype) or dtype is None:
+        return (True, False)
+    if is_integer_dtype(dtype):
+        return (1, 0)
+    if is_float_dtype(dtype):
+        return (1.0, 0.0)
+    if is_datetime64_any_dtype(dtype):
+        return (native_pd.Timestamp(1), native_pd.Timestamp(0))
+    if is_timedelta64_dtype(dtype):
+        ErrorMessage.not_implemented_for_timedelta(method="get_dummies")
+    raise TypeError(f"data type '{dtype}' not understood")
+
+
 def get_dummies_helper(
     internal_frame: InternalFrame,
     columns: list[Hashable],
     prefixes: list[Hashable],
     prefix_sep: str,
-    dummy_row_pos_mode: bool = False,
+    dtype: Any,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Helper function for get dummies to perform encoding on given columns
@@ -222,11 +266,12 @@ def get_dummies_helper(
                 f"get_dummies with duplicated columns {pandas_label}"
             )
 
-    # append a lit true column as value column for pivot
+    dummy_true, dummy_false = _get_dummies_true_and_false_values(dtype)
+
+    # the dummy column is appended as the last data column of the new_internal_frame
     new_internal_frame = internal_frame.ensure_row_position_column(
         dummy_row_pos_mode
-    ).append_column(LIT_TRUE_COLUMN_PANDAS_LABEL, pandas_lit(True))
-    # the dummy column is appended as the last data column of the new_internal_frame
+    ).append_column(LIT_TRUE_COLUMN_PANDAS_LABEL, pandas_lit(dummy_true))
     row_position_column_snowflake_quoted_identifier = (
         new_internal_frame.row_position_snowflake_quoted_identifier
     )
@@ -266,7 +311,7 @@ def get_dummies_helper(
 
     # Do the first pivot with the first column and keep all remaining columns.
     # With the example given above, the first pivot is performed on column A, and we will
-    # get the following result:
+    # get the following result (assuming dtype is int):
     #    C  A_a  A_b
     # 0  1    1    0
     # 1  2    0    1
@@ -278,6 +323,7 @@ def get_dummies_helper(
         pivot_column_snowflake_quoted_identifier=grouped_quoted_identifiers[0][0],
         columns_to_keep_snowflake_quoted_identifiers=remaining_data_column_snowflake_quoted_identifiers,
         columns_to_keep_pandas_labels=remaining_data_column_pandas_labels,
+        dummy_false=dummy_false,
     )
 
     # Perform pivot on rest columns and join on the row position column to form the final result.
@@ -294,6 +340,7 @@ def get_dummies_helper(
             pivot_column_snowflake_quoted_identifier=grouped_quoted_identifiers[i][0],
             columns_to_keep_snowflake_quoted_identifiers=[],
             columns_to_keep_pandas_labels=[],
+            dummy_false=dummy_false,
         )
         result_internal_frame = join_utils.join(
             result_internal_frame,
@@ -301,6 +348,7 @@ def get_dummies_helper(
             left_on=result_internal_frame.index_column_snowflake_quoted_identifiers,
             right_on=pivoted_internal_frame.index_column_snowflake_quoted_identifiers,
             how="inner",
+            dummy_row_pos_mode=dummy_row_pos_mode,
         ).result_frame
 
     # optimization: keep the original row position column as the result ordered frame

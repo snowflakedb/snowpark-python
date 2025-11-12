@@ -1219,11 +1219,6 @@ def test_sort(session):
         for i in range(len(sorted_rows) - 1)
     ]
 
-    # Negative test: sort() needs at least one sort expression
-    with pytest.raises(ValueError) as ex_info:
-        df.sort([])
-    assert "sort() needs at least one sort expression" in ex_info.value.args[0]
-
 
 def test_select(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
@@ -2689,6 +2684,24 @@ def test_rename_function_multiple(session):
     df2 = df.rename({df["b"]: "b1", col("df", "a"): "a1"})
     assert df2.schema.names[1] == "B1" and df2.schema.names[0] == "A1"
     Utils.check_answer(df2, [Row(1, 2)])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.rename is not supported in Local Testing",
+)
+def test_rename_with_case_sensitive_column_name(session):
+    from snowflake.snowpark import context
+    from unittest.mock import patch
+
+    with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        df = session.create_dataframe([[1, 2]], schema=["ab", '"ab"'])
+        df2 = df.rename('"ab"', "ab1")
+        assert df2.schema.names == ["AB", "AB1"]
+        Utils.check_answer(df2, [Row(1, 2)])
+        df3 = df.rename({"ab": "ab1"})
+        assert df3.schema.names == ["AB1", '"ab"']
+        Utils.check_answer(df3, [Row(1, 2)])
 
 
 @pytest.mark.skipif(

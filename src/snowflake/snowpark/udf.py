@@ -994,6 +994,10 @@ class UDFRegistration:
             skip_upload_on_content_match=skip_upload_on_content_match,
             is_permanent=is_permanent,
             artifact_repository=artifact_repository,
+            _suppress_local_package_warnings=kwargs.get(
+                "_suppress_local_package_warnings", False
+            ),
+            # DO NOT pass **kwargs here, as it can lead to TypeError: multiple values for the same argument
         )
 
         runtime_version_from_requirement = None

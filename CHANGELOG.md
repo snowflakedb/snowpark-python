@@ -1,13 +1,362 @@
 # Release History
 
-## 1.40.0 (YYYY-MM-DD)
+## 1.43.0 (YYYY-MM-DD)
 
 ### Snowpark Python API Updates
 
+#### New Features
+
+- Added support for `DataFrame.lateral_join`
+- Added support for `Session.client_telemetry`.
+- Added support for `Session.udf_profiler`.
+- Added support for `functions.ai_translate`.
+- Added support for the following functions in `functions.py`:
+    - String and Binary functions:
+      - `base64_decode_binary`
+      - `compress`
+      - `decompress_binary`
+      - `decompress_string`
+      - `md5_binary`
+      - `md5_number_lower64`
+      - `md5_number_upper64`
+      - `sha1_binary`
+      - `sha2_binary`
+      - `soundex_p123`
+      - `strtok`
+      - `try_base64_decode_binary`
+      - `try_base64_decode_string`
+      - `try_hex_decode_binary`
+      - `try_hex_decode_string`
+      - `unicode`
+      - `uuid_string`
+
+    - Conditional expressions:
+      - `booland_agg`
+      - `boolxor_agg`
+      - `regr_valy`
+      - `zeroifnull`
+
+    - Numeric expressions:
+      - `cot`
+      - `mod`
+      - `pi`
+      - `square`
+      - `width_bucket`
+
+#### Improvements
+
+- Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
+- Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
+- Removed experimental warning from `Session.cte_optimization_enabled`.
+
+#### Dependency Updates
+
+- Catalog API no longer uses types declared in `snowflake.core` and therefore this dependency was removed.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for `Dataframe.groupby.rolling()`.
+- Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
+- Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
+
+#### Improvements
+
+- Enhanced autoswitching functionality from Snowflake to native pandas for methods with unsupported argument combinations:
+  - `shift()` with `suffix` or non-integer `periods` parameters
+  - `sort_index()` with `axis=1` or `key` parameters
+  - `sort_values()` with `axis=1`
+  - `melt()` with `col_level` parameter
+  - `apply()` with `result_type` parameter for DataFrame
+  - `pivot_table()` with `sort=True`, non-string `index` list, non-string `columns` list, non-string `values` list, or `aggfunc` dict with non-string values
+  - `fillna()` with `downcast` parameter or using `limit` together with `value`
+  - `dropna()` with `axis=1`
+  - `asfreq()` with `how` parameter, `fill_value` parameter, `normalize=True`, or `freq` parameter being week, month, quarter, or year
+  - `groupby()` with `axis=1`, `by!=None and level!=None`, or by containing any non-pandas hashable labels.
+  - `groupby_fillna()` with `downcast` parameter
+  - `groupby_first()` with `min_count>1`
+  - `groupby_last()` with `min_count>1`
+  - `groupby_shift()` with `freq` parameter
+- Slightly improved the performance of `agg`, `nunique`, `describe`, and related methods on 1-column DataFrame and Series objects.
+
 #### Bug Fixes
 
-- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL.
-- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be genrated when using nested structured types.
+- Fixed a bug in `DataFrameGroupBy.agg` where func is a list of tuples used to set the names of the output columns.
+- Fixed a bug where converting a modin datetime index with a timezone to a numpy array with `np.asarray` would cause a `TypeError`.
+- Fixed a bug where `Series.isin` with a Series argument matched index labels instead of the row position.
+
+#### Improvements
+
+- Add support for the following in faster pandas:
+  - `groupby.apply`
+  - `groupby.nunique`
+  - `groupby.size`
+  - `concat`
+  - `copy`
+  - `str.isdigit`
+  - `str.islower`
+  - `str.isupper`
+  - `str.istitle`
+  - `str.lower`
+  - `str.upper`
+  - `str.title`
+  - `str.match`
+  - `str.capitalize`
+  - `str.__getitem__`
+  - `str.center`
+  - `str.count`
+  - `str.get`
+  - `str.pad`
+  - `str.len`
+  - `str.ljust`
+  - `str.rjust`
+  - `str.split`
+  - `str.replace`
+  - `str.strip`
+  - `str.lstrip`
+  - `str.rstrip`
+  - `str.translate`
+  - `dt.tz_localize`
+  - `dt.tz_convert`
+  - `dt.ceil`
+  - `dt.round`
+  - `dt.floor`
+  - `dt.normalize`
+  - `dt.month_name`
+  - `dt.day_name`
+  - `dt.strftime`
+  - `dt.dayofweek`
+  - `dt.weekday`
+  - `dt.dayofyear`
+  - `dt.isocalendar`
+  - `rolling.min`
+  - `rolling.max`
+  - `rolling.count`
+  - `rolling.sum`
+  - `rolling.mean`
+  - `rolling.std`
+  - `rolling.var`
+  - `rolling.sem`
+  - `rolling.corr`
+  - `expanding.min`
+  - `expanding.max`
+  - `expanding.count`
+  - `expanding.sum`
+  - `expanding.mean`
+  - `expanding.std`
+  - `expanding.var`
+  - `expanding.sem`
+  - `cumsum`
+  - `cummin`
+  - `cummax`
+  - `groupby.groups`
+  - `groupby.indices`
+  - `groupby.first`
+  - `groupby.last`
+  - `groupby.rank`
+  - `groupby.shift`
+  - `groupby.cumcount`
+  - `groupby.cumsum`
+  - `groupby.cummin`
+  - `groupby.cummax`
+  - `groupby.any`
+  - `groupby.all`
+  - `groupby.unique`
+  - `groupby.get_group`
+  - `groupby.rolling`
+  - `groupby.resample`
+  - `to_snowflake`
+  - `to_snowpark`
+  - `resample.min`
+  - `resample.max`
+  - `resample.count`
+  - `resample.sum`
+  - `resample.mean`
+  - `resample.median`
+  - `resample.std`
+  - `resample.var`
+  - `resample.size`
+  - `resample.first`
+  - `resample.last`
+  - `resample.quantile`
+  - `resample.nunique`
+- Make faster pandas disabled by default (opt-in instead of opt-out).
+- Improve performance of `drop_duplicates` by avoiding joins when `keep!=False` in faster pandas.
+
+## 1.42.0 (2025-10-28)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Snowpark python DB-api is now generally available. Access this feature with `DataFrameReader.dbapi()` to read data from a database table or query into a DataFrame using a DBAPI connection.
+
+## 1.41.0 (2025-10-23)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added a new function `service` in `snowflake.snowpark.functions` that allows users to create a callable representing a Snowpark Container Services (SPCS) service.
+- Added `connection_parameters` parameter to `DataFrameReader.dbapi()` (PuPr) method to allow passing keyword arguments to the `create_connection` callable.
+- Added support for `Session.begin_transaction`, `Session.commit` and `Session.rollback`.
+- Added support for the following functions in `functions.py`:
+  - Geospatial functions:
+    - `st_interpolate`
+    - `st_intersection`
+    - `st_intersection_agg`
+    - `st_intersects`
+    - `st_isvalid`
+    - `st_length`
+    - `st_makegeompoint`
+    - `st_makeline`
+    - `st_makepolygon`
+    - `st_makepolygonoriented`
+    - `st_disjoint`
+    - `st_distance`
+    - `st_dwithin`
+    - `st_endpoint`
+    - `st_envelope`
+    - `st_geohash`
+    - `st_geomfromgeohash`
+    - `st_geompointfromgeohash`
+    - `st_hausdorffdistance`
+    - `st_makepoint`
+    - `st_npoints`
+    - `st_perimeter`
+    - `st_pointn`
+    - `st_setsrid`
+    - `st_simplify`
+    - `st_srid`
+    - `st_startpoint`
+    - `st_symdifference`
+    - `st_transform`
+    - `st_union`
+    - `st_union_agg`
+    - `st_within`
+    - `st_x`
+    - `st_xmax`
+    - `st_xmin`
+    - `st_y`
+    - `st_ymax`
+    - `st_ymin`
+    - `st_geogfromgeohash`
+    - `st_geogpointfromgeohash`
+    - `st_geographyfromwkb`
+    - `st_geographyfromwkt`
+    - `st_geometryfromwkb`
+    - `st_geometryfromwkt`
+    - `try_to_geography`
+    - `try_to_geometry`
+
+#### Improvements
+
+- Added a parameter to enable and disable automatic column name aliasing for `interval_day_time_from_parts` and `interval_year_month_from_parts` functions.
+
+#### Bug Fixes
+
+- Fixed a bug that `DataFrameReader.xml` fails to parse XML files with undeclared namespaces when `ignoreNamespace` is `True`.
+- Added a fix for floating point precision discrepancies in `interval_day_time_from_parts`.
+- Fixed a bug where writing Snowpark pandas dataframes on the pandas backend with a column multiindex to Snowflake with `to_snowflake` would raise `KeyError`.
+- Fixed a bug that `DataFrameReader.dbapi` (PuPr) is not compatible with oracledb 3.4.0.
+- Fixed a bug where `modin` would unintentionally be imported during session initialization in some scenarios.
+- Fixed a bug where `session.udf|udtf|udaf|sproc.register` failed when an extra session argument was passed. These methods do not expect a session argument; please remove it if provided.
+
+#### Improvements
+
+- The default maximum length for inferred StringType columns during schema inference in `DataFrameReader.dbapi` is now increased from 16MB to 128MB in parquet file based ingestion.
+
+#### Dependency Updates
+
+- Updated dependency of `snowflake-connector-python>=3.17,<5.0.0`.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+- Added support for the `dtypes` parameter of `pd.get_dummies`
+- Added support for `nunique` in `df.pivot_table`, `df.agg` and other places where aggregate functions can be used.
+- Added support for `DataFrame.interpolate` and `Series.interpolate` with the "linear", "ffill"/"pad", and "backfill"/bfill" methods. These use the SQL `INTERPOLATE_LINEAR`, `INTERPOLATE_FFILL`, and `INTERPOLATE_BFILL` functions (PuPr).
+
+#### Improvements
+
+- Improved performance of `Series.to_snowflake` and `pd.to_snowflake(series)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+- Enhanced autoswitching functionality from Snowflake to native Pandas for methods with unsupported argument combinations:
+  - `get_dummies()` with `dummy_na=True`, `drop_first=True`, or custom `dtype` parameters
+  - `cumsum()`, `cummin()`, `cummax()` with `axis=1` (column-wise operations)
+  - `skew()` with `axis=1` or `numeric_only=False` parameters
+  - `round()` with `decimals` parameter as a Series
+  - `corr()` with `method!=pearson` parameter
+- Set `cte_optimization_enabled` to True for all Snowpark pandas sessions.
+- Add support for the following in faster pandas:
+  - `isin`
+  - `isna`
+  - `isnull`
+  - `notna`
+  - `notnull`
+  - `str.contains`
+  - `str.startswith`
+  - `str.endswith`
+  - `str.slice`
+  - `dt.date`
+  - `dt.time`
+  - `dt.hour`
+  - `dt.minute`
+  - `dt.second`
+  - `dt.microsecond`
+  - `dt.nanosecond`
+  - `dt.year`
+  - `dt.month`
+  - `dt.day`
+  - `dt.quarter`
+  - `dt.is_month_start`
+  - `dt.is_month_end`
+  - `dt.is_quarter_start`
+  - `dt.is_quarter_end`
+  - `dt.is_year_start`
+  - `dt.is_year_end`
+  - `dt.is_leap_year`
+  - `dt.days_in_month`
+  - `dt.daysinmonth`
+  - `sort_values`
+  - `loc` (setting columns)
+  - `to_datetime`
+  - `rename`
+  - `drop`
+  - `invert`
+  - `duplicated`
+  - `iloc`
+  - `head`
+  - `columns` (e.g., df.columns = ["A", "B"])
+  - `agg`
+  - `min`
+  - `max`
+  - `count`
+  - `sum`
+  - `mean`
+  - `median`
+  - `std`
+  - `var`
+  - `groupby.agg`
+  - `groupby.min`
+  - `groupby.max`
+  - `groupby.count`
+  - `groupby.sum`
+  - `groupby.mean`
+  - `groupby.median`
+  - `groupby.std`
+  - `groupby.var`
+  - `drop_duplicates`
+- Reuse row count from the relaxed query compiler in `get_axis_len`.
+
+#### Bug Fixes
+
+- Fixed a bug where the row count was not getting cached in the ordered dataframe each time count_rows() is called.
+
+## 1.40.0 (2025-10-02)
+
+### Snowpark Python API Updates
 
 #### New Features
 
@@ -18,60 +367,115 @@
   - `get_username_password`
   - `get_cloud_provider_token`
 - Added support for the following scalar functions in `functions.py`:
-  - `array_remove_at`
-  - `as_boolean`
-  - `booland`
-  - `boolnot`
-  - `boolor`
-  - `boolor_agg`
-  - `boolxor`
-  - `chr`
-  - `decode`
-  - `div0null`
-  - `dp_interval_high`
-  - `dp_interval_low`
-  - `greatest_ignore_nulls`
-  - `h3_cell_to_boundary`
-  - `h3_cell_to_children`
-  - `h3_cell_to_children_string`
-  - `h3_cell_to_parent`
-  - `h3_cell_to_point`
-  - `h3_compact_cells`
-  - `h3_compact_cells_strings`
-  - `h3_coverage`
-  - `h3_coverage_strings`
-  - `h3_get_resolution`
-  - `h3_grid_disk`
-  - `h3_grid_distance`
-  - `h3_int_to_string`
-  - `h3_polygon_to_cells`
-  - `h3_polygon_to_cells_strings`
-  - `h3_string_to_int`
-  - `h3_try_grid_path`
-  - `h3_try_polygon_to_cells`
-  - `h3_try_polygon_to_cells_strings`
-  - `h3_uncompact_cells`
-  - `h3_uncompact_cells_strings`
-  - `haversine`
-  - `hex_decode_binary`
-  - `last_query_id`
-  - `last_transaction`
-  - `least_ignore_nulls`
-  - `nullif`
-  - `nvl2`
-  - `regr_valx`
-  - `st_area`
-  - `st_asewkb`
-  - `st_asewkt`
-  - `st_asgeojson`
-  - `st_aswkb`
+    - Conditional expression functions:
+      - `booland`
+      - `boolnot`
+      - `boolor`
+      - `boolxor`
+      - `boolor_agg`
+      - `decode`
+      - `greatest_ignore_nulls`
+      - `least_ignore_nulls`
+      - `nullif`
+      - `nvl2`
+      - `regr_valx`
+
+    - Semi-structured and structured date functions:
+      - `array_remove_at`
+      - `as_boolean`
+      - `map_delete`
+      - `map_insert`
+      - `map_pick`
+      - `map_size`
+
+    - String & binary functions:
+      - `chr`
+      - `hex_decode_binary`
+
+    - Numeric functions:
+      - `div0null`
+
+    - Differential privacy functions:
+      - `dp_interval_high`
+      - `dp_interval_low`
+
+    - Context functions:
+      - `last_query_id`
+      - `last_transaction`
+
+    - Geospatial functions:
+      - `h3_cell_to_boundary`
+      - `h3_cell_to_children`
+      - `h3_cell_to_children_string`
+      - `h3_cell_to_parent`
+      - `h3_cell_to_point`
+      - `h3_compact_cells`
+      - `h3_compact_cells_strings`
+      - `h3_coverage`
+      - `h3_coverage_strings`
+      - `h3_get_resolution`
+      - `h3_grid_disk`
+      - `h3_grid_distance`
+      - `h3_int_to_string`
+      - `h3_polygon_to_cells`
+      - `h3_polygon_to_cells_strings`
+      - `h3_string_to_int`
+      - `h3_try_grid_path`
+      - `h3_try_polygon_to_cells`
+      - `h3_try_polygon_to_cells_strings`
+      - `h3_uncompact_cells`
+      - `h3_uncompact_cells_strings`
+      - `haversine`
+      - `h3_grid_path`
+      - `h3_is_pentagon`
+      - `h3_is_valid_cell`
+      - `h3_latlng_to_cell`
+      - `h3_latlng_to_cell_string`
+      - `h3_point_to_cell`
+      - `h3_point_to_cell_string`
+      - `h3_try_coverage`
+      - `h3_try_coverage_strings`
+      - `h3_try_grid_distance`
+      - `st_area`
+      - `st_asewkb`
+      - `st_asewkt`
+      - `st_asgeojson`
+      - `st_aswkb`
+      - `st_aswkt`
+      - `st_azimuth`
+      - `st_buffer`
+      - `st_centroid`
+      - `st_collect`
+      - `st_contains`
+      - `st_coveredby`
+      - `st_covers`
+      - `st_difference`
+      - `st_dimension`
 
 #### Bug Fixes
 
-- Fixed an issue where DataFrame joins would fail when CTE optimization was enabled and one of the DataFrames was created using the `DataFrame.alias()` method.
+- Fixed a bug that `DataFrame.limit()` fail if there is parameter binding in the executed SQL when used in non-stored-procedure/udxf environment.
+- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be generated when using nested structured types.
+- Fixed multiple bugs in `DataFrameReader.dbapi` (PuPr):
+  - Fixed UDTF ingestion failure with `pyodbc` driver caused by unprocessed row data.
+  - Fixed SQL Server query input failure due to incorrect select query generation.
+  - Fixed UDTF ingestion not preserving column nullability in the output schema.
+  - Fixed an issue that caused the program to hang during multithreaded Parquet based ingestion when a data fetching error occurred.
+  - Fixed a bug in schema parsing when custom schema strings used upper-cased data type names (NUMERIC, NUMBER, DECIMAL, VARCHAR, STRING, TEXT).
+- Fixed a bug in `Session.create_dataframe` where schema string parsing failed when using upper-cased data type names (e.g., NUMERIC, NUMBER, DECIMAL, VARCHAR, STRING, TEXT).
 
+#### Improvements
+
+- Improved `DataFrameReader.dbapi`(PuPr) that dbapi will not retry on non-retryable error such as SQL syntax error on external data source query.
+- Removed unnecessary warnings about local package version mismatch when using `session.read.option('rowTag', <tag_name>).xml(<stage_file_path>)` or `xpath` functions.
+- Improved `DataFrameReader.dbapi` (PuPr) reading performance by setting the default `fetch_size` parameter value to 100000.
+- Improved error message for XSD validation failure when reading XML files using `session.read.option('rowValidationXSDPath', <xsd_path>).xml(<stage_file_path>)`.
 
 ### Snowpark pandas API Updates
+
+#### Dependency Updates
+
+- Updated the supported `modin` versions to >=0.36.0 and <0.38.0 (was previously >= 0.35.0 and <0.37.0).
 
 #### New Features
 - Added support for `DataFrame.query` for dataframes with single-level indexes.
@@ -82,6 +486,18 @@
 - Hybrid execution mode is now enabled by default. Certain operations on smaller data will now automatically execute in native pandas in-memory. Use `from modin.config import AutoSwitchBackend; AutoSwitchBackend.disable()` to turn this off and force all execution to occur in Snowflake.
 - Added a session parameter `pandas_hybrid_execution_enabled` to enable/disable hybrid execution as an alternative to using `AutoSwitchBackend`.
 - Removed an unnecessary `SHOW OBJECTS` query issued from `read_snowflake` under certain conditions.
+- When hybrid execution is enabled, `pd.merge`, `pd.concat`, `DataFrame.merge`, and `DataFrame.join` may now move arguments to backends other than those among the function arguments.
+- Improved performance of `DataFrame.to_snowflake` and `pd.to_snowflake(dataframe)` for large data by uploading data via a parquet file. You can control the dataset size at which Snowpark pandas switches to parquet with the variable `modin.config.PandasToSnowflakeParquetThresholdBytes`.
+
+## 1.39.1 (2025-09-25)
+
+### Snowpark Python API Updates
+
+#### Bug Fixes
+
+
+- Added an experimental fix for a bug in schema query generation that could cause invalid sql to be generated when using nested structured types.
+
 
 ## 1.39.0 (2025-09-17)
 

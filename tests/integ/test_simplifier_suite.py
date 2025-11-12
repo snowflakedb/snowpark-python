@@ -1118,6 +1118,31 @@ def test_join_dataframes(session, simplifier_table):
     Utils.check_answer(df6, [Row(1, 2, 3, 4, 3, 4)])
 
 
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_lateral_join_simplifier(session, use_simplified_query_generation):
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set(
+            "use_simplified_query_generation", use_simplified_query_generation
+        )
+        df1 = session.create_dataframe([[1, 2], [3, 4]], schema=["id", "value"])
+        df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["id", "amount"])
+
+        df = df1.lateral_join(df2, (df1.id == df2.id) & (df1.value * 2 >= df2.amount))
+        Utils.check_answer(df, [Row(3, 4, 3, 8)])
+
+        df_chained = (
+            df1.lateral_join(df2, df1.id == df2.id, lsuffix="_l", rsuffix="_r")
+            .select("value", "amount")
+            .filter(col("value") > 1)
+            .sort("value")
+        )
+        Utils.check_answer(df_chained, [Row(2, 7), Row(4, 8)])
+
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
+
+
 def test_sample(session, simplifier_table):
     df = session.table(simplifier_table)
     df_table_row_sample = session.table(simplifier_table).sample(n=3)
@@ -1786,6 +1811,33 @@ def test_select_limit_orderby(session):
     assert Utils.normalize_sql(df3.queries["queries"][0]) == Utils.normalize_sql(
         expected_query
     )
+
+
+@pytest.mark.parametrize("use_simplified_query_generation", [True, False])
+def test_sort_by_all_sql_simplifier(session, use_simplified_query_generation):
+    original = session.conf.get("use_simplified_query_generation")
+    try:
+        session.conf.set(
+            "use_simplified_query_generation", use_simplified_query_generation
+        )
+        df = session.create_dataframe(
+            [[3, "c", 30], [1, "a", 10], [2, "b", 20]], schema=["a", "b", "c"]
+        )
+
+        df1 = df.select("a", "b").orderBy(ascending=True)
+        assert "ORDER BY" and "ALL" in df1.queries["queries"][0].upper()
+        Utils.check_answer(df1, [Row(1, "a"), Row(2, "b"), Row(3, "c")])
+
+        # Test descending
+        df2 = df.select("a", "b", "c").sort(ascending=False)
+        assert "ORDER BY" and "ALL" in df2.queries["queries"][0].upper()
+        Utils.check_answer(df2, [Row(3, "c", 30), Row(2, "b", 20), Row(1, "a", 10)])
+
+        df3 = df.select("a", "b").orderBy([], ascending=True)
+        assert "ORDER BY" and "ALL" in df3.queries["queries"][0].upper()
+        Utils.check_answer(df3, df1)
+    finally:
+        session.conf.set("use_simplified_query_generation", original)
 
 
 @pytest.mark.parametrize(

@@ -2,17 +2,13 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import json
-import multiprocessing as mp
 import os
 import re
 import sys
 import time
-import queue
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
-import threading
 from datetime import datetime
 
 import snowflake.snowpark
@@ -39,12 +35,10 @@ from snowflake.snowpark._internal.data_source.datasource_partitioner import (
 )
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.utils import (
-    worker_process,
-    process_parquet_queue_with_threads,
     STATEMENT_PARAMS_DATA_SOURCE,
-    DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
-    _MAX_WORKER_SCALE,
+    create_data_source_table_and_stage,
+    local_ingestion,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -69,7 +63,6 @@ from snowflake.snowpark._internal.utils import (
     get_aliased_option_name,
     get_copy_into_table_options,
     get_stage_parts,
-    get_temp_type_for_object,
     is_in_stored_procedure,
     parse_positional_args_to_list_variadic,
     private_preview,
@@ -1031,7 +1024,9 @@ class DataFrameReader:
                 The default value is '_corrupt_record'.
 
               + ``ignoreNamespace``: remove namespace prefixes from XML element names when constructing result column names.
-                The default value is ``True``. Note that a given prefix isn't declared on the row tag element,
+                The default value is ``True``. Parsing uses recovery mode to tolerate malformed records (e.g., undefined
+                namespace prefixes in attributes such as ``diffgr:id`` or ``msdata:rowOrder``). When this option is enabled,
+                element name prefixes are stripped where resolvable; if a prefix isn't declared on the row tag element,
                 it cannot be resolved and will be left intact (i.e. this setting is ignored for that element).
                 For example, for the following XML data with a row tag ``abc:def``:
                 ```
@@ -1407,11 +1402,6 @@ class DataFrameReader:
         metadata_project, metadata_schema = self._get_metadata_project_and_schema()
 
         if format == "XML" and XML_ROW_TAG_STRING in self._cur_options:
-            warning(
-                "rowTag",
-                "rowTag for reading XML file is in private preview since 1.31.0. Do not use it in production.",
-            )
-
             if is_in_stored_procedure():  # pragma: no cover
                 # create a temp stage for udtf import files
                 # we have to use "temp" object instead of "scoped temp" object in stored procedure
@@ -1447,6 +1437,7 @@ class DataFrameReader:
                 input_types=input_types,
                 packages=["snowflake-snowpark-python", "lxml<6"],
                 replace=True,
+                _suppress_local_package_warnings=True,
             )
         else:
             xml_reader_udtf = None
@@ -1685,7 +1676,7 @@ class DataFrameReader:
     @publicapi
     def dbapi(
         self,
-        create_connection: Callable[[], "Connection"],
+        create_connection: Callable[..., "Connection"],
         *,
         table: Optional[str] = None,
         query: Optional[str] = None,
@@ -1695,34 +1686,43 @@ class DataFrameReader:
         num_partitions: Optional[int] = None,
         max_workers: Optional[int] = None,
         query_timeout: Optional[int] = 0,
-        fetch_size: Optional[int] = 1000,
+        fetch_size: Optional[int] = 100000,
         custom_schema: Optional[Union[str, StructType]] = None,
         predicates: Optional[List[str]] = None,
         session_init_statement: Optional[Union[str, List[str]]] = None,
         udtf_configs: Optional[dict] = None,
         fetch_merge_count: int = 1,
         fetch_with_process: bool = False,
+        connection_parameters: Optional[dict] = None,
         _emit_ast: bool = True,
     ) -> DataFrame:
         """
         Reads data from a database table or query into a DataFrame using a DBAPI connection,
         with support for optional partitioning, parallel processing, and query customization.
 
-        There are multiple methods to partition data and accelerate ingestion.
-        These methods can be combined to achieve optimal performance:
-
-        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
-        These must all be specified together, otherwise error will be raised.
-        2.Set max_workers to a proper positive integer.
-        This defines the maximum number of processes and threads used for parallel execution.
-        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
-        4.Use predicates to defining WHERE conditions for partitions,
-        predicates will be ignored if column is specified to generate partition.
-        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
-        column name with table in external data source.
+        Usage Notes:
+            - Ingestion performance tuning:
+                - **Partitioning**: Use ``column``, ``lower_bound``, ``upper_bound``, and ``num_partitions``
+                  together to split large tables into smaller partitions for parallel processing.
+                  All four parameters must be specified together, otherwise an error will be raised.
+                - **Parallel execution**: Set ``max_workers`` to control the maximum number of processes
+                  and threads used for parallel execution.
+                - **Fetch optimization**: Adjust ``fetch_size`` to optimize performance by reducing
+                  the number of round trips to the database.
+                - **Partition filtering**: Use ``predicates`` to define WHERE conditions for partitions.
+                  Note that ``predicates`` will be ignored if ``column`` is specified for partitioning.
+                - **Schema specification**: Set ``custom_schema`` to skip schema inference. The custom schema
+                  must have matching column names with the table in the external data source.
+            - Execution timing and error handling:
+                - **UDTF Ingestion**: Uses lazy evaluation. Errors are reported as ``SnowparkSQLException``
+                  during DataFrame actions (e.g., ``DataFrame.collect()``).
+                - **Local Ingestion**: Uses eager execution. Errors are reported immediately as
+                  ``SnowparkDataFrameReaderException`` when this method is called.
 
         Args:
-            create_connection: A callable that takes no arguments and returns a DB-API compatible database connection.
+            create_connection: A callable that returns a DB-API compatible database connection.
+                The callable can optionally accept keyword arguments via `**kwargs`.
+                If connection_parameters is provided, those will be passed as keyword arguments to this callable.
                 The callable must be picklable, as it will be passed to and executed in child processes.
             table: The name of the table in the external data source.
                 This parameter cannot be used together with the `query` parameter.
@@ -1781,6 +1781,11 @@ class DataFrameReader:
                 like Parquet file generation. When using multiprocessing, guard your script with
                 `if __name__ == "__main__":` and call `multiprocessing.freeze_support()` on Windows if needed.
                 This parameter has no effect in UDFT ingestion.
+            connection_parameters: Optional dictionary of parameters to pass to the create_connection callable.
+                If provided, these parameters will be unpacked and passed as keyword arguments
+                to create_connection(`**connection_parameters`).
+                This allows for flexible connection configuration without hardcoding values in the callable.
+                Example: {"timeout": 30, "isolation_level": "READ_UNCOMMITTED"}
 
         Example::
             .. code-block:: python
@@ -1800,8 +1805,132 @@ class DataFrameReader:
                     connection = oracledb.connect(...)
                     return connection
 
-                if __name__ == "__main__":
-                    df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
+                df = session.read.dbapi(create_oracledb_connection, table=..., fetch_with_process=True)
+
+        Example::
+            .. code-block:: python
+
+                import sqlite3
+                def create_sqlite_connection(timeout=5.0, isolation_level=None, **kwargs):
+                    connection = sqlite3.connect(
+                        database=":memory:",
+                        timeout=timeout,
+                        isolation_level=isolation_level
+                    )
+                    return connection
+
+                connection_params = {"timeout": 30.0, "isolation_level": "DEFERRED"}
+                df = session.read.dbapi(
+                    create_sqlite_connection,
+                    table=...,
+                    connection_parameters=connection_params
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                # pull data from target table with parallelism using partition column
+                df_local_par_column = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    fetch_size=100000,
+                    num_partitions=4,
+                    column="ID",  # swap with the column you want your partition based on
+                    upper_bound=10000,
+                    lower_bound=0
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+
+                # pull data from target table with parallelism using predicates
+                df_local_predicates = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    fetch_size=100000,
+                    predicates=[
+                        "ID < 3",
+                        "ID >= 3"
+                    ]
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+                udtf_configs = {
+                    "external_access_integration": "<your external access integration>"
+                }
+
+                # pull data from target table with udtf ingestion
+
+                df_udtf_basic = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    udtf_configs=udtf_configs
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+                udtf_configs = {
+                    "external_access_integration": "<your external access integration>"
+                }
+
+                # pull data from target table with udtf ingestion with parallelism using partition column
+
+                df_udtf_par_column = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    udtf_configs=udtf_configs,
+                    fetch_size=100000,
+                    num_partitions=4,
+                    column="ID",  # swap with the column you want your partition based on
+                    upper_bound=10000,
+                    lower_bound=0
+                )
+
+        Example::
+            .. code-block:: python
+
+                import oracledb
+                def create_oracledb_connection():
+                    connection = oracledb.connect(...)
+                    return connection
+                udtf_configs = {
+                    "external_access_integration": "<your external access integration>"
+                }
+
+                # pull data from target table with udtf ingestion with parallelism using partition column
+
+                df_udtf_predicates = session.read.dbapi(
+                    create_oracledb_connection,
+                    table="target_table",
+                    udtf_configs=udtf_configs,
+                    fetch_size=100000,
+                    predicates=[
+                        "ID < 3",
+                        "ID >= 3"
+                    ]
+                )
+
         """
         if (not table and not query) or (table and query):
             raise SnowparkDataframeReaderException(
@@ -1835,6 +1964,7 @@ class DataFrameReader:
             predicates,
             session_init_statement,
             fetch_merge_count,
+            connection_parameters,
         )
         struct_schema = partitioner.schema
         partitioned_queries = partitioner.partitions
@@ -1850,8 +1980,12 @@ class DataFrameReader:
             partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
             self._session.create_dataframe(
                 [[query] for query in partitioned_queries], schema=["partition"]
-            ).write.save_as_table(partitions_table, table_type="temp")
-            df = partitioner.driver.udtf_ingestion(
+            ).write.save_as_table(
+                partitions_table,
+                table_type="temp",
+                statement_params=statements_params_for_telemetry,
+            )
+            df = partitioner._udtf_ingestion(
                 self._session,
                 struct_schema,
                 partitions_table,
@@ -1861,7 +1995,8 @@ class DataFrameReader:
                 packages=udtf_configs.get("packages", None),
                 session_init_statement=session_init_statement,
                 query_timeout=query_timeout,
-                _emit_ast=_emit_ast,
+                statement_params=statements_params_for_telemetry,
+                _emit_ast=False,  # internal API, no need to emit AST
             )
             end_time = time.perf_counter()
             telemetry_json_string["end_to_end_duration"] = end_time - start_time
@@ -1875,145 +2010,32 @@ class DataFrameReader:
             set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df
 
-        # parquet ingestion
-        snowflake_table_type = "TEMPORARY"
+        # create table and stage for data source
         snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-        create_table_sql = (
-            "CREATE "
-            f"{snowflake_table_type} "
-            "TABLE "
-            f"identifier(?) "
-            f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
-            f"""{DATA_SOURCE_SQL_COMMENT}"""
-        )
-        params = (snowflake_table_name,)
-        logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
-        self._session.sql(create_table_sql, params=params, _emit_ast=False).collect(
-            statement_params=statements_params_for_telemetry, _emit_ast=False
-        )
-        # create temp stage
         snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
-        sql_create_temp_stage = (
-            f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
-            f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+        create_data_source_table_and_stage(
+            session=self._session,
+            schema=struct_schema,
+            snowflake_table_name=snowflake_table_name,
+            snowflake_stage_name=snowflake_stage_name,
+            statements_params_for_telemetry=statements_params_for_telemetry,
         )
-        self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
-            statement_params=statements_params_for_telemetry, _emit_ast=False
+
+        # parquet ingestion, ingestion external data source into temporary table
+
+        local_ingestion(
+            session=self._session,
+            partitioner=partitioner,
+            partitioned_queries=partitioned_queries,
+            max_workers=max_workers,
+            fetch_with_process=fetch_with_process,
+            snowflake_stage_name=snowflake_stage_name,
+            snowflake_table_name=snowflake_table_name,
+            statements_params_for_telemetry=statements_params_for_telemetry,
+            telemetry_json_string=telemetry_json_string,
+            _emit_ast=_emit_ast,
         )
 
-        data_fetching_thread_pool_executor = None
-        data_fetching_thread_stop_event = None
-        workers = []
-        try:
-            # Determine the number of processes or threads to use
-            max_workers = max_workers or os.cpu_count()
-            queue_class = mp.Queue if fetch_with_process else queue.Queue
-            process_or_thread_error_indicator = queue_class()
-            # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
-            partition_queue = queue_class()
-            # a queue of parquet BytesIO objects to be uploaded
-            # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
-            # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
-            parquet_queue = queue_class(_MAX_WORKER_SCALE * max_workers)
-            for partition_idx, query in enumerate(partitioned_queries):
-                partition_queue.put((partition_idx, query))
-
-            # Start worker processes
-            logger.debug(
-                f"Starting {max_workers} worker processes to fetch data from the data source."
-            )
-
-            fetch_to_local_start_time = time.perf_counter()
-            logger.debug(f"fetch to local start at: {fetch_to_local_start_time}")
-
-            if fetch_with_process:
-                for _worker_id in range(max_workers):
-                    process = mp.Process(
-                        target=worker_process,
-                        args=(
-                            partition_queue,
-                            parquet_queue,
-                            process_or_thread_error_indicator,
-                            partitioner.reader(),
-                        ),
-                    )
-                    process.start()
-                    workers.append(process)
-            else:
-                data_fetching_thread_pool_executor = ThreadPoolExecutor(
-                    max_workers=max_workers
-                )
-                data_fetching_thread_stop_event = threading.Event()
-                workers = [
-                    data_fetching_thread_pool_executor.submit(
-                        worker_process,
-                        partition_queue,
-                        parquet_queue,
-                        process_or_thread_error_indicator,
-                        partitioner.reader(),
-                        data_fetching_thread_stop_event,
-                    )
-                    for _worker_id in range(max_workers)
-                ]
-
-            # Process BytesIO objects from queue and upload them using utility method
-            (
-                fetch_to_local_end_time,
-                upload_to_sf_start_time,
-                upload_to_sf_end_time,
-            ) = process_parquet_queue_with_threads(
-                session=self._session,
-                parquet_queue=parquet_queue,
-                process_or_thread_error_indicator=process_or_thread_error_indicator,
-                workers=workers,
-                total_partitions=len(partitioned_queries),
-                snowflake_stage_name=snowflake_stage_name,
-                snowflake_table_name=snowflake_table_name,
-                max_workers=max_workers,
-                statements_params=statements_params_for_telemetry,
-                on_error="abort_statement",
-                fetch_with_process=fetch_with_process,
-            )
-            logger.debug(f"upload and copy into start at: {upload_to_sf_start_time}")
-            logger.debug(
-                f"fetch to local total time: {fetch_to_local_end_time - fetch_to_local_start_time}"
-            )
-
-            telemetry_json_string["fetch_to_local_duration"] = (
-                fetch_to_local_end_time - fetch_to_local_start_time
-            )
-            telemetry_json_string["upload_and_copy_into_sf_table_duration"] = (
-                upload_to_sf_end_time - upload_to_sf_start_time
-            )
-
-        except BaseException as exc:
-            if fetch_with_process:
-                # Graceful shutdown - terminate all processes
-                for process in workers:
-                    if process.is_alive():
-                        process.terminate()
-                        process.join(timeout=5)
-            else:
-                if data_fetching_thread_stop_event:
-                    data_fetching_thread_stop_event.set()
-                for future in workers:
-                    if not future.done():
-                        future.cancel()
-                        logger.debug(
-                            f"Cancelled a remaining data fetching future {future} due to error in another thread."
-                        )
-
-            if isinstance(exc, SnowparkDataframeReaderException):
-                raise exc
-
-            raise SnowparkDataframeReaderException(
-                f"Error occurred while ingesting data from the data source: {exc!r}"
-            )
-        finally:
-            if data_fetching_thread_pool_executor:
-                data_fetching_thread_pool_executor.shutdown(wait=True)
-
-        logger.debug("All data has been successfully loaded into the Snowflake table.")
         end_time = time.perf_counter()
         telemetry_json_string["end_to_end_duration"] = end_time - start_time
 

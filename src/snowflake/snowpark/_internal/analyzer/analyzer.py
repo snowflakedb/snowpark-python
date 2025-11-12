@@ -28,6 +28,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     like_expression,
     list_agg,
     model_expression,
+    service_expression,
     named_arguments_function,
     order_expression,
     range_statement,
@@ -74,6 +75,7 @@ from snowflake.snowpark._internal.analyzer.expression import (
     ListAgg,
     Literal,
     ModelExpression,
+    ServiceExpression,
     MultipleExpression,
     NamedExpression,
     NamedFunctionExpression,
@@ -112,7 +114,10 @@ from snowflake.snowpark._internal.analyzer.snowflake_plan_node import (
     SnowflakeTable,
     SnowflakeValues,
 )
-from snowflake.snowpark._internal.analyzer.sort_expression import SortOrder
+from snowflake.snowpark._internal.analyzer.sort_expression import (
+    SortOrder,
+    SortByAllOrder,
+)
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
     GeneratorTableFunction,
@@ -430,6 +435,16 @@ class Analyzer:
                 ],
             )
 
+        if isinstance(expr, ServiceExpression):
+            return service_expression(
+                expr.service_name,
+                expr.method_name,
+                [
+                    self.to_sql_try_avoid_cast(c, df_aliased_col_name_to_real_col_name)
+                    for c in expr.children
+                ],
+            )
+
         if isinstance(expr, FunctionExpression):
             if expr.api_call_source is not None:
                 self.session._conn._telemetry_client.send_function_usage_telemetry(
@@ -542,6 +557,13 @@ class Analyzer:
                     df_aliased_col_name_to_real_col_name,
                     parse_local_name,
                 ),
+                expr.direction.sql,
+                expr.null_ordering.sql,
+            )
+
+        if isinstance(expr, SortByAllOrder):
+            return order_expression(
+                "ALL",
                 expr.direction.sql,
                 expr.null_ordering.sql,
             )

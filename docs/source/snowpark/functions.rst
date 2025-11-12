@@ -33,6 +33,7 @@ Functions
     ai_similarity
     ai_summarize_agg
     ai_transcribe
+    ai_translate
     any_value
     all_user_names
     approx_count_distinct
@@ -97,6 +98,7 @@ Functions
     avg
     base64
     base64_decode_string
+    base64_decode_binary
     base64_encode
     bit_length
     bitand
@@ -113,9 +115,11 @@ Functions
     bitxor_agg
     boolor_agg
     booland
+    booland_agg
     boolnot
     boolor
     boolxor
+    boolxor_agg
     build_stage_file_url
     builtin
     bround
@@ -138,6 +142,7 @@ Functions
     collect_list
     collect_set
     column
+    compress
     concat
     concat_ws
     contains
@@ -150,6 +155,7 @@ Functions
     count_distinct
     covar_pop
     covar_samp
+    cot
     create_map
     cume_dist
     current_account
@@ -189,6 +195,8 @@ Functions
     dayofweek
     dayofyear
     decode
+    decompress_binary
+    decompress_string
     degrees
     dense_rank
     desc
@@ -264,6 +272,16 @@ Functions
     h3_try_polygon_to_cells
     h3_uncompact_cells
     h3_uncompact_cells_strings
+    h3_grid_path
+    h3_is_pentagon
+    h3_is_valid_cell
+    h3_latlng_to_cell
+    h3_latlng_to_cell_string
+    h3_point_to_cell
+    h3_point_to_cell_string
+    h3_try_coverage
+    h3_try_coverage_strings
+    h3_try_grid_distance
     iff
     ifnull
     in_
@@ -326,14 +344,22 @@ Functions
     map_concat
     map_contains_key
     map_keys
+    map_delete
+    map_insert
+    map_pick
+    map_size
     max
     max_by
     md5
     mean
     median
+    md5_binary
+    md5_number_lower64
+    md5_number_upper64
     min
     min_by
     minute
+    mod
     mode
     model
     monotonically_increasing_id
@@ -367,6 +393,7 @@ Functions
     percentile_cont
     position
     pow
+    pi
     previous_day
     prompt
     quarter
@@ -387,6 +414,7 @@ Functions
     regr_sxy
     regr_syy
     regr_valx
+    regr_valy
     repeat
     replace
     right
@@ -400,8 +428,11 @@ Functions
     seq4
     seq8
     sequence
+    service
     sha1
+    sha1_binary
     sha2
+    sha2_binary
     sin
     sinh
     size
@@ -410,9 +441,11 @@ Functions
     snowflake_cortex_summarize
     sort_array
     soundex
+    soundex_p123
     split
     sproc
     sql_expr
+    square
     sqrt
     startswith
     stddev
@@ -426,6 +459,67 @@ Functions
     st_asewkt
     st_asgeojson
     st_aswkb
+    st_aswkt
+    st_azimuth
+    st_buffer
+    st_centroid
+    st_collect
+    st_contains
+    st_coveredby
+    st_covers
+    st_difference
+    st_dimension
+    st_disjoint
+    st_distance
+    st_dwithin
+    st_endpoint
+    st_envelope
+    st_geohash
+    st_geomfromgeohash
+    st_geompointfromgeohash
+    st_hausdorffdistance
+    st_makepoint
+    st_interpolate
+    st_intersection
+    st_intersection_agg
+    st_intersects
+    st_isvalid
+    st_length
+    st_makegeompoint
+    st_makeline
+    st_makepolygon
+    st_makepolygonoriented
+    st_npoints
+    st_perimeter
+    st_pointn
+    st_setsrid
+    st_simplify
+    st_srid
+    st_startpoint
+    st_symdifference
+    st_transform
+    st_union
+    st_union_agg
+    st_within
+    st_x
+    st_xmax
+    st_xmin
+    st_y
+    st_ymax
+    st_ymin
+    st_geogfromgeohash
+    st_geogpointfromgeohash
+    st_geographyfromwkb
+    st_geographyfromwkt
+    st_geometryfromwkb
+    st_geometryfromwkt
+    strtok
+    try_base64_decode_binary
+    try_base64_decode_string
+    try_hex_decode_binary
+    try_hex_decode_string
+    try_to_geography
+    try_to_geometry
     substr
     substring
     sum
@@ -469,6 +563,8 @@ Functions
     udf
     udtf
     unbase64
+    unicode
+    uuid_string
     uniform
     unix_timestamp
     upper
@@ -479,6 +575,7 @@ Functions
     vector_inner_product
     vector_l2_distance
     weekofyear
+    width_bucket
     when
     when_matched
     when_not_matched
@@ -494,3 +591,4 @@ Functions
     xpath_short
     xpath_string
     year
+    zeroifnull

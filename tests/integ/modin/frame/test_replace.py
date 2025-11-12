@@ -23,6 +23,46 @@ def snow_df():
     )
 
 
+@sql_count_checker(query_count=3)
+def test_replace_SNOW_2390752_dataframe():
+    native_df = native_pd.DataFrame(
+        {
+            "col1": ["one", "two", "two", "three", "two", "four"],
+            "col2": [
+                "abc",
+                "pqr",
+                "xyz",
+                None,
+                "pqr",
+                "xyz",
+            ],
+        }
+    )
+    snow_df = pd.DataFrame(native_df)
+    modin_df = snow_df.move_to("Pandas")
+    assert modin_df.get_backend() == "Pandas"
+
+    eval_snowpark_pandas_result(
+        snow_df, native_df, lambda df: df["col1"].replace(["two"], ["a"])
+    )
+    snow_result = snow_df["col1"].replace(["two"], ["a"])
+    modin_result = modin_df["col1"].replace(["two"], ["a"])
+    assert modin_result.to_pandas().equals(snow_result.to_pandas())
+
+
+@sql_count_checker(query_count=3, join_count=2)
+def test_replace_SNOW_2390752_series():
+    input_dict_native = native_pd.Series(
+        {"a": "apple", "socks": "socks are darned", "b": "bee"}
+    )
+    input_dict = pd.Series(input_dict_native)
+    input_dict_pandas_modin = input_dict.move_to("Pandas")
+    assert input_dict_pandas_modin.get_backend() == "Pandas"
+    expected = input_dict_native["socks"].replace("darned", "clean")
+    assert input_dict["socks"].replace("darned", "clean") == expected
+    assert input_dict_pandas_modin["socks"].replace("darned", "clean") == expected
+
+
 @pytest.mark.parametrize(
     "to_replace, value",
     [

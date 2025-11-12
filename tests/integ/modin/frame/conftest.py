@@ -65,7 +65,7 @@ arrays_for_multiindex = [
 simple_data = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11]]
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def score_test_data():
     return {
         "name": ["Alice", "Bob", "Bob"],

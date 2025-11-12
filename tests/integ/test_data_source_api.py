@@ -79,7 +79,7 @@ from tests.resources.test_data_source_dir.test_data_source_data import (
     sql_server_create_connection_unicode_data,
     sql_server_create_connection_double_quoted_data,
 )
-from tests.utils import Utils, IS_WINDOWS
+from tests.utils import Utils, IS_WINDOWS, RUNNING_ON_JENKINS
 
 try:
     import pandas  # noqa: F401
@@ -210,6 +210,29 @@ def test_dbapi_retry(session, fetch_with_process):
         assert mock_task.call_count == _MAX_RETRY_TIME
 
 
+@pytest.mark.parametrize("fetch_with_process", [True, False])
+def test_dbapi_non_retryable_error(session, fetch_with_process):
+    with mock.patch(
+        "snowflake.snowpark._internal.data_source.utils._task_fetch_data_from_source",
+        side_effect=SnowparkDataframeReaderException("mock error"),
+    ) as mock_task:
+        mock_task.__name__ = "_task_fetch_from_data_source"
+        parquet_queue = multiprocessing.Queue() if fetch_with_process else queue.Queue()
+        with pytest.raises(SnowparkDataframeReaderException, match="mock error"):
+            _task_fetch_data_from_source_with_retry(
+                worker=DataSourceReader(
+                    PyodbcDriver,
+                    sql_server_create_connection,
+                    StructType([StructField("col1", IntegerType(), False)]),
+                    DBMS_TYPE.SQL_SERVER_DB,
+                ),
+                partition="SELECT * FROM test_table",
+                partition_idx=0,
+                parquet_queue=parquet_queue,
+            )
+        assert mock_task.call_count == 1
+
+
 @pytest.mark.skipif(
     IS_WINDOWS,
     reason="sqlite3 file can not be shared across processes on windows",
@@ -253,10 +276,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             15,
             4,
             [
-                "SELECT ID FROM fake_table WHERE ID < '8' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '10'",
-                "SELECT ID FROM fake_table WHERE ID >= '10' AND ID < '12'",
-                "SELECT ID FROM fake_table WHERE ID >= '12'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '8' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '8' AND ID < '10'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '10' AND ID < '12'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '12'",
             ],
         ),
         (
@@ -267,10 +290,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             5,
             4,
             [
-                "SELECT ID FROM fake_table WHERE ID < '-2' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '-2' AND ID < '0'",
-                "SELECT ID FROM fake_table WHERE ID >= '0' AND ID < '2'",
-                "SELECT ID FROM fake_table WHERE ID >= '2'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '-2' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '-2' AND ID < '0'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '0' AND ID < '2'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '2'",
             ],
         ),
         (
@@ -281,16 +304,16 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             15,
             10,
             [
-                "SELECT ID FROM fake_table WHERE ID < '6' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '6' AND ID < '7'",
-                "SELECT ID FROM fake_table WHERE ID >= '7' AND ID < '8'",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '9'",
-                "SELECT ID FROM fake_table WHERE ID >= '9' AND ID < '10'",
-                "SELECT ID FROM fake_table WHERE ID >= '10' AND ID < '11'",
-                "SELECT ID FROM fake_table WHERE ID >= '11' AND ID < '12'",
-                "SELECT ID FROM fake_table WHERE ID >= '12' AND ID < '13'",
-                "SELECT ID FROM fake_table WHERE ID >= '13' AND ID < '14'",
-                "SELECT ID FROM fake_table WHERE ID >= '14'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '6' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '6' AND ID < '7'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '7' AND ID < '8'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '8' AND ID < '9'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '9' AND ID < '10'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '10' AND ID < '11'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '11' AND ID < '12'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '12' AND ID < '13'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '13' AND ID < '14'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '14'",
             ],
         ),
         (
@@ -301,9 +324,9 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             15,
             3,
             [
-                "SELECT ID FROM fake_table WHERE ID < '8' OR ID is null",
-                "SELECT ID FROM fake_table WHERE ID >= '8' AND ID < '11'",
-                "SELECT ID FROM fake_table WHERE ID >= '11'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID < '8' OR ID is null",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '8' AND ID < '11'",
+                "SELECT \"ID\" FROM fake_table  WHERE ID >= '11'",
             ],
         ),
         (
@@ -314,10 +337,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             str(datetime.date(2020, 12, 15)),
             4,
             [
-                "SELECT DATE FROM fake_table WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-10-30 06:00:00+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE < '2020-07-30 18:00:00+00:00' OR DATE is null",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-07-30 18:00:00+00:00' AND DATE < '2020-09-14 12:00:00+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-09-14 12:00:00+00:00' AND DATE < '2020-10-30 06:00:00+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-10-30 06:00:00+00:00'",
             ],
         ),
         (
@@ -328,10 +351,10 @@ def test_parallel(session, upper_bound, expected_upload_cnt, fetch_with_process)
             str(datetime.datetime(2020, 12, 15, 7, 8, 20)),
             4,
             [
-                "SELECT DATE FROM fake_table WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
-                "SELECT DATE FROM fake_table WHERE DATE >= '2020-10-30 14:27:37+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE < '2020-07-31 05:06:13+00:00' OR DATE is null",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-07-31 05:06:13+00:00' AND DATE < '2020-09-14 21:46:55+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-09-14 21:46:55+00:00' AND DATE < '2020-10-30 14:27:37+00:00'",
+                "SELECT \"DATE\" FROM fake_table  WHERE DATE >= '2020-10-30 14:27:37+00:00'",
             ],
         ),
     ],
@@ -387,7 +410,7 @@ def test_partition_unsupported_type(session):
 
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
-def test_telemetry(session, fetch_with_process):
+def test_telemetry(session, fetch_with_process, caplog):
     with patch(
         "snowflake.snowpark._internal.telemetry.TelemetryClient.send_data_source_perf_telemetry"
     ) as mock_telemetry:
@@ -406,6 +429,14 @@ def test_telemetry(session, fetch_with_process):
     assert "upload_and_copy_into_sf_table_duration" in telemetry_json
     assert "end_to_end_duration" in telemetry_json
 
+    assert "upload and copy into table start" in caplog.text
+    if not fetch_with_process:
+        assert "fetch start" in caplog.text
+
+    assert "upload and copy into table finished, used" in caplog.text
+    if not fetch_with_process:
+        assert "fetch finished, used" in caplog.text
+
 
 @pytest.mark.parametrize("fetch_with_process", [True, False])
 def test_telemetry_tracking(caplog, session, fetch_with_process):
@@ -413,7 +444,7 @@ def test_telemetry_tracking(caplog, session, fetch_with_process):
     called, comment_showed = 0, 0
 
     def assert_datasource_statement_params_run_query(*args, **kwargs):
-        # assert we set statement_parameters to track datasourcee api usage
+        # assert we set statement_parameters to track datasource api usage
         nonlocal comment_showed
         statement_parameters = kwargs.get("_statement_params")
         query = args[0]
@@ -463,6 +494,68 @@ def test_telemetry_tracking(caplog, session, fetch_with_process):
             single=True,
         )
         assert called == 2
+
+
+@pytest.mark.skipif(
+    RUNNING_ON_JENKINS,
+    reason="SNOW-2089683: oracledb real connection test failed on jenkins",
+)
+def test_telemetry_tracking_for_udtf(caplog, session, ast_enabled):
+
+    if ast_enabled:
+        pytest.skip("TODO: dbapi has not implemented ast yet, skip the test for now")
+    original_func = session._conn.run_query
+    called = 0
+
+    def assert_datasource_statement_params_run_query(*args, **kwargs):
+        # assert we set statement_parameters to track datasource udtf api usage
+        query = args[0]
+        if not query.lower().startswith("put"):
+            assert kwargs.get("_statement_params")[STATEMENT_PARAMS_DATA_SOURCE] == "1"
+        nonlocal called
+        called += 1
+        return original_func(*args, **kwargs)
+
+    def create_connection():
+        class FakeConnection:
+            def cursor(self):
+                class FakeCursor:
+                    def execute(self, query):
+                        pass
+
+                    @property
+                    def description(self):
+                        return [("c1", int, None, None, None, None, None)]
+
+                    def fetchmany(self, *args, **kwargs):
+                        return None
+
+                return FakeCursor()
+
+        return FakeConnection()
+
+    with mock.patch(
+        "snowflake.snowpark._internal.server_connection.ServerConnection.run_query",
+        side_effect=assert_datasource_statement_params_run_query,
+    ):
+        df = session.read.dbapi(
+            create_connection,
+            table="Fake",
+            custom_schema="c1 INT",
+            udtf_configs={
+                "external_access_integration": ORACLEDB_TEST_EXTERNAL_ACCESS_INTEGRATION,
+                "packages": ["snowflake-snowpark-python"],
+            },
+        )
+        df.select("*").collect()
+    # called 7/8 times coming from:
+    # 1. dbapi internal save empty table: 1 time
+    # 2. dbapi register UDTF: 5/6 times depending on python versions (operations entailing stage, package, registration)
+    #   the delta is due to different python versions will do registration differently: inline or upload to stage
+    # 3. select: 1 time
+    assert (
+        "'name': 'DataFrameReader.dbapi'" in str(df._plan.api_calls[0]) and called >= 7
+    )
 
 
 @pytest.mark.skipif(
@@ -516,9 +609,9 @@ def test_predicates():
         mock_schema.return_value = StructType([StructField("ID", IntegerType(), False)])
         queries = partitioner.partitions
         expected_result = [
-            "SELECT ID FROM fake_table WHERE id > 1 AND id <= 1000",
-            "SELECT ID FROM fake_table WHERE id > 1001 AND id <= 2000",
-            "SELECT ID FROM fake_table WHERE id > 2001",
+            'SELECT "ID" FROM fake_table  WHERE id > 1 AND id <= 1000',
+            'SELECT "ID" FROM fake_table  WHERE id > 1001 AND id <= 2000',
+            'SELECT "ID" FROM fake_table  WHERE id > 2001',
         ]
         assert queries == expected_result
 
@@ -1255,7 +1348,7 @@ def test_graceful_shutdown_on_worker_process_error(session):
         with mock.patch.object(
             multiprocessing.Process, "__init__", track_process_init
         ), mock.patch(
-            "snowflake.snowpark.dataframe_reader.process_parquet_queue_with_threads",
+            "snowflake.snowpark._internal.data_source.utils.process_parquet_queue_with_threads",
             side_effect=RuntimeError("Simulated error in queue processing"),
         ):
 
@@ -1727,3 +1820,105 @@ def test_base_driver_udtf_class_builder():
 
         # Verify we got some data back (we know the test table has data from other tests)
         assert len(result_rows) > 0
+
+
+@pytest.mark.skipif(
+    IS_WINDOWS,
+    reason="sqlite3 file can not be shared across processes on windows",
+)
+def test_dbapi_with_connection_parameters(session):
+    """Test that connection_parameters are correctly passed to create_connection callable."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        dbpath = os.path.join(temp_dir, "test_connection_params.db")
+        table_name, _, _, assert_data = sqlite3_db(dbpath)
+
+        # Test 1: Function with keyword arguments
+        def create_connection_with_kwargs(timeout=5.0, isolation_level=None, **kwargs):
+            import sqlite3
+
+            assert (
+                timeout == 30.0
+                and isolation_level == "DEFERRED"
+                and kwargs.get("extra") == 123
+            )
+            return sqlite3.connect(
+                database=dbpath, timeout=timeout, isolation_level=isolation_level
+            )
+
+        connection_params = {
+            "timeout": 30.0,
+            "isolation_level": "DEFERRED",
+            "extra": 123,
+        }
+
+        df = session.read.dbapi(
+            create_connection_with_kwargs,
+            table=table_name,
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+            connection_parameters=connection_params,
+        )
+        result = df.order_by("ID").collect()
+        assert result == assert_data
+
+        # Test 2: Empty dict should not pass parameters
+
+        def create_connection_check_empty(**kwargs):
+            import sqlite3
+
+            assert not kwargs, f"Expected no kwargs, but got: {kwargs}"
+            return sqlite3.connect(dbpath)
+
+        df4 = session.read.dbapi(
+            create_connection_check_empty,
+            table=table_name,
+            custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+            connection_parameters={},
+        )
+        result4 = df4.order_by("ID").collect()
+        assert result4 == assert_data
+
+        # Test 3: Function without parameters should raise TypeError
+        def create_connection_check_no_params():
+            import sqlite3
+
+            return sqlite3.connect(dbpath)
+
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            session.read.dbapi(
+                create_connection_check_no_params,
+                table=table_name,
+                custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                connection_parameters={"key": "value"},
+            )
+
+        with pytest.raises(TypeError, match="unexpected keyword argument"):
+            session.read.dbapi(
+                create_connection_check_no_params,
+                table=table_name,
+                custom_schema=SQLITE3_DB_CUSTOM_SCHEMA_STRING,
+                connection_parameters={"key": "value"},
+                udtf_configs={"external_access_integration": "test_integration"},
+            )
+
+
+def test_oracledb_v34():
+    class MockOracleConnectionV33:
+        __module__ = "oracledb"
+
+    # Version for 3.4 or higher
+    class MockOracleConnectionV34:
+        __module__ = "oracledb.connection"
+
+    def create_mock_oracledb_v33_or_lower():
+        return MockOracleConnectionV33()
+
+    def create_mock_oracledb_v34_or_higher():
+        return MockOracleConnectionV34()
+
+    dbms_type, driver_type = detect_dbms(create_mock_oracledb_v33_or_lower())
+    assert dbms_type == DBMS_TYPE.ORACLE_DB
+    assert driver_type == DRIVER_TYPE.ORACLEDB
+
+    dbms_type, driver_type = detect_dbms(create_mock_oracledb_v34_or_higher())
+    assert dbms_type == DBMS_TYPE.ORACLE_DB
+    assert driver_type == DRIVER_TYPE.ORACLEDB

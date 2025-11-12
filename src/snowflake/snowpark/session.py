@@ -44,6 +44,8 @@ import snowflake.snowpark.context as context
 from snowflake.connector import ProgrammingError, SnowflakeConnection
 from snowflake.connector.options import installed_pandas, pandas, pyarrow
 from snowflake.connector.pandas_tools import write_pandas
+
+from snowflake.snowpark import UDFProfiler
 from snowflake.snowpark._internal.analyzer import analyzer_utils
 from snowflake.snowpark._internal.analyzer.analyzer import Analyzer
 from snowflake.snowpark._internal.analyzer.analyzer_utils import (
@@ -78,6 +80,7 @@ from snowflake.snowpark._internal.ast.utils import (
     with_src_position,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
+from snowflake.snowpark._internal.event_table_telemetry import EventTableTelemetry
 from snowflake.snowpark._internal.packaging_utils import (
     DEFAULT_PACKAGES,
     ENVIRONMENT_METADATA_FILE_NAME,
@@ -751,21 +754,24 @@ class Session:
 
         self._dummy_row_pos_optimization_enabled: bool = (
             self._conn._get_client_side_session_parameter(
-                _SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED, True
+                _SNOWPARK_PANDAS_DUMMY_ROW_POS_OPTIMIZATION_ENABLED, False
             )
         )
 
-        if importlib.util.find_spec("modin"):
+        if "modin" in sys.modules:
             try:
                 from modin.config import AutoSwitchBackend
 
-                pandas_hybrid_execution_enabled: bool = (
-                    self._conn._get_client_side_session_parameter(
-                        _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED,
-                        AutoSwitchBackend().get(),
-                    )
+                pandas_hybrid_execution_enabled: Union[
+                    bool, None
+                ] = self._conn._get_client_side_session_parameter(
+                    _SNOWPARK_PANDAS_HYBRID_EXECUTION_ENABLED, None
                 )
-                AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
+                # Only set AutoSwitchBackend if the session parameter was already set.
+                # snowflake.snowpark.modin.plugin sets AutoSwitchBackend to True if it was
+                # not already set, so we should not change the variable if it's in its default state.
+                if pandas_hybrid_execution_enabled is not None:
+                    AutoSwitchBackend.put(pandas_hybrid_execution_enabled)
             except Exception:
                 # Continue session initialization even if Modin configuration fails
                 pass
@@ -804,8 +810,10 @@ class Session:
         self._runtime_version_from_requirement: str = None
         self._temp_table_auto_cleaner: TempTableAutoCleaner = TempTableAutoCleaner(self)
         self._sp_profiler = StoredProcedureProfiler(session=self)
+        self._udf_profiler = UDFProfiler(session=self)
         self._dataframe_profiler = DataframeProfiler(session=self)
         self._catalog = None
+        self._client_telemetry = EventTableTelemetry(session=self)
 
         self._ast_batch = AstBatch(self)
 
@@ -822,6 +830,7 @@ class Session:
         """
         with _session_management_lock:
             try:
+                self._client_telemetry._opentelemetry_shutdown()
                 self.close()
             except Exception:
                 pass
@@ -1113,7 +1122,6 @@ class Session:
             self._sql_simplifier_enabled = value
 
     @cte_optimization_enabled.setter
-    @experimental_parameter(version="1.15.0")
     def cte_optimization_enabled(self, value: bool) -> None:
         warn_session_config_update_in_multithreaded_mode("cte_optimization_enabled")
 
@@ -1730,8 +1738,10 @@ class Session:
             >>> from snowflake.snowpark.functions import udf
             >>> import numpy
             >>> import pandas
+            >>> import sys
             >>> # test_requirements.txt contains "numpy" and "pandas"
-            >>> session.add_requirements("tests/resources/test_requirements.txt")
+            >>> file = "test_requirements.txt" if sys.version_info < (3, 13) else "test_requirements_py313.txt"
+            >>> session.add_requirements(f"tests/resources/{file}")
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
@@ -1884,6 +1894,7 @@ class Session:
         package_table: str,
         current_packages: Dict[str, str],
         statement_params: Optional[Dict[str, str]] = None,
+        suppress_local_package_warnings: bool = False,
     ) -> List[Requirement]:
         # Keep track of any package errors
         errors = []
@@ -1979,24 +1990,27 @@ class Session:
                         if not is_valid_version(
                             package_name, package_client_version, valid_packages
                         ):
-                            _logger.warning(
-                                f"The version of package '{package_name}' in the local environment is "
-                                f"{package_client_version}, which does not fit the criteria for the "
-                                f"requirement '{package}'. Your UDF might not work when the package version "
-                                f"is different between the server and your local environment."
-                            )
+                            if not suppress_local_package_warnings:
+                                _logger.warning(
+                                    f"The version of package '{package_name}' in the local environment is "
+                                    f"{package_client_version}, which does not fit the criteria for the "
+                                    f"requirement '{package}'. Your UDF might not work when the package version "
+                                    f"is different between the server and your local environment."
+                                )
                     except importlib.metadata.PackageNotFoundError:
-                        _logger.warning(
-                            f"Package '{package_name}' is not installed in the local environment. "
-                            f"Your UDF might not work when the package is installed on the server "
-                            f"but not on your local environment."
-                        )
+                        if not suppress_local_package_warnings:
+                            _logger.warning(
+                                f"Package '{package_name}' is not installed in the local environment. "
+                                f"Your UDF might not work when the package is installed on the server "
+                                f"but not on your local environment."
+                            )
                     except Exception as ex:  # pragma: no cover
-                        _logger.warning(
-                            "Failed to get the local distribution of package %s: %s",
-                            package_name,
-                            ex,
-                        )
+                        if not suppress_local_package_warnings:
+                            _logger.warning(
+                                "Failed to get the local distribution of package %s: %s",
+                                package_name,
+                                ex,
+                            )
 
             if package_name in current_packages:
                 if current_packages[package_name] != package:
@@ -2071,6 +2085,7 @@ class Session:
         include_pandas: bool = False,
         statement_params: Optional[Dict[str, str]] = None,
         artifact_repository: Optional[str] = None,
+        **kwargs,
     ) -> List[str]:
         """
         Given a list of packages to add, this method will
@@ -2154,6 +2169,9 @@ class Session:
                 package_table,
                 result_dict,
                 statement_params=statement_params,
+                suppress_local_package_warnings=kwargs.get(
+                    "_suppress_local_package_warnings", False
+                ),
             )
 
             # Add dependency packages
@@ -4302,6 +4320,65 @@ class Session:
         return self._sp_profiler
 
     @property
+    def client_telemetry(self) -> EventTableTelemetry:
+        """
+        Returns a :class:`event_table_telemetry.EventTableTelemetry` object that you can use to send telemetry to snowflake event table.
+        See details of how to use this object in :class:`event_table_telemetry.EventTableTelemetry`.
+
+        `Session.client_telemetry` object enable user to send telemetry to designated event table
+        when necessary dependencies are installed. Only traces and logs between
+        `client_telemetry.enable_event_table_telemetry_collection` and `client_telemetry.disable_event_table_telemetry_collection`
+        will be sent to event table. You can call `client_telemetry.enable_event_table_telemetry_collection` again to re-enable external
+        telemetry after it is turned off.
+
+        Note:
+            This function requires the `opentelemetry` extra from Snowpark.
+            Install it via pip:
+                .. code-block:: bash
+
+                pip install "snowflake-snowpark-python[opentelemetry]"
+
+        Examples 1
+            .. code-block:: python
+
+            ext = session.client_telemetry
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.INFO, True)
+            tracer = trace.get_tracer("my_tracer")
+            with tracer.start_as_current_span("code_store") as span:
+                span.set_attribute("code.lineno", "21")
+                span.set_attribute("code.content", "session.sql(...)")
+                logging.info("Trace being sent to event table")
+            ext.disable_event_table_telemetry_collection()
+
+        Examples 2
+            .. code-block:: python
+
+            ext = session.client_telemetry
+            logging.info("log before enable external telemetry") # this log is not sent to event table
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.INFO, True)
+            tracer = trace.get_tracer("my_tracer")
+            with tracer.start_as_current_span("code_store") as span:
+                 span.set_attribute("code.lineno", "21")
+                span.set_attribute("code.content", "session.sql(...)")
+                logging.info("Trace being sent to event table")
+            ext.disable_event_table_telemetry_collection()
+            logging.info("out of scope log")  # this log is not sent to event table
+            ext.enable_event_table_telemetry_collection("snowflake.telemetry.events", logging.DEBUG, True)
+            logging.debug("debug log") # this log is sent to event table because external telemetry is re-enabled
+            ext.disable_event_table_telemetry_collection()
+
+        """
+        return self._client_telemetry
+
+    @property
+    def udf_profiler(self) -> UDFProfiler:
+        """
+        Returns a :class:`udf_profiler.UDFProfiler` object that you can use to profile UDFs.
+        See details of how to use this object in :class:`udf_profiler.UDFProfiler`.
+        """
+        return self._udf_profiler
+
+    @property
     def dataframe_profiler(self) -> DataframeProfiler:
         """
         Returns a :class:`dataframe_profiler.DataframeProfiler` object that you can use to profile dataframe operations.
@@ -4802,6 +4879,7 @@ class Session:
                     packages=["snowflake-snowpark-python", "lxml<6"],
                     replace=True,
                     _emit_ast=False,
+                    _suppress_local_package_warnings=True,
                 )
 
                 self._xpath_udf_cache[cache_key] = xpath_udf
@@ -4915,4 +4993,69 @@ class Session:
             f"SELECT * FROM DIRECTORY({stage_name})",
             _ast_stmt=stmt,
             _emit_ast=_emit_ast,
+        )
+
+    @publicapi
+    def begin_transaction(
+        self, name: Optional[str] = None, _emit_ast: bool = True
+    ) -> None:
+        """
+        Begins a new transaction in the current session.
+
+        Args:
+            name: Optional string that assigns a name to the transaction. A name helps
+                identify a transaction, but is not required and does not need to be unique.
+
+        Example::
+            >>> # Begin an anonymous transaction
+            >>> session.begin_transaction()
+
+            >>> # Begin a named transaction
+            >>> session.begin_transaction("my_transaction")
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            ast = with_src_position(stmt.expr.begin_transaction, stmt)
+            if name is not None:
+                ast.name.value = name
+
+        query = f"BEGIN TRANSACTION {('NAME ' + name) if name else ''}"
+        self.sql(query, _ast_stmt=stmt, _emit_ast=_emit_ast).collect(_emit_ast=False)
+
+    @publicapi
+    def commit(self, _emit_ast: bool = True) -> None:
+        """
+        Commits an open transaction in the current session.
+
+        Example::
+            >>> session.begin_transaction()
+            >>> session.commit()
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            with_src_position(stmt.expr.commit, stmt)
+
+        self.sql("COMMIT", _ast_stmt=stmt, _emit_ast=_emit_ast).collect(_emit_ast=False)
+
+    @publicapi
+    def rollback(self, _emit_ast: bool = True) -> None:
+        """
+        Rolls back an open transaction in the current session.
+
+        Example::
+            >>> session.begin_transaction()
+            >>> session.rollback()
+        """
+        # AST.
+        stmt = None
+        if _emit_ast:
+            stmt = self._ast_batch.bind()
+            with_src_position(stmt.expr.rollback, stmt)
+
+        self.sql("ROLLBACK", _ast_stmt=stmt, _emit_ast=_emit_ast).collect(
+            _emit_ast=False
         )
