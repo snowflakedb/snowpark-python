@@ -28,6 +28,7 @@ from tests.resources.test_data_source_dir.test_jdbc_data import (
     postgres_expected_data,
     MYSQL_SECRET,
     MYSQL_URL,
+    mysql_expected_data,
 )
 from tests.resources.test_data_source_dir.test_mysql_data import (
     MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION,
@@ -372,7 +373,7 @@ def test_connect_mysql(session, mysql_udtf_configs):
         udtf_configs=mysql_udtf_configs,
         query=MYSQL_SELECT_QUERY,
     ).order_by("ID")
-    print(df.collect())
+    assert df.collect() == mysql_expected_data
 
 
 def test_sql_server(session):
