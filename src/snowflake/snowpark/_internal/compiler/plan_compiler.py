@@ -206,8 +206,7 @@ class PlanCompiler:
         placeholders = {}
         # Final execution queries
         execution_queries = {}
-        for query_type, query_list in queries.items():
-            execution_queries[query_type] = []
+        for query_list in queries.values():
             for query in query_list:
                 # If the query contains a temp object name placeholder, we generate a random
                 # name for the temp object and add it to the placeholders dictionary.
@@ -219,7 +218,10 @@ class PlanCompiler:
                     placeholders[placeholder_name] = random_name_for_temp_object(
                         temp_obj_type
                     )
-
+        # This loop must be done in a separate pass to ensure a CREATE/DROP pair actually refer to the same object.
+        for query_type, query_list in queries.items():
+            execution_queries[query_type] = []
+            for query in query_list:
                 copied_query = copy.copy(query)
                 for placeholder_name, target_temp_name in placeholders.items():
                     # Copy the original query and replace all the placeholder names with the
