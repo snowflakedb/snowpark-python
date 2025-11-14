@@ -43,6 +43,10 @@
       - `square`
       - `width_bucket`
 
+#### Bug Fixes
+
+- Fixed a bug where automatically-generated temporary objects were not properly cleaned up.
+
 #### Improvements
 
 - Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
