@@ -848,6 +848,7 @@ def test_temp_name_placeholder_for_sync(db_parameters, thread_safe_enabled):
                 len(unique_create_table_queries) == expected_num_queries
             ), queries_sent
             assert len(unique_drop_table_queries) == expected_num_queries, queries_sent
+            assert unique_create_table_queries == unique_drop_table_queries
 
         finally:
             analyzer.ARRAY_BIND_THRESHOLD = original_value
@@ -913,6 +914,7 @@ def test_temp_name_placeholder_for_async(
 
     assert len(unique_create_file_format_queries) == 10
     assert len(unique_drop_file_format_queries) == 10
+    assert unique_create_file_format_queries == unique_drop_file_format_queries
 
 
 @pytest.mark.xfail(

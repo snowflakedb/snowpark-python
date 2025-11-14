@@ -216,10 +216,10 @@ class PlanCompiler:
                         placeholder_name,
                         temp_obj_type,
                     ) = query.temp_obj_name_placeholder
-                    placeholders[placeholder_name] = random_name_for_temp_object(
-                        temp_obj_type
-                    )
-
+                    if placeholder_name not in placeholders:
+                        placeholders[placeholder_name] = random_name_for_temp_object(
+                            temp_obj_type
+                        )
                 copied_query = copy.copy(query)
                 for placeholder_name, target_temp_name in placeholders.items():
                     # Copy the original query and replace all the placeholder names with the
