@@ -151,6 +151,7 @@ CHANGE_TRACKING = " CHANGE_TRACKING "
 EXTERNAL_VOLUME = " EXTERNAL_VOLUME "
 CATALOG = " CATALOG "
 BASE_LOCATION = " BASE_LOCATION "
+TARGET_FILE_SIZE = " TARGET_FILE_SIZE "
 CATALOG_SYNC = " CATALOG_SYNC "
 STORAGE_SERIALIZATION_POLICY = " STORAGE_SERIALIZATION_POLICY "
 REG_EXP = " REGEXP "
@@ -241,6 +242,7 @@ def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:
         EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
         CATALOG: iceberg_config.get("catalog", None),
         BASE_LOCATION: iceberg_config.get("base_location", None),
+        TARGET_FILE_SIZE: iceberg_config.get("target_file_size", "AUTO"),
         CATALOG_SYNC: iceberg_config.get("catalog_sync", None),
         STORAGE_SERIALIZATION_POLICY: iceberg_config.get(
             "storage_serialization_policy", None

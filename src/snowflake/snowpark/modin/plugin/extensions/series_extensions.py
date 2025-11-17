@@ -551,6 +551,9 @@ def to_iceberg(
 
             * base_location: the base directory that snowflake can write iceberg metadata and files to
 
+            * target_file_size: specifies a target Parquet file size for the table.
+                Valid values: 'AUTO' (default), '16MB', '32MB', '64MB', '128MB'
+
             * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
 
             * storage_serialization_policy: specifies the storage serialization policy for the table

@@ -238,6 +238,7 @@ def test_iceberg(session, local_testing_mode):
             "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
             "catalog": "SNOWFLAKE",
             "base_location": "snowpark_python_tests",
+            "target_file_size": "64MB",
             "iceberg_version": 3,
         },
     )
@@ -247,6 +248,15 @@ def test_iceberg(session, local_testing_mode):
             ddl[0][0]
             == f"create or replace ICEBERG TABLE {table_name} (\n\tA STRING,\n\tB LONG\n)\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
         )
+
+        params = session.sql(f"show parameters for table {table_name}").collect()
+        target_file_size_params = [
+            row for row in params if row["key"] == "TARGET_FILE_SIZE"
+        ]
+        assert (
+            len(target_file_size_params) > 0
+            and target_file_size_params[0]["value"] == "64MB"
+        ), f"Expected TARGET_FILE_SIZE='64MB', got '{target_file_size_params[0]['value']}'"
     finally:
         session.table(table_name).drop_table()
 

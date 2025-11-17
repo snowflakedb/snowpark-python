@@ -313,6 +313,9 @@ class DataFrameWriter:
 
                 * base_location: the base directory that snowflake can write iceberg metadata and files to
 
+                * target_file_size: specifies a target Parquet file size for the table.
+                    Valid values: 'AUTO' (default), '16MB', '32MB', '64MB', '128MB'
+
                 * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
 
                 * storage_serialization_policy: specifies the storage serialization policy for the table
@@ -349,6 +352,7 @@ class DataFrameWriter:
             ...     "catalog": "example_catalog",
             ...     "base_location": "/iceberg_root",
             ...     "storage_serialization_policy": "OPTIMIZED",
+            ...     "target_file_size": "128MB",
             ... }
             >>> df.write.mode("overwrite").save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
         """

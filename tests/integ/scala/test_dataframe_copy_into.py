@@ -276,6 +276,15 @@ def test_copy_into_csv_iceberg(
         )
         # Check that a copy_into works on the newly created table.
         df.copy_into_table(test_table_name)
+
+        params = session.sql(f"show parameters for table {test_table_name}").collect()
+        target_file_size_params = [
+            row for row in params if row["key"] == "TARGET_FILE_SIZE"
+        ]
+        assert (
+            len(target_file_size_params) > 0
+            and target_file_size_params[0]["value"] == "AUTO"
+        ), f"Expected TARGET_FILE_SIZE='AUTO', got '{target_file_size_params[0]['value']}'"
     finally:
         Utils.drop_table(session, test_table_name)
 
