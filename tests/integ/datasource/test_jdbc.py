@@ -411,7 +411,3 @@ def test_connect_sql_server(session, sql_server_udtf_configs):
         query=SQL_SERVER_QUERY,
     ).order_by("ID")
     assert df.collect() == sql_sever_expected_data
-
-
-def test_databricks(session):
-    pass
