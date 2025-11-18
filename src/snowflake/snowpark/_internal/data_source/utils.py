@@ -4,6 +4,7 @@
 import math
 import os
 import queue
+import re
 import time
 import traceback
 import threading
@@ -46,9 +47,14 @@ logger = logging.getLogger(__name__)
 _MAX_RETRY_TIME = 3
 _MAX_WORKER_SCALE = 2  # 2 * max_workers
 STATEMENT_PARAMS_DATA_SOURCE = "SNOWPARK_PYTHON_DATASOURCE"
+STATEMENT_PARAMS_DATA_SOURCE_JDBC = "SNOWPARK_PYTHON_DATASOURCE_JDBC"
 DATA_SOURCE_DBAPI_SIGNATURE = "DataFrameReader.dbapi"
+DATA_SOURCE_JDBC_SIGNATURE = "DataFrameReader.jdbc"
 DATA_SOURCE_SQL_COMMENT = (
     f"/* Python:snowflake.snowpark.{DATA_SOURCE_DBAPI_SIGNATURE} */"
+)
+DATA_SOURCE_JDBC_SQL_COMMENT = (
+    f"/* Python:snowflake.snowpark.{DATA_SOURCE_JDBC_SIGNATURE} */"
 )
 PARTITION_TASK_COMPLETE_SIGNAL_PREFIX = "PARTITION_COMPLETE_"
 PARTITION_TASK_ERROR_SIGNAL = "ERROR"
@@ -107,6 +113,25 @@ UDTF_PACKAGE_MAP = {
     ],
     DBMS_TYPE.MYSQL_DB: ["pymysql>=1.0.0,<2.0.0", "snowflake-snowpark-python"],
 }
+
+
+def get_jdbc_dbms(jdbc_url: str) -> str:
+    """
+    Extract the DBMS name from a JDBC connection URL.
+    """
+    if not jdbc_url.startswith("jdbc:"):
+        return "connection url does not start with jdbc"
+
+    # Extract the DBMS type (first component after "jdbc:")
+    match = re.match(r"^jdbc:([^:]+):", jdbc_url)
+    return match.group(1).lower() if match else None
+
+
+def get_jdbc_jar_file(imports: List[str]) -> str:
+    """
+    Extract the JDBC Jar used to establish jdbc connection.
+    """
+    pass
 
 
 def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, DRIVER_TYPE]:
