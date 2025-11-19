@@ -127,13 +127,6 @@ def get_jdbc_dbms(jdbc_url: str) -> str:
     return match.group(1).lower() if match else None
 
 
-def get_jdbc_jar_file(imports: List[str]) -> str:
-    """
-    Extract the JDBC Jar used to establish jdbc connection.
-    """
-    pass
-
-
 def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, DRIVER_TYPE]:
     """Detects the DBMS type from a DBAPI2 connection."""
 
