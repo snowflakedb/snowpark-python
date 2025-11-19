@@ -124,7 +124,7 @@ def get_jdbc_dbms(jdbc_url: str) -> str:
 
     # Extract the DBMS type (first component after "jdbc:")
     match = re.match(r"^jdbc:([^:]+):", jdbc_url)
-    return match.group(1).lower() if match else None
+    return match.group(1).lower() if match else "unrecognized DBMS"
 
 
 def detect_dbms(dbapi2_conn) -> Tuple[DBMS_TYPE, DRIVER_TYPE]:
