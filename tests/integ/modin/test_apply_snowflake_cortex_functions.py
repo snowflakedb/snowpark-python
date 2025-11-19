@@ -16,7 +16,7 @@ Sentiment = cortex.Sentiment
 Summarize = cortex.Summarize
 Translate = cortex.Translate
 ClassifyText = cortex.ClassifyText
-Complete = cortex.Complete
+Complete = cortex.complete
 ExtractAnswer = cortex.ExtractAnswer
 
 
