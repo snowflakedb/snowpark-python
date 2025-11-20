@@ -12,12 +12,12 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 # snowflake-ml-python, which provides snowflake.cortex, may not be available in
 # the test environment. If it's not available, skip all tests in this module.
 cortex = pytest.importorskip("snowflake.cortex")
-Sentiment = cortex.Sentiment
-Summarize = cortex.Summarize
-Translate = cortex.Translate
-ClassifyText = cortex.ClassifyText
+Sentiment = cortex.sentiment
+Summarize = cortex.summarize
+Translate = cortex.translate
+ClassifyText = cortex.classify_text
 Complete = cortex.complete
-ExtractAnswer = cortex.ExtractAnswer
+ExtractAnswer = cortex.extract_answer
 
 
 def test_apply_snowflake_cortex_summarize(session):
