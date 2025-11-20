@@ -408,7 +408,7 @@ def test_telemetry(session, udtf_configs):
     assert "ojdbc17-23.9.0.25.07.jar" in telemetry_json["imports"][0]
     assert telemetry_json["end_to_end_duration"] > 0
     assert telemetry_json["schema"] == df.schema.simple_string()
-    
+
 
 def test_connect_mysql(session, mysql_udtf_configs):
     df = session.read.jdbc(
