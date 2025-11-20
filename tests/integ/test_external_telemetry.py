@@ -11,6 +11,7 @@ from snowflake.snowpark._internal.event_table_telemetry import (
     EventTableTelemetry,
     RetryWithTokenRefreshAdapter,
 )
+from tests.utils import RUNNING_ON_JENKINS
 
 try:
     from opentelemetry import trace
@@ -43,6 +44,10 @@ pytestmark = [
     ),
     pytest.mark.skipif(
         dependencies_missing,
+        reason="opentelemetry is not installed",
+    ),
+    pytest.mark.skipif(
+        RUNNING_ON_JENKINS,
         reason="opentelemetry is not installed",
     ),
 ]
