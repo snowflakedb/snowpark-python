@@ -11,7 +11,6 @@ from snowflake.snowpark._internal.event_table_telemetry import (
     EventTableTelemetry,
     RetryWithTokenRefreshAdapter,
 )
-from tests.utils import RUNNING_ON_JENKINS
 
 try:
     from opentelemetry import trace
@@ -32,6 +31,7 @@ try:
     )
     from opentelemetry.exporter.otlp.proto.http import Compression  # noqa: F401
     from opentelemetry.sdk._logs._internal.export import LogExportResult
+    from snowflake.connector.wif_util import create_attestation  # noqa: F401
 
     dependencies_missing = False
 except Exception:
@@ -44,11 +44,7 @@ pytestmark = [
     ),
     pytest.mark.skipif(
         dependencies_missing,
-        reason="opentelemetry is not installed",
-    ),
-    pytest.mark.skipif(
-        RUNNING_ON_JENKINS,
-        reason="skip test on jenkins",
+        reason="opentelemetry is not installed or dependencies is missing",
     ),
 ]
 
