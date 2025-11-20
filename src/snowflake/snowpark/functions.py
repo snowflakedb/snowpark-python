@@ -4479,6 +4479,25 @@ def hour(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def day(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Extracts the day from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(day("a")).collect()
+        [Row(DAY("A")=1), Row(DAY("A")=21)]
+    """
+    c = _to_col_if_str(e, "day")
+    return _call_function("day", c, _emit_ast=_emit_ast)
+
+
+@publicapi
 def last_day(
     expr: ColumnOrName, part: Optional[ColumnOrName] = None, _emit_ast: bool = True
 ) -> Column:

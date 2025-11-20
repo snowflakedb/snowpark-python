@@ -323,6 +323,20 @@ def partition_spec(col_exprs: List[str]) -> str:
     return f"PARTITION BY {COMMA.join(col_exprs)}" if col_exprs else EMPTY_STRING
 
 
+def iceberg_partition_clause(partition_exprs: List[str]) -> str:
+    return (
+        (
+            SPACE
+            + PARTITION_BY
+            + LEFT_PARENTHESIS
+            + COMMA.join(partition_exprs)
+            + RIGHT_PARENTHESIS
+        )
+        if partition_exprs
+        else EMPTY_STRING
+    )
+
+
 def order_by_spec(col_exprs: List[str]) -> str:
     if not col_exprs:
         return EMPTY_STRING
@@ -1119,17 +1133,7 @@ def create_table_statement(
     options.update(iceberg_options)
     options_statement = get_options_statement(options)
 
-    partition_by_clause = (
-        (
-            SPACE
-            + PARTITION_BY
-            + LEFT_PARENTHESIS
-            + COMMA.join(partition_exprs)
-            + RIGHT_PARENTHESIS
-        )
-        if partition_exprs
-        else EMPTY_STRING
-    )
+    partition_by_clause = iceberg_partition_clause(partition_exprs)
 
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
@@ -1220,17 +1224,7 @@ def create_table_as_select_statement(
     options.update(iceberg_options)
     options_statement = get_options_statement(options)
 
-    partition_by_clause = (
-        (
-            SPACE
-            + PARTITION_BY
-            + LEFT_PARENTHESIS
-            + COMMA.join(partition_exprs)
-            + RIGHT_PARENTHESIS
-        )
-        if partition_exprs
-        else EMPTY_STRING
-    )
+    partition_by_clause = iceberg_partition_clause(partition_exprs)
 
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}"

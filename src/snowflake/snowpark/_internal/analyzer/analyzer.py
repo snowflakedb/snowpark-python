@@ -4,7 +4,7 @@
 #
 import uuid
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 from logging import getLogger
 
 from snowflake.connector import IntegrityError
@@ -905,6 +905,34 @@ class Analyzer:
                 parse_local_name,
             )
 
+    def _process_partition_by_in_iceberg_config(
+        self,
+        iceberg_config: Optional[dict],
+        df_aliased_col_name_to_real_col_name: Union[
+            DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+        ],
+    ) -> Optional[dict]:
+        """
+        Process partition_by expressions from iceberg_config, converting Column objects to SQL strings.
+        Returns a new iceberg_config dict with partition_by as a list of SQL strings, or the original config if no processing needed.
+        """
+        if not iceberg_config or not iceberg_config.get("partition_by"):
+            return iceberg_config
+
+        pb = iceberg_config["partition_by"]
+        # convert to list and filter out empty expressions
+        partition_exprs = pb if isinstance(pb, (list, tuple)) else [pb]
+        partition_sqls = [
+            self.analyze(expr._expression, df_aliased_col_name_to_real_col_name)
+            if isinstance(expr, Column)
+            else str(expr)
+            for expr in partition_exprs
+            if isinstance(expr, Column) or (isinstance(expr, str) and expr)
+        ]
+        if partition_sqls:
+            return {**iceberg_config, "partition_by": partition_sqls}
+        return iceberg_config
+
     def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         self.subquery_plans = []
         self.generated_alias_maps = (
@@ -1165,22 +1193,9 @@ class Analyzer:
 
         if isinstance(logical_plan, SnowflakeCreateTable):
             resolved_child = resolved_children[logical_plan.children[0]]
-
-            # Process partition_by expressions from iceberg_config
-            iceberg_config = logical_plan.iceberg_config
-            if iceberg_config and iceberg_config.get("partition_by"):
-                pb = iceberg_config["partition_by"]
-                # convert to list and filter out empty expressions
-                partition_exprs = pb if isinstance(pb, (list, tuple)) else [pb]
-                partition_sqls = [
-                    self.analyze(expr._expression, df_aliased_col_name_to_real_col_name)
-                    if isinstance(expr, Column)
-                    else str(expr)
-                    for expr in partition_exprs
-                    if isinstance(expr, Column) or (isinstance(expr, str) and expr)
-                ]
-                if partition_sqls:
-                    iceberg_config = {**iceberg_config, "partition_by": partition_sqls}
+            iceberg_config = self._process_partition_by_in_iceberg_config(
+                logical_plan.iceberg_config, df_aliased_col_name_to_real_col_name
+            )
 
             return self.plan_builder.save_as_table(
                 table_name=logical_plan.table_name,
@@ -1434,21 +1449,9 @@ class Analyzer:
             if format_name is not None:
                 format_type_options["FORMAT_NAME"] = format_name
             assert logical_plan.file_format is not None
-
-            # Process partition_by: convert Column/Expression objects to SQL strings
-            iceberg_config = logical_plan.iceberg_config
-            if iceberg_config and iceberg_config.get("partition_by"):
-                pb = iceberg_config["partition_by"]
-                partition_exprs = pb if isinstance(pb, (list, tuple)) else [pb]
-                partition_sqls = [
-                    self.analyze(expr._expression, df_aliased_col_name_to_real_col_name)
-                    if isinstance(expr, Column)
-                    else str(expr)
-                    for expr in partition_exprs
-                    if isinstance(expr, Column) or (isinstance(expr, str) and expr)
-                ]
-                if partition_sqls:
-                    iceberg_config = {**iceberg_config, "partition_by": partition_sqls}
+            iceberg_config = self._process_partition_by_in_iceberg_config(
+                logical_plan.iceberg_config, df_aliased_col_name_to_real_col_name
+            )
 
             return self.plan_builder.copy_into_table(
                 path=logical_plan.file_path,

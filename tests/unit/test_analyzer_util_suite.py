@@ -507,11 +507,10 @@ def test_create_dynamic_iceberg_table():
             "target_file_size": "32MB",
             "catalog_sync": "integration_name",
             "storage_serialization_policy": "OPTIMIZED",
-            "partition_by": ["country", "HOUR(timestamp)"],
         },
     ) == (
         " CREATE  OR  REPLACE  DYNAMIC  ICEBERG  TABLE my_dt LAG  = '1 minute' WAREHOUSE  = "
-        "my_warehouse    PARTITION BY (country, HOUR(timestamp))  EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = 'example_catalog'  "
+        "my_warehouse    EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = 'example_catalog'  "
         "BASE_LOCATION  = '/root'  TARGET_FILE_SIZE  = '32MB'  CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY "
         " = 'OPTIMIZED' AS  SELECT  * \n"
         " FROM (\nselect * from foo\n)"
