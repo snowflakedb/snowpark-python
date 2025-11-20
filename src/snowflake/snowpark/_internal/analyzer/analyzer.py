@@ -916,19 +916,26 @@ class Analyzer:
         Process partition_by expressions from iceberg_config, converting Column objects to SQL strings.
         Returns a new iceberg_config dict with partition_by as a list of SQL strings, or the original config if no processing needed.
         """
-        if not iceberg_config or not iceberg_config.get("partition_by"):
+        if not iceberg_config:
             return iceberg_config
 
+        iceberg_config = {k.lower(): v for k, v in iceberg_config.items()}
+
+        if not iceberg_config.get("partition_by"):
+            return iceberg_config
         pb = iceberg_config["partition_by"]
-        # convert to list and filter out empty expressions
+
+        # Convert to list and filter out empty expressions
         partition_exprs = pb if isinstance(pb, (list, tuple)) else [pb]
-        partition_sqls = [
-            self.analyze(expr._expression, df_aliased_col_name_to_real_col_name)
-            if isinstance(expr, Column)
-            else str(expr)
-            for expr in partition_exprs
-            if isinstance(expr, Column) or (isinstance(expr, str) and expr)
-        ]
+        partition_sqls = []
+        for expr in partition_exprs:
+            if isinstance(expr, Column):
+                partition_sqls.append(
+                    self.analyze(expr._expression, df_aliased_col_name_to_real_col_name)
+                )
+            elif isinstance(expr, str) and expr:
+                partition_sqls.append(str(expr))
+
         if partition_sqls:
             return {**iceberg_config, "partition_by": partition_sqls}
         return iceberg_config

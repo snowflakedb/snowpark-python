@@ -274,6 +274,64 @@ def test_iceberg(session, local_testing_mode):
         session.table(table_name).drop_table()
 
 
+def test_iceberg_partition_by(session, local_testing_mode):
+    if not iceberg_supported(session, local_testing_mode) or is_in_stored_procedure():
+        pytest.skip("Test requires iceberg support.")
+
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
+    ).collect()
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
+    ).collect()
+
+    df = session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", StringType()),
+                StructField("b", IntegerType()),
+            ]
+        ),
+    )
+
+    table_name_1 = Utils.random_table_name()
+    df.write.save_as_table(
+        table_name_1,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "Partition_by": "b",
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name_1}')")
+        assert (
+            ddl[0][0] == f"create or replace ICEBERG TABLE {table_name_1} (\n\t"
+            f"A STRING,\n\tB LONG\n)\n "
+            f"PARTITION BY (B)\n "
+            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE';"
+        )
+
+    finally:
+        session.table(table_name_1).drop_table()
+
+    table_name_2 = Utils.random_table_name()
+    df.write.save_as_table(
+        table_name_2,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "partition_by": [],
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name_2}')")
+        assert "PARTITION BY" not in ddl[0][0]
+    finally:
+        session.table(table_name_2).drop_table()
+
+
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="BUG: SNOW-1235716 should raise not implemented error not AttributeError: 'MockExecutionPlan' object has no attribute 'schema_query'",
