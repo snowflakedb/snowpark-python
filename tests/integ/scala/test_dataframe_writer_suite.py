@@ -295,6 +295,7 @@ def test_iceberg_partition_by(session, local_testing_mode):
         ),
     )
 
+    # Test 1: Single string value
     table_name_1 = Utils.random_table_name()
     df.write.save_as_table(
         table_name_1,
@@ -316,6 +317,7 @@ def test_iceberg_partition_by(session, local_testing_mode):
     finally:
         session.table(table_name_1).drop_table()
 
+    # Test 2: Empty list
     table_name_2 = Utils.random_table_name()
     df.write.save_as_table(
         table_name_2,
@@ -330,6 +332,53 @@ def test_iceberg_partition_by(session, local_testing_mode):
         assert "PARTITION BY" not in ddl[0][0]
     finally:
         session.table(table_name_2).drop_table()
+
+    # Test 3: Single Column object
+    table_name_3 = Utils.random_table_name()
+    df.write.save_as_table(
+        table_name_3,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "partition_by": col("b"),
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name_3}')")
+        assert "PARTITION BY (B)" in ddl[0][0]
+    finally:
+        session.table(table_name_3).drop_table()
+
+    # Test 4: Mix of strings and Column objects with empty strings
+    table_name_4 = Utils.random_table_name()
+    df.write.save_as_table(
+        table_name_4,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "partition_by": ["a", "", col("b")],
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name_4}')")
+        assert "PARTITION BY (A, B)" in ddl[0][0]
+    finally:
+        session.table(table_name_4).drop_table()
+
+    # Test 5: No partition_by
+    table_name_5 = Utils.random_table_name()
+    df.write.save_as_table(
+        table_name_5,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name_5}')")
+        assert "PARTITION BY" not in ddl[0][0]
+    finally:
+        session.table(table_name_5).drop_table()
 
 
 @pytest.mark.skipif(

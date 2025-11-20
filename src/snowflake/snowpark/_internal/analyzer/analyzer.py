@@ -916,13 +916,10 @@ class Analyzer:
         Process partition_by expressions from iceberg_config, converting Column objects to SQL strings.
         Returns a new iceberg_config dict with partition_by as a list of SQL strings, or the original config if no processing needed.
         """
-        if not iceberg_config:
+        if iceberg_config is None or iceberg_config.get("partition_by") is None:
             return iceberg_config
 
         iceberg_config = {k.lower(): v for k, v in iceberg_config.items()}
-
-        if not iceberg_config.get("partition_by"):
-            return iceberg_config
         pb = iceberg_config["partition_by"]
 
         # Convert to list and filter out empty expressions
