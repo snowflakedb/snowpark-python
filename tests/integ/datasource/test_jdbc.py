@@ -27,15 +27,29 @@ from tests.resources.test_data_source_dir.test_jdbc_data import (
     POSTGRES_SECRET,
     POSTGRES_URL,
     postgres_expected_data,
+    MYSQL_SECRET,
+    MYSQL_URL,
+    mysql_expected_data,
+    SQL_SERVER_SECRET,
+    SQL_SERVER_URL,
+    sql_sever_expected_data,
+)
+from tests.resources.test_data_source_dir.test_mysql_data import (
+    MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION,
 )
 from tests.resources.test_data_source_dir.test_postgres_data import (
     POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION,
+)
+from tests.resources.test_data_source_dir.test_sql_server_data import (
+    SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION,
 )
 from tests.utils import RUNNING_ON_JENKINS
 
 SELECT_QUERY = "SELECT ID, NUMBER_COL, BINARY_FLOAT_COL, BINARY_DOUBLE_COL, VARCHAR2_COL, CHAR_COL, CLOB_COL, NCHAR_COL, NVARCHAR2_COL, NCLOB_COL, DATE_COL, TIMESTAMP_COL, TIMESTAMP_TZ_COL, TIMESTAMP_LTZ_COL, RAW_COL, GUID_COL FROM ALL_TYPE_TABLE_JDBC"
 EMPTY_QUERY = "SELECT * FROM ALL_TYPE_TABLE_JDBC WHERE 1=0"
 POSTGRES_SELECT_QUERY = "select BIGINT_COL, BIGSERIAL_COL, BIT_COL, BIT_VARYING_COL, BOOLEAN_COL, BOX_COL, BYTEA_COL, CHAR_COL, VARCHAR_COL, CIDR_COL, CIRCLE_COL, DATE_COL, DOUBLE_PRECISION_COL, INET_COL, INTEGER_COL, INTERVAL_COL, JSON_COL, JSONB_COL, LINE_COL, LSEG_COL, MACADDR_COL, MACADDR8_COL, NUMERIC_COL, PATH_COL, PG_LSN_COL, PG_SNAPSHOT_COL, POINT_COL, POLYGON_COL, REAL_COL, SMALLINT_COL, SMALLSERIAL_COL, SERIAL_COL, TEXT_COL, TIME_COL, TIMESTAMP_COL, TIMESTAMPTZ_COL, TSQUERY_COL, TSVECTOR_COL, TXID_SNAPSHOT_COL, UUID_COL, XML_COL from test_schema.ALL_TYPE_TABLE"
+MYSQL_SELECT_QUERY = "select * from ALL_TYPES_TABLE"
+SQL_SERVER_QUERY = "SELECT ID, BIGINT_COL, INT_COL, SMALLINT_COL, TINYINT_COL, BIT_COL, DECIMAL_COL, NUMERIC_COL, MONEY_COL, SMALLMONEY_COL, FLOAT_COL, REAL_COL, DATE_COL, TIME_COL, DATETIME_COL, DATETIME2_COL, SMALLDATETIME_COL, CHAR_COL, VARCHAR_COL, VARCHAR_MAX_COL, TEXT_COL, NCHAR_COL, NVARCHAR_COL, NVARCHAR_MAX_COL, NTEXT_COL, BINARY_COL, VARBINARY_COL, VARBINARY_MAX_COL, IMAGE_COL, UNIQUEIDENTIFIER_COL, TIMESTAMP_COL FROM test_db.dbo.ALL_TYPE_TABLE"
 TABLE_NAME = "ALL_TYPE_TABLE_JDBC"
 
 
@@ -64,11 +78,44 @@ def postgres_jar_path(session):
 
 
 @pytest.fixture(scope="module")
+def mysql_jar_path(session):
+    stage_name = session.get_session_stage()
+    return stage_name + "/mysql-connector-j-9.5.0.jar"
+
+
+@pytest.fixture(scope="module")
+def sql_server_jar_path(session):
+    stage_name = session.get_session_stage()
+    return stage_name + "/mssql-jdbc-13.2.1.jre11.jar"
+
+
+@pytest.fixture(scope="module")
 def postgres_udtf_configs(session, postgres_jar_path):
     return {
         "external_access_integration": POSTGRES_TEST_EXTERNAL_ACCESS_INTEGRATION,
         "secret": POSTGRES_SECRET,
         "imports": [postgres_jar_path],
+    }
+
+
+@pytest.fixture(scope="module")
+def mysql_udtf_configs(session, mysql_jar_path):
+    return {
+        "external_access_integration": MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION,
+        "secret": MYSQL_SECRET,
+        "imports": [mysql_jar_path],
+    }
+
+
+@pytest.fixture(scope="module")
+def sql_server_udtf_configs(session, sql_server_jar_path):
+    return {
+        "external_access_integration": SQL_SERVER_TEST_EXTERNAL_ACCESS_INTEGRATION[
+            "external_access_integration"
+        ],
+        "secret": SQL_SERVER_SECRET,
+        "imports": [sql_server_jar_path],
+        "java_version": 11,
     }
 
 
@@ -89,6 +136,12 @@ def setup(session, resources_path):
     )
     session.file.put(
         resources_path + "/test_data_source_dir/postgresql-42.7.7.jar", stage_name
+    )
+    session.file.put(
+        resources_path + "/test_data_source_dir/mysql-connector-j-9.5.0.jar", stage_name
+    )
+    session.file.put(
+        resources_path + "/test_data_source_dir/mssql-jdbc-13.2.1.jre11.jar", stage_name
     )
     yield
 
@@ -355,3 +408,21 @@ def test_telemetry(session, udtf_configs):
     assert "ojdbc17-23.9.0.25.07.jar" in telemetry_json["imports"][0]
     assert telemetry_json["end_to_end_duration"] > 0
     assert telemetry_json["schema"] == df.schema.simple_string()
+    
+
+def test_connect_mysql(session, mysql_udtf_configs):
+    df = session.read.jdbc(
+        url=MYSQL_URL,
+        udtf_configs=mysql_udtf_configs,
+        query=MYSQL_SELECT_QUERY,
+    ).order_by("ID")
+    assert df.collect() == mysql_expected_data
+
+
+def test_connect_sql_server(session, sql_server_udtf_configs):
+    df = session.read.jdbc(
+        url=SQL_SERVER_URL,
+        udtf_configs=sql_server_udtf_configs,
+        query=SQL_SERVER_QUERY,
+    ).order_by("ID")
+    assert df.collect() == sql_sever_expected_data
