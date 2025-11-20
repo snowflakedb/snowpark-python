@@ -177,6 +177,7 @@ from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
 )
 from snowflake.snowpark.types import BooleanType, _NumericType
+from snowflake.snowpark.column import Column
 
 ARRAY_BIND_THRESHOLD = 512
 
@@ -1164,6 +1165,23 @@ class Analyzer:
 
         if isinstance(logical_plan, SnowflakeCreateTable):
             resolved_child = resolved_children[logical_plan.children[0]]
+
+            # Process partition_by expressions from iceberg_config
+            iceberg_config = logical_plan.iceberg_config
+            if iceberg_config and iceberg_config.get("partition_by"):
+                pb = iceberg_config["partition_by"]
+                # convert to list and filter out empty expressions
+                partition_exprs = pb if isinstance(pb, (list, tuple)) else [pb]
+                partition_sqls = [
+                    self.analyze(expr._expression, df_aliased_col_name_to_real_col_name)
+                    if isinstance(expr, Column)
+                    else str(expr)
+                    for expr in partition_exprs
+                    if isinstance(expr, Column) or (isinstance(expr, str) and expr)
+                ]
+                if partition_sqls:
+                    iceberg_config = {**iceberg_config, "partition_by": partition_sqls}
+
             return self.plan_builder.save_as_table(
                 table_name=logical_plan.table_name,
                 column_names=logical_plan.column_names,
@@ -1184,7 +1202,7 @@ class Analyzer:
                 use_scoped_temp_objects=self.session._use_scoped_temp_objects,
                 creation_source=logical_plan.creation_source,
                 child_attributes=resolved_child.attributes,
-                iceberg_config=logical_plan.iceberg_config,
+                iceberg_config=iceberg_config,
                 table_exists=logical_plan.table_exists,
             )
 
@@ -1416,6 +1434,22 @@ class Analyzer:
             if format_name is not None:
                 format_type_options["FORMAT_NAME"] = format_name
             assert logical_plan.file_format is not None
+
+            # Process partition_by: convert Column/Expression objects to SQL strings
+            iceberg_config = logical_plan.iceberg_config
+            if iceberg_config and iceberg_config.get("partition_by"):
+                pb = iceberg_config["partition_by"]
+                partition_exprs = pb if isinstance(pb, (list, tuple)) else [pb]
+                partition_sqls = [
+                    self.analyze(expr._expression, df_aliased_col_name_to_real_col_name)
+                    if isinstance(expr, Column)
+                    else str(expr)
+                    for expr in partition_exprs
+                    if isinstance(expr, Column) or (isinstance(expr, str) and expr)
+                ]
+                if partition_sqls:
+                    iceberg_config = {**iceberg_config, "partition_by": partition_sqls}
+
             return self.plan_builder.copy_into_table(
                 path=logical_plan.file_path,
                 table_name=logical_plan.table_name,
@@ -1435,7 +1469,7 @@ class Analyzer:
                 else None,
                 user_schema=logical_plan.user_schema,
                 create_table_from_infer_schema=logical_plan.create_table_from_infer_schema,
-                iceberg_config=logical_plan.iceberg_config,
+                iceberg_config=iceberg_config,
             )
 
         if isinstance(logical_plan, CopyIntoLocationNode):

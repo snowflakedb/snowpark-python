@@ -13,7 +13,13 @@ from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, object_construct, parse_json
+from snowflake.snowpark.functions import (
+    col,
+    lit,
+    object_construct,
+    parse_json,
+    truncate,
+)
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     DoubleType,
@@ -239,6 +245,7 @@ def test_iceberg(session, local_testing_mode):
             "catalog": "SNOWFLAKE",
             "base_location": "snowpark_python_tests",
             "target_file_size": "64MB",
+            "partition_by": ["a", "bucket(5, b)", "", truncate(3, "a")],
             "iceberg_version": 3,
         },
     )
@@ -246,7 +253,7 @@ def test_iceberg(session, local_testing_mode):
         ddl = session._run_query(f"select get_ddl('table', '{table_name}')")
         assert (
             ddl[0][0]
-            == f"create or replace ICEBERG TABLE {table_name} (\n\tA STRING,\n\tB LONG\n)\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
+            == f"create or replace ICEBERG TABLE {table_name} (\n\tA STRING,\n\tB LONG\n)\n PARTITION BY (A, BUCKET(5, B), TRUNCATE(3, A))\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
         )
 
         params = session.sql(f"show parameters for table {table_name}").collect()

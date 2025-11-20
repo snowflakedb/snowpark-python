@@ -252,7 +252,9 @@ class DataFrameWriter:
         max_data_extension_time: Optional[int] = None,
         change_tracking: Optional[bool] = None,
         copy_grants: bool = False,
-        iceberg_config: Optional[Dict[str, str]] = None,
+        iceberg_config: Optional[
+            Dict[str, Union[str, Iterable[ColumnOrSqlExpr]]]
+        ] = None,
         table_exists: Optional[bool] = None,
         _emit_ast: bool = True,
         **kwargs: Optional[Dict[str, Any]],
@@ -306,6 +308,11 @@ class DataFrameWriter:
                 asynchronously and returns an :class:`AsyncJob`.
             iceberg_config: A dictionary that can contain the following iceberg configuration values:
 
+                * partition_by: specifies one or more partition expressions for the Iceberg table.
+                    Can be a single Column, column name, SQL expression string, or a list of these.
+                    Supports identity partitioning (column names) as well as partition transform functions
+                    like bucket(), truncate(), year(), month(), day(), hour().
+
                 * external_volume: specifies the identifier for the external volume where
                     the Iceberg table stores its metadata files and data in Parquet format
 
@@ -347,12 +354,14 @@ class DataFrameWriter:
             See `Create your first Iceberg table <https://docs.snowflake.com/en/user-guide/tutorials/create-your-first-iceberg-table>`_ for more information on creating iceberg resources.
 
             >>> df = session.create_dataframe([[1,2],[3,4]], schema=["a", "b"])
+            >>> from snowflake.snowpark.functions import col, bucket, hour
             >>> iceberg_config = {
             ...     "external_volume": "example_volume",
             ...     "catalog": "example_catalog",
             ...     "base_location": "/iceberg_root",
             ...     "storage_serialization_policy": "OPTIMIZED",
             ...     "target_file_size": "128MB",
+            ...     "partition_by": [col("country"), bucket(10, "user_id"), hour("timestamp")],
             ... }
             >>> df.write.mode("overwrite").save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
         """

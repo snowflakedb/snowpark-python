@@ -4691,6 +4691,62 @@ def year(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def bucket(
+    num_buckets: Union[int, ColumnOrName], col: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Performs an Iceberg partition bucket transform.
+    This function should only be used in the iceberg_config['partition_by'] parameter when creating Iceberg tables.
+
+    Example::
+
+        >>> iceberg_config = {
+        ...     "external_volume": "example_volume",
+        ...     "partition_by": [bucket(10, "a")]
+        ... }
+        >>> df.write.save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
+    """
+    ast = build_function_expr("bucket", [num_buckets, col]) if _emit_ast else None
+
+    num_buckets = (
+        lit(num_buckets, _emit_ast=False)
+        if isinstance(num_buckets, int)
+        else _to_col_if_str(num_buckets, "bucket")
+    )
+    col = _to_col_if_str(col, "bucket")
+
+    return _call_function("bucket", num_buckets, col, _ast=ast, _emit_ast=_emit_ast)
+
+
+@publicapi
+def truncate(
+    width: Union[int, ColumnOrName], col: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Performs an Iceberg partition truncate transform.
+    This function should only be used in the iceberg_config['partition_by'] parameter when creating Iceberg tables.
+
+    Example::
+
+        >>> iceberg_config = {
+        ...     "external_volume": "example_volume",
+        ...     "partition_by": [truncate(3, "a")]
+        ... }
+        >>> df.write.save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
+    """
+    ast = build_function_expr("truncate", [width, col]) if _emit_ast else None
+
+    width = (
+        lit(width, _emit_ast=False)
+        if isinstance(width, int)
+        else _to_col_if_str(width, "truncate")
+    )
+    col = _to_col_if_str(col, "truncate")
+
+    return _call_function("truncate", width, col, _ast=ast, _emit_ast=_emit_ast)
+
+
+@publicapi
 def sysdate(_emit_ast: bool = True) -> Column:
     """
     Returns the current timestamp for the system, but in the UTC time zone.
