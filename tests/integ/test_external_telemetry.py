@@ -48,7 +48,7 @@ pytestmark = [
     ),
     pytest.mark.skipif(
         RUNNING_ON_JENKINS,
-        reason="opentelemetry is not installed",
+        reason="skip test on jenkins",
     ),
 ]
 
