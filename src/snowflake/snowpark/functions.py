@@ -13609,7 +13609,7 @@ def ai_complete(
         >>> # Using model parameters
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='llama2-70b-chat',
+        ...         model='llama3.3-70b',
         ...         prompt='How does a snowflake get its unique pattern?',
         ...         model_parameters={
         ...             'temperature': 0.7,
@@ -13661,7 +13661,7 @@ def ai_complete(
         ... }
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='llama2-70b-chat',
+        ...         model='llama3.3-70b',
         ...         prompt='Analyze the sentiment of this text: I love this product!',
         ...         response_format=response_schema
         ...     ).alias("structured_result")
