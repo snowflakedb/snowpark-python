@@ -10,6 +10,13 @@
 - Added support for PrPr feature `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
 - Added support for `functions.ai_translate`.
+- Added support for the following Iceberg partition transform functions in `functions.py`:
+  - `bucket`
+  - `truncate`
+  - `day`
+- Added support for the following `iceberg_config` options in `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table`:
+  - `target_file_size`
+  - `partition_by`
 - Added support for the following functions in `functions.py`:
     - String and Binary functions:
       - `base64_decode_binary`
@@ -60,6 +67,9 @@
 - Added support for `Dataframe.groupby.rolling()`.
 - Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
 - Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
+- Added support for the following `iceberg_config` options in `to_iceberg`:
+  - `target_file_size`
+  - `partition_by`
 
 #### Improvements
 
