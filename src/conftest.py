@@ -96,6 +96,53 @@ def pytest_collection_modifyitems(config, items):
     host = (
         conn_params.get("host") or conn_params.get("HOST") or conn_params.get("account")
     )
+
+    skip_ai_functions = pytest.mark.skip(
+        reason='SNOW-2856847: suppress AI function tests for merge gate due to "Unknown Function" errors'
+    )
+
+    ai_function_doctests = [
+        # DataFrame AI functions
+        "DataFrameAIFunctions.complete",
+        "DataFrameAIFunctions.filter",
+        "DataFrameAIFunctions.agg",
+        "DataFrameAIFunctions.classify",
+        "DataFrameAIFunctions.similarity",
+        "DataFrameAIFunctions.sentiment",
+        "DataFrameAIFunctions.embed",
+        "DataFrameAIFunctions.summarize_agg",
+        "DataFrameAIFunctions.transcribe",
+        "DataFrameAIFunctions.parse_document",
+        "DataFrameAIFunctions.extract",
+        "DataFrameAIFunctions.count_tokens",
+        "DataFrameAIFunctions.split_text_markdown_header",
+        "DataFrameAIFunctions.split_text_recursive_character",
+        # Standalone AI functions
+        "ai_complete",
+        "ai_filter",
+        "ai_agg",
+        "ai_classify",
+        "ai_similarity",
+        "ai_sentiment",
+        "ai_embed",
+        "ai_summarize_agg",
+        "ai_transcribe",
+        "ai_parse_document",
+        "ai_extract",
+        "ai_translate",
+        # GroupedDataFrame AI functions
+        "RelationalGroupedDataFrame.ai_agg",
+        # Session functions that use AI models
+        "Session.replicate_local_environment",
+        "Session.table_function",
+    ]
+
+    for item in items:
+        # Skip AI function doctests
+        if isinstance(item, DoctestItem):
+            if any(test_name in item.name for test_name in ai_function_doctests):
+                item.add_marker(skip_ai_functions)
+
     if any(platform in host.split(".") for platform in ["gcp", "azure"]):
         skip = pytest.mark.skip(reason="Skipping doctest for Azure and GCP deployment")
         disabled_doctests = [

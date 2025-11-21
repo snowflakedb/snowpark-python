@@ -2444,6 +2444,9 @@ def test_ln(session):
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Snowflake Cortex functions not supported in SP"
 )
+@pytest.mark.skip(
+    reason='SNOW-2856847: suppress AI function tests for merge gate due to "Unknown Function" errors',
+)
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: snowflake_cortex functions not supported",
@@ -2486,6 +2489,9 @@ The next sections explain these steps in more detail.
 
 @pytest.mark.skipif(
     IS_IN_STORED_PROC, reason="Snowflake Cortex functions not supported in SP"
+)
+@pytest.mark.skip(
+    reason='SNOW-2856847: suppress AI function tests for merge gate due to "Unknown Function" errors',
 )
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",

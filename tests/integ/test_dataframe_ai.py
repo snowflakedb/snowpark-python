@@ -15,6 +15,9 @@ pytestmark = [
         "config.getoption('local_testing_mode', default=False)",
         reason="AI functions are not yet supported in local testing mode.",
     ),
+    pytest.mark.skip(
+        reason='SNOW-2856847: suppress AI function tests for merge gate due to "Unknown Function" errors'
+    ),
 ]
 
 
