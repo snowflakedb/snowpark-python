@@ -31,6 +31,7 @@ try:
     )
     from opentelemetry.exporter.otlp.proto.http import Compression  # noqa: F401
     from opentelemetry.sdk._logs._internal.export import LogExportResult
+    from snowflake.connector.wif_util import create_attestation  # noqa: F401
 
     dependencies_missing = False
 except Exception:
@@ -43,7 +44,7 @@ pytestmark = [
     ),
     pytest.mark.skipif(
         dependencies_missing,
-        reason="opentelemetry is not installed",
+        reason="opentelemetry is not installed or dependencies is missing",
     ),
 ]
 
@@ -111,7 +112,7 @@ def test_end_to_end(session):
     # test with mock exporter and authentication
     with (
         patch(
-            "snowflake.snowpark._internal.event_table_telemetry.create_attestation",
+            "snowflake.connector.wif_util.create_attestation",
             return_value=FakeAttestation(),
         ),
         patch("requests.get", return_value=mock_response),

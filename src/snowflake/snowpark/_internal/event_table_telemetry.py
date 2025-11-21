@@ -7,7 +7,6 @@ from abc import ABC
 from logging import getLogger
 from typing import Dict, Optional, Tuple
 from snowflake.connector.options import MissingOptionalDependency, ModuleLikeObject
-from snowflake.connector.wif_util import create_attestation
 
 import snowflake.snowpark
 import requests
@@ -320,6 +319,8 @@ class EventTableTelemetry:
             self._disable_logger_provider()
 
     def _get_external_telemetry_auth_token(self) -> Dict:
+        from snowflake.connector.wif_util import create_attestation
+
         self._attestation = create_attestation(
             self.session.connection.auth_class.provider,
             self.session.connection.auth_class.entra_resource,
