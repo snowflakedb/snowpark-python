@@ -26,6 +26,7 @@ from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_less_column_schema,
     mysql_unicode_schema,
     mysql_double_quoted_schema,
+    MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION,
 )
 from tests.utils import RUNNING_ON_JENKINS, Utils
 from tests.parameters import MYSQL_CONNECTION_PARAMETERS
@@ -54,7 +55,6 @@ pytestmark = [
 
 TEST_TABLE_NAME = "ALL_TYPES_TABLE"
 TEST_QUERY = "select * from ALL_TYPES_TABLE"
-MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_mysql_test_integration"
 
 
 def create_connection_mysql():
