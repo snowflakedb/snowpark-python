@@ -55,7 +55,7 @@
 
 #### Bug Fixes
 
-- Fix a bug in `XMLReader` where code to find the start position of was row tag would return incorrect absolute position.
+- Fixed a bug in `XMLReader` where finding the start position of a row tag could return an incorrect file position.
 
 ### Snowpark pandas API Updates
 
