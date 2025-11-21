@@ -530,19 +530,19 @@ class XMLReader:
     def process(
         self,
         filename: str,
-        num_workers: int,  # 16
-        row_tag: str,  # 'instrument'
-        i: int,  # 9
-        mode: str,  # 'FAILFAST'
-        column_name_of_corrupt_record: str,  # '_corrupt_record'
-        ignore_namespace: bool,  # True
-        attribute_prefix: str,  # '_'
-        exclude_attributes: bool,  # False
-        value_tag: str,  # '_VALUE'
-        null_value: str,  # ''
-        charset: str,  # 'utf-8'
-        ignore_surrounding_whitespace: bool,  # False
-        row_validation_xsd_path: str,  # ''
+        num_workers: int,
+        row_tag: str,
+        i: int,
+        mode: str,
+        column_name_of_corrupt_record: str,
+        ignore_namespace: bool,
+        attribute_prefix: str,
+        exclude_attributes: bool,
+        value_tag: str,
+        null_value: str,
+        charset: str,
+        ignore_surrounding_whitespace: bool,
+        row_validation_xsd_path: str,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
