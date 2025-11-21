@@ -604,7 +604,7 @@ def test_group_by_grouping_sets(session):
         .sort(col("count"))
     )
 
-    Utils.check_answer(grouping_sets, result, sort=False)
+    Utils.check_answer(grouping_sets, result)
 
     Utils.check_answer(
         grouping_sets,
@@ -616,7 +616,6 @@ def test_group_by_grouping_sets(session):
             Row(None, None, 3),
             Row("LVN", None, 5),
         ],
-        sort=False,
     )
 
     # comparing with group_by
@@ -633,7 +632,6 @@ def test_group_by_grouping_sets(session):
             Row(2, "LVN", None),
             Row(2, "LVN", "Technician"),
         ],
-        sort=False,
     )
 
     # mixed grouping expression
@@ -652,7 +650,6 @@ def test_group_by_grouping_sets(session):
             Row("RN", None),
             Row("RN", "Amateur Extra"),
         ],
-        sort=False,
     )
 
     # default constructor
@@ -674,7 +671,6 @@ def test_group_by_grouping_sets(session):
             Row("RN", None),
             Row("RN", "Amateur Extra"),
         ],
-        sort=False,
     )
 
 
@@ -775,11 +771,11 @@ def test_rel_grouped_dataframe_median(session):
 def test_builtin_functions(session):
     df = session.create_dataframe([(1, 11), (2, 12), (1, 13)]).to_df(["a", "b"])
 
-    assert df.group_by("a").builtin("max")(col("a"), col("b")).collect() == [
+    assert df.group_by("a").builtin("max")(col("a"), col("b")).sort().collect() == [
         Row(1, 1, 13),
         Row(2, 2, 12),
     ]
-    assert df.group_by("a").builtin("max")(col("b")).collect() == [
+    assert df.group_by("a").builtin("max")(col("b")).sort().collect() == [
         Row(1, 13),
         Row(2, 12),
     ]
@@ -830,14 +826,14 @@ def test_non_empty_arg_functions(session):
 def test_null_count(session):
     assert TestData.test_data3(session).group_by("a").agg(
         count(col("b"))
-    ).collect() == [
+    ).sort().collect() == [
         Row(1, 0),
         Row(2, 1),
     ]
 
     assert TestData.test_data3(session).group_by("a").agg(
         count(col("a") + col("b"))
-    ).collect() == [Row(1, 0), Row(2, 1)]
+    ).sort().collect() == [Row(1, 0), Row(2, 1)]
 
     assert TestData.test_data3(session).agg(
         [
@@ -847,11 +843,11 @@ def test_null_count(session):
             count_distinct(col("a")),
             count_distinct(col("b")),
         ]
-    ).collect() == [Row(2, 1, 2, 2, 1)]
+    ).sort().collect() == [Row(2, 1, 2, 2, 1)]
 
     assert TestData.test_data3(session).agg(
         [count(col("b")), count_distinct(col("b")), sum_distinct(col("b"))]
-    ).collect() == [Row(1, 1, 2)]
+    ).sort().collect() == [Row(1, 1, 2)]
 
 
 def test_distinct(session):
@@ -1145,11 +1141,11 @@ def test_aggregate_function_in_groupby(session):
 def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
     assert TestData.test_data2(session).group_by(lit(3), lit(4)).agg(
         [lit(6), lit(7), sum(col("b"))]
-    ).collect() == [Row(3, 4, 6, 7, 9)]
+    ).sort().collect() == [Row(3, 4, 6, 7, 9)]
 
     assert TestData.test_data2(session).group_by([lit(3), lit(4)]).agg(
         [lit(6), col("b"), sum(col("b"))]
-    ).collect() == [Row(3, 4, 6, 1, 3), Row(3, 4, 6, 2, 6)]
+    ).sort().collect() == [Row(3, 4, 6, 1, 3), Row(3, 4, 6, 2, 6)]
 
 
 @pytest.mark.xfail(
@@ -1162,11 +1158,11 @@ def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal_sql(session):
     testdata2str = "(SELECT * FROM VALUES (1,1),(1,2),(2,1),(2,2),(3,1),(3,2) T(a, b) )"
     assert session.sql(
         f"SELECT 3, 4, SUM(b) FROM {testdata2str} GROUP BY 1, 2"
-    ).collect() == [Row(3, 4, 9)]
+    ).sort().collect() == [Row(3, 4, 9)]
 
     assert session.sql(
         f"SELECT 3 AS c, 4 AS d, SUM(b) FROM {testdata2str} GROUP BY c, d"
-    ).collect() == [Row(3, 4, 9)]
+    ).sort().collect() == [Row(3, 4, 9)]
 
 
 def test_distinct_and_unions(session: object) -> object:

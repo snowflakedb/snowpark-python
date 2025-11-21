@@ -497,7 +497,7 @@ class DataFrameAnalyticsFunctions:
             ...     order_by=["ORDERDATE"],
             ...     group_by=["PRODUCTKEY"],
             ... )
-            >>> res.show()
+            >>> res.sort(col("PRODUCTKEY").desc(), col("ORDERDATE")).show()
             ------------------------------------------------------------------------------------------
             |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_LAG_1"  |"SALESAMOUNT_LAG_2"  |
             ------------------------------------------------------------------------------------------
@@ -583,7 +583,7 @@ class DataFrameAnalyticsFunctions:
             ...     order_by=["ORDERDATE"],
             ...     group_by=["PRODUCTKEY"]
             ... )
-            >>> res.show()
+            >>> res.sort(col("PRODUCTKEY").desc(), col("ORDERDATE")).show()
             --------------------------------------------------------------------------------------------
             |"ORDERDATE"  |"PRODUCTKEY"  |"SALESAMOUNT"  |"SALESAMOUNT_LEAD_1"  |"SALESAMOUNT_LEAD_2"  |
             --------------------------------------------------------------------------------------------
