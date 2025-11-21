@@ -775,20 +775,16 @@ def test_rel_grouped_dataframe_median(session):
 def test_builtin_functions(session):
     df = session.create_dataframe([(1, 11), (2, 12), (1, 13)]).to_df(["a", "b"])
 
-    assert Utils.check_answer(
-        df.group_by("a").builtin("max")(col("a"), col("b")),
-        [
-            Row(1, 1, 13),
-            Row(2, 2, 12),
-        ],
-    )
-    assert Utils.check_answer(
-        df.group_by("a").builtin("max")(col("b")),
-        [
-            Row(1, 13),
-            Row(2, 12),
-        ],
-    )
+    assert df.group_by("a").builtin("max")(col("a"), col("b")).sort(
+        col("a")
+    ).collect() == [
+        Row(1, 1, 13),
+        Row(2, 2, 12),
+    ]
+    assert df.group_by("a").builtin("max")(col("b")).sort(col("a")).collect() == [
+        Row(1, 13),
+        Row(2, 12),
+    ]
 
 
 def test_non_empty_arg_functions(session):
@@ -834,35 +830,30 @@ def test_non_empty_arg_functions(session):
 
 
 def test_null_count(session):
-    assert Utils.check_answer(
-        TestData.test_data3(session).group_by("a").agg(count(col("b"))),
-        [Row(1, 0), Row(2, 1)],
-    )
+    assert TestData.test_data3(session).group_by("a").agg(count(col("b"))).sort(
+        col("a")
+    ).collect() == [
+        Row(1, 0),
+        Row(2, 1),
+    ]
 
-    assert Utils.check_answer(
-        TestData.test_data3(session).group_by("a").agg(count(col("a") + col("b"))),
-        [Row(1, 0), Row(2, 1)],
-    )
+    assert TestData.test_data3(session).group_by("a").agg(
+        count(col("a") + col("b"))
+    ).sort(col("a")).collect() == [Row(1, 0), Row(2, 1)]
 
-    assert Utils.check_answer(
-        TestData.test_data3(session).agg(
-            [
-                count(col("a")),
-                count(col("b")),
-                count(lit(1)),
-                count_distinct(col("a")),
-                count_distinct(col("b")),
-            ]
-        ),
-        [Row(2, 1, 2, 2, 1)],
-    )
+    assert TestData.test_data3(session).agg(
+        [
+            count(col("a")),
+            count(col("b")),
+            count(lit(1)),
+            count_distinct(col("a")),
+            count_distinct(col("b")),
+        ]
+    ).collect() == [Row(2, 1, 2, 2, 1)]
 
-    assert Utils.check_answer(
-        TestData.test_data3(session).agg(
-            [count(col("b")), count_distinct(col("b")), sum_distinct(col("b"))]
-        ),
-        [Row(1, 1, 2)],
-    )
+    assert TestData.test_data3(session).agg(
+        [count(col("b")), count_distinct(col("b")), sum_distinct(col("b"))]
+    ).collect() == [Row(1, 1, 2)]
 
 
 def test_distinct(session):
@@ -1154,14 +1145,11 @@ def test_aggregate_function_in_groupby(session):
 
 
 def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
-    assert Utils.check_answer(
-        TestData.test_data2(session)
-        .group_by(lit(3), lit(4))
-        .agg([lit(6), lit(7), sum(col("b"))]),
-        [Row(3, 4, 6, 7, 9)],
-    )
+    assert TestData.test_data2(session).group_by(lit(3), lit(4)).agg(
+        [lit(6), lit(7), sum(col("b"))]
+    ).collect() == [Row(3, 4, 6, 7, 9)]
 
-    assert Utils.check_answer(
+    Utils.check_answer(
         TestData.test_data2(session)
         .group_by([lit(3), lit(4)])
         .agg([lit(6), col("b"), sum(col("b"))]),
