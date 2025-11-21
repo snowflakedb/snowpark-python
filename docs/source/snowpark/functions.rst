@@ -120,6 +120,7 @@ Functions
     boolor
     boolxor
     boolxor_agg
+    bucket
     build_stage_file_url
     builtin
     bround
@@ -189,6 +190,7 @@ Functions
     datediff
     date_add
     date_sub
+    day
     daydiff
     dayname
     dayofmonth
@@ -555,6 +557,7 @@ Functions
     translate
     trim
     trunc
+    truncate
     try_cast
     try_parse_json
     try_to_binary

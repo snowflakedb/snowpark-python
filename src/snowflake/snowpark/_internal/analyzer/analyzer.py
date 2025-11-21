@@ -930,8 +930,13 @@ class Analyzer:
                 partition_sqls.append(
                     self.analyze(expr._expression, df_aliased_col_name_to_real_col_name)
                 )
-            elif isinstance(expr, str) and expr:
-                partition_sqls.append(str(expr))
+            elif isinstance(expr, str):
+                if expr:  # Ignore empty strings
+                    partition_sqls.append(str(expr))
+            else:
+                raise TypeError(
+                    f"partition_by in iceberg_config expected Column or str, got: {type(expr)}"
+                )
 
         if partition_sqls:
             return {**iceberg_config, "partition_by": partition_sqls}

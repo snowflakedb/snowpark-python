@@ -250,7 +250,7 @@ def validate_iceberg_config(
         EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
         CATALOG: iceberg_config.get("catalog", None),
         BASE_LOCATION: iceberg_config.get("base_location", None),
-        TARGET_FILE_SIZE: iceberg_config.get("target_file_size", "AUTO"),
+        TARGET_FILE_SIZE: iceberg_config.get("target_file_size", None),
         CATALOG_SYNC: iceberg_config.get("catalog_sync", None),
         STORAGE_SERIALIZATION_POLICY: iceberg_config.get(
             "storage_serialization_policy", None

@@ -380,6 +380,19 @@ def test_iceberg_partition_by(session, local_testing_mode):
     finally:
         session.table(table_name_5).drop_table()
 
+    # Test 6: Invalid type should raise TypeError
+    with pytest.raises(
+        TypeError, match="partition_by in iceberg_config expected Column or str"
+    ):
+        df.write.save_as_table(
+            Utils.random_table_name(),
+            iceberg_config={
+                "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+                "catalog": "SNOWFLAKE",
+                "partition_by": 123,
+            },
+        )
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",

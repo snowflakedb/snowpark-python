@@ -476,7 +476,7 @@ def test_create_iceberg_table_as_select_statement():
         " CREATE    ICEBERG  TABLE  test_table "
         " PARTITION BY (HOUR(timestamp), TRUNCATE(3, category)) "
         " EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = "
-        "'example_catalog'  BASE_LOCATION  = '/root'  TARGET_FILE_SIZE  = 'AUTO'  CATALOG_SYNC  = 'integration_name'  "
+        "'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  "
         "STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED'   AS  SELECT  * \n"
         " FROM (\nselect * from foo\n)"
     )
