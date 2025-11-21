@@ -10,17 +10,15 @@
 - Added support for PrPr feature `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
 - Added support for `functions.ai_translate`.
-- Added support for the following Iceberg partition transform functions in `functions.py`:
-  - `bucket`
-  - `truncate`
-  - `day`
 - Added support for the following `iceberg_config` options in `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table`:
   - `target_file_size`
   - `partition_by`
 - Added support for the following functions in `functions.py`:
     - String and Binary functions:
       - `base64_decode_binary`
+      - `bucket`
       - `compress`
+      - `day`
       - `decompress_binary`
       - `decompress_string`
       - `md5_binary`
@@ -30,6 +28,7 @@
       - `sha2_binary`
       - `soundex_p123`
       - `strtok`
+      - `truncate`
       - `try_base64_decode_binary`
       - `try_base64_decode_string`
       - `try_hex_decode_binary`
