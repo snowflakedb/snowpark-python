@@ -354,14 +354,14 @@ class DataFrameWriter:
             See `Create your first Iceberg table <https://docs.snowflake.com/en/user-guide/tutorials/create-your-first-iceberg-table>`_ for more information on creating iceberg resources.
 
             >>> df = session.create_dataframe([[1,2],[3,4]], schema=["a", "b"])
-            >>> from snowflake.snowpark.functions import col, bucket, hour
+            >>> from snowflake.snowpark.functions import col, bucket
             >>> iceberg_config = {
             ...     "external_volume": "example_volume",
             ...     "catalog": "example_catalog",
             ...     "base_location": "/iceberg_root",
             ...     "storage_serialization_policy": "OPTIMIZED",
             ...     "target_file_size": "128MB",
-            ...     "partition_by": [col("country"), bucket(10, "user_id"), hour("timestamp")],
+            ...     "partition_by": ["a", bucket(3, col("b"))],
             ... }
             >>> df.write.mode("overwrite").save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
         """
