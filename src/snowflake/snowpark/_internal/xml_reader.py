@@ -205,10 +205,6 @@ def find_next_opening_tag_pos(
         chunk = file_obj.read(current_chunk_size)
         if not chunk:
             raise EOFError("Reached end of file before finding opening tag")
-        # If the chunk is smaller than expected, we are near the end.
-        if len(chunk) < current_chunk_size:
-            if chunk.find(tag_start_1) == -1 and chunk.find(tag_start_2) == -1:
-                raise EOFError("Reached end of file before finding opening tag")
 
         # Combine leftover from previous read with the new chunk.
         data = overlap + chunk
