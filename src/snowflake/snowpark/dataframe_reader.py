@@ -39,6 +39,9 @@ from snowflake.snowpark._internal.data_source.utils import (
     DATA_SOURCE_DBAPI_SIGNATURE,
     create_data_source_table_and_stage,
     local_ingestion,
+    STATEMENT_PARAMS_DATA_SOURCE_JDBC,
+    DATA_SOURCE_JDBC_SIGNATURE,
+    get_jdbc_dbms,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -1629,10 +1632,20 @@ class DataFrameReader:
         java_version = udtf_configs.get("java_version", 17)
         secret = udtf_configs.get("secret", None)
 
+        telemetry_json_string = defaultdict()
+        telemetry_json_string["function_name"] = DATA_SOURCE_JDBC_SIGNATURE
+        telemetry_json_string["ingestion_mode"] = "udtf_ingestion"
+        telemetry_json_string["dbms_type"] = get_jdbc_dbms(url)
+        telemetry_json_string["imports"] = udtf_configs["imports"]
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE_JDBC: "1"}
+
         if external_access_integration is None or imports is None or secret is None:
             raise ValueError(
                 "external_access_integration, secret and imports must be specified in udtf configs"
             )
+
+        start_time = time.perf_counter()
+        logger.debug(f"ingestion start at: {start_time}")
 
         if session_init_statement and isinstance(session_init_statement, str):
             session_init_statement = [session_init_statement]
@@ -1665,12 +1678,24 @@ class DataFrameReader:
         partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
         self._session.create_dataframe(
             [[query] for query in partitions], schema=["partition"]
-        ).write.save_as_table(partitions_table, table_type="temp")
+        ).write.save_as_table(
+            partitions_table,
+            table_type="temp",
+            statement_params=statements_params_for_telemetry,
+        )
 
         df = jdbc_client.read(partitions_table)
-        return jdbc_client.to_result_snowpark_df(
+        res_df = jdbc_client.to_result_snowpark_df(
             df, jdbc_client.schema, _emit_ast=_emit_ast
         )
+        end_time = time.perf_counter()
+        telemetry_json_string["end_to_end_duration"] = end_time - start_time
+        telemetry_json_string["schema"] = res_df.schema.simple_string()
+        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+            telemetry_json_string
+        )
+        set_api_call_source(res_df, DATA_SOURCE_JDBC_SIGNATURE)
+        return res_df
 
     @private_preview(version="1.29.0")
     @publicapi
