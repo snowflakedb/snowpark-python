@@ -4725,12 +4725,20 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             iceberg_config: A dictionary that can contain the following iceberg configuration values:
 
+                * partition_by: specifies one or more partition expressions for the Iceberg table.
+                    Can be a single Column, column name, SQL expression string, or a list of these.
+                    Supports identity partitioning (column names) as well as partition transform functions
+                    like bucket(), truncate(), year(), month(), day(), hour().
+
                 * external_volume: specifies the identifier for the external volume where
                     the Iceberg table stores its metadata files and data in Parquet format
 
                 * catalog: specifies either Snowflake or a catalog integration to use for this table
 
                 * base_location: the base directory that snowflake can write iceberg metadata and files to
+
+                * target_file_size: specifies a target Parquet file size for the table.
+                    Valid values: 'AUTO' (default), '16MB', '32MB', '64MB', '128MB'
 
                 * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
 
@@ -5516,10 +5524,16 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             iceberg_config: A dictionary that can contain the following iceberg configuration values:
 
+                - partition_by: specifies one or more partition expressions for the Iceberg table.
+                  Can be a single Column, column name, SQL expression string, or a list of these.
+                  Supports identity partitioning (column names) as well as partition transform functions
+                  like bucket(), truncate(), year(), month(), day(), hour().
                 - external_volume: specifies the identifier for the external volume where
                   the Iceberg table stores its metadata files and data in Parquet format.
                 - catalog: specifies either Snowflake or a catalog integration to use for this table.
                 - base_location: the base directory that snowflake can write iceberg metadata and files to.
+                - target_file_size: specifies a target Parquet file size for the table.
+                  Valid values: 'AUTO' (default), '16MB', '32MB', '64MB', '128MB'
                 - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
                 - storage_serialization_policy: specifies the storage serialization policy for the table.
             copy_grants: A boolean value that specifies whether to retain the access permissions from the original view

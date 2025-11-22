@@ -446,13 +446,16 @@ def test_create_iceberg_table_statement():
             "external_volume": "example_volume",
             "catalog": "example_catalog",
             "base_location": "/root",
+            "target_file_size": "128MB",
             "catalog_sync": "integration_name",
             "storage_serialization_policy": "OPTIMIZED",
+            "partition_by": ["country", "bucket(10, user_id)"],
         },
     ) == (
-        " CREATE    ICEBERG  TABLE test_table(test_col varchar)  EXTERNAL_VOLUME  = 'example_volume' "
-        " CATALOG  = 'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'"
-        "  STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED' "
+        " CREATE    ICEBERG  TABLE test_table(test_col varchar) "
+        " PARTITION BY (country, bucket(10, user_id))  EXTERNAL_VOLUME  = 'example_volume' "
+        " CATALOG  = 'example_catalog'  BASE_LOCATION  = '/root'  TARGET_FILE_SIZE  = '128MB' "
+        " CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED' "
     )
 
 
@@ -467,9 +470,12 @@ def test_create_iceberg_table_as_select_statement():
             "base_location": "/root",
             "catalog_sync": "integration_name",
             "storage_serialization_policy": "OPTIMIZED",
+            "partition_by": ["HOUR(timestamp)", "TRUNCATE(3, category)"],
         },
     ) == (
-        " CREATE    ICEBERG  TABLE  test_table  EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = "
+        " CREATE    ICEBERG  TABLE  test_table "
+        " PARTITION BY (HOUR(timestamp), TRUNCATE(3, category)) "
+        " EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = "
         "'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  "
         "STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED'   AS  SELECT  * \n"
         " FROM (\nselect * from foo\n)"
@@ -498,13 +504,14 @@ def test_create_dynamic_iceberg_table():
             "external_volume": "example_volume",
             "catalog": "example_catalog",
             "base_location": "/root",
+            "target_file_size": "32MB",
             "catalog_sync": "integration_name",
             "storage_serialization_policy": "OPTIMIZED",
         },
     ) == (
         " CREATE  OR  REPLACE  DYNAMIC  ICEBERG  TABLE my_dt LAG  = '1 minute' WAREHOUSE  = "
         "my_warehouse    EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = 'example_catalog'  "
-        "BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY "
+        "BASE_LOCATION  = '/root'  TARGET_FILE_SIZE  = '32MB'  CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY "
         " = 'OPTIMIZED' AS  SELECT  * \n"
         " FROM (\nselect * from foo\n)"
     )
