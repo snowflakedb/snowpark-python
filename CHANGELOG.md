@@ -53,6 +53,10 @@
 
 - Catalog API no longer uses types declared in `snowflake.core` and therefore this dependency was removed.
 
+#### Bug Fixes
+
+- Fixed a bug in `XMLReader` where finding the start position of a row tag could return an incorrect file position.
+
 ### Snowpark pandas API Updates
 
 #### New Features
