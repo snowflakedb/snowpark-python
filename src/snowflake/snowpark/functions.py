@@ -4479,6 +4479,25 @@ def hour(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def day(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Extracts the day from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(day("a")).collect()
+        [Row(DAY("A")=1), Row(DAY("A")=21)]
+    """
+    c = _to_col_if_str(e, "day")
+    return _call_function("day", c, _emit_ast=_emit_ast)
+
+
+@publicapi
 def last_day(
     expr: ColumnOrName, part: Optional[ColumnOrName] = None, _emit_ast: bool = True
 ) -> Column:
@@ -4688,6 +4707,62 @@ def year(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = _to_col_if_str(e, "year")
     return _call_function("year", c, _emit_ast=_emit_ast)
+
+
+@publicapi
+def bucket(
+    num_buckets: Union[int, ColumnOrName], col: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Performs an Iceberg partition bucket transform.
+    This function should only be used in the iceberg_config['partition_by'] parameter when creating Iceberg tables.
+
+    Example::
+
+        >>> iceberg_config = {
+        ...     "external_volume": "example_volume",
+        ...     "partition_by": [bucket(10, "a")]
+        ... }
+        >>> df.write.save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
+    """
+    ast = build_function_expr("bucket", [num_buckets, col]) if _emit_ast else None
+
+    num_buckets = (
+        lit(num_buckets, _emit_ast=False)
+        if isinstance(num_buckets, int)
+        else _to_col_if_str(num_buckets, "bucket")
+    )
+    col = _to_col_if_str(col, "bucket")
+
+    return _call_function("bucket", num_buckets, col, _ast=ast, _emit_ast=_emit_ast)
+
+
+@publicapi
+def truncate(
+    width: Union[int, ColumnOrName], col: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Performs an Iceberg partition truncate transform.
+    This function should only be used in the iceberg_config['partition_by'] parameter when creating Iceberg tables.
+
+    Example::
+
+        >>> iceberg_config = {
+        ...     "external_volume": "example_volume",
+        ...     "partition_by": [truncate(3, "a")]
+        ... }
+        >>> df.write.save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
+    """
+    ast = build_function_expr("truncate", [width, col]) if _emit_ast else None
+
+    width = (
+        lit(width, _emit_ast=False)
+        if isinstance(width, int)
+        else _to_col_if_str(width, "truncate")
+    )
+    col = _to_col_if_str(col, "truncate")
+
+    return _call_function("truncate", width, col, _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi

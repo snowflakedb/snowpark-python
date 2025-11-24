@@ -591,7 +591,7 @@ def test_group_by_grouping_sets(session):
             .with_column("medical_license", lit(None))
             .select("medical_license", "radio_license", "count")
         )
-        .sort(col("count"))
+        .sort(col("count"), col("radio_license"))
         .collect()
     )
 
@@ -601,7 +601,7 @@ def test_group_by_grouping_sets(session):
             GroupingSets([col("medical_license")], [col("radio_license")])
         )
         .agg(count(col("*")).as_("count"))
-        .sort(col("count"))
+        .sort(col("count"), col("radio_license"))
     )
 
     Utils.check_answer(grouping_sets, result, sort=False)
@@ -609,8 +609,8 @@ def test_group_by_grouping_sets(session):
     Utils.check_answer(
         grouping_sets,
         [
-            Row(None, "General", 1),
             Row(None, "Amateur Extra", 1),
+            Row(None, "General", 1),
             Row("RN", None, 2),
             Row(None, "Technician", 2),
             Row(None, None, 3),
@@ -624,8 +624,8 @@ def test_group_by_grouping_sets(session):
         TestData.nurse(session)
         .group_by("medical_license", "radio_license")
         .agg(count(col("*")).as_("count"))
-        .sort(col("count"), col("medical_license"), col("radio_license"))
-        .select("count", "medical_license", "radio_license"),
+        .select("count", "medical_license", "radio_license")
+        .sort(col("count"), col("medical_license"), col("radio_license")),
         [
             Row(1, "LVN", "General"),
             Row(1, "RN", None),
@@ -775,11 +775,13 @@ def test_rel_grouped_dataframe_median(session):
 def test_builtin_functions(session):
     df = session.create_dataframe([(1, 11), (2, 12), (1, 13)]).to_df(["a", "b"])
 
-    assert df.group_by("a").builtin("max")(col("a"), col("b")).collect() == [
+    assert df.group_by("a").builtin("max")(col("a"), col("b")).sort(
+        col("a")
+    ).collect() == [
         Row(1, 1, 13),
         Row(2, 2, 12),
     ]
-    assert df.group_by("a").builtin("max")(col("b")).collect() == [
+    assert df.group_by("a").builtin("max")(col("b")).sort(col("a")).collect() == [
         Row(1, 13),
         Row(2, 12),
     ]
@@ -828,8 +830,8 @@ def test_non_empty_arg_functions(session):
 
 
 def test_null_count(session):
-    assert TestData.test_data3(session).group_by("a").agg(
-        count(col("b"))
+    assert TestData.test_data3(session).group_by("a").agg(count(col("b"))).sort(
+        col("a")
     ).collect() == [
         Row(1, 0),
         Row(2, 1),
@@ -837,7 +839,7 @@ def test_null_count(session):
 
     assert TestData.test_data3(session).group_by("a").agg(
         count(col("a") + col("b"))
-    ).collect() == [Row(1, 0), Row(2, 1)]
+    ).sort(col("a")).collect() == [Row(1, 0), Row(2, 1)]
 
     assert TestData.test_data3(session).agg(
         [
@@ -1147,9 +1149,12 @@ def test_ints_in_agg_exprs_are_taken_as_groupby_ordinal(session):
         [lit(6), lit(7), sum(col("b"))]
     ).collect() == [Row(3, 4, 6, 7, 9)]
 
-    assert TestData.test_data2(session).group_by([lit(3), lit(4)]).agg(
-        [lit(6), col("b"), sum(col("b"))]
-    ).collect() == [Row(3, 4, 6, 1, 3), Row(3, 4, 6, 2, 6)]
+    Utils.check_answer(
+        TestData.test_data2(session)
+        .group_by([lit(3), lit(4)])
+        .agg([lit(6), col("b"), sum(col("b"))]),
+        [Row(3, 4, 6, 1, 3), Row(3, 4, 6, 2, 6)],
+    )
 
 
 @pytest.mark.xfail(

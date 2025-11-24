@@ -151,6 +151,7 @@ CHANGE_TRACKING = " CHANGE_TRACKING "
 EXTERNAL_VOLUME = " EXTERNAL_VOLUME "
 CATALOG = " CATALOG "
 BASE_LOCATION = " BASE_LOCATION "
+TARGET_FILE_SIZE = " TARGET_FILE_SIZE "
 CATALOG_SYNC = " CATALOG_SYNC "
 STORAGE_SERIALIZATION_POLICY = " STORAGE_SERIALIZATION_POLICY "
 REG_EXP = " REGEXP "
@@ -231,22 +232,33 @@ def format_uuid(uuid: Optional[str], with_new_line: bool = True) -> str:
     return f"{UUID_COMMENT.format(uuid)}"
 
 
-def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:
+def validate_iceberg_config(
+    iceberg_config: Optional[dict],
+) -> tuple[Dict[str, str], list]:
+    """
+    Validate and process iceberg config, returning (options_dict, partition_exprs_list).
+    """
     if iceberg_config is None:
-        return dict()
+        return dict(), []
 
     iceberg_config = {k.lower(): v for k, v in iceberg_config.items()}
 
-    return {
+    # Extract partition_by (already processed as SQL strings by analyzer)
+    partition_exprs = iceberg_config.get("partition_by", [])
+
+    options = {
         EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
         CATALOG: iceberg_config.get("catalog", None),
         BASE_LOCATION: iceberg_config.get("base_location", None),
+        TARGET_FILE_SIZE: iceberg_config.get("target_file_size", None),
         CATALOG_SYNC: iceberg_config.get("catalog_sync", None),
         STORAGE_SERIALIZATION_POLICY: iceberg_config.get(
             "storage_serialization_policy", None
         ),
         ICEBERG_VERSION: iceberg_config.get("iceberg_version", None),
     }
+
+    return options, partition_exprs
 
 
 def result_scan_statement(uuid_place_holder: str) -> str:
@@ -309,6 +321,20 @@ def named_arguments_function(name: str, args: Dict[str, str]) -> str:
 
 def partition_spec(col_exprs: List[str]) -> str:
     return f"PARTITION BY {COMMA.join(col_exprs)}" if col_exprs else EMPTY_STRING
+
+
+def iceberg_partition_clause(partition_exprs: List[str]) -> str:
+    return (
+        (
+            SPACE
+            + PARTITION_BY
+            + LEFT_PARENTHESIS
+            + COMMA.join(partition_exprs)
+            + RIGHT_PARENTHESIS
+        )
+        if partition_exprs
+        else EMPTY_STRING
+    )
 
 
 def order_by_spec(col_exprs: List[str]) -> str:
@@ -1103,15 +1129,17 @@ def create_table_statement(
         CHANGE_TRACKING: change_tracking,
     }
 
-    iceberg_config = validate_iceberg_config(iceberg_config)
-    options.update(iceberg_config)
+    iceberg_options, partition_exprs = validate_iceberg_config(iceberg_config)
+    options.update(iceberg_options)
     options_statement = get_options_statement(options)
+
+    partition_by_clause = iceberg_partition_clause(partition_exprs)
 
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
-        f"{ICEBERG if iceberg_config else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
-        f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{cluster_by_clause}"
+        f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
+        f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{partition_by_clause}{cluster_by_clause}"
         f"{options_statement}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
     )
 
@@ -1192,15 +1220,18 @@ def create_table_as_select_statement(
         MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
         CHANGE_TRACKING: change_tracking,
     }
-    iceberg_config = validate_iceberg_config(iceberg_config)
-    options.update(iceberg_config)
+    iceberg_options, partition_exprs = validate_iceberg_config(iceberg_config)
+    options.update(iceberg_options)
     options_statement = get_options_statement(options)
+
+    partition_by_clause = iceberg_partition_clause(partition_exprs)
+
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
-        f"{ICEBERG if iceberg_config else EMPTY_STRING}{TABLE}"
+        f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
-        f"{table_name}{column_definition_sql}{cluster_by_clause}{options_statement}"
+        f"{table_name}{column_definition_sql}{partition_by_clause}{cluster_by_clause}{options_statement}"
         f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"
     )
 
@@ -1506,9 +1537,8 @@ def create_or_replace_dynamic_table_statement(
         }
     )
 
-    iceberg_options = get_options_statement(
-        validate_iceberg_config(iceberg_config)
-    ).strip()
+    iceberg_options, _ = validate_iceberg_config(iceberg_config)
+    iceberg_options = get_options_statement(iceberg_options).strip()
 
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TRANSIENT if is_transient else EMPTY_STRING}"
