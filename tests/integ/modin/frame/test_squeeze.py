@@ -39,7 +39,7 @@ def test_1_by_n(axis, dtype):
 
 
 def test_2d(axis):
-    with SqlCounter(query_count=1, union_count=1 if axis in (0, "index", None) else 0):
+    with SqlCounter(query_count=1):
         eval_snowpark_pandas_result(
             *create_test_dfs(
                 {
@@ -57,7 +57,7 @@ def test_2d(axis):
 )
 def test_scalar(axis, scalar):
     snow_df, native_df = create_test_dfs([scalar])
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, union_count=1 if axis in (0, "index") else 0):
         if axis is None:
             assert scalar == snow_df.squeeze()
         else:

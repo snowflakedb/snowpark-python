@@ -185,7 +185,7 @@ class TestCacheResultReducesQueryCount:
             native_pd.DataFrame(simple_test_data).apply(lambda x: x + x, axis=1),
             native_pd,
         )
-        with SqlCounter(query_count=6, union_count=9, udtf_count=1):
+        with SqlCounter(query_count=6, union_count=9, udtf_count=1, join_count=3):
             snow_df = pd.DataFrame(simple_test_data).apply(lambda x: x + x, axis=1)
             repr(snow_df)
             snow_df = perform_chained_operations(snow_df, pd)
@@ -193,7 +193,7 @@ class TestCacheResultReducesQueryCount:
                 snow_df, native_df
             )
 
-        with SqlCounter(query_count=5, udtf_count=1):
+        with SqlCounter(query_count=5, udtf_count=1, join_count=2):
             snow_df = pd.DataFrame(simple_test_data).apply(lambda x: x + x, axis=1)
             cached_snow_df = cache_and_return_df(snow_df, inplace)
 

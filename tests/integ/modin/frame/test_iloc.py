@@ -166,7 +166,7 @@ def test_df_row_return_dataframe(
     default_index_snowpark_pandas_df,
     default_index_native_df,
 ):
-    union_count = 1 if isinstance(key, (list, slice)) else 0
+    union_count = 1 if isinstance(key, int) else 0
     with SqlCounter(
         query_count=expected_query_count,
         join_count=expected_join_count,
@@ -1082,9 +1082,11 @@ def test_df_iloc_get_key_scalar(
         else:
             return native_pd.Series([]) if axis == "row" else df.iloc[:, []]
 
+    expected_union_count = 0 if axis == "col" else 1
+
     # test df with default index
     num_cols = 7
-    with SqlCounter(query_count=1, union_count=1):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -1094,7 +1096,7 @@ def test_df_iloc_get_key_scalar(
 
     # test df with non-default index
     num_cols = 6  # set_index() makes the number of columns 6
-    with SqlCounter(query_count=1, union_count=1):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df.set_index("D"),
             default_index_native_df.set_index("D"),
@@ -1107,7 +1109,7 @@ def test_df_iloc_get_key_scalar(
     num_cols = 7
     native_df = default_index_native_df.set_index(multiindex_native)
     snowpark_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1, union_count=1):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             snowpark_df,
             native_df,
@@ -1121,7 +1123,7 @@ def test_df_iloc_get_key_scalar(
         native_df_with_multiindex_columns
     )
     in_range = True if (-8 < key < 7) else False
-    with SqlCounter(query_count=1, union_count=1):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         if axis == "row" or in_range:  # series result
             eval_snowpark_pandas_result(
                 snowpark_df_with_multiindex_columns,
@@ -1143,7 +1145,7 @@ def test_df_iloc_get_key_scalar(
     # test df with MultiIndex on both index and columns
     native_df = native_df_with_multiindex_columns.set_index(multiindex_native)
     snowpark_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1, union_count=1):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         if axis == "row" or in_range:  # series result
             eval_snowpark_pandas_result(
                 snowpark_df,

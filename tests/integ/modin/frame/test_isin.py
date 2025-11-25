@@ -25,8 +25,11 @@ from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 # Case 3: values is (Snowpark pandas) DataFrame
 # Case 3: values is dict
 
+
 # type hint pd.DataFrame | native_pd.DataFrame does not work here, therefore Any is used.
-def _test_isin_with_snowflake_logic(df: Any, values, query_count=0):  # noqa: E302
+def _test_isin_with_snowflake_logic(
+    df: Any, values, query_count=0, join_count=0
+):  # noqa: E302
 
     # convert to Snowpark pandas API universe
     if isinstance(df, pd.DataFrame):
@@ -35,10 +38,10 @@ def _test_isin_with_snowflake_logic(df: Any, values, query_count=0):  # noqa: E3
         elif isinstance(values, native_pd.DataFrame):
             values = try_cast_to_snowpark_pandas_dataframe(values)
     else:
-        # set expected query counts to 0 if native pandas is used.
+        # set expected query count and join count to 0 if native pandas is used.
         query_count = 0
+        join_count = 0
 
-    join_count = 1 if isinstance(df, pd.DataFrame) else 0
     with SqlCounter(query_count=query_count, join_count=join_count):
         ans = df.isin(values)
 
@@ -144,7 +147,9 @@ def test_isin_with_Series(values, data, columns, index):
         snow_df,
         native_df,
         # 2 queries: 1 for the isin, 1 extra query to handle empty dataframe special case
-        lambda df: _test_isin_with_snowflake_logic(df, values, query_count=1),
+        lambda df: _test_isin_with_snowflake_logic(
+            df, values, query_count=1, join_count=1
+        ),
     )
 
 
@@ -198,8 +203,7 @@ def test_isin_with_Dataframe(df, other):
             values = pd.DataFrame(other)
         else:
             values = other
-        #  3 queries: 2 for the isin of which one is caused by set, 1 extra query to handle empty dataframe special case
-        return _test_isin_with_snowflake_logic(df, values, query_count=1)
+        return _test_isin_with_snowflake_logic(df, values, query_count=1, join_count=1)
 
     eval_snowpark_pandas_result(
         snow_df,
@@ -269,5 +273,7 @@ def test_isin_timedelta(values):
     eval_snowpark_pandas_result(
         snow_df,
         native_df,
-        lambda df: _test_isin_with_snowflake_logic(df, values, query_count=1),
+        lambda df: _test_isin_with_snowflake_logic(
+            df, values, query_count=1, join_count=0
+        ),
     )
