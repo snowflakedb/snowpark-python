@@ -4,7 +4,7 @@
 #
 import uuid
 from collections import Counter, defaultdict
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Union
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Optional, Union
 from logging import getLogger
 
 from snowflake.connector import IntegrityError
@@ -177,6 +177,7 @@ from snowflake.snowpark._internal.utils import (
     ExprAliasUpdateDict,
 )
 from snowflake.snowpark.types import BooleanType, _NumericType
+from snowflake.snowpark.column import Column
 
 ARRAY_BIND_THRESHOLD = 512
 
@@ -904,6 +905,43 @@ class Analyzer:
                 parse_local_name,
             )
 
+    def _process_partition_by_in_iceberg_config(
+        self,
+        iceberg_config: Optional[dict],
+        df_aliased_col_name_to_real_col_name: Union[
+            DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
+        ],
+    ) -> Optional[dict]:
+        """
+        Process partition_by expressions from iceberg_config, converting Column objects to SQL strings.
+        Returns a new iceberg_config dict with partition_by as a list of SQL strings, or the original config if no processing needed.
+        """
+        if iceberg_config is None or iceberg_config.get("partition_by") is None:
+            return iceberg_config
+
+        iceberg_config = {k.lower(): v for k, v in iceberg_config.items()}
+        pb = iceberg_config["partition_by"]
+
+        # Convert to list and filter out empty expressions
+        partition_exprs = pb if isinstance(pb, (list, tuple)) else [pb]
+        partition_sqls = []
+        for expr in partition_exprs:
+            if isinstance(expr, Column):
+                partition_sqls.append(
+                    self.analyze(expr._expression, df_aliased_col_name_to_real_col_name)
+                )
+            elif isinstance(expr, str):
+                if expr:  # Ignore empty strings
+                    partition_sqls.append(str(expr))
+            else:
+                raise TypeError(
+                    f"partition_by in iceberg_config expected Column or str, got: {type(expr)}"
+                )
+
+        if partition_sqls:
+            return {**iceberg_config, "partition_by": partition_sqls}
+        return iceberg_config
+
     def resolve(self, logical_plan: LogicalPlan) -> SnowflakePlan:
         self.subquery_plans = []
         self.generated_alias_maps = (
@@ -1164,6 +1202,10 @@ class Analyzer:
 
         if isinstance(logical_plan, SnowflakeCreateTable):
             resolved_child = resolved_children[logical_plan.children[0]]
+            iceberg_config = self._process_partition_by_in_iceberg_config(
+                logical_plan.iceberg_config, df_aliased_col_name_to_real_col_name
+            )
+
             return self.plan_builder.save_as_table(
                 table_name=logical_plan.table_name,
                 column_names=logical_plan.column_names,
@@ -1184,7 +1226,7 @@ class Analyzer:
                 use_scoped_temp_objects=self.session._use_scoped_temp_objects,
                 creation_source=logical_plan.creation_source,
                 child_attributes=resolved_child.attributes,
-                iceberg_config=logical_plan.iceberg_config,
+                iceberg_config=iceberg_config,
                 table_exists=logical_plan.table_exists,
             )
 
@@ -1416,6 +1458,10 @@ class Analyzer:
             if format_name is not None:
                 format_type_options["FORMAT_NAME"] = format_name
             assert logical_plan.file_format is not None
+            iceberg_config = self._process_partition_by_in_iceberg_config(
+                logical_plan.iceberg_config, df_aliased_col_name_to_real_col_name
+            )
+
             return self.plan_builder.copy_into_table(
                 path=logical_plan.file_path,
                 table_name=logical_plan.table_name,
@@ -1435,7 +1481,7 @@ class Analyzer:
                 else None,
                 user_schema=logical_plan.user_schema,
                 create_table_from_infer_schema=logical_plan.create_table_from_infer_schema,
-                iceberg_config=logical_plan.iceberg_config,
+                iceberg_config=iceberg_config,
             )
 
         if isinstance(logical_plan, CopyIntoLocationNode):

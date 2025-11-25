@@ -10,10 +10,15 @@
 - Added support for PrPr feature `Session.client_telemetry`.
 - Added support for `Session.udf_profiler`.
 - Added support for `functions.ai_translate`.
+- Added support for the following `iceberg_config` options in `DataFrameWriter.save_as_table` and `DataFrame.copy_into_table`:
+  - `target_file_size`
+  - `partition_by`
 - Added support for the following functions in `functions.py`:
     - String and Binary functions:
       - `base64_decode_binary`
+      - `bucket`
       - `compress`
+      - `day`
       - `decompress_binary`
       - `decompress_string`
       - `md5_binary`
@@ -23,6 +28,7 @@
       - `sha2_binary`
       - `soundex_p123`
       - `strtok`
+      - `truncate`
       - `try_base64_decode_binary`
       - `try_base64_decode_string`
       - `try_hex_decode_binary`
@@ -43,6 +49,10 @@
       - `square`
       - `width_bucket`
 
+#### Bug Fixes
+
+- Fixed a bug where automatically-generated temporary objects were not properly cleaned up.
+
 #### Improvements
 
 - Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
@@ -56,6 +66,7 @@
 #### Bug Fixes
 
 - Fixed with a bug when sql generation when joining two `DataFrame`s created using `DataFrame.alias` and CTE optimization is enabled.
+- Fixed a bug in `XMLReader` where finding the start position of a row tag could return an incorrect file position.
 
 ### Snowpark pandas API Updates
 
@@ -64,6 +75,9 @@
 - Added support for `Dataframe.groupby.rolling()`.
 - Added support for mapping `np.percentile` with DataFrame and Series inputs to `Series.quantile`.
 - Added support for setting the `random_state` parameter to an integer when calling `DataFrame.sample` or `Series.sample`.
+- Added support for the following `iceberg_config` options in `to_iceberg`:
+  - `target_file_size`
+  - `partition_by`
 
 #### Improvements
 
