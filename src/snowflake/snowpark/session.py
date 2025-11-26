@@ -1794,7 +1794,7 @@ class Session:
 
         Example::
 
-            >>> import sys, pytest; (sys.version_info[:2] == (3, 9)) or pytest.skip()  # package conflicts in Python 3.9
+            >>> import sys, pytest; (sys.version_info[:2] != (3, 9)) or pytest.skip()  # package conflicts in Python 3.9
             >>> from snowflake.snowpark.functions import udf
             >>> import numpy
             >>> import pandas
@@ -2712,7 +2712,7 @@ class Session:
 
         References: `Snowflake SQL functions <https://docs.snowflake.com/en/sql-reference/functions-table.html>`_.
 
-            >>> import sys, pytest; (sys.version_info[:2] == (3, 9)) or pytest.skip()  # package conflicts in Python 3.9
+            >>> import sys, pytest; (sys.version_info[:2] != (3, 9)) or pytest.skip()  # package conflicts in Python 3.9
 
         Example 1
             Query a table function by function name:
