@@ -21,8 +21,8 @@ from tests.integ.modin.utils import (
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
 transpose_and_double_transpose_parameterize = pytest.mark.parametrize(
-    "transpose_operation, expected_query_count",
-    [(lambda df: df.T, 1), (lambda df: df.T.T, 1)],
+    "transpose_operation, expected_union_count",
+    [(lambda df: df.T, 1), (lambda df: df.T.T, 2)],
 )
 
 
@@ -34,21 +34,21 @@ def update_columns_index(df, new_columns_index):
 
 @transpose_and_double_transpose_parameterize
 def test_dataframe_transpose_default_index(
-    transpose_operation, expected_query_count, score_test_data
+    transpose_operation, expected_union_count, score_test_data
 ):
     snow_df = pd.DataFrame(score_test_data)
     native_df = native_pd.DataFrame(score_test_data)
-    with SqlCounter(query_count=expected_query_count, union_count=2):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(snow_df, native_df, transpose_operation)
 
 
 @transpose_and_double_transpose_parameterize
 def test_dataframe_transpose_set_single_index(
-    transpose_operation, expected_query_count, score_test_data
+    transpose_operation, expected_union_count, score_test_data
 ):
     snow_df = pd.DataFrame(score_test_data)
     native_df = native_pd.DataFrame(score_test_data)
-    with SqlCounter(query_count=expected_query_count, union_count=2):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -85,7 +85,9 @@ def test_dataframe_transpose_set_single_index(
 def test_dataframe_transpose_set_timedelta_index_SNOW_1652608(
     operation, score_test_data, index
 ):
-    with SqlCounter(query_count=1, join_count=2, union_count=1):
+    with SqlCounter(
+        query_count=1, join_count=1 if isinstance(index, list) else 2, union_count=1
+    ):
         eval_snowpark_pandas_result(
             *create_test_dfs(score_test_data), lambda df: operation(df.set_index(index))
         )
@@ -93,11 +95,11 @@ def test_dataframe_transpose_set_timedelta_index_SNOW_1652608(
 
 @transpose_and_double_transpose_parameterize
 def test_dataframe_transpose_set_multi_index(
-    transpose_operation, expected_query_count, score_test_data
+    transpose_operation, expected_union_count, score_test_data
 ):
     snow_df = pd.DataFrame(score_test_data)
     native_df = native_pd.DataFrame(score_test_data)
-    with SqlCounter(query_count=expected_query_count, union_count=2):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -107,12 +109,12 @@ def test_dataframe_transpose_set_multi_index(
 
 @transpose_and_double_transpose_parameterize
 def test_dataframe_transpose_set_columns_multi_index(
-    transpose_operation, expected_query_count, score_test_data
+    transpose_operation, expected_union_count, score_test_data
 ):
     snow_df = pd.DataFrame(score_test_data)
     native_df = native_pd.DataFrame(score_test_data)
 
-    with SqlCounter(query_count=expected_query_count, union_count=2):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -132,12 +134,12 @@ def test_dataframe_transpose_set_columns_multi_index(
 
 @transpose_and_double_transpose_parameterize
 def test_dataframe_transpose_set_columns_multi_index_mixed_types(
-    transpose_operation, expected_query_count, score_test_data
+    transpose_operation, expected_union_count, score_test_data
 ):
     snow_df = pd.DataFrame(score_test_data)
     native_df = native_pd.DataFrame(score_test_data)
 
-    with SqlCounter(query_count=expected_query_count, union_count=2):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -158,12 +160,12 @@ def test_dataframe_transpose_set_columns_multi_index_mixed_types(
 
 @transpose_and_double_transpose_parameterize
 def test_dataframe_transpose_both_multi_index(
-    transpose_operation, expected_query_count, score_test_data
+    transpose_operation, expected_union_count, score_test_data
 ):
     native_df = native_pd.DataFrame(score_test_data)
     snow_df = pd.DataFrame(score_test_data)
 
-    with SqlCounter(query_count=expected_query_count, union_count=2):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -177,12 +179,12 @@ def test_dataframe_transpose_both_multi_index(
 
 
 @transpose_and_double_transpose_parameterize
-def test_dataframe_transpose_single_row(transpose_operation, expected_query_count):
+def test_dataframe_transpose_single_row(transpose_operation, expected_union_count):
     single_row_data = {"A": [1], "B": [2], "C": [3], "D": [4], "E": [5], "F": [6]}
     native_df = native_pd.DataFrame(single_row_data)
     snow_df = pd.DataFrame(single_row_data)
 
-    with SqlCounter(query_count=expected_query_count, union_count=2):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,

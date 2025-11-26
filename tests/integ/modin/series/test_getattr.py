@@ -52,7 +52,7 @@ def test_getattr(name, expected_query_count, expected_join_count):
     ],  # _ATTRS_NO_LOOKUP
 )
 def test_getattr_negative(name, expected_query_count):
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(query_count=expected_query_count, join_count=expected_query_count):
         native = native_pd.Series([1, 2, 2], index=["a", "b", "c"])
         with pytest.raises(AttributeError, match="has no attribute"):
             getattr(native, name)

@@ -562,12 +562,19 @@ def test_create_df_with_series_index_dict_data(data1, data2):
     with SqlCounter(query_count=1, join_count=1):
         assert_frame_equal(snow_df, native_df)
 
+    if data1 == "series" and data2 == "series":
+        expected_join_count = 2
+    elif data1 == "index" and data2 == "index":
+        expected_join_count = 4
+    else:
+        expected_join_count = 3
+
     # Create DataFrame with dict data and Series index.
     native_ser_index = native_pd.Series([9, 2, 999])
     snow_ser_index = pd.Series([9, 2, 999])
     native_df = native_pd.DataFrame(native_data, index=native_ser_index)
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
-    with SqlCounter(query_count=1, join_count=4):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with dict data and Index index.
@@ -575,7 +582,7 @@ def test_create_df_with_series_index_dict_data(data1, data2):
     snow_index = pd.Index([9, 2, 999])
     native_df = native_pd.DataFrame(native_data, index=native_index)
     snow_df = pd.DataFrame(snow_data, index=snow_index)
-    with SqlCounter(query_count=1, join_count=4):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with dict data, Series index, and columns.
@@ -584,7 +591,7 @@ def test_create_df_with_series_index_dict_data(data1, data2):
         native_data, index=native_ser_index, columns=columns
     )
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index, columns=columns)
-    with SqlCounter(query_count=1, join_count=4):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with dict data, Index index, and Index columns.
@@ -594,7 +601,7 @@ def test_create_df_with_series_index_dict_data(data1, data2):
         native_data, index=native_index, columns=native_columns
     )
     snow_df = pd.DataFrame(snow_data, index=snow_index, columns=snow_columns)
-    with SqlCounter(query_count=1, join_count=4):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(snow_df, native_df)
 
 
@@ -998,7 +1005,7 @@ def test_create_df_with_mixed_series_index_dict_data():
     snow_ser_index = pd.Series(native_ser_index)
     native_df = native_pd.DataFrame(native_data, index=native_ser_index)
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with dict data and Index index.
@@ -1015,7 +1022,7 @@ def test_create_df_with_mixed_series_index_dict_data():
         native_data, index=native_ser_index, columns=columns
     )
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index, columns=columns)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with dict data, Index index, and Index columns.

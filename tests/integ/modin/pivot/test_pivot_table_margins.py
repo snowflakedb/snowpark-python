@@ -24,7 +24,7 @@ def test_pivot_table_single_with_dropna_options(
         pytest.xfail(
             reason="SNOW-1435365 - pandas computes values differently than us: https://github.com/pandas-dev/pandas/issues/58722."
         )
-    expected_union_count = 1 if index is None else 0
+    expected_union_count = 1 if index == "A" else 0
     with SqlCounter(
         query_count=1, join_count=expected_join_count, union_count=expected_union_count
     ):
@@ -98,7 +98,7 @@ def test_pivot_table_multiple_columns_values_with_margins(
         expected_join_count += 2
     if not dropna:
         expected_join_count += 1
-    with SqlCounter(query_count=1, join_count=expected_join_count):
+    with SqlCounter(query_count=1, union_count=1, join_count=expected_join_count):
         pivot_table_test_helper(
             df_data,
             {

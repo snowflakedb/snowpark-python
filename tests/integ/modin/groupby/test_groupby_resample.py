@@ -33,7 +33,7 @@ def test_groupby_resample_by_a(freq, interval, agg_func):
         ]
     )
 
-    with SqlCounter(query_count=6, union_count=1):
+    with SqlCounter(query_count=6, union_count=1, join_count=1):
         eval_snowpark_pandas_result(
             *create_test_dfs(
                 {"a": [0, 0, 5, 0, 5], "b": [1, 1, 1, 1, 1], "c": [2, 2, 2, 2, 2]},
@@ -60,7 +60,7 @@ def test_groupby_resample_by_a_closed_left(freq, interval, agg_func):
             "2000-01-01 00:07:00",
         ]
     )
-    with SqlCounter(query_count=6, union_count=1):
+    with SqlCounter(query_count=6, union_count=1, join_count=1):
         eval_snowpark_pandas_result(
             *create_test_dfs(
                 {"a": [0, 0, 5, 0, 5], "b": [1, 1, 1, 1, 1], "c": [2, 2, 2, 2, 2]},
@@ -83,7 +83,7 @@ def test_groupby_resample_by_a_diff_freq(freq):
     )
     snow_df = pd.DataFrame(pandas_df)
     rule = f"1{freq}"
-    with SqlCounter(query_count=4, union_count=1):
+    with SqlCounter(query_count=4, join_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             pandas_df,
@@ -105,7 +105,7 @@ def test_groupby_resample_by_b(freq, interval, agg_func):
         ]
     )
     rule = f"{interval}{freq}"
-    with SqlCounter(query_count=5, union_count=1):
+    with SqlCounter(query_count=5, join_count=1):
         eval_snowpark_pandas_result(
             *create_test_dfs(
                 {"a": [0, 0, 5, 0, 5], "b": [1, 1, 1, 1, 1], "c": [2, 2, 2, 2, 2]},
@@ -132,7 +132,7 @@ def test_groupby_resample_multiple_by_cols(freq, interval, agg_func):
         ]
     )
     rule = f"{interval}{freq}"
-    with SqlCounter(query_count=6, union_count=1):
+    with SqlCounter(query_count=6, union_count=1, join_count=1):
         eval_snowpark_pandas_result(
             *create_test_dfs(
                 {"a": [0, 0, 5, 0, 5], "b": [1, 1, 1, 1, 1], "c": [2, 2, 2, 2, 2]},
