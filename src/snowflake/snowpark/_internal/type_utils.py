@@ -307,7 +307,14 @@ def convert_sf_to_sp_type(
     if column_type_name == "REAL":
         return DoubleType()
     if (column_type_name == "FIXED" or column_type_name == "NUMBER") and scale == 0:
-        return LongType()
+        if not context._is_snowpark_connect_compatible_mode:
+            return LongType()
+        else:
+            # Spark LongType is limited to 19 digits, so we use DecimalType if precision is greater than 19
+            # for precision == 19, the value can be greater than LongType's max value, so we use DecimalType
+            # for precision < 19, keep using LongType
+            return DecimalType(precision, scale) if precision >= 19 else LongType()
+
     raise NotImplementedError(
         "Unsupported type: {}, precision: {}, scale: {}".format(
             column_type_name, precision, scale
