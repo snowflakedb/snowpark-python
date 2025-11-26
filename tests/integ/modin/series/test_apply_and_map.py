@@ -843,10 +843,10 @@ class TestMapOnly:
         with SqlCounter(query_count=4, udf_count=1):
             # This call creates a new UDF.
             eval_snowpark_pandas_result(*test_series_int_1, lambda s: s.map(operation))
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=1, udf_count=1):
             # This call reuses the same UDF on the same original series.
             eval_snowpark_pandas_result(*test_series_int_1, lambda s: s.map(operation))
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=1, udf_count=1):
             # This call reuses the same UDF, despite being on a different series object.
             eval_snowpark_pandas_result(*test_series_int_2, lambda s: s.map(operation))
         with SqlCounter(query_count=4, udf_count=1):

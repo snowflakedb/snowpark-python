@@ -58,36 +58,38 @@ def test_series_indexing_get_timedelta(
 
 
 @pytest.mark.parametrize(
-    "key, query_count, join_count, type_preserved",
+    "key, query_count, union_count, join_count, type_preserved",
     [
-        [(1, 1), 1, 0, True],
-        [(2, 2), 1, 0, True],
-        [([2, 1], 1), 1, 2, True],
+        [(1, 1), 1, 0, 0, True],
+        [(2, 2), 1, 0, 0, True],
+        [([2, 1], 1), 1, 0, 2, True],
         [
             (2, [1, 0]),
+            1,
             1,
             0,
             True,
         ],  # require transpose and keep result column type as timedelta
-        [(2, ...), 1, 0, False],  # require transpose but lose the type
-        [(slice(1, None), 0), 1, 0, True],
-        [([True, False, False, True], 1), 1, 1, True],
-        [(1, "a"), 2, 2, True],
-        [(2, "b"), 2, 2, True],
-        [([2, 1], "a"), 1, 1, True],
+        [(2, ...), 1, 1, 0, False],  # require transpose but lose the type
+        [(slice(1, None), 0), 1, 0, 0, True],
+        [([True, False, False, True], 1), 1, 0, 1, True],
+        [(1, "a"), 2, 0, 2, True],
+        [(2, "b"), 2, 0, 2, True],
+        [([2, 1], "a"), 1, 0, 1, True],
         [
             (2, ["b", "a"]),
             2,
+            1,
             2,
             True,
         ],  # require transpose and keep result column type as timedelta
-        [(2, ...), 1, 0, False],  # require transpose but lose the type
-        [(slice(1, None), "a"), 1, 0, True],
-        [([True, False, False, True], "b"), 1, 1, True],
+        [(2, ...), 1, 1, 0, False],  # require transpose but lose the type
+        [(slice(1, None), "a"), 1, 0, 0, True],
+        [([True, False, False, True], "b"), 1, 0, 1, True],
     ],
 )
 def test_df_indexing_get_timedelta(
-    key, query_count, join_count, type_preserved, caplog
+    key, query_count, union_count, join_count, type_preserved, caplog
 ):
     # This test only verify indexing return timedelta results correctly
     td = native_pd.DataFrame(
@@ -109,8 +111,10 @@ def test_df_indexing_get_timedelta(
         "result type back."
     )
 
-    def run_test(api, query_count, join_count):
-        with SqlCounter(query_count=query_count, join_count=join_count):
+    def run_test(api):
+        with SqlCounter(
+            query_count=query_count, union_count=union_count, join_count=join_count
+        ):
             caplog.clear()
             if is_scalar(key[0]) and is_scalar(key[1]):
                 assert api(snow_td) == api(td)
@@ -129,13 +133,13 @@ def test_df_indexing_get_timedelta(
             api = lambda s: s.loc[key]  # noqa: E731
         else:
             api = lambda s: s.iloc[key]  # noqa: E731
-        run_test(api, query_count, join_count)
+        run_test(api)
         if is_scalar(key[0]) and is_scalar(key[1]):
             if isinstance(key[1], str):
                 api = lambda s: s.at[key]  # noqa: E731
             else:
                 api = lambda s: s.iat[key]  # noqa: E731
-            run_test(api, query_count, join_count)
+            run_test(api)
 
 
 def test_df_getitem_timedelta():

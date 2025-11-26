@@ -21,14 +21,14 @@ def test_pivot(df_pivot_data):
             # Some calls to the native pandas function propagate attrs while some do not, depending on the values of its arguments.
             test_attrs=False,
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
             lambda df: df.pivot(index="foo", columns="bar")["baz"],
             test_attrs=False,
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,

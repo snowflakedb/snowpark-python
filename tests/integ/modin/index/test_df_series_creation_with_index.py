@@ -559,15 +559,22 @@ def test_create_df_with_series_index_dict_data(data1, data2):
     # Create DataFrame only with dict data.
     native_df = native_pd.DataFrame(native_data)
     snow_df = pd.DataFrame(snow_data)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_frame_equal(snow_df, native_df)
+
+    if data1 == "series" and data2 == "series":
+        expected_join_count = 2
+    elif data1 == "index" and data2 == "index":
+        expected_join_count = 4
+    else:
+        expected_join_count = 3
 
     # Create DataFrame with dict data and Series index.
     native_ser_index = native_pd.Series([9, 2, 999])
     snow_ser_index = pd.Series([9, 2, 999])
     native_df = native_pd.DataFrame(native_data, index=native_ser_index)
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with dict data and Index index.
@@ -575,7 +582,7 @@ def test_create_df_with_series_index_dict_data(data1, data2):
     snow_index = pd.Index([9, 2, 999])
     native_df = native_pd.DataFrame(native_data, index=native_index)
     snow_df = pd.DataFrame(snow_data, index=snow_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with dict data, Series index, and columns.
@@ -584,7 +591,7 @@ def test_create_df_with_series_index_dict_data(data1, data2):
         native_data, index=native_ser_index, columns=columns
     )
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index, columns=columns)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with dict data, Index index, and Index columns.
@@ -594,7 +601,7 @@ def test_create_df_with_series_index_dict_data(data1, data2):
         native_data, index=native_index, columns=native_columns
     )
     snow_df = pd.DataFrame(snow_data, index=snow_index, columns=snow_columns)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         assert_frame_equal(snow_df, native_df)
 
 
@@ -625,7 +632,7 @@ def test_create_df_with_series_index_list_data(data1, data2):
     # Create DataFrame only with list data.
     native_df = native_pd.DataFrame(native_data)
     snow_df = pd.DataFrame(snow_data)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1, union_count=1):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with list data and Series index.
@@ -633,7 +640,7 @@ def test_create_df_with_series_index_list_data(data1, data2):
     snow_ser_index = pd.Series([2, 11])
     native_df = native_pd.DataFrame(native_data, index=native_ser_index)
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=2, union_count=1):
         assert_frame_equal(snow_df, native_df, check_dtype=False)
 
     # Create DataFrame with list data and Index index.
@@ -641,7 +648,7 @@ def test_create_df_with_series_index_list_data(data1, data2):
     snow_index = pd.Index([22, 11])
     native_df = native_pd.DataFrame(native_data, index=native_index)
     snow_df = pd.DataFrame(snow_data, index=snow_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=2, union_count=1):
         assert_frame_equal(snow_df, native_df, check_dtype=False)
 
     # Create DataFrame with list data, Series index, and columns.
@@ -650,7 +657,7 @@ def test_create_df_with_series_index_list_data(data1, data2):
         native_data, index=native_ser_index, columns=columns
     )
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index, columns=columns)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=2, union_count=1):
         assert_frame_equal(snow_df, native_df, check_dtype=False)
 
     # Create DataFrame with list data, Index index, and Index columns.
@@ -660,7 +667,7 @@ def test_create_df_with_series_index_list_data(data1, data2):
         native_data, index=native_index, columns=native_columns
     )
     snow_df = pd.DataFrame(snow_data, index=snow_index, columns=snow_columns)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=2, union_count=1):
         assert_frame_equal(snow_df, native_df, check_dtype=False)
 
 
@@ -699,7 +706,7 @@ def test_create_series_with_series_index_list_data(data1, data2):
     snow_ser_index = pd.Series([2, 11])
     native_ser = native_pd.Series(native_data, index=native_ser_index)
     snow_ser = pd.Series(snow_data, index=snow_ser_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_series_equal(snow_ser, native_ser, check_dtype=False)
 
     # Create Series with list data and Index index.
@@ -707,7 +714,7 @@ def test_create_series_with_series_index_list_data(data1, data2):
     snow_index = pd.Index([22, 11])
     native_ser = native_pd.Series(native_data, index=native_index)
     snow_ser = pd.Series(snow_data, index=snow_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_series_equal(snow_ser, native_ser, check_dtype=False)
 
 
@@ -738,7 +745,7 @@ def test_create_series_with_series_index_dict_data(data1, data2):
     snow_ser_index = pd.Series([9, 2, 999])
     native_ser = native_pd.Series(native_data, index=native_ser_index)
     snow_ser = pd.Series(snow_data, index=snow_ser_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_series_equal(snow_ser, native_ser)
 
     # Create DataFrame with dict data and Index index.
@@ -746,7 +753,7 @@ def test_create_series_with_series_index_dict_data(data1, data2):
     snow_index = pd.Index([9, 2, 999])
     native_ser = native_pd.Series(native_data, index=native_index)
     snow_ser = pd.Series(snow_data, index=snow_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_series_equal(snow_ser, native_ser)
 
 
@@ -802,7 +809,7 @@ def test_create_df_with_series_data_and_series_index():
     # Create DataFrame with Series data and Series index.
     native_df = native_pd.DataFrame(native_data, index=native_index)
     snow_df = pd.DataFrame(snow_data, index=snow_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_frame_equal(snow_df, native_df)
 
 
@@ -998,7 +1005,7 @@ def test_create_df_with_mixed_series_index_dict_data():
     snow_ser_index = pd.Series(native_ser_index)
     native_df = native_pd.DataFrame(native_data, index=native_ser_index)
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with dict data and Index index.
@@ -1015,7 +1022,7 @@ def test_create_df_with_mixed_series_index_dict_data():
         native_data, index=native_ser_index, columns=columns
     )
     snow_df = pd.DataFrame(snow_data, index=snow_ser_index, columns=columns)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_frame_equal(snow_df, native_df)
 
     # Create DataFrame with dict data, Index index, and Index columns.
@@ -1169,19 +1176,19 @@ def test_create_df_with_copy():
     df_copy = pd.DataFrame(data, copy=True)
     df_ref = pd.DataFrame(data, copy=False)
 
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=3, join_count=4):
         # Changing data should also change df_ref. It does not change df_copy.
         data.iloc[0, 0] = 100
         assert data.iloc[0, 0] == df_ref.iloc[0, 0] == 100
         assert df_copy.iloc[0, 0] == 1
 
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=3, join_count=8):
         # Similarly, changing df_ref should also change data. It does not change df_copy.
         df_ref.iloc[0, 0] = 99
         assert data.iloc[0, 0] == df_ref.iloc[0, 0] == 99
         assert df_copy.iloc[0, 0] == 1
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=2, join_count=8):
         # Changing df_copy should not change data or df_ref.
         df_copy.iloc[0, 0] = 1000
         assert data.iloc[0, 0] == df_ref.iloc[0, 0] == 99
@@ -1193,19 +1200,19 @@ def test_create_series_with_copy():
     series_copy = pd.Series(data, copy=True)
     series_ref = pd.Series(data, copy=False)
 
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=3, join_count=4):
         # Changing data should also change series_ref. It does not change series_copy.
         data.iloc[0] = 100
         assert data.iloc[0] == series_ref.iloc[0] == 100
         assert series_copy.iloc[0] == 1
 
-    with SqlCounter(query_count=3):
+    with SqlCounter(query_count=3, join_count=8):
         # Similarly, changing series_ref should also change data. It does not change series_copy.
         series_ref.iloc[0] = 99
         assert data.iloc[0] == series_ref.iloc[0] == 99
         assert series_copy.iloc[0] == 1
 
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=2, join_count=8):
         # Changing series_copy should not change data or series_ref.
         series_copy.iloc[0] = 1000
         assert data.iloc[0] == series_ref.iloc[0] == 99
@@ -1278,7 +1285,7 @@ def test_create_df_with_all_params():
     snow_data = pd.DataFrame(native_data)
     native_index = native_pd.Index([10, 20, 30])
     snow_index = pd.Index(native_index)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_frame_equal(
             pd.DataFrame(
                 data=snow_data,
@@ -1310,7 +1317,7 @@ def test_create_series_with_all_params():
     expected_result = native_pd.Series(
         [None, None, None], index=native_index, dtype=dtype
     )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_series_equal(
             pd.Series(data=snow_data, index=snow_index, dtype=dtype, copy=copy),
             expected_result,

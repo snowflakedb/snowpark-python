@@ -100,7 +100,7 @@ class TestRename:
             )
 
         # other axis
-        with SqlCounter(query_count=1, join_count=1):
+        with SqlCounter(query_count=1, join_count=1, union_count=1):
             renamed = snow_float_frame.T.rename(index={"C": "foo", "D": "bar"})
             assert_index_equal(renamed.index, native_pd.Index(["A", "B", "foo", "bar"]))
 

@@ -351,26 +351,23 @@ def test_dataframe_where_with_cond_is_lambda_true_and_false(test_data, cond_test
 
 
 @pytest.mark.parametrize(
-    "other_test, expected_query_count",
+    "other_test",
     [
-        (lambda x: x**2, 1),
-        (
-            lambda x: x + x,
-            1,
-        ),
-        (lambda x: x, 1),
-        (lambda y: y + 10, 1),
+        lambda x: x**2,
+        lambda x: x + x,
+        lambda x: x,
+        lambda y: y + 10,
     ],
 )
 def test_dataframe_where_with_other_is_lambda(
-    test_data, test_cond, other_test, expected_query_count
+    test_data,
+    test_cond,
+    other_test,
 ):
     cond = test_cond.copy()
     cond["A"] = test_data["A"]
     cond["B"] = test_data["B"]
-    with SqlCounter(
-        query_count=expected_query_count,
-    ):
+    with SqlCounter(query_count=1, join_count=2):
         where_test_helper(
             [test_data, cond, other_test],
             [[["A", "B"], None], [["A", "B"], None], None],

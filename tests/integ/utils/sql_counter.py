@@ -160,6 +160,18 @@ class SqlCounter(QueryListener):
                 raise ValueError(f"Unrecognized parameter to SqlCounter '{key}'")
             self._expected_sql_counts[key] = value
 
+        # These parameters should always be checked, even if not specified in the constructor.
+        for key in (
+            QUERY_COUNT_PARAMETER,
+            JOIN_COUNT_PARAMETER,
+            SPROC_COUNT_PARAMETER,
+            UDF_COUNT_PARAMETER,
+            UDTF_COUNT_PARAMETER,
+            UNION_COUNT_PARAMETER,
+        ):
+            if key not in self._expected_sql_counts:
+                self._expected_sql_counts[key] = 0
+
         # Setup lookup functions to calculate different counts later.
         count_params = list(filter(lambda x: x.startswith("actual_"), dir(self)))
         self._actual_sql_count_helpers = {

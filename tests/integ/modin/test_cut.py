@@ -48,7 +48,7 @@ def test_cut_with_no_labels(data, cuts, right, include_lowest, precision, duplic
         "duplicates": duplicates,
     }
 
-    with SqlCounter(query_count=2, join_count=1):
+    with SqlCounter(query_count=2, join_count=1, union_count=2):
         snow_ans = pd.cut(snow_series, cuts, **kwargs)
         native_ans = native_pd.cut(native_series, cuts, **kwargs)
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(snow_ans, native_ans)
