@@ -8895,15 +8895,15 @@ def rank(_emit_ast: bool = True) -> Column:
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(rank().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).show()
+        >>> df.select(rank().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).sort("result").show()
         ------------
         |"RESULT"  |
         ------------
         |1         |
-        |2         |
-        |2         |
         |1         |
         |1         |
+        |2         |
+        |2         |
         ------------
         <BLANKLINE>
     """
@@ -9020,8 +9020,8 @@ def lag(
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(lag("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).collect()
-        [Row(RESULT=None), Row(RESULT=10), Row(RESULT=1), Row(RESULT=None), Row(RESULT=1)]
+        >>> df.select(lag("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).sort("result").collect()
+        [Row(RESULT=None), Row(RESULT=None), Row(RESULT=1), Row(RESULT=1), Row(RESULT=10)]
     """
     # AST.
     ast = (
@@ -11732,7 +11732,7 @@ def regr_avgx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colum
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df.groupBy("v").agg(regr_avgx(df["v"], df["v2"]).alias("regr_avgx")).collect()
+        >>> df.groupBy("v").agg(regr_avgx(df["v"], df["v2"]).alias("regr_avgx")).sort("v").collect()
         [Row(V=10, REGR_AVGX=11.0), Row(V=20, REGR_AVGX=22.0), Row(V=25, REGR_AVGX=None), Row(V=30, REGR_AVGX=35.0)]
     """
     c1 = _to_col_if_str(y, "regr_avgx")
@@ -11766,7 +11766,7 @@ def regr_count(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colu
     Example::
 
         >>> df = session.create_dataframe([[1, 10, 11], [1, 20, 22], [1, 25, None], [2, 30, 35]], schema=["k", "v", "v2"])
-        >>> df.group_by("k").agg(regr_count(col("v"), col("v2")).alias("regr_count")).collect()
+        >>> df.group_by("k").agg(regr_count(col("v"), col("v2")).alias("regr_count")).sort("k").collect()
         [Row(K=1, REGR_COUNT=2), Row(K=2, REGR_COUNT=1)]
     """
     c1 = _to_col_if_str(y, "regr_count")

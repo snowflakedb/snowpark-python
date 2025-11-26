@@ -556,14 +556,14 @@ def test_group_by(session):
             .with_column("medical_license", lit(None))
             .select("medical_license", "radio_license", "count")
         )
-        .sort(col("count"))
+        .sort(col("count"), col("radio_license"))
         .collect()
     )
     Utils.check_answer(
         result,
         [
-            Row(None, "General", 1),
             Row(None, "Amateur Extra", 1),
+            Row(None, "General", 1),
             Row("RN", None, 2),
             Row(None, "Technician", 2),
             Row(None, None, 3),
