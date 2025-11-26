@@ -411,7 +411,8 @@ def test_df_iloc_get_empty_key(
     default_index_snowpark_pandas_df,
     default_index_native_df,
 ):
-    with SqlCounter(query_count=1, join_count=2):
+    join_count = 0 if (len(key) == 2 and isinstance(key[0], slice)) else 2
+    with SqlCounter(query_count=1, join_count=join_count):
         eval_snowpark_pandas_result(
             empty_snowpark_pandas_df,
             native_pd.DataFrame(),
@@ -421,7 +422,7 @@ def test_df_iloc_get_empty_key(
             # from native pandas (Snowpark pandas gives "empty" vs. native pandas "integer")
             check_column_type=False,
         )
-    with SqlCounter(query_count=1, join_count=2):
+    with SqlCounter(query_count=1, join_count=join_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,

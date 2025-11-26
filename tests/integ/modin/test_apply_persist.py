@@ -113,10 +113,10 @@ def test_apply_existing_udf(session, stage_name):
 def test_apply_or_map_permanent_def(session, stage_name, operation):
     if operation == "apply":
         wrapper = get_applier
-        count = 6
+        query_count = 6
     else:
         wrapper = get_mapper
-        count = 4
+        query_count = 4
 
     f_name = "test_double_udf"
 
@@ -124,8 +124,9 @@ def test_apply_or_map_permanent_def(session, stage_name, operation):
         return x * 2
 
     snow_df, native_df = create_test_dfs({"A": [1, 2, 3]})
+    join_count = 1 if operation == "apply" else 0
     try:
-        with SqlCounter(query_count=count, join_count=1):
+        with SqlCounter(query_count=query_count, join_count=join_count):
             eval_snowpark_pandas_result(
                 snow_df,
                 native_df,
@@ -139,7 +140,7 @@ def test_apply_or_map_permanent_def(session, stage_name, operation):
                 ),
             )
         # Calling the function again with if_not_exists=True will re-use the same UDTF without creating a new one.
-        with SqlCounter(query_count=count - 3, join_count=1):
+        with SqlCounter(query_count=query_count - 3, join_count=join_count):
             eval_snowpark_pandas_result(
                 snow_df,
                 native_df,
@@ -153,7 +154,7 @@ def test_apply_or_map_permanent_def(session, stage_name, operation):
                 ),
             )
         # Calling the function again with replace=True will not re-create the UDTF, even if the contents are the same.
-        with SqlCounter(query_count=count - 3, join_count=1):
+        with SqlCounter(query_count=query_count - 3, join_count=join_count):
             eval_snowpark_pandas_result(
                 snow_df,
                 native_df,

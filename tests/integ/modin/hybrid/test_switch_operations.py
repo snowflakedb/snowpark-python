@@ -791,7 +791,7 @@ def test_auto_switch_supported_dataframe_asfreq(kwargs):
     # Test supported DataFrame operations that should stay on Snowflake backend.
     test_data = {"A": [1.23, None, 3.89], "B": [4.12, 5.26, 6.34]}
 
-    with SqlCounter(query_count=4):
+    with SqlCounter(query_count=4, join_count=1):
         index = native_pd.date_range("2023-01-01", periods=3, freq=kwargs["freq"])
         df = pd.DataFrame(test_data, index=pd.DatetimeIndex(index)).move_to("Snowflake")
         assert df.get_backend() == "Snowflake"
@@ -879,7 +879,7 @@ def test_auto_switch_supported_series_asfreq(kwargs):
     # Test supported Series asfreq operations that should stay on Snowflake backend.
     test_data = [1.89, 2.95, 3.12, None, 5.23, 6.34]
 
-    with SqlCounter(query_count=4):
+    with SqlCounter(query_count=4, join_count=1):
         index = native_pd.date_range("2023-01-01", periods=6, freq=kwargs["freq"])
         series = pd.Series(test_data, index=pd.DatetimeIndex(index)).move_to(
             "Snowflake"

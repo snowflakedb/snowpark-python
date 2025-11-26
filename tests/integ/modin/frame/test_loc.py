@@ -319,8 +319,8 @@ def test_df_loc_get_empty_key(
     default_index_snowpark_pandas_df,
     default_index_native_df,
 ):
-
-    with SqlCounter(query_count=1, join_count=1):
+    join_count = 0 if (len(key) == 2 and isinstance(key[0], slice)) else 1
+    with SqlCounter(query_count=1, join_count=join_count):
         eval_snowpark_pandas_result(
             empty_snowpark_pandas_df,
             native_pd.DataFrame(),
@@ -328,7 +328,7 @@ def test_df_loc_get_empty_key(
             comparator=assert_snowpark_pandas_equal_to_pandas,
             check_column_type=False,
         )
-    with SqlCounter(query_count=1, join_count=1):
+    with SqlCounter(query_count=1, join_count=join_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
