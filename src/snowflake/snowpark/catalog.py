@@ -4,16 +4,24 @@
 
 from ctypes import ArgumentError
 import re
-from typing import (
-    List,
-    Optional,
-    Union,
-    TYPE_CHECKING,
-)
+from typing import List, Optional, Union, TYPE_CHECKING
 
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
-from snowflake.snowpark._immutable_attr_dict import ImmutableAttrDict
 from snowflake.snowpark.exceptions import SnowparkSQLException, NotFoundError
+
+try:
+    from snowflake.core.database import Database  # type: ignore
+    from snowflake.core.database._generated.models import Database as ModelDatabase  # type: ignore
+    from snowflake.core.procedure import Procedure
+    from snowflake.core.schema import Schema  # type: ignore
+    from snowflake.core.schema._generated.models import Schema as ModelSchema  # type: ignore
+    from snowflake.core.table import Table, TableColumn
+    from snowflake.core.user_defined_function import UserDefinedFunction
+    from snowflake.core.view import View
+except ImportError as e:
+    raise ImportError(
+        "Missing optional dependency: 'snowflake.core'."
+    ) from e  # pragma: no cover
 
 from snowflake.snowpark._internal.type_utils import (
     convert_sp_to_sf_type,
@@ -24,34 +32,6 @@ from snowflake.snowpark.types import DataType
 
 if TYPE_CHECKING:
     from snowflake.snowpark.session import Session
-
-
-class Database(ImmutableAttrDict):
-    ...
-
-
-class Schema(ImmutableAttrDict):
-    ...
-
-
-class View(ImmutableAttrDict):
-    ...
-
-
-class Procedure(ImmutableAttrDict):
-    ...
-
-
-class UserDefinedFunction(ImmutableAttrDict):
-    ...
-
-
-class Table(ImmutableAttrDict):
-    ...
-
-
-class TableColumn(ImmutableAttrDict):
-    ...
 
 
 class Catalog:
@@ -211,7 +191,7 @@ class Catalog:
 
         return list(
             map(
-                lambda row: Database.from_json(str(row[0])),
+                lambda row: Database._from_model(ModelDatabase.from_json(str(row[0]))),
                 df.collect(),
             )
         )
@@ -250,7 +230,7 @@ class Catalog:
 
         return list(
             map(
-                lambda row: Schema.from_json(str(row[0])),
+                lambda row: Schema._from_model(ModelSchema.from_json(str(row[0]))),
                 df.collect(),
             )
         )
