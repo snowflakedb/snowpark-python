@@ -2188,6 +2188,9 @@ class DataFrame:
         exprs = self._convert_cols_to_exprs("sort()", *cols)
         is_order_by_all = not cols or not exprs
 
+        if context._is_snowpark_connect_compatible_mode and is_order_by_all:
+            raise ValueError("sort() needs at least one sort expression.")
+
         if (
             is_order_by_all
             and ascending is not None
