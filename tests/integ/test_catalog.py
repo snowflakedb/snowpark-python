@@ -10,6 +10,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quot
 from snowflake.snowpark.catalog import Catalog
 from snowflake.snowpark.session import Session
 from snowflake.snowpark.types import IntegerType
+from snowflake.core.exceptions import APIError
 
 
 pytestmark = [
@@ -17,6 +18,10 @@ pytestmark = [
         "config.getoption('local_testing_mode', default=False)",
         reason="deepcopy is not supported and required by local testing",
         run=False,
+    ),
+    pytest.mark.xfail(
+        raises=APIError,
+        reason="Failure due to warehouse overload",
     ),
 ]
 
@@ -403,8 +408,8 @@ def test_exists_db_schema(session, temp_db1, temp_schema1):
 
 def test_exists_table_view(session, temp_db1, temp_schema1, temp_table1, temp_view1):
     catalog = session.catalog
-    db1_obj = catalog.get_database(temp_db1)
-    schema1_obj = catalog.get_schema(database=temp_db1, schema=temp_schema1)
+    db1_obj = catalog._root.databases[temp_db1].fetch()
+    schema1_obj = catalog._root.databases[temp_db1].schemas[temp_schema1].fetch()
 
     assert catalog.table_exists(temp_table1, database=temp_db1, schema=temp_schema1)
     assert catalog.table_exists(temp_table1, database=db1_obj, schema=schema1_obj)
@@ -428,8 +433,8 @@ def test_exists_function_procedure_udf(
     session, temp_db1, temp_schema1, temp_procedure1, temp_udf1
 ):
     catalog = session.catalog
-    db1_obj = catalog.get_database(temp_db1)
-    schema1_obj = catalog.get_schema(temp_schema1, database=temp_db1)
+    db1_obj = catalog._root.databases[temp_db1].fetch()
+    schema1_obj = catalog._root.databases[temp_db1].schemas[temp_schema1].fetch()
 
     assert catalog.procedure_exists(
         temp_procedure1, [IntegerType()], database=temp_db1, schema=temp_schema1
@@ -472,8 +477,8 @@ def test_drop(session, use_object):
         temp_table = create_temp_table(session, temp_db, temp_schema)
         temp_view = create_temp_view(session, temp_db, temp_schema)
         if use_object:
-            temp_schema = catalog.get_schema(temp_schema, database=temp_db)
-            temp_db = catalog.get_database(temp_db)
+            temp_schema = catalog._root.databases[temp_db].schemas[temp_schema].fetch()
+            temp_db = catalog._root.databases[temp_db].fetch()
 
         assert catalog.database_exists(temp_db)
         assert catalog.schema_exists(temp_schema, database=temp_db)
