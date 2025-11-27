@@ -4,7 +4,7 @@
 #
 
 import pytest
-
+from unittest import mock
 from snowflake.snowpark import Column
 
 
@@ -72,3 +72,14 @@ def test_sort_invalid_inputs(session):
         "sort() only accepts str and Column objects,"
         " or a list containing str and Column objects" in str(ex_info)
     )
+
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
+        # empty
+        with pytest.raises(ValueError) as ex_info:
+            df.sort()
+        assert "sort() needs at least one sort expression" in str(ex_info)
+        with pytest.raises(ValueError) as ex_info:
+            df.sort([])
+        assert "sort() needs at least one sort expression" in str(ex_info)
