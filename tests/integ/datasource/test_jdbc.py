@@ -2,6 +2,7 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import re
+from unittest.mock import patch
 
 import pytest
 
@@ -393,6 +394,20 @@ def test_postgres_session_init_statement(
             query_timeout=1,
             session_init_statement=session_init_statement,
         ).collect()
+
+
+def test_telemetry(session, udtf_configs):
+    with patch(
+        "snowflake.snowpark._internal.telemetry.TelemetryClient.send_data_source_perf_telemetry"
+    ) as mock_telemetry:
+        df = session.read.jdbc(url=URL, udtf_configs=udtf_configs, query=SELECT_QUERY)
+    telemetry_json = mock_telemetry.call_args[0][0]
+    assert telemetry_json["function_name"] == "DataFrameReader.jdbc"
+    assert telemetry_json["ingestion_mode"] == "udtf_ingestion"
+    assert telemetry_json["dbms_type"] == "oracle"
+    assert "ojdbc17-23.9.0.25.07.jar" in telemetry_json["imports"][0]
+    assert telemetry_json["end_to_end_duration"] > 0
+    assert telemetry_json["schema"] == df.schema.simple_string()
 
 
 def test_connect_mysql(session, mysql_udtf_configs):
