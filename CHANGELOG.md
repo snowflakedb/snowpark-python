@@ -35,13 +35,13 @@
       - `try_hex_decode_string`
       - `unicode`
       - `uuid_string`
-      
+
     - Conditional expressions:
       - `booland_agg`
       - `boolxor_agg`
       - `regr_valy`
       - `zeroifnull`
-    
+
     - Numeric expressions:
       - `cot`
       - `mod`
@@ -60,6 +60,7 @@
 
 #### Bug Fixes
 
+- Fixed with a bug when sql generation when joining two `DataFrame`s created using `DataFrame.alias` and CTE optimization is enabled.
 - Fixed a bug in `XMLReader` where finding the start position of a row tag could return an incorrect file position.
 
 ### Snowpark pandas API Updates
@@ -122,13 +123,13 @@
   - `str.pad`
   - `str.len`
   - `str.ljust`
-  - `str.rjust`  
-  - `str.split`  
-  - `str.replace`  
-  - `str.strip`  
-  - `str.lstrip`  
-  - `str.rstrip`  
-  - `str.translate`  
+  - `str.rjust`
+  - `str.split`
+  - `str.replace`
+  - `str.strip`
+  - `str.lstrip`
+  - `str.rstrip`
+  - `str.translate`
   - `dt.tz_localize`
   - `dt.tz_convert`
   - `dt.ceil`
@@ -137,11 +138,11 @@
   - `dt.normalize`
   - `dt.month_name`
   - `dt.day_name`
-  - `dt.strftime`  
-  - `dt.dayofweek`  
-  - `dt.weekday`  
-  - `dt.dayofyear`    
-  - `dt.isocalendar`  
+  - `dt.strftime`
+  - `dt.dayofweek`
+  - `dt.weekday`
+  - `dt.dayofyear`
+  - `dt.isocalendar`
   - `rolling.min`
   - `rolling.max`
   - `rolling.count`
