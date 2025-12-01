@@ -56,7 +56,6 @@
 #### Improvements
 
 - Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
-- Catalog API now uses SQL commands instead of SnowAPI calls. This new implementation is more reliable now.
 - Removed experimental warning from `Session.cte_optimization_enabled`.
 
 #### Bug Fixes
