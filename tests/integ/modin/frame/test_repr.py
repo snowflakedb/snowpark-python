@@ -178,12 +178,10 @@ class TestWithGlobalSettings:
         native_pd.set_option("display.max_columns", 10)
         pd.set_option("display.max_columns", 10)
 
-        # This test should only issue 6 SQL queries given dataframe creation from large
-        # local data: 1) Creating temp table, 2) Setting query tag, 3) Inserting into temp table,
-        # 4) Unsetting query tag, 5) Select Columns, 6) Drop temp table.
-        # However, an additional 6 queries are issued to eagerly get the row count.
-        # for now, track only SELECT count here
-        with SqlCounter(select_count=1):
+        # This test should only issue 4 SQL queries given dataframe creation from large
+        # local data: 1) Creating temp table, 2) Inserting into temp table, 3) Select Columns,
+        # 4) Drop temp table.
+        with SqlCounter(query_count=4, select_count=1):
             snow_str = repr(self.snow_df)
         native_str = repr(self.native_df)
 
@@ -194,7 +192,7 @@ class TestWithGlobalSettings:
         native_pd.set_option("display.max_rows", None)
         pd.set_option("display.max_rows", None)
 
-        with SqlCounter(select_count=1):
+        with SqlCounter(query_count=4, select_count=1):
             snow_str = repr(self.snow_df)
         native_str = repr(self.native_df)
 
@@ -205,7 +203,7 @@ class TestWithGlobalSettings:
         native_pd.set_option("display.max_columns", None)
         pd.set_option("display.max_columns", None)
 
-        with SqlCounter(select_count=1):
+        with SqlCounter(query_count=4, select_count=1):
             snow_str = repr(self.snow_df)
         native_str = repr(self.native_df)
 
@@ -216,12 +214,10 @@ def test_repr_deviating_behavior():
     native_df = native_pd.DataFrame(index=list(range(10000)))
     snow_df = pd.DataFrame(native_df)
 
-    # This test should only issue 6 SQL queries given dataframe creation from large
-    # local data: 1) Creating temp table, 2) Setting query tag, 3) Inserting into temp table,
-    # 4) Unsetting query tag, 5) Select Columns, 6) Drop temp table.
-    # However, an additional 6 queries are issued to eagerly get the row count.
-    # for now, track only SELECT count here
-    with SqlCounter(select_count=1):
+    # This test should only issue 4 SQL queries given dataframe creation from large
+    # local data: 1) Creating temp table, 2) Inserting into temp table, 3) Select Columns,
+    # 4) Drop temp table.
+    with SqlCounter(query_count=4, select_count=1):
         snow_str = repr(snow_df)
 
     native_str = repr(native_df)
