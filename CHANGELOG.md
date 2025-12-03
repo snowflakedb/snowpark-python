@@ -1,5 +1,23 @@
 # Release History
 
+## 1.44.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Improvements
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Improvements
+
 ## 1.43.0 (2025-12-03)
 
 ### Snowpark Python API Updates
