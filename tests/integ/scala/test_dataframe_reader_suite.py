@@ -1262,6 +1262,10 @@ def test_read_json_with_infer_schema(session, mode):
     ]
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local Testing does not support JSONL format or INFER_SCHEMA.",
+)
 @pytest.mark.parametrize("mode", ["select", "copy"])
 def test_read_json_with_infer_schema_deterministic_column_order(session, mode):
     """Test that INFER_SCHEMA returns columns in deterministic order."""
