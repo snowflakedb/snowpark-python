@@ -93,8 +93,6 @@ version = ".".join([str(v) for v in VERSION if v is not None])
 
 with open(os.path.join(THIS_DIR, "README.md"), encoding="utf-8") as f:
     readme = f.read()
-with open(os.path.join(THIS_DIR, "CHANGELOG.md"), encoding="utf-8") as f:
-    changelog = f.read()
 
 # Find the Protocol Compiler.
 if "PROTOC" in os.environ and os.path.exists(os.environ["PROTOC"]):
@@ -166,7 +164,7 @@ setup(
     name="snowflake-snowpark-python",
     version=version,
     description="Snowflake Snowpark for Python",
-    long_description=readme + "\n\n" + changelog,
+    long_description=readme,
     long_description_content_type="text/markdown",
     author="Snowflake, Inc",
     author_email="snowflake-python-libraries-dl@snowflake.com",
