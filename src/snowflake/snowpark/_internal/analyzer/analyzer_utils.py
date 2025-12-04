@@ -1299,9 +1299,16 @@ def create_file_format_statement(
 
 
 def infer_schema_statement(
-    path: str, file_format_name: str, options: Optional[Dict[str, str]] = None
+    path: str,
+    file_format_name: str,
+    options: Optional[Dict[str, str]] = None,
+    ordered: bool = True,
 ) -> str:
-    return (
+    """
+    Note: If ordered is set to True (default), results are ordered by ORDER_ID and
+    COLUMN_NAME for deterministic column ordering. Set to False to disable ordering.
+    """
+    base_query = (
         SELECT
         + STAR
         + FROM
@@ -1329,6 +1336,11 @@ def infer_schema_statement(
         + RIGHT_PARENTHESIS
         + RIGHT_PARENTHESIS
     )
+
+    if ordered:
+        base_query += ORDER_BY + "ORDER_ID, COLUMN_NAME"
+
+    return base_query
 
 
 def file_operation_statement(
