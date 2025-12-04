@@ -408,3 +408,16 @@ def test_join_basic(session):
             ]
         )
     )
+
+
+def test_numeric_type_store_precision_and_scale(session):
+    table_name = Utils.random_table_name()
+    df = session.create_dataframe(
+        [Decimal("9" * 38)],
+        StructType([StructField("large_value", DecimalType(38, 0), True)]),
+    )
+    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+    result = session.sql(f"select * from {table_name}")
+    datatype = result.schema.fields[0].datatype
+    assert isinstance(datatype, LongType)
+    assert datatype._precision == 38 and datatype._scale == 0

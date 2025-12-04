@@ -169,7 +169,9 @@ class StringType(_AtomicType):
 
 
 class _NumericType(_AtomicType):
-    pass
+    def __init__(self, **kwargs) -> None:
+        self._precision = kwargs.get("precision", None)
+        self._scale = kwargs.get("scale", None)
 
 
 class TimestampTimeZone(Enum):

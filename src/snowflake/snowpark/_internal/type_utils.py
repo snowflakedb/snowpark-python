@@ -307,7 +307,7 @@ def convert_sf_to_sp_type(
     if column_type_name == "REAL":
         return DoubleType()
     if (column_type_name == "FIXED" or column_type_name == "NUMBER") and scale == 0:
-        return LongType()
+        return LongType(precision=precision, scale=scale)
     raise NotImplementedError(
         "Unsupported type: {}, precision: {}, scale: {}".format(
             column_type_name, precision, scale
