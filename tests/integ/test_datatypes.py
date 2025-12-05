@@ -433,7 +433,7 @@ def test_numeric_type_store_precision_and_scale(session, massive_number, precisi
         result = session.sql(f"select * from {table_name}")
         datatype = result.schema.fields[0].datatype
         assert isinstance(datatype, LongType)
-        assert datatype._precision == 38 and datatype._scale == 0
+        assert datatype._precision == 38
     finally:
         session.sql(f"drop table {table_name}").collect()
 
@@ -484,7 +484,7 @@ def test_numeric_type_store_precision_and_scale_read_file(session, massive_numbe
         df1 = constrained_reader.csv(f"@{stage_name}/")
         datatype = df1.schema.fields[0].datatype
         assert isinstance(datatype, LongType)
-        assert datatype._precision == 38 and datatype._scale == 0
+        assert datatype._precision == 38
 
     finally:
         Utils.drop_stage(session, stage_name)

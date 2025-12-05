@@ -169,20 +169,7 @@ class StringType(_AtomicType):
 
 
 class _NumericType(_AtomicType):
-    def __init__(self, **kwargs) -> None:
-        self._precision = kwargs.get("precision", None)
-        self._scale = kwargs.get("scale", None)
-
-    def __eq__(self, other):
-        def filtered(d: dict) -> dict:
-            return {k: v for k, v in d.items() if k not in ("_precision", "_scale")}
-
-        return isinstance(other, self.__class__) and filtered(
-            self.__dict__
-        ) == filtered(other.__dict__)
-
-    def __hash__(self):
-        return hash(repr(self))
+    pass
 
 
 class TimestampTimeZone(Enum):
@@ -383,7 +370,19 @@ class DayTimeIntervalType(_AnsiIntervalType):
 
 # Numeric types
 class _IntegralType(_NumericType):
-    pass
+    def __init__(self, **kwargs) -> None:
+        self._precision = kwargs.get("precision", None)
+
+    def __eq__(self, other):
+        def filtered(d: dict) -> dict:
+            return {k: v for k, v in d.items() if k != "_precision"}
+
+        return isinstance(other, self.__class__) and filtered(
+            self.__dict__
+        ) == filtered(other.__dict__)
+
+    def __hash__(self):
+        return hash(repr(self))
 
 
 class _FractionalType(_NumericType):
