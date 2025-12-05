@@ -3,6 +3,8 @@
 #
 from decimal import Decimal
 
+import pytest
+
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
@@ -410,6 +412,10 @@ def test_join_basic(session):
     )
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported in local testing",
+)
 def test_numeric_type_store_precision_and_scale(session):
     table_name = Utils.random_table_name()
     df = session.create_dataframe(
