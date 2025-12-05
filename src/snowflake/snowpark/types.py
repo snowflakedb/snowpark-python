@@ -371,15 +371,23 @@ class DayTimeIntervalType(_AnsiIntervalType):
 # Numeric types
 class _IntegralType(_NumericType):
     def __init__(self, **kwargs) -> None:
-        self._precision = kwargs.get("precision", None)
+        self._precision = kwargs.get("_precision", None)
+
+        if kwargs:
+            raise TypeError(
+                f"{self.__class__.__name__}() does not accept any arguments, please construct it without parameters."
+            )
 
     def __eq__(self, other):
         def filtered(d: dict) -> dict:
             return {k: v for k, v in d.items() if k != "_precision"}
 
-        return isinstance(other, self.__class__) and filtered(
-            self.__dict__
-        ) == filtered(other.__dict__)
+        if context._is_snowpark_connect_compatible_mode:
+            return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+        else:
+            return isinstance(other, self.__class__) and filtered(
+                self.__dict__
+            ) == filtered(other.__dict__)
 
     def __hash__(self):
         return hash(repr(self))
