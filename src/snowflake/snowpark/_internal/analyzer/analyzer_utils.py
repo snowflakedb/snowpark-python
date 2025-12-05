@@ -1302,13 +1302,11 @@ def infer_schema_statement(
     path: str,
     file_format_name: str,
     options: Optional[Dict[str, str]] = None,
-    ordered: bool = True,
 ) -> str:
     """
-    Note: If ordered is set to True (default), results are ordered by ORDER_ID and
-    COLUMN_NAME for deterministic column ordering. Set to False to disable ordering.
+    Note: Results are ordered by ORDER_ID and COLUMN_NAME for deterministic column ordering.
     """
-    base_query = (
+    return (
         SELECT
         + STAR
         + FROM
@@ -1335,12 +1333,9 @@ def infer_schema_statement(
         )
         + RIGHT_PARENTHESIS
         + RIGHT_PARENTHESIS
+        + ORDER_BY
+        + "ORDER_ID, COLUMN_NAME"
     )
-
-    if ordered:
-        base_query += ORDER_BY + "ORDER_ID, COLUMN_NAME"
-
-    return base_query
 
 
 def file_operation_statement(
