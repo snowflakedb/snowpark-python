@@ -8928,14 +8928,14 @@ def percent_rank(_emit_ast: bool = True) -> Column:
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(percent_rank().over(Window.partition_by("x").order_by(col("y"), col("z"))).alias("result")).show()
+        >>> df.select(percent_rank().over(Window.partition_by("x").order_by(col("y"), col("z"))).alias("result")).sort("result").show()
         ------------
         |"RESULT"  |
         ------------
         |0.0       |
+        |0.0       |
         |0.5       |
         |1.0       |
-        |0.0       |
         |1.0       |
         ------------
         <BLANKLINE>
@@ -9065,7 +9065,7 @@ def lead(
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(lead("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).collect()
+        >>> df.select(lead("Z").over(Window.partition_by(col("X")).order_by(col("X"), col("Y"))).alias("result")).collect()
         [Row(RESULT=1), Row(RESULT=3), Row(RESULT=None), Row(RESULT=3), Row(RESULT=None)]
     """
     # AST.
