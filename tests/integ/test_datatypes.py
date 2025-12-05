@@ -1,6 +1,9 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import csv
+import os
+import tempfile
 from decimal import Decimal
 
 import pytest
@@ -414,7 +417,7 @@ def test_join_basic(session):
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
-    reason="session.sql not supported in local testing",
+    reason="session.sql not supported by local testing mode",
 )
 def test_numeric_type_store_precision_and_scale(session):
     table_name = Utils.random_table_name()
@@ -427,3 +430,56 @@ def test_numeric_type_store_precision_and_scale(session):
     datatype = result.schema.fields[0].datatype
     assert isinstance(datatype, LongType)
     assert datatype._precision == 38 and datatype._scale == 0
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
+def test_numeric_type_store_precision_and_scale_read_file(session):
+    stage_name = Utils.random_stage_name()
+    header = ("BIG_NUM",)
+    test_data = [("9" * 38,)]
+
+    def write_csv(data):
+        with tempfile.NamedTemporaryFile(
+            mode="w+",
+            delete=False,
+            suffix=".csv",
+            newline="",
+        ) as file:
+            writer = csv.writer(file)
+            writer.writerow(header)
+            for row in data:
+                writer.writerow(row)
+            return file.name
+
+    file_path = write_csv(test_data)
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        result = session.file.put(
+            file_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        # Infer schema from only the short file
+        constrained_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {"FILES": [result[0].target]},
+                "PARSE_HEADER": True,
+                # Only load the short file
+                "PATTERN": f".*{result[0].target}",
+            }
+        )
+
+        # df1 uses constrained types
+        df1 = constrained_reader.csv(f"@{stage_name}/")
+        datatype = df1.schema.fields[0].datatype
+        assert isinstance(datatype, LongType)
+        assert datatype._precision == 38 and datatype._scale == 0
+
+    finally:
+        Utils.drop_stage(session, stage_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
