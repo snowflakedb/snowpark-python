@@ -5,10 +5,11 @@ import csv
 import os
 import tempfile
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 
-from snowflake.snowpark import DataFrame, Row
+from snowflake.snowpark import DataFrame, Row, context
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
     BooleanType,
@@ -419,27 +420,37 @@ def test_join_basic(session):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql not supported by local testing mode",
 )
-def test_numeric_type_store_precision_and_scale(session):
+@pytest.mark.parametrize(
+    "massive_number, precision", [("9" * 38, 38), ("5" * 20, 20), ("7" * 10, 10)]
+)
+def test_numeric_type_store_precision_and_scale(session, massive_number, precision):
     table_name = Utils.random_table_name()
-    df = session.create_dataframe(
-        [Decimal("9" * 38)],
-        StructType([StructField("large_value", DecimalType(38, 0), True)]),
-    )
-    df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
-    result = session.sql(f"select * from {table_name}")
-    datatype = result.schema.fields[0].datatype
-    assert isinstance(datatype, LongType)
-    assert datatype._precision == 38 and datatype._scale == 0
+    try:
+        with patch.object(context, "_store_precision_and_scale_in_numeric_type", True):
+            df = session.create_dataframe(
+                [Decimal(massive_number)],
+                StructType(
+                    [StructField("large_value", DecimalType(precision, 0), True)]
+                ),
+            )
+            df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+            result = session.sql(f"select * from {table_name}")
+            datatype = result.schema.fields[0].datatype
+            assert isinstance(datatype, LongType)
+            assert datatype._precision == 38 and datatype._scale == 0
+    finally:
+        session.sql(f"drop table {table_name}").collect()
 
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="relaxed_types not supported by local testing mode",
 )
-def test_numeric_type_store_precision_and_scale_read_file(session):
+@pytest.mark.parametrize("massive_number", ["9" * 38, "5" * 20, "7" * 10])
+def test_numeric_type_store_precision_and_scale_read_file(session, massive_number):
     stage_name = Utils.random_stage_name()
     header = ("BIG_NUM",)
-    test_data = [("9" * 38,)]
+    test_data = [(massive_number,)]
 
     def write_csv(data):
         with tempfile.NamedTemporaryFile(
@@ -457,27 +468,28 @@ def test_numeric_type_store_precision_and_scale_read_file(session):
     file_path = write_csv(test_data)
 
     try:
-        Utils.create_stage(session, stage_name, is_temporary=True)
-        result = session.file.put(
-            file_path, f"@{stage_name}", auto_compress=False, overwrite=True
-        )
+        with patch.object(context, "_store_precision_and_scale_in_numeric_type", True):
+            Utils.create_stage(session, stage_name, is_temporary=True)
+            result = session.file.put(
+                file_path, f"@{stage_name}", auto_compress=False, overwrite=True
+            )
 
-        # Infer schema from only the short file
-        constrained_reader = session.read.options(
-            {
-                "INFER_SCHEMA": True,
-                "INFER_SCHEMA_OPTIONS": {"FILES": [result[0].target]},
-                "PARSE_HEADER": True,
-                # Only load the short file
-                "PATTERN": f".*{result[0].target}",
-            }
-        )
+            # Infer schema from only the short file
+            constrained_reader = session.read.options(
+                {
+                    "INFER_SCHEMA": True,
+                    "INFER_SCHEMA_OPTIONS": {"FILES": [result[0].target]},
+                    "PARSE_HEADER": True,
+                    # Only load the short file
+                    "PATTERN": f".*{result[0].target}",
+                }
+            )
 
-        # df1 uses constrained types
-        df1 = constrained_reader.csv(f"@{stage_name}/")
-        datatype = df1.schema.fields[0].datatype
-        assert isinstance(datatype, LongType)
-        assert datatype._precision == 38 and datatype._scale == 0
+            # df1 uses constrained types
+            df1 = constrained_reader.csv(f"@{stage_name}/")
+            datatype = df1.schema.fields[0].datatype
+            assert isinstance(datatype, LongType)
+            assert datatype._precision == 38 and datatype._scale == 0
 
     finally:
         Utils.drop_stage(session, stage_name)
