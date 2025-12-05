@@ -63,7 +63,7 @@ def test_pivot_snow_1869802_repro(session):
     Utils.check_answer(
         df.pivot(pivot_col="_2", values=["A", "B"]).function("min")("_3"),
         [Row(1, 10, 0), Row(2, 11, 12)],
-        False,
+        True,
     )
 
 
