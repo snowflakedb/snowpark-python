@@ -429,13 +429,17 @@ def test_numeric_type_store_precision_and_scale(session, massive_number, precisi
             [Decimal(massive_number)],
             StructType([StructField("large_value", DecimalType(precision, 0), True)]),
         )
+        datatype = df.schema.fields[0].datatype
+        assert isinstance(datatype, LongType)
+        assert datatype._precision == precision
+
         df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
         result = session.sql(f"select * from {table_name}")
         datatype = result.schema.fields[0].datatype
         assert isinstance(datatype, LongType)
         assert datatype._precision == 38
     finally:
-        session.sql(f"drop table {table_name}").collect()
+        session.sql(f"drop table if exists {table_name}").collect()
 
 
 @pytest.mark.skipif(

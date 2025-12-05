@@ -371,9 +371,9 @@ class DayTimeIntervalType(_AnsiIntervalType):
 # Numeric types
 class _IntegralType(_NumericType):
     def __init__(self, **kwargs) -> None:
-        self._precision = kwargs.get("_precision", None)
+        self._precision = kwargs.pop("_precision", None)
 
-        if kwargs:
+        if kwargs != {}:
             raise TypeError(
                 f"{self.__class__.__name__}() does not accept any arguments, please construct it without parameters."
             )
