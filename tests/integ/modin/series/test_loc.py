@@ -106,7 +106,13 @@ def key_type(request):
 def test_series_loc_get_return_series(
     key, str_index_snowpark_pandas_series, str_index_native_series
 ):
-    with SqlCounter(query_count=2 if is_scalar(key) else 1):
+    if isinstance(key, slice):
+        join_count = 0
+    elif is_scalar(key):
+        join_count = 2
+    else:
+        join_count = 1
+    with SqlCounter(query_count=2 if is_scalar(key) else 1, join_count=join_count):
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_series,
             str_index_native_series,
@@ -191,13 +197,14 @@ def test_series_loc_get_basic(series, key):
     # returns single element for series
     with SqlCounter(
         query_count=query_count,
+        join_count=0 if isinstance(key, tuple) else 2,
         high_count_expected=expect_high_count,
         high_count_reason=high_count_reason,
     ):
         assert pd.Series(series).loc[key] == series.loc[key]
 
 
-@sql_count_checker(query_count=1, join_count=0)
+@sql_count_checker(query_count=1)
 def test_series_loc_get_all_rows():
     data = [1, 2, 3]
     columns = ["A"]
@@ -948,7 +955,7 @@ def test_series_loc_set_key_slice_with_series(start, stop, step):
         # test_series_loc_set_key_slice_with_series_item_pandas_bug
         set_loc_helper(snow_ser)
         # snow_ser should not change when slice_len = 0
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=1, join_count=3):
             assert_snowpark_pandas_equal_to_pandas(snow_ser, native_ser)
     else:
         native_res = set_loc_helper(native_ser)
@@ -1261,7 +1268,7 @@ class TestEmptySeriesLoc:
 
         native_ser = native_pd.Series(**kwargs)
         snow_ser = pd.Series(native_ser)
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=1, join_count=1):
             eval_snowpark_pandas_result(
                 snow_ser,
                 native_ser,
@@ -1276,7 +1283,7 @@ class TestEmptySeriesLoc:
 
             native_ser = native_pd.Series(**kwargs)
             snow_ser = pd.Series(native_ser)
-            with SqlCounter(query_count=1):
+            with SqlCounter(query_count=1, join_count=1):
                 eval_snowpark_pandas_result(
                     snow_ser,
                     native_ser,

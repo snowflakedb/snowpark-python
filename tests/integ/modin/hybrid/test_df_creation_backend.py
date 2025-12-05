@@ -86,7 +86,7 @@ def test_move_threshold_setting():
             # Above threshold; no move
             df_small = df_small.apply(lambda x: x + 1)
             assert df_small.get_backend() == "Snowflake"
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=1, join_count=1):
             # Below threshold; should move before apply is performed
             df_small = df_small.head(5)
             df_small = df_small.apply(lambda x: x + 1)

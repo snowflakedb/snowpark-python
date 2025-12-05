@@ -183,7 +183,7 @@ def test_sql_count_with_joins():
 
 
 def test_sql_count_by_query_substr():
-    with SqlCounter(query_count=1) as sql_counter:
+    with SqlCounter(query_count=1, join_count=2) as sql_counter:
         sql_counter._notify(
             QueryRecord(
                 query_id="1",
@@ -208,7 +208,7 @@ def test_sql_count_by_query_substr():
 
 
 def test_sql_count_instances_by_query_substr():
-    with SqlCounter(query_count=1) as sql_counter:
+    with SqlCounter(query_count=1, join_count=2) as sql_counter:
         sql_counter._notify(
             QueryRecord(
                 query_id="1",
@@ -229,6 +229,21 @@ def test_sql_count_instances_by_query_substr():
                 starts_with=["FOO"], contains=[" JOIN "]
             )
             == 0
+        )
+
+
+@pytest.mark.xfail(
+    reason="Validating that the SQL counter correctly fails when join_count is unspecified for a query with joins.",
+    strict=True,
+)
+def test_missing_join_count_sql_counter():
+    with SqlCounter(query_count=1) as sql_counter:
+        sql_counter._notify(
+            QueryRecord(
+                query_id="1",
+                sql_text="SELECT A FROM X JOIN Y JOIN W",
+                thread_id=threading.get_ident(),
+            )
         )
 
 

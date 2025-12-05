@@ -149,9 +149,15 @@ def test_df_loc_get_tuple_key(
     query_count = 1
     if is_scalar(row) or isinstance(row, tuple):
         query_count = 2
+    join_count = 1
+    if is_scalar(row):
+        join_count = 2
+    elif isinstance(row, slice):
+        join_count = 0
 
     with SqlCounter(
         query_count=query_count,
+        join_count=join_count,
     ):
         eval_snowpark_pandas_result(
             str_index_snowpark_pandas_df,
@@ -313,8 +319,8 @@ def test_df_loc_get_empty_key(
     default_index_snowpark_pandas_df,
     default_index_native_df,
 ):
-
-    with SqlCounter(query_count=1):
+    join_count = 0 if (len(key) == 2 and isinstance(key[0], slice)) else 1
+    with SqlCounter(query_count=1, join_count=join_count):
         eval_snowpark_pandas_result(
             empty_snowpark_pandas_df,
             native_pd.DataFrame(),
@@ -322,7 +328,7 @@ def test_df_loc_get_empty_key(
             comparator=assert_snowpark_pandas_equal_to_pandas,
             check_column_type=False,
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=join_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -505,16 +511,20 @@ def test_mi_df_loc_get_non_boolean_list_col_key(mi_table_df, key, native_error):
 )
 def test_mi_df_loc_get_non_boolean_list_row_key(mi_table_df, key, native_error):
     df = pd.DataFrame(mi_table_df)
+    union_count = 0
     if isinstance(key, tuple) or is_scalar(key):
         # it uses filter so no join count
         query_count, join_count = 1, 0
         if isinstance(key, tuple) and len(key) == 2:
             # multiindex full lookup requires squeeze to run
             query_count += 1
+            union_count = 1
     else:
         # other list like key
         query_count, join_count = 1, 1
-    with SqlCounter(query_count=query_count, join_count=join_count):
+    with SqlCounter(
+        query_count=query_count, join_count=join_count, union_count=union_count
+    ):
         if native_error:
             with pytest.raises(native_error):
                 _ = mi_table_df.loc[key]
@@ -576,6 +586,7 @@ def test_mi_df_loc_get_non_boolean_list_row_key(mi_table_df, key, native_error):
 )
 def test_mi_df_loc_get_non_boolean_list_tuple_key(mi_table_df, row, col):
     df = pd.DataFrame(mi_table_df)
+    union_count = 0
     if isinstance(row, tuple) or is_scalar(row):
         # it uses filter so no join count
         query_count, join_count = 1, 0
@@ -586,10 +597,18 @@ def test_mi_df_loc_get_non_boolean_list_tuple_key(mi_table_df, row, col):
         ):
             # multiindex full lookup requires squeeze to run
             query_count += 1
+            if not (
+                isinstance(col, tuple)
+                and len(col) == 2
+                and not any(isinstance(c, slice) for c in col)
+            ):
+                union_count = 1
     else:
         # other list like key
         query_count, join_count = 1, 1
-    with SqlCounter(query_count=query_count, join_count=join_count):
+    with SqlCounter(
+        query_count=query_count, join_count=join_count, union_count=union_count
+    ):
         if (
             isinstance(row, tuple)
             and len(row) == 2
@@ -1524,7 +1543,7 @@ def test_df_loc_set_row_col_with_non_matching_scalar_key(
                 # Trigger action to run query
                 snow_df.to_pandas()
     else:
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=1, join_count=1):
             eval_snowpark_pandas_result(
                 snow_df,
                 native_df.copy(),
@@ -1915,7 +1934,7 @@ def test_df_loc_get_key_scalar(
 ):
     key = random.choice(range(0, len(default_index_native_df)))
     # squeeze and to_pandas triggers additional queries
-    with SqlCounter(query_count=2, join_count=2):
+    with SqlCounter(query_count=2, join_count=2, union_count=1):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -2562,7 +2581,7 @@ def test_empty_df_loc_set_scalar():
     with pytest.raises(ValueError, match="cannot set a frame with no defined columns"):
         native_df.loc[0] = 1
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         snow_df.loc[0] = 1
         assert_snowpark_pandas_equal_to_pandas(
             snow_df,
@@ -2590,7 +2609,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with row scalar on empty DataFrame with non-empty index.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             snow_df, native_df, row_loc, inplace=True, check_column_type=False
         )
@@ -2606,7 +2625,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with row scalar on empty DataFrame with non-empty columns.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -2629,7 +2648,7 @@ def test_empty_df_loc_set_scalar():
     native_df = native_pd.DataFrame(index=[0, 1, 2], columns=["A", "B", "C"])
     snow_df = pd.DataFrame(native_df)
     # Check `loc` with row scalar on empty DataFrame with non-empty index and columns.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(
             snow_df,
             native_df,
@@ -2650,7 +2669,7 @@ def test_empty_df_loc_set_scalar():
 
     # Test enlargening of empty DataFrame
     snow_df = pd.DataFrame()
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         snow_df.loc[0] = 0
         snow_df.loc[:, 0] = 0
         assert_snowpark_pandas_equal_to_pandas(
@@ -3946,7 +3965,7 @@ def test_df_loc_get_with_timedelta(key, query_count, join_count):
     idx = ["1 days", "2 days", "3 days"]
     native_df = native_pd.DataFrame(data, index=native_pd.to_timedelta(idx))
     snow_df = pd.DataFrame(data, index=pd.to_timedelta(idx))
-    with SqlCounter(query_count=query_count, join_count=join_count):
+    with SqlCounter(query_count=query_count, join_count=join_count, union_count=0):
         eval_snowpark_pandas_result(snow_df, native_df, lambda df: df.loc[key])
 
 
