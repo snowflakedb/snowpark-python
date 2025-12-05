@@ -8980,16 +8980,16 @@ def row_number(_emit_ast: bool = True) -> Column:
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(row_number().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).show()
-        ------------
-        |"RESULT"  |
-        ------------
-        |1         |
-        |2         |
-        |3         |
-        |1         |
-        |2         |
-        ------------
+        >>> df.select(col("X"), row_number().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).sort("X", "result").show()
+        ------------------
+        |"X"  |"RESULT"  |
+        ------------------
+        |1    |1         |
+        |1    |2         |
+        |2    |1         |
+        |2    |2         |
+        |2    |3         |
+        ------------------
         <BLANKLINE>
     """
     return _call_function("row_number", _emit_ast=_emit_ast)
@@ -9058,15 +9058,15 @@ def lead(
         >>> df = session.create_dataframe(
         ...     [
         ...         [1, 2, 1],
-        ...         [1, 3, 3],
+        ...         [1, 2, 3],
         ...         [2, 1, 10],
         ...         [2, 2, 1],
-        ...         [2, 3, 3],
+        ...         [2, 2, 3],
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(lead("Z").over(Window.partition_by(col("X")).order_by(col("X"), col("Y"))).alias("result")).collect()
-        [Row(RESULT=1), Row(RESULT=3), Row(RESULT=None), Row(RESULT=3), Row(RESULT=None)]
+        >>> df.select(lead("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).sort("result").collect()
+        [Row(RESULT=None), Row(RESULT=None), Row(RESULT=1), Row(RESULT=3), Row(RESULT=3)]
     """
     # AST.
     ast = (
