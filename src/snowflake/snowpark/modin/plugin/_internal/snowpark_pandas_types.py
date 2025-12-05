@@ -133,7 +133,12 @@ class TimedeltaType(SnowparkPandasType, LongType):
         super().__init__()
 
     def __eq__(self, other: Any) -> bool:
-        return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+        def filtered(d: dict) -> dict:
+            return {k: v for k, v in d.items() if k not in ("_precision", "_scale")}
+
+        return isinstance(other, self.__class__) and filtered(
+            self.__dict__
+        ) == filtered(other.__dict__)
 
     def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)

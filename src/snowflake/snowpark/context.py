@@ -24,7 +24,6 @@ _is_execution_environment_sandboxed_for_client: bool = False
 # If _should_continue_registration is not None, i.e. a caller environment has assigned it an alternate callable, then the callback is responsible for determining the rest of the Snowpark workflow.
 _should_continue_registration: Optional[Callable[..., bool]] = None
 
-_store_precision_and_scale_in_numeric_type: bool = False
 
 # Internal-only global flag that determines if structured type semantics should be used
 _use_structured_type_semantics = False
