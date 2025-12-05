@@ -5,7 +5,7 @@
 import datetime
 import inspect
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable, NamedTuple, Optional, Tuple, Type, Union
 
 import numpy as np
@@ -121,7 +121,7 @@ class TimedeltaType(SnowparkPandasType, LongType):
     two times.
     """
 
-    snowpark_type: DataType = LongType()
+    snowpark_type: DataType = field(default_factory=LongType)
     pandas_type: np.dtype = np.dtype("timedelta64[ns]")
     types_to_convert_with_from_pandas: Tuple[Type] = (  # type: ignore[assignment]
         native_pd.Timedelta,

@@ -181,6 +181,9 @@ class _NumericType(_AtomicType):
             self.__dict__
         ) == filtered(other.__dict__)
 
+    def __hash__(self):
+        return hash(repr(self))
+
 
 class TimestampTimeZone(Enum):
     """
