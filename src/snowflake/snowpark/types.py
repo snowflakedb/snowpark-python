@@ -375,7 +375,7 @@ class _IntegralType(_NumericType):
 
         if kwargs != {}:
             raise TypeError(
-                f"{self.__class__.__name__}() does not accept any arguments, please construct it without parameters."
+                f"__init__() takes 0 argument but {len(kwargs.keys())} were given"
             )
 
     def __eq__(self, other):

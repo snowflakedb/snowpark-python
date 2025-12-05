@@ -433,8 +433,11 @@ def test_numeric_type_store_precision_and_scale(session, massive_number, precisi
         assert isinstance(datatype, LongType)
         assert datatype._precision == precision
 
+        # after save as table, the precision information is lost, because it is basically save LongType(), which
+        # does not have precision information, thus set to default 38.
         df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
         result = session.sql(f"select * from {table_name}")
+        session.sql(f"describe table {table_name}").show()
         datatype = result.schema.fields[0].datatype
         assert isinstance(datatype, LongType)
         assert datatype._precision == 38
@@ -494,3 +497,8 @@ def test_numeric_type_store_precision_and_scale_read_file(session, massive_numbe
         Utils.drop_stage(session, stage_name)
         if os.path.exists(file_path):
             os.remove(file_path)
+
+
+def test_illegal_argument_intergraltype():
+    with pytest.raises(TypeError, match="takes 0 argument but 1 were given"):
+        LongType(b=10)
