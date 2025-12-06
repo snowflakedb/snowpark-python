@@ -1,7 +1,12 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
+import csv
+import os
+import tempfile
 from decimal import Decimal
+
+import pytest
 
 from snowflake.snowpark import DataFrame, Row
 from snowflake.snowpark.functions import lit
@@ -408,3 +413,92 @@ def test_join_basic(session):
             ]
         )
     )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported by local testing mode",
+)
+@pytest.mark.parametrize(
+    "massive_number, precision", [("9" * 38, 38), ("5" * 20, 20), ("7" * 10, 10)]
+)
+def test_numeric_type_store_precision_and_scale(session, massive_number, precision):
+    table_name = Utils.random_table_name()
+    try:
+        df = session.create_dataframe(
+            [Decimal(massive_number)],
+            StructType([StructField("large_value", DecimalType(precision, 0), True)]),
+        )
+        datatype = df.schema.fields[0].datatype
+        assert isinstance(datatype, LongType)
+        assert datatype._precision == precision
+
+        # after save as table, the precision information is lost, because it is basically save LongType(), which
+        # does not have precision information, thus set to default 38.
+        df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+        result = session.sql(f"select * from {table_name}")
+        session.sql(f"describe table {table_name}").show()
+        datatype = result.schema.fields[0].datatype
+        assert isinstance(datatype, LongType)
+        assert datatype._precision == 38
+    finally:
+        session.sql(f"drop table if exists {table_name}").collect()
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
+@pytest.mark.parametrize("massive_number", ["9" * 38, "5" * 20, "7" * 10])
+def test_numeric_type_store_precision_and_scale_read_file(session, massive_number):
+    stage_name = Utils.random_stage_name()
+    header = ("BIG_NUM",)
+    test_data = [(massive_number,)]
+
+    def write_csv(data):
+        with tempfile.NamedTemporaryFile(
+            mode="w+",
+            delete=False,
+            suffix=".csv",
+            newline="",
+        ) as file:
+            writer = csv.writer(file)
+            writer.writerow(header)
+            for row in data:
+                writer.writerow(row)
+            return file.name
+
+    file_path = write_csv(test_data)
+
+    try:
+        Utils.create_stage(session, stage_name, is_temporary=True)
+        result = session.file.put(
+            file_path, f"@{stage_name}", auto_compress=False, overwrite=True
+        )
+
+        # Infer schema from only the short file
+        constrained_reader = session.read.options(
+            {
+                "INFER_SCHEMA": True,
+                "INFER_SCHEMA_OPTIONS": {"FILES": [result[0].target]},
+                "PARSE_HEADER": True,
+                # Only load the short file
+                "PATTERN": f".*{result[0].target}",
+            }
+        )
+
+        # df1 uses constrained types
+        df1 = constrained_reader.csv(f"@{stage_name}/")
+        datatype = df1.schema.fields[0].datatype
+        assert isinstance(datatype, LongType)
+        assert datatype._precision == 38
+
+    finally:
+        Utils.drop_stage(session, stage_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+
+def test_illegal_argument_intergraltype():
+    with pytest.raises(TypeError, match="takes 0 argument but 1 were given"):
+        LongType(b=10)
