@@ -10,6 +10,8 @@
 
 #### Improvements
 
+- Improved `DataFrameReader` to return columns in deterministic order when using `INFER_SCHEMA`.
+
 ### Snowpark pandas API Updates
 
 #### New Features
