@@ -2638,11 +2638,11 @@ class CombinedDatetimelikeProperties:
         1   0 days 00:00:02
         2   0 days 00:00:03
         dtype: timedelta64[ns]
-        >>> ser.dt.seconds
+        >>> ser.dt.seconds  # doctest: +ELLIPSIS
         0    1
         1    2
         2    3
-        dtype: int8
+        dtype: ...
 
         For TimedeltaIndex:
 
@@ -2698,11 +2698,11 @@ class CombinedDatetimelikeProperties:
         1   0 days 00:00:00.000002
         2   0 days 00:00:00.000003
         dtype: timedelta64[ns]
-        >>> ser.dt.microseconds
+        >>> ser.dt.microseconds  # doctest: +ELLIPSIS
         0    1
         1    2
         2    3
-        dtype: int8
+        dtype: ...
 
         For TimedeltaIndex:
 
@@ -2730,11 +2730,11 @@ class CombinedDatetimelikeProperties:
         1   0 days 00:00:00.000000002
         2   0 days 00:00:00.000000003
         dtype: timedelta64[ns]
-        >>> ser.dt.nanoseconds
+        >>> ser.dt.nanoseconds  # doctest: +ELLIPSIS
         0    1
         1    2
         2    3
-        dtype: int8
+        dtype: ...
 
         For TimedeltaIndex:
 

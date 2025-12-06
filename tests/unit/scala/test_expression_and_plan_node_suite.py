@@ -6,6 +6,7 @@ import pytest
 
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     Join,
+    LateralJoin,
     NaturalJoin,
     UsingJoin,
     create_join_type,
@@ -41,3 +42,5 @@ def test_mix_set_operator():
     assert UsingJoin(create_join_type("inner"), ["col1"]).sql == "USING INNER"
 
     assert Join(None, None, create_join_type("Inner"), None, None).sql == "INNER"
+
+    assert LateralJoin().sql == "INNER JOIN LATERAL"

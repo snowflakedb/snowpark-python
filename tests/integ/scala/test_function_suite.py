@@ -5727,13 +5727,24 @@ def test_interval_year_month_from_parts(session):
     assert result_nulls[1]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
     assert result_nulls[2]['interval_year_month_from_parts("YEARS", "MONTHS")'] is None
 
+    df_literals = session.create_dataframe([(1,)], schema=["dummy"])
+    literals_schema_result_no_alias = df_literals.select(
+        interval_year_month_from_parts(lit(2), lit(5), _alias_column_name=False),
+    )
+    for field in literals_schema_result_no_alias.schema.fields:
+        assert field.datatype == YearMonthIntervalType(0, 1)
+
+    result_literals_no_alias = literals_schema_result_no_alias.collect()
+    if session.eliminate_numeric_sql_value_cast_enabled:
+        column_name = "CAST (CONCAT(IFF((((2 * 12) + 5) < 0), '-', ''),  CAST ( CAST (FLOOR((ABS(((2 * 12) + 5)) / 12)) AS INT) AS STRING), '-',  CAST ( CAST (FLOOR((ABS(((2 * 12) + 5)) % 12)) AS INT) AS STRING)) AS INTERVAL YEAR TO MONTH)"
+    else:
+        column_name = "CAST (CONCAT(IFF((((2 :: INT * 12 :: INT) + 5 :: INT) < 0 :: INT), '-', ''),  CAST ( CAST (FLOOR((ABS(((2 :: INT * 12 :: INT) + 5 :: INT)) / 12 :: INT)) AS INT) AS STRING), '-',  CAST ( CAST (FLOOR((ABS(((2 :: INT * 12 :: INT) + 5 :: INT)) % 12 :: INT)) A"
+    assert result_literals_no_alias[0][column_name] == "+2-05"
+
 
 @pytest.mark.skipif(
     "config.getoption('local_testing_mode', default=False)",
     reason="FEAT: Alter Session not supported in local testing",
-)
-@pytest.mark.skipif(
-    IS_IN_STORED_PROC, reason="Alter Session not supported in stored procedure."
 )
 def test_interval_day_time_from_parts(session):
     test_cases = [
@@ -5944,3 +5955,18 @@ def test_interval_day_time_from_parts(session):
     interval_result = result_microsecond[0]["MICROSECOND_TEST"]
     expected = timedelta(seconds=0.123456)
     assert interval_result == expected
+
+    df_literals = session.create_dataframe([(1,)], schema=["dummy"])
+    literals_schema_result_no_alias = df_literals.select(
+        interval_day_time_from_parts(
+            lit(1), lit(2), lit(3), lit(4.5), _alias_column_name=False
+        ),
+    )
+    literals_result_no_alias = literals_schema_result_no_alias.collect()
+    if session.eliminate_numeric_sql_value_cast_enabled:
+        column_name = "CAST (CONCAT(IFF((((((1 * 86400) + (2 * 3600)) + (3 * 60)) + 4.5) < 0), '-', ''),  CAST ( CAST (FLOOR((ABS(((((1 * 86400) + (2 * 3600)) + (3 * 60)) + 4.5)) / 86400)) AS INT) AS STRING), ' ', IFF(( CAST (FLOOR(((ABS(((((1 * 86400) + (2 * 3600)) + (3 * 60))"
+    else:
+        column_name = "CAST (CONCAT(IFF((((((1 :: INT * 86400 :: INT) + (2 :: INT * 3600 :: INT)) + (3 :: INT * 60 :: INT)) + '4.5' :: FLOAT) < 0 :: INT), '-', ''),  CAST ( CAST (FLOOR((ABS(((((1 :: INT * 86400 :: INT) + (2 :: INT * 3600 :: INT)) + (3 :: INT * 60 :: INT)) + '4."
+    assert literals_result_no_alias[0][column_name] == timedelta(
+        days=1, hours=2, minutes=3, seconds=4.5
+    )

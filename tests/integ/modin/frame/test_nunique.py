@@ -42,7 +42,7 @@ def test_dataframe_nunique(axes_slices, dropna):
         ]
     )
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, union_count=1 if axes_slices[0] == 0 else 0):
         eval_snowpark_pandas_result(
             df,
             native_df,

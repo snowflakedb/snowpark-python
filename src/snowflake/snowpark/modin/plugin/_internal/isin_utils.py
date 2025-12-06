@@ -19,6 +19,7 @@ from snowflake.snowpark.modin.plugin._internal.snowpark_pandas_types import (
     SnowparkPandasType,
 )
 from snowflake.snowpark.modin.plugin._internal.type_utils import infer_series_type
+from snowflake.snowpark.modin.plugin._internal.join_utils import join
 from snowflake.snowpark.modin.plugin._internal.utils import (
     append_columns,
     generate_new_labels,
@@ -26,7 +27,13 @@ from snowflake.snowpark.modin.plugin._internal.utils import (
     pandas_lit,
 )
 from snowflake.snowpark.modin.plugin._typing import ListLike
-from snowflake.snowpark.types import DataType, DoubleType, VariantType, _IntegralType
+from snowflake.snowpark.types import (
+    DataType,
+    DoubleType,
+    VariantType,
+    _IntegralType,
+    BooleanType,
+)
 
 
 def convert_values_to_list_of_literals_and_return_type(
@@ -118,7 +125,10 @@ def scalar_isin_expression(
 
 
 def compute_isin_with_series(
-    frame: InternalFrame, values_series: InternalFrame
+    frame: InternalFrame,
+    values_series: InternalFrame,
+    lhs_is_series: bool,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Computes new InternalFrame holding the result of DataFrame.isin(<Series obj>).
@@ -133,6 +143,36 @@ def compute_isin_with_series(
     Returns:
         InternalFrame
     """
+    # local import to avoid circular import
+    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
+        SnowflakeQueryCompiler,
+    )
+
+    if lhs_is_series:
+        # If the LHS is a Series, directly compute distinct elements of the RHS, which will be used as
+        # the argument to ARRAY_CONTAINS for every element in the LHS. The only necessary join is
+        # between the original data column and the 1-element aggregated array column.
+        agg_label = generate_new_labels(
+            pandas_labels=["agg"], excluded=values_series.data_column_pandas_labels
+        )[0]
+        distinct_frame = (
+            SnowflakeQueryCompiler(values_series)
+            .agg("array_agg", 0, [], {})
+            ._modin_frame
+        )
+        joined_frame = join(
+            frame, distinct_frame, how="inner", dummy_row_pos_mode=dummy_row_pos_mode
+        )[0]
+        assert len(joined_frame.data_column_snowflake_quoted_identifiers) == 2
+        return joined_frame.project_columns(
+            frame.data_column_pandas_labels,
+            column_objects=array_contains(
+                joined_frame.data_column_snowflake_quoted_identifiers[0],
+                joined_frame.data_column_snowflake_quoted_identifiers[1],
+            ),
+            column_types=[SnowparkPandasType.to_pandas(BooleanType)],
+        )
+
     # For each row in this dataframe
     # align the index with the index of the values Series object.
     # If it matches, return True, else False
@@ -154,6 +194,7 @@ def compute_isin_with_series(
         index_is_bool_indexer=False,
         deduplicate_columns=False,
         frame_is_df_and_item_is_series=False,
+        dummy_row_pos_mode=dummy_row_pos_mode,
     )
 
     # apply isin operation for all columns except the appended agg_label/agg_identifier column.
@@ -175,17 +216,15 @@ def compute_isin_with_series(
         }
     ).frame
 
-    # local import to avoid circular import
-    from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
-        SnowflakeQueryCompiler,
-    )
-
     # return internal frame but remove temporary agg column.
     return SnowflakeQueryCompiler(new_frame).drop(columns=[agg_label])._modin_frame
 
 
 def compute_isin_with_dataframe(
-    frame: InternalFrame, values_frame: InternalFrame
+    frame: InternalFrame,
+    values_frame: InternalFrame,
+    lhs_is_series: bool,
+    dummy_row_pos_mode: bool,
 ) -> InternalFrame:
     """
     Computes new InternalFrame holding the result of DataFrame.isin(<DataFra e obj>).
@@ -200,6 +239,14 @@ def compute_isin_with_dataframe(
     Returns:
         InternalFrame
     """
+    if lhs_is_series:
+        # a series-DF isin operation always returns False at all positions
+        return frame.update_snowflake_quoted_identifiers_with_expressions(
+            {
+                quoted_identifier: pandas_lit(False)
+                for quoted_identifier in frame.data_column_snowflake_quoted_identifiers
+            }
+        )[0]
     # similar logic to series, however do not create a single column but multiple colunms
     # set values via set_frame_2d_labels then
 
@@ -275,6 +322,7 @@ def compute_isin_with_dataframe(
         False,
         False,
         False,
+        dummy_row_pos_mode,
     )
 
     isin_identifiers = [

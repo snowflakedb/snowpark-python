@@ -6,7 +6,7 @@ import datetime
 import decimal
 from collections import defaultdict
 from functools import cached_property
-from typing import Optional, Union, List, Callable
+from typing import Optional, Union, List, Callable, Dict
 import logging
 import pytz
 from dateutil import parser
@@ -30,6 +30,10 @@ from snowflake.snowpark.types import (
     DateType,
     DataType,
 )
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import snowflake.snowpark
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +173,34 @@ class DataSourcePartitioner:
             self.lower_bound,
             self.upper_bound,
             self.num_partitions,
+        )
+
+    def _udtf_ingestion(
+        self,
+        session: "snowflake.snowpark.Session",
+        schema: StructType,
+        partition_table: str,
+        external_access_integrations: str,
+        fetch_size: int = 1000,
+        imports: Optional[List[str]] = None,
+        packages: Optional[List[str]] = None,
+        session_init_statement: Optional[List[str]] = None,
+        query_timeout: Optional[int] = 0,
+        statement_params: Optional[Dict[str, str]] = None,
+        _emit_ast: bool = True,
+    ) -> "snowflake.snowpark.DataFrame":
+        return self.driver.udtf_ingestion(
+            session,
+            schema,
+            partition_table,
+            external_access_integrations,
+            fetch_size,
+            imports,
+            packages,
+            session_init_statement,
+            query_timeout,
+            statement_params,
+            _emit_ast,
         )
 
     @staticmethod

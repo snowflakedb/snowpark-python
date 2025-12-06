@@ -16,7 +16,15 @@ from snowflake.snowpark.exceptions import (
     SnowparkDataframeReaderException,
     SnowparkSQLException,
 )
-from snowflake.snowpark.functions import builtin, col, get, lit, sql_expr, xmlget
+from snowflake.snowpark.functions import (
+    bucket,
+    builtin,
+    col,
+    get,
+    lit,
+    sql_expr,
+    xmlget,
+)
 from snowflake.snowpark.types import (
     DoubleType,
     IntegerType,
@@ -265,6 +273,7 @@ def test_copy_into_csv_iceberg(
             "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
             "CATALOG": "SNOWFLAKE",
             "BASE_LOCATION": "snowpark_python_tests",
+            "partition_by": ["b", bucket(10, "a"), "", "truncate(3, b)"],
         },
     )
     try:
@@ -272,7 +281,7 @@ def test_copy_into_csv_iceberg(
         ddl = session._run_query(f"select get_ddl('table', '{test_table_name}')")
         assert (
             ddl[0][0]
-            == f"create or replace ICEBERG TABLE {test_table_name} (\n\tA LONG,\n\tB STRING,\n\tC DOUBLE\n)\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
+            == f"create or replace ICEBERG TABLE {test_table_name} (\n\tA LONG,\n\tB STRING,\n\tC DOUBLE\n)\n PARTITION BY (B, BUCKET(10, A), TRUNCATE(3, B))\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
         )
         # Check that a copy_into works on the newly created table.
         df.copy_into_table(test_table_name)

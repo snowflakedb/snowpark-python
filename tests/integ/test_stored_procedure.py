@@ -561,6 +561,18 @@ def test_session_register_sp(session, local_testing_mode):
     )
     assert add_sp(1, 2) == 3
 
+    # testing SNOW-2436917
+    add_sp_passing_session = session.sproc.register(
+        lambda session_, x, y: session_.create_dataframe([(x, y)])
+        .to_df("a", "b")
+        .select(col("a") + col("b"))
+        .collect()[0][0],
+        session=session,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    assert add_sp_passing_session(1, 2) == 3
+
     query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"
     add_sp = session.sproc.register(
         lambda session_, x, y: session_.create_dataframe([(x, y)])

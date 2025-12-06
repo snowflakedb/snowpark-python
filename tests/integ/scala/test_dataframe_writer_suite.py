@@ -13,7 +13,14 @@ from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark import Row
 from snowflake.snowpark._internal.utils import TempObjectType, parse_table_name
 from snowflake.snowpark.exceptions import SnowparkSQLException
-from snowflake.snowpark.functions import col, lit, object_construct, parse_json
+from snowflake.snowpark.functions import (
+    col,
+    lit,
+    object_construct,
+    parse_json,
+    truncate,
+    day,
+)
 from snowflake.snowpark.mock.exceptions import SnowparkLocalTestingException
 from snowflake.snowpark.types import (
     DoubleType,
@@ -22,6 +29,7 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    TimestampType,
 )
 from unittest.mock import patch
 from tests.utils import (
@@ -229,6 +237,7 @@ def test_iceberg(session, local_testing_mode):
             [
                 StructField("a", StringType()),
                 StructField("b", IntegerType()),
+                StructField("ts", TimestampType()),
             ]
         ),
     )
@@ -238,17 +247,151 @@ def test_iceberg(session, local_testing_mode):
             "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
             "catalog": "SNOWFLAKE",
             "base_location": "snowpark_python_tests",
+            "target_file_size": "64MB",
+            "partition_by": ["a", "bucket(5, b)", "", truncate(3, "a"), day("ts")],
             "iceberg_version": 3,
         },
     )
     try:
         ddl = session._run_query(f"select get_ddl('table', '{table_name}')")
         assert (
-            ddl[0][0]
-            == f"create or replace ICEBERG TABLE {table_name} (\n\tA STRING,\n\tB LONG\n)\n EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n BASE_LOCATION = 'snowpark_python_tests/';"
+            ddl[0][0] == f"create or replace ICEBERG TABLE {table_name} (\n\t"
+            f"A STRING,\n\tB LONG,\n\tTS TIMESTAMP_NTZ(6)\n)\n "
+            f"PARTITION BY (A, BUCKET(5, B), TRUNCATE(3, A), DAY(TS))\n "
+            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n "
+            f"BASE_LOCATION = 'snowpark_python_tests/';"
         )
+
+        params = session.sql(f"show parameters for table {table_name}").collect()
+        target_file_size_params = [
+            row for row in params if row["key"] == "TARGET_FILE_SIZE"
+        ]
+        assert (
+            len(target_file_size_params) > 0
+            and target_file_size_params[0]["value"] == "64MB"
+        ), f"Expected TARGET_FILE_SIZE='64MB', got '{target_file_size_params[0]['value']}'"
     finally:
         session.table(table_name).drop_table()
+
+
+def test_iceberg_partition_by(session, local_testing_mode):
+    if not iceberg_supported(session, local_testing_mode) or is_in_stored_procedure():
+        pytest.skip("Test requires iceberg support.")
+
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_PERSISTED=DISABLED"
+    ).collect()
+    session.sql(
+        "alter session set FEATURE_INCREASED_MAX_LOB_SIZE_IN_MEMORY=DISABLED"
+    ).collect()
+
+    df = session.create_dataframe(
+        [],
+        schema=StructType(
+            [
+                StructField("a", StringType()),
+                StructField("b", IntegerType()),
+            ]
+        ),
+    )
+
+    # Test 1: Single string value
+    table_name_1 = Utils.random_table_name()
+    df.write.save_as_table(
+        table_name_1,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "Partition_by": "b",
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name_1}')")
+        assert (
+            ddl[0][0] == f"create or replace ICEBERG TABLE {table_name_1} (\n\t"
+            f"A STRING,\n\tB LONG\n)\n "
+            f"PARTITION BY (B)\n "
+            f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE';"
+        )
+
+    finally:
+        session.table(table_name_1).drop_table()
+
+    # Test 2: Empty list
+    table_name_2 = Utils.random_table_name()
+    df.write.save_as_table(
+        table_name_2,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "partition_by": [],
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name_2}')")
+        assert "PARTITION BY" not in ddl[0][0]
+    finally:
+        session.table(table_name_2).drop_table()
+
+    # Test 3: Single Column object
+    table_name_3 = Utils.random_table_name()
+    df.write.save_as_table(
+        table_name_3,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "partition_by": col("b"),
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name_3}')")
+        assert "PARTITION BY (B)" in ddl[0][0]
+    finally:
+        session.table(table_name_3).drop_table()
+
+    # Test 4: Mix of strings and Column objects with empty strings
+    table_name_4 = Utils.random_table_name()
+    df.write.save_as_table(
+        table_name_4,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+            "partition_by": ["a", "", col("b")],
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name_4}')")
+        assert "PARTITION BY (A, B)" in ddl[0][0]
+    finally:
+        session.table(table_name_4).drop_table()
+
+    # Test 5: No partition_by
+    table_name_5 = Utils.random_table_name()
+    df.write.save_as_table(
+        table_name_5,
+        iceberg_config={
+            "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+            "catalog": "SNOWFLAKE",
+        },
+    )
+    try:
+        ddl = session._run_query(f"select get_ddl('table', '{table_name_5}')")
+        assert "PARTITION BY" not in ddl[0][0]
+    finally:
+        session.table(table_name_5).drop_table()
+
+    # Test 6: Invalid type should raise TypeError
+    with pytest.raises(
+        TypeError, match="partition_by in iceberg_config expected Column or str"
+    ):
+        df.write.save_as_table(
+            Utils.random_table_name(),
+            iceberg_config={
+                "external_volume": "PYTHON_CONNECTOR_ICEBERG_EXVOL",
+                "catalog": "SNOWFLAKE",
+                "partition_by": 123,
+            },
+        )
 
 
 @pytest.mark.skipif(

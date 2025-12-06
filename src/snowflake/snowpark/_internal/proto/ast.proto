@@ -954,7 +954,7 @@ message DataframeAnalyticsTimeSeriesAgg {
   repeated string windows = 8;
 }
 
-// dataframe.ir:367
+// dataframe.ir:375
 message DataframeCacheResult {
   Expr df = 1;
   NameRef object_name = 2;
@@ -969,7 +969,7 @@ message DataframeCol {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:374
+// dataframe.ir:382
 message DataframeColIlike {
   Expr df = 1;
   string pattern = 2;
@@ -1126,13 +1126,7 @@ message DataframeGroupBy {
   SrcPosition src = 3;
 }
 
-// dataframe-grouped.ir:16
-message DataframeGroupByAll {
-  Expr df = 1;
-  SrcPosition src = 2;
-}
-
-// dataframe-grouped.ir:32
+// dataframe-grouped.ir:28
 message DataframeGroupByGroupingSets {
   Expr df = 1;
   ExprArgList grouping_sets = 2;
@@ -1158,14 +1152,24 @@ message DataframeJoin {
   SrcPosition src = 8;
 }
 
-// dataframe.ir:272
+// dataframe.ir:280
 message DataframeJoinTableFunction {
   Expr fn = 1;
   Expr lhs = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:277
+// dataframe.ir:272
+message DataframeLateralJoin {
+  Expr join_expr = 1;
+  Expr lhs = 2;
+  google.protobuf.StringValue lsuffix = 3;
+  Expr rhs = 4;
+  google.protobuf.StringValue rsuffix = 5;
+  SrcPosition src = 6;
+}
+
+// dataframe.ir:285
 message DataframeLimit {
   Expr df = 1;
   int64 n = 2;
@@ -1213,7 +1217,7 @@ message DataframeNaReplace {
   repeated Expr values = 9;
 }
 
-// dataframe.ir:283
+// dataframe.ir:291
 message DataframeNaturalJoin {
   JoinType join_type = 1;
   Expr lhs = 2;
@@ -1221,7 +1225,7 @@ message DataframeNaturalJoin {
   SrcPosition src = 4;
 }
 
-// dataframe-grouped.ir:20
+// dataframe-grouped.ir:16
 message DataframePivot {
   Expr default_on_null = 1;
   Expr df = 2;
@@ -1230,7 +1234,7 @@ message DataframePivot {
   Expr values = 5;
 }
 
-// dataframe.ir:297
+// dataframe.ir:305
 message DataframeRandomSplit {
   Expr df = 1;
   google.protobuf.Int64Value seed = 2;
@@ -1254,7 +1258,7 @@ message DataframeRef {
   SrcPosition src = 2;
 }
 
-// dataframe.ir:304
+// dataframe.ir:312
 message DataframeRename {
   Expr col_or_mapper = 1;
   Expr df = 2;
@@ -1262,14 +1266,14 @@ message DataframeRename {
   SrcPosition src = 4;
 }
 
-// dataframe-grouped.ir:27
+// dataframe-grouped.ir:23
 message DataframeRollup {
   ExprArgList cols = 1;
   Expr df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe.ir:310
+// dataframe.ir:318
 message DataframeSample {
   Expr df = 1;
   google.protobuf.Int64Value num = 2;
@@ -1278,7 +1282,7 @@ message DataframeSample {
   SrcPosition src = 5;
 }
 
-// dataframe.ir:317
+// dataframe.ir:325
 message DataframeSelect {
   ExprArgList cols = 1;
   Expr df = 2;
@@ -1293,7 +1297,7 @@ message DataframeShow {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:324
+// dataframe.ir:332
 message DataframeSort {
   Expr ascending = 1;
   ExprArgList cols = 2;
@@ -1377,7 +1381,7 @@ message DataframeToPandasBatches {
   repeated Tuple_String_String statement_params = 4;
 }
 
-// dataframe.ir:330
+// dataframe.ir:338
 message DataframeUnion {
   bool all = 1;
   bool allow_missing_columns = 2;
@@ -1387,7 +1391,7 @@ message DataframeUnion {
   SrcPosition src = 6;
 }
 
-// dataframe.ir:289
+// dataframe.ir:297
 message DataframeUnpivot {
   repeated Expr column_list = 1;
   Expr df = 2;
@@ -1397,7 +1401,7 @@ message DataframeUnpivot {
   string value_column = 6;
 }
 
-// dataframe.ir:338
+// dataframe.ir:346
 message DataframeWithColumn {
   Expr col = 1;
   string col_name = 2;
@@ -1405,7 +1409,7 @@ message DataframeWithColumn {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:344
+// dataframe.ir:352
 message DataframeWithColumnRenamed {
   Expr col = 1;
   Expr df = 2;
@@ -1413,7 +1417,7 @@ message DataframeWithColumnRenamed {
   SrcPosition src = 4;
 }
 
-// dataframe.ir:350
+// dataframe.ir:358
 message DataframeWithColumns {
   repeated string col_names = 1;
   Expr df = 2;
@@ -1587,11 +1591,11 @@ message Expr {
     DataframeFirst dataframe_first = 85;
     DataframeFlatten dataframe_flatten = 86;
     DataframeGroupBy dataframe_group_by = 87;
-    DataframeGroupByAll dataframe_group_by_all = 88;
-    DataframeGroupByGroupingSets dataframe_group_by_grouping_sets = 89;
-    DataframeIntersect dataframe_intersect = 90;
-    DataframeJoin dataframe_join = 91;
-    DataframeJoinTableFunction dataframe_join_table_function = 92;
+    DataframeGroupByGroupingSets dataframe_group_by_grouping_sets = 88;
+    DataframeIntersect dataframe_intersect = 89;
+    DataframeJoin dataframe_join = 90;
+    DataframeJoinTableFunction dataframe_join_table_function = 91;
+    DataframeLateralJoin dataframe_lateral_join = 92;
     DataframeLimit dataframe_limit = 93;
     DataframeNaDrop_Python dataframe_na_drop__python = 94;
     DataframeNaDrop_Scala dataframe_na_drop__scala = 95;
@@ -1794,7 +1798,7 @@ message Geq {
   SrcPosition src = 3;
 }
 
-// dataframe.ir:356
+// dataframe.ir:364
 message GroupingSets {
   ExprArgList sets = 1;
   SrcPosition src = 2;
@@ -1899,11 +1903,11 @@ message HasSrcPosition {
     DataframeFirst dataframe_first = 88;
     DataframeFlatten dataframe_flatten = 89;
     DataframeGroupBy dataframe_group_by = 90;
-    DataframeGroupByAll dataframe_group_by_all = 91;
-    DataframeGroupByGroupingSets dataframe_group_by_grouping_sets = 92;
-    DataframeIntersect dataframe_intersect = 93;
-    DataframeJoin dataframe_join = 94;
-    DataframeJoinTableFunction dataframe_join_table_function = 95;
+    DataframeGroupByGroupingSets dataframe_group_by_grouping_sets = 91;
+    DataframeIntersect dataframe_intersect = 92;
+    DataframeJoin dataframe_join = 93;
+    DataframeJoinTableFunction dataframe_join_table_function = 94;
+    DataframeLateralJoin dataframe_lateral_join = 95;
     DataframeLimit dataframe_limit = 96;
     DataframeNaDrop_Python dataframe_na_drop__python = 97;
     DataframeNaDrop_Scala dataframe_na_drop__scala = 98;
@@ -2274,14 +2278,14 @@ message RedactedConst {
   SrcPosition src = 2;
 }
 
-// dataframe-grouped.ir:37
+// dataframe-grouped.ir:33
 message RelationalGroupedDataframeAgg {
   ExprArgList exprs = 1;
   Expr grouped_df = 2;
   SrcPosition src = 3;
 }
 
-// dataframe-grouped.ir:50
+// dataframe-grouped.ir:46
 message RelationalGroupedDataframeAiAgg {
   Expr expr = 1;
   Expr grouped_df = 2;
@@ -2289,7 +2293,7 @@ message RelationalGroupedDataframeAiAgg {
   string task_description = 4;
 }
 
-// dataframe-grouped.ir:56
+// dataframe-grouped.ir:52
 message RelationalGroupedDataframeApplyInPandas {
   Callable func = 1;
   Expr grouped_df = 2;
@@ -2298,7 +2302,7 @@ message RelationalGroupedDataframeApplyInPandas {
   SrcPosition src = 5;
 }
 
-// dataframe-grouped.ir:43
+// dataframe-grouped.ir:39
 message RelationalGroupedDataframeBuiltin {
   string agg_name = 1;
   ExprArgList cols = 2;
@@ -2306,7 +2310,7 @@ message RelationalGroupedDataframeBuiltin {
   SrcPosition src = 4;
 }
 
-// dataframe-grouped.ir:63
+// dataframe-grouped.ir:59
 message RelationalGroupedDataframePivot {
   Expr default_on_null = 1;
   Expr grouped_df = 2;
@@ -2525,7 +2529,7 @@ message TableUpdate {
   repeated Tuple_String_String statement_params = 7;
 }
 
-// dataframe.ir:360
+// dataframe.ir:368
 message ToSnowparkPandas {
   repeated string columns = 1;
   Expr df = 2;

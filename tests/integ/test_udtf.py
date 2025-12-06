@@ -1335,6 +1335,17 @@ def test_udtf_comment(session):
     ddl_sql = f"select get_ddl('FUNCTION', '{echo_udtf.name}(number)')"
     assert comment in session.sql(ddl_sql).collect()[0][0]
 
+    # testing SNOW-SNOW-2436917
+    echo_udtf_passing_session = session.udtf.register(
+        EchoUDTF,
+        output_schema=["num"],
+        comment=comment,
+        session=session,
+    )
+
+    ddl_sql = f"select get_ddl('FUNCTION', '{echo_udtf_passing_session.name}(number)')"
+    assert comment in session.sql(ddl_sql).collect()[0][0]
+
 
 @pytest.mark.parametrize("from_file", [True, False])
 @pytest.mark.parametrize(

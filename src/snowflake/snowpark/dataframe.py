@@ -46,6 +46,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     LeftOuter,
     LeftSemi,
     NaturalJoin,
+    LateralJoin,
     RightOuter,
     Union as UnionPlan,
     UsingJoin,
@@ -84,6 +85,7 @@ from snowflake.snowpark._internal.analyzer.sort_expression import (
     Ascending,
     Descending,
     SortOrder,
+    SortByAllOrder,
 )
 from snowflake.snowpark._internal.analyzer.table_function import (
     FlattenFunction,
@@ -2103,6 +2105,8 @@ class DataFrame:
     ) -> "DataFrame":
         """Sorts a DataFrame by the specified expressions (similar to ORDER BY in SQL).
 
+        When called with no column arguments, sorts by all columns (ORDER BY ALL).
+
         Examples::
 
             >>> from snowflake.snowpark.functions import col
@@ -2139,22 +2143,65 @@ class DataFrame:
             -------------
             <BLANKLINE>
 
+            >>> # Sort by all columns (ORDER BY ALL) - no columns specified
+            >>> df.sort().show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |1    |2    |
+            |1    |4    |
+            |3    |4    |
+            -------------
+            <BLANKLINE>
+
+            >>> # Sort by all columns (ORDER BY ALL) - no columns specified
+            >>> df.sort([], ascending=False).show()
+            -------------
+            |"A"  |"B"  |
+            -------------
+            |3    |4    |
+            |1    |4    |
+            |1    |2    |
+            -------------
+            <BLANKLINE>
+
         Args:
-            *cols: A column name as :class:`str` or :class:`Column`, or a list of
-             columns to sort by.
-            ascending: A :class:`bool` or a list of :class:`bool` for sorting the
-             DataFrame, where ``True`` sorts a column in ascending order and ``False``
-             sorts a column in descending order . If you specify a list of multiple
-             sort orders, the length of the list must equal the number of columns.
+            *cols: Column names as :class:`str`, :class:`Column` objects, or a list of
+             columns to sort by. If no columns are provided, the DataFrame is sorted
+             by all columns in the order they appear (equivalent to ``ORDER BY ALL`` in SQL).
+            ascending: Sort order specification.
+
+             - When sorting **specific columns**: A :class:`bool`, :class:`int`, or list of
+               :class:`bool`/:class:`int` values. ``True`` (or 1) for ascending, ``False``
+               (or 0) for descending. If a list is provided, its length must match the number
+               of columns.
+             - When sorting **all columns** (no columns specified): Must be a single
+               :class:`bool` or :class:`int`, not a list. Applies the same sort order to
+               all columns.
+             - Defaults to ``True`` (ascending) when not specified.
+
+        Note:
+            The aliases ``order_by()`` and ``orderBy()`` have the same behavior.
         """
-        if not cols:
-            raise ValueError("sort() needs at least one sort expression.")
+
         # This code performs additional type checks, run first.
         exprs = self._convert_cols_to_exprs("sort()", *cols)
-        if not exprs:
+        is_order_by_all = not cols or not exprs
+
+        if context._is_snowpark_connect_compatible_mode and is_order_by_all:
             raise ValueError("sort() needs at least one sort expression.")
 
-        # AST.
+        if (
+            is_order_by_all
+            and ascending is not None
+            and not isinstance(ascending, (bool, int))
+        ):
+            raise TypeError(
+                "When no columns are specified (ORDER BY ALL), "
+                "ascending must be bool or int, not a list. "
+                "To sort specific columns with different orders, specify the columns."
+            )
+
         stmt = None
         if _emit_ast:
             stmt = self._session._ast_batch.bind()
@@ -2167,59 +2214,64 @@ class DataFrame:
             ast.cols.variadic = is_variadic
             self._set_ast_ref(ast.df)
 
-        orders = []
-        # `ascending` is represented by Expr in the AST.
-        # Therefore, construct the required bool, int, or list and copy from that.
-        asc_expr_ast = None
-        if _emit_ast:
+            # Populate ascending as Expr
             asc_expr_ast = proto.Expr()
-        if ascending is not None:
-            if isinstance(ascending, (list, tuple)):
-                orders = [Ascending() if asc else Descending() for asc in ascending]
-                if _emit_ast:
-                    # Here asc_expr_ast is a list of bools and ints.
-                    for asc in ascending:
-                        asc_ast = proto.Expr()
-                        if isinstance(asc, bool):
-                            asc_ast.bool_val.v = asc
-                        else:
-                            asc_ast.int64_val.v = asc
-                        asc_expr_ast.list_val.vs.append(asc_ast)
-            elif isinstance(ascending, (bool, int)):
-                orders = [Ascending() if ascending else Descending()]
-                if _emit_ast:
-                    # Here asc_expr_ast is either a bool or an int.
-                    if isinstance(ascending, bool):
-                        asc_expr_ast.bool_val.v = ascending
+            asc_value = True if ascending is None else ascending
+            if isinstance(asc_value, (list, tuple)):
+                for asc in asc_value:
+                    asc_ast = proto.Expr()
+                    if isinstance(asc, bool):
+                        asc_ast.bool_val.v = asc
                     else:
-                        asc_expr_ast.int64_val.v = ascending
-            else:
-                raise TypeError(
-                    "ascending can only be boolean or list,"
-                    " but got {}".format(str(type(ascending)))
-                )
-            if _emit_ast:
-                ast.ascending.CopyFrom(asc_expr_ast)
-            if len(exprs) != len(orders):
-                raise ValueError(
-                    "The length of col ({}) should be same with"
-                    " the length of ascending ({}).".format(len(exprs), len(orders))
-                )
+                        asc_ast.int64_val.v = asc
+                    asc_expr_ast.list_val.vs.append(asc_ast)
+            elif isinstance(asc_value, (bool, int)):
+                if isinstance(asc_value, bool):
+                    asc_expr_ast.bool_val.v = asc_value
+                else:
+                    asc_expr_ast.int64_val.v = asc_value
+            ast.ascending.CopyFrom(asc_expr_ast)
 
-        sort_exprs = []
-        for idx in range(len(exprs)):
-            # orders will overwrite current orders in expression (but will not overwrite null ordering)
-            # if no order is provided, use ascending order
-            if isinstance(exprs[idx], SortOrder):
-                sort_exprs.append(
-                    SortOrder(exprs[idx].child, orders[idx], exprs[idx].null_ordering)
-                    if orders
-                    else exprs[idx]
-                )
-            else:
-                sort_exprs.append(
-                    SortOrder(exprs[idx], orders[idx] if orders else Ascending())
-                )
+        # Build sort expressions
+        if is_order_by_all:
+            asc_value = True if ascending is None else ascending
+            order = Ascending() if bool(asc_value) else Descending()
+            sort_exprs = [SortByAllOrder(order)]
+        else:
+            orders = []
+            if ascending is not None:
+                if isinstance(ascending, (list, tuple)):
+                    orders = [Ascending() if asc else Descending() for asc in ascending]
+                elif isinstance(ascending, (bool, int)):
+                    orders = [Ascending() if ascending else Descending()]
+                else:
+                    raise TypeError(
+                        "ascending can only be boolean or list,"
+                        " but got {}".format(str(type(ascending)))
+                    )
+
+                if len(exprs) != len(orders):
+                    raise ValueError(
+                        "The length of col ({}) should be same with"
+                        " the length of ascending ({}).".format(len(exprs), len(orders))
+                    )
+
+            sort_exprs = []
+            for idx in range(len(exprs)):
+                # orders will overwrite current orders in expression (but will not overwrite null ordering)
+                # if no order is provided, use ascending order
+                if isinstance(exprs[idx], SortOrder):
+                    sort_exprs.append(
+                        SortOrder(
+                            exprs[idx].child, orders[idx], exprs[idx].null_ordering
+                        )
+                        if orders
+                        else exprs[idx]
+                    )
+                else:
+                    sort_exprs.append(
+                        SortOrder(exprs[idx], orders[idx] if orders else Ascending())
+                    )
 
         # In snowpark_connect_compatible mode, we need to handle
         # the sorting for dataframe after aggregation without nesting
@@ -2597,29 +2649,6 @@ class DataFrame:
             self,
             cube_exprs,
             snowflake.snowpark.relational_grouped_dataframe._CubeType(),
-            _ast_stmt=stmt,
-        )
-
-    @df_to_relational_group_df_api_usage
-    @publicapi
-    def group_by_all(
-        self, _emit_ast: bool = True
-    ) -> "snowflake.snowpark.RelationalGroupedDataFrame":
-        """Performs a SQL
-        `GROUP BY ALL <https://docs.snowflake.com/en/sql-reference/constructs/group-by#label-group-by-all-columns>`_.
-        on the DataFrame.
-        """
-        # AST.
-        stmt = None
-        if _emit_ast:
-            stmt = self._session._ast_batch.bind()
-            expr = with_src_position(stmt.expr.dataframe_group_by_all, stmt)
-            self._set_ast_ref(expr.df)
-
-        return snowflake.snowpark.RelationalGroupedDataFrame(
-            self,
-            [],
-            snowflake.snowpark.relational_grouped_dataframe._GroupByAllType(),
             _ast_stmt=stmt,
         )
 
@@ -3483,6 +3512,92 @@ class DataFrame:
                 ast.join_type.join_type__full_outer = True
             else:
                 raise ValueError(f"Unsupported join type {join_type}")
+
+        if self._select_statement:
+            select_plan = self._session._analyzer.create_select_statement(
+                from_=self._session._analyzer.create_select_snowflake_plan(
+                    join_plan,
+                    analyzer=self._session._analyzer,
+                ),
+                analyzer=self._session._analyzer,
+            )
+            return self._with_plan(select_plan, _ast_stmt=stmt)
+        return self._with_plan(join_plan, _ast_stmt=stmt)
+
+    @df_api_usage
+    @publicapi
+    def lateral_join(
+        self,
+        right: "DataFrame",
+        on: Optional[Column] = None,
+        *,
+        lsuffix: str = "",
+        rsuffix: str = "",
+        _emit_ast: bool = True,
+    ) -> "DataFrame":
+        """Performs an inner lateral join with the current DataFrame and another DataFrame (``right``).
+
+        Args:
+            right: The other :class:`DataFrame` to join.
+            on: A :class:`Column` expression for the lateral join condition.
+                This condition will be used to filter the right DataFrame in the
+                lateral subquery (e.g., `WHERE t1.a = t2.a`).
+            lsuffix: Suffix to add to the overlapping columns of the left DataFrame.
+            rsuffix: Suffix to add to the overlapping columns of the right DataFrame.
+
+        Note:
+            When both ``lsuffix`` and ``rsuffix`` are empty, the overlapping columns will have random column names in the resulting DataFrame.
+            You can reference to these randomly named columns using :meth:`Column.alias`.
+
+        Examples::
+            >>> df1 = session.create_dataframe([[1, 2], [3, 4], [5, 6]], schema=["a", "b"])
+            >>> df2 = session.create_dataframe([[1, 7], [3, 8]], schema=["a", "c"])
+            >>> df1.lateral_join(df2, df1.a == df2.a).select(df1.a.alias("a_1"), df2.a.alias("a_2"), df1.b, df2.c).show()
+            -----------------------------
+            |"A_1"  |"A_2"  |"B"  |"C"  |
+            -----------------------------
+            |1      |1      |2    |7    |
+            |3      |3      |4    |8    |
+            -----------------------------
+            <BLANKLINE>
+
+            >>> # With lsuffix and rsuffix for column disambiguation
+            >>> df1.lateral_join(df2, df1.b * 2 > df2.c, lsuffix="_l", rsuffix="_r").select("*").show()
+            -----------------------------
+            |"A_L"  |"B"  |"A_R"  |"C"  |
+            -----------------------------
+            |3      |4    |1      |7    |
+            |5      |6    |1      |7    |
+            |5      |6    |3      |8    |
+            -----------------------------
+            <BLANKLINE>
+        """
+        lateral_join_type = LateralJoin()
+        (lhs, rhs) = _disambiguate(
+            self, right, lateral_join_type, [], lsuffix=lsuffix, rsuffix=rsuffix
+        )
+
+        on_expr = on._expression if on is not None else None
+        join_plan = Join(
+            lhs._plan,
+            rhs._plan,
+            lateral_join_type,
+            on_expr,
+            None,
+        )
+
+        stmt = None
+        if _emit_ast:
+            stmt = self._session._ast_batch.bind()
+            ast = with_src_position(stmt.expr.dataframe_lateral_join, stmt)
+            self._set_ast_ref(ast.lhs)
+            right._set_ast_ref(ast.rhs)
+            if on_expr is not None:
+                build_expr_from_snowpark_column(ast.join_expr, on)
+            if lsuffix:
+                ast.lsuffix.value = lsuffix
+            if rsuffix:
+                ast.rsuffix.value = rsuffix
 
         if self._select_statement:
             select_plan = self._session._analyzer.create_select_statement(
@@ -4613,12 +4728,20 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             iceberg_config: A dictionary that can contain the following iceberg configuration values:
 
+                * partition_by: specifies one or more partition expressions for the Iceberg table.
+                    Can be a single Column, column name, SQL expression string, or a list of these.
+                    Supports identity partitioning (column names) as well as partition transform functions
+                    like bucket(), truncate(), year(), month(), day(), hour().
+
                 * external_volume: specifies the identifier for the external volume where
                     the Iceberg table stores its metadata files and data in Parquet format
 
                 * catalog: specifies either Snowflake or a catalog integration to use for this table
 
                 * base_location: the base directory that snowflake can write iceberg metadata and files to
+
+                * target_file_size: specifies a target Parquet file size for the table.
+                    Valid values: 'AUTO' (default), '16MB', '32MB', '64MB', '128MB'
 
                 * catalog_sync: optionally sets the catalog integration configured for Polaris Catalog
 
@@ -5404,10 +5527,16 @@ class DataFrame:
             statement_params: Dictionary of statement level parameters to be set while executing this action.
             iceberg_config: A dictionary that can contain the following iceberg configuration values:
 
+                - partition_by: specifies one or more partition expressions for the Iceberg table.
+                  Can be a single Column, column name, SQL expression string, or a list of these.
+                  Supports identity partitioning (column names) as well as partition transform functions
+                  like bucket(), truncate(), year(), month(), day(), hour().
                 - external_volume: specifies the identifier for the external volume where
                   the Iceberg table stores its metadata files and data in Parquet format.
                 - catalog: specifies either Snowflake or a catalog integration to use for this table.
                 - base_location: the base directory that snowflake can write iceberg metadata and files to.
+                - target_file_size: specifies a target Parquet file size for the table.
+                  Valid values: 'AUTO' (default), '16MB', '32MB', '64MB', '128MB'
                 - catalog_sync: optionally sets the catalog integration configured for Polaris Catalog.
                 - storage_serialization_policy: specifies the storage serialization policy for the table.
             copy_grants: A boolean value that specifies whether to retain the access permissions from the original view
@@ -6146,7 +6275,16 @@ class DataFrame:
         else:
             raise TypeError(f"{str(existing)} must be a column name or Column object.")
 
-        to_be_renamed = [x for x in self._output if x.name.upper() == old_name.upper()]
+        from snowflake.snowpark import context
+
+        if context._is_snowpark_connect_compatible_mode:
+            to_be_renamed = [
+                x for x in self._output if quote_name(x.name) == quote_name(old_name)
+            ]
+        else:  # this is wrong, but we need to keep it for backward compatibility. Should be removed in the future when Snowpark Python Client has a major version bump.
+            to_be_renamed = [
+                x for x in self._output if x.name.upper() == old_name.upper()
+            ]
         if not to_be_renamed:
             raise ValueError(
                 f'Unable to rename column "{existing}" because it doesn\'t exist.'

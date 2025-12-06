@@ -34,7 +34,8 @@ def test_strip_duplicates(input, expected):
     snow_df = pd.DataFrame(input)
     internal_frame: InternalFrame = snow_df._query_compiler._modin_frame
     internal_frame = internal_frame.strip_duplicates(
-        internal_frame.data_column_snowflake_quoted_identifiers[:1]
+        internal_frame.data_column_snowflake_quoted_identifiers[:1],
+        False,
     )
     result = pd.DataFrame(query_compiler=SnowflakeQueryCompiler(internal_frame))
     assert_frame_equal(result, pd.DataFrame(expected))
@@ -47,7 +48,8 @@ def test_strip_duplicates_after_sort():
     df = df.sort_values(by="B", ascending=False)
     internal_frame: InternalFrame = df._query_compiler._modin_frame
     internal_frame = internal_frame.strip_duplicates(
-        internal_frame.data_column_snowflake_quoted_identifiers[:1]
+        internal_frame.data_column_snowflake_quoted_identifiers[:1],
+        False,
     )
     result = pd.DataFrame(query_compiler=SnowflakeQueryCompiler(internal_frame))
     expected = pd.DataFrame({"A": [2, 1, 0], "B": [5, 2, 1]}, index=[4, 1, 0])

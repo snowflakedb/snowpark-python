@@ -33,6 +33,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     sort_statement,
     join_table_function_statement,
     lateral_statement,
+    lateral_join_statement,
     pivot_statement,
     unpivot_statement,
     sample_by_statement,
@@ -445,13 +446,16 @@ def test_create_iceberg_table_statement():
             "external_volume": "example_volume",
             "catalog": "example_catalog",
             "base_location": "/root",
+            "target_file_size": "128MB",
             "catalog_sync": "integration_name",
             "storage_serialization_policy": "OPTIMIZED",
+            "partition_by": ["country", "bucket(10, user_id)"],
         },
     ) == (
-        " CREATE    ICEBERG  TABLE test_table(test_col varchar)  EXTERNAL_VOLUME  = 'example_volume' "
-        " CATALOG  = 'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'"
-        "  STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED' "
+        " CREATE    ICEBERG  TABLE test_table(test_col varchar) "
+        " PARTITION BY (country, bucket(10, user_id))  EXTERNAL_VOLUME  = 'example_volume' "
+        " CATALOG  = 'example_catalog'  BASE_LOCATION  = '/root'  TARGET_FILE_SIZE  = '128MB' "
+        " CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED' "
     )
 
 
@@ -466,9 +470,12 @@ def test_create_iceberg_table_as_select_statement():
             "base_location": "/root",
             "catalog_sync": "integration_name",
             "storage_serialization_policy": "OPTIMIZED",
+            "partition_by": ["HOUR(timestamp)", "TRUNCATE(3, category)"],
         },
     ) == (
-        " CREATE    ICEBERG  TABLE  test_table  EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = "
+        " CREATE    ICEBERG  TABLE  test_table "
+        " PARTITION BY (HOUR(timestamp), TRUNCATE(3, category)) "
+        " EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = "
         "'example_catalog'  BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  "
         "STORAGE_SERIALIZATION_POLICY  = 'OPTIMIZED'   AS  SELECT  * \n"
         " FROM (\nselect * from foo\n)"
@@ -497,13 +504,14 @@ def test_create_dynamic_iceberg_table():
             "external_volume": "example_volume",
             "catalog": "example_catalog",
             "base_location": "/root",
+            "target_file_size": "32MB",
             "catalog_sync": "integration_name",
             "storage_serialization_policy": "OPTIMIZED",
         },
     ) == (
         " CREATE  OR  REPLACE  DYNAMIC  ICEBERG  TABLE my_dt LAG  = '1 minute' WAREHOUSE  = "
         "my_warehouse    EXTERNAL_VOLUME  = 'example_volume'  CATALOG  = 'example_catalog'  "
-        "BASE_LOCATION  = '/root'  CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY "
+        "BASE_LOCATION  = '/root'  TARGET_FILE_SIZE  = '32MB'  CATALOG_SYNC  = 'integration_name'  STORAGE_SERIALIZATION_POLICY "
         " = 'OPTIMIZED' AS  SELECT  * \n"
         " FROM (\nselect * from foo\n)"
     )
@@ -730,6 +738,37 @@ def test_lateral_statement_formatting():
         "my_table\n"
         "), \n"
         " LATERAL TABLE(split_to_table(col1, ' '))"
+    )
+
+
+def test_lateral_join_statement_formatting():
+    # Inner lateral join without condition
+    assert lateral_join_statement(
+        "SELECT * FROM table1", "SELECT * FROM table2", "", True
+    ) == (
+        " SELECT  * \n"
+        " FROM (\n"
+        "SELECT * FROM table1\n"
+        ") AS SNOWPARK_LEFT\n"
+        " INNER  JOIN  LATERAL \n"
+        "(SELECT * FROM table2) AS SNOWPARK_RIGHT"
+    )
+
+    # Inner lateral join with condition
+    assert lateral_join_statement(
+        "SELECT * FROM table1",
+        "SELECT * FROM table2",
+        '"A" = "B"',
+        True,
+    ) == (
+        " SELECT  * \n"
+        " FROM (\n"
+        "SELECT * FROM table1\n"
+        ") AS SNOWPARK_LEFT\n"
+        " INNER  JOIN  LATERAL \n"
+        "(\n"
+        ' SELECT  *  FROM (SELECT * FROM table2) WHERE "A" = "B"\n'
+        ") AS SNOWPARK_RIGHT"
     )
 
 

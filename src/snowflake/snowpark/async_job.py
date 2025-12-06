@@ -284,10 +284,34 @@ class AsyncJob:
                 "ENABLE_ASYNC_QUERY_IN_PYTHON_STORED_PROCS", False
             )
         ):
-            cancel_resp = self._session._conn._conn.cancel_query(self.query_id)
-            if not cancel_resp.get("success", False):
+            import _snowflake
+            import json
+            import uuid
+
+            try:
+                uuid.UUID(self.query_id)
+            except ValueError:
+                raise ValueError(f"Invalid UUID: '{self.query_id}'")
+
+            raw_cancel_resp = _snowflake.cancel_query(self.query_id)
+
+            # Set failure_response when
+            #   - success != True in the response or
+            #   - cannot parse the response at all.
+            failure_response = None
+            try:
+                parsed_cancel_resp = json.loads(raw_cancel_resp)
+                if not parsed_cancel_resp.get("success", False):
+                    failure_response = parsed_cancel_resp
+            except (TypeError, json.JSONDecodeError) as e:
+                failure_response = {
+                    "success": False,
+                    "error": f"Error parsing response: {e}",
+                }
+
+            if failure_response:
                 raise DatabaseError(
-                    f"Failed to cancel query. Returned response: {cancel_resp}"
+                    f"Failed to cancel query. Returned response: {failure_response}"
                 )
         else:
             self._cursor.execute(f"select SYSTEM$CANCEL_QUERY('{self.query_id}')")

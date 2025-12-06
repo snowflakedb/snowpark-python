@@ -1219,11 +1219,6 @@ def test_sort(session):
         for i in range(len(sorted_rows) - 1)
     ]
 
-    # Negative test: sort() needs at least one sort expression
-    with pytest.raises(ValueError) as ex_info:
-        df.sort([])
-    assert "sort() needs at least one sort expression" in ex_info.value.args[0]
-
 
 def test_select(session):
     df = session.create_dataframe([(1, "a", 10), (2, "b", 20), (3, "c", 30)]).to_df(
@@ -1574,53 +1569,6 @@ def test_cube(session):
         df.cube([col("country"), col("state")])
         .agg(sum_(col("value")))
         .sort(col("country"), col("state")),
-        expected_result,
-        False,
-    )
-
-
-@pytest.mark.skipif(
-    "config.getoption('local_testing_mode', default=False)",
-    reason="DataFrame.group_by_all not supported",
-)
-def test_group_by_all(session):
-    df = session.create_dataframe(
-        [
-            ("country A", "state A", 50),
-            ("country A", "state A", 50),
-            ("country A", "state B", 5),
-            ("country A", "state B", 5),
-            ("country B", "state A", 100),
-            ("country B", "state A", 100),
-            ("country B", "state B", 10),
-            ("country B", "state B", 10),
-        ]
-    ).to_df(["country", "state", "value"])
-
-    Utils.check_answer(df.group_by_all().agg(sum_(col("value"))), Row(330))
-
-    expected_result = [
-        Row("country A", "state A", 100),
-        Row("country A", "state B", 10),
-        Row("country B", "state A", 200),
-        Row("country B", "state B", 20),
-    ]
-    Utils.check_answer(
-        df.group_by_all()
-        .agg(col("country"), col("state"), sum_(col("value")))
-        .sort(col("country"), col("state")),
-        expected_result,
-        False,
-    )
-
-    expected_result = [
-        Row("country A", "state A", 50),
-        Row("country A", "state B", 5),
-        Row("country B", "state A", 100),
-        Row("country B", "state B", 10),
-    ]
-    Utils.check_answer(
-        df.group_by_all().agg().sort(col("country"), col("state")),
         expected_result,
         False,
     )
@@ -2736,6 +2684,24 @@ def test_rename_function_multiple(session):
     df2 = df.rename({df["b"]: "b1", col("df", "a"): "a1"})
     assert df2.schema.names[1] == "B1" and df2.schema.names[0] == "A1"
     Utils.check_answer(df2, [Row(1, 2)])
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="DataFrame.rename is not supported in Local Testing",
+)
+def test_rename_with_case_sensitive_column_name(session):
+    from snowflake.snowpark import context
+    from unittest.mock import patch
+
+    with patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        df = session.create_dataframe([[1, 2]], schema=["ab", '"ab"'])
+        df2 = df.rename('"ab"', "ab1")
+        assert df2.schema.names == ["AB", "AB1"]
+        Utils.check_answer(df2, [Row(1, 2)])
+        df3 = df.rename({"ab": "ab1"})
+        assert df3.schema.names == ["AB1", '"ab"']
+        Utils.check_answer(df3, [Row(1, 2)])
 
 
 @pytest.mark.skipif(

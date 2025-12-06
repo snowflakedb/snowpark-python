@@ -1134,7 +1134,7 @@ def resolve_imports_and_packages(
     skip_upload_on_content_match: bool = False,
     is_permanent: bool = False,
     force_inline_code: bool = False,
-    **kwargs,
+    _suppress_local_package_warnings: bool = False,
 ) -> Tuple[
     Optional[str],
     Optional[str],
@@ -1168,9 +1168,7 @@ def resolve_imports_and_packages(
                     packages,
                     include_pandas=is_pandas_udf,
                     statement_params=statement_params,
-                    _suppress_local_package_warnings=kwargs.get(
-                        "_suppress_local_package_warnings", False
-                    ),
+                    _suppress_local_package_warnings=_suppress_local_package_warnings,
                 )
                 if packages is not None
                 else session._resolve_packages(
@@ -1179,9 +1177,7 @@ def resolve_imports_and_packages(
                     validate_package=False,
                     include_pandas=is_pandas_udf,
                     statement_params=statement_params,
-                    _suppress_local_package_warnings=kwargs.get(
-                        "_suppress_local_package_warnings", False
-                    ),
+                    _suppress_local_package_warnings=_suppress_local_package_warnings,
                 )
             )
 

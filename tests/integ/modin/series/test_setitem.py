@@ -1286,7 +1286,7 @@ def test_series_setitem_lambda_key():
     snowpark_ser = pd.Series(native_ser)
     native_ser[lambda y: y % 3 == 0] = native_pd.Series([10, 11, 12, 13])
     snowpark_ser[lambda y: y % 3 == 0] = pd.Series([10, 11, 12, 13])
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             snowpark_ser, native_ser
         )
@@ -1397,7 +1397,7 @@ def test_series_setitem_comparator_key():
     snowpark_ser = pd.Series(native_ser)
     native_ser[native_ser % 3 == 0] = native_pd.Series([10, 11, 12, 13])
     snowpark_ser[snowpark_ser % 3 == 0] = pd.Series([10, 11, 12, 13])
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_snowpark_pandas_equals_to_pandas_without_dtypecheck(
             snowpark_ser, native_ser
         )
@@ -1502,14 +1502,14 @@ def test_series_setitem_series_behavior_that_deviates_from_loc_set(
 
     expected = native_pd.Series([0, 20, 30, 3, 4, 5], index=index)
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=3):
         assert_series_equal(snowpark_setitem_ser, expected, check_dtype=False)
 
     expected_with_nan = native_pd.Series([0, None, None, 3, 4, 5], index=index)
     # loc setitem matches the data's index with item's index. So the elements at "b" and "c" are set to NaN.
     snowpark_locset_ser = snowpark_ser.copy()
     snowpark_locset_ser.loc[["b", "c"]] = pd.Series([20, 30], index=["x", "y"])
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=3):
         assert_series_equal(snowpark_locset_ser, expected_with_nan, check_dtype=False)
 
     snowpark_locset_ser = snowpark_ser.copy()
@@ -1525,7 +1525,7 @@ def test_series_setitem_series_behavior_that_deviates_from_loc_set(
     snowpark_locset_ser2.loc[["b", "c"]] = pd.Series([20, 30], index=["b", "c"])
 
     # They should be equal.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=3):
         assert_series_equal(snowpark_locset_ser2, expected, check_dtype=False)
 
 
@@ -1602,7 +1602,7 @@ def test_series_setitem_with_empty_key_and_empty_series_item(
     else:
         snowpark_key = key
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=3):
         native_ser[key] = item
         snowpark_ser[
             pd.Series(snowpark_key)
@@ -1748,7 +1748,7 @@ class TestEmptySeries:
         def setitem_slice(series):
             series[:] = 1
 
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=1, join_count=2):
             eval_snowpark_pandas_result(
                 snow_ser,
                 native_ser,
@@ -1770,7 +1770,7 @@ class TestEmptySeries:
         def setitem_scalar(series):
             series[key] = 1
 
-        with SqlCounter(query_count=1):
+        with SqlCounter(query_count=1, join_count=1):
             eval_snowpark_pandas_result(
                 snow_ser,
                 native_ser,
@@ -2018,7 +2018,7 @@ def test_series_setitem_value_length_is_short():
         else:
             series[["a", "b", "c", "d"]] = pd.Series([0, 1])
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=3):
         eval_snowpark_pandas_result(
             snow_series,
             native_series,

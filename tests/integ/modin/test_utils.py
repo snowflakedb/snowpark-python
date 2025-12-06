@@ -119,8 +119,8 @@ def test_try_convert_to_native_index(data):
         assert_index_equal(index, index2)
 
 
-def ensure_index_test_helper(data, qc):
-    with SqlCounter(query_count=qc):
+def ensure_index_test_helper(data, qc, jc=0):
+    with SqlCounter(query_count=qc, join_count=jc):
         new_data = ensure_index(data)
         # if the given data is a list of lists, ensure_index should be converting to a multiindex
         if isinstance(data[0], list):
@@ -152,6 +152,7 @@ def ensure_index_test_helper(data, qc):
 )
 def test_ensure_index(data):
     qc = 1
+    jc = 0
     if isinstance(data, native_pd.MultiIndex):
         qc = 0
     elif isinstance(data, native_pd.Index):
@@ -166,7 +167,8 @@ def test_ensure_index(data):
         # convert to pd.Series to test on pd.Series later
         data = pd.Series(data)
         qc = 7
-    ensure_index_test_helper(data, qc)
+        jc = 4
+    ensure_index_test_helper(data, qc, jc)
 
 
 @sql_count_checker(

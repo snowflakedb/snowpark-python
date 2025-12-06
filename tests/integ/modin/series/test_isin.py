@@ -16,6 +16,9 @@ from tests.integ.modin.utils import (
     eval_snowpark_pandas_result,
     try_cast_to_snowpark_pandas_dataframe,
     try_cast_to_snowpark_pandas_series,
+    create_test_dfs,
+    create_test_series,
+    assert_snowpark_pandas_equal_to_pandas,
 )
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 
@@ -73,7 +76,10 @@ def test_isin_integer_data(values, expected_query_count):
     if isinstance(values, native_pd.Index):
         values = pd.Index(values)
     data = [3, 4, 2, 1, None, 0, 5, 4, 2, -10, -20, -42, None]
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(
+        query_count=expected_query_count,
+        join_count=int(isinstance(values, native_pd.Series)),
+    ):
         snow_series = pd.Series(data)
         native_series = native_pd.Series(data)
 
@@ -148,7 +154,10 @@ def test_isin_with_incompatible_index(values, expected_query_count):
     ],
 )
 def test_isin_various_combos(data, values, expected_query_count):
-    with SqlCounter(query_count=expected_query_count):
+    with SqlCounter(
+        query_count=expected_query_count,
+        join_count=int(len(data) > 0 and isinstance(values, native_pd.Series)),
+    ):
         snow_series = pd.Series(data)
         native_series = native_pd.Series(data)
 
@@ -188,3 +197,39 @@ def test_isin_with_str_negative():
         ),
     ):
         s.isin("test")
+
+
+# Covers an edge case in SNOW-1524760 where `isin` is called with a RHS Series that has an index
+# differing from that of the LHS.
+# If the LHS is a DataFrame:
+# - If the RHS argument is a DataFrame (even a 1-column one), the frames are joined on both row and
+# column labels.
+# - If the RHS is a Series, the frames are joined only on row labels.
+# If the LHS is a Series:
+# - If the RHS is a DataFrame, always returns False.
+# - If the RHS is a Series, ignore both row and column labels, and join positionally.
+# Note that since this test creates the LHS Series by indexing a DataFrame column, the resulting
+# series will have a name.
+def test_isin_ignores_index():
+    snow_rhs, native_rhs = create_test_series([4, 10], index=[99, 100])
+    snow_df, native_df = create_test_dfs({"A": [1, 2, 3], "B": [4, 5, 6]})
+    with SqlCounter(query_count=1, join_count=1):
+        # df-series operation
+        assert_snowpark_pandas_equal_to_pandas(
+            snow_df.isin(snow_rhs),
+            native_df.isin(native_rhs),
+        )
+    with SqlCounter(query_count=1, join_count=1):
+        # series-series operation (issue in the JIRA ticket)
+        assert_snowpark_pandas_equal_to_pandas(
+            snow_df["B"].isin(snow_rhs),
+            native_df["B"].isin(native_rhs),
+        )
+
+
+@sql_count_checker(query_count=1)
+def test_isin_series_length_mismatch():
+    rhs = native_pd.Series([1, 0])
+    eval_snowpark_pandas_result(
+        *create_test_series([0, 1, 1, 2, 1]), lambda s: s.isin(rhs)
+    )

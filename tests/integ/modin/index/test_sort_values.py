@@ -152,7 +152,7 @@ def test_index_sort_values_return_indexer(native_index, ascending, na_position):
 def test_index_sort_values_key_raises_not_implemented_error():
     with pytest.raises(
         NotImplementedError,
-        match="Snowpark pandas sort_index API doesn't yet support 'key' parameter",
+        match="Snowpark pandas sort_index does not yet support the parameter combination because the 'key' parameter is not yet supported",
     ):
         snow_index = pd.Index(["A", "b", "C", "d"])
         snow_index.sort_values(key=lambda x: x.str.lower())

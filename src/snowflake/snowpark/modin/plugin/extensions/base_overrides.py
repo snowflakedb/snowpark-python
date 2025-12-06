@@ -200,22 +200,6 @@ def infer_objects(self, copy: bool | None = None):  # noqa: PR01, RT01, D200
 
 
 @register_base_not_implemented()
-def interpolate(
-    self,
-    method="linear",
-    *,
-    axis=0,
-    limit=None,
-    inplace=False,
-    limit_direction: str | None = None,
-    limit_area=None,
-    downcast=lib.no_default,
-    **kwargs,
-):  # noqa: PR01, RT01, D200
-    pass  # pragma: no cover
-
-
-@register_base_not_implemented()
 def kurt(
     self, axis=no_default, skipna=True, numeric_only=False, **kwargs
 ):  # noqa: PR01, RT01, D200
@@ -1053,7 +1037,9 @@ def fillna(
 # Snowpark pandas passes the query compiler object from a BasePandasDataset, which Modin does not do.
 @register_base_override("isin")
 def isin(
-    self, values: BasePandasDataset | ListLike | dict[Hashable, ListLike]
+    self,
+    values: BasePandasDataset | ListLike | dict[Hashable, ListLike],
+    self_is_series: bool = False,
 ) -> BasePandasDataset:  # noqa: PR01, RT01, D200
     """
     Whether elements in `BasePandasDataset` are contained in `values`.
@@ -1072,7 +1058,11 @@ def isin(
     ):
         values = list(values)
 
-    return self.__constructor__(query_compiler=self._query_compiler.isin(values=values))
+    return self.__constructor__(
+        query_compiler=self._query_compiler.isin(
+            values=values, self_is_series=self_is_series
+        )
+    )
 
 
 # Snowpark pandas uses the single `quantiles_along_axis0` query compiler method, while upstream
@@ -1539,8 +1529,12 @@ def drop_duplicates(
         df = self[subset]
     else:
         df = self
-    duplicated = df.duplicated(keep=keep)
-    result = self[~duplicated]
+    if pd.session.dummy_row_pos_optimization_enabled and keep in ["first", "last"]:
+        result_qc = df._query_compiler.drop_duplicates()
+        result = self.__constructor__(query_compiler=result_qc)
+    else:
+        duplicated = df.duplicated(keep=keep)
+        result = self[~duplicated]
     if ignore_index:
         result.index = pandas.RangeIndex(stop=len(result))
     if inplace:

@@ -821,7 +821,7 @@ def test_df_set_axis_with_quoted_index():
     # check first that operation result is the same
     snow_df = pd.DataFrame(data)
     native_df = native_pd.DataFrame(data)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(snow_df, native_df, helper)
 
     # then, explicitly compare axes
@@ -830,10 +830,10 @@ def test_df_set_axis_with_quoted_index():
 
     native_ans = helper(native_df)
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         assert_axes_result_equal(ans.axes, native_ans.axes)
 
     assert list(native_ans.index) == labels
     # extra query for tolist
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=2, join_count=2):
         assert list(ans.index) == labels

@@ -177,8 +177,8 @@ def test_select_cols_with_axis_1_raise(single_row_dfs):
         native_df,
         lambda df: df.groupby("A", axis=1)["B"],
         expect_exception=True,
-        expect_exception_type=ValueError,
-        expect_exception_match="Cannot subset columns when using axis=1",
+        expect_exception_type=NotImplementedError,
+        assert_exception_equal=False,
     )
 
 

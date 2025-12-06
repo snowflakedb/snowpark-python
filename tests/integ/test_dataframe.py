@@ -5649,6 +5649,40 @@ def test_df_join_how_on_overwrite(session):
     Utils.check_answer(df, [Row(1, 1, "1"), Row(2, 3, "5")])
 
 
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Lateral join is not supported in Local Testing",
+)
+def test_lateral_join(session):
+    table1 = Utils.random_table_name()
+    table2 = Utils.random_table_name()
+
+    try:
+        session.sql(f"CREATE TEMP TABLE {table1} (a INT, b INT)").collect()
+        session.sql(f"CREATE TEMP TABLE {table2} (a INT, c INT)").collect()
+        session.sql(f"INSERT INTO {table1} VALUES (1, 2), (3, 4), (5, 6)").collect()
+        session.sql(f"INSERT INTO {table2} VALUES (1, 7), (3, 8)").collect()
+
+        df1 = session.table(table1)
+        df2 = session.table(table2)
+
+        df_inner = df1.lateral_join(df2, df1.a == df2.a)
+        sql_inner = session.sql(
+            f"SELECT * FROM {table1}, LATERAL (SELECT * FROM {table2} WHERE {table1}.a = {table2}.a)"
+        )
+        Utils.check_answer(df_inner, sql_inner)
+
+        df_no_condition = df1.lateral_join(df2)
+        sql_no_condition = session.sql(
+            f"SELECT * FROM {table1} INNER JOIN LATERAL (SELECT * FROM {table2})"
+        )
+        Utils.check_answer(df_no_condition, sql_no_condition)
+
+    finally:
+        session.sql(f"DROP TABLE IF EXISTS {table1}").collect()
+        session.sql(f"DROP TABLE IF EXISTS {table2}").collect()
+
+
 def test_create_dataframe_special_char_column_name(session):
     df1 = session.create_dataframe(
         [[1, 2, 3], [1, 2, 3]], schema=["a b", '"abc"', "@%!^@&#"]
@@ -7081,6 +7115,50 @@ def test_order_by_col(session, sql_simplifier_enabled, local_testing_mode):
 
     df = session.create_dataframe([(1, 2.0, "foo"), (2, None, "bar")], ["a", "b", "c"])
     Utils.check_answer(df.select("c").orderBy("b"), df.select("c").orderBy(col("b")))
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="ORDER BY ALL is not supported in local testing mode",
+)
+def test_sort_by_all(session):
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    df = session.create_dataframe(
+        [
+            ("country Z", "state Z", -100),
+            ("country A", "state X", 50),
+            ("country B", None, 25),
+            (None, "state Y", 75),
+            ("country A", "state Y", 0),
+            ("country C", "state X", -10),
+            ("country B", "state Z", 100),
+            ("country A", "state X", 50),
+            ("", "", 5),
+            ("country C", "state Y", -10),
+        ]
+    ).to_df(["country", "state", "value"])
+    df.write.save_as_table(table_name, table_type="temporary")
+
+    try:
+        # Test ascending vs SQL
+        result_py_asc = df.sort(ascending=True)
+        result_sql_asc = session.sql(
+            f"SELECT * FROM {table_name} ORDER BY ALL ASC NULLS FIRST"
+        )
+        Utils.check_answer(result_py_asc, result_sql_asc.collect())
+
+        # Test descending vs SQL
+        result_py_desc = df.sort(ascending=False)
+        result_sql_desc = session.sql(
+            f"SELECT * FROM {table_name} ORDER BY ALL DESC NULLS LAST"
+        )
+        Utils.check_answer(result_py_desc, result_sql_desc.collect())
+
+        # Test int parameter vs SQL
+        Utils.check_answer(df.orderBy(ascending=1), result_sql_asc.collect())
+        Utils.check_answer(df.sort(ascending=0), result_sql_desc.collect())
+    finally:
+        Utils.drop_table(session, table_name)
 
 
 @pytest.mark.skipif(

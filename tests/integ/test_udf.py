@@ -396,6 +396,23 @@ def test_session_register_udf(session, local_testing_mode):
             Row(7),
         ],
     )
+
+    # testing SNOW-SNOW-2436917
+    add_udf_passing_session = session.udf.register(
+        lambda x, y: x + y,
+        session=session,
+        return_type=IntegerType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    assert isinstance(add_udf_passing_session.func, Callable)
+    Utils.check_answer(
+        df.select(add_udf_passing_session("a", "b")).collect(),
+        [
+            Row(3),
+            Row(7),
+        ],
+    )
+
     # Query tags not supported in local testing.
     if not local_testing_mode:
         query_tag = f"QUERY_TAG_{Utils.random_alphanumeric_str(10)}"

@@ -205,10 +205,6 @@ def find_next_opening_tag_pos(
         chunk = file_obj.read(current_chunk_size)
         if not chunk:
             raise EOFError("Reached end of file before finding opening tag")
-        # If the chunk is smaller than expected, we are near the end.
-        if len(chunk) < current_chunk_size:
-            if chunk.find(tag_start_1) == -1 and chunk.find(tag_start_2) == -1:
-                raise EOFError("Reached end of file before finding opening tag")
 
         # Combine leftover from previous read with the new chunk.
         data = overlap + chunk
@@ -232,9 +228,6 @@ def find_next_opening_tag_pos(
         # No tag was found in this block.
         # Update the overlap from the end of the combined data.
         overlap = data[-overlap_size:] if len(data) >= overlap_size else data
-
-        # Otherwise, rewind by the length of the overlap so that a tag spanning the boundary isn't missed.
-        file_obj.seek(-len(overlap), 1)
 
         # Check that progress is being made to avoid infinite loops.
         if file_obj.tell() <= pos_before:

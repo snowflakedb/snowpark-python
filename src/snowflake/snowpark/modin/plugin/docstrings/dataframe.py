@@ -2116,9 +2116,6 @@ class DataFrame(BasePandasDataset):
         1   5.0   100     2      99     4
         """
 
-    def interpolate():
-        pass
-
     def iterrows():
         """
         Iterate over ``DataFrame`` rows as (index, ``Series``) pairs.

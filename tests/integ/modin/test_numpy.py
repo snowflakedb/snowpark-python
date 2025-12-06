@@ -57,37 +57,44 @@ def test_np_may_share_memory():
         assert not np.may_share_memory(snow_df_A, native_df_A)
 
 
-@sql_count_checker(query_count=2)
-def test_np_unique():
-    # tests np.unique usage as seen in
-    # scikit-learn/sklearn/metrics/_ranking.py::average_precision_score
-    # and other places in the scikit-learn library
-    y_true_np = np.array([0, 0, 1, 1])
-    y_true_snow = pd.Series([0, 0, 1, 1])
-    res_np = np.unique(y_true_np)
-    res_snow = np.unique(y_true_snow)
-    assert (res_np == res_snow).all()
+class TestUnique:
+    @sql_count_checker(query_count=1)
+    def test_np_unique(self):
+        # tests np.unique usage as seen in
+        # scikit-learn/sklearn/metrics/_ranking.py::average_precision_score
+        # and other places in the scikit-learn library
+        numpy_ar = np.array([0, 0, 1, 1])
+        snow_ar = pd.Series([0, 0, 1, 1])
+        numpy_res = np.unique(numpy_ar)
+        snow_res = np.unique(snow_ar)
+        assert (numpy_res == snow_res).all()
 
-    y_true_np_2d = np.array([[1, 2, 5, 6], [1, 2, 3, 4]])
-    y_true_snow_2d = pd.DataFrame({"a": [1, 2, 5, 6], "b": [1, 2, 3, 4]})
-    res_np = np.unique(y_true_np_2d)
-    res_snow = np.unique(y_true_snow_2d)
-    assert (res_np == res_snow).all()
+    @sql_count_checker(query_count=1)
+    def test_np_unique_2d(self):
+        numpy_ar_2d = np.array([[1, 2, 5, 6], [1, 2, 3, 4]])
+        snow_ar_2d = pd.DataFrame({"a": [1, 2, 5, 6], "b": [1, 2, 3, 4]})
+        numpy_res = np.unique(numpy_ar_2d)
+        snow_res = np.unique(snow_ar_2d)
+        assert (numpy_res == snow_res).all()
 
-    # Verify that numpy throws type errors when we return NotImplemented
-    # when using optional parameters
-    with pytest.raises(TypeError):
-        np.unique(y_true_snow_2d, return_index=True)
-    with pytest.raises(TypeError):
-        np.unique(y_true_snow_2d, return_inverse=True)
-    with pytest.raises(TypeError):
-        np.unique(y_true_snow_2d, return_counts=True)
-    with pytest.raises(TypeError):
-        np.unique(y_true_snow_2d, axis=1)
-    with pytest.raises(TypeError):
-        np.unique(y_true_snow_2d, equal_nan=False)
-    with pytest.raises(TypeError):
-        np.unique(y_true_snow_2d, sorted=False)
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"return_index": True},
+            {"return_inverse": True},
+            {"return_counts": True},
+            {"axis": 1},
+            {"equal_nan": False},
+            {"sorted": False},
+        ],
+    )
+    @sql_count_checker(query_count=0)
+    def test_np_unique_neg(self, kwargs):
+        snow_ar_2d = pd.DataFrame({"a": [1, 2, 5, 6], "b": [1, 2, 3, 4]})
+        # Verify that numpy throws type errors when we return NotImplemented
+        # when using optional parameters
+        with pytest.raises(TypeError):
+            np.unique(snow_ar_2d, **kwargs)
 
 
 def test_full_like():
@@ -145,6 +152,46 @@ def test_full_like():
 
     with pytest.raises(TypeError):
         np.full_like(snow_df, 1234, dtype=int)
+
+
+class TestPercentile:
+    @pytest.mark.parametrize("q", [50, [50, 75]])
+    @sql_count_checker(query_count=1)
+    def test_np_percentile(self, q):
+        numpy_a = np.array([0, 0, 1, 1])
+        snow_a = pd.Series([0, 0, 1, 1])
+        numpy_res = np.percentile(numpy_a, q)
+        snow_res = np.percentile(snow_a, q)
+        assert (numpy_res == snow_res).all()
+
+    @pytest.mark.parametrize("q", [50, [50, 75]])
+    @sql_count_checker(query_count=1)
+    def test_np_percentile_2d(self, q):
+        numpy_a_2d = np.array([[1, 2, 5, 6], [1, 2, 3, 4]])
+        snow_a_2d = pd.DataFrame({"a": [1, 2, 5, 6], "b": [1, 2, 3, 4]})
+        numpy_res = np.percentile(numpy_a_2d, q)
+        snow_res = np.percentile(snow_a_2d, q)
+        assert (numpy_res == snow_res).all()
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"axis": 1},
+            {"out": np.zeros(1)},
+            {"overwrite_input": True},
+            {"method": "inverted_cdf"},
+            {"keepdims": True},
+            {"weights": [0.25, 0.25, 0.25, 0.25]},
+            {"interpolation": "inverted_cdf"},
+        ],
+    )
+    @sql_count_checker(query_count=0)
+    def test_np_percentile_neg(self, kwargs):
+        snow_a_2d = pd.DataFrame({"a": [1, 2, 5, 6], "b": [1, 2, 3, 4]})
+        # Verify that numpy throws type errors when we return NotImplemented
+        # when using optional parameters
+        with pytest.raises(TypeError):
+            np.percentile(snow_a_2d, 50, **kwargs)
 
 
 def test_logical_operators():

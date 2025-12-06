@@ -359,6 +359,8 @@ def test_zip_file_or_directory_to_stream():
                 "resources/test_sas.sas7bdat",
                 "resources/test_sas.xpt",
                 "resources/test_data_source_dir/",
+                "resources/test_data_source_dir/mssql-jdbc-13.2.1.jre11.jar",
+                "resources/test_data_source_dir/mysql-connector-j-9.5.0.jar",
                 "resources/test_data_source_dir/ojdbc17-23.9.0.25.07.jar",
                 "resources/test_data_source_dir/postgresql-42.7.7.jar",
                 "resources/test_data_source_dir/test_data_source_data.py",

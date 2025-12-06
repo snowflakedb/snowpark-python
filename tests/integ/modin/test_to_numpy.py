@@ -8,8 +8,10 @@ import logging
 import modin.pandas as pd
 import numpy as np
 import pandas as native_pd
+from pandas.api.types import is_datetime64tz_dtype
 import pytest
 from numpy.testing import assert_array_equal
+from pytest import param
 
 import snowflake.snowpark.modin.plugin  # noqa: F401
 from snowflake.snowpark._internal.utils import (
@@ -19,6 +21,10 @@ from snowflake.snowpark._internal.utils import (
 from snowflake.snowpark.modin.plugin.utils.warning_message import WarningMessage
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import Utils
+
+
+def values_property_getter(object) -> np.ndarray:
+    return object.values
 
 
 @pytest.mark.parametrize(
@@ -40,11 +46,19 @@ from tests.utils import Utils
         [datetime.time(1, 2, 3, 1), datetime.time(0, 0, 0), None],
         [datetime.datetime(2023, 1, 1), datetime.datetime(2023, 1, 1, 1, 2, 3)],
         [datetime.datetime(2023, 1, 1), datetime.datetime(2023, 1, 1, 1, 2, 3), None],
+        [pd.Timestamp(1, tz="UTC")],
     ],
 )
+@pytest.mark.parametrize(
+    "to_numpy",
+    (
+        param(lambda index: np.asarray(index), id="asarray"),
+        param(lambda index: index.to_numpy(), id="to_numpy"),
+        param(values_property_getter, id="values"),
+    ),
+)
 @pytest.mark.parametrize("pandas_obj", ["DataFrame", "Series", "Index"])
-@pytest.mark.parametrize("func", ["to_numpy", "values"])
-def test_to_numpy_basic(data, pandas_obj, func):
+def test_to_numpy_basic(data, pandas_obj, to_numpy, request):
     if pandas_obj == "Series":
         df = pd.Series(data)
         native_df = native_pd.Series(data)
@@ -54,16 +68,21 @@ def test_to_numpy_basic(data, pandas_obj, func):
     else:
         df = pd.DataFrame([data, data])
         native_df = native_pd.DataFrame([data, data])
-    with SqlCounter(query_count=1):
-        if func == "to_numpy":
-            assert_array_equal(df.to_numpy(), native_df.to_numpy())
-        else:
-            assert_array_equal(df.values, native_df.values)
+
+    with SqlCounter(
+        # modin_datetime_series_with_timezone.values internally calls .dtype,
+        # which triggers an extra groupby query to determine the dtype.
+        query_count=2
+        if to_numpy is values_property_getter
+        and pandas_obj == "Series"
+        and is_datetime64tz_dtype(native_df)
+        else 1
+    ):
+        snow_result = to_numpy(df)
+    native_result = to_numpy(native_df)
+    assert_array_equal(snow_result, native_result)
     if pandas_obj == "Series":
-        with SqlCounter(query_count=1):
-            res = df.to_numpy()
-        expected_res = native_df.to_numpy()
-        for r1, r2 in zip(res, expected_res):
+        for r1, r2 in zip(snow_result, native_result):
             # native pandas series returns a list of pandas Timestamp,
             # but Snowpark pandas returns a list of integers in ms.
             # Their values are equal

@@ -389,6 +389,44 @@ def test_find_next_opening_tag_pos_normal(chunk_size):
     assert pos == expected_pos
 
 
+@pytest.mark.parametrize("chunk_size", [10, 100, DEFAULT_CHUNK_SIZE])
+def test_find_next_opening_tag_pos_full_chunk_before_tag(chunk_size):
+    # This tests that the overlap logic works correctly when multiple chunks
+    # must be read before finding the tag.
+    prefix = b"x" * (chunk_size * 2 + 10)  # More than 2 full chunks
+    record = prefix + b"<row attr='value'> more content here </row>"
+    file_obj = io.BytesIO(record)
+    tag_start_1 = b"<row>"
+    tag_start_2 = b"<row "
+    end_limit = len(record)
+    pos = find_next_opening_tag_pos(
+        file_obj, tag_start_1, tag_start_2, end_limit, chunk_size=chunk_size
+    )
+    # Should find the first tag after all the prefix data
+    expected_pos = len(prefix)
+    assert pos == expected_pos
+    # Verify file pointer is at the correct position
+    assert file_obj.tell() == expected_pos
+
+
+@pytest.mark.parametrize("chunk_size", [10, 100, DEFAULT_CHUNK_SIZE])
+def test_find_next_opening_tag_pos_tag_spans_chunk_boundary(chunk_size):
+    # Position the tag so it splits exactly across a chunk boundary.
+    # This is the most challenging case for the overlap logic.
+    # Place the tag start 2 bytes before the chunk boundary
+    prefix = b"x" * (chunk_size - 2)
+    record = prefix + b"<row attr='value'> content </row>"
+    file_obj = io.BytesIO(record)
+    tag_start_1 = b"<row>"
+    tag_start_2 = b"<row "
+    end_limit = len(record)
+    pos = find_next_opening_tag_pos(
+        file_obj, tag_start_1, tag_start_2, end_limit, chunk_size=chunk_size
+    )
+    expected_pos = len(prefix)
+    assert pos == expected_pos
+
+
 @pytest.mark.parametrize("chunk_size", [3, 10, DEFAULT_CHUNK_SIZE])
 def test_find_next_opening_tag_pos_both_variants(chunk_size):
     # Test when both "<row>" and "<row " exist.

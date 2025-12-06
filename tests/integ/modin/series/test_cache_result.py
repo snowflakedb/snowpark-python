@@ -78,9 +78,9 @@ def test_cache_result_series_complex_correctness(time_index_series_data, inplace
     snow_series, native_series = create_test_series(series_data, **kwargs)
     snow_series = snow_series.resample("2H").mean()
     snow_series_copy = snow_series.copy(deep=True)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         cached_snow_series = cache_and_return_series(snow_series, inplace)
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=2, join_count=1):
         assert_series_equal(
             cached_snow_series.to_pandas(), snow_series_copy.to_pandas()
         )
@@ -128,7 +128,7 @@ class TestCacheResultReducesQueryCount:
         native_series = perform_chained_operations(
             native_pd.Series(simple_test_data).apply(lambda x: x + x), native_pd
         )
-        with SqlCounter(query_count=5, union_count=9):
+        with SqlCounter(query_count=5, union_count=9, udf_count=1):
             snow_series = pd.Series(simple_test_data).apply(lambda x: x + x)
             repr(snow_series)
             snow_series = perform_chained_operations(snow_series, pd)

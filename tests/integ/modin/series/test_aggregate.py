@@ -55,6 +55,7 @@ def validate_scalar_result(res1, res2):
             1,
         ),  # Test order of index is correct.
         (lambda df: df.aggregate(["min", np.max, "count"]), False, True, 2),
+        (lambda df: df.aggregate("nunique"), True, False, 0),
         (lambda df: df.aggregate(x="min", y=np.max, z="count"), False, True, 2),
         (lambda df: df.aggregate(min), True, False, 0),
         (lambda df: df.max(), True, False, 0),

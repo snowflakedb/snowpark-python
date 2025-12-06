@@ -413,6 +413,7 @@ def test_groupby_agg_with_int_dtypes(int_to_decimal_float_agg_method) -> None:
         np.min,
         min,
         sum,
+        "nunique",
         np.std,
         "var",
         {"col2": "sum"},
@@ -1319,4 +1320,24 @@ class TestTimedelta:
                 }
             ),
             lambda df: df.groupby("A").var(),
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_groupby_agg_named_aggregation_implicit(self):
+        eval_snowpark_pandas_result(
+            *create_test_dfs(
+                {
+                    "team": ["A", "B"],
+                    "score": [10, 15],
+                }
+            ),
+            lambda df: df.groupby("team").agg({"score": [("total_score", "sum")]}),
+        )
+
+    @sql_count_checker(query_count=1)
+    def test_groupby_agg_named_aggregation_explicit(self):
+        agg1 = pd.NamedAgg(column="score", aggfunc="sum")
+        eval_snowpark_pandas_result(
+            *create_test_dfs({"team": ["A", "B"], "score": [10, 15]}),
+            lambda df: df.groupby("team").agg(total_score=agg1),
         )

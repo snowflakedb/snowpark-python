@@ -211,7 +211,7 @@ def test_map_udf_caching():
         eval_snowpark_pandas_result(
             *create_test_dfs(test_data), lambda df: df.map(operation)
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, udf_count=1):
         # A second call to a frame with the same column signatures does not create any new UDFs.
         eval_snowpark_pandas_result(
             *create_test_dfs(test_data), lambda df: df.map(operation)

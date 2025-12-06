@@ -955,7 +955,10 @@ class StoredProcedureRegistration:
             is_permanent=is_permanent,
             force_inline_code=force_inline_code,
             artifact_repository=artifact_repository,
-            **kwargs,
+            _suppress_local_package_warnings=kwargs.get(
+                "_suppress_local_package_warnings", False
+            ),
+            # DO NOT pass **kwargs here, as it can lead to TypeError: multiple values for the same argument
         )
 
         runtime_version_from_requirement = None

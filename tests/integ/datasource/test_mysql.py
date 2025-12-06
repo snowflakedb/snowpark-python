@@ -3,7 +3,6 @@
 #
 import logging
 import math
-import sys
 from decimal import Decimal
 
 import pytest
@@ -27,6 +26,7 @@ from tests.resources.test_data_source_dir.test_mysql_data import (
     mysql_less_column_schema,
     mysql_unicode_schema,
     mysql_double_quoted_schema,
+    MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION,
 )
 from tests.utils import RUNNING_ON_JENKINS, Utils
 from tests.parameters import MYSQL_CONNECTION_PARAMETERS
@@ -55,7 +55,6 @@ pytestmark = [
 
 TEST_TABLE_NAME = "ALL_TYPES_TABLE"
 TEST_QUERY = "select * from ALL_TYPES_TABLE"
-MYSQL_TEST_EXTERNAL_ACCESS_INTEGRATION = "snowpark_dbapi_mysql_test_integration"
 
 
 def create_connection_mysql():
@@ -225,9 +224,6 @@ def test_infer_type_from_data(data, number_of_columns, expected_result):
 
 
 @pytest.mark.udf
-@pytest.mark.skipif(
-    sys.version_info[:2] == (3, 13), reason="driver not supported in python 3.13"
-)
 def test_udtf_ingestion_mysql(session, caplog):
     from tests.parameters import MYSQL_CONNECTION_PARAMETERS
 
@@ -251,6 +247,7 @@ def test_udtf_ingestion_mysql(session, caplog):
     ).order_by("ID")
 
     Utils.check_answer(df, mysql_real_data)
+    assert df.schema == mysql_schema
 
     # check that udtf is used
     assert (

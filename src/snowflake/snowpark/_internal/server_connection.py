@@ -86,6 +86,7 @@ PARAM_APPLICATION = "application"
 PARAM_INTERNAL_APPLICATION_NAME = "internal_application_name"
 PARAM_INTERNAL_APPLICATION_VERSION = "internal_application_version"
 DEFAULT_STRING_SIZE = 16777216
+MAX_STRING_SIZE = 134217728
 
 
 def _build_target_path(stage_location: str, dest_prefix: str = "") -> str:

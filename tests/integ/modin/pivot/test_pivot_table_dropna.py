@@ -107,7 +107,7 @@ def test_pivot_table_single_all_aggfuncs_dropna_and_null_data(
     df_data_with_nulls_2,
     values,
 ):
-    expected_join_count = 10 if len(values) > 1 else 5
+    expected_join_count = 12 if len(values) > 1 else 6
     with SqlCounter(query_count=1, join_count=expected_join_count):
         pivot_table_test_helper(
             df_data_with_nulls_2,
@@ -116,7 +116,7 @@ def test_pivot_table_single_all_aggfuncs_dropna_and_null_data(
                 "columns": ["C"],
                 "values": values,
                 "dropna": False,
-                "aggfunc": ["count", "sum", "min", "max", "mean"],
+                "aggfunc": ["count", "sum", "min", "max", "mean", "nunique"],
             },
         )
 

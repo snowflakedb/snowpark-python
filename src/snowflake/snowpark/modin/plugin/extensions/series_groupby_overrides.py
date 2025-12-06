@@ -101,7 +101,7 @@ def get_group(self, name, obj=None):
 
 
 @register_ser_groupby_override("apply")
-def apply(self, func, *args, include_groups=True, **kwargs):
+def apply(self, func, *args, include_groups=True, _is_transform=False, **kwargs):
     # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.SeriesGroupBy functions
     if not callable(func):
         raise NotImplementedError("No support for non-callable `func`")
@@ -117,6 +117,7 @@ def apply(self, func, *args, include_groups=True, **kwargs):
             # TODO(https://github.com/modin-project/modin/issues/7096):
             # upstream the series_groupby param to Modin
             series_groupby=True,
+            is_transform=_is_transform,
         )
     )
     if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
