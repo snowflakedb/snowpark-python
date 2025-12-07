@@ -1,6 +1,26 @@
 # Release History
 
-## 1.43.0 (YYYY-MM-DD)
+## 1.44.0 (YYYY-MM-DD)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Improvements
+
+- Improved `DataFrameReader` to return columns in deterministic order when using `INFER_SCHEMA`.
+
+### Snowpark pandas API Updates
+
+#### New Features
+
+#### Bug Fixes
+
+#### Improvements
+
+## 1.43.0 (2025-12-03)
 
 ### Snowpark Python API Updates
 
@@ -52,16 +72,13 @@
 #### Bug Fixes
 
 - Fixed a bug where automatically-generated temporary objects were not properly cleaned up.
+- Fixed with a bug when sql generation when joining two `DataFrame`s created using `DataFrame.alias` and CTE optimization is enabled.
+- Fixed a bug in `XMLReader` where finding the start position of a row tag could return an incorrect file position.
 
 #### Improvements
 
 - Enhanced `DataFrame.sort()` to support `ORDER BY ALL` when no columns are specified.
 - Removed experimental warning from `Session.cte_optimization_enabled`.
-
-#### Bug Fixes
-
-- Fixed with a bug when sql generation when joining two `DataFrame`s created using `DataFrame.alias` and CTE optimization is enabled.
-- Fixed a bug in `XMLReader` where finding the start position of a row tag could return an incorrect file position.
 
 ### Snowpark pandas API Updates
 
