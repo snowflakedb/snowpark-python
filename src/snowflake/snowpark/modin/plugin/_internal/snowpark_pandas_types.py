@@ -11,6 +11,7 @@ from typing import Any, Callable, NamedTuple, Optional, Tuple, Type, Union
 import numpy as np
 import pandas as native_pd
 
+from snowflake.snowpark import context
 from snowflake.snowpark.column import Column
 from snowflake.snowpark.types import DataType, LongType
 
@@ -131,6 +132,17 @@ class TimedeltaType(SnowparkPandasType, LongType):
 
     def __init__(self) -> None:
         super().__init__()
+
+    def __eq__(self, other: Any) -> bool:
+        def filtered(d: dict) -> dict:
+            return {k: v for k, v in d.items() if k != "_precision"}
+
+        if context._is_snowpark_connect_compatible_mode:
+            return isinstance(other, self.__class__) and self.__dict__ == other.__dict__
+        else:
+            return isinstance(other, self.__class__) and filtered(
+                self.__dict__
+            ) == filtered(other.__dict__)
 
     def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)
