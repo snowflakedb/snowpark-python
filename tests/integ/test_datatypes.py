@@ -5,10 +5,11 @@ import csv
 import os
 import tempfile
 from decimal import Decimal
+from unittest import mock
 
 import pytest
 
-from snowflake.snowpark import DataFrame, Row
+from snowflake.snowpark import DataFrame, Row, context
 from snowflake.snowpark.functions import lit
 from snowflake.snowpark.types import (
     BooleanType,
@@ -437,7 +438,6 @@ def test_numeric_type_store_precision_and_scale(session, massive_number, precisi
         # does not have precision information, thus set to default 38.
         df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
         result = session.sql(f"select * from {table_name}")
-        session.sql(f"describe table {table_name}").show()
         datatype = result.schema.fields[0].datatype
         assert isinstance(datatype, LongType)
         assert datatype._precision == 38
@@ -502,3 +502,25 @@ def test_numeric_type_store_precision_and_scale_read_file(session, massive_numbe
 def test_illegal_argument_intergraltype():
     with pytest.raises(TypeError, match="takes 0 argument but 1 were given"):
         LongType(b=10)
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported by local testing mode",
+)
+@pytest.mark.parametrize("precision", [38, 19, 5, 3])
+def test_write_to_sf_with_correct_precision(session, precision):
+    table_name = Utils.random_table_name()
+
+    with mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        df = session.create_dataframe(
+            [],
+            StructType([StructField("large_value", DecimalType(precision, 0), True)]),
+        )
+        datatype = df.schema.fields[0].datatype
+        assert datatype._precision == precision
+
+        df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+        result = session.sql(f"select * from {table_name}")
+        datatype = result.schema.fields[0].datatype
+        assert datatype._precision == precision
