@@ -529,19 +529,77 @@ def test_write_to_sf_with_correct_precision(session, precision):
 
 
 @pytest.mark.parametrize(
-    "mock_dict",
+    "mock_default_precision",
     [
         {"IntegerType": 5, "LongType": 4},
         {"LongType": 19, "IntegerType": 10},
     ],
 )
-def test_integral_type_default_precision(mock_dict):
-    with mock.patch.object(context, "_integral_type_default_precision", mock_dict):
+def test_integral_type_default_precision(mock_default_precision):
+    with mock.patch.object(
+        context, "_integral_type_default_precision", mock_default_precision
+    ):
         integer_type = IntegerType()
-        assert integer_type._precision == mock_dict["IntegerType"]
+        assert integer_type._precision == mock_default_precision["IntegerType"]
 
         long_type = LongType()
-        assert long_type._precision == mock_dict["LongType"]
+        assert long_type._precision == mock_default_precision["LongType"]
 
         short_type = ShortType()
         assert short_type._precision is None
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="session.sql not supported by local testing mode",
+)
+@pytest.mark.parametrize("precision", [38, 19, 5, 3])
+@pytest.mark.parametrize(
+    "mock_default_precision",
+    [
+        {"IntegerType": 5, "LongType": 4},
+        {"LongType": 19, "IntegerType": 10},
+    ],
+)
+def test_end_to_end_default_precision(session, precision, mock_default_precision):
+    table_name = Utils.random_table_name()
+
+    with mock.patch.object(
+        context, "_is_snowpark_connect_compatible_mode", True
+    ), mock.patch.object(
+        context, "_integral_type_default_precision", mock_default_precision
+    ):
+
+        schema = StructType(
+            [
+                StructField("decimal_value", DecimalType(precision, 0), True),
+                StructField("integer_value", IntegerType(), True),
+                StructField("long_value", LongType(), True),
+            ]
+        )
+
+        df = session.create_dataframe(
+            [],
+            schema,
+        )
+        assert df.schema.fields[0].datatype._precision == precision
+        assert (
+            df.schema.fields[1].datatype._precision
+            == mock_default_precision["IntegerType"]
+        )
+        assert (
+            df.schema.fields[2].datatype._precision
+            == mock_default_precision["LongType"]
+        )
+
+        df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
+        result = session.sql(f"select * from {table_name}")
+        assert result.schema.fields[0].datatype._precision == precision
+        assert (
+            result.schema.fields[1].datatype._precision
+            == mock_default_precision["IntegerType"]
+        )
+        assert (
+            result.schema.fields[2].datatype._precision
+            == mock_default_precision["LongType"]
+        )
