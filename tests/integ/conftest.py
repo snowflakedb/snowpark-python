@@ -237,6 +237,7 @@ def connection(db_parameters, local_testing_mode):
             "user",
             "password",
             "private_key_file",
+            "private_key_file_pwd",
             "host",
             "port",
             "database",
@@ -349,6 +350,13 @@ def session(
         full_ast_validation_listener = setup_full_ast_validation_mode(
             session, db_parameters, unparser_jar
         )
+
+    # TODO: SNOW-2346239: Set parameter on user level instead of in config file
+    if not local_testing_mode:
+        session.sql(
+            "alter session set ENABLE_EXTRACTION_PUSHDOWN_EXTERNAL_PARQUET_FOR_COPY_PHASE_I='Track';"
+        ).collect()
+        session.sql("alter session set ENABLE_ROW_ACCESS_POLICY=true").collect()
 
     try:
         yield session

@@ -2,17 +2,13 @@
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
 import json
-import multiprocessing as mp
 import os
 import re
 import sys
 import time
-import queue
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from logging import getLogger
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union, Callable
-import threading
 from datetime import datetime
 
 import snowflake.snowpark
@@ -39,12 +35,13 @@ from snowflake.snowpark._internal.data_source.datasource_partitioner import (
 )
 from snowflake.snowpark._internal.data_source.datasource_typing import Connection
 from snowflake.snowpark._internal.data_source.utils import (
-    worker_process,
-    process_parquet_queue_with_threads,
     STATEMENT_PARAMS_DATA_SOURCE,
-    DATA_SOURCE_SQL_COMMENT,
     DATA_SOURCE_DBAPI_SIGNATURE,
-    _MAX_WORKER_SCALE,
+    create_data_source_table_and_stage,
+    local_ingestion,
+    STATEMENT_PARAMS_DATA_SOURCE_JDBC,
+    DATA_SOURCE_JDBC_SIGNATURE,
+    get_jdbc_dbms,
 )
 from snowflake.snowpark._internal.error_message import SnowparkClientExceptionMessages
 from snowflake.snowpark._internal.telemetry import set_api_call_source
@@ -69,7 +66,6 @@ from snowflake.snowpark._internal.utils import (
     get_aliased_option_name,
     get_copy_into_table_options,
     get_stage_parts,
-    get_temp_type_for_object,
     is_in_stored_procedure,
     parse_positional_args_to_list_variadic,
     private_preview,
@@ -1636,10 +1632,20 @@ class DataFrameReader:
         java_version = udtf_configs.get("java_version", 17)
         secret = udtf_configs.get("secret", None)
 
+        telemetry_json_string = defaultdict()
+        telemetry_json_string["function_name"] = DATA_SOURCE_JDBC_SIGNATURE
+        telemetry_json_string["ingestion_mode"] = "udtf_ingestion"
+        telemetry_json_string["dbms_type"] = get_jdbc_dbms(url)
+        telemetry_json_string["imports"] = udtf_configs["imports"]
+        statements_params_for_telemetry = {STATEMENT_PARAMS_DATA_SOURCE_JDBC: "1"}
+
         if external_access_integration is None or imports is None or secret is None:
             raise ValueError(
                 "external_access_integration, secret and imports must be specified in udtf configs"
             )
+
+        start_time = time.perf_counter()
+        logger.debug(f"ingestion start at: {start_time}")
 
         if session_init_statement and isinstance(session_init_statement, str):
             session_init_statement = [session_init_statement]
@@ -1672,12 +1678,24 @@ class DataFrameReader:
         partitions_table = random_name_for_temp_object(TempObjectType.TABLE)
         self._session.create_dataframe(
             [[query] for query in partitions], schema=["partition"]
-        ).write.save_as_table(partitions_table, table_type="temp")
+        ).write.save_as_table(
+            partitions_table,
+            table_type="temp",
+            statement_params=statements_params_for_telemetry,
+        )
 
         df = jdbc_client.read(partitions_table)
-        return jdbc_client.to_result_snowpark_df(
+        res_df = jdbc_client.to_result_snowpark_df(
             df, jdbc_client.schema, _emit_ast=_emit_ast
         )
+        end_time = time.perf_counter()
+        telemetry_json_string["end_to_end_duration"] = end_time - start_time
+        telemetry_json_string["schema"] = res_df.schema.simple_string()
+        self._session._conn._telemetry_client.send_data_source_perf_telemetry(
+            telemetry_json_string
+        )
+        set_api_call_source(res_df, DATA_SOURCE_JDBC_SIGNATURE)
+        return res_df
 
     @private_preview(version="1.29.0")
     @publicapi
@@ -1707,18 +1725,24 @@ class DataFrameReader:
         Reads data from a database table or query into a DataFrame using a DBAPI connection,
         with support for optional partitioning, parallel processing, and query customization.
 
-        There are multiple methods to partition data and accelerate ingestion.
-        These methods can be combined to achieve optimal performance:
-
-        1.Use column, lower_bound, upper_bound and num_partitions at the same time when you need to split large tables into smaller partitions for parallel processing.
-        These must all be specified together, otherwise error will be raised.
-        2.Set max_workers to a proper positive integer.
-        This defines the maximum number of processes and threads used for parallel execution.
-        3.Adjusting fetch_size can optimize performance by reducing the number of round trips to the database.
-        4.Use predicates to defining WHERE conditions for partitions,
-        predicates will be ignored if column is specified to generate partition.
-        5.Set custom_schema to avoid snowpark infer schema, custom_schema must have a matched
-        column name with table in external data source.
+        Usage Notes:
+            - Ingestion performance tuning:
+                - **Partitioning**: Use ``column``, ``lower_bound``, ``upper_bound``, and ``num_partitions``
+                  together to split large tables into smaller partitions for parallel processing.
+                  All four parameters must be specified together, otherwise an error will be raised.
+                - **Parallel execution**: Set ``max_workers`` to control the maximum number of processes
+                  and threads used for parallel execution.
+                - **Fetch optimization**: Adjust ``fetch_size`` to optimize performance by reducing
+                  the number of round trips to the database.
+                - **Partition filtering**: Use ``predicates`` to define WHERE conditions for partitions.
+                  Note that ``predicates`` will be ignored if ``column`` is specified for partitioning.
+                - **Schema specification**: Set ``custom_schema`` to skip schema inference. The custom schema
+                  must have matching column names with the table in the external data source.
+            - Execution timing and error handling:
+                - **UDTF Ingestion**: Uses lazy evaluation. Errors are reported as ``SnowparkSQLException``
+                  during DataFrame actions (e.g., ``DataFrame.collect()``).
+                - **Local Ingestion**: Uses eager execution. Errors are reported immediately as
+                  ``SnowparkDataFrameReaderException`` when this method is called.
 
         Args:
             create_connection: A callable that returns a DB-API compatible database connection.
@@ -1986,7 +2010,7 @@ class DataFrameReader:
                 table_type="temp",
                 statement_params=statements_params_for_telemetry,
             )
-            df = partitioner.driver.udtf_ingestion(
+            df = partitioner._udtf_ingestion(
                 self._session,
                 struct_schema,
                 partitions_table,
@@ -2011,145 +2035,32 @@ class DataFrameReader:
             set_api_call_source(df, DATA_SOURCE_DBAPI_SIGNATURE)
             return df
 
-        # parquet ingestion
-        snowflake_table_type = "TEMPORARY"
+        # create table and stage for data source
         snowflake_table_name = random_name_for_temp_object(TempObjectType.TABLE)
-        create_table_sql = (
-            "CREATE "
-            f"{snowflake_table_type} "
-            "TABLE "
-            f"identifier(?) "
-            f"""({" , ".join([f'{field.name} {convert_sp_to_sf_type(field.datatype)} {"NOT NULL" if not field.nullable else ""}' for field in struct_schema.fields])})"""
-            f"""{DATA_SOURCE_SQL_COMMENT}"""
-        )
-        params = (snowflake_table_name,)
-        logger.debug(f"Creating temporary Snowflake table: {snowflake_table_name}")
-        self._session.sql(create_table_sql, params=params, _emit_ast=False).collect(
-            statement_params=statements_params_for_telemetry, _emit_ast=False
-        )
-        # create temp stage
         snowflake_stage_name = random_name_for_temp_object(TempObjectType.STAGE)
-        sql_create_temp_stage = (
-            f"create {get_temp_type_for_object(self._session._use_scoped_temp_objects, True)} stage"
-            f" if not exists {snowflake_stage_name} {DATA_SOURCE_SQL_COMMENT}"
+        create_data_source_table_and_stage(
+            session=self._session,
+            schema=struct_schema,
+            snowflake_table_name=snowflake_table_name,
+            snowflake_stage_name=snowflake_stage_name,
+            statements_params_for_telemetry=statements_params_for_telemetry,
         )
-        self._session.sql(sql_create_temp_stage, _emit_ast=False).collect(
-            statement_params=statements_params_for_telemetry, _emit_ast=False
+
+        # parquet ingestion, ingestion external data source into temporary table
+
+        local_ingestion(
+            session=self._session,
+            partitioner=partitioner,
+            partitioned_queries=partitioned_queries,
+            max_workers=max_workers,
+            fetch_with_process=fetch_with_process,
+            snowflake_stage_name=snowflake_stage_name,
+            snowflake_table_name=snowflake_table_name,
+            statements_params_for_telemetry=statements_params_for_telemetry,
+            telemetry_json_string=telemetry_json_string,
+            _emit_ast=_emit_ast,
         )
 
-        data_fetching_thread_pool_executor = None
-        data_fetching_thread_stop_event = None
-        workers = []
-        try:
-            # Determine the number of processes or threads to use
-            max_workers = max_workers or os.cpu_count()
-            queue_class = mp.Queue if fetch_with_process else queue.Queue
-            process_or_thread_error_indicator = queue_class()
-            # a queue of partitions to be processed, this is filled by the partitioner before starting the workers
-            partition_queue = queue_class()
-            # a queue of parquet BytesIO objects to be uploaded
-            # Set max size for parquet_queue to prevent overfilling when thread consumers are slower than process producers
-            # process workers will block on this queue if it's full until the upload threads consume the BytesIO objects
-            parquet_queue = queue_class(_MAX_WORKER_SCALE * max_workers)
-            for partition_idx, query in enumerate(partitioned_queries):
-                partition_queue.put((partition_idx, query))
-
-            # Start worker processes
-            logger.debug(
-                f"Starting {max_workers} worker processes to fetch data from the data source."
-            )
-
-            fetch_to_local_start_time = time.perf_counter()
-            logger.debug(f"fetch to local start at: {fetch_to_local_start_time}")
-
-            if fetch_with_process:
-                for _worker_id in range(max_workers):
-                    process = mp.Process(
-                        target=worker_process,
-                        args=(
-                            partition_queue,
-                            parquet_queue,
-                            process_or_thread_error_indicator,
-                            partitioner.reader(),
-                        ),
-                    )
-                    process.start()
-                    workers.append(process)
-            else:
-                data_fetching_thread_pool_executor = ThreadPoolExecutor(
-                    max_workers=max_workers
-                )
-                data_fetching_thread_stop_event = threading.Event()
-                workers = [
-                    data_fetching_thread_pool_executor.submit(
-                        worker_process,
-                        partition_queue,
-                        parquet_queue,
-                        process_or_thread_error_indicator,
-                        partitioner.reader(),
-                        data_fetching_thread_stop_event,
-                    )
-                    for _worker_id in range(max_workers)
-                ]
-
-            # Process BytesIO objects from queue and upload them using utility method
-            (
-                fetch_to_local_end_time,
-                upload_to_sf_start_time,
-                upload_to_sf_end_time,
-            ) = process_parquet_queue_with_threads(
-                session=self._session,
-                parquet_queue=parquet_queue,
-                process_or_thread_error_indicator=process_or_thread_error_indicator,
-                workers=workers,
-                total_partitions=len(partitioned_queries),
-                snowflake_stage_name=snowflake_stage_name,
-                snowflake_table_name=snowflake_table_name,
-                max_workers=max_workers,
-                statements_params=statements_params_for_telemetry,
-                on_error="abort_statement",
-                fetch_with_process=fetch_with_process,
-            )
-            logger.debug(f"upload and copy into start at: {upload_to_sf_start_time}")
-            logger.debug(
-                f"fetch to local total time: {fetch_to_local_end_time - fetch_to_local_start_time}"
-            )
-
-            telemetry_json_string["fetch_to_local_duration"] = (
-                fetch_to_local_end_time - fetch_to_local_start_time
-            )
-            telemetry_json_string["upload_and_copy_into_sf_table_duration"] = (
-                upload_to_sf_end_time - upload_to_sf_start_time
-            )
-
-        except BaseException as exc:
-            if fetch_with_process:
-                # Graceful shutdown - terminate all processes
-                for process in workers:
-                    if process.is_alive():
-                        process.terminate()
-                        process.join(timeout=5)
-            else:
-                if data_fetching_thread_stop_event:
-                    data_fetching_thread_stop_event.set()
-                for future in workers:
-                    if not future.done():
-                        future.cancel()
-                        logger.debug(
-                            f"Cancelled a remaining data fetching future {future} due to error in another thread."
-                        )
-
-            if isinstance(exc, SnowparkDataframeReaderException):
-                raise exc
-
-            raise SnowparkDataframeReaderException(
-                f"Error occurred while ingesting data from the data source: {exc!r}"
-            )
-        finally:
-            if data_fetching_thread_pool_executor:
-                data_fetching_thread_pool_executor.shutdown(wait=True)
-
-        logger.debug("All data has been successfully loaded into the Snowflake table.")
         end_time = time.perf_counter()
         telemetry_json_string["end_to_end_duration"] = end_time - start_time
 

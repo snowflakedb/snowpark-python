@@ -698,6 +698,8 @@ def _test_expected_backend(
     "method,kwargs",
     [
         ("get_dummies", {}),
+        ("melt", {"id_vars": ["A"], "value_vars": ["B"]}),
+        ("pivot_table", {"values": "B", "index": "A"}),
     ],
 )
 def test_auto_switch_supported_top_level_functions(method, kwargs):
@@ -739,13 +741,16 @@ def test_auto_switch_supported_top_level_functions(method, kwargs):
     [
         ("skew", {"numeric_only": True}, "BasePandasDataset"),
         ("round", {"decimals": 1}, "BasePandasDataset"),
-        ("corr", {"method": "pearson"}, "DataFrame"),
-        ("corr", {}, "DataFrame"),
+        ("shift", {"periods": 1}, "BasePandasDataset"),
+        ("sort_index", {"axis": 0}, "BasePandasDataset"),
+        ("sort_values", {"by": "A", "axis": 0}, "BasePandasDataset"),
+        ("fillna", {"value": 0}, "DataFrame"),
+        ("dropna", {"axis": 0}, "DataFrame"),
     ],
 )
 def test_auto_switch_supported_dataframe(method, kwargs, api_cls_name):
     # Test supported DataFrame operations that should stay on Snowflake backend.
-    test_data = {"A": [1.23, 2.57, 3.89], "B": [4.12, 5.26, 6.34]}
+    test_data = {"A": [1.23, None, 3.89], "B": [4.12, 5.26, 6.34]}
 
     with SqlCounter(query_count=1):
         df = pd.DataFrame(test_data).move_to("Snowflake")
@@ -767,21 +772,65 @@ def test_auto_switch_supported_dataframe(method, kwargs, api_cls_name):
             is_top_level=False,
         )
 
+        native_df = native_pd.DataFrame(test_data)
         eval_snowpark_pandas_result(
-            df, native_pd.DataFrame(test_data), lambda df: getattr(df, method)(**kwargs)
+            df, native_df, lambda df: getattr(df, method)(**kwargs)
         )
 
 
 @pytest.mark.parametrize(
-    "method,kwargs,is_result_scalar",
+    "kwargs",
     [
-        ("skew", {"numeric_only": True}, True),
-        ("round", {"decimals": 1}, False),
+        {"freq": "min"},
+        {"freq": "S"},
+        {"freq": "H"},
+        {"freq": "D"},
     ],
 )
-def test_auto_switch_supported_series(method, kwargs, is_result_scalar):
+def test_auto_switch_supported_dataframe_asfreq(kwargs):
+    # Test supported DataFrame operations that should stay on Snowflake backend.
+    test_data = {"A": [1.23, None, 3.89], "B": [4.12, 5.26, 6.34]}
+
+    with SqlCounter(query_count=4, join_count=1):
+        index = native_pd.date_range("2023-01-01", periods=3, freq=kwargs["freq"])
+        df = pd.DataFrame(test_data, index=pd.DatetimeIndex(index)).move_to("Snowflake")
+        assert df.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=df,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        _test_expected_backend(
+            data_obj=df,
+            method_name="asfreq",
+            args=kwargs,
+            expected_backend="Snowflake",
+            is_top_level=False,
+        )
+
+        native_df = native_pd.DataFrame(test_data, index=native_pd.DatetimeIndex(index))
+        eval_snowpark_pandas_result(
+            df, native_df, lambda df: df.asfreq(**kwargs), check_freq=False
+        )
+
+
+@pytest.mark.parametrize(
+    "method,kwargs,is_result_scalar,api_cls_name",
+    [
+        ("skew", {"numeric_only": True}, True, "BasePandasDataset"),
+        ("round", {"decimals": 1}, False, "BasePandasDataset"),
+        ("shift", {"periods": 1}, False, "BasePandasDataset"),
+        ("sort_index", {"axis": 0}, False, "BasePandasDataset"),
+        ("fillna", {"value": 0}, False, "Series"),
+    ],
+)
+def test_auto_switch_supported_series(method, kwargs, is_result_scalar, api_cls_name):
     # Test supported Series operations that should stay on Snowflake backend.
-    test_data = [1.89, 2.95, 3.12, 4.17, 5.23, 6.34]
+    test_data = [1.89, 2.95, 3.12, None, 5.23, 6.34]
 
     with SqlCounter(query_count=1):
         series = pd.Series(test_data).move_to("Snowflake")
@@ -789,7 +838,7 @@ def test_auto_switch_supported_series(method, kwargs, is_result_scalar):
 
         _test_stay_cost(
             data_obj=series,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_ZERO,
@@ -804,13 +853,65 @@ def test_auto_switch_supported_series(method, kwargs, is_result_scalar):
                 is_top_level=False,
             )
 
+        native_series = native_pd.Series(test_data)
+
         eval_snowpark_pandas_result(
             series,
-            native_pd.Series(test_data),
+            native_series,
             lambda series: getattr(series, method)(**kwargs),
             comparator=np.testing.assert_allclose
             if is_result_scalar
             else assert_snowpark_pandas_equal_to_pandas,
+            test_attrs=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"freq": "min"},
+        {"freq": "S"},
+        {"freq": "H"},
+        {"freq": "D"},
+    ],
+)
+def test_auto_switch_supported_series_asfreq(kwargs):
+    # Test supported Series asfreq operations that should stay on Snowflake backend.
+    test_data = [1.89, 2.95, 3.12, None, 5.23, 6.34]
+
+    with SqlCounter(query_count=4, join_count=1):
+        index = native_pd.date_range("2023-01-01", periods=6, freq=kwargs["freq"])
+        series = pd.Series(test_data, index=pd.DatetimeIndex(index)).move_to(
+            "Snowflake"
+        )
+        assert series.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        _test_expected_backend(
+            data_obj=series,
+            method_name="asfreq",
+            args=kwargs,
+            expected_backend="Snowflake",
+            is_top_level=False,
+        )
+
+        native_series = native_pd.Series(
+            test_data, index=native_pd.DatetimeIndex(index)
+        )
+
+        eval_snowpark_pandas_result(
+            series,
+            native_series,
+            lambda series: series.asfreq(**kwargs),
+            test_attrs=False,
+            check_freq=False,
         )
 
 
@@ -877,18 +978,54 @@ def test_auto_switch_supported_post_op_switch_point_series(method, kwargs):
 
 
 @pytest.mark.parametrize(
+    "groupby_kwargs",
+    [
+        {"by": "A"},
+        {"level": 0},
+        {"by": pd.Grouper()},
+        {"by": ["A", "B", "C"]},
+    ],
+)
+def test_auto_switch_supported_groupby(groupby_kwargs):
+    # Test unsupported GroupBy operations that should switch to Pandas backend.
+    test_data = {"A": [1, 2, 3], "B": [4, 5, 6]}
+
+    with SqlCounter(query_count=0):
+        df = pd.DataFrame(test_data).move_to("Snowflake")
+        assert df.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=df,
+            api_cls_name="DataFrameGroupBy",
+            method_name="__init__",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        groupby_obj = df.groupby(**groupby_kwargs)
+        assert groupby_obj.get_backend() == "Snowflake"
+
+
+@pytest.mark.parametrize(
     "method,kwargs",
     [
         ("get_dummies", {"dummy_na": True}),
+        ("get_dummies", {"drop_first": True}),
+        ("melt", {"col_level": 0}),
+        ("pivot_table", {"values": "B", "index": "A", "sort": False}),
+        ("pivot_table", {"values": "B", "index": "A", "observed": True}),
+        ("pivot_table", {"index": ["A", 0], "columns": "B", "values": "B"}),
+        ("pivot_table", {"index": "A", "columns": ["B", 0], "values": "B"}),
+        ("pivot_table", {"index": "A", "columns": "B", "values": ["B", 0]}),
         (
-            "get_dummies",
-            {"drop_first": True},
+            "pivot_table",
+            {"index": None, "columns": "A", "values": ["B"], "aggfunc": {"B": max}},
         ),
     ],
 )
 def test_auto_switch_unsupported_top_level_functions(method, kwargs):
     # Test unsupported top-level functions that should switch to Pandas backend.
-    test_data = {"A": ["x", "y", "z"], "B": [1, 2, 3]}
+    test_data = {"A": ["x", "y", "z"], "B": [1, 2, 3], 0: [4, 5, 6], 1: [7, 8, 9]}
 
     with SqlCounter(query_count=1):
         df = pd.DataFrame(test_data).move_to("Snowflake")
@@ -937,15 +1074,30 @@ def test_auto_switch_unsupported_top_level_functions(method, kwargs):
         ("cummin", {"axis": 1}, "BasePandasDataset"),
         ("cummax", {"axis": 1}, "BasePandasDataset"),
         ("round", {"decimals": native_pd.Series([0, 1, 1])}, "BasePandasDataset"),
+        ("shift", {"periods": [1, 2], "suffix": "suffix"}, "BasePandasDataset"),
+        ("shift", {"periods": [1, 2]}, "BasePandasDataset"),
+        ("sort_index", {"axis": 1}, "BasePandasDataset"),
+        ("sort_index", {"key": lambda x: x}, "BasePandasDataset"),
+        ("sort_values", {"by": 0, "axis": 1}, "BasePandasDataset"),
+        ("apply", {"func": lambda x: x * 2, "result_type": "expand"}, "DataFrame"),
         ("corr", {"method": "kendall"}, "DataFrame"),
         ("corr", {"method": lambda x, y: np.corrcoef(x, y)[0, 1]}, "DataFrame"),
+        ("dropna", {"axis": 1}, "DataFrame"),
+        ("fillna", {"value": 0, "limit": 1}, "DataFrame"),
+        ("fillna", {"downcast": "infer", "value": 0}, "DataFrame"),
     ],
 )
 def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
     # Test unsupported DataFrame operations that should switch to Pandas backend.
     test_data = {"A": [1.234, 2.567, 9.101], "B": [3.891, 4.123, 5.912]}
 
-    with SqlCounter(query_count=1):
+    with SqlCounter(
+        # not sure why query_count=2 in this case, but it doesn't matter much,
+        # since the latest version of Modin gives a lower query_count=1.
+        query_count=2
+        if method == "round" and not MODIN_IS_AT_LEAST_0_37_0
+        else 1
+    ):
         snowpark_kwargs = {
             k: pd.Series(v) if isinstance(v, native_pd.Series) else v
             for k, v in kwargs.items()
@@ -977,9 +1129,10 @@ def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
             is_top_level=False,
         )
 
+        native_df = native_pd.DataFrame(test_data)
         eval_snowpark_pandas_result(
             df,
-            native_pd.DataFrame(test_data),
+            native_df,
             lambda df: getattr(df, method)(
                 **(kwargs if isinstance(df, native_pd.DataFrame) else snowpark_kwargs)
             ),
@@ -987,12 +1140,326 @@ def test_auto_switch_unsupported_dataframe(method, kwargs, api_cls_name):
 
 
 @pytest.mark.parametrize(
-    "method,kwargs",
+    "kwargs",
     [
-        ("skew", {"numeric_only": False}),
+        {"freq": "Q"},
+        {"freq": "W"},
+        {"freq": "M"},
+        {"freq": "Y"},
+        {"how": "start", "freq": "min"},
+        {"how": "end", "freq": "min"},
+        {"normalize": True, "freq": "min"},
+        {"fill_value": 0, "freq": "min"},
     ],
 )
-def test_auto_switch_unsupported_series(method, kwargs):
+def test_auto_switch_unsupported_dataframe_asfreq(kwargs):
+    # Test unsupported DataFrame operations that should switch to Pandas backend.
+    test_data = {"A": [1.234, 2.567, 9.101], "B": [3.891, 4.123, 5.912]}
+
+    with SqlCounter(query_count=3):
+        index = native_pd.date_range("2023-01-01", periods=3, freq=kwargs["freq"])
+        df = pd.DataFrame(test_data, index=pd.DatetimeIndex(index)).move_to("Snowflake")
+
+        _test_stay_cost(
+            data_obj=df,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_df = pd.DataFrame(test_data, index=pd.DatetimeIndex(index))
+        _test_move_to_me_cost(
+            pandas_qc=pandas_df._query_compiler,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        _test_expected_backend(
+            data_obj=df,
+            method_name="asfreq",
+            args=kwargs,
+            expected_backend="Pandas",
+            is_top_level=False,
+        )
+
+        native_df = native_pd.DataFrame(test_data, index=native_pd.DatetimeIndex(index))
+        eval_snowpark_pandas_result(
+            df,
+            native_df,
+            lambda df: df.asfreq(**kwargs),
+        )
+
+
+@pytest.mark.parametrize(
+    "groupby_kwargs",
+    [
+        {"by": "A", "axis": 1},
+        {"by": "A", "level": 0},
+        {"by": lambda x: x % 2},
+        {"by": np.array([1, 2, 3])},
+        {"by": pd.Grouper(axis=1)},
+    ],
+)
+def test_auto_switch_unsupported_dataframe_groupby(groupby_kwargs):
+    # Test unsupported GroupBy operations that should switch to Pandas backend.
+    test_data = {"A": [1, 2, 3], "B": [4, 5, 6]}
+
+    with SqlCounter(query_count=1):
+        df = pd.DataFrame(test_data).move_to("Snowflake")
+        assert df.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=df,
+            api_cls_name="DataFrameGroupBy",
+            method_name="__init__",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_df = pd.DataFrame(test_data)
+        _test_move_to_me_cost(
+            pandas_qc=pandas_df._query_compiler,
+            api_cls_name="DataFrameGroupBy",
+            method_name="__init__",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        groupby_obj = df.groupby(**groupby_kwargs)
+        assert groupby_obj.get_backend() == "Pandas"
+
+
+@pytest.mark.parametrize(
+    "method,method_kwargs, groupby_kwargs, query_count",
+    [
+        ("fillna", {"value": 0}, {"by": "A", "level": 0}, 1),
+        ("fillna", {"value": 0}, {"by": lambda x: x % 2}, 1),
+        ("cummin", {}, {"by": "A", "axis": 1}, 1),
+        ("cummin", {}, {"by": lambda x: x % 2}, 1),
+        ("cummin", {}, {"by": "A", "level": 0}, 1),
+        ("cumsum", {}, {"by": "A", "axis": 1}, 1),
+        ("cumsum", {}, {"by": lambda x: x % 2}, 1),
+        ("cumsum", {}, {"by": "A", "level": 0}, 1),
+        ("cummax", {}, {"by": "A", "axis": 1}, 1),
+        ("cummax", {}, {"by": "A", "level": 0}, 1),
+        ("cummax", {}, {"by": lambda x: x % 2}, 1),
+        ("cumcount", {}, {"by": "A", "level": 0}, 1),
+        ("cumcount", {}, {"by": lambda x: x % 2}, 1),
+        ("rank", {}, {"by": "A", "level": 0}, 1),
+        ("rank", {}, {"by": lambda x: x % 2}, 1),
+        ("shift", {}, {"by": "A", "level": 0}, 1),
+        ("shift", {}, {"by": lambda x: x % 2}, 1),
+        ("agg", {"func": "sum"}, {"by": "A", "level": 0}, 1),
+        ("agg", {"func": "sum"}, {"by": lambda x: x % 2}, 1),
+        ("apply", {"func": lambda x: x.sum()}, {"by": "A", "level": 0}, 1),
+        ("apply", {"func": lambda x: x.sum()}, {"by": lambda x: x % 2}, 1),
+        ("apply", {"func": lambda x: x.sum()}, {"by": "A", "axis": 1}, 1),
+        ("first", {}, {"by": "A", "level": 0}, 1),
+        ("first", {}, {"by": lambda x: x % 2}, 1),
+        ("last", {}, {"by": "A", "level": 0}, 1),
+        ("last", {}, {"by": lambda x: x % 2}, 1),
+        ("size", {}, {"by": "A", "level": 0}, 1),
+        ("size", {}, {"by": lambda x: x % 2}, 1),
+        ("size", {}, {"level": 0, "axis": 1}, 1),
+        ("get_group", {"name": 1}, {"by": "A", "level": 0}, 1),
+        ("get_group", {"name": 0}, {"by": lambda x: x % 2}, 1),
+        ("nunique", {}, {"by": "A", "level": 0}, 1),
+        ("nunique", {}, {"by": lambda x: x % 2}, 1),
+        ("nunique", {}, {"by": "A", "axis": 1}, 1),
+        ("any", {}, {"by": "A", "level": 0}, 1),
+        ("any", {}, {"by": lambda x: x % 2}, 1),
+        ("any", {}, {"by": "A", "axis": 1}, 1),
+        ("all", {}, {"by": "A", "level": 0}, 1),
+        ("all", {}, {"by": lambda x: x % 2}, 1),
+        ("all", {}, {"by": "A", "axis": 1}, 1),
+        ("value_counts", {}, {"by": "A", "level": 0}, 1),
+    ],
+)
+def test_auto_switch_unsupported_dataframe_groupby_with_supported_method(
+    method, method_kwargs, groupby_kwargs, query_count
+):
+    # Test unsupported GroupBy operations that should switch to Pandas backend.
+    with SqlCounter(query_count=query_count):
+        test_data = {"A": [1, 2, 3], "B": [4, 5, 6], "C": [7, 8, 9]}
+
+        df = pd.DataFrame(test_data).move_to("Snowflake")
+        assert df.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=df,
+            api_cls_name="DataFrameGroupBy",
+            method_name="__init__",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_df = pd.DataFrame(test_data)
+        _test_move_to_me_cost(
+            pandas_qc=pandas_df._query_compiler,
+            api_cls_name="DataFrameGroupBy",
+            method_name="__init__",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        groupby_obj = df.groupby(**groupby_kwargs)
+        assert groupby_obj.get_backend() == "Pandas"
+
+        _test_expected_backend(
+            data_obj=groupby_obj,
+            method_name=method,
+            args=method_kwargs,
+            expected_backend="Pandas",
+            is_top_level=False,
+        )
+
+        eval_snowpark_pandas_result(
+            groupby_obj,
+            native_pd.DataFrame(test_data).groupby(**groupby_kwargs),
+            lambda df: getattr(df, method)(**method_kwargs),
+        )
+
+
+@pytest.mark.parametrize(
+    "method,method_kwargs, groupby_kwargs, query_count, test_index",
+    [
+        (
+            "fillna",
+            {"value": 0, "downcast": "infer"},
+            {"axis": 0},
+            1,
+            None,
+        ),
+        ("first", {"min_count": 2}, {}, 1, None),
+        ("last", {"min_count": 2}, {}, 1, None),
+        (
+            "shift",
+            {"freq": "D"},
+            {},
+            3,
+            native_pd.date_range("2023-01-01", periods=3, freq="D"),
+        ),
+    ],
+)
+def test_auto_switch_unsupported_dataframe_groupby_method(
+    method,
+    method_kwargs,
+    groupby_kwargs,
+    query_count,
+    test_index,
+):
+    # Test unsupported GroupBy operations that should switch to Pandas backend.
+    with SqlCounter(query_count=query_count):
+        test_data = {"A": [1, 2, 3], "B": [4, 5, 6]}
+
+        # Special handling for shift with freq parameter because it requires DatetimeIndex
+        df = pd.DataFrame(
+            test_data,
+            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
+        ).move_to("Snowflake")
+        assert df.get_backend() == "Snowflake"
+
+        groupby_obj = df.groupby("A", **groupby_kwargs)
+        assert groupby_obj.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=groupby_obj,
+            api_cls_name="DataFrameGroupBy",
+            method_name=method,
+            args=method_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_df = pd.DataFrame(
+            test_data,
+            index=pd.DatetimeIndex(test_index) if test_index is not None else None,
+        )
+        pandas_groupby_obj = pandas_df.groupby("A")
+        _test_move_to_me_cost(
+            pandas_qc=pandas_groupby_obj._query_compiler,
+            api_cls_name="DataFrameGroupBy",
+            method_name=method,
+            args=method_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        _test_expected_backend(
+            data_obj=groupby_obj,
+            method_name=method,
+            args=method_kwargs,
+            expected_backend="Pandas",
+            is_top_level=False,
+        )
+
+        native_df = native_pd.DataFrame(
+            test_data,
+            index=native_pd.DatetimeIndex(test_index, freq=None)
+            if test_index is not None
+            else None,
+        )
+
+        eval_snowpark_pandas_result(
+            df,
+            native_df,
+            lambda df: getattr(df.groupby("A"), method)(**method_kwargs),
+        )
+
+
+@pytest.mark.parametrize(
+    "method,method_kwargs",
+    [
+        ("fillna", {"value": 0}),
+        ("first", {"min_count": -1}),
+        ("last", {"min_count": -1}),
+    ],
+)
+def test_auto_switch_supported_dataframe_groupby(method, method_kwargs):
+    # Test supported GroupBy operations that should stay on Snowflake backend.
+    test_data = {"A": [1, 2, 3, 1, 2], "B": [4, 5, 6, 7, 8]}
+
+    with SqlCounter(query_count=1):
+        df = pd.DataFrame(test_data).move_to("Snowflake")
+        groupby_obj = df.groupby("A").move_to("Snowflake")
+        assert groupby_obj.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=groupby_obj,
+            api_cls_name="DataFrameGroupBy",
+            method_name=method,
+            args=method_kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        _test_expected_backend(
+            data_obj=groupby_obj,
+            method_name=method,
+            args=method_kwargs,
+            expected_backend="Snowflake",
+            is_top_level=False,
+        )
+
+        eval_snowpark_pandas_result(
+            df,
+            native_pd.DataFrame(test_data),
+            lambda df: getattr(df.groupby("A"), method)(**method_kwargs),
+        )
+
+
+@pytest.mark.parametrize(
+    "method,kwargs,api_cls_name",
+    [
+        ("skew", {"numeric_only": False}, "BasePandasDataset"),
+        ("shift", {"suffix": "_suffix"}, "BasePandasDataset"),
+        ("shift", {"periods": [1, 2]}, "BasePandasDataset"),
+        ("fillna", {"value": 0, "limit": 1}, "Series"),
+        ("fillna", {"downcast": "infer", "value": 0}, "Series"),
+        ("sort_index", {"key": lambda x: x}, "BasePandasDataset"),
+    ],
+)
+def test_auto_switch_unsupported_series(method, kwargs, api_cls_name):
     # Test unsupported Series operations that should switch to Pandas backend.
     test_data = [1, 2, 3, 4, 5, 6]
 
@@ -1002,7 +1469,7 @@ def test_auto_switch_unsupported_series(method, kwargs):
 
         _test_stay_cost(
             data_obj=series,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
@@ -1011,17 +1478,302 @@ def test_auto_switch_unsupported_series(method, kwargs):
         pandas_series = pd.Series(test_data)
         _test_move_to_me_cost(
             pandas_qc=pandas_series._query_compiler,
-            api_cls_name="BasePandasDataset",
+            api_cls_name=api_cls_name,
             method_name=method,
             args=kwargs,
             expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
         )
 
+        native_series = native_pd.Series(test_data)
         eval_snowpark_pandas_result(
             series,
-            native_pd.Series(test_data),
+            native_series,
             lambda series: getattr(series, method)(**kwargs),
             comparator=np.testing.assert_allclose,
+            test_attrs=False,
+        )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"freq": "Q"},
+        {"freq": "W"},
+        {"freq": "M"},
+        {"freq": "Y"},
+        {"how": "start", "freq": "min"},
+        {"how": "end", "freq": "min"},
+        {"normalize": True, "freq": "min"},
+        {"fill_value": 0, "freq": "min"},
+    ],
+)
+def test_auto_switch_unsupported_series_asfreq(kwargs):
+    # Test unsupported Series operations that should switch to Pandas backend.
+    test_data = [1, 2, 3, 4, 5, 6]
+
+    with SqlCounter(query_count=3):
+        index = native_pd.date_range("2023-01-01", periods=6, freq=kwargs["freq"])
+        series = pd.Series(test_data, index=pd.DatetimeIndex(index)).move_to(
+            "Snowflake"
+        )
+        assert series.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_series = pd.Series(test_data, index=pd.DatetimeIndex(index))
+        _test_move_to_me_cost(
+            pandas_qc=pandas_series._query_compiler,
+            api_cls_name="BasePandasDataset",
+            method_name="asfreq",
+            args=kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        native_series = native_pd.Series(
+            test_data, index=native_pd.DatetimeIndex(index)
+        )
+        eval_snowpark_pandas_result(
+            series, native_series, lambda series: series.asfreq(**kwargs)
+        )
+
+
+@pytest.mark.parametrize(
+    "groupby_kwargs",
+    [
+        {"level": 0},
+        {"by": pd.Grouper()},
+        {"by": [1, 2, 3, 4, 5, 6]},
+    ],
+)
+def test_auto_switch_supported_series_groupby(groupby_kwargs):
+    # Test supported SeriesGroupBy operations that should stay on Snowflake backend.
+    test_data = [1, 2, 3, 4, 5, 6]
+
+    with SqlCounter(query_count=0):
+        series = pd.Series(test_data).move_to("Snowflake")
+        assert series.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="Series",
+            method_name="groupby",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_ZERO,
+        )
+
+        groupby_obj = series.groupby(**groupby_kwargs)
+        assert groupby_obj.get_backend() == "Snowflake"
+
+
+@pytest.mark.parametrize(
+    "groupby_kwargs",
+    [
+        {"level": 0, "axis": 1},
+        {"by": [1, 1, 2, 2, 3, 3], "level": 0},
+        {"by": lambda x: x % 2},
+        {"by": np.array([1, 2, 1, 2, 1, 2])},
+        {"by": pd.Grouper(axis=1)},
+    ],
+)
+def test_auto_switch_unsupported_series_groupby(groupby_kwargs):
+    # Test unsupported SeriesGroupBy operations that should switch to Pandas backend.
+    test_data = [1, 2, 3, 4, 5, 6]
+
+    with SqlCounter(query_count=1):
+        series = pd.Series(test_data).move_to("Snowflake")
+        assert series.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="Series",
+            method_name="groupby",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_series = pd.Series(test_data)
+        _test_move_to_me_cost(
+            pandas_qc=pandas_series._query_compiler,
+            api_cls_name="Series",
+            method_name="groupby",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        groupby_obj = series.groupby(**groupby_kwargs)
+        assert groupby_obj.get_backend() == "Pandas"
+
+
+@pytest.mark.parametrize(
+    "method,method_kwargs, groupby_kwargs, query_count",
+    [
+        ("fillna", {"value": 0}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("fillna", {"value": 0}, {"by": lambda x: x % 2}, 1),
+        ("cummin", {}, {"by": lambda x: x % 2}, 1),
+        ("cummin", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("cumsum", {}, {"by": lambda x: x % 2}, 1),
+        ("cumsum", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("cummax", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("cummax", {}, {"by": lambda x: x % 2}, 1),
+        ("cumcount", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("cumcount", {}, {"by": lambda x: x % 2}, 1),
+        ("rank", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("rank", {}, {"by": lambda x: x % 2}, 1),
+        ("shift", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("shift", {}, {"by": lambda x: x % 2}, 1),
+        ("agg", {"func": "sum"}, {"by": 1, "level": 0}, 1),
+        ("agg", {"func": "sum"}, {"by": lambda x: x % 2}, 1),
+        ("apply", {"func": lambda x: x.sum()}, {"by": 1, "level": 0}, 1),
+        ("apply", {"func": lambda x: x.sum()}, {"by": lambda x: x % 2}, 1),
+        ("first", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("first", {}, {"by": lambda x: x % 2}, 1),
+        ("last", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("last", {}, {"by": lambda x: x % 2}, 1),
+        ("size", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("size", {}, {"by": lambda x: x % 2}, 1),
+        ("get_group", {"name": 1}, {"by": 1, "level": 0}, 1),
+        ("get_group", {"name": 0}, {"by": lambda x: x % 2}, 1),
+        ("nunique", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("nunique", {}, {"by": lambda x: x % 2}, 1),
+        ("any", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("any", {}, {"by": lambda x: x % 2}, 1),
+        ("all", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+        ("all", {}, {"by": lambda x: x % 2}, 1),
+        ("value_counts", {}, {"by": [1, 2, 3, 4, 5, 6], "level": 0}, 1),
+    ],
+)
+def test_auto_switch_unsupported_series_groupby_with_supported_method(
+    method, method_kwargs, groupby_kwargs, query_count
+):
+    # Test unsupported SeriesGroupBy operations with supported methods that should switch to Pandas backend.
+    with SqlCounter(query_count=query_count):
+        test_data = [1, 2, 3, 4, 5, 6]
+
+        series = pd.Series(test_data).move_to("Snowflake")
+        assert series.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=series,
+            api_cls_name="Series",
+            method_name="groupby",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        pandas_series = pd.Series(test_data)
+        _test_move_to_me_cost(
+            pandas_qc=pandas_series._query_compiler,
+            api_cls_name="Series",
+            method_name="groupby",
+            args=groupby_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        groupby_obj = series.groupby(**groupby_kwargs)
+        assert groupby_obj.get_backend() == "Pandas"
+
+        _test_expected_backend(
+            data_obj=groupby_obj,
+            method_name=method,
+            args=method_kwargs,
+            expected_backend="Pandas",
+            is_top_level=False,
+        )
+
+        eval_snowpark_pandas_result(
+            groupby_obj,
+            native_pd.Series(test_data).groupby(**groupby_kwargs),
+            lambda s: getattr(s, method)(**method_kwargs),
+        )
+
+
+@pytest.mark.parametrize(
+    "method,method_kwargs, query_count, test_index",
+    [
+        (
+            "fillna",
+            {"value": 0, "downcast": "infer"},
+            1,
+            None,
+        ),
+        ("first", {"min_count": 2}, 1, None),
+        ("last", {"min_count": 2}, 1, None),
+        (
+            "shift",
+            {"freq": "D"},
+            3,
+            native_pd.date_range("2023-01-01", periods=3, freq="D"),
+        ),
+    ],
+)
+def test_auto_switch_unsupported_series_groupby_method(
+    method,
+    method_kwargs,
+    query_count,
+    test_index,
+):
+    # Test unsupported GroupBy operations that should switch to Pandas backend.
+    with SqlCounter(query_count=query_count):
+        test_data = [1, 2, 3]
+
+        # Special handling for shift with freq parameter because it requires DatetimeIndex
+        if test_index is not None:
+            snowpark_index = pd.DatetimeIndex(test_index)
+            series = pd.Series(test_data, index=snowpark_index).move_to("Snowflake")
+        else:
+            series = pd.Series(test_data).move_to("Snowflake")
+        assert series.get_backend() == "Snowflake"
+
+        groupby_obj = series.groupby(level=0)
+        assert groupby_obj.get_backend() == "Snowflake"
+
+        _test_stay_cost(
+            data_obj=groupby_obj,
+            api_cls_name="SeriesGroupBy",
+            method_name=method,
+            args=method_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        if test_index is not None:
+            pandas_df = pd.DataFrame(test_data, index=pd.DatetimeIndex(test_index))
+        else:
+            pandas_df = pd.DataFrame(test_data)
+
+        pandas_groupby_obj = pandas_df.groupby(level=0)
+        _test_move_to_me_cost(
+            pandas_qc=pandas_groupby_obj._query_compiler,
+            api_cls_name="SeriesGroupBy",
+            method_name=method,
+            args=method_kwargs,
+            expected_cost=QCCoercionCost.COST_IMPOSSIBLE,
+        )
+
+        _test_expected_backend(
+            data_obj=groupby_obj,
+            method_name=method,
+            args=method_kwargs,
+            expected_backend="Pandas",
+            is_top_level=False,
+        )
+
+        if test_index is not None:
+            native_series = native_pd.Series(
+                test_data, index=native_pd.DatetimeIndex(test_index, freq=None)
+            )
+        else:
+            native_series = native_pd.Series(test_data)
+
+        eval_snowpark_pandas_result(
+            series,
+            native_series,
+            lambda series: getattr(series.groupby(level=0), method)(**method_kwargs),
         )
 
 
@@ -1038,6 +1790,36 @@ def test_auto_switch_unsupported_series(method, kwargs):
             {"drop_first": True},
             "drop_first = True is not supported",
         ),
+        (
+            "melt",
+            {"col_level": 0},
+            "col_level argument is not yet supported",
+        ),
+        (
+            "pivot_table",
+            {"sort": False},
+            "sort = False is not supported",
+        ),
+        (
+            "pivot_table",
+            {"index": ["A", 0], "columns": "B", "values": "B"},
+            "index argument should be a string or a list of strings",
+        ),
+        (
+            "pivot_table",
+            {"index": "A", "columns": ["B", 0], "values": "B"},
+            "columns argument should be a string or a list of strings",
+        ),
+        (
+            "pivot_table",
+            {"index": "A", "columns": "B", "values": ["B", 0]},
+            "values argument should be a string or a list of strings",
+        ),
+        (
+            "pivot_table",
+            {"index": None, "columns": "A", "values": ["B"], "aggfunc": {"B": max}},
+            "dictionary aggfunc with non-string aggregation functions is not yet supported for pivot_table when index is None",
+        ),
     ],
 )
 @sql_count_checker(query_count=0)
@@ -1046,7 +1828,9 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
 ):
     # Test that unsupported top-level function args raise NotImplementedError when auto-switch is disabled.
     with config_context(AutoSwitchBackend=False):
-        df = pd.DataFrame({"A": ["x", "y", "z"], "B": [1, 2, 3]}).move_to("Snowflake")
+        df = pd.DataFrame(
+            {"A": ["x", "y", "z"], "B": [1, 2, 3], 0: [4, 5, 6], 1: [7, 8, 9]}
+        ).move_to("Snowflake")
 
         with pytest.raises(
             NotImplementedError,
@@ -1086,6 +1870,51 @@ def test_error_handling_top_level_functions_when_auto_switch_disabled(
             "axis = 1 is not supported",
         ),
         (
+            "shift",
+            {"suffix": "_suffix"},
+            "the 'suffix' parameter is not yet supported",
+        ),
+        (
+            "shift",
+            {"periods": [1, 2]},
+            "only int 'periods' is currently supported",
+        ),
+        (
+            "sort_index",
+            {"axis": 1},
+            "axis = 1 is not supported",
+        ),
+        (
+            "sort_index",
+            {"key": lambda x: x},
+            "the 'key' parameter is not yet supported",
+        ),
+        (
+            "sort_values",
+            {"by": "A", "axis": 1},
+            "axis = 1 is not supported",
+        ),
+        (
+            "apply",
+            {"func": lambda x: x * 2, "result_type": "expand"},
+            "the 'result_type' parameter is not yet supported",
+        ),
+        (
+            "fillna",
+            {"downcast": "infer", "value": 0},
+            "the 'downcast' parameter is not yet supported",
+        ),
+        (
+            "fillna",
+            {"limit": 1, "value": 0},
+            "the 'limit' parameter with 'value' parameter is not yet supported",
+        ),
+        (
+            "dropna",
+            {"axis": 1},
+            "axis = 1 is not supported",
+        ),
+        (
             "corr",
             {"method": "kendall"},
             "method = 'kendall' is not supported. Snowpark pandas currently only supports method = 'pearson'.",
@@ -1115,12 +1944,88 @@ def test_error_handling_dataframe_when_auto_switch_disabled(
 
 
 @pytest.mark.parametrize(
+    "kwargs,expected_reason",
+    [
+        (
+            {"freq": "Q"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "W"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "M"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "Y"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"how": "start", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"how": "end", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"normalize": True, "freq": "min"},
+            "normalize = True is not supported",
+        ),
+        (
+            {"fill_value": 0, "freq": "min"},
+            "the 'fill_value' parameter is not yet supported",
+        ),
+    ],
+)
+@sql_count_checker(query_count=1)
+def test_error_handling_dataframe_asfreq_when_auto_switch_disabled(
+    kwargs, expected_reason
+):
+    # Test that unsupported DataFrame asfreq args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        index = native_pd.date_range("2023-01-01", periods=3, freq=kwargs["freq"])
+        df = pd.DataFrame(
+            {"A": [1, 2, 3], "B": [4, 5, 6]}, index=pd.DatetimeIndex(index)
+        ).move_to("Snowflake")
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                f"Snowpark pandas asfreq does not yet support the parameter combination because {expected_reason}"
+            ),
+        ):
+            df.asfreq(**kwargs)
+
+
+@pytest.mark.parametrize(
     "method,kwargs,expected_reason",
     [
         (
             "skew",
             {"numeric_only": False},
             "numeric_only = False argument not supported for skew",
+        ),
+        (
+            "shift",
+            {"suffix": "_suffix"},
+            "the 'suffix' parameter is not yet supported",
+        ),
+        (
+            "shift",
+            {"periods": [1, 2]},
+            "only int 'periods' is currently supported",
+        ),
+        (
+            "fillna",
+            {"downcast": "infer", "value": 0},
+            "the 'downcast' parameter is not yet supported",
+        ),
+        (
+            "fillna",
+            {"limit": 1, "value": 0},
+            "the 'limit' parameter with 'value' parameter is not yet supported",
         ),
     ],
 )
@@ -1139,6 +2044,63 @@ def test_error_handling_series_when_auto_switch_disabled(
             ),
         ):
             getattr(series, method)(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected_reason",
+    [
+        (
+            {"freq": "Q"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "W"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "M"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"freq": "Y"},
+            "the 'freq' parameter does not support week, month, quarter, or year",
+        ),
+        (
+            {"how": "start", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"how": "end", "freq": "min"},
+            "the 'how' parameter is not yet supported",
+        ),
+        (
+            {"normalize": True, "freq": "min"},
+            "normalize = True is not supported",
+        ),
+        (
+            {"fill_value": 0, "freq": "min"},
+            "the 'fill_value' parameter is not yet supported",
+        ),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_error_handling_series_asfreq_when_auto_switch_disabled(
+    kwargs, expected_reason
+):
+    # Test that unsupported Series asfreq args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        index = native_pd.date_range("2023-01-01", periods=6, freq=kwargs["freq"])
+        series = pd.Series([1, 2, 3, 4, 5, 6], index=pd.DatetimeIndex(index)).move_to(
+            "Snowflake"
+        )
+
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                f"Snowpark pandas asfreq does not yet support the parameter combination because {expected_reason}"
+            ),
+        ):
+            series.asfreq(**kwargs)
 
 
 @sql_count_checker(query_count=0)
@@ -1215,3 +2177,126 @@ def test_malformed_decorator_conditions():
         )
         def test_method_callable_non_string_reason(self):
             pass
+
+
+@pytest.mark.parametrize(
+    "method,kwargs,expected_reason",
+    [
+        (
+            "fillna",
+            {"value": 0, "downcast": "infer"},
+            "Snowpark pandas fillna does not yet support the parameter combination because 'downcast' argument is not supported yet in Snowpark pandas",
+        ),
+        (
+            "first",
+            {"min_count": 2},
+            "GroupBy.first does not yet support min_count > 1",
+        ),
+        (
+            "last",
+            {"min_count": 2},
+            "GroupBy.last does not yet support min_count > 1",
+        ),
+        (
+            "shift",
+            {"freq": "D"},
+            "Snowpark pandas shift does not yet support the parameter combination because 'freq' argument is not supported yet in Snowpark pandas.",
+        ),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_error_handling_unsupported_dataframe_groupby_method_when_auto_switch_disabled(
+    method, kwargs, expected_reason
+):
+    # Test that unsupported DataFrame GroupBy args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        df = pd.DataFrame({"A": [1, 2, 3, 1, 2], "B": [4, 5, 6, 7, 8]}).move_to(
+            "Snowflake"
+        )
+
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(expected_reason),
+        ):
+            groupby_obj = df.groupby("A")
+            getattr(groupby_obj, method)(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "method, method_kwargs",
+    [
+        ("fillna", {"value": 0}),
+        ("first", {}),
+        ("last", {}),
+        ("shift", {}),
+        ("apply", {"func": lambda x: x.sum()}),
+        ("size", {}),
+        ("get_group", {"name": 1}),
+        ("nunique", {}),
+        ("any", {}),
+        ("all", {}),
+        ("cummin", {}),
+        ("cumsum", {}),
+        ("cummax", {}),
+        ("cumcount", {}),
+        ("rank", {}),
+        ("value_counts", {}),
+        ("pct_change", {}),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_error_handling_unsupported_dataframe_groupby_with_supported_method_when_auto_switch_disabled(
+    method, method_kwargs
+):
+    # Test that unsupported DataFrame GroupBy args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        df = pd.DataFrame({"A": [1, 2, 3], "B": [4, 5, 6]}).move_to("Snowflake")
+
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                "does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
+            ),
+        ):
+            groupby_obj = df.groupby("A", level=0)
+            getattr(groupby_obj, method)(**method_kwargs)
+
+
+@pytest.mark.parametrize(
+    "method, method_kwargs",
+    [
+        ("fillna", {"value": 0}),
+        ("first", {}),
+        ("last", {}),
+        ("shift", {}),
+        ("apply", {"func": lambda x: x.sum()}),
+        ("size", {}),
+        ("get_group", {"name": 1}),
+        ("nunique", {}),
+        ("any", {}),
+        ("all", {}),
+        ("cummin", {}),
+        ("cumsum", {}),
+        ("cummax", {}),
+        ("cumcount", {}),
+        ("rank", {}),
+        ("value_counts", {}),
+        ("pct_change", {}),
+    ],
+)
+@sql_count_checker(query_count=0)
+def test_error_handling_unsupported_series_groupby_with_supported_method_when_auto_switch_disabled(
+    method, method_kwargs
+):
+    # Test that unsupported SeriesGroupBy args raise NotImplementedError when auto-switch is disabled.
+    with config_context(AutoSwitchBackend=False):
+        series = pd.Series([1, 2, 3, 4, 5, 6]).move_to("Snowflake")
+
+        with pytest.raises(
+            NotImplementedError,
+            match=re.escape(
+                "does not yet support axis == 1, by != None and level != None, or by containing any non-pandas hashable labels."
+            ),
+        ):
+            groupby_obj = series.groupby(by=pd.Series([1, 1, 2, 2, 3, 3]), level=0)
+            getattr(groupby_obj, method)(**method_kwargs)

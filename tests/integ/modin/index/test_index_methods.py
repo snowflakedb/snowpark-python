@@ -779,11 +779,11 @@ def test_df_series_set_index_and_reset_index(obj_type):
     snow_idx = pd.Index(native_idx)
 
     # Test that df.index = new_index works with lazy index.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         native_obj.index = native_idx
         snow_obj.index = snow_idx
         assert_equal(snow_obj, native_obj)
 
     # Check if reset_index works with lazy index.
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=1):
         eval_snowpark_pandas_result(snow_obj, native_obj, lambda df: df.reset_index())

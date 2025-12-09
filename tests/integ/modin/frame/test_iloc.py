@@ -166,7 +166,12 @@ def test_df_row_return_dataframe(
     default_index_snowpark_pandas_df,
     default_index_native_df,
 ):
-    with SqlCounter(query_count=expected_query_count, join_count=expected_join_count):
+    union_count = 1 if isinstance(key, int) else 0
+    with SqlCounter(
+        query_count=expected_query_count,
+        join_count=expected_join_count,
+        union_count=union_count,
+    ):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -406,7 +411,8 @@ def test_df_iloc_get_empty_key(
     default_index_snowpark_pandas_df,
     default_index_native_df,
 ):
-    with SqlCounter(query_count=1):
+    join_count = 0 if (len(key) == 2 and isinstance(key[0], slice)) else 2
+    with SqlCounter(query_count=1, join_count=join_count):
         eval_snowpark_pandas_result(
             empty_snowpark_pandas_df,
             native_pd.DataFrame(),
@@ -416,7 +422,7 @@ def test_df_iloc_get_empty_key(
             # from native pandas (Snowpark pandas gives "empty" vs. native pandas "integer")
             check_column_type=False,
         )
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=join_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -1077,21 +1083,11 @@ def test_df_iloc_get_key_scalar(
         else:
             return native_pd.Series([]) if axis == "row" else df.iloc[:, []]
 
-    def determine_query_count():
-        # Multiple queries because of squeeze() - in range is 2, out-of-bounds is 1.
-        if axis == "col":
-            num_queries = 1
-        else:
-            if not -8 < key < 7:  # key is out of bound
-                num_queries = 2
-            else:
-                num_queries = 1
-        return num_queries
+    expected_union_count = 0 if axis == "col" else 1
 
-    query_count = determine_query_count()
     # test df with default index
     num_cols = 7
-    with SqlCounter(query_count=query_count):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df,
             default_index_native_df,
@@ -1101,7 +1097,7 @@ def test_df_iloc_get_key_scalar(
 
     # test df with non-default index
     num_cols = 6  # set_index() makes the number of columns 6
-    with SqlCounter(query_count=query_count):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             default_index_snowpark_pandas_df.set_index("D"),
             default_index_native_df.set_index("D"),
@@ -1109,13 +1105,12 @@ def test_df_iloc_get_key_scalar(
             test_attrs=False,
         )
 
-    query_count = determine_query_count()
     # test df with MultiIndex
     # Index dtype is different between Snowpark and native pandas if key produces empty df.
     num_cols = 7
     native_df = default_index_native_df.set_index(multiindex_native)
     snowpark_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=query_count):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         eval_snowpark_pandas_result(
             snowpark_df,
             native_df,
@@ -1129,7 +1124,7 @@ def test_df_iloc_get_key_scalar(
         native_df_with_multiindex_columns
     )
     in_range = True if (-8 < key < 7) else False
-    with SqlCounter(query_count=query_count):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         if axis == "row" or in_range:  # series result
             eval_snowpark_pandas_result(
                 snowpark_df_with_multiindex_columns,
@@ -1151,7 +1146,7 @@ def test_df_iloc_get_key_scalar(
     # test df with MultiIndex on both index and columns
     native_df = native_df_with_multiindex_columns.set_index(multiindex_native)
     snowpark_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=query_count):
+    with SqlCounter(query_count=1, union_count=expected_union_count):
         if axis == "row" or in_range:  # series result
             eval_snowpark_pandas_result(
                 snowpark_df,

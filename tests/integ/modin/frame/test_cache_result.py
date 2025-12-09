@@ -107,9 +107,9 @@ def test_cache_result_dataframe_complex_correctness(
 
     snow_df = snow_df.resample("2H").mean()
     snow_df_copy = snow_df.copy(deep=True)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=2):
         cached_snow_df = cache_and_return_df(snow_df, inplace)
-    with SqlCounter(query_count=2):
+    with SqlCounter(query_count=2, join_count=2):
         assert_frame_equal(
             snow_df_copy.to_pandas(), cached_snow_df.to_pandas(), check_index_type=False
         )
@@ -185,7 +185,7 @@ class TestCacheResultReducesQueryCount:
             native_pd.DataFrame(simple_test_data).apply(lambda x: x + x, axis=1),
             native_pd,
         )
-        with SqlCounter(query_count=6, union_count=9, udtf_count=1):
+        with SqlCounter(query_count=6, union_count=9, udtf_count=1, join_count=3):
             snow_df = pd.DataFrame(simple_test_data).apply(lambda x: x + x, axis=1)
             repr(snow_df)
             snow_df = perform_chained_operations(snow_df, pd)
@@ -193,7 +193,7 @@ class TestCacheResultReducesQueryCount:
                 snow_df, native_df
             )
 
-        with SqlCounter(query_count=5, udtf_count=1):
+        with SqlCounter(query_count=5, udtf_count=1, join_count=2):
             snow_df = pd.DataFrame(simple_test_data).apply(lambda x: x + x, axis=1)
             cached_snow_df = cache_and_return_df(snow_df, inplace)
 

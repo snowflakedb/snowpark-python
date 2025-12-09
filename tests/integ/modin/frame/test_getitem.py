@@ -377,13 +377,14 @@ def test_df_getitem_with_multiindex(
         )
         else _key
     )
-    with SqlCounter(query_count=1):
+    expected_join_count = 1 if isinstance(key, np.ndarray) else 0
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(snowpark_df, native_df, lambda df: df[_key])
 
     # Test __getitem__ with df with MultiIndex columns.
     native_df = native_df_with_multiindex_columns
     snowpark_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             snowpark_df, native_df, lambda df: df[key], check_column_type=False
         )
@@ -391,7 +392,7 @@ def test_df_getitem_with_multiindex(
     # Test __getitem__ with df with MultiIndex index.
     native_df = native_df_with_multiindex_columns.set_index(multiindex_native)
     snowpark_df = pd.DataFrame(native_df)
-    with SqlCounter(query_count=1):
+    with SqlCounter(query_count=1, join_count=expected_join_count):
         eval_snowpark_pandas_result(
             snowpark_df, native_df, lambda df: df[key], check_column_type=False
         )

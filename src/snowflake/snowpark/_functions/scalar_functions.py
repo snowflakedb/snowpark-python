@@ -132,7 +132,7 @@ def current_transaction(_emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def bitand_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def bitand_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the bitwise AND of all non-NULL records in a group. If all records inside a group are NULL, returns NULL.
 
@@ -142,12 +142,12 @@ def bitand_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(bitand_agg("a")).collect()
         [Row(BITAND_AGG("A")=8)]
     """
-    c = _to_col_if_str(e, "bitand_agg")
+    c = _to_col_if_str(expr, "bitand_agg")
     return builtin("bitand_agg", _emit_ast=_emit_ast)(c)
 
 
 @publicapi
-def bitor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def bitor_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the bitwise OR of all non-NULL records in a group. If all records inside a group are NULL, a NULL is returned.
 
@@ -157,12 +157,12 @@ def bitor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(bitor_agg("a").alias("result")).collect()
         [Row(RESULT=31)]
     """
-    c = _to_col_if_str(e, "bitor_agg")
+    c = _to_col_if_str(expr, "bitor_agg")
     return builtin("bitor_agg", _emit_ast=_emit_ast)(c)
 
 
 @publicapi
-def bitxor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def bitxor_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the bitwise XOR of all non-NULL records in a group. If all records inside a group are NULL, the function returns NULL.
 
@@ -172,7 +172,7 @@ def bitxor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(bitxor_agg("a")).collect()
         [Row(BITXOR_AGG("A")=25)]
     """
-    c = _to_col_if_str(e, "bitxor_agg")
+    c = _to_col_if_str(expr, "bitxor_agg")
     return builtin("bitxor_agg", _emit_ast=_emit_ast)(c)
 
 
@@ -817,12 +817,12 @@ def as_boolean(variant: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
-def boolor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def boolor_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Returns the logical OR of all non-NULL records in a group. If all records are NULL, returns NULL.
 
     Args:
-        e (ColumnOrName): Boolean values to aggregate.
+        expr (ColumnOrName): Boolean values to aggregate.
 
     Returns:
         Column: The logical OR aggregation result.
@@ -842,7 +842,7 @@ def boolor_agg(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         ... ).collect()
         [Row(BOOLOR_A=True, BOOLOR_B=True, BOOLOR_C=True)]
     """
-    c = _to_col_if_str(e, "boolor_agg")
+    c = _to_col_if_str(expr, "boolor_agg")
     return builtin("boolor_agg", _emit_ast=_emit_ast)(c)
 
 
@@ -1054,14 +1054,14 @@ def booland(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) ->
 
 
 @publicapi
-def boolnot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+def boolnot(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     Computes the Boolean NOT of a single numeric expression. In accordance with Boolean semantics:
         - Non-zero values (including negative numbers) are regarded as True.
         - Zero values are regarded as False.
 
     Args:
-        e (ColumnOrName): A numeric expression to be evaluated.
+        expr (ColumnOrName): A numeric expression to be evaluated.
 
     Returns:
         - True if the expression is zero.
@@ -1074,7 +1074,7 @@ def boolnot(e: ColumnOrName, _emit_ast: bool = True) -> Column:
         >>> df.select(boolnot("a")).collect()
         [Row(BOOLNOT("A")=True), Row(BOOLNOT("A")=False), Row(BOOLNOT("A")=False)]
     """
-    c = _to_col_if_str(e, "boolnot")
+    c = _to_col_if_str(expr, "boolnot")
     return builtin("boolnot", _emit_ast=_emit_ast)(c)
 
 
@@ -3971,3 +3971,746 @@ def try_to_geometry(
         return builtin("try_to_geometry", _emit_ast=_emit_ast)(c, allow_invalid_col)
     else:
         return builtin("try_to_geometry", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def base64_decode_binary(
+    input_expr: ColumnOrName,
+    alphabet: Optional[ColumnOrName] = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Decodes a base64-encoded string and returns the result as a binary value.
+
+    Args:
+        input_expr (ColumnOrName): A base64-encoded string to decode.
+        alphabet (ColumnOrName, optional): The base64 alphabet to use for decoding. If not specified, uses the standard base64 alphabet.
+
+    Returns:
+        Column: A binary value containing the decoded result.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe(["SEVMUA=="], schema=["input"])
+        >>> df.select(base64_decode_binary(col("input")).alias("result")).collect()
+        [Row(RESULT=bytearray(b'HELP'))]
+
+        >>> df.select(base64_decode_binary(col('input'), lit('$')).alias('result')).collect()
+        [Row(RESULT=bytearray(b'HELP'))]
+    """
+    from snowflake.snowpark.functions import builtin
+
+    input_col = _to_col_if_str(input_expr, "base64_decode_binary")
+
+    if alphabet is not None:
+        alphabet_col = _to_col_if_str(alphabet, "base64_decode_binary")
+        return builtin("base64_decode_binary", _emit_ast=_emit_ast)(
+            input_col, alphabet_col
+        )
+    else:
+        return builtin("base64_decode_binary", _emit_ast=_emit_ast)(input_col)
+
+
+@publicapi
+def compress(
+    input_val: ColumnOrName, method: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Compresses the input string using the specified compression method.
+
+    Args:
+        input_val (ColumnOrName): The input string to be compressed.
+        method (ColumnOrName): The compression method (e.g., "SNAPPY").
+
+    Returns:
+        Column: The compressed binary data.
+
+    Example::
+        >>> df = session.create_dataframe([['Snowflake'], ['Hello World']], schema=["input"])
+        >>> df.select(compress(df["input"], lit("SNAPPY")).alias("compressed")).collect()
+        [Row(COMPRESSED=bytearray(b'\\t Snowflake')), Row(COMPRESSED=bytearray(b'\\x0b(Hello World'))]
+    """
+    input_col = _to_col_if_str(input_val, "compress")
+    method_col = _to_col_if_str(method, "compress")
+    return builtin("compress", _emit_ast=_emit_ast)(input_col, method_col)
+
+
+@publicapi
+def decompress_binary(
+    input_data: ColumnOrName, method: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Decompresses binary data using the specified compression method.
+
+    Args:
+        input_data (ColumnOrName): The binary data to decompress.
+        method (ColumnOrName): The compression method used to decompress the data.
+
+    Returns:
+        Column: The decompressed binary data.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import lit
+        >>> from snowflake.snowpark.functions import to_binary, lit
+        >>> df = session.create_dataframe([['0920536E6F77666C616B65']], schema=["compressed_hex"])
+        >>> df.select(decompress_binary(to_binary(df["compressed_hex"]), lit("SNAPPY")).alias("decompressed")).collect()
+        [Row(DECOMPRESSED=bytearray(b'Snowflake'))]
+    """
+    input_col = _to_col_if_str(input_data, "decompress_binary")
+    method_col = _to_col_if_str(method, "decompress_binary")
+    return builtin("decompress_binary", _emit_ast=_emit_ast)(input_col, method_col)
+
+
+@publicapi
+def decompress_string(
+    input_data: ColumnOrName, method: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Decompresses a BINARY value using the specified compression method and returns the result as a string.
+
+    Args:
+        input_data (ColumnOrName): The compressed binary data to decompress.
+        method (ColumnOrName): The compression method used. Supported methods include 'SNAPPY', 'GZIP', etc.
+
+    Returns:
+        Column: The decompressed string.
+
+    Example::
+
+        >>> from snowflake.snowpark.functions import to_binary
+        >>> df = session.create_dataframe([['0920536E6F77666C616B65', 'SNAPPY']], schema=["compressed_hex", "method"])
+        >>> df.select(decompress_string(to_binary(df["compressed_hex"], 'HEX'), df["method"]).alias("decompressed")).collect()
+        [Row(DECOMPRESSED='Snowflake')]
+    """
+    input_col = _to_col_if_str(input_data, "decompress_string")
+    method_col = _to_col_if_str(method, "decompress_string")
+    return builtin("decompress_string", _emit_ast=_emit_ast)(input_col, method_col)
+
+
+@publicapi
+def md5_binary(msg: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the MD5 hash of the input message as a binary value.
+
+    Args:
+        msg (ColumnOrName): The input message to compute the MD5 hash for.
+
+    Returns:
+        Column: The MD5 hash as a binary value (bytearray).
+
+    Examples::
+        >>> from snowflake.snowpark import Row
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["Snowflake"], ["test"], [""]], schema=["msg"])
+        >>> result = df.select(md5_binary(col("msg")).alias("md5_result")).collect()
+
+        >>> expected = [
+        ... Row(MD5_RESULT=bytearray(b'\\xed\\xf1C\\x90u\\xa8:D\\x7f\\xb8\\xb60\\xdd\\xc9\\xc8\\xde')),  # "Snowflake"
+        ... Row(MD5_RESULT=bytearray(b"\\t\\x8fk\\xcdF!\\xd3s\\xca\\xdeN\\x83&'\\xb4\\xf6")),           # "test"
+        ... Row(MD5_RESULT=bytearray(b'\\xd4\\x1d\\x8c\\xd9\\x8f\\x00\\xb2\\x04\\xe9\\x80\\t\\x98\\xec\\xf8B~'))  # "" (empty)
+        ... ]
+
+        >>> assert result == expected
+    """
+    c = _to_col_if_str(msg, "md5_binary")
+    return builtin("md5_binary", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def md5_number_lower64(msg: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns a 64-bit number from the lower 64 bits of the MD5 hash of the input message.
+
+    Args:
+        msg (ColumnOrName): The input message to hash.
+
+    Returns:
+        Column: A 64-bit number representing the lower 64 bits of the MD5 hash.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["Snowflake"], ["test"], ["hello"]], schema=["msg"])
+        >>> df.select(md5_number_lower64(col("msg")).alias("result")).collect()
+        [Row(RESULT=9203306159527282910), Row(RESULT=14618207765679027446), Row(RESULT=13362634815750784402)]
+    """
+    c = _to_col_if_str(msg, "md5_number_lower64")
+    return builtin("md5_number_lower64", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def md5_number_upper64(msg: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the upper 64 bits of the MD5 hash of the input message as a number.
+
+    Args:
+        msg (ColumnOrName): The input message to hash.
+
+    Returns:
+        Column: A column containing the upper 64 bits of the MD5 hash as a number.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["Snowflake"], ["test"], ["hello"]], schema=["msg"])
+        >>> df.select(md5_number_upper64(col("msg")).alias("result")).collect()
+        [Row(RESULT=17145559544104499780), Row(RESULT=688887797400064883), Row(RESULT=6719722671305337462)]
+    """
+    c = _to_col_if_str(msg, "md5_number_upper64")
+    return builtin("md5_number_upper64", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def sha1_binary(msg: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the SHA-1 hash of the input message as a binary value.
+
+    Args:
+        msg (ColumnOrName): The input message to hash.
+
+    Returns:
+        Column: The SHA-1 hash as a binary value.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["Snowflake"], ["test"], ["hello"]], schema=["msg"])
+        >>> df.select(sha1_binary(col("msg")).alias("sha1_result")).collect()
+        [Row(SHA1_RESULT=bytearray(b'\\xfd\\xa7k\\x0b\\xcc\\x1e\\x87\\xcf%\\x9b\\x1d\\x1e2q\\xd7oY\\x0f\\xb5\\xdd')), Row(SHA1_RESULT=bytearray(b'\\xa9J\\x8f\\xe5\\xcc\\xb1\\x9b\\xa6\\x1cL\\x08s\\xd3\\x91\\xe9\\x87\\x98/\\xbb\\xd3')), Row(SHA1_RESULT=bytearray(b'\\xaa\\xf4\\xc6\\x1d\\xdc\\xc5\\xe8\\xa2\\xda\\xbe\\xde\\x0f;H,\\xd9\\xae\\xa9CM'))]
+    """
+    c = _to_col_if_str(msg, "sha1_binary")
+    return builtin("sha1_binary", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def sha2_binary(
+    msg: ColumnOrName, digest_size: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns a binary SHA-2 hash of the input message. The digest size determines the hash algorithm used.
+
+    Args:
+        msg (ColumnOrName): The input message to hash.
+        digest_size (ColumnOrName, optional): The digest size in bits. Valid values are 224, 256, 384, and 512. Defaults to 256 if not specified.
+
+    Returns:
+        Column: A binary representation of the SHA-2 hash.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([["Snowflake"], ["test"], ["hello"]], schema=["msg"])
+        >>> df.select(sha2_binary(col("msg")).alias("result")).collect()
+        [Row(RESULT=bytearray(b'\\x1d\\xbdY\\xf6a\\xd6\\x8b\\x90rO!\\x08C\\x96\\xb8eIqs\\xe4\\xd2qOM\\x91\\xcf\\x05\\xfa_\\xc5\\xe1\\x8d')), Row(RESULT=bytearray(b'\\x9f\\x86\\xd0\\x81\\x88L}e\\x9a/\\xea\\xa0\\xc5Z\\xd0\\x15\\xa3\\xbfO\\x1b+\\x0b\\x82,\\xd1]l\\x15\\xb0\\xf0\\n\\x08')), Row(RESULT=bytearray(b',\\xf2M\\xba_\\xb0\\xa3\\x0e&\\xe8;*\\xc5\\xb9\\xe2\\x9e\\x1b\\x16\\x1e\\\\\\x1f\\xa7B^s\\x043b\\x93\\x8b\\x98$'))]
+        >>> df.select(sha2_binary(col("msg"), lit(224)).alias("result")).collect()
+        [Row(RESULT=bytearray(b'bg\\xd3\\xd7\\xa5\\x99)\\xe6\\x86M\\xd4\\xb77\\xd9\\x8e>\\xf8V\\x9d\\x9f\\x88\\xa7FfG\\x83\\x852')), Row(RESULT=bytearray(b'\\x90\\xa3\\xed\\x9e2\\xb2\\xaa\\xf4\\xc6\\x1cA\\x0e\\xb9%Ba\\x19\\xe1\\xa9\\xdcS\\xd4(j\\xde\\x99\\xa8\\t')), Row(RESULT=bytearray(b'\\xea\\t\\xae\\x9c\\xc6v\\x8cP\\xfc\\xee\\x90>\\xd0TUn[\\xfc\\x83G\\x90\\x7f\\x12Y\\x8a\\xa2A\\x93'))]
+    """
+    c = _to_col_if_str(msg, "sha2_binary")
+    if digest_size is None:
+        return builtin("sha2_binary", _emit_ast=_emit_ast)(c)
+    else:
+        d = _to_col_if_str(digest_size, "sha2_binary")
+        return builtin("sha2_binary", _emit_ast=_emit_ast)(c, d)
+
+
+@publicapi
+def soundex_p123(varchar_expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns a phonetic representation of a string using the Soundex algorithm with P123 encoding.
+    This function converts names or words that sound similar into the same code, making it useful
+    for fuzzy matching and searching.
+
+    Args:
+        varchar_expr (ColumnOrName): The string expression to convert to Soundex P123 format.
+
+    Returns:
+        Column: The Soundex P123 encoded string.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["Pfister"], ["Lloyd"], ["Smith"], ["Johnson"]], schema=["name"])
+        >>> df.select(soundex_p123(col("name")).alias("soundex_result")).collect()
+        [Row(SOUNDEX_RESULT='P123'), Row(SOUNDEX_RESULT='L430'), Row(SOUNDEX_RESULT='S530'), Row(SOUNDEX_RESULT='J525')]
+    """
+    c = _to_col_if_str(varchar_expr, "soundex_p123")
+    return builtin("soundex_p123", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def strtok(
+    string: ColumnOrName,
+    delimiter: ColumnOrName = None,
+    part_nr: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Tokenizes a string with the given set of delimiters and returns the requested part.
+
+    Args:
+        string (ColumnOrName): The string to be tokenized.
+        delimiter (ColumnOrName, optional): A set of delimiters. Each character in the delimiter string is treated as a delimiter. If not specified, defaults to a single space character.
+        part_nr (ColumnOrName, optional): The requested part number (1-based). If not specified, returns the entire string.
+
+    Returns:
+        Column: The requested part of the tokenized string.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([["a.b.c"]], schema=["string_col"])
+        >>> df.select(strtok(col("string_col")).alias("result")).collect()
+        [Row(RESULT='a.b.c')]
+        >>> df.select(strtok(col("string_col"), lit(".")).alias("result")).collect()
+        [Row(RESULT='a')]
+        >>> df.select(strtok(col("string_col"), lit("."), lit(2)).alias("result")).collect()
+        [Row(RESULT='b')]
+        >>> df2 = session.create_dataframe([["user@snowflake.com"]], schema=["string_col"])
+        >>> df2.select(strtok(col("string_col"), lit("@."), lit(1)).alias("result")).collect()
+        [Row(RESULT='user')]
+        >>> df2.select(strtok(col("string_col"), lit("@."), lit(3)).alias("result")).collect()
+        [Row(RESULT='com')]
+    """
+    string_col = _to_col_if_str(string, "strtok")
+
+    if delimiter is None and part_nr is None:
+        return builtin("strtok", _emit_ast=_emit_ast)(string_col)
+    elif delimiter is not None and part_nr is None:
+        delimiter_col = _to_col_if_str(delimiter, "strtok")
+        return builtin("strtok", _emit_ast=_emit_ast)(string_col, delimiter_col)
+    else:
+        delimiter_col = (
+            _to_col_if_str(delimiter, "strtok") if delimiter is not None else lit(" ")
+        )
+        part_nr_col = _to_col_if_str(part_nr, "strtok")
+        return builtin("strtok", _emit_ast=_emit_ast)(
+            string_col, delimiter_col, part_nr_col
+        )
+
+
+@publicapi
+def try_base64_decode_binary(
+    input_expr: ColumnOrName, alphabet: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Decodes a base64-encoded string to binary data. Returns None if the input is not valid base64.
+
+    Args:
+        input_expr (ColumnOrName): The base64-encoded string to decode.
+        alphabet (ColumnOrName, optional): The base64 alphabet to use for decoding. If not specified, uses the standard base64 alphabet.
+
+    Returns:
+        Column: A column containing the decoded binary data, or None if the input is invalid.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import base64_encode
+        >>> df = session.create_dataframe(["HELP", "TEST"], schema=["input"])
+        >>> df.select(try_base64_decode_binary(base64_encode(df["input"])).alias("result")).collect()
+        [Row(RESULT=bytearray(b'HELP')), Row(RESULT=bytearray(b'TEST'))]
+
+        >>> df2 = session.create_dataframe(["SEVMUA==", "VEVTVA=="], schema=["encoded"])
+        >>> df2.select(try_base64_decode_binary(df2["encoded"]).alias("result")).collect()
+        [Row(RESULT=bytearray(b'HELP')), Row(RESULT=bytearray(b'TEST'))]
+
+        >>> df3 = session.create_dataframe(["invalid_base64!"], schema=["bad_input"])
+        >>> df3.select(try_base64_decode_binary(df3["bad_input"]).alias("result")).collect()
+        [Row(RESULT=None)]
+
+        >>> df4 = session.create_dataframe(["SEVMUA=="], schema=["encoded"])
+        >>> df4.select(try_base64_decode_binary(df4["encoded"], lit("$")).alias("result")).collect()
+        [Row(RESULT=bytearray(b'HELP'))]
+    """
+    input_col = _to_col_if_str(input_expr, "try_base64_decode_binary")
+
+    if alphabet is not None:
+        alphabet_col = _to_col_if_str(alphabet, "try_base64_decode_binary")
+        return builtin("try_base64_decode_binary", _emit_ast=_emit_ast)(
+            input_col, alphabet_col
+        )
+    else:
+        return builtin("try_base64_decode_binary", _emit_ast=_emit_ast)(input_col)
+
+
+@publicapi
+def try_base64_decode_string(
+    input_expr: ColumnOrName, alphabet: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Decodes a base64-encoded string and returns the result. If the input is not a valid base64-encoded string, returns NULL instead of raising an error.
+
+    Args:
+        input_expr (ColumnOrName): A base64-encoded string to decode.
+        alphabet (ColumnOrName, optional): The base64 alphabet to use for decoding. If not specified, uses the standard base64 alphabet.
+
+    Returns:
+        Column: The decoded string, or NULL if the input is not valid base64.
+
+    Examples::
+        >>> df = session.create_dataframe([["SEVMTE8="]], schema=["encoded"])
+        >>> df.select(try_base64_decode_string(df["encoded"]).alias('result')).collect()
+        [Row(RESULT='HELLO')]
+
+        >>> df = session.create_dataframe([["invalid_base64"]], schema=["encoded"])
+        >>> df.select(try_base64_decode_string(df["encoded"]).alias('result')).collect()
+        [Row(RESULT=None)]
+
+        >>> df = session.create_dataframe([["SEVMTE8="]], schema=["encoded"])
+        >>> df.select(try_base64_decode_string(df["encoded"], lit('$')).alias('result')).collect()
+        [Row(RESULT='HELLO')]
+    """
+    c = _to_col_if_str(input_expr, "try_base64_decode_string")
+    if alphabet is not None:
+        alphabet_col = _to_col_if_str(alphabet, "try_base64_decode_string")
+        return builtin("try_base64_decode_string", _emit_ast=_emit_ast)(c, alphabet_col)
+    else:
+        return builtin("try_base64_decode_string", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def try_hex_decode_binary(input_expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Decodes a hex-encoded string to binary data. Returns None if the input is not a valid hex string.
+
+    Args:
+        input_expr (ColumnOrName): A hex-encoded string to decode to binary data.
+
+    Returns:
+        Column: The decoded binary data as bytearray, or None if input is invalid.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["41426162"], ["48656C6C6F"], ["576F726C64"]], schema=["hex_string"])
+        >>> df.select(try_hex_decode_binary(col("hex_string")).alias("decoded_binary")).collect()
+        [Row(DECODED_BINARY=bytearray(b'ABab')), Row(DECODED_BINARY=bytearray(b'Hello')), Row(DECODED_BINARY=bytearray(b'World'))]
+    """
+    c = _to_col_if_str(input_expr, "try_hex_decode_binary")
+    return builtin("try_hex_decode_binary", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def try_hex_decode_string(input_expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Decodes a hex-encoded string to its original string value. Returns None if the input is not a valid hex string.
+
+    Args:
+        input_expr (ColumnOrName): The hex-encoded string to decode.
+
+    Returns:
+        Column: The decoded string, or None if the input is not valid hex.
+
+    Examples::
+        >>> df = session.create_dataframe([["41614262"], ["127"], ["invalid_hex"]], schema=["hex_input"])
+        >>> df.select(try_hex_decode_string(df["hex_input"]).alias("decoded")).collect()
+        [Row(DECODED='AaBb'), Row(DECODED=None), Row(DECODED=None)]
+    """
+    c = _to_col_if_str(input_expr, "try_hex_decode_string")
+    return builtin("try_hex_decode_string", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def unicode(input_str: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the Unicode code point of the first character in a string.
+
+    Args:
+        input_str (ColumnOrName): The input string column or string value to get the Unicode code point from.
+
+    Returns:
+        Column: The Unicode code point of the first character. Returns 0 for empty strings.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([['a'], ['❄'], ['cde'], ['']], schema=["input_str"])
+        >>> df.select(unicode(col("input_str")).alias("unicode_result")).collect()
+        [Row(UNICODE_RESULT=97), Row(UNICODE_RESULT=10052), Row(UNICODE_RESULT=99), Row(UNICODE_RESULT=0)]
+    """
+    c = _to_col_if_str(input_str, "unicode")
+    return builtin("unicode", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def uuid_string(
+    uuid: ColumnOrName = None, name: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Returns a universally unique identifier (UUID) as a string. If the uuid is provided, also the name must be provided.
+
+    Args:
+        uuid (ColumnOrName, optional): The namespace UUID as a string. If provided, generates a UUID based on this namespace.
+        name (ColumnOrName, optional): The name to use for UUID generation. Used in combination with uuid parameter.
+
+    Returns:
+        Column: The UUID string.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+
+        >>> df = session.create_dataframe(
+        ...     [["fe971b24-9572-4005-b22f-351e9c09274d", "foo"]], schema=["uuid", "name"]
+        ... )
+
+        >>> df.select(uuid_string().alias("random_uuid")).collect()
+        [Row(RANDOM_UUID='...')]
+
+        >>> result = df.select(
+        ...     uuid_string(col("uuid"), col("name")).alias("NAMED_UUID")
+        ... ).collect()
+        >>> expected_uuid = "dc0b6f65-fca6-5b4b-9d37-ccc3fde1f3e2"
+        >>> result[0]["NAMED_UUID"] == expected_uuid
+        True
+    """
+    if uuid is None and name is None:
+        return builtin("uuid_string", _emit_ast=_emit_ast)()
+    else:
+        uuid_col = _to_col_if_str(uuid, "uuid_string")
+        name_col = _to_col_if_str(name, "uuid_string")
+        return builtin("uuid_string", _emit_ast=_emit_ast)(uuid_col, name_col)
+
+
+@publicapi
+def booland_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns True if all input values are True (or equivalent to True). Returns False if any input value is False (or equivalent to False). None values are ignored unless all values are None, in which case None is returned.
+
+    Args:
+        expr (ColumnOrName): The boolean values to aggregate.
+
+    Returns:
+        Column: True if all values are True, False if any value is False, or None if all values are None.
+
+    Examples::
+        >>> df = session.create_dataframe([True, True, True], schema=["a"])
+        >>> df.select(booland_agg("a")).collect()
+        [Row(BOOLAND_AGG("A")=True)]
+        >>> df = session.create_dataframe([True, False, True], schema=["a"])
+        >>> df.select(booland_agg("a")).collect()
+        [Row(BOOLAND_AGG("A")=False)]
+        >>> df = session.create_dataframe([1, 2, 3], schema=["a"])
+        >>> df.select(booland_agg("a")).collect()
+        [Row(BOOLAND_AGG("A")=True)]
+        >>> df = session.create_dataframe([1, 0, 2], schema=["a"])
+        >>> df.select(booland_agg("a")).collect()
+        [Row(BOOLAND_AGG("A")=False)]
+    """
+    c = _to_col_if_str(expr, "booland_agg")
+    return builtin("booland_agg", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def boolxor_agg(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the logical XOR of all non-None records in a group. If all records inside a group are None, returns None.
+
+    Args:
+        expr (ColumnOrName): The boolean values to aggregate.
+
+    Returns:
+        Column: The logical XOR result of all non-None boolean values in the group.
+
+    Examples::
+
+        >>> df = session.create_dataframe([
+        ...     [True],
+        ...     [False],
+        ...     [False],
+        ...     [False]
+        ... ], schema=["col1"])
+        >>> df.select(boolxor_agg(df["col1"])).collect()
+        [Row(BOOLXOR_AGG("COL1")=True)]
+
+        >>> df = session.create_dataframe([
+        ...     [True],
+        ...     [True],
+        ...     [False],
+        ...     [False]
+        ... ], schema=["col1"])
+        >>> df.select(boolxor_agg(df["col1"])).collect()
+        [Row(BOOLXOR_AGG("COL1")=False)]
+
+        >>> df = session.create_dataframe([
+        ...     [False],
+        ...     [False],
+        ...     [False],
+        ...     [False]
+        ... ], schema=["col1"])
+        >>> df.select(boolxor_agg(df["col1"])).collect()
+        [Row(BOOLXOR_AGG("COL1")=False)]
+    """
+    c = _to_col_if_str(expr, "boolxor_agg")
+    return builtin("boolxor_agg", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def regr_valy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the y value for each row where x is not None. If x is None, returns None.
+    This function is used in linear regression calculations to get the dependent variable values
+    for valid data points.
+
+    Args:
+        y (ColumnOrName): The dependent variable column or column name.
+        x (ColumnOrName): The independent variable column or column name.
+
+    Returns:
+        Column: A column containing the y values where x is not None, None otherwise.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([(2.0, 1.0), (None, 3.0), (6.0, None)], schema=["col_y", "col_x"])
+        >>> df.select(regr_valy(col("col_y"), col("col_x")).alias("result")).collect()
+        [Row(RESULT=2.0), Row(RESULT=None), Row(RESULT=None)]
+    """
+    y_col = _to_col_if_str(y, "regr_valy")
+    x_col = _to_col_if_str(x, "regr_valy")
+    return builtin("regr_valy", _emit_ast=_emit_ast)(y_col, x_col)
+
+
+@publicapi
+def zeroifnull(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns zero if the input expression is None; otherwise, returns the input expression.
+
+    Args:
+        expr (ColumnOrName): The input expression to evaluate for None values.
+
+    Returns:
+        Column: Zero if the input expression is None, otherwise the original value.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[1], [None], [5], [0]], schema=["a"])
+        >>> df.select(zeroifnull(col("a")).alias("result")).collect()
+        [Row(RESULT=1), Row(RESULT=0), Row(RESULT=5), Row(RESULT=0)]
+    """
+    c = _to_col_if_str(expr, "zeroifnull")
+    return builtin("zeroifnull", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def cot(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Computes the cotangent of the input column. The input should be expressed in radians.
+
+    Args:
+        expr (ColumnOrName): The input column or column name containing values in radians.
+
+    Returns:
+        Column: A column containing the cotangent values.
+
+    Examples::
+        >>> from snowflake.snowpark.types import DecimalType
+        >>> df = session.create_dataframe([[1.0471975512], [0.7853981634], [1.5707963268]], schema=["a"])
+        >>> df.select(cot(df["a"]).cast(DecimalType(scale=10)).alias("cot_result")).collect()
+        [Row(COT_RESULT=Decimal('0.5773502692')), Row(COT_RESULT=Decimal('1.0000000000')), Row(COT_RESULT=Decimal('0E-10'))]
+    """
+    c = _to_col_if_str(expr, "cot")
+    return builtin("cot", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def mod(expr1: ColumnOrName, expr2: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the remainder of expr1 divided by expr2.
+
+    Args:
+        expr1 (ColumnOrName): The dividend column or column name.
+        expr2 (ColumnOrName): The divisor column or column name.
+
+    Returns:
+        Column: The remainder of expr1 divided by expr2.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[10, 3], [15, 4], [7, 2]], schema=["a", "b"])
+        >>> df.select(mod(col("a"), col("b")).alias("mod_result")).collect()
+        [Row(MOD_RESULT=1), Row(MOD_RESULT=3), Row(MOD_RESULT=1)]
+    """
+    c1 = _to_col_if_str(expr1, "mod")
+    c2 = _to_col_if_str(expr2, "mod")
+    return builtin("mod", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def pi(_emit_ast: bool = True) -> Column:
+    """
+    Returns the mathematical constant pi (approximately 3.141592654).
+
+    Returns:
+        Column: The value of pi.
+
+    Examples::
+        >>> df = session.create_dataframe([[1]], schema=["dummy"])
+        >>> df.select(pi().alias("pi_value")).collect()
+        [Row(PI_VALUE=3.141592653589793)]
+    """
+    from snowflake.snowpark.functions import builtin
+
+    return builtin("pi", _emit_ast=_emit_ast)()
+
+
+@publicapi
+def square(expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the square of a numeric expression (expr * expr).
+
+    Args:
+        expr (ColumnOrName): The numeric values to be squared.
+
+    Returns:
+        Column: The square of the input values.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[-2.0], [3.15]], schema=["a"])
+        >>> df.select(square(col("a")).alias("square")).collect()
+        [Row(SQUARE=4.0), Row(SQUARE=9.9225)]
+        >>> df = session.create_dataframe([[4], [5]], schema=["a"])
+        >>> df.select(square(col("a"), _emit_ast=False).alias("square")).collect()
+        [Row(SQUARE=16.0), Row(SQUARE=25.0)]
+    """
+    c = _to_col_if_str(expr, "square")
+    return builtin("square", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def width_bucket(
+    expr: ColumnOrName,
+    min_value: ColumnOrName,
+    max_value: ColumnOrName,
+    num_buckets: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Constructs equi-width histograms, in which the histogram range is divided
+    into intervals that have identical sizes, returning the bucket number that
+    the input expression would be assigned to.
+
+    Args:
+        expr (ColumnOrName): The expression to evaluate and assign to a bucket.
+        min_value (ColumnOrName): The minimum value of the histogram range.
+        max_value (ColumnOrName): The maximum value of the histogram range.
+        num_buckets (ColumnOrName): The number of buckets to create.
+
+    Returns:
+        Column: The bucket number (1-based) that the input expression falls into.
+
+    Examples::
+        >>> df = session.create_dataframe([
+        ...     [290000.00],
+        ...     [320000.00],
+        ...     [399999.99],
+        ...     [400000.00],
+        ...     [470000.00],
+        ...     [510000.00]
+        ... ], schema=["price"])
+        >>> df.select(width_bucket(df["price"], lit(200000), lit(600000), lit(4)).alias("sales_group")).collect()
+        [Row(SALES_GROUP=1), Row(SALES_GROUP=2), Row(SALES_GROUP=2), Row(SALES_GROUP=3), Row(SALES_GROUP=3), Row(SALES_GROUP=4)]
+        >>> df = session.create_dataframe([[150000.00]], schema=["price"])
+        >>> df.select(width_bucket(df["price"], lit(200000), lit(600000), lit(4)).alias("sales_group")).collect()
+        [Row(SALES_GROUP=0)]
+        >>> df = session.create_dataframe([[700000.00]], schema=["price"])
+        >>> df.select(width_bucket(df["price"], lit(200000), lit(9600000), lit(4)).alias("sales_group")).collect()
+        [Row(SALES_GROUP=1)]
+    """
+    expr_col = _to_col_if_str(expr, "width_bucket")
+    min_val_col = _to_col_if_str(min_value, "width_bucket")
+    max_val_col = _to_col_if_str(max_value, "width_bucket")
+    num_buckets_col = _to_col_if_str(num_buckets, "width_bucket")
+
+    return builtin("width_bucket", _emit_ast=_emit_ast)(
+        expr_col, min_val_col, max_val_col, num_buckets_col
+    )

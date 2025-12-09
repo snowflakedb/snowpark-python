@@ -68,7 +68,10 @@ DEVELOPMENT_REQUIREMENTS = [
     "lxml",  # used in XML reader unit tests
 ]
 MODIN_DEVELOPMENT_REQUIREMENTS = [
-    "scipy",  # Snowpark pandas 3rd party library testing
+    # Snowpark pandas 3rd party library testing. Cap the scipy version because
+    # Snowflake cannot find newer versions of scipy for python 3.11+. See
+    # SNOW-2452791.
+    "scipy<=1.16.0",
     "statsmodels",  # Snowpark pandas 3rd party library testing
     "scikit-learn",  # Snowpark pandas 3rd party library testing
     # plotly version restricted due to foreseen change in query counts in version 6.0.0+
@@ -90,8 +93,6 @@ version = ".".join([str(v) for v in VERSION if v is not None])
 
 with open(os.path.join(THIS_DIR, "README.md"), encoding="utf-8") as f:
     readme = f.read()
-with open(os.path.join(THIS_DIR, "CHANGELOG.md"), encoding="utf-8") as f:
-    changelog = f.read()
 
 # Find the Protocol Compiler.
 if "PROTOC" in os.environ and os.path.exists(os.environ["PROTOC"]):
@@ -163,7 +164,7 @@ setup(
     name="snowflake-snowpark-python",
     version=version,
     description="Snowflake Snowpark for Python",
-    long_description=readme + "\n\n" + changelog,
+    long_description=readme,
     long_description_content_type="text/markdown",
     author="Snowflake, Inc",
     author_email="snowflake-python-libraries-dl@snowflake.com",
@@ -228,6 +229,7 @@ setup(
         "opentelemetry": [
             "opentelemetry-api>=1.0.0, <2.0.0",
             "opentelemetry-sdk>=1.0.0, <2.0.0",
+            "opentelemetry-exporter-otlp>=1.0.0, <2.0.0",
         ],
     },
     classifiers=[

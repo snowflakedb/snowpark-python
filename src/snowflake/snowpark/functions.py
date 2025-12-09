@@ -4479,6 +4479,25 @@ def hour(e: ColumnOrName, _emit_ast: bool = True) -> Column:
 
 
 @publicapi
+def day(e: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Extracts the day from a date or timestamp.
+
+    Example::
+
+        >>> import datetime
+        >>> df = session.create_dataframe([
+        ...     datetime.datetime.strptime("2020-05-01 13:11:20.000", "%Y-%m-%d %H:%M:%S.%f"),
+        ...     datetime.datetime.strptime("2020-08-21 01:30:05.000", "%Y-%m-%d %H:%M:%S.%f")
+        ... ], schema=["a"])
+        >>> df.select(day("a")).collect()
+        [Row(DAY("A")=1), Row(DAY("A")=21)]
+    """
+    c = _to_col_if_str(e, "day")
+    return _call_function("day", c, _emit_ast=_emit_ast)
+
+
+@publicapi
 def last_day(
     expr: ColumnOrName, part: Optional[ColumnOrName] = None, _emit_ast: bool = True
 ) -> Column:
@@ -4688,6 +4707,62 @@ def year(e: ColumnOrName, _emit_ast: bool = True) -> Column:
     """
     c = _to_col_if_str(e, "year")
     return _call_function("year", c, _emit_ast=_emit_ast)
+
+
+@publicapi
+def bucket(
+    num_buckets: Union[int, ColumnOrName], col: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Performs an Iceberg partition bucket transform.
+    This function should only be used in the iceberg_config['partition_by'] parameter when creating Iceberg tables.
+
+    Example::
+
+        >>> iceberg_config = {
+        ...     "external_volume": "example_volume",
+        ...     "partition_by": [bucket(10, "a")]
+        ... }
+        >>> df.write.save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
+    """
+    ast = build_function_expr("bucket", [num_buckets, col]) if _emit_ast else None
+
+    num_buckets = (
+        lit(num_buckets, _emit_ast=False)
+        if isinstance(num_buckets, int)
+        else _to_col_if_str(num_buckets, "bucket")
+    )
+    col = _to_col_if_str(col, "bucket")
+
+    return _call_function("bucket", num_buckets, col, _ast=ast, _emit_ast=_emit_ast)
+
+
+@publicapi
+def truncate(
+    width: Union[int, ColumnOrName], col: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Performs an Iceberg partition truncate transform.
+    This function should only be used in the iceberg_config['partition_by'] parameter when creating Iceberg tables.
+
+    Example::
+
+        >>> iceberg_config = {
+        ...     "external_volume": "example_volume",
+        ...     "partition_by": [truncate(3, "a")]
+        ... }
+        >>> df.write.save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
+    """
+    ast = build_function_expr("truncate", [width, col]) if _emit_ast else None
+
+    width = (
+        lit(width, _emit_ast=False)
+        if isinstance(width, int)
+        else _to_col_if_str(width, "truncate")
+    )
+    col = _to_col_if_str(col, "truncate")
+
+    return _call_function("truncate", width, col, _ast=ast, _emit_ast=_emit_ast)
 
 
 @publicapi
@@ -7135,10 +7210,15 @@ def array_contains(
         variant: Column containing the VARIANT to find.
         array: Column containing the ARRAY to search.
 
+            If this is a semi-structured array, you're required to explicitly cast the following SQL types into a VARIANT:
+
+            - `String & Binary <https://docs.snowflake.com/en/sql-reference/data-types-text>`_
+            - `Date & Time <https://docs.snowflake.com/en/sql-reference/data-types-datetime>`_
+
     Example::
         >>> from snowflake.snowpark import Row
-        >>> df = session.create_dataframe([Row([1, 2]), Row([1, 3])], schema=["a"])
-        >>> df.select(array_contains(lit(2), "a").alias("result")).show()
+        >>> df = session.create_dataframe([Row(["apple", "banana"]), Row(["apple", "orange"])], schema=["a"])
+        >>> df.select(array_contains(lit("banana").cast("variant"), "a").alias("result")).show()
         ------------
         |"RESULT"  |
         ------------
@@ -8815,15 +8895,15 @@ def rank(_emit_ast: bool = True) -> Column:
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(rank().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).show()
+        >>> df.select(rank().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).sort("result").show()
         ------------
         |"RESULT"  |
         ------------
         |1         |
-        |2         |
-        |2         |
         |1         |
         |1         |
+        |2         |
+        |2         |
         ------------
         <BLANKLINE>
     """
@@ -8848,15 +8928,15 @@ def percent_rank(_emit_ast: bool = True) -> Column:
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(percent_rank().over(Window.partition_by("x").order_by(col("y"))).alias("result")).show()
+        >>> df.select(percent_rank().over(Window.partition_by("x").order_by(col("y"), col("z"))).alias("result")).sort("result").show()
         ------------
         |"RESULT"  |
         ------------
         |0.0       |
-        |0.5       |
-        |0.5       |
         |0.0       |
-        |0.0       |
+        |0.5       |
+        |1.0       |
+        |1.0       |
         ------------
         <BLANKLINE>
     """
@@ -8900,16 +8980,16 @@ def row_number(_emit_ast: bool = True) -> Column:
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(row_number().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).show()
-        ------------
-        |"RESULT"  |
-        ------------
-        |1         |
-        |2         |
-        |3         |
-        |1         |
-        |2         |
-        ------------
+        >>> df.select(col("X"), row_number().over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).sort("X", "result").show()
+        ------------------
+        |"X"  |"RESULT"  |
+        ------------------
+        |1    |1         |
+        |1    |2         |
+        |2    |1         |
+        |2    |2         |
+        |2    |3         |
+        ------------------
         <BLANKLINE>
     """
     return _call_function("row_number", _emit_ast=_emit_ast)
@@ -8940,8 +9020,8 @@ def lag(
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(lag("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).collect()
-        [Row(RESULT=None), Row(RESULT=10), Row(RESULT=1), Row(RESULT=None), Row(RESULT=1)]
+        >>> df.select(lag("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).sort("result").collect()
+        [Row(RESULT=None), Row(RESULT=None), Row(RESULT=1), Row(RESULT=1), Row(RESULT=10)]
     """
     # AST.
     ast = (
@@ -8985,8 +9065,8 @@ def lead(
         ...     ],
         ...     schema=["x", "y", "z"]
         ... )
-        >>> df.select(lead("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).collect()
-        [Row(RESULT=1), Row(RESULT=3), Row(RESULT=None), Row(RESULT=3), Row(RESULT=None)]
+        >>> df.select(lead("Z").over(Window.partition_by(col("X")).order_by(col("Y"))).alias("result")).sort("result").collect()
+        [Row(RESULT=None), Row(RESULT=None), Row(RESULT=1), Row(RESULT=3), Row(RESULT=3)]
     """
     # AST.
     ast = (
@@ -11031,6 +11111,7 @@ def make_interval(
 def interval_year_month_from_parts(
     years: Optional[ColumnOrName] = None,
     months: Optional[ColumnOrName] = None,
+    _alias_column_name: Optional[bool] = True,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -11042,6 +11123,7 @@ def interval_year_month_from_parts(
     Args:
         years: The number of years, positive or negative
         months: The number of months, positive or negative
+        _alias_column_name: If true, alias the column name to a cleaner value
 
     Returns:
         A Column representing a year-month interval
@@ -11091,15 +11173,21 @@ def interval_year_month_from_parts(
     )
     interval_string = concat(sign_prefix, normalized_years, lit("-"), normalized_months)
 
-    def get_col_name(col):
-        if isinstance(col._expr1, Literal):
-            return str(col._expr1.value)
-        else:
-            return col._expression.name
+    res = cast(interval_string, "INTERVAL YEAR TO MONTH")
+    if _alias_column_name:
+        # Aliasing column names when using this in a case when will throw an error. This allows us to only alias
+        # when necessary.
 
-    alias_name = f"interval_year_month_from_parts({get_col_name(years_col)}, {get_col_name(months_col)})"
+        def get_col_name(col):
+            if isinstance(col._expr1, Literal):
+                return str(col._expr1.value)
+            else:
+                return col._expression.name
 
-    res = cast(interval_string, "INTERVAL YEAR TO MONTH").alias(alias_name)
+        alias_name = f"interval_year_month_from_parts({get_col_name(years_col)}, {get_col_name(months_col)})"
+
+        res = res.alias(alias_name)
+
     res._ast = ast
     return res
 
@@ -11114,6 +11202,7 @@ def interval_day_time_from_parts(
     hours: Optional[ColumnOrName] = None,
     mins: Optional[ColumnOrName] = None,
     secs: Optional[ColumnOrName] = None,
+    _alias_column_name: Optional[bool] = True,
     _emit_ast: bool = True,
 ) -> Column:
     """
@@ -11127,6 +11216,7 @@ def interval_day_time_from_parts(
         hours: The number of hours, positive or negative
         mins: The number of minutes, positive or negative
         secs: The number of seconds, positive or negative
+        _alias_column_name: If true, alias the column name to a cleaner value
 
     Returns:
         A Column representing a day-time interval
@@ -11238,15 +11328,21 @@ def interval_day_time_from_parts(
         secs_formatted,
     )
 
-    def get_col_name(col):
-        if isinstance(col._expr1, Literal):
-            return str(col._expr1.value)
-        else:
-            return str(col._expr1)
+    res = cast(interval_value, "INTERVAL DAY TO SECOND")
+    if _alias_column_name:
+        # Aliasing column names when using this in a case when will throw an error. This allows us to only alias
+        # when necessary.
 
-    alias_name = f"interval_day_time_from_parts({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
+        def get_col_name(col):
+            if isinstance(col._expr1, Literal):
+                return str(col._expr1.value)
+            else:
+                return str(col._expr1)
 
-    res = cast(interval_value, "INTERVAL DAY TO SECOND").alias(alias_name)
+        alias_name = f"interval_day_time_from_parts({get_col_name(days_col)}, {get_col_name(hours_col)}, {get_col_name(mins_col)}, {get_col_name(secs_col)})"
+
+        res = res.alias(alias_name)
+
     res._ast = ast
     return res
 
@@ -11405,7 +11501,7 @@ def bitmap_construct_agg(
     Example::
 
         >>> df = session.create_dataframe([1, 32769], schema=["a"])
-        >>> df.select(bitmap_bucket_number(df["a"]).alias("bitmap_id"),bitmap_bit_position(df["a"]).alias("bit_position")).group_by("bitmap_id").agg(bitmap_construct_agg(col("bit_position")).alias("bitmap")).collect()
+        >>> df.select(bitmap_bucket_number(df["a"]).alias("bitmap_id"),bitmap_bit_position(df["a"]).alias("bit_position")).group_by("bitmap_id").agg(bitmap_construct_agg(col("bit_position")).alias("bitmap")).order_by("bitmap_id").collect()
         [Row(BITMAP_ID=1, BITMAP=bytearray(b'\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00')), Row(BITMAP_ID=2, BITMAP=bytearray(b'\\x00\\x01\\x00\\x00\\x00\\x00\\x00\\x00\\x00\\x00'))]
     """
     c = _to_col_if_str(relative_position, "bitmap_construct_agg")
@@ -11636,7 +11732,7 @@ def regr_avgx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colum
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df.groupBy("v").agg(regr_avgx(df["v"], df["v2"]).alias("regr_avgx")).collect()
+        >>> df.groupBy("v").agg(regr_avgx(df["v"], df["v2"]).alias("regr_avgx")).sort("v").collect()
         [Row(V=10, REGR_AVGX=11.0), Row(V=20, REGR_AVGX=22.0), Row(V=25, REGR_AVGX=None), Row(V=30, REGR_AVGX=35.0)]
     """
     c1 = _to_col_if_str(y, "regr_avgx")
@@ -11670,7 +11766,7 @@ def regr_count(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colu
     Example::
 
         >>> df = session.create_dataframe([[1, 10, 11], [1, 20, 22], [1, 25, None], [2, 30, 35]], schema=["k", "v", "v2"])
-        >>> df.group_by("k").agg(regr_count(col("v"), col("v2")).alias("regr_count")).collect()
+        >>> df.group_by("k").agg(regr_count(col("v"), col("v2")).alias("regr_count")).sort("k").collect()
         [Row(K=1, REGR_COUNT=2), Row(K=2, REGR_COUNT=1)]
     """
     c1 = _to_col_if_str(y, "regr_count")
@@ -13513,7 +13609,7 @@ def ai_complete(
         >>> # Using model parameters
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='llama2-70b-chat',
+        ...         model='llama3.3-70b',
         ...         prompt='How does a snowflake get its unique pattern?',
         ...         model_parameters={
         ...             'temperature': 0.7,
@@ -13565,7 +13661,7 @@ def ai_complete(
         ... }
         >>> df = session.range(1).select(
         ...     ai_complete(
-        ...         model='llama2-70b-chat',
+        ...         model='llama3.3-70b',
         ...         prompt='Analyze the sentiment of this text: I love this product!',
         ...         response_format=response_schema
         ...     ).alias("structured_result")
@@ -13871,3 +13967,65 @@ def ai_sentiment(
         return _call_function(
             sql_func_name, text_col, cat_col, _ast=ast, _emit_ast=_emit_ast
         )
+
+
+@publicapi
+def ai_translate(
+    text: ColumnOrLiteralStr,
+    source_language: ColumnOrLiteralStr,
+    target_language: ColumnOrLiteralStr,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Translates the given input text from one supported language to another.
+
+    Args:
+        text: A string or Column containing the text to be translated.
+        source_language: A string or Column specifying the language code for the source language.
+            Specify an empty string ``''`` to automatically detect the source language.
+        target_language: A string or Column specifying the language code for the target language.
+
+    Returns:
+        A string containing a translation of the original text into the target language.
+
+    See details in `AI_TRANSLATE <https://docs.snowflake.com/en/sql-reference/functions/ai_translate>`_.
+
+    Examples::
+
+        >>> # Translate literal text from English to German
+        >>> df = session.range(1).select(
+        ...     ai_translate('Hello world', 'en', 'de').alias('translation')
+        ... )
+        >>> df.collect()[0][0].lower()
+        'hallo welt'
+
+        >>> # Auto-detect source language and translate to English
+        >>> df = session.range(1).select(
+        ...     ai_translate('Hola mundo', '', 'en').alias('translation')
+        ... )
+        >>> df.collect()[0][0].lower()
+        'hi world'
+    """
+    sql_func_name = "ai_translate"
+
+    # Build AST
+    ast = (
+        build_function_expr(sql_func_name, [text, source_language, target_language])
+        if _emit_ast
+        else None
+    )
+
+    # Convert arguments to columns
+    text_col = _to_col_if_lit(text, sql_func_name)
+    source_lang_col = _to_col_if_lit(source_language, sql_func_name)
+    target_lang_col = _to_col_if_lit(target_language, sql_func_name)
+
+    # Call the function
+    return _call_function(
+        sql_func_name,
+        text_col,
+        source_lang_col,
+        target_lang_col,
+        _ast=ast,
+        _emit_ast=_emit_ast,
+    )

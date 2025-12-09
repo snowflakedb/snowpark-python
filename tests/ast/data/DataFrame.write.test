@@ -1,6 +1,6 @@
 ## TEST CASE
 
-from snowflake.snowpark.functions import col
+from snowflake.snowpark.functions import col, truncate, bucket, day, year, month, hour
 
 df = session.table(tables.table1)
 
@@ -11,6 +11,18 @@ df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary")
 df.write.mode("overwrite").save_as_table("saved_table", table_type="temporary", mode="ignore")
 
 df.write.mode("overwrite").save_as_table("saved_table", mode="ignore", iceberg_config={"external_volume": "example_volume", "catalog": "example_catalog", "base_location": "/root", "catalog_sync": "integration_name", "storage_serialization_policy": "OPTIMIZED", "iceberg_version": 3})
+
+df.write.mode("overwrite").save_as_table("iceberg_table_with_bucket", iceberg_config={"external_volume": "example_volume", "partition_by": [bucket(10, "A")]})
+
+df.write.mode("overwrite").save_as_table("iceberg_table_with_truncate", iceberg_config={"external_volume": "example_volume", "partition_by": [truncate(5, "B")]})
+
+df.write.mode("overwrite").save_as_table("iceberg_table_with_transforms", iceberg_config={"external_volume": "example_volume", "partition_by": [year("date_col"), month("date_col"), day("date_col"), hour("timestamp_col")]})
+
+df.write.mode("overwrite").save_as_table("iceberg_table_mixed", iceberg_config={"external_volume": "example_volume", "partition_by": [col("A"), bucket(20, "B"), truncate(3, col("C"))]})
+
+df.write.mode("overwrite").save_as_table("iceberg_table_target_size", iceberg_config={"external_volume": "example_volume", "target_file_size": "64MB"})
+
+df.write.mode("overwrite").save_as_table("iceberg_table_full", iceberg_config={"external_volume": "example_volume", "partition_by": [bucket(10, "A"), year("date_col")], "target_file_size": "AUTO", "catalog": "my_catalog"})
 
 df.write.mode("truncate").save_as_table("test_destination", column_order="name", create_temp_table=False, table_type="transient", clustering_keys=['STR', col('num1')], comment="test", block=True, statement_params={"k":"v"})
 
@@ -91,6 +103,30 @@ df.write.mode("overwrite").save_as_table("saved_table", mode="ignore", table_typ
 df = session.table("table1")
 
 df.write.mode("overwrite").save_as_table("saved_table", mode="ignore", iceberg_config={"external_volume": "example_volume", "catalog": "example_catalog", "base_location": "/root", "catalog_sync": "integration_name", "storage_serialization_policy": "OPTIMIZED", "iceberg_version": 3})
+
+df = session.table("table1")
+
+df.write.mode("overwrite").save_as_table("iceberg_table_with_bucket", iceberg_config={"external_volume": "example_volume", "partition_by": [bucket(10, "A")]})
+
+df = session.table("table1")
+
+df.write.mode("overwrite").save_as_table("iceberg_table_with_truncate", iceberg_config={"external_volume": "example_volume", "partition_by": [truncate(5, "B")]})
+
+df = session.table("table1")
+
+df.write.mode("overwrite").save_as_table("iceberg_table_with_transforms", iceberg_config={"external_volume": "example_volume", "partition_by": [year("date_col"), month("date_col"), day("date_col"), hour("timestamp_col")]})
+
+df = session.table("table1")
+
+df.write.mode("overwrite").save_as_table("iceberg_table_mixed", iceberg_config={"external_volume": "example_volume", "partition_by": [col("A"), bucket(20, "B"), truncate(3, col("C"))]})
+
+df = session.table("table1")
+
+df.write.mode("overwrite").save_as_table("iceberg_table_target_size", iceberg_config={"external_volume": "example_volume", "target_file_size": "64MB"})
+
+df = session.table("table1")
+
+df.write.mode("overwrite").save_as_table("iceberg_table_full", iceberg_config={"external_volume": "example_volume", "partition_by": [bucket(10, "A"), year("date_col")], "target_file_size": "AUTO", "catalog": "my_catalog"})
 
 df = session.table("table1")
 
@@ -665,75 +701,96 @@ body {
     expr {
       write_table {
         block: true
-        clustering_keys {
-          string_val {
-            src {
-              end_column: 231
-              end_line: 37
-              file: 2
-              start_column: 8
-              start_line: 37
+        column_order: "index"
+        iceberg_config {
+          _1: "external_volume"
+          _2 {
+            string_val {
+              src {
+                end_column: 166
+                end_line: 37
+                file: 2
+                start_column: 8
+                start_line: 37
+              }
+              v: "example_volume"
             }
-            v: "STR"
           }
         }
-        clustering_keys {
-          apply_expr {
-            fn {
-              builtin_fn {
-                name {
-                  name {
-                    name_flat {
-                      name: "col"
+        iceberg_config {
+          _1: "partition_by"
+          _2 {
+            list_val {
+              src {
+                end_column: 166
+                end_line: 37
+                file: 2
+                start_column: 8
+                start_line: 37
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "bucket"
+                          }
+                        }
+                      }
                     }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 163
+                        end_line: 37
+                        file: 2
+                        start_column: 148
+                        start_line: 37
+                      }
+                      v: 10
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 163
+                        end_line: 37
+                        file: 2
+                        start_column: 148
+                        start_line: 37
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 163
+                    end_line: 37
+                    file: 2
+                    start_column: 148
+                    start_line: 37
                   }
                 }
               }
             }
-            pos_args {
-              string_val {
-                src {
-                  end_column: 173
-                  end_line: 37
-                  file: 2
-                  start_column: 162
-                  start_line: 37
-                }
-                v: "num1"
-              }
-            }
-            src {
-              end_column: 173
-              end_line: 37
-              file: 2
-              start_column: 162
-              start_line: 37
-            }
           }
         }
-        column_order: "name"
-        comment {
-          value: "test"
-        }
         src {
-          end_column: 231
+          end_column: 166
           end_line: 37
           file: 2
           start_column: 8
           start_line: 37
         }
-        statement_params {
-          _1: "k"
-          _2: "v"
-        }
         table_name {
           name {
             name_flat {
-              name: "test_destination"
+              name: "iceberg_table_with_bucket"
             }
           }
         }
-        table_type: "transient"
         writer {
           dataframe_writer {
             df {
@@ -742,7 +799,7 @@ body {
               }
             }
             save_mode {
-              save_mode_truncate: true
+              save_mode_overwrite: true
             }
             src {
               end_column: 16
@@ -802,8 +859,83 @@ body {
       write_table {
         block: true
         column_order: "index"
+        iceberg_config {
+          _1: "external_volume"
+          _2 {
+            string_val {
+              src {
+                end_column: 169
+                end_line: 39
+                file: 2
+                start_column: 8
+                start_line: 39
+              }
+              v: "example_volume"
+            }
+          }
+        }
+        iceberg_config {
+          _1: "partition_by"
+          _2 {
+            list_val {
+              src {
+                end_column: 169
+                end_line: 39
+                file: 2
+                start_column: 8
+                start_line: 39
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "truncate"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 166
+                        end_line: 39
+                        file: 2
+                        start_column: 150
+                        start_line: 39
+                      }
+                      v: 5
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 166
+                        end_line: 39
+                        file: 2
+                        start_column: 150
+                        start_line: 39
+                      }
+                      v: "B"
+                    }
+                  }
+                  src {
+                    end_column: 166
+                    end_line: 39
+                    file: 2
+                    start_column: 150
+                    start_line: 39
+                  }
+                }
+              }
+            }
+          }
+        }
         src {
-          end_column: 109
+          end_column: 169
           end_line: 39
           file: 2
           start_column: 8
@@ -812,28 +944,15 @@ body {
         table_name {
           name {
             name_flat {
-              name: "saved_table"
+              name: "iceberg_table_with_truncate"
             }
           }
         }
-        table_type: "temporary"
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
                 id: 1
-              }
-            }
-            partition_by {
-              sql_expr {
-                sql: "value"
-                src {
-                  end_column: 38
-                  end_line: 39
-                  file: 2
-                  start_column: 8
-                  start_line: 39
-                }
               }
             }
             save_mode {
@@ -897,8 +1016,173 @@ body {
       write_table {
         block: true
         column_order: "index"
+        iceberg_config {
+          _1: "external_volume"
+          _2 {
+            string_val {
+              src {
+                end_column: 230
+                end_line: 41
+                file: 2
+                start_column: 8
+                start_line: 41
+              }
+              v: "example_volume"
+            }
+          }
+        }
+        iceberg_config {
+          _1: "partition_by"
+          _2 {
+            list_val {
+              src {
+                end_column: 230
+                end_line: 41
+                file: 2
+                start_column: 8
+                start_line: 41
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "year"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 168
+                        end_line: 41
+                        file: 2
+                        start_column: 152
+                        start_line: 41
+                      }
+                      v: "date_col"
+                    }
+                  }
+                  src {
+                    end_column: 168
+                    end_line: 41
+                    file: 2
+                    start_column: 152
+                    start_line: 41
+                  }
+                }
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "month"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 187
+                        end_line: 41
+                        file: 2
+                        start_column: 170
+                        start_line: 41
+                      }
+                      v: "date_col"
+                    }
+                  }
+                  src {
+                    end_column: 187
+                    end_line: 41
+                    file: 2
+                    start_column: 170
+                    start_line: 41
+                  }
+                }
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "day"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 204
+                        end_line: 41
+                        file: 2
+                        start_column: 189
+                        start_line: 41
+                      }
+                      v: "date_col"
+                    }
+                  }
+                  src {
+                    end_column: 204
+                    end_line: 41
+                    file: 2
+                    start_column: 189
+                    start_line: 41
+                  }
+                }
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "hour"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 227
+                        end_line: 41
+                        file: 2
+                        start_column: 206
+                        start_line: 41
+                      }
+                      v: "timestamp_col"
+                    }
+                  }
+                  src {
+                    end_column: 227
+                    end_line: 41
+                    file: 2
+                    start_column: 206
+                    start_line: 41
+                  }
+                }
+              }
+            }
+          }
+        }
         src {
-          end_column: 114
+          end_column: 230
           end_line: 41
           file: 2
           start_column: 8
@@ -907,50 +1191,15 @@ body {
         table_name {
           name {
             name_flat {
-              name: "saved_table"
+              name: "iceberg_table_with_transforms"
             }
           }
         }
-        table_type: "temporary"
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
                 id: 1
-              }
-            }
-            partition_by {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 42
-                      end_line: 41
-                      file: 2
-                      start_column: 30
-                      start_line: 41
-                    }
-                    v: "value"
-                  }
-                }
-                src {
-                  end_column: 42
-                  end_line: 41
-                  file: 2
-                  start_column: 30
-                  start_line: 41
-                }
               }
             }
             save_mode {
@@ -1014,8 +1263,185 @@ body {
       write_table {
         block: true
         column_order: "index"
+        iceberg_config {
+          _1: "external_volume"
+          _2 {
+            string_val {
+              src {
+                end_column: 193
+                end_line: 43
+                file: 2
+                start_column: 8
+                start_line: 43
+              }
+              v: "example_volume"
+            }
+          }
+        }
+        iceberg_config {
+          _1: "partition_by"
+          _2 {
+            list_val {
+              src {
+                end_column: 193
+                end_line: 43
+                file: 2
+                start_column: 8
+                start_line: 43
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "col"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 150
+                        end_line: 43
+                        file: 2
+                        start_column: 142
+                        start_line: 43
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 150
+                    end_line: 43
+                    file: 2
+                    start_column: 142
+                    start_line: 43
+                  }
+                }
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "bucket"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 167
+                        end_line: 43
+                        file: 2
+                        start_column: 152
+                        start_line: 43
+                      }
+                      v: 20
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 167
+                        end_line: 43
+                        file: 2
+                        start_column: 152
+                        start_line: 43
+                      }
+                      v: "B"
+                    }
+                  }
+                  src {
+                    end_column: 167
+                    end_line: 43
+                    file: 2
+                    start_column: 152
+                    start_line: 43
+                  }
+                }
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "truncate"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 190
+                        end_line: 43
+                        file: 2
+                        start_column: 169
+                        start_line: 43
+                      }
+                      v: 3
+                    }
+                  }
+                  pos_args {
+                    apply_expr {
+                      fn {
+                        builtin_fn {
+                          name {
+                            name {
+                              name_flat {
+                                name: "col"
+                              }
+                            }
+                          }
+                        }
+                      }
+                      pos_args {
+                        string_val {
+                          src {
+                            end_column: 189
+                            end_line: 43
+                            file: 2
+                            start_column: 181
+                            start_line: 43
+                          }
+                          v: "C"
+                        }
+                      }
+                      src {
+                        end_column: 189
+                        end_line: 43
+                        file: 2
+                        start_column: 181
+                        start_line: 43
+                      }
+                    }
+                  }
+                  src {
+                    end_column: 190
+                    end_line: 43
+                    file: 2
+                    start_column: 169
+                    start_line: 43
+                  }
+                }
+              }
+            }
+          }
+        }
         src {
-          end_column: 151
+          end_column: 193
           end_line: 43
           file: 2
           start_column: 8
@@ -1024,65 +1450,15 @@ body {
         table_name {
           name {
             name_flat {
-              name: "saved_table"
+              name: "iceberg_table_mixed"
             }
           }
         }
-        table_type: "temporary"
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
                 id: 1
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 43
-                    file: 2
-                    start_column: 8
-                    start_line: 43
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            partition_by {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 79
-                      end_line: 43
-                      file: 2
-                      start_column: 67
-                      start_line: 43
-                    }
-                    v: "value"
-                  }
-                }
-                src {
-                  end_column: 79
-                  end_line: 43
-                  file: 2
-                  start_column: 67
-                  start_line: 43
-                }
               }
             }
             save_mode {
@@ -1146,8 +1522,38 @@ body {
       write_table {
         block: true
         column_order: "index"
+        iceberg_config {
+          _1: "external_volume"
+          _2 {
+            string_val {
+              src {
+                end_column: 159
+                end_line: 45
+                file: 2
+                start_column: 8
+                start_line: 45
+              }
+              v: "example_volume"
+            }
+          }
+        }
+        iceberg_config {
+          _1: "target_file_size"
+          _2 {
+            string_val {
+              src {
+                end_column: 159
+                end_line: 45
+                file: 2
+                start_column: 8
+                start_line: 45
+              }
+              v: "64MB"
+            }
+          }
+        }
         src {
-          end_column: 239
+          end_column: 159
           end_line: 45
           file: 2
           start_column: 8
@@ -1156,125 +1562,15 @@ body {
         table_name {
           name {
             name_flat {
-              name: "saved_table"
+              name: "iceberg_table_target_size"
             }
           }
         }
-        table_type: "temporary"
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
                 id: 1
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 43
-                    file: 2
-                    start_column: 8
-                    start_line: 43
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 90
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "pqrs"
-                }
-              }
-            }
-            options {
-              _1: "OVERWRITE"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 116
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: true
-                }
-              }
-            }
-            options {
-              _1: "MODE"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 141
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "append"
-                }
-              }
-            }
-            partition_by {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 167
-                      end_line: 45
-                      file: 2
-                      start_column: 155
-                      start_line: 45
-                    }
-                    v: "value"
-                  }
-                }
-                src {
-                  end_column: 167
-                  end_line: 45
-                  file: 2
-                  start_column: 155
-                  start_line: 45
-                }
               }
             }
             save_mode {
@@ -1305,41 +1601,346 @@ body {
 body {
   bind {
     expr {
-      sql {
-        query: "create temp stage if not exists test_stage"
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
         src {
-          end_column: 88
-          end_line: 47
+          end_column: 41
+          end_line: 27
           file: 2
-          start_column: 31
-          start_line: 47
+          start_column: 13
+          start_line: 27
+        }
+        variant {
+          session_table: true
         }
       }
     }
     first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
-      value: "stage_created_result"
+      value: "df"
     }
-    uid: 11
+    uid: 1
   }
 }
 body {
   bind {
     expr {
-      dataframe_collect {
+      write_table {
         block: true
-        case_sensitive: true
-        df {
-          dataframe_ref {
-            id: 11
+        column_order: "index"
+        iceberg_config {
+          _1: "external_volume"
+          _2 {
+            string_val {
+              src {
+                end_column: 230
+                end_line: 47
+                file: 2
+                start_column: 8
+                start_line: 47
+              }
+              v: "example_volume"
+            }
+          }
+        }
+        iceberg_config {
+          _1: "partition_by"
+          _2 {
+            list_val {
+              src {
+                end_column: 230
+                end_line: 47
+                file: 2
+                start_column: 8
+                start_line: 47
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "bucket"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    int64_val {
+                      src {
+                        end_column: 156
+                        end_line: 47
+                        file: 2
+                        start_column: 141
+                        start_line: 47
+                      }
+                      v: 10
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 156
+                        end_line: 47
+                        file: 2
+                        start_column: 141
+                        start_line: 47
+                      }
+                      v: "A"
+                    }
+                  }
+                  src {
+                    end_column: 156
+                    end_line: 47
+                    file: 2
+                    start_column: 141
+                    start_line: 47
+                  }
+                }
+              }
+              vs {
+                apply_expr {
+                  fn {
+                    builtin_fn {
+                      name {
+                        name {
+                          name_flat {
+                            name: "year"
+                          }
+                        }
+                      }
+                    }
+                  }
+                  pos_args {
+                    string_val {
+                      src {
+                        end_column: 174
+                        end_line: 47
+                        file: 2
+                        start_column: 158
+                        start_line: 47
+                      }
+                      v: "date_col"
+                    }
+                  }
+                  src {
+                    end_column: 174
+                    end_line: 47
+                    file: 2
+                    start_column: 158
+                    start_line: 47
+                  }
+                }
+              }
+            }
+          }
+        }
+        iceberg_config {
+          _1: "target_file_size"
+          _2 {
+            string_val {
+              src {
+                end_column: 230
+                end_line: 47
+                file: 2
+                start_column: 8
+                start_line: 47
+              }
+              v: "AUTO"
+            }
+          }
+        }
+        iceberg_config {
+          _1: "catalog"
+          _2 {
+            string_val {
+              src {
+                end_column: 230
+                end_line: 47
+                file: 2
+                start_column: 8
+                start_line: 47
+              }
+              v: "my_catalog"
+            }
           }
         }
         src {
-          end_column: 98
+          end_column: 230
           end_line: 47
           file: 2
-          start_column: 31
+          start_column: 8
           start_line: 47
+        }
+        table_name {
+          name {
+            name_flat {
+              name: "iceberg_table_full"
+            }
+          }
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 1
+              }
+            }
+            save_mode {
+              save_mode_overwrite: true
+            }
+            src {
+              end_column: 16
+              end_line: 29
+              file: 2
+              start_column: 8
+              start_line: 29
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 11
+  }
+}
+body {
+  eval {
+    bind_id: 11
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 27
+          file: 2
+          start_column: 13
+          start_line: 27
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      write_table {
+        block: true
+        clustering_keys {
+          string_val {
+            src {
+              end_column: 231
+              end_line: 49
+              file: 2
+              start_column: 8
+              start_line: 49
+            }
+            v: "STR"
+          }
+        }
+        clustering_keys {
+          apply_expr {
+            fn {
+              builtin_fn {
+                name {
+                  name {
+                    name_flat {
+                      name: "col"
+                    }
+                  }
+                }
+              }
+            }
+            pos_args {
+              string_val {
+                src {
+                  end_column: 173
+                  end_line: 49
+                  file: 2
+                  start_column: 162
+                  start_line: 49
+                }
+                v: "num1"
+              }
+            }
+            src {
+              end_column: 173
+              end_line: 49
+              file: 2
+              start_column: 162
+              start_line: 49
+            }
+          }
+        }
+        column_order: "name"
+        comment {
+          value: "test"
+        }
+        src {
+          end_column: 231
+          end_line: 49
+          file: 2
+          start_column: 8
+          start_line: 49
+        }
+        statement_params {
+          _1: "k"
+          _2: "v"
+        }
+        table_name {
+          name {
+            name_flat {
+              name: "test_destination"
+            }
+          }
+        }
+        table_type: "transient"
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 1
+              }
+            }
+            save_mode {
+              save_mode_truncate: true
+            }
+            src {
+              end_column: 16
+              end_line: 29
+              file: 2
+              start_column: 8
+              start_line: 29
+            }
+          }
         }
       }
     }
@@ -1387,16 +1988,24 @@ body {
 body {
   bind {
     expr {
-      write_copy_into_location {
+      write_table {
         block: true
-        location: "@test_stage/copied_from_dataframe"
+        column_order: "index"
         src {
-          end_column: 72
-          end_line: 49
+          end_column: 109
+          end_line: 51
           file: 2
           start_column: 8
-          start_line: 49
+          start_line: 51
         }
+        table_name {
+          name {
+            name_flat {
+              name: "saved_table"
+            }
+          }
+        }
+        table_type: "temporary"
         writer {
           dataframe_writer {
             df {
@@ -1404,112 +2013,15 @@ body {
                 id: 1
               }
             }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 43
-                    file: 2
-                    start_column: 8
-                    start_line: 43
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 90
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "pqrs"
-                }
-              }
-            }
-            options {
-              _1: "OVERWRITE"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 116
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: true
-                }
-              }
-            }
-            options {
-              _1: "MODE"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 141
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "append"
-                }
-              }
-            }
             partition_by {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 167
-                      end_line: 45
-                      file: 2
-                      start_column: 155
-                      start_line: 45
-                    }
-                    v: "value"
-                  }
-                }
+              sql_expr {
+                sql: "value"
                 src {
-                  end_column: 167
-                  end_line: 45
+                  end_column: 38
+                  end_line: 51
                   file: 2
-                  start_column: 155
-                  start_line: 45
+                  start_column: 8
+                  start_line: 51
                 }
               }
             }
@@ -1571,130 +2083,29 @@ body {
 body {
   bind {
     expr {
-      write_copy_into_location {
+      write_table {
         block: true
-        copy_options {
-          _1: "overwrite"
-          _2 {
-            bool_val {
-              src {
-                end_column: 123
-                end_line: 53
-                file: 2
-                start_column: 8
-                start_line: 53
-              }
-              v: true
-            }
-          }
-        }
-        copy_options {
-          _1: "single"
-          _2 {
-            bool_val {
-              src {
-                end_column: 123
-                end_line: 53
-                file: 2
-                start_column: 8
-                start_line: 53
-              }
-              v: true
-            }
-          }
-        }
-        file_format_type {
-          value: "parquet"
-        }
-        header: true
-        location: "@test_stage/copied_from_dataframe"
+        column_order: "index"
         src {
-          end_column: 123
+          end_column: 114
           end_line: 53
           file: 2
           start_column: 8
           start_line: 53
         }
+        table_name {
+          name {
+            name_flat {
+              name: "saved_table"
+            }
+          }
+        }
+        table_type: "temporary"
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
                 id: 1
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 43
-                    file: 2
-                    start_column: 8
-                    start_line: 43
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 90
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "pqrs"
-                }
-              }
-            }
-            options {
-              _1: "OVERWRITE"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 116
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: true
-                }
-              }
-            }
-            options {
-              _1: "MODE"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 141
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "append"
-                }
               }
             }
             partition_by {
@@ -1713,21 +2124,21 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 167
-                      end_line: 45
+                      end_column: 42
+                      end_line: 53
                       file: 2
-                      start_column: 155
-                      start_line: 45
+                      start_column: 30
+                      start_line: 53
                     }
                     v: "value"
                   }
                 }
                 src {
-                  end_column: 167
-                  end_line: 45
+                  end_column: 42
+                  end_line: 53
                   file: 2
-                  start_column: 155
-                  start_line: 45
+                  start_column: 30
+                  start_line: 53
                 }
               }
             }
@@ -1789,51 +2200,24 @@ body {
 body {
   bind {
     expr {
-      write_copy_into_location {
-        copy_options {
-          _1: "INCLUDE_QUERY_ID"
-          _2 {
-            bool_val {
-              src {
-                end_column: 181
-                end_line: 55
-                file: 2
-                start_column: 8
-                start_line: 55
-              }
-              v: true
-            }
-          }
-        }
-        copy_options {
-          _1: "DETAILED_OUTPUT"
-          _2 {
-            bool_val {
-              src {
-                end_column: 181
-                end_line: 55
-                file: 2
-                start_column: 8
-                start_line: 55
-              }
-            }
-          }
-        }
-        file_format_name {
-          value: "csv"
-        }
-        format_type_options {
-          _1: "compression"
-          _2: "bzip2"
-        }
-        location: "@test_stage/copied_from_dataframe"
+      write_table {
+        block: true
+        column_order: "index"
         src {
-          end_column: 181
+          end_column: 151
           end_line: 55
           file: 2
           start_column: 8
           start_line: 55
         }
+        table_name {
+          name {
+            name_flat {
+              name: "saved_table"
+            }
+          }
+        }
+        table_type: "temporary"
         writer {
           dataframe_writer {
             df {
@@ -1847,72 +2231,12 @@ body {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 43
+                    end_line: 55
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 55
                   }
                   v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 90
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "pqrs"
-                }
-              }
-            }
-            options {
-              _1: "OVERWRITE"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 116
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: true
-                }
-              }
-            }
-            options {
-              _1: "MODE"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 141
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "append"
                 }
               }
             }
@@ -1932,21 +2256,21 @@ body {
                 pos_args {
                   string_val {
                     src {
-                      end_column: 167
-                      end_line: 45
+                      end_column: 79
+                      end_line: 55
                       file: 2
-                      start_column: 155
-                      start_line: 45
+                      start_column: 67
+                      start_line: 55
                     }
                     v: "value"
                   }
                 }
                 src {
-                  end_column: 167
-                  end_line: 45
+                  end_column: 79
+                  end_line: 55
                   file: 2
-                  start_column: 155
-                  start_line: 45
+                  start_column: 67
+                  start_line: 55
                 }
               }
             }
@@ -2008,55 +2332,24 @@ body {
 body {
   bind {
     expr {
-      write_copy_into_location {
-        copy_options {
-          _1: "INCLUDE_QUERY_ID"
-          _2 {
-            bool_val {
-              src {
-                end_column: 207
-                end_line: 57
-                file: 2
-                start_column: 8
-                start_line: 57
-              }
-              v: true
-            }
-          }
-        }
-        copy_options {
-          _1: "DETAILED_OUTPUT"
-          _2 {
-            bool_val {
-              src {
-                end_column: 207
-                end_line: 57
-                file: 2
-                start_column: 8
-                start_line: 57
-              }
-            }
-          }
-        }
-        file_format_name {
-          value: "csv"
-        }
-        format_type_options {
-          _1: "compression"
-          _2: "bzip2"
-        }
-        format_type_options {
-          _1: "binary_format"
-          _2: "base64"
-        }
-        location: "@test_stage/copied_from_dataframe"
+      write_table {
+        block: true
+        column_order: "index"
         src {
-          end_column: 207
+          end_column: 239
           end_line: 57
           file: 2
           start_column: 8
           start_line: 57
         }
+        table_name {
+          name {
+            name_flat {
+              name: "saved_table"
+            }
+          }
+        }
+        table_type: "temporary"
         writer {
           dataframe_writer {
             df {
@@ -2070,10 +2363,10 @@ body {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 43
+                    end_line: 55
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 55
                   }
                   v: "abcd"
                 }
@@ -2085,10 +2378,10 @@ body {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "abcd"
                 }
@@ -2100,10 +2393,10 @@ body {
                 string_val {
                   src {
                     end_column: 90
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "pqrs"
                 }
@@ -2115,10 +2408,10 @@ body {
                 bool_val {
                   src {
                     end_column: 116
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: true
                 }
@@ -2130,10 +2423,10 @@ body {
                 string_val {
                   src {
                     end_column: 141
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "append"
                 }
@@ -2156,20 +2449,20 @@ body {
                   string_val {
                     src {
                       end_column: 167
-                      end_line: 45
+                      end_line: 57
                       file: 2
                       start_column: 155
-                      start_line: 45
+                      start_line: 57
                     }
                     v: "value"
                   }
                 }
                 src {
                   end_column: 167
-                  end_line: 45
+                  end_line: 57
                   file: 2
                   start_column: 155
-                  start_line: 45
+                  start_line: 57
                 }
               }
             }
@@ -2201,414 +2494,41 @@ body {
 body {
   bind {
     expr {
-      table {
-        name {
-          name {
-            name_flat {
-              name: "table1"
-            }
-          }
-        }
+      sql {
+        query: "create temp stage if not exists test_stage"
         src {
-          end_column: 41
-          end_line: 27
+          end_column: 88
+          end_line: 59
           file: 2
-          start_column: 13
-          start_line: 27
-        }
-        variant {
-          session_table: true
+          start_column: 31
+          start_line: 59
         }
       }
     }
     first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
-      value: "df"
-    }
-    uid: 1
-  }
-}
-body {
-  bind {
-    expr {
-      write_csv {
-        block: true
-        copy_options {
-          _1: "overwrite"
-          _2 {
-            bool_val {
-              src {
-                end_column: 125
-                end_line: 61
-                file: 2
-                start_column: 8
-                start_line: 61
-              }
-              v: true
-            }
-          }
-        }
-        copy_options {
-          _1: "single"
-          _2 {
-            bool_val {
-              src {
-                end_column: 125
-                end_line: 61
-                file: 2
-                start_column: 8
-                start_line: 61
-              }
-              v: true
-            }
-          }
-        }
-        format_type_options {
-          _1: "compression"
-          _2: "bzip2"
-        }
-        header: true
-        location: "@test_stage/test.csv"
-        src {
-          end_column: 125
-          end_line: 61
-          file: 2
-          start_column: 8
-          start_line: 61
-        }
-        writer {
-          dataframe_writer {
-            df {
-              dataframe_ref {
-                id: 1
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 43
-                    file: 2
-                    start_column: 8
-                    start_line: 43
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 90
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "pqrs"
-                }
-              }
-            }
-            options {
-              _1: "OVERWRITE"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 116
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: true
-                }
-              }
-            }
-            options {
-              _1: "MODE"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 141
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "append"
-                }
-              }
-            }
-            partition_by {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 167
-                      end_line: 45
-                      file: 2
-                      start_column: 155
-                      start_line: 45
-                    }
-                    v: "value"
-                  }
-                }
-                src {
-                  end_column: 167
-                  end_line: 45
-                  file: 2
-                  start_column: 155
-                  start_line: 45
-                }
-              }
-            }
-            save_mode {
-              save_mode_overwrite: true
-            }
-            src {
-              end_column: 16
-              end_line: 29
-              file: 2
-              start_column: 8
-              start_line: 29
-            }
-          }
-        }
-      }
-    }
-    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
-    symbol {
+      value: "stage_created_result"
     }
     uid: 17
   }
 }
 body {
-  eval {
-    bind_id: 17
-  }
-}
-body {
   bind {
     expr {
-      table {
-        name {
-          name {
-            name_flat {
-              name: "table1"
-            }
-          }
-        }
-        src {
-          end_column: 41
-          end_line: 27
-          file: 2
-          start_column: 13
-          start_line: 27
-        }
-        variant {
-          session_table: true
-        }
-      }
-    }
-    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
-    symbol {
-      value: "df"
-    }
-    uid: 1
-  }
-}
-body {
-  bind {
-    expr {
-      write_save {
+      dataframe_collect {
         block: true
-        format_type_options {
-          _1: "compression"
-          _2: "bzip2"
-        }
-        location: "@test_stage/test.csv"
-        src {
-          end_column: 139
-          end_line: 63
-          file: 2
-          start_column: 8
-          start_line: 63
-        }
-        writer {
-          dataframe_writer {
-            df {
-              dataframe_ref {
-                id: 1
-              }
-            }
-            format {
-              value: "csv"
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 43
-                    file: 2
-                    start_column: 8
-                    start_line: 43
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 53
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "abcd"
-                }
-              }
-            }
-            options {
-              _1: "COPY_INTO_LOCATION"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 90
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "pqrs"
-                }
-              }
-            }
-            options {
-              _1: "OVERWRITE"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 116
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: true
-                }
-              }
-            }
-            options {
-              _1: "MODE"
-              _2 {
-                string_val {
-                  src {
-                    end_column: 141
-                    end_line: 45
-                    file: 2
-                    start_column: 8
-                    start_line: 45
-                  }
-                  v: "append"
-                }
-              }
-            }
-            options {
-              _1: "HEADER"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 53
-                    end_line: 63
-                    file: 2
-                    start_column: 8
-                    start_line: 63
-                  }
-                  v: true
-                }
-              }
-            }
-            partition_by {
-              apply_expr {
-                fn {
-                  builtin_fn {
-                    name {
-                      name {
-                        name_flat {
-                          name: "col"
-                        }
-                      }
-                    }
-                  }
-                }
-                pos_args {
-                  string_val {
-                    src {
-                      end_column: 167
-                      end_line: 45
-                      file: 2
-                      start_column: 155
-                      start_line: 45
-                    }
-                    v: "value"
-                  }
-                }
-                src {
-                  end_column: 167
-                  end_line: 45
-                  file: 2
-                  start_column: 155
-                  start_line: 45
-                }
-              }
-            }
-            save_mode {
-              save_mode_overwrite: true
-            }
-            src {
-              end_column: 16
-              end_line: 29
-              file: 2
-              start_column: 8
-              start_line: 29
-            }
+        case_sensitive: true
+        df {
+          dataframe_ref {
+            id: 17
           }
+        }
+        src {
+          end_column: 98
+          end_line: 59
+          file: 2
+          start_column: 31
+          start_line: 59
         }
       }
     }
@@ -2656,49 +2576,15 @@ body {
 body {
   bind {
     expr {
-      write_json {
+      write_copy_into_location {
         block: true
-        copy_options {
-          _1: "overwrite"
-          _2 {
-            bool_val {
-              src {
-                end_column: 114
-                end_line: 67
-                file: 2
-                start_column: 8
-                start_line: 67
-              }
-              v: true
-            }
-          }
-        }
-        copy_options {
-          _1: "single"
-          _2 {
-            bool_val {
-              src {
-                end_column: 114
-                end_line: 67
-                file: 2
-                start_column: 8
-                start_line: 67
-              }
-              v: true
-            }
-          }
-        }
-        format_type_options {
-          _1: "compression"
-          _2: "bzip2"
-        }
-        location: "@test_stage/test.json"
+        location: "@test_stage/copied_from_dataframe"
         src {
-          end_column: 114
-          end_line: 67
+          end_column: 72
+          end_line: 61
           file: 2
           start_column: 8
-          start_line: 67
+          start_line: 61
         }
         writer {
           dataframe_writer {
@@ -2707,19 +2593,16 @@ body {
                 id: 1
               }
             }
-            format {
-              value: "csv"
-            }
             options {
               _1: "COPY_INTO_LOCATION"
               _2 {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 43
+                    end_line: 55
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 55
                   }
                   v: "abcd"
                 }
@@ -2731,10 +2614,10 @@ body {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "abcd"
                 }
@@ -2746,10 +2629,10 @@ body {
                 string_val {
                   src {
                     end_column: 90
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "pqrs"
                 }
@@ -2761,10 +2644,10 @@ body {
                 bool_val {
                   src {
                     end_column: 116
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: true
                 }
@@ -2776,27 +2659,12 @@ body {
                 string_val {
                   src {
                     end_column: 141
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "append"
-                }
-              }
-            }
-            options {
-              _1: "HEADER"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 53
-                    end_line: 63
-                    file: 2
-                    start_column: 8
-                    start_line: 63
-                  }
-                  v: true
                 }
               }
             }
@@ -2817,20 +2685,20 @@ body {
                   string_val {
                     src {
                       end_column: 167
-                      end_line: 45
+                      end_line: 57
                       file: 2
                       start_column: 155
-                      start_line: 45
+                      start_line: 57
                     }
                     v: "value"
                   }
                 }
                 src {
                   end_column: 167
-                  end_line: 45
+                  end_line: 57
                   file: 2
                   start_column: 155
-                  start_line: 45
+                  start_line: 57
                 }
               }
             }
@@ -2892,19 +2760,49 @@ body {
 body {
   bind {
     expr {
-      write_save {
+      write_copy_into_location {
         block: true
-        format_type_options {
-          _1: "compression"
-          _2: "bzip2"
+        copy_options {
+          _1: "overwrite"
+          _2 {
+            bool_val {
+              src {
+                end_column: 123
+                end_line: 65
+                file: 2
+                start_column: 8
+                start_line: 65
+              }
+              v: true
+            }
+          }
         }
-        location: "@test_stage/test.json"
+        copy_options {
+          _1: "single"
+          _2 {
+            bool_val {
+              src {
+                end_column: 123
+                end_line: 65
+                file: 2
+                start_column: 8
+                start_line: 65
+              }
+              v: true
+            }
+          }
+        }
+        file_format_type {
+          value: "parquet"
+        }
+        header: true
+        location: "@test_stage/copied_from_dataframe"
         src {
-          end_column: 117
-          end_line: 69
+          end_column: 123
+          end_line: 65
           file: 2
           start_column: 8
-          start_line: 69
+          start_line: 65
         }
         writer {
           dataframe_writer {
@@ -2913,19 +2811,16 @@ body {
                 id: 1
               }
             }
-            format {
-              value: "json"
-            }
             options {
               _1: "COPY_INTO_LOCATION"
               _2 {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 43
+                    end_line: 55
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 55
                   }
                   v: "abcd"
                 }
@@ -2937,10 +2832,10 @@ body {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "abcd"
                 }
@@ -2952,10 +2847,10 @@ body {
                 string_val {
                   src {
                     end_column: 90
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "pqrs"
                 }
@@ -2967,10 +2862,10 @@ body {
                 bool_val {
                   src {
                     end_column: 116
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: true
                 }
@@ -2982,27 +2877,12 @@ body {
                 string_val {
                   src {
                     end_column: 141
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "append"
-                }
-              }
-            }
-            options {
-              _1: "HEADER"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 53
-                    end_line: 63
-                    file: 2
-                    start_column: 8
-                    start_line: 63
-                  }
-                  v: true
                 }
               }
             }
@@ -3023,20 +2903,20 @@ body {
                   string_val {
                     src {
                       end_column: 167
-                      end_line: 45
+                      end_line: 57
                       file: 2
                       start_column: 155
-                      start_line: 45
+                      start_line: 57
                     }
                     v: "value"
                   }
                 }
                 src {
                   end_column: 167
-                  end_line: 45
+                  end_line: 57
                   file: 2
                   start_column: 155
-                  start_line: 45
+                  start_line: 57
                 }
               }
             }
@@ -3098,49 +2978,50 @@ body {
 body {
   bind {
     expr {
-      write_parquet {
-        block: true
+      write_copy_into_location {
         copy_options {
-          _1: "overwrite"
+          _1: "INCLUDE_QUERY_ID"
           _2 {
             bool_val {
               src {
-                end_column: 130
-                end_line: 73
+                end_column: 181
+                end_line: 67
                 file: 2
                 start_column: 8
-                start_line: 73
+                start_line: 67
               }
               v: true
             }
           }
         }
         copy_options {
-          _1: "single"
+          _1: "DETAILED_OUTPUT"
           _2 {
             bool_val {
               src {
-                end_column: 130
-                end_line: 73
+                end_column: 181
+                end_line: 67
                 file: 2
                 start_column: 8
-                start_line: 73
+                start_line: 67
               }
-              v: true
             }
           }
+        }
+        file_format_name {
+          value: "csv"
         }
         format_type_options {
           _1: "compression"
           _2: "bzip2"
         }
-        location: "@test_stage/test.parquet"
+        location: "@test_stage/copied_from_dataframe"
         src {
-          end_column: 130
-          end_line: 73
+          end_column: 181
+          end_line: 67
           file: 2
           start_column: 8
-          start_line: 73
+          start_line: 67
         }
         writer {
           dataframe_writer {
@@ -3149,19 +3030,16 @@ body {
                 id: 1
               }
             }
-            format {
-              value: "json"
-            }
             options {
               _1: "COPY_INTO_LOCATION"
               _2 {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 43
+                    end_line: 55
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 55
                   }
                   v: "abcd"
                 }
@@ -3173,10 +3051,10 @@ body {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "abcd"
                 }
@@ -3188,10 +3066,10 @@ body {
                 string_val {
                   src {
                     end_column: 90
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "pqrs"
                 }
@@ -3203,10 +3081,10 @@ body {
                 bool_val {
                   src {
                     end_column: 116
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: true
                 }
@@ -3218,27 +3096,12 @@ body {
                 string_val {
                   src {
                     end_column: 141
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "append"
-                }
-              }
-            }
-            options {
-              _1: "HEADER"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 53
-                    end_line: 63
-                    file: 2
-                    start_column: 8
-                    start_line: 63
-                  }
-                  v: true
                 }
               }
             }
@@ -3259,20 +3122,20 @@ body {
                   string_val {
                     src {
                       end_column: 167
-                      end_line: 45
+                      end_line: 57
                       file: 2
                       start_column: 155
-                      start_line: 45
+                      start_line: 57
                     }
                     v: "value"
                   }
                 }
                 src {
                   end_column: 167
-                  end_line: 45
+                  end_line: 57
                   file: 2
                   start_column: 155
-                  start_line: 45
+                  start_line: 57
                 }
               }
             }
@@ -3334,19 +3197,54 @@ body {
 body {
   bind {
     expr {
-      write_save {
-        block: true
+      write_copy_into_location {
+        copy_options {
+          _1: "INCLUDE_QUERY_ID"
+          _2 {
+            bool_val {
+              src {
+                end_column: 207
+                end_line: 69
+                file: 2
+                start_column: 8
+                start_line: 69
+              }
+              v: true
+            }
+          }
+        }
+        copy_options {
+          _1: "DETAILED_OUTPUT"
+          _2 {
+            bool_val {
+              src {
+                end_column: 207
+                end_line: 69
+                file: 2
+                start_column: 8
+                start_line: 69
+              }
+            }
+          }
+        }
+        file_format_name {
+          value: "csv"
+        }
         format_type_options {
           _1: "compression"
           _2: "bzip2"
         }
-        location: "@test_stage/test.parquet"
+        format_type_options {
+          _1: "binary_format"
+          _2: "base64"
+        }
+        location: "@test_stage/copied_from_dataframe"
         src {
-          end_column: 120
-          end_line: 75
+          end_column: 207
+          end_line: 69
           file: 2
           start_column: 8
-          start_line: 75
+          start_line: 69
         }
         writer {
           dataframe_writer {
@@ -3355,19 +3253,16 @@ body {
                 id: 1
               }
             }
-            format {
-              value: "parquet"
-            }
             options {
               _1: "COPY_INTO_LOCATION"
               _2 {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 43
+                    end_line: 55
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 55
                   }
                   v: "abcd"
                 }
@@ -3379,10 +3274,10 @@ body {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "abcd"
                 }
@@ -3394,10 +3289,10 @@ body {
                 string_val {
                   src {
                     end_column: 90
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "pqrs"
                 }
@@ -3409,10 +3304,10 @@ body {
                 bool_val {
                   src {
                     end_column: 116
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: true
                 }
@@ -3424,27 +3319,12 @@ body {
                 string_val {
                   src {
                     end_column: 141
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "append"
-                }
-              }
-            }
-            options {
-              _1: "HEADER"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 53
-                    end_line: 63
-                    file: 2
-                    start_column: 8
-                    start_line: 63
-                  }
-                  v: true
                 }
               }
             }
@@ -3465,20 +3345,20 @@ body {
                   string_val {
                     src {
                       end_column: 167
-                      end_line: 45
+                      end_line: 57
                       file: 2
                       start_column: 155
-                      start_line: 45
+                      start_line: 57
                     }
                     v: "value"
                   }
                 }
                 src {
                   end_column: 167
-                  end_line: 45
+                  end_line: 57
                   file: 2
                   start_column: 155
-                  start_line: 45
+                  start_line: 57
                 }
               }
             }
@@ -3540,21 +3420,50 @@ body {
 body {
   bind {
     expr {
-      write_insert_into {
-        overwrite: true
-        src {
-          end_column: 59
-          end_line: 77
-          file: 2
-          start_column: 8
-          start_line: 77
-        }
-        table_name {
-          name {
-            name_flat {
-              name: "saved_table"
+      write_csv {
+        block: true
+        copy_options {
+          _1: "overwrite"
+          _2 {
+            bool_val {
+              src {
+                end_column: 125
+                end_line: 73
+                file: 2
+                start_column: 8
+                start_line: 73
+              }
+              v: true
             }
           }
+        }
+        copy_options {
+          _1: "single"
+          _2 {
+            bool_val {
+              src {
+                end_column: 125
+                end_line: 73
+                file: 2
+                start_column: 8
+                start_line: 73
+              }
+              v: true
+            }
+          }
+        }
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        header: true
+        location: "@test_stage/test.csv"
+        src {
+          end_column: 125
+          end_line: 73
+          file: 2
+          start_column: 8
+          start_line: 73
         }
         writer {
           dataframe_writer {
@@ -3563,19 +3472,16 @@ body {
                 id: 1
               }
             }
-            format {
-              value: "parquet"
-            }
             options {
               _1: "COPY_INTO_LOCATION"
               _2 {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 43
+                    end_line: 55
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 55
                   }
                   v: "abcd"
                 }
@@ -3587,10 +3493,10 @@ body {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "abcd"
                 }
@@ -3602,10 +3508,10 @@ body {
                 string_val {
                   src {
                     end_column: 90
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "pqrs"
                 }
@@ -3617,10 +3523,10 @@ body {
                 bool_val {
                   src {
                     end_column: 116
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: true
                 }
@@ -3632,27 +3538,12 @@ body {
                 string_val {
                   src {
                     end_column: 141
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "append"
-                }
-              }
-            }
-            options {
-              _1: "HEADER"
-              _2 {
-                bool_val {
-                  src {
-                    end_column: 53
-                    end_line: 63
-                    file: 2
-                    start_column: 8
-                    start_line: 63
-                  }
-                  v: true
                 }
               }
             }
@@ -3673,20 +3564,20 @@ body {
                   string_val {
                     src {
                       end_column: 167
-                      end_line: 45
+                      end_line: 57
                       file: 2
                       start_column: 155
-                      start_line: 45
+                      start_line: 57
                     }
                     v: "value"
                   }
                 }
                 src {
                   end_column: 167
-                  end_line: 45
+                  end_line: 57
                   file: 2
                   start_column: 155
-                  start_line: 45
+                  start_line: 57
                 }
               }
             }
@@ -3748,20 +3639,19 @@ body {
 body {
   bind {
     expr {
-      write_insert_into {
+      write_save {
+        block: true
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        location: "@test_stage/test.csv"
         src {
-          end_column: 60
-          end_line: 79
+          end_column: 139
+          end_line: 75
           file: 2
           start_column: 8
-          start_line: 79
-        }
-        table_name {
-          name {
-            name_flat {
-              name: "saved_table"
-            }
-          }
+          start_line: 75
         }
         writer {
           dataframe_writer {
@@ -3771,7 +3661,7 @@ body {
               }
             }
             format {
-              value: "parquet"
+              value: "csv"
             }
             options {
               _1: "COPY_INTO_LOCATION"
@@ -3779,10 +3669,10 @@ body {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 43
+                    end_line: 55
                     file: 2
                     start_column: 8
-                    start_line: 43
+                    start_line: 55
                   }
                   v: "abcd"
                 }
@@ -3794,10 +3684,10 @@ body {
                 string_val {
                   src {
                     end_column: 53
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "abcd"
                 }
@@ -3809,10 +3699,10 @@ body {
                 string_val {
                   src {
                     end_column: 90
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "pqrs"
                 }
@@ -3824,10 +3714,10 @@ body {
                 bool_val {
                   src {
                     end_column: 116
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: true
                 }
@@ -3839,10 +3729,10 @@ body {
                 string_val {
                   src {
                     end_column: 141
-                    end_line: 45
+                    end_line: 57
                     file: 2
                     start_column: 8
-                    start_line: 45
+                    start_line: 57
                   }
                   v: "append"
                 }
@@ -3854,10 +3744,10 @@ body {
                 bool_val {
                   src {
                     end_column: 53
-                    end_line: 63
+                    end_line: 75
                     file: 2
                     start_column: 8
-                    start_line: 63
+                    start_line: 75
                   }
                   v: true
                 }
@@ -3880,20 +3770,20 @@ body {
                   string_val {
                     src {
                       end_column: 167
-                      end_line: 45
+                      end_line: 57
                       file: 2
                       start_column: 155
-                      start_line: 45
+                      start_line: 57
                     }
                     v: "value"
                   }
                 }
                 src {
                   end_column: 167
-                  end_line: 45
+                  end_line: 57
                   file: 2
                   start_column: 155
-                  start_line: 45
+                  start_line: 57
                 }
               }
             }
@@ -3929,16 +3819,16 @@ body {
         name {
           name {
             name_flat {
-              name: "table2"
+              name: "table1"
             }
           }
         }
         src {
           end_column: 41
-          end_line: 81
+          end_line: 27
           file: 2
           start_column: 13
-          start_line: 81
+          start_line: 27
         }
         variant {
           session_table: true
@@ -3949,38 +3839,405 @@ body {
     symbol {
       value: "df"
     }
-    uid: 25
+    uid: 1
   }
 }
 body {
   bind {
     expr {
-      write_copy_into_location {
+      write_json {
         block: true
-        location: "s3://testbucket"
+        copy_options {
+          _1: "overwrite"
+          _2 {
+            bool_val {
+              src {
+                end_column: 114
+                end_line: 79
+                file: 2
+                start_column: 8
+                start_line: 79
+              }
+              v: true
+            }
+          }
+        }
+        copy_options {
+          _1: "single"
+          _2 {
+            bool_val {
+              src {
+                end_column: 114
+                end_line: 79
+                file: 2
+                start_column: 8
+                start_line: 79
+              }
+              v: true
+            }
+          }
+        }
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        location: "@test_stage/test.json"
         src {
-          end_column: 94
-          end_line: 83
+          end_column: 114
+          end_line: 79
           file: 2
           start_column: 8
-          start_line: 83
-        }
-        storage_integration {
-          value: "test_integration"
+          start_line: 79
         }
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
-                id: 25
+                id: 1
               }
+            }
+            format {
+              value: "csv"
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 55
+                    file: 2
+                    start_column: 8
+                    start_line: 55
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 90
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "pqrs"
+                }
+              }
+            }
+            options {
+              _1: "OVERWRITE"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 116
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: true
+                }
+              }
+            }
+            options {
+              _1: "MODE"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 141
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "append"
+                }
+              }
+            }
+            options {
+              _1: "HEADER"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 53
+                    end_line: 75
+                    file: 2
+                    start_column: 8
+                    start_line: 75
+                  }
+                  v: true
+                }
+              }
+            }
+            partition_by {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 167
+                      end_line: 57
+                      file: 2
+                      start_column: 155
+                      start_line: 57
+                    }
+                    v: "value"
+                  }
+                }
+                src {
+                  end_column: 167
+                  end_line: 57
+                  file: 2
+                  start_column: 155
+                  start_line: 57
+                }
+              }
+            }
+            save_mode {
+              save_mode_overwrite: true
             }
             src {
               end_column: 16
-              end_line: 83
+              end_line: 29
               file: 2
               start_column: 8
-              start_line: 83
+              start_line: 29
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 25
+  }
+}
+body {
+  eval {
+    bind_id: 25
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table1"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 27
+          file: 2
+          start_column: 13
+          start_line: 27
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 1
+  }
+}
+body {
+  bind {
+    expr {
+      write_save {
+        block: true
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        location: "@test_stage/test.json"
+        src {
+          end_column: 117
+          end_line: 81
+          file: 2
+          start_column: 8
+          start_line: 81
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 1
+              }
+            }
+            format {
+              value: "json"
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 55
+                    file: 2
+                    start_column: 8
+                    start_line: 55
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 90
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "pqrs"
+                }
+              }
+            }
+            options {
+              _1: "OVERWRITE"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 116
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: true
+                }
+              }
+            }
+            options {
+              _1: "MODE"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 141
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "append"
+                }
+              }
+            }
+            options {
+              _1: "HEADER"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 53
+                    end_line: 75
+                    file: 2
+                    start_column: 8
+                    start_line: 75
+                  }
+                  v: true
+                }
+              }
+            }
+            partition_by {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 167
+                      end_line: 57
+                      file: 2
+                      start_column: 155
+                      start_line: 57
+                    }
+                    v: "value"
+                  }
+                }
+                src {
+                  end_column: 167
+                  end_line: 57
+                  file: 2
+                  start_column: 155
+                  start_line: 57
+                }
+              }
+            }
+            save_mode {
+              save_mode_overwrite: true
+            }
+            src {
+              end_column: 16
+              end_line: 29
+              file: 2
+              start_column: 8
+              start_line: 29
             }
           }
         }
@@ -4004,16 +4261,16 @@ body {
         name {
           name {
             name_flat {
-              name: "table2"
+              name: "table1"
             }
           }
         }
         src {
           end_column: 41
-          end_line: 81
+          end_line: 27
           file: 2
           start_column: 13
-          start_line: 81
+          start_line: 27
         }
         variant {
           session_table: true
@@ -4024,41 +4281,199 @@ body {
     symbol {
       value: "df"
     }
-    uid: 25
+    uid: 1
   }
 }
 body {
   bind {
     expr {
-      write_copy_into_location {
+      write_parquet {
         block: true
-        location: "azure://testcontainer"
+        copy_options {
+          _1: "overwrite"
+          _2 {
+            bool_val {
+              src {
+                end_column: 130
+                end_line: 85
+                file: 2
+                start_column: 8
+                start_line: 85
+              }
+              v: true
+            }
+          }
+        }
+        copy_options {
+          _1: "single"
+          _2 {
+            bool_val {
+              src {
+                end_column: 130
+                end_line: 85
+                file: 2
+                start_column: 8
+                start_line: 85
+              }
+              v: true
+            }
+          }
+        }
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        location: "@test_stage/test.parquet"
         src {
-          end_column: 131
+          end_column: 130
           end_line: 85
           file: 2
           start_column: 8
           start_line: 85
         }
-        storage_integration {
-          value: "test_integration"
-        }
-        validation_mode {
-          value: "RETURN_ROWS"
-        }
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
-                id: 25
+                id: 1
               }
+            }
+            format {
+              value: "json"
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 55
+                    file: 2
+                    start_column: 8
+                    start_line: 55
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 90
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "pqrs"
+                }
+              }
+            }
+            options {
+              _1: "OVERWRITE"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 116
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: true
+                }
+              }
+            }
+            options {
+              _1: "MODE"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 141
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "append"
+                }
+              }
+            }
+            options {
+              _1: "HEADER"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 53
+                    end_line: 75
+                    file: 2
+                    start_column: 8
+                    start_line: 75
+                  }
+                  v: true
+                }
+              }
+            }
+            partition_by {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 167
+                      end_line: 57
+                      file: 2
+                      start_column: 155
+                      start_line: 57
+                    }
+                    v: "value"
+                  }
+                }
+                src {
+                  end_column: 167
+                  end_line: 57
+                  file: 2
+                  start_column: 155
+                  start_line: 57
+                }
+              }
+            }
+            save_mode {
+              save_mode_overwrite: true
             }
             src {
               end_column: 16
-              end_line: 83
+              end_line: 29
               file: 2
               start_column: 8
-              start_line: 83
+              start_line: 29
             }
           }
         }
@@ -4082,16 +4497,16 @@ body {
         name {
           name {
             name_flat {
-              name: "table2"
+              name: "table1"
             }
           }
         }
         src {
           end_column: 41
-          end_line: 81
+          end_line: 27
           file: 2
           start_column: 13
-          start_line: 81
+          start_line: 27
         }
         variant {
           session_table: true
@@ -4102,17 +4517,21 @@ body {
     symbol {
       value: "df"
     }
-    uid: 25
+    uid: 1
   }
 }
 body {
   bind {
     expr {
-      write_copy_into_location {
+      write_save {
         block: true
-        location: "gcp://teststorage"
+        format_type_options {
+          _1: "compression"
+          _2: "bzip2"
+        }
+        location: "@test_stage/test.parquet"
         src {
-          end_column: 87
+          end_column: 120
           end_line: 87
           file: 2
           start_column: 8
@@ -4122,15 +4541,145 @@ body {
           dataframe_writer {
             df {
               dataframe_ref {
-                id: 25
+                id: 1
               }
+            }
+            format {
+              value: "parquet"
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 55
+                    file: 2
+                    start_column: 8
+                    start_line: 55
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 90
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "pqrs"
+                }
+              }
+            }
+            options {
+              _1: "OVERWRITE"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 116
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: true
+                }
+              }
+            }
+            options {
+              _1: "MODE"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 141
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "append"
+                }
+              }
+            }
+            options {
+              _1: "HEADER"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 53
+                    end_line: 75
+                    file: 2
+                    start_column: 8
+                    start_line: 75
+                  }
+                  v: true
+                }
+              }
+            }
+            partition_by {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 167
+                      end_line: 57
+                      file: 2
+                      start_column: 155
+                      start_line: 57
+                    }
+                    v: "value"
+                  }
+                }
+                src {
+                  end_column: 167
+                  end_line: 57
+                  file: 2
+                  start_column: 155
+                  start_line: 57
+                }
+              }
+            }
+            save_mode {
+              save_mode_overwrite: true
             }
             src {
               end_column: 16
-              end_line: 83
+              end_line: 29
               file: 2
               start_column: 8
-              start_line: 83
+              start_line: 29
             }
           }
         }
@@ -4154,16 +4703,16 @@ body {
         name {
           name {
             name_flat {
-              name: "table2"
+              name: "table1"
             }
           }
         }
         src {
           end_column: 41
-          end_line: 81
+          end_line: 27
           file: 2
           start_column: 13
-          start_line: 81
+          start_line: 27
         }
         variant {
           session_table: true
@@ -4174,94 +4723,171 @@ body {
     symbol {
       value: "df"
     }
-    uid: 25
+    uid: 1
   }
 }
 body {
   bind {
     expr {
-      write_copy_into_location {
-        block: true
-        credentials {
-          _1: "AWS_KEY_ID"
-          _2 {
-            string_val {
-              src {
-                end_column: 174
-                end_line: 89
-                file: 2
-                start_column: 8
-                start_line: 89
-              }
-              v: "awsid"
-            }
-          }
-        }
-        credentials {
-          _1: "AWS_SECRET_KEY"
-          _2 {
-            string_val {
-              src {
-                end_column: 174
-                end_line: 89
-                file: 2
-                start_column: 8
-                start_line: 89
-              }
-              v: "!23@"
-            }
-          }
-        }
-        encryption {
-          _1: "TYPE"
-          _2 {
-            null_val {
-              src {
-                end_column: 174
-                end_line: 89
-                file: 2
-                start_column: 8
-                start_line: 89
-              }
-            }
-          }
-        }
-        encryption {
-          _1: "MASTER_KEY"
-          _2 {
-            string_val {
-              src {
-                end_column: 174
-                end_line: 89
-                file: 2
-                start_column: 8
-                start_line: 89
-              }
-              v: "master key"
-            }
-          }
-        }
-        location: "gcp://teststorage"
+      write_insert_into {
+        overwrite: true
         src {
-          end_column: 174
+          end_column: 59
           end_line: 89
           file: 2
           start_column: 8
           start_line: 89
         }
+        table_name {
+          name {
+            name_flat {
+              name: "saved_table"
+            }
+          }
+        }
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
-                id: 25
+                id: 1
               }
+            }
+            format {
+              value: "parquet"
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 55
+                    file: 2
+                    start_column: 8
+                    start_line: 55
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 90
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "pqrs"
+                }
+              }
+            }
+            options {
+              _1: "OVERWRITE"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 116
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: true
+                }
+              }
+            }
+            options {
+              _1: "MODE"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 141
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "append"
+                }
+              }
+            }
+            options {
+              _1: "HEADER"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 53
+                    end_line: 75
+                    file: 2
+                    start_column: 8
+                    start_line: 75
+                  }
+                  v: true
+                }
+              }
+            }
+            partition_by {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 167
+                      end_line: 57
+                      file: 2
+                      start_column: 155
+                      start_line: 57
+                    }
+                    v: "value"
+                  }
+                }
+                src {
+                  end_column: 167
+                  end_line: 57
+                  file: 2
+                  start_column: 155
+                  start_line: 57
+                }
+              }
+            }
+            save_mode {
+              save_mode_overwrite: true
             }
             src {
               end_column: 16
-              end_line: 83
+              end_line: 29
               file: 2
               start_column: 8
-              start_line: 83
+              start_line: 29
             }
           }
         }
@@ -4285,16 +4911,16 @@ body {
         name {
           name {
             name_flat {
-              name: "table2"
+              name: "table1"
             }
           }
         }
         src {
           end_column: 41
-          end_line: 81
+          end_line: 27
           file: 2
           start_column: 13
-          start_line: 81
+          start_line: 27
         }
         variant {
           session_table: true
@@ -4305,41 +4931,170 @@ body {
     symbol {
       value: "df"
     }
-    uid: 25
+    uid: 1
   }
 }
 body {
   bind {
     expr {
-      write_parquet {
-        block: true
-        location: "azure://testcontainer"
+      write_insert_into {
         src {
-          end_column: 122
+          end_column: 60
           end_line: 91
           file: 2
           start_column: 8
           start_line: 91
         }
-        storage_integration {
-          value: "test_integration"
-        }
-        validation_mode {
-          value: "RETURN_3_ROWS"
+        table_name {
+          name {
+            name_flat {
+              name: "saved_table"
+            }
+          }
         }
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
-                id: 25
+                id: 1
               }
+            }
+            format {
+              value: "parquet"
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 55
+                    file: 2
+                    start_column: 8
+                    start_line: 55
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 53
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "abcd"
+                }
+              }
+            }
+            options {
+              _1: "COPY_INTO_LOCATION"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 90
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "pqrs"
+                }
+              }
+            }
+            options {
+              _1: "OVERWRITE"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 116
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: true
+                }
+              }
+            }
+            options {
+              _1: "MODE"
+              _2 {
+                string_val {
+                  src {
+                    end_column: 141
+                    end_line: 57
+                    file: 2
+                    start_column: 8
+                    start_line: 57
+                  }
+                  v: "append"
+                }
+              }
+            }
+            options {
+              _1: "HEADER"
+              _2 {
+                bool_val {
+                  src {
+                    end_column: 53
+                    end_line: 75
+                    file: 2
+                    start_column: 8
+                    start_line: 75
+                  }
+                  v: true
+                }
+              }
+            }
+            partition_by {
+              apply_expr {
+                fn {
+                  builtin_fn {
+                    name {
+                      name {
+                        name_flat {
+                          name: "col"
+                        }
+                      }
+                    }
+                  }
+                }
+                pos_args {
+                  string_val {
+                    src {
+                      end_column: 167
+                      end_line: 57
+                      file: 2
+                      start_column: 155
+                      start_line: 57
+                    }
+                    v: "value"
+                  }
+                }
+                src {
+                  end_column: 167
+                  end_line: 57
+                  file: 2
+                  start_column: 155
+                  start_line: 57
+                }
+              }
+            }
+            save_mode {
+              save_mode_overwrite: true
             }
             src {
               end_column: 16
-              end_line: 83
+              end_line: 29
               file: 2
               start_column: 8
-              start_line: 83
+              start_line: 29
             }
           }
         }
@@ -4369,10 +5124,10 @@ body {
         }
         src {
           end_column: 41
-          end_line: 81
+          end_line: 93
           file: 2
           start_column: 13
-          start_line: 81
+          start_line: 93
         }
         variant {
           session_table: true
@@ -4382,149 +5137,18 @@ body {
     first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
     symbol {
       value: "df"
-    }
-    uid: 25
-  }
-}
-body {
-  bind {
-    expr {
-      write_json {
-        block: true
-        credentials {
-          _1: "AWS_KEY_ID"
-          _2 {
-            string_val {
-              src {
-                end_column: 158
-                end_line: 93
-                file: 2
-                start_column: 8
-                start_line: 93
-              }
-              v: "awsid"
-            }
-          }
-        }
-        credentials {
-          _1: "AWS_SECRET_KEY"
-          _2 {
-            string_val {
-              src {
-                end_column: 158
-                end_line: 93
-                file: 2
-                start_column: 8
-                start_line: 93
-              }
-              v: "!23@"
-            }
-          }
-        }
-        encryption {
-          _1: "TYPE"
-          _2 {
-            null_val {
-              src {
-                end_column: 158
-                end_line: 93
-                file: 2
-                start_column: 8
-                start_line: 93
-              }
-            }
-          }
-        }
-        encryption {
-          _1: "MASTER_KEY"
-          _2 {
-            string_val {
-              src {
-                end_column: 158
-                end_line: 93
-                file: 2
-                start_column: 8
-                start_line: 93
-              }
-              v: "master key"
-            }
-          }
-        }
-        location: "s3://testbucket"
-        src {
-          end_column: 158
-          end_line: 93
-          file: 2
-          start_column: 8
-          start_line: 93
-        }
-        writer {
-          dataframe_writer {
-            df {
-              dataframe_ref {
-                id: 25
-              }
-            }
-            src {
-              end_column: 16
-              end_line: 83
-              file: 2
-              start_column: 8
-              start_line: 83
-            }
-          }
-        }
-      }
-    }
-    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
-    symbol {
     }
     uid: 31
   }
 }
 body {
-  eval {
-    bind_id: 31
-  }
-}
-body {
   bind {
     expr {
-      table {
-        name {
-          name {
-            name_flat {
-              name: "table2"
-            }
-          }
-        }
-        src {
-          end_column: 41
-          end_line: 81
-          file: 2
-          start_column: 13
-          start_line: 81
-        }
-        variant {
-          session_table: true
-        }
-      }
-    }
-    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
-    symbol {
-      value: "df"
-    }
-    uid: 25
-  }
-}
-body {
-  bind {
-    expr {
-      write_csv {
+      write_copy_into_location {
         block: true
-        location: "azure://testcontainer"
+        location: "s3://testbucket"
         src {
-          end_column: 149
+          end_column: 94
           end_line: 95
           file: 2
           start_column: 8
@@ -4533,22 +5157,19 @@ body {
         storage_integration {
           value: "test_integration"
         }
-        validation_mode {
-          value: "RETURN_3_ROWS"
-        }
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
-                id: 25
+                id: 31
               }
             }
             src {
               end_column: 16
-              end_line: 83
+              end_line: 95
               file: 2
               start_column: 8
-              start_line: 83
+              start_line: 95
             }
           }
         }
@@ -4578,10 +5199,10 @@ body {
         }
         src {
           end_column: 41
-          end_line: 81
+          end_line: 93
           file: 2
           start_column: 13
-          start_line: 81
+          start_line: 93
         }
         variant {
           session_table: true
@@ -4592,88 +5213,17 @@ body {
     symbol {
       value: "df"
     }
-    uid: 25
+    uid: 31
   }
 }
 body {
   bind {
     expr {
-      write_save {
+      write_copy_into_location {
         block: true
-        credentials {
-          _1: "AWS_KEY_ID"
-          _2 {
-            string_val {
-              src {
-                end_column: 237
-                end_line: 97
-                file: 2
-                start_column: 8
-                start_line: 97
-              }
-              v: "awsid"
-            }
-          }
-        }
-        credentials {
-          _1: "AWS_SECRET_KEY"
-          _2 {
-            string_val {
-              src {
-                end_column: 237
-                end_line: 97
-                file: 2
-                start_column: 8
-                start_line: 97
-              }
-              v: "!23@"
-            }
-          }
-        }
-        encryption {
-          _1: "TYPE"
-          _2 {
-            null_val {
-              src {
-                end_column: 237
-                end_line: 97
-                file: 2
-                start_column: 8
-                start_line: 97
-              }
-            }
-          }
-        }
-        encryption {
-          _1: "MASTER_KEY"
-          _2 {
-            string_val {
-              src {
-                end_column: 237
-                end_line: 97
-                file: 2
-                start_column: 8
-                start_line: 97
-              }
-              v: "master key"
-            }
-          }
-        }
-        location: "gcp://teststorage"
-        partition_by {
-          sql_expr {
-            sql: "value"
-            src {
-              end_column: 237
-              end_line: 97
-              file: 2
-              start_column: 8
-              start_line: 97
-            }
-          }
-        }
+        location: "azure://testcontainer"
         src {
-          end_column: 237
+          end_column: 131
           end_line: 97
           file: 2
           start_column: 8
@@ -4682,22 +5232,22 @@ body {
         storage_integration {
           value: "test_integration"
         }
+        validation_mode {
+          value: "RETURN_ROWS"
+        }
         writer {
           dataframe_writer {
             df {
               dataframe_ref {
-                id: 25
+                id: 31
               }
-            }
-            format {
-              value: "json"
             }
             src {
               end_column: 16
-              end_line: 83
+              end_line: 95
               file: 2
               start_column: 8
-              start_line: 83
+              start_line: 95
             }
           }
         }
@@ -4714,6 +5264,645 @@ body {
     bind_id: 33
   }
 }
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 93
+          file: 2
+          start_column: 13
+          start_line: 93
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 31
+  }
+}
+body {
+  bind {
+    expr {
+      write_copy_into_location {
+        block: true
+        location: "gcp://teststorage"
+        src {
+          end_column: 87
+          end_line: 99
+          file: 2
+          start_column: 8
+          start_line: 99
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 31
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 95
+              file: 2
+              start_column: 8
+              start_line: 95
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 34
+  }
+}
+body {
+  eval {
+    bind_id: 34
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 93
+          file: 2
+          start_column: 13
+          start_line: 93
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 31
+  }
+}
+body {
+  bind {
+    expr {
+      write_copy_into_location {
+        block: true
+        credentials {
+          _1: "AWS_KEY_ID"
+          _2 {
+            string_val {
+              src {
+                end_column: 174
+                end_line: 101
+                file: 2
+                start_column: 8
+                start_line: 101
+              }
+              v: "awsid"
+            }
+          }
+        }
+        credentials {
+          _1: "AWS_SECRET_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 174
+                end_line: 101
+                file: 2
+                start_column: 8
+                start_line: 101
+              }
+              v: "!23@"
+            }
+          }
+        }
+        encryption {
+          _1: "TYPE"
+          _2 {
+            null_val {
+              src {
+                end_column: 174
+                end_line: 101
+                file: 2
+                start_column: 8
+                start_line: 101
+              }
+            }
+          }
+        }
+        encryption {
+          _1: "MASTER_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 174
+                end_line: 101
+                file: 2
+                start_column: 8
+                start_line: 101
+              }
+              v: "master key"
+            }
+          }
+        }
+        location: "gcp://teststorage"
+        src {
+          end_column: 174
+          end_line: 101
+          file: 2
+          start_column: 8
+          start_line: 101
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 31
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 95
+              file: 2
+              start_column: 8
+              start_line: 95
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 35
+  }
+}
+body {
+  eval {
+    bind_id: 35
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 93
+          file: 2
+          start_column: 13
+          start_line: 93
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 31
+  }
+}
+body {
+  bind {
+    expr {
+      write_parquet {
+        block: true
+        location: "azure://testcontainer"
+        src {
+          end_column: 122
+          end_line: 103
+          file: 2
+          start_column: 8
+          start_line: 103
+        }
+        storage_integration {
+          value: "test_integration"
+        }
+        validation_mode {
+          value: "RETURN_3_ROWS"
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 31
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 95
+              file: 2
+              start_column: 8
+              start_line: 95
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 36
+  }
+}
+body {
+  eval {
+    bind_id: 36
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 93
+          file: 2
+          start_column: 13
+          start_line: 93
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 31
+  }
+}
+body {
+  bind {
+    expr {
+      write_json {
+        block: true
+        credentials {
+          _1: "AWS_KEY_ID"
+          _2 {
+            string_val {
+              src {
+                end_column: 158
+                end_line: 105
+                file: 2
+                start_column: 8
+                start_line: 105
+              }
+              v: "awsid"
+            }
+          }
+        }
+        credentials {
+          _1: "AWS_SECRET_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 158
+                end_line: 105
+                file: 2
+                start_column: 8
+                start_line: 105
+              }
+              v: "!23@"
+            }
+          }
+        }
+        encryption {
+          _1: "TYPE"
+          _2 {
+            null_val {
+              src {
+                end_column: 158
+                end_line: 105
+                file: 2
+                start_column: 8
+                start_line: 105
+              }
+            }
+          }
+        }
+        encryption {
+          _1: "MASTER_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 158
+                end_line: 105
+                file: 2
+                start_column: 8
+                start_line: 105
+              }
+              v: "master key"
+            }
+          }
+        }
+        location: "s3://testbucket"
+        src {
+          end_column: 158
+          end_line: 105
+          file: 2
+          start_column: 8
+          start_line: 105
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 31
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 95
+              file: 2
+              start_column: 8
+              start_line: 95
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 37
+  }
+}
+body {
+  eval {
+    bind_id: 37
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 93
+          file: 2
+          start_column: 13
+          start_line: 93
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 31
+  }
+}
+body {
+  bind {
+    expr {
+      write_csv {
+        block: true
+        location: "azure://testcontainer"
+        src {
+          end_column: 149
+          end_line: 107
+          file: 2
+          start_column: 8
+          start_line: 107
+        }
+        storage_integration {
+          value: "test_integration"
+        }
+        validation_mode {
+          value: "RETURN_3_ROWS"
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 31
+              }
+            }
+            src {
+              end_column: 16
+              end_line: 95
+              file: 2
+              start_column: 8
+              start_line: 95
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 38
+  }
+}
+body {
+  eval {
+    bind_id: 38
+  }
+}
+body {
+  bind {
+    expr {
+      table {
+        name {
+          name {
+            name_flat {
+              name: "table2"
+            }
+          }
+        }
+        src {
+          end_column: 41
+          end_line: 93
+          file: 2
+          start_column: 13
+          start_line: 93
+        }
+        variant {
+          session_table: true
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+      value: "df"
+    }
+    uid: 31
+  }
+}
+body {
+  bind {
+    expr {
+      write_save {
+        block: true
+        credentials {
+          _1: "AWS_KEY_ID"
+          _2 {
+            string_val {
+              src {
+                end_column: 237
+                end_line: 109
+                file: 2
+                start_column: 8
+                start_line: 109
+              }
+              v: "awsid"
+            }
+          }
+        }
+        credentials {
+          _1: "AWS_SECRET_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 237
+                end_line: 109
+                file: 2
+                start_column: 8
+                start_line: 109
+              }
+              v: "!23@"
+            }
+          }
+        }
+        encryption {
+          _1: "TYPE"
+          _2 {
+            null_val {
+              src {
+                end_column: 237
+                end_line: 109
+                file: 2
+                start_column: 8
+                start_line: 109
+              }
+            }
+          }
+        }
+        encryption {
+          _1: "MASTER_KEY"
+          _2 {
+            string_val {
+              src {
+                end_column: 237
+                end_line: 109
+                file: 2
+                start_column: 8
+                start_line: 109
+              }
+              v: "master key"
+            }
+          }
+        }
+        location: "gcp://teststorage"
+        partition_by {
+          sql_expr {
+            sql: "value"
+            src {
+              end_column: 237
+              end_line: 109
+              file: 2
+              start_column: 8
+              start_line: 109
+            }
+          }
+        }
+        src {
+          end_column: 237
+          end_line: 109
+          file: 2
+          start_column: 8
+          start_line: 109
+        }
+        storage_integration {
+          value: "test_integration"
+        }
+        writer {
+          dataframe_writer {
+            df {
+              dataframe_ref {
+                id: 31
+              }
+            }
+            format {
+              value: "json"
+            }
+            src {
+              end_column: 16
+              end_line: 95
+              file: 2
+              start_column: 8
+              start_line: 95
+            }
+          }
+        }
+      }
+    }
+    first_request_id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"
+    symbol {
+    }
+    uid: 39
+  }
+}
+body {
+  eval {
+    bind_id: 39
+  }
+}
 client_ast_version: 1
 client_language {
   python_language {
@@ -4727,6 +5916,6 @@ client_language {
 }
 client_version {
   major: 1
-  minor: 40
+  minor: 43
 }
 id: "\003U\"\366q\366P\346\260\261?\234\303\254\316\353"

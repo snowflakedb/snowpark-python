@@ -57,11 +57,11 @@ DataFrame
     DataFrame.flatten
     DataFrame.groupBy
     DataFrame.group_by
-    DataFrame.group_by_all
     DataFrame.group_by_grouping_sets
     DataFrame.intersect
     DataFrame.join
     DataFrame.join_table_function
+    DataFrame.lateral_join
     DataFrame.limit
     DataFrame.minus
     DataFrame.natural_join

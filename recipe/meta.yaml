@@ -1,5 +1,5 @@
 {% set name = "snowflake-snowpark-python" %}
-{% set version = "1.40.0" %}
+{% set version = "1.43.0" %}
 {% set noarch_build = (os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_NOARCH_BUILD', 'false')) == 'true' %}
 {% set build_number = os.environ.get('SNOWFLAKE_SNOWPARK_PYTHON_BUILD_NUMBER', 0) %}
 
@@ -38,7 +38,8 @@ requirements:
     # Snowpark IR
     - protobuf==3.20.1  # [py<=310]
     - protobuf==4.25.3  # [py>310]
-    - mypy-protobuf
+    # mypy-protobuf 3.7.0 requires protobuf >= 5.26
+    - mypy-protobuf <=3.6.0
   run:
     {% if noarch_build and py == 39 %}
     - python >=3.9,<3.10.0a0

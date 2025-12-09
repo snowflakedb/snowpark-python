@@ -26,6 +26,7 @@ from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     LeftAnti,
     LeftSemi,
     NaturalJoin,
+    LateralJoin,
     UsingJoin,
 )
 from snowflake.snowpark._internal.analyzer.datatype_mapper import (
@@ -150,6 +151,7 @@ CHANGE_TRACKING = " CHANGE_TRACKING "
 EXTERNAL_VOLUME = " EXTERNAL_VOLUME "
 CATALOG = " CATALOG "
 BASE_LOCATION = " BASE_LOCATION "
+TARGET_FILE_SIZE = " TARGET_FILE_SIZE "
 CATALOG_SYNC = " CATALOG_SYNC "
 STORAGE_SERIALIZATION_POLICY = " STORAGE_SERIALIZATION_POLICY "
 REG_EXP = " REGEXP "
@@ -169,6 +171,7 @@ PATH = " PATH "
 OUTER = " OUTER "
 RECURSIVE = " RECURSIVE "
 MODE = " MODE "
+INNER = " INNER "
 LATERAL = " LATERAL "
 PUT = " PUT "
 GET = " GET "
@@ -229,22 +232,33 @@ def format_uuid(uuid: Optional[str], with_new_line: bool = True) -> str:
     return f"{UUID_COMMENT.format(uuid)}"
 
 
-def validate_iceberg_config(iceberg_config: Optional[dict]) -> Dict[str, str]:
+def validate_iceberg_config(
+    iceberg_config: Optional[dict],
+) -> tuple[Dict[str, str], list]:
+    """
+    Validate and process iceberg config, returning (options_dict, partition_exprs_list).
+    """
     if iceberg_config is None:
-        return dict()
+        return dict(), []
 
     iceberg_config = {k.lower(): v for k, v in iceberg_config.items()}
 
-    return {
+    # Extract partition_by (already processed as SQL strings by analyzer)
+    partition_exprs = iceberg_config.get("partition_by", [])
+
+    options = {
         EXTERNAL_VOLUME: iceberg_config.get("external_volume", None),
         CATALOG: iceberg_config.get("catalog", None),
         BASE_LOCATION: iceberg_config.get("base_location", None),
+        TARGET_FILE_SIZE: iceberg_config.get("target_file_size", None),
         CATALOG_SYNC: iceberg_config.get("catalog_sync", None),
         STORAGE_SERIALIZATION_POLICY: iceberg_config.get(
             "storage_serialization_policy", None
         ),
         ICEBERG_VERSION: iceberg_config.get("iceberg_version", None),
     }
+
+    return options, partition_exprs
 
 
 def result_scan_statement(uuid_place_holder: str) -> str:
@@ -307,6 +321,20 @@ def named_arguments_function(name: str, args: Dict[str, str]) -> str:
 
 def partition_spec(col_exprs: List[str]) -> str:
     return f"PARTITION BY {COMMA.join(col_exprs)}" if col_exprs else EMPTY_STRING
+
+
+def iceberg_partition_clause(partition_exprs: List[str]) -> str:
+    return (
+        (
+            SPACE
+            + PARTITION_BY
+            + LEFT_PARENTHESIS
+            + COMMA.join(partition_exprs)
+            + RIGHT_PARENTHESIS
+        )
+        if partition_exprs
+        else EMPTY_STRING
+    )
 
 
 def order_by_spec(col_exprs: List[str]) -> str:
@@ -879,6 +907,65 @@ def asof_join_statement(
     )
 
 
+def lateral_join_statement(
+    left: str,
+    right: str,
+    join_condition: str,
+    use_constant_subquery_alias: bool,
+) -> str:
+    left_alias = (
+        "SNOWPARK_LEFT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+    right_alias = (
+        "SNOWPARK_RIGHT"
+        if use_constant_subquery_alias
+        else random_name_for_temp_object(TempObjectType.TABLE)
+    )
+
+    # wrap the right side in subquery with WHERE clause if condition exists
+    if join_condition:
+        right_with_condition = (
+            LEFT_PARENTHESIS
+            + NEW_LINE
+            + SELECT
+            + STAR
+            + FROM
+            + LEFT_PARENTHESIS
+            + right
+            + RIGHT_PARENTHESIS
+            + WHERE
+            + join_condition
+            + NEW_LINE
+            + RIGHT_PARENTHESIS
+        )
+    else:
+        right_with_condition = LEFT_PARENTHESIS + right + RIGHT_PARENTHESIS
+
+    return (
+        SELECT
+        + STAR
+        + NEW_LINE
+        + FROM
+        + LEFT_PARENTHESIS
+        + NEW_LINE
+        + left
+        + NEW_LINE
+        + RIGHT_PARENTHESIS
+        + AS
+        + left_alias
+        + NEW_LINE
+        + INNER
+        + JOIN
+        + LATERAL
+        + NEW_LINE
+        + right_with_condition
+        + AS
+        + right_alias
+    )
+
+
 def snowflake_supported_join_statement(
     left: str,
     right: str,
@@ -983,6 +1070,10 @@ def join_statement(
         return asof_join_statement(
             left, right, join_condition, match_condition, use_constant_subquery_alias
         )
+    if isinstance(join_type, LateralJoin):
+        return lateral_join_statement(
+            left, right, join_condition, use_constant_subquery_alias
+        )
     if isinstance(join_type, UsingJoin) and isinstance(
         join_type.tpe, (LeftSemi, LeftAnti)
     ):
@@ -1038,15 +1129,17 @@ def create_table_statement(
         CHANGE_TRACKING: change_tracking,
     }
 
-    iceberg_config = validate_iceberg_config(iceberg_config)
-    options.update(iceberg_config)
+    iceberg_options, partition_exprs = validate_iceberg_config(iceberg_config)
+    options.update(iceberg_options)
     options_statement = get_options_statement(options)
+
+    partition_by_clause = iceberg_partition_clause(partition_exprs)
 
     return (
         f"{CREATE}{(OR + REPLACE) if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
-        f"{ICEBERG if iceberg_config else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
-        f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{cluster_by_clause}"
+        f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}{table_name}{(IF + NOT + EXISTS) if not replace and not error else EMPTY_STRING}"
+        f"{LEFT_PARENTHESIS}{schema}{RIGHT_PARENTHESIS}{partition_by_clause}{cluster_by_clause}"
         f"{options_statement}{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql}"
     )
 
@@ -1127,15 +1220,18 @@ def create_table_as_select_statement(
         MAX_DATA_EXTENSION_TIME_IN_DAYS: max_data_extension_time,
         CHANGE_TRACKING: change_tracking,
     }
-    iceberg_config = validate_iceberg_config(iceberg_config)
-    options.update(iceberg_config)
+    iceberg_options, partition_exprs = validate_iceberg_config(iceberg_config)
+    options.update(iceberg_options)
     options_statement = get_options_statement(options)
+
+    partition_by_clause = iceberg_partition_clause(partition_exprs)
+
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}"
         f" {(get_temp_type_for_object(use_scoped_temp_objects, is_generated) if table_type.lower() in TEMPORARY_STRING_SET else table_type).upper()} "
-        f"{ICEBERG if iceberg_config else EMPTY_STRING}{TABLE}"
+        f"{ICEBERG if iceberg_options else EMPTY_STRING}{TABLE}"
         f"{IF + NOT + EXISTS if not replace and not error else EMPTY_STRING} "
-        f"{table_name}{column_definition_sql}{cluster_by_clause}{options_statement}"
+        f"{table_name}{column_definition_sql}{partition_by_clause}{cluster_by_clause}{options_statement}"
         f"{COPY_GRANTS if copy_grants else EMPTY_STRING}{comment_sql} {AS}{project_statement([], child)}"
     )
 
@@ -1203,8 +1299,13 @@ def create_file_format_statement(
 
 
 def infer_schema_statement(
-    path: str, file_format_name: str, options: Optional[Dict[str, str]] = None
+    path: str,
+    file_format_name: str,
+    options: Optional[Dict[str, str]] = None,
 ) -> str:
+    """
+    Note: Results are ordered by ORDER_ID and COLUMN_NAME for deterministic column ordering.
+    """
     return (
         SELECT
         + STAR
@@ -1232,6 +1333,8 @@ def infer_schema_statement(
         )
         + RIGHT_PARENTHESIS
         + RIGHT_PARENTHESIS
+        + ORDER_BY
+        + "ORDER_ID, COLUMN_NAME"
     )
 
 
@@ -1441,9 +1544,8 @@ def create_or_replace_dynamic_table_statement(
         }
     )
 
-    iceberg_options = get_options_statement(
-        validate_iceberg_config(iceberg_config)
-    ).strip()
+    iceberg_options, _ = validate_iceberg_config(iceberg_config)
+    iceberg_options = get_options_statement(iceberg_options).strip()
 
     return (
         f"{CREATE}{OR + REPLACE if replace else EMPTY_STRING}{TRANSIENT if is_transient else EMPTY_STRING}"

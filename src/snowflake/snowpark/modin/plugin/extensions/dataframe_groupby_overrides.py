@@ -50,8 +50,14 @@ from pandas.util._validators import validate_bool_kwarg
 from snowflake.snowpark.modin.plugin._internal.apply_utils import (
     create_groupby_transform_func,
 )
+from snowflake.snowpark.modin.plugin._internal.groupby_utils import (
+    check_is_groupby_supported_by_snowflake,
+)
 from snowflake.snowpark.modin.plugin.compiler.snowflake_query_compiler import (
     SnowflakeQueryCompiler,
+    UnsupportedArgsRule,
+    _GROUPBY_UNSUPPORTED_GROUPING_MESSAGE,
+    register_query_compiler_method_not_implemented,
 )
 
 # the following import is used in doctests
@@ -78,6 +84,22 @@ register_df_groupby_override = functools.partial(
 
 
 @register_df_groupby_override("__init__")
+@register_query_compiler_method_not_implemented(
+    "DataFrameGroupBy",
+    "__init__",
+    UnsupportedArgsRule(
+        unsupported_conditions=[
+            (
+                lambda args: not check_is_groupby_supported_by_snowflake(
+                    args.get("by"),
+                    args.get("level"),
+                    args.get("axis", 0),
+                ),
+                f"Groupby {_GROUPBY_UNSUPPORTED_GROUPING_MESSAGE}",
+            )
+        ]
+    ),
+)
 def __init__(
     self,
     df,
@@ -114,9 +136,6 @@ def __init__(
         "group_keys": group_keys,
     }
     self._kwargs.update(kwargs)
-    if "apply_op" not in self._kwargs:
-        # Can be "apply", "transform", "filter" or "aggregate"
-        self._kwargs.update({"apply_op": "apply"})
 
 
 @register_df_groupby_override("ngroups")
@@ -172,7 +191,7 @@ def indices(self) -> dict[Hashable, npt.NDArray[np.intp]]:
 
 
 @register_df_groupby_override("apply")
-def apply(self, func, *args, include_groups=True, **kwargs):
+def apply(self, func, *args, include_groups=True, _is_transform=False, **kwargs):
     # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
     # TODO: SNOW-1244717: Explore whether window function are performant and can be used
     #       whenever `func` is an aggregation function.
@@ -188,6 +207,7 @@ def apply(self, func, *args, include_groups=True, **kwargs):
             agg_kwargs=kwargs,
             series_groupby=False,
             include_groups=include_groups,
+            is_transform=_is_transform,
         )
     )
     if dataframe_result.columns.equals(pandas.Index([MODIN_UNNAMED_SERIES_LABEL])):
@@ -320,11 +340,10 @@ def transform(
         dropna=False,
         sort=self._sort,
     )
-    groupby_obj._kwargs["apply_op"] = "transform"
-
     # Apply the transform function to each group.
     res = groupby_obj.apply(
-        create_groupby_transform_func(func, by, level, *args, **kwargs)
+        create_groupby_transform_func(func, by, level, *args, **kwargs),
+        _is_transform=True,
     )
 
     dropna = self._kwargs.get("dropna", True)
@@ -847,9 +866,35 @@ def resample(
 
 
 @register_df_groupby_override("rolling")
-def rolling(self, *args, **kwargs):
-    # TODO: SNOW-1063349: Modin upgrade - modin.pandas.groupby.DataFrameGroupBy functions
-    ErrorMessage.method_not_implemented_error(name="rolling", class_="GroupBy")
+def rolling(
+    self,
+    window,
+    min_periods: Union[int, None] = None,
+    center: bool = False,
+    win_type: Union[str, None] = None,
+    on: Union[str, None] = None,
+    axis: Union[int, str] = 0,
+    closed: Union[str, None] = None,
+    method: str = "single",
+    **kwargs,
+):
+    from snowflake.snowpark.modin.plugin.extensions.rolling_groupby_overrides import (
+        RollingGroupby,
+    )
+
+    return RollingGroupby(
+        dataframe=self._df,
+        by=self._by,
+        window=window,
+        min_periods=min_periods,
+        center=center,
+        win_type=win_type,
+        on=on,
+        axis=axis,
+        closed=closed,
+        method=method,
+        dropna=self._kwargs.get("dropna", True),
+    )
 
 
 @register_df_groupby_override("sample")
