@@ -557,8 +557,8 @@ def test_integral_type_default_precision(mock_default_precision):
 @pytest.mark.parametrize(
     "mock_default_precision",
     [
-        {"IntegerType": 5, "LongType": 4},
-        {"LongType": 19, "IntegerType": 10},
+        {IntegerType: 5, LongType: 4},
+        {LongType: 19, IntegerType: 10},
     ],
 )
 def test_end_to_end_default_precision(session, precision, mock_default_precision):
@@ -585,11 +585,10 @@ def test_end_to_end_default_precision(session, precision, mock_default_precision
         assert df.schema.fields[0].datatype._precision == precision
         assert (
             df.schema.fields[1].datatype._precision
-            == mock_default_precision["IntegerType"]
+            == mock_default_precision[IntegerType]
         )
         assert (
-            df.schema.fields[2].datatype._precision
-            == mock_default_precision["LongType"]
+            df.schema.fields[2].datatype._precision == mock_default_precision[LongType]
         )
 
         df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
@@ -597,9 +596,9 @@ def test_end_to_end_default_precision(session, precision, mock_default_precision
         assert result.schema.fields[0].datatype._precision == precision
         assert (
             result.schema.fields[1].datatype._precision
-            == mock_default_precision["IntegerType"]
+            == mock_default_precision[IntegerType]
         )
         assert (
             result.schema.fields[2].datatype._precision
-            == mock_default_precision["LongType"]
+            == mock_default_precision[LongType]
         )
