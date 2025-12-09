@@ -20,6 +20,8 @@ from snowflake.snowpark.types import (
     StringType,
     StructField,
     StructType,
+    IntegerType,
+    ShortType,
 )
 from tests.utils import Utils
 
@@ -524,3 +526,22 @@ def test_write_to_sf_with_correct_precision(session, precision):
         result = session.sql(f"select * from {table_name}")
         datatype = result.schema.fields[0].datatype
         assert datatype._precision == precision
+
+
+@pytest.mark.parametrize(
+    "mock_dict",
+    [
+        {"IntegerType": 5, "LongType": 4},
+        {"LongType": 19, "IntegerType": 10},
+    ],
+)
+def test_integral_type_default_precision(mock_dict):
+    with mock.patch.object(context, "_integral_type_default_precision", mock_dict):
+        integer_type = IntegerType()
+        assert integer_type._precision == mock_dict["IntegerType"]
+
+        long_type = LongType()
+        assert long_type._precision == mock_dict["LongType"]
+
+        short_type = ShortType()
+        assert short_type._precision is None

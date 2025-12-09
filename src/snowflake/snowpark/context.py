@@ -43,6 +43,11 @@ _enable_trace_sql_errors_to_dataframe = False
 # Global flag for fix 2360274. When enabled schema queries will use NULL as a place holder for any values inside structured objects
 _enable_fix_2360274 = False
 
+# internal only dictionary store the default precision of integral types, if the type does not appear in the
+# dictionary, the default precision is None.
+# example: _integral_type_default_precision = {"IntegerType": 9}, IntegerType default _precision is 9 now
+_integral_type_default_precision = {}
+
 
 def configure_development_features(
     *,
