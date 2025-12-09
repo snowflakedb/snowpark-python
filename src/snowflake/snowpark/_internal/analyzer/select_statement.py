@@ -586,7 +586,9 @@ class SelectableEntity(Selectable):
             deepcopy(self.entity, memodict), analyzer=self.analyzer
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-
+        copied._attributes = (
+            deepcopy(self._attributes) if self._attributes is not None else None
+        )
         return copied
 
     @property
@@ -927,6 +929,9 @@ class SelectStatement(Selectable):
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
+        new._attributes = (
+            self._attributes.copy() if self._attributes is not None else None
+        )
         new._projection_in_str = None
         new._schema_query = None
         new._column_states = None
@@ -959,6 +964,9 @@ class SelectStatement(Selectable):
         )
 
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
+        copied._attributes = (
+            deepcopy(self._attributes) if self._attributes is not None else None
+        )
         copied._projection_in_str = self._projection_in_str
         copied._query_params = deepcopy(self._query_params)
         copied._merge_projection_complexity_with_subquery = (
