@@ -67,6 +67,7 @@ test_file_csv_timestamps = "testCSVformattedTime.csv"
 test_file_json = "testJson.json"
 test_file_json_same_schema = "testJsonSameSchema.json"
 test_file_json_new_schema = "testJsonNewSchema.json"
+test_file_json_dupe_column_id = "testJsonDupeColumnID.jsonl"
 test_file_avro = "test.avro"
 test_file_parquet = "test.parquet"
 test_file_all_data_types_parquet = "test_all_data_types.parquet"
@@ -192,6 +193,12 @@ def setup(session, resources_path, local_testing_mode):
         session,
         "@" + tmp_stage_name1,
         test_files.test_file_json,
+        compress=False,
+    )
+    Utils.upload_to_stage(
+        session,
+        "@" + tmp_stage_name1,
+        test_files.test_file_json_dupe_column_id,
         compress=False,
     )
     Utils.upload_to_stage(
@@ -1253,6 +1260,22 @@ def test_read_json_with_infer_schema(session, mode):
         '"size"',
         '"z""\'na""me"',
     ]
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="Local Testing does not support JSONL format or INFER_SCHEMA.",
+)
+@pytest.mark.parametrize("mode", ["select", "copy"])
+def test_read_json_with_infer_schema_deterministic_column_order(session, mode):
+    """Test that INFER_SCHEMA returns columns in deterministic order."""
+    json_path = f"@{tmp_stage_name1}/{test_file_json_dupe_column_id}"
+
+    # Run multiple times to verify deterministic ordering. Previously, column order would vary between runs:
+    # (a, b, c) vs (a, c, b) due to order_id of column b and c being the same.
+    for _ in range(10):
+        df = get_reader(session, mode).option("INFER_SCHEMA", True).json(json_path)
+        assert df.columns == ['"a"', '"b"', '"c"']
 
 
 @pytest.mark.skipif(

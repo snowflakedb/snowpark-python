@@ -154,6 +154,8 @@ def test_array_type(session):
 )
 def test_describe_schema_matches_execute_schema_for_show_queries(session, obj):
     query = f"show {obj}"
+    if obj == "databases":
+        query += " limit 10000"
     # describe query
     show_query_schema_describe = session._get_result_attributes(query)
     assert len(show_query_schema_describe) > 0

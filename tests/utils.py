@@ -1542,6 +1542,10 @@ class TestFiles:
         return os.path.join(self.resources_path, "testJsonNewSchema.json")
 
     @property
+    def test_file_json_dupe_column_id(self):
+        return os.path.join(self.resources_path, "testJsonDupeColumnID.jsonl")
+
+    @property
     def test_file_avro(self):
         return os.path.join(self.resources_path, "test.avro")
 

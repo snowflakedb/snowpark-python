@@ -237,6 +237,7 @@ def connection(db_parameters, local_testing_mode):
             "user",
             "password",
             "private_key_file",
+            "private_key_file_pwd",
             "host",
             "port",
             "database",
