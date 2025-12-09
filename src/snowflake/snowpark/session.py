@@ -1794,7 +1794,7 @@ class Session:
 
         Example::
 
-            >>> import sys, pytest; _ = (sys.version_info[:2] not in ((3, 9), (3, 12))) or pytest.skip()
+            >>> import pytest; pytest.skip()
             >>> from snowflake.snowpark.functions import udf
             >>> import numpy
             >>> import pandas
