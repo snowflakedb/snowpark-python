@@ -4,6 +4,7 @@
 #
 import decimal
 import math
+from unittest import mock
 
 import pytest
 
@@ -31,7 +32,6 @@ from snowflake.snowpark.functions import (
 )
 from snowflake.snowpark.mock._snowflake_data_type import ColumnEmulator, ColumnType
 from snowflake.snowpark.types import DoubleType, IntegerType, StructType, StructField
-import snowflake.snowpark.context as context
 from tests.utils import Utils
 
 
@@ -644,10 +644,9 @@ def test_agg_on_empty_df(session):
     reason="HAVING clause is not supported in local testing mode",
 )
 def test_agg_filter_snowpark_connect_compatible(session):
-    original_value = context._is_snowpark_connect_compatible_mode
-
-    try:
-        context._is_snowpark_connect_compatible_mode = True
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
         df = session.create_dataframe(
             [(1, 2, 3), (3, 2, 1), (3, 2, 1)], ["a", "b", "c"]
         )
@@ -679,8 +678,6 @@ def test_agg_filter_snowpark_connect_compatible(session):
             df.filter(grouping("a") == 0).collect()
 
         Utils.check_answer(df.filter(col("a") > 1), [Row(3, 2, 1), Row(3, 2, 1)])
-    finally:
-        context._is_snowpark_connect_compatible_mode = original_value
 
 
 @pytest.mark.skipif(
@@ -688,10 +685,9 @@ def test_agg_filter_snowpark_connect_compatible(session):
     reason="ORDER BY append is not supported in local testing mode",
 )
 def test_agg_sort_snowpark_connect_compatible(session):
-    original_value = context._is_snowpark_connect_compatible_mode
-
-    try:
-        context._is_snowpark_connect_compatible_mode = True
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
         df = session.create_dataframe(
             [(1, 2, 3), (3, 2, 1), (3, 2, 1)], ["a", "b", "c"]
         )
@@ -717,21 +713,17 @@ def test_agg_sort_snowpark_connect_compatible(session):
         # original behavior on dataframe without group by
         df4 = df.sort(col("a"))
         Utils.check_answer(df4, [Row(1, 2, 3), Row(3, 2, 1), Row(3, 2, 1)])
-    finally:
-        context._is_snowpark_connect_compatible_mode = original_value
 
 
 def test_agg_no_grouping_exprs_limit_snowpark_connect_compatible(session):
-    original_value = context._is_snowpark_connect_compatible_mode
-    try:
-        context._is_snowpark_connect_compatible_mode = True
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
         df = session.create_dataframe([[1, 2], [3, 4], [1, 4]], schema=["A", "B"])
         result = df.agg(sum_(col("a"))).limit(2)
         Utils.check_answer(result, [Row(5)])
         result = df.group_by().agg(sum_(col("b"))).limit(2)
         Utils.check_answer(result, [Row(10)])
-    finally:
-        context._is_snowpark_connect_compatible_mode = original_value
 
 
 @pytest.mark.skipif(
@@ -739,10 +731,9 @@ def test_agg_no_grouping_exprs_limit_snowpark_connect_compatible(session):
     reason="HAVING and ORDER BY append are not supported in local testing mode",
 )
 def test_agg_filter_and_sort_with_grouping_snowpark_connect_compatible(session):
-    original_value = context._is_snowpark_connect_compatible_mode
-
-    try:
-        context._is_snowpark_connect_compatible_mode = True
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
         df = session.create_dataframe(
             [
                 ("dotNET", 2012, 10000),
@@ -852,8 +843,6 @@ def test_agg_filter_and_sort_with_grouping_snowpark_connect_compatible(session):
         # First row should have highest grouping value (1)
         results6 = df6.collect()
         assert results6[0][2] == 1  # gc=1 for NULL course
-    finally:
-        context._is_snowpark_connect_compatible_mode = original_value
 
 
 @pytest.mark.skipif(
@@ -861,10 +850,9 @@ def test_agg_filter_and_sort_with_grouping_snowpark_connect_compatible(session):
     reason="HAVING, ORDER BY append, and limit append are not supported in local testing mode",
 )
 def test_filter_sort_limit_snowpark_connect_compatible(session, sql_simplifier_enabled):
-    original_value = context._is_snowpark_connect_compatible_mode
-
-    try:
-        context._is_snowpark_connect_compatible_mode = True
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
         df = session.create_dataframe(
             [(1, 2, 3), (3, 2, 1), (3, 2, 1)], ["a", "b", "c"]
         )
@@ -938,9 +926,6 @@ def test_filter_sort_limit_snowpark_connect_compatible(session, sql_simplifier_e
         query6 = result_df6.queries["queries"][-1]
         # Should have 4 SELECT statements
         assert query6.upper().count("SELECT") == 4 if sql_simplifier_enabled else 5
-
-    finally:
-        context._is_snowpark_connect_compatible_mode = original_value
 
 
 @pytest.mark.skipif(
