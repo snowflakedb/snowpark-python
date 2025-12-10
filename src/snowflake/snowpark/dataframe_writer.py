@@ -48,7 +48,7 @@ from snowflake.snowpark._internal.utils import (
     warning,
 )
 from snowflake.snowpark.async_job import AsyncJob, _AsyncResultType
-from snowflake.snowpark.column import Column, _to_col_if_str
+from snowflake.snowpark.column import Column, _to_col_if_str, _to_col_if_sql_expr
 from snowflake.snowpark.exceptions import SnowparkClientException
 from snowflake.snowpark.functions import sql_expr
 from snowflake.snowpark.mock._connection import MockServerConnection
@@ -256,6 +256,7 @@ class DataFrameWriter:
             Dict[str, Union[str, Iterable[ColumnOrSqlExpr]]]
         ] = None,
         table_exists: Optional[bool] = None,
+        override_condition: Optional[ColumnOrSqlExpr] = None,
         _emit_ast: bool = True,
         **kwargs: Optional[Dict[str, Any]],
     ) -> Optional[AsyncJob]:
@@ -331,6 +332,9 @@ class DataFrameWriter:
             table_exists: Optional parameter to specify if the table is known to exist or not.
                 Set to ``True`` if table exists, ``False`` if it doesn't, or ``None`` (default) for automatic detection.
                 Primarily useful for "append" and "truncate" modes to avoid running query for automatic detection.
+            override_condition: Specifies the override condition to perform atomic targeted delete-insert.
+                Can only be used when ``mode`` is "append" and the table exists. Rows matching the
+                condition are deleted from the target table, then all rows from the DataFrame are inserted.
 
 
         Example 1::
@@ -364,6 +368,21 @@ class DataFrameWriter:
             ...     "partition_by": ["a", bucket(3, col("b"))],
             ... }
             >>> df.write.mode("overwrite").save_as_table("my_table", iceberg_config=iceberg_config) # doctest: +SKIP
+
+        Example 3::
+
+            Using override_condition for targeted delete and insert:
+
+            >>> from snowflake.snowpark.functions import col
+            >>> df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"]], schema=["id", "val"])
+            >>> df.write.mode("overwrite").save_as_table("my_table", table_type="temporary")
+            >>> session.table("my_table").order_by("id").collect()
+            [Row(ID=1, VAL='a'), Row(ID=2, VAL='b'), Row(ID=3, VAL='c')]
+
+            >>> new_df = session.create_dataframe([[2, "updated2"], [5, "updated5"]], schema=["id", "val"])
+            >>> new_df.write.mode("append").save_as_table("my_table", override_condition="id = 1 or val = 'b'")
+            >>> session.table("my_table").order_by("id").collect()
+            [Row(ID=2, VAL='updated2'), Row(ID=3, VAL='c'), Row(ID=5, VAL='updated5')]
         """
 
         statement_params = track_data_source_statement_params(
@@ -486,6 +505,21 @@ class DataFrameWriter:
                     f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
                 )
 
+            # override_condition must be used with APPEND mode
+            if override_condition is not None and save_mode != SaveMode.APPEND:
+                raise ValueError(
+                    f"'override_condition' is only supported with mode='append'. "
+                    f"Got mode='{save_mode.value}'."
+                )
+
+            override_condition_expr = (
+                _to_col_if_sql_expr(
+                    override_condition, "DataFrameWriter.save_as_table"
+                )._expression
+                if override_condition is not None
+                else None
+            )
+
             session = self._dataframe._session
             if (
                 table_exists is None
@@ -518,6 +552,7 @@ class DataFrameWriter:
                 copy_grants,
                 iceberg_config,
                 table_exists,
+                override_condition_expr,
             )
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
             result = session._conn.execute(
