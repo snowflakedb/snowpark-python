@@ -602,3 +602,63 @@ def test_end_to_end_default_precision(session, precision, mock_default_precision
             result.schema.fields[2].datatype._precision
             == mock_default_precision[LongType]
         )
+
+
+@pytest.mark.skipif(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="relaxed_types not supported by local testing mode",
+)
+@pytest.mark.parametrize("massive_number", ["9" * 38, "5" * 19, "7" * 5])
+def test_default_precision_read_file(session, massive_number):
+    mock_default_precision = {"LongType": 19, "IntegerType": 10}
+    with mock.patch.object(
+        context, "_is_snowpark_connect_compatible_mode", True
+    ), mock.patch.object(
+        context, "_integral_type_default_precision", mock_default_precision
+    ):
+        stage_name = Utils.random_stage_name()
+        header = ("BIG_NUM",)
+        test_data = [(massive_number,)]
+
+        def write_csv(data):
+            with tempfile.NamedTemporaryFile(
+                mode="w+",
+                delete=False,
+                suffix=".csv",
+                newline="",
+            ) as file:
+                writer = csv.writer(file)
+                writer.writerow(header)
+                for row in data:
+                    writer.writerow(row)
+                return file.name
+
+        file_path = write_csv(test_data)
+
+        try:
+            Utils.create_stage(session, stage_name, is_temporary=True)
+            result = session.file.put(
+                file_path, f"@{stage_name}", auto_compress=False, overwrite=True
+            )
+
+            # Infer schema from only the short file
+            constrained_reader = session.read.options(
+                {
+                    "INFER_SCHEMA": True,
+                    "INFER_SCHEMA_OPTIONS": {"FILES": [result[0].target]},
+                    "PARSE_HEADER": True,
+                    # Only load the short file
+                    "PATTERN": f".*{result[0].target}",
+                }
+            )
+
+            # df1 uses constrained types
+            df1 = constrained_reader.csv(f"@{stage_name}/")
+            datatype = df1.schema.fields[0].datatype
+            assert isinstance(datatype, LongType)
+            assert datatype._precision == len(massive_number)
+
+        finally:
+            Utils.drop_stage(session, stage_name)
+            if os.path.exists(file_path):
+                os.remove(file_path)
