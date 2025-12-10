@@ -531,19 +531,20 @@ def test_write_to_sf_with_correct_precision(session, precision):
 @pytest.mark.parametrize(
     "mock_default_precision",
     [
-        {"IntegerType": 5, "LongType": 4},
-        {"LongType": 19, "IntegerType": 10},
+        {IntegerType: 5, LongType: 4},
+        {LongType: 19, IntegerType: 10},
     ],
 )
 def test_integral_type_default_precision(mock_default_precision):
-    with mock.patch.object(
-        context, "_integral_type_default_precision", mock_default_precision
+    with mock.patch(
+        "snowflake.snowpark.context._integral_type_default_precision",
+        mock_default_precision,
     ):
         integer_type = IntegerType()
-        assert integer_type._precision == mock_default_precision["IntegerType"]
+        assert integer_type._precision == mock_default_precision[IntegerType]
 
         long_type = LongType()
-        assert long_type._precision == mock_default_precision["LongType"]
+        assert long_type._precision == mock_default_precision[LongType]
 
         short_type = ShortType()
         assert short_type._precision is None
