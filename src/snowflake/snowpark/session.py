@@ -1794,17 +1794,17 @@ class Session:
 
         Example::
 
-            >>> import sys
-            >>> from snowflake.snowpark.functions import udf
-            >>> import numpy
-            >>> import pandas
+            >>> import sys  # doctest: +SKIP
+            >>> from snowflake.snowpark.functions import udf  # doctest: +SKIP
+            >>> import numpy  # doctest: +SKIP
+            >>> import pandas  # doctest: +SKIP
             >>> # test_requirements.txt contains "numpy" and "pandas"
             >>> session.custom_package_usage_config = {"enabled": True, "force_push": True} # Recommended configuration  # doctest: +SKIP
             >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"}, relax=True)  # doctest: +SKIP
-            >>> @udf
-            ... def get_package_name_udf() -> list:
-            ...     return [numpy.__name__, pandas.__name__]
-            >>> if sys.version_info <= (3, 11):
+            >>> @udf  # doctest: +SKIP
+            ... def get_package_name_udf() -> list:  # doctest: +SKIP
+            ...     return [numpy.__name__, pandas.__name__]  # doctest: +SKIP
+            >>> if sys.version_info <= (3, 11):  # doctest: +SKIP
             ...     session.sql(f"select {get_package_name_udf.name}()").to_df("col1").show()  # doctest: +SKIP
             --------------
             |"COL1"      |
