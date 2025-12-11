@@ -316,6 +316,9 @@ def convert_sf_to_sp_type(
 
 
 def convert_sp_to_sf_type(datatype: DataType, nullable_override=None) -> str:
+    if context._is_snowpark_connect_compatible_mode:
+        if isinstance(datatype, _IntegralType) and datatype._precision is not None:
+            return f"NUMBER({datatype._precision}, 0)"
     if isinstance(datatype, DecimalType):
         return f"NUMBER({datatype.precision}, {datatype.scale})"
     if isinstance(datatype, IntegerType):
