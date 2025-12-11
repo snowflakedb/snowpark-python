@@ -4568,7 +4568,7 @@ def test_write_table_with_clustering_keys_and_comment(
 
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
-    reason="overwrite_condition is a SQL feature",
+    reason="overwrite_condition is not supported in local testing mode",
     run=False,
 )
 def test_write_table_with_overwrite_condition(session):
@@ -4680,7 +4680,7 @@ def test_write_table_with_overwrite_condition(session):
 
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
-    reason="overwrite_condition is a SQL feature",
+    reason="overwrite_condition is a not supported in local testing mode",
     run=False,
 )
 @pytest.mark.parametrize(

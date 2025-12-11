@@ -271,7 +271,9 @@ class DataFrameWriter:
 
                 "append": Append data of this DataFrame to the existing table. Creates a table if it does not exist.
 
-                "overwrite": Overwrite the existing table by dropping old table.
+                "overwrite": Overwrite the existing table. By default, drops and recreates the table.
+                    When ``overwrite_condition`` is specified, performs selective overwrite: deletes only
+                    rows matching the condition, then inserts new data.
 
                 "truncate": Overwrite the existing table by truncating old table.
 
@@ -333,8 +335,10 @@ class DataFrameWriter:
                 Set to ``True`` if table exists, ``False`` if it doesn't, or ``None`` (default) for automatic detection.
                 Primarily useful for "append", "truncate", and "overwrite" with overwrite_condition modes to avoid running query for automatic detection.
             overwrite_condition: Specifies the overwrite condition to perform atomic targeted delete-insert.
-                Can only be used when ``mode`` is "overwrite" and the table exists. Rows matching the
-                condition are deleted from the target table, then all rows from the DataFrame are inserted.
+                Can only be used when ``mode`` is "overwrite". When provided and the table exists, rows matching
+                the condition are atomically deleted and all rows from the DataFrame are inserted, preserving
+                non-matching rows. When not provided, the default "overwrite" behavior applies (drop and recreate table).
+                If the table does not exist, ``overwrite_condition`` is ignored and the table is created normally.
 
 
         Example 1::
