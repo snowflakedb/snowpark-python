@@ -1795,7 +1795,7 @@ class Session:
         Example::
 
             >>> import sys
-            >>> from snowflake.snowpark.functions import udf  # doctest: +SKIP
+            >>> from snowflake.snowpark.functions import udf
             >>> import numpy
             >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
