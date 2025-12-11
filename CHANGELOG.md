@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Added support for targeted delete-insert via the `overwrite_condition` parameter in `DataFrameWriter.save_as_table`
 - Added support for the following functions in `functions.py`:
     - String and Binary functions:
       - `hex_decode_string`
