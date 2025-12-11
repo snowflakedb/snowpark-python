@@ -8,8 +8,6 @@
 
 - Added support for targeted delete-insert via the `overwrite_condition` parameter in `DataFrameWriter.save_as_table`
 
-#### Bug Fixes
-
 #### Improvements
 
 - Improved `DataFrameReader` to return columns in deterministic order when using `INFER_SCHEMA`.
@@ -17,14 +15,6 @@
 #### Dependency Updates
 
 - Added a dependency on `protobuf<6.34` (was `<6.32`).
-
-### Snowpark pandas API Updates
-
-#### New Features
-
-#### Bug Fixes
-
-#### Improvements
 
 ## 1.43.0 (2025-12-03)
 
