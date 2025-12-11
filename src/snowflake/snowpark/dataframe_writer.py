@@ -333,7 +333,7 @@ class DataFrameWriter:
                 Set to ``True`` if table exists, ``False`` if it doesn't, or ``None`` (default) for automatic detection.
                 Primarily useful for "append", "truncate", and "overwrite" with overwrite_condition modes to avoid running query for automatic detection.
             overwrite_condition: Specifies the overwrite condition to perform atomic targeted delete-insert.
-                Can be used when ``mode`` is "append" or "overwrite" when the table exists. Rows matching the
+                Can only be used when ``mode`` is "overwrite" and the table exists. Rows matching the
                 condition are deleted from the target table, then all rows from the DataFrame are inserted.
 
 
@@ -380,7 +380,7 @@ class DataFrameWriter:
             [Row(ID=1, VAL='a'), Row(ID=2, VAL='b'), Row(ID=3, VAL='c')]
 
             >>> new_df = session.create_dataframe([[2, "updated2"], [5, "updated5"]], schema=["id", "val"])
-            >>> new_df.write.mode("append").save_as_table("my_table", overwrite_condition="id = 1 or val = 'b'")
+            >>> new_df.write.mode("overwrite").save_as_table("my_table", overwrite_condition="id = 1 or val = 'b'")
             >>> session.table("my_table").order_by("id").collect()
             [Row(ID=2, VAL='updated2'), Row(ID=3, VAL='c'), Row(ID=5, VAL='updated5')]
         """
@@ -513,13 +513,10 @@ class DataFrameWriter:
                     f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
                 )
 
-            # overwrite_condition must be used with APPEND or OVERWRITE mode
-            if overwrite_condition is not None and save_mode not in (
-                SaveMode.APPEND,
-                SaveMode.OVERWRITE,
-            ):
+            # overwrite_condition must be used with OVERWRITE mode only
+            if overwrite_condition is not None and save_mode != SaveMode.OVERWRITE:
                 raise ValueError(
-                    f"'overwrite_condition' is only supported with mode='append' or mode='overwrite'. "
+                    f"'overwrite_condition' is only supported with mode='overwrite'. "
                     f"Got mode='{save_mode.value}'."
                 )
 

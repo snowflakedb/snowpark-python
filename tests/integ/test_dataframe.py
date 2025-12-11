@@ -4597,7 +4597,7 @@ def test_write_table_with_overwrite_condition(session):
                 [StructField("id", IntegerType()), StructField("val", StringType())]
             ),
         )
-        new_df1.write.mode("append").save_as_table(
+        new_df1.write.mode("overwrite").save_as_table(
             table_name, overwrite_condition="id = 1 or val = 'b'"
         )
         result = session.table(table_name).order_by("id").collect()
@@ -4615,7 +4615,7 @@ def test_write_table_with_overwrite_condition(session):
                 [StructField("id", IntegerType()), StructField("val", StringType())]
             ),
         )
-        new_df2.write.mode("append").save_as_table(
+        new_df2.write.mode("overwrite").save_as_table(
             table_name, overwrite_condition=col("id") == 2
         )
         result = session.table(table_name).order_by("id").collect()
@@ -4634,7 +4634,7 @@ def test_write_table_with_overwrite_condition(session):
                 [StructField("id", IntegerType()), StructField("val", StringType())]
             ),
         )
-        new_df3.write.mode("append").save_as_table(
+        new_df3.write.mode("overwrite").save_as_table(
             table_name, overwrite_condition=(col("id") > 4) | (col("val") == "c")
         )
         result = session.table(table_name).order_by("id").collect()
@@ -4652,7 +4652,7 @@ def test_write_table_with_overwrite_condition(session):
                 [StructField("id", IntegerType()), StructField("val", StringType())]
             ),
         )
-        new_df4.write.mode("append").save_as_table(
+        new_df4.write.mode("overwrite").save_as_table(
             table_name, overwrite_condition="id > 0"
         )
         result = session.table(table_name).collect()
@@ -4665,31 +4665,13 @@ def test_write_table_with_overwrite_condition(session):
                 [StructField("id", IntegerType()), StructField("val", StringType())]
             ),
         )
-        new_df5.write.mode("append").save_as_table(
+        new_df5.write.mode("overwrite").save_as_table(
             table_name, overwrite_condition="id = 999"
         )
         result = session.table(table_name).order_by("id").collect()
         assert result == [
             Row(ID=10, VAL="new"),
             Row(ID=20, VAL="another"),
-        ]
-
-        # Test 6: overwrite_condition with mode="overwrite" (selective overwrite)
-        new_df6 = session.create_dataframe(
-            [[10, "replaced10"], [30, "new30"]],
-            schema=StructType(
-                [StructField("id", IntegerType()), StructField("val", StringType())]
-            ),
-        )
-        new_df6.write.mode("overwrite").save_as_table(
-            table_name, overwrite_condition=col("id") == 10
-        )
-        result = session.table(table_name).order_by("id").collect()
-        # id=10 deleted, new rows inserted, id=20 preserved
-        assert result == [
-            Row(ID=10, VAL="replaced10"),
-            Row(ID=20, VAL="another"),
-            Row(ID=30, VAL="new30"),
         ]
 
     finally:
@@ -4701,7 +4683,9 @@ def test_write_table_with_overwrite_condition(session):
     reason="overwrite_condition is a SQL feature",
     run=False,
 )
-@pytest.mark.parametrize("invalid_mode", ["truncate", "errorifexists", "ignore"])
+@pytest.mark.parametrize(
+    "invalid_mode", ["append", "truncate", "errorifexists", "ignore"]
+)
 def test_write_table_with_overwrite_condition_edge_cases(session, invalid_mode):
     """Test overwrite_condition edge cases: table not exists, and invalid modes."""
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
@@ -4713,7 +4697,7 @@ def test_write_table_with_overwrite_condition_edge_cases(session, invalid_mode):
                 [StructField("id", IntegerType()), StructField("val", StringType())]
             ),
         )
-        df.write.mode("append").save_as_table(
+        df.write.mode("overwrite").save_as_table(
             table_name, overwrite_condition="id = 999"
         )
         result = session.table(table_name).order_by("id").collect()
@@ -4722,7 +4706,7 @@ def test_write_table_with_overwrite_condition_edge_cases(session, invalid_mode):
         # Edge case 2: Invalid mode raises ValueError
         with pytest.raises(
             ValueError,
-            match="'overwrite_condition' is only supported with mode='append' or mode='overwrite'",
+            match="'overwrite_condition' is only supported with mode='overwrite'",
         ):
             df.write.mode(invalid_mode).save_as_table(
                 table_name, overwrite_condition="id = 1"

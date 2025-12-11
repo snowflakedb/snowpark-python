@@ -1462,21 +1462,16 @@ class SnowflakePlanBuilder:
         if mode == SaveMode.APPEND:
             assert table_exists is not None
             if table_exists:
-                if overwrite_condition is not None:
-                    return get_overwrite_delete_insert_plan(child)
-                else:
-                    # Normal append without overwrite_condition
-                    return self.build(
-                        lambda x: insert_into_statement(
-                            table_name=full_table_name,
-                            child=x,
-                            column_names=column_names,
-                        ),
-                        child,
-                        source_plan,
-                    )
+                return self.build(
+                    lambda x: insert_into_statement(
+                        table_name=full_table_name,
+                        child=x,
+                        column_names=column_names,
+                    ),
+                    child,
+                    source_plan,
+                )
             else:
-                # Table doesn't exist, just create and insert (overwrite_condition is no-op)
                 return get_create_and_insert_plan(child, replace=False, error=False)
 
         elif mode == SaveMode.TRUNCATE:
