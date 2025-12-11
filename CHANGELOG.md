@@ -25,6 +25,10 @@
 
 - Improved `DataFrameReader` to return columns in deterministic order when using `INFER_SCHEMA`.
 
+#### Dependency Updates
+
+- Added a dependency on `protobuf<6.34` (was `<6.32`).
+
 ### Snowpark pandas API Updates
 
 #### New Features
