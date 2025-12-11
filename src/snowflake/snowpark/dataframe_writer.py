@@ -411,6 +411,8 @@ class DataFrameWriter:
             # change_tracking: Optional[bool] = None,
             # copy_grants: bool = False,
             # iceberg_config: Optional[dict] = None,
+            # table_exists: Optional[bool] = None,
+            # overwrite_condition: Optional[ColumnOrSqlExpr] = None,
 
             build_table_name(expr.table_name, table_name)
 
@@ -452,6 +454,12 @@ class DataFrameWriter:
                     t = expr.iceberg_config.add()
                     t._1 = k
                     build_expr_from_python_val(t._2, v)
+            if table_exists is not None:
+                expr.table_exists.value = table_exists
+            if overwrite_condition is not None:
+                build_expr_from_snowpark_column_or_sql_str(
+                    expr.overwrite_condition, overwrite_condition
+                )
 
             self._dataframe._session._ast_batch.eval(stmt)
 
