@@ -554,7 +554,6 @@ def test_integral_type_default_precision(mock_default_precision):
     "config.getoption('local_testing_mode', default=False)",
     reason="session.sql not supported by local testing mode",
 )
-@pytest.mark.parametrize("precision", [38, 19, 5, 3])
 @pytest.mark.parametrize(
     "mock_default_precision",
     [
@@ -562,7 +561,7 @@ def test_integral_type_default_precision(mock_default_precision):
         {LongType: 19, IntegerType: 10},
     ],
 )
-def test_end_to_end_default_precision(session, precision, mock_default_precision):
+def test_end_to_end_default_precision(session, mock_default_precision):
     table_name = Utils.random_table_name()
 
     with mock.patch.object(
@@ -573,7 +572,10 @@ def test_end_to_end_default_precision(session, precision, mock_default_precision
 
         schema = StructType(
             [
-                StructField("decimal_value", DecimalType(precision, 0), True),
+                StructField("D38", DecimalType(38, 0), True),
+                StructField("D19", DecimalType(19, 0), True),
+                StructField("D5", DecimalType(5, 0), True),
+                StructField("D3", DecimalType(3, 0), True),
                 StructField("integer_value", IntegerType(), True),
                 StructField("long_value", LongType(), True),
             ]
@@ -583,24 +585,30 @@ def test_end_to_end_default_precision(session, precision, mock_default_precision
             [],
             schema,
         )
-        assert df.schema.fields[0].datatype._precision == precision
+        assert df.schema.fields[0].datatype._precision == 38
+        assert df.schema.fields[1].datatype._precision == 19
+        assert df.schema.fields[2].datatype._precision == 5
+        assert df.schema.fields[3].datatype._precision == 3
         assert (
-            df.schema.fields[1].datatype._precision
+            df.schema.fields[4].datatype._precision
             == mock_default_precision[IntegerType]
         )
         assert (
-            df.schema.fields[2].datatype._precision == mock_default_precision[LongType]
+            df.schema.fields[5].datatype._precision == mock_default_precision[LongType]
         )
 
         df.write.save_as_table(table_name, mode="overwrite", table_type="temp")
         result = session.sql(f"select * from {table_name}")
-        assert result.schema.fields[0].datatype._precision == precision
+        assert result.schema.fields[0].datatype._precision == 38
+        assert result.schema.fields[1].datatype._precision == 19
+        assert result.schema.fields[2].datatype._precision == 5
+        assert result.schema.fields[3].datatype._precision == 3
         assert (
-            result.schema.fields[1].datatype._precision
+            result.schema.fields[4].datatype._precision
             == mock_default_precision[IntegerType]
         )
         assert (
-            result.schema.fields[2].datatype._precision
+            result.schema.fields[5].datatype._precision
             == mock_default_precision[LongType]
         )
 
@@ -611,7 +619,7 @@ def test_end_to_end_default_precision(session, precision, mock_default_precision
 )
 @pytest.mark.parametrize("massive_number", ["9" * 38, "5" * 19, "7" * 5])
 def test_default_precision_read_file(session, massive_number):
-    mock_default_precision = {"LongType": 19, "IntegerType": 10}
+    mock_default_precision = {LongType: 19, IntegerType: 10}
     with mock.patch.object(
         context, "_is_snowpark_connect_compatible_mode", True
     ), mock.patch.object(
