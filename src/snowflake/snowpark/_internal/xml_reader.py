@@ -7,7 +7,10 @@ import re
 import html.entities
 import struct
 from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
+
+from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark.files import SnowflakeFile
+from snowflake.snowpark.types import StructType
 
 # lxml is only a dev dependency so use try/except to import it if available
 try:
@@ -342,6 +345,7 @@ def process_xml_range(
     ignore_surrounding_whitespace: bool,
     row_validation_xsd_path: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
+    custom_schema: Optional[StructType] = None,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
     Processes an XML file within a given approximate byte range.
@@ -371,6 +375,7 @@ def process_xml_range(
         ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
         row_validation_xsd_path (str): Path to XSD file for row validation.
         chunk_size (int): Size of chunks to read.
+        custom_schema(StructType): User input schema for xml, must be used together with row tag.
 
     Yields:
         Optional[Dict[str, Any]]: Dictionary representation of the parsed XML element.
@@ -539,6 +544,7 @@ class XMLReader:
         charset: str,
         ignore_surrounding_whitespace: bool,
         row_validation_xsd_path: str,
+        custom_schema: str,
     ):
         """
         Splits the file into byte ranges—one per worker—by starting with an even
@@ -561,11 +567,13 @@ class XMLReader:
             charset (str): The character encoding of the XML file.
             ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
             row_validation_xsd_path (str): Path to XSD file for row validation.
+            custom_schema: User input schema for xml, must be used together with row tag.
         """
         file_size = get_file_size(filename)
         approx_chunk_size = file_size // num_workers
         approx_start = approx_chunk_size * i
         approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
+        custom_schema = type_string_to_type_object(custom_schema)
         for element in process_xml_range(
             filename,
             row_tag,
@@ -581,5 +589,6 @@ class XMLReader:
             charset,
             ignore_surrounding_whitespace,
             row_validation_xsd_path=row_validation_xsd_path,
+            custom_schema=custom_schema,
         ):
             yield (element,)
