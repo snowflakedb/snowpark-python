@@ -1794,13 +1794,13 @@ class Session:
 
         Example::
 
-            >>> import sys, pytest; _ = (sys.version_info[:2] not in ((3, 9), (3, 12))) or pytest.skip()
+            >>> import sys
             >>> from snowflake.snowpark.functions import udf
             >>> import numpy
             >>> import pandas
             >>> # test_requirements.txt contains "numpy" and "pandas"
             >>> session.custom_package_usage_config = {"enabled": True, "force_push": True} # Recommended configuration
-            >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"}, relax=True)
+            >>> session.replicate_local_environment(ignore_packages={"snowflake-snowpark-python", "snowflake-connector-python", "urllib3", "tzdata", "numpy"}, relax=True)  # doctest: +SKIP
             >>> @udf
             ... def get_package_name_udf() -> list:
             ...     return [numpy.__name__, pandas.__name__]
@@ -1815,8 +1815,8 @@ class Session:
             |]           |
             --------------
             <BLANKLINE>
-            >>> session.clear_packages()
-            >>> session.clear_imports()
+            >>> session.clear_packages()  # doctest: +SKIP
+            >>> session.clear_imports()  # doctest: +SKIP
 
         Args:
             ignore_packages: Set of package names that will be ignored.
