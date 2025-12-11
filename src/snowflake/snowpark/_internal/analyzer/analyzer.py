@@ -1228,11 +1228,11 @@ class Analyzer:
                 child_attributes=resolved_child.attributes,
                 iceberg_config=iceberg_config,
                 table_exists=logical_plan.table_exists,
-                override_condition=self.analyze(
-                    logical_plan.override_condition,
+                overwrite_condition=self.analyze(
+                    logical_plan.overwrite_condition,
                     df_aliased_col_name_to_real_col_name,
                 )
-                if logical_plan.override_condition
+                if logical_plan.overwrite_condition
                 else None,
             )
 

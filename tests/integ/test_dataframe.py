@@ -4568,11 +4568,11 @@ def test_write_table_with_clustering_keys_and_comment(
 
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
-    reason="override_condition is a SQL feature",
+    reason="overwrite_condition is a SQL feature",
     run=False,
 )
-def test_write_table_with_override_condition(session):
-    """Test override_condition parameter for targeted delete + insert."""
+def test_write_table_with_overwrite_condition(session):
+    """Test overwrite_condition parameter for targeted delete + insert."""
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
         # Setup and verify initial data
@@ -4590,7 +4590,7 @@ def test_write_table_with_override_condition(session):
             Row(ID=3, VAL="c"),
         ]
 
-        # Test 1: override_condition with SQL string expr
+        # Test 1: overwrite_condition with SQL string expr
         new_df1 = session.create_dataframe(
             [[2, "updated2"], [5, "new5"]],
             schema=StructType(
@@ -4598,7 +4598,7 @@ def test_write_table_with_override_condition(session):
             ),
         )
         new_df1.write.mode("append").save_as_table(
-            table_name, override_condition="id = 1 or val = 'b'"
+            table_name, overwrite_condition="id = 1 or val = 'b'"
         )
         result = session.table(table_name).order_by("id").collect()
         # id=1 and id=2 (val='b') deleted, new rows inserted
@@ -4608,7 +4608,7 @@ def test_write_table_with_override_condition(session):
             Row(ID=5, VAL="new5"),
         ]
 
-        # Test 2: override_condition with Column expr
+        # Test 2: overwrite_condition with Column expr
         new_df2 = session.create_dataframe(
             [[2, "replaced2"], [4, "new4"]],
             schema=StructType(
@@ -4616,7 +4616,7 @@ def test_write_table_with_override_condition(session):
             ),
         )
         new_df2.write.mode("append").save_as_table(
-            table_name, override_condition=col("id") == 2
+            table_name, overwrite_condition=col("id") == 2
         )
         result = session.table(table_name).order_by("id").collect()
         # id=2 deleted, new rows inserted
@@ -4627,7 +4627,7 @@ def test_write_table_with_override_condition(session):
             Row(ID=5, VAL="new5"),
         ]
 
-        # Test 3: override_condition with multiple Column expr
+        # Test 3: overwrite_condition with multiple Column expr
         new_df3 = session.create_dataframe(
             [[6, "new6"]],
             schema=StructType(
@@ -4635,7 +4635,7 @@ def test_write_table_with_override_condition(session):
             ),
         )
         new_df3.write.mode("append").save_as_table(
-            table_name, override_condition=(col("id") > 4) | (col("val") == "c")
+            table_name, overwrite_condition=(col("id") > 4) | (col("val") == "c")
         )
         result = session.table(table_name).order_by("id").collect()
         # id=3 (val='c') and id=5 (id > 4) deleted, id=4 remains (4 is not > 4), new row inserted
@@ -4645,7 +4645,7 @@ def test_write_table_with_override_condition(session):
             Row(ID=6, VAL="new6"),
         ]
 
-        # Test 4: override_condition that matches all rows
+        # Test 4: overwrite_condition that matches all rows
         new_df4 = session.create_dataframe(
             [[10, "new"]],
             schema=StructType(
@@ -4653,12 +4653,12 @@ def test_write_table_with_override_condition(session):
             ),
         )
         new_df4.write.mode("append").save_as_table(
-            table_name, override_condition="id > 0"
+            table_name, overwrite_condition="id > 0"
         )
         result = session.table(table_name).collect()
         assert result == [Row(ID=10, VAL="new")]
 
-        # Test 5: override_condition that matches no rows
+        # Test 5: overwrite_condition that matches no rows
         new_df5 = session.create_dataframe(
             [[20, "another"]],
             schema=StructType(
@@ -4666,12 +4666,30 @@ def test_write_table_with_override_condition(session):
             ),
         )
         new_df5.write.mode("append").save_as_table(
-            table_name, override_condition="id = 999"
+            table_name, overwrite_condition="id = 999"
         )
         result = session.table(table_name).order_by("id").collect()
         assert result == [
             Row(ID=10, VAL="new"),
             Row(ID=20, VAL="another"),
+        ]
+
+        # Test 6: overwrite_condition with mode="overwrite" (selective overwrite)
+        new_df6 = session.create_dataframe(
+            [[10, "replaced10"], [30, "new30"]],
+            schema=StructType(
+                [StructField("id", IntegerType()), StructField("val", StringType())]
+            ),
+        )
+        new_df6.write.mode("overwrite").save_as_table(
+            table_name, overwrite_condition=col("id") == 10
+        )
+        result = session.table(table_name).order_by("id").collect()
+        # id=10 deleted, new rows inserted, id=20 preserved
+        assert result == [
+            Row(ID=10, VAL="replaced10"),
+            Row(ID=20, VAL="another"),
+            Row(ID=30, VAL="new30"),
         ]
 
     finally:
@@ -4680,34 +4698,34 @@ def test_write_table_with_override_condition(session):
 
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
-    reason="override_condition is a SQL feature",
+    reason="overwrite_condition is a SQL feature",
     run=False,
 )
-@pytest.mark.parametrize(
-    "invalid_mode", ["overwrite", "truncate", "errorifexists", "ignore"]
-)
-def test_write_table_with_override_condition_edge_cases(session, invalid_mode):
-    """Test override_condition edge cases: table not exists, and invalid modes."""
+@pytest.mark.parametrize("invalid_mode", ["truncate", "errorifexists", "ignore"])
+def test_write_table_with_overwrite_condition_edge_cases(session, invalid_mode):
+    """Test overwrite_condition edge cases: table not exists, and invalid modes."""
     table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
     try:
-        # Edge case 1: Table doesn't exist - override_condition is no-op
+        # Edge case 1: Table doesn't exist - overwrite_condition is no-op
         df = session.create_dataframe(
             [[1, "a"], [2, "b"]],
             schema=StructType(
                 [StructField("id", IntegerType()), StructField("val", StringType())]
             ),
         )
-        df.write.mode("append").save_as_table(table_name, override_condition="id = 999")
+        df.write.mode("append").save_as_table(
+            table_name, overwrite_condition="id = 999"
+        )
         result = session.table(table_name).order_by("id").collect()
         assert result == [Row(ID=1, VAL="a"), Row(ID=2, VAL="b")]
 
         # Edge case 2: Invalid mode raises ValueError
         with pytest.raises(
             ValueError,
-            match="'override_condition' is only supported with mode='append'",
+            match="'overwrite_condition' is only supported with mode='append' or mode='overwrite'",
         ):
             df.write.mode(invalid_mode).save_as_table(
-                table_name, override_condition="id = 1"
+                table_name, overwrite_condition="id = 1"
             )
 
     finally:

@@ -256,7 +256,7 @@ class DataFrameWriter:
             Dict[str, Union[str, Iterable[ColumnOrSqlExpr]]]
         ] = None,
         table_exists: Optional[bool] = None,
-        override_condition: Optional[ColumnOrSqlExpr] = None,
+        overwrite_condition: Optional[ColumnOrSqlExpr] = None,
         _emit_ast: bool = True,
         **kwargs: Optional[Dict[str, Any]],
     ) -> Optional[AsyncJob]:
@@ -331,9 +331,9 @@ class DataFrameWriter:
                 * iceberg_version: Overrides the version of iceberg to use. Defaults to 2 when unset.
             table_exists: Optional parameter to specify if the table is known to exist or not.
                 Set to ``True`` if table exists, ``False`` if it doesn't, or ``None`` (default) for automatic detection.
-                Primarily useful for "append" and "truncate" modes to avoid running query for automatic detection.
-            override_condition: Specifies the override condition to perform atomic targeted delete-insert.
-                Can only be used when ``mode`` is "append" and the table exists. Rows matching the
+                Primarily useful for "append", "truncate", and "overwrite" with overwrite_condition modes to avoid running query for automatic detection.
+            overwrite_condition: Specifies the overwrite condition to perform atomic targeted delete-insert.
+                Can be used when ``mode`` is "append" or "overwrite" when the table exists. Rows matching the
                 condition are deleted from the target table, then all rows from the DataFrame are inserted.
 
 
@@ -371,7 +371,7 @@ class DataFrameWriter:
 
         Example 3::
 
-            Using override_condition for targeted delete and insert:
+            Using overwrite_condition for targeted delete and insert:
 
             >>> from snowflake.snowpark.functions import col
             >>> df = session.create_dataframe([[1, "a"], [2, "b"], [3, "c"]], schema=["id", "val"])
@@ -380,7 +380,7 @@ class DataFrameWriter:
             [Row(ID=1, VAL='a'), Row(ID=2, VAL='b'), Row(ID=3, VAL='c')]
 
             >>> new_df = session.create_dataframe([[2, "updated2"], [5, "updated5"]], schema=["id", "val"])
-            >>> new_df.write.mode("append").save_as_table("my_table", override_condition="id = 1 or val = 'b'")
+            >>> new_df.write.mode("append").save_as_table("my_table", overwrite_condition="id = 1 or val = 'b'")
             >>> session.table("my_table").order_by("id").collect()
             [Row(ID=2, VAL='updated2'), Row(ID=3, VAL='c'), Row(ID=5, VAL='updated5')]
         """
@@ -505,33 +505,36 @@ class DataFrameWriter:
                     f"Unsupported table type. Expected table types: {SUPPORTED_TABLE_TYPES}"
                 )
 
-            # override_condition must be used with APPEND mode
-            if override_condition is not None and save_mode != SaveMode.APPEND:
+            # overwrite_condition must be used with APPEND or OVERWRITE mode
+            if overwrite_condition is not None and save_mode not in (
+                SaveMode.APPEND,
+                SaveMode.OVERWRITE,
+            ):
                 raise ValueError(
-                    f"'override_condition' is only supported with mode='append'. "
+                    f"'overwrite_condition' is only supported with mode='append' or mode='overwrite'. "
                     f"Got mode='{save_mode.value}'."
                 )
 
-            override_condition_expr = (
+            overwrite_condition_expr = (
                 _to_col_if_sql_expr(
-                    override_condition, "DataFrameWriter.save_as_table"
+                    overwrite_condition, "DataFrameWriter.save_as_table"
                 )._expression
-                if override_condition is not None
+                if overwrite_condition is not None
                 else None
             )
 
             session = self._dataframe._session
+            needs_table_exists_check = save_mode in [
+                SaveMode.APPEND,
+                SaveMode.TRUNCATE,
+            ] or (save_mode == SaveMode.OVERWRITE and overwrite_condition is not None)
             if (
                 table_exists is None
                 and not isinstance(session._conn, MockServerConnection)
-                and save_mode
-                in [
-                    SaveMode.APPEND,
-                    SaveMode.TRUNCATE,
-                ]
+                and needs_table_exists_check
             ):
                 # whether the table already exists in the database
-                # determines the compiled SQL for APPEND and TRUNCATE mode
+                # determines the compiled SQL for APPEND, TRUNCATE, and OVERWRITE with overwrite_condition
                 # if the table does not exist, we need to create it first;
                 # if the table exists, we can skip the creation step and insert data directly
                 table_exists = session._table_exists(table_name)
@@ -552,7 +555,7 @@ class DataFrameWriter:
                 copy_grants,
                 iceberg_config,
                 table_exists,
-                override_condition_expr,
+                overwrite_condition_expr,
             )
             snowflake_plan = session._analyzer.resolve(create_table_logic_plan)
             result = session._conn.execute(

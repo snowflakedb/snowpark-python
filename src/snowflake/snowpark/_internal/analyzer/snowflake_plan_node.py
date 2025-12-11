@@ -243,7 +243,7 @@ class SnowflakeCreateTable(LogicalPlan):
         copy_grants: bool = False,
         iceberg_config: Optional[dict] = None,
         table_exists: Optional[bool] = None,
-        override_condition: Optional[Expression] = None,
+        overwrite_condition: Optional[Expression] = None,
     ) -> None:
         super().__init__()
 
@@ -268,7 +268,7 @@ class SnowflakeCreateTable(LogicalPlan):
         # whether the table already exists in the database
         # determines the compiled SQL for APPEND and TRUNCATE mode
         self.table_exists = table_exists
-        self.override_condition = override_condition
+        self.overwrite_condition = overwrite_condition
 
     @property
     def individual_node_complexity(self) -> Dict[PlanNodeCategory, int]:

@@ -6,7 +6,7 @@
 
 #### New Features
 
-- Added support for targeted delete-insert via the `override_condition` parameter in `DataFrameWriter.save_as_table`
+- Added support for targeted delete-insert via the `overwrite_condition` parameter in `DataFrameWriter.save_as_table`
 
 #### Bug Fixes
 

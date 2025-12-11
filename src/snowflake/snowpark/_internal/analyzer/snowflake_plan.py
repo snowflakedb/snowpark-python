@@ -1267,7 +1267,7 @@ class SnowflakePlanBuilder:
         child_attributes: Optional[List[Attribute]],
         iceberg_config: Optional[dict] = None,
         table_exists: Optional[bool] = None,
-        override_condition: Optional[str] = None,
+        overwrite_condition: Optional[str] = None,
     ) -> SnowflakePlan:
         """Returns a SnowflakePlan to materialize the child plan into a table.
 
@@ -1418,10 +1418,10 @@ class SnowflakePlanBuilder:
                 referenced_ctes=child.referenced_ctes,
             )
 
-        def get_override_delete_insert_plan(child: SnowflakePlan):
+        def get_overwrite_delete_insert_plan(child: SnowflakePlan):
             """Build a plan for targeted delete + insert with transaction.
 
-            Deletes rows matching the override_condition condition, then inserts
+            Deletes rows matching the overwrite_condition condition, then inserts
             all rows from the source DataFrame. Wrapped in a transaction for atomicity.
             """
             child = self.add_result_scan_if_not_select(child)
@@ -1433,7 +1433,7 @@ class SnowflakePlanBuilder:
                     Query(
                         delete_statement(
                             table_name=full_table_name,
-                            condition=override_condition,
+                            condition=overwrite_condition,
                             source_data=None,
                         ),
                         params=child.queries[-1].params,
@@ -1462,10 +1462,10 @@ class SnowflakePlanBuilder:
         if mode == SaveMode.APPEND:
             assert table_exists is not None
             if table_exists:
-                if override_condition is not None:
-                    return get_override_delete_insert_plan(child)
+                if overwrite_condition is not None:
+                    return get_overwrite_delete_insert_plan(child)
                 else:
-                    # Normal append without override_condition
+                    # Normal append without overwrite_condition
                     return self.build(
                         lambda x: insert_into_statement(
                             table_name=full_table_name,
@@ -1476,7 +1476,7 @@ class SnowflakePlanBuilder:
                         source_plan,
                     )
             else:
-                # Table doesn't exist, just create and insert (override_condition is no-op)
+                # Table doesn't exist, just create and insert (overwrite_condition is no-op)
                 return get_create_and_insert_plan(child, replace=False, error=False)
 
         elif mode == SaveMode.TRUNCATE:
@@ -1493,7 +1493,12 @@ class SnowflakePlanBuilder:
                 return get_create_table_as_select_plan(child, replace=True, error=True)
 
         elif mode == SaveMode.OVERWRITE:
-            return get_create_table_as_select_plan(child, replace=True, error=True)
+            if overwrite_condition is not None and table_exists:
+                # Selective overwrite: delete matching rows, then insert
+                return get_overwrite_delete_insert_plan(child)
+            else:
+                # Default overwrite: drop and recreate table
+                return get_create_table_as_select_plan(child, replace=True, error=True)
 
         elif mode == SaveMode.IGNORE:
             return get_create_table_as_select_plan(child, replace=False, error=False)
