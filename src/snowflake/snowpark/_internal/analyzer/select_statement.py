@@ -1435,9 +1435,6 @@ class SelectStatement(Selectable):
                 new._attributes = None  # reset attributes since projection changed
             assert new_column_states is not None
             for col, state in new_column_states.items():
-                print(f"CHECKING PROJECTION FOR {col}:")
-                print(f"- STATE IS {state.change_state}")
-                print(f"- NEW PROJECTION IS {state.expression if state.change_state in (ColumnChangeState.CHANGED_EXP, ColumnChangeState.NEW) else self.column_states[col].expression}")
                 if state.change_state in (
                     ColumnChangeState.CHANGED_EXP,
                     ColumnChangeState.NEW,
@@ -1989,26 +1986,6 @@ def parse_column_name(
     return None
 
 
-def get_column_name_for_column_states(
-    column: Expression,
-    analyzer: "Analyzer",
-    df_aliased_col_name_to_real_col_name: Union[
-        DefaultDict[str, Dict[str, str]], DefaultDict[str, ExprAliasUpdateDict]
-    ],
-) -> str:
-    # Helper function that determines the name of a column for ColumnState change analysis.
-    # Unlike parse_column_name, this always returns a value, and retrieves the source expression
-    # of an alias rather than the aliased column's new name.
-    # This may or may not be necessary, but the call sites of this function had two year-old
-    # comments saying "review later. should use parse_column_name", so this is done for safety.
-    if isinstance(column, Alias):
-        return analyzer.analyze(column.child, df_aliased_col_name_to_real_col_name, parse_local_name=True).strip(" ")
-    parsed_name = parse_column_name(column, analyzer, df_aliased_col_name_to_real_col_name)
-    if parsed_name is None:
-        return analyzer.analyze(column, df_aliased_col_name_to_real_col_name, parse_local_name=True).strip(" ")
-    return parsed_name
-
-
 def can_select_statement_be_flattened(
     subquery_column_states: ColumnStateDict, new_column_states: ColumnStateDict
 ) -> bool:
@@ -2172,8 +2149,10 @@ def initiate_column_states(
 ) -> ColumnStateDict:
     column_states = ColumnStateDict()
     for attr in column_attrs:
-        # name = get_column_name_for_column_states(attr, analyzer, df_aliased_col_name_to_real_col_name)
-        name = analyzer.analyze(attr, df_aliased_col_name_to_real_col_name, parse_local_name=True)
+        # review later. should use parse_column_name
+        name = analyzer.analyze(
+            attr, df_aliased_col_name_to_real_col_name, parse_local_name=True
+        ).strip(" ")
         column_states[name] = ColumnState(
             name,
             change_state=ColumnChangeState.UNCHANGED_EXP,
@@ -2265,20 +2244,12 @@ def derive_column_states_from_subquery(
             else Attribute(quoted_c_name, DataType())
         )
         from_c_state = from_.column_states.get(quoted_c_name)
-        # name_in_query = get_column_name_for_column_states(c, analyzer, from_.df_aliased_col_name_to_real_col_name)
-        result_name = analyzer.analyze(c, from_.df_aliased_col_name_to_real_col_name, parse_local_name=True).strip(" ")
-        # result_name = get_column_name_for_column_states(c, analyzer, from_.df_aliased_col_name_to_real_col_name)
-        print(f"DEBUG: COLUMN CHANGE STATE FOR {c_name} // {quoted_c_name}")
-        print(f"- ALL COLS: {[str(c) for c in cols]}")
-        print(f"- ALIASES: {from_.df_aliased_col_name_to_real_col_name}")
-        print(f"- ANALYZED NAME: {result_name!r}")
-        if from_c_state:
-            print(f"- ORIGINAL STATE: {from_c_state.change_state!r}")
-        else:
-            print(f"- NO PREVIOUS STATE")
+        result_name = analyzer.analyze(
+            c, from_.df_aliased_col_name_to_real_col_name, parse_local_name=True
+        ).strip(" ")
         if from_c_state and from_c_state.change_state != ColumnChangeState.DROPPED:
             # review later. should use parse_column_name
-            # Always treat Aliases as "changed", even if it is an identity.
+            # SNOW-2895675: Always treat Aliases as "changed", even if it is an identity.
             if c_name != result_name or isinstance(c, Alias):
                 column_states[quoted_c_name] = ColumnState(
                     quoted_c_name,
@@ -2300,7 +2271,6 @@ def derive_column_states_from_subquery(
                 c,
                 state_dict=column_states,
             )
-        print(f"- NEW STATE: {column_states[quoted_c_name].change_state!r}")
         try:
             populate_column_dependency(
                 c, quoted_c_name, column_states, from_.column_states
