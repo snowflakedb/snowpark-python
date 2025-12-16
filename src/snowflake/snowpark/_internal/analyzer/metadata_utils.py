@@ -43,8 +43,6 @@ class PlanMetadata:
     quoted_identifiers: Optional[List[str]]
 
     def __post_init__(self):
-        # if (self.attributes is not None and len(self.attributes) == 5) or (self.quoted_identifiers is not None and len(self.quoted_identifiers) == 5):
-        #     breakpoint()
         # If attributes is not None, then quoted_identifiers will be explicitly set to None.
         # If quoted_identifiers is not None, then attributes will be None because we can't infer data types.
         assert not (self.attributes is not None and self.quoted_identifiers is not None)
