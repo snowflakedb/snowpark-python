@@ -957,6 +957,7 @@ class Analyzer:
         )
 
         result = self.do_resolve(logical_plan)
+
         result.add_aliases(self.generated_alias_maps)
 
         if self.subquery_plans:
