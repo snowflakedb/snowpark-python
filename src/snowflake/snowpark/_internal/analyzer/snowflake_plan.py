@@ -1766,6 +1766,7 @@ class SnowflakePlanBuilder:
         xml_reader_udtf: "UserDefinedTableFunction",
         file_path: str,
         options: Dict[str, str],
+        schema_string: str,
     ) -> str:
         """
         Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
@@ -1828,6 +1829,7 @@ class SnowflakePlanBuilder:
                 lit(charset),
                 lit(ignore_surrounding_whitespace),
                 lit(row_validation_xsd_path),
+                lit(schema_string),
             ),
         )
 
@@ -1859,9 +1861,11 @@ class SnowflakePlanBuilder:
         source_plan: Optional[ReadFileNode] = None,
     ) -> SnowflakePlan:
         thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
-
+        schema_string = attribute_to_schema_string(schema)
         if xml_reader_udtf is not None:
-            xml_query = self._create_xml_query(xml_reader_udtf, path, options)
+            xml_query = self._create_xml_query(
+                xml_reader_udtf, path, options, schema_string
+            )
             return SnowflakePlan(
                 [Query(xml_query)],
                 # the schema query of dynamic pivot must be the same as the original query

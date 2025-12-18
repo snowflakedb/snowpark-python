@@ -1371,7 +1371,7 @@ class DataFrameReader:
                     raise_error=NotImplementedError,
                 )
 
-        if self._user_schema and format.lower() != "json":
+        if self._user_schema and format.lower() not in ["json", "xml"]:
             raise ValueError(f"Read {format} does not support user schema")
         path = _validate_stage_path(path)
         self._file_path = path
