@@ -1412,14 +1412,13 @@ class SelectStatement(Selectable):
         if can_be_flattened:
             new = copy(self)
             final_projection = []
-
+            new._attributes = None  # reset attributes since projection changed
             assert new_column_states is not None
             for col, state in new_column_states.items():
                 if state.change_state in (
                     ColumnChangeState.CHANGED_EXP,
                     ColumnChangeState.NEW,
                 ):
-                    new._attributes = None  # reset attributes since projection changed
                     final_projection.append(copy(state.expression))
                 elif state.change_state == ColumnChangeState.UNCHANGED_EXP:
                     final_projection.append(
