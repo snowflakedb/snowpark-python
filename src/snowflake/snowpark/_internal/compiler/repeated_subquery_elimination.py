@@ -20,6 +20,7 @@ from snowflake.snowpark._internal.compiler.utils import (
 from snowflake.snowpark._internal.utils import (
     TEMP_OBJECT_NAME_PREFIX,
     TempObjectType,
+    random_name_for_temp_object,
 )
 
 
@@ -164,11 +165,14 @@ class RepeatedSubqueryElimination:
                         node.encoded_node_id_with_query
                     ]
                 else:
-                    # create a WithQueryBlock node with deterministic name
-                    # Use first 16 chars of encoded_node_id_with_query (SHA256 hash)
-                    # This ensures the same node always gets the same CTE name
-                    cte_name = f"{TEMP_OBJECT_NAME_PREFIX}{TempObjectType.CTE.value}_{node.encoded_node_id_with_query[:16].upper()}"
-                    with_block = WithQueryBlock(name=cte_name, child=node)
+                    if self._query_generator.session.reduce_describe_query_enabled:
+                        # create a deterministic name using the first 16 chars of encoded_node_id_with_query (SHA256 hash)
+                        # This ensures the same node always gets the same CTE name.
+                        #  it helps when DataFrame.queries is called multiple times, they will get the same CTE name.
+                        cte_name = f"{TEMP_OBJECT_NAME_PREFIX}{TempObjectType.CTE.value}_{node.encoded_node_id_with_query[:16].upper()}"
+                    else:
+                        cte_name = random_name_for_temp_object(TempObjectType.CTE)
+                    with_block = WithQueryBlock(name=cte_name, child=node)  # type: ignore
                     with_block._is_valid_for_replacement = True
 
                     resolved_with_block = self._query_generator.resolve(with_block)

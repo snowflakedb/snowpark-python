@@ -586,9 +586,15 @@ class SelectableEntity(Selectable):
             deepcopy(self.entity, memodict), analyzer=self.analyzer
         )
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-        copied._attributes = (
-            deepcopy(self._attributes) if self._attributes is not None else None
-        )
+        if (
+            self._session.reduce_describe_query_enabled
+            and self._session.cte_optimization_enabled
+        ):
+            copied._attributes = (
+                deepcopy(self._attributes, memodict)
+                if self._attributes is not None
+                else None
+            )
         return copied
 
     @property
@@ -929,9 +935,6 @@ class SelectStatement(Selectable):
         )
         # The following values will change if they're None in the newly copied one so reset their values here
         # to avoid problems.
-        new._attributes = (
-            self._attributes.copy() if self._attributes is not None else None
-        )
         new._projection_in_str = None
         new._schema_query = None
         new._column_states = None
@@ -945,6 +948,13 @@ class SelectStatement(Selectable):
             self._merge_projection_complexity_with_subquery
         )
         new.df_ast_ids = self.df_ast_ids.copy() if self.df_ast_ids is not None else None
+        if (
+            self._session.reduce_describe_query_enabled
+            and self._session.cte_optimization_enabled
+        ):
+            new._attributes = (
+                self._attributes.copy() if self._attributes is not None else None
+            )
         return new
 
     def __deepcopy__(self, memodict={}) -> "SelectStatement":  # noqa: B006
@@ -964,9 +974,15 @@ class SelectStatement(Selectable):
         )
 
         _deepcopy_selectable_fields(from_selectable=self, to_selectable=copied)
-        copied._attributes = (
-            deepcopy(self._attributes) if self._attributes is not None else None
-        )
+        if (
+            self._session.reduce_describe_query_enabled
+            and self._session.cte_optimization_enabled
+        ):
+            copied._attributes = (
+                deepcopy(self._attributes, memodict)
+                if self._attributes is not None
+                else None
+            )
         copied._projection_in_str = self._projection_in_str
         copied._query_params = deepcopy(self._query_params)
         copied._merge_projection_complexity_with_subquery = (
@@ -1412,7 +1428,11 @@ class SelectStatement(Selectable):
         if can_be_flattened:
             new = copy(self)
             final_projection = []
-            new._attributes = None  # reset attributes since projection changed
+            if (
+                self._session.reduce_describe_query_enabled
+                and self._session.cte_optimization_enabled
+            ):
+                new._attributes = None  # reset attributes since projection changed
             assert new_column_states is not None
             for col, state in new_column_states.items():
                 if state.change_state in (
