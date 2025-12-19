@@ -1,22 +1,14 @@
 # Release History
 
-## 1.44.0 (YYYY-MM-DD)
+## 1.45.0 (TBD)
 
 ### Snowpark Python API Updates
 
 #### New Features
 
-- Added support for targeted delete-insert via the `overwrite_condition` parameter in `DataFrameWriter.save_as_table`
-
 #### Bug Fixes
 
 #### Improvements
-
-- Improved `DataFrameReader` to return columns in deterministic order when using `INFER_SCHEMA`.
-
-#### Dependency Updates
-
-- Added a dependency on `protobuf<6.34` (was `<6.32`).
 
 ### Snowpark pandas API Updates
 
@@ -25,6 +17,23 @@
 #### Bug Fixes
 
 #### Improvements
+
+
+## 1.44.0 (2025-12-15)
+
+### Snowpark Python API Updates
+
+#### New Features
+
+- Added support for targeted delete-insert via the `overwrite_condition` parameter in `DataFrameWriter.save_as_table`
+
+#### Improvements
+
+- Improved `DataFrameReader` to return columns in deterministic order when using `INFER_SCHEMA`.
+
+#### Dependency Updates
+
+- Added a dependency on `protobuf<6.34` (was `<6.32`).
 
 ## 1.43.0 (2025-12-03)
 
