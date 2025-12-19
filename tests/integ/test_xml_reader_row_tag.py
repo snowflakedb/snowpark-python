@@ -12,13 +12,6 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import col, lit
-from snowflake.snowpark.types import (
-    StructType,
-    StructField,
-    StringType,
-    IntegerType,
-    DecimalType,
-)
 from tests.utils import TestFiles, Utils
 
 
@@ -474,20 +467,3 @@ def test_read_xml_row_validation_xsd_path_failfast(session):
         session.read.option("rowTag", row_tag).option(
             "rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}"
         ).option("mode", "failfast").xml(f"@{tmp_stage_name}/{test_file_books_xml}")
-
-
-def test_read_xml_with_custom_schema(session):
-    user_schema = StructType(
-        [
-            StructField("a", StringType()),
-            StructField("b", IntegerType()),
-            StructField("c", DecimalType()),
-        ]
-    )
-    df = (
-        session.read.schema(user_schema)
-        .option("rowTag", "book")
-        .option("CACHERESULT", False)
-        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
-    )
-    df.show()

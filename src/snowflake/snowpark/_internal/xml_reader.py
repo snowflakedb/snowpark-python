@@ -6,11 +6,13 @@ import os
 import re
 import html.entities
 import struct
+import copy
 from typing import Optional, Dict, Any, Iterator, BinaryIO, Union, Tuple
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.type_utils import type_string_to_type_object
 from snowflake.snowpark.files import SnowflakeFile
-from snowflake.snowpark.types import StructType
+from snowflake.snowpark.types import StructType, ArrayType, DataType, MapType
 
 # lxml is only a dev dependency so use try/except to import it if available
 try:
@@ -53,6 +55,36 @@ def replace_entity(match: re.Match) -> str:
     else:
         # For any entity we don't recognize, leave it unchanged.
         return match.group(0)
+
+
+def schema_string_to_result_dict_and_struct_type(schema_string: str) -> Optional[dict]:
+    if schema_string == "":
+        return None
+    schema = type_string_to_type_object(schema_string)
+    if not isinstance(schema, StructType):
+        return None
+
+    return struct_type_to_result_template(schema)
+
+
+def struct_type_to_result_template(dt: DataType) -> Optional[dict]:
+    if isinstance(dt, StructType):
+        out: Dict[str, Any] = {}
+        for f in dt.fields:
+            out[unquote_if_quoted(f.name)] = struct_type_to_result_template(f.datatype)
+        return out
+
+    if isinstance(dt, ArrayType) and dt.element_type is not None:
+        return struct_type_to_result_template(dt.element_type)
+
+    if isinstance(dt, MapType) and dt.value_type is not None:
+        return struct_type_to_result_template(dt.value_type)
+
+    return None
+
+
+def generate_norm_column_name_to_ori_column_name_dict(result: dict):
+    return {key.lower(): key for key in result.keys()}
 
 
 def get_file_size(filename: str) -> Optional[int]:
@@ -273,10 +305,16 @@ def element_to_dict_or_str(
     value_tag: str = "_VALUE",
     null_value: str = "",
     ignore_surrounding_whitespace: bool = False,
+    result_template: Optional[dict] = None,
 ) -> Optional[Union[Dict[str, Any], str]]:
     """
     Recursively converts an XML Element to a dictionary.
     """
+    norm_name_to_ori_name = (
+        generate_norm_column_name_to_ori_column_name_dict(result_template)
+        if result_template is not None
+        else None
+    )
 
     def get_text(element: ET.Element) -> Optional[str]:
         """Do not strip the text"""
@@ -292,19 +330,34 @@ def element_to_dict_or_str(
         # it's a value element with no attributes or excluded attributes, so return the text
         return get_text(element)
 
-    result = {}
+    result = copy.deepcopy(result_template) if result_template is not None else {}
 
     if not exclude_attributes:
         for attr_name, attr_value in element.attrib.items():
             if ignore_surrounding_whitespace:
                 attr_value = attr_value.strip()
-            result[f"{attribute_prefix}{attr_name}"] = (
-                None if attr_value == null_value else attr_value
-            )
+            attribute_name = f"{attribute_prefix}{attr_name}"
+            # when custom_schema exists, only exact mathc is allowed
+            if result_template is None:
+                result[attribute_name] = (
+                    None if attr_value == null_value else attr_value
+                )
+            elif attribute_name.lower() in norm_name_to_ori_name:
+                result[norm_name_to_ori_name[attribute_name.lower()]] = (
+                    None if attr_value == null_value else attr_value
+                )
 
     if children:
         temp_dict = {}
         for child in children:
+            tag = child.tag
+            child_result_template = None
+            if result_template is not None:
+                # skip if not in custom schema
+                if tag.lower() not in norm_name_to_ori_name:
+                    continue
+                tag = norm_name_to_ori_name[tag.lower()]
+                child_result_template = result_template[tag]
             child_dict = element_to_dict_or_str(
                 child,
                 attribute_prefix=attribute_prefix,
@@ -312,8 +365,8 @@ def element_to_dict_or_str(
                 value_tag=value_tag,
                 null_value=null_value,
                 ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+                result_template=child_result_template,
             )
-            tag = child.tag
             if tag in temp_dict:
                 if not isinstance(temp_dict[tag], list):
                     temp_dict[tag] = [temp_dict[tag]]
@@ -345,7 +398,7 @@ def process_xml_range(
     ignore_surrounding_whitespace: bool,
     row_validation_xsd_path: str,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
-    custom_schema: Optional[StructType] = None,
+    result_template: Optional[dict] = None,
 ) -> Iterator[Optional[Dict[str, Any]]]:
     """
     Processes an XML file within a given approximate byte range.
@@ -375,7 +428,7 @@ def process_xml_range(
         ignore_surrounding_whitespace (bool): Whether or not whitespaces surrounding values should be skipped.
         row_validation_xsd_path (str): Path to XSD file for row validation.
         chunk_size (int): Size of chunks to read.
-        custom_schema(StructType): User input schema for xml, must be used together with row tag.
+        result_template(dict): a result template generate from user input schema
 
     Yields:
         Optional[Dict[str, Any]]: Dictionary representation of the parsed XML element.
@@ -506,6 +559,7 @@ def process_xml_range(
                     value_tag=value_tag,
                     null_value=null_value,
                     ignore_surrounding_whitespace=ignore_surrounding_whitespace,
+                    result_template=copy.deepcopy(result_template),
                 )
                 if isinstance(result, dict):
                     yield result
@@ -573,7 +627,7 @@ class XMLReader:
         approx_chunk_size = file_size // num_workers
         approx_start = approx_chunk_size * i
         approx_end = approx_chunk_size * (i + 1) if i < num_workers - 1 else file_size
-        custom_schema = type_string_to_type_object(custom_schema)
+        result_template = schema_string_to_result_dict_and_struct_type(custom_schema)
         for element in process_xml_range(
             filename,
             row_tag,
@@ -589,6 +643,6 @@ class XMLReader:
             charset,
             ignore_surrounding_whitespace,
             row_validation_xsd_path=row_validation_xsd_path,
-            custom_schema=custom_schema,
+            result_template=result_template,
         ):
             yield (element,)

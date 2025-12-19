@@ -20,6 +20,15 @@ from snowflake.snowpark._internal.xml_reader import (
     tag_is_self_closing,
     process_xml_range,
     DEFAULT_CHUNK_SIZE,
+    struct_type_to_result_template,
+)
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    StringType,
+    DoubleType,
+    DateType,
+    ArrayType,
 )
 
 
@@ -571,3 +580,183 @@ def test_process_xml_range_charset_decode_error():
     assert len(results) == 1
     # The replacement character () should be present in the decoded text
     assert "Caf" in str(results[0])  # Should get "Caf" or similar
+
+
+def test_custom_schema():
+
+    xml_string = """
+    <book id="bk104">
+      <author>Corets, Eva</author>
+      <title>Oberon's Legacy</title>
+      <genre>Fantasy</genre>
+      <price>5.95</price>
+      <publish_date>2001-03-10</publish_date>
+      <description>In post-apocalypse England, the mysterious
+      agent known only as Oberon helps to create a new life
+      for the inhabitants of London. Sequel to Maeve
+      Ascendant.</description>
+   </book>
+    """
+
+    user_schema = StructType(
+        [
+            StructField("author", StringType(), True),
+            StructField("title", StringType(), True),
+            StructField("genre", StringType(), True),
+            StructField("price", DoubleType(), True),
+            StructField("publish_date", DateType(), True),
+            StructField("description", StringType(), True),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    print(res)
+
+
+def test_custom_schema_less_column():
+
+    xml_string = """
+    <book id="bk104">
+      <author>Corets, Eva</author>
+      <title>Oberon's Legacy</title>
+      <genre>Fantasy</genre>
+      <price>5.95</price>
+      <publish_date>2001-03-10</publish_date>
+      <description>In post-apocalypse England, the mysterious
+      agent known only as Oberon helps to create a new life
+      for the inhabitants of London. Sequel to Maeve
+      Ascendant.</description>
+   </book>
+    """
+
+    user_schema = StructType(
+        [
+            StructField("author", StringType(), True),
+            StructField("title", StringType(), True),
+            StructField("genre", StringType(), True),
+            StructField("price", DoubleType(), True),
+            StructField("publish_date", DateType(), True),
+            StructField("description", StringType(), True),
+            StructField("extra_col", StringType(), True),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    print(res)
+
+
+def test_custom_schema_more_column():
+
+    xml_string = """
+    <book id="bk104">
+      <author>Corets, Eva</author>
+      <title>Oberon's Legacy</title>
+      <genre>Fantasy</genre>
+      <price>5.95</price>
+      <publish_date>2001-03-10</publish_date>
+      <description>In post-apocalypse England, the mysterious
+      agent known only as Oberon helps to create a new life
+      for the inhabitants of London. Sequel to Maeve
+      Ascendant.</description>
+   </book>
+    """
+
+    user_schema = StructType(
+        [
+            StructField("author", StringType(), True),
+            StructField("title", StringType(), True),
+            StructField("genre", StringType(), True),
+            StructField("price", DoubleType(), True),
+            StructField("publish_date", DateType(), True),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    print(res)
+
+
+def test_custom_schema_nested():
+    xml_string = """
+  <book id="1">
+    <title>The Art of Snowflake</title>
+    <author>Jane Doe</author>
+    <price>29.99</price>
+    <reviews>
+      <review>
+        <user>tech_guru_87</user>
+        <rating>5</rating>
+        <comment>Very insightful and practical.</comment>
+      </review>
+      <review>
+        <user>datawizard</user>
+        <rating>4</rating>
+        <comment>Great read for data engineers.</comment>
+      </review>
+    </reviews>
+    <editions>
+      <edition year="2023" format="Hardcover"/>
+      <edition year="2024" format="eBook"/>
+    </editions>
+  </book>
+        """
+
+    review_schema = StructType(
+        [
+            StructField('"User"', StringType(), True),
+            StructField(
+                '"Rating"', StringType(), True
+            ),  # keep as StringType (XML reader returns strings)
+            StructField('"comment"', StringType(), True),
+        ]
+    )
+
+    edition_schema = StructType(
+        [
+            StructField("_year", StringType(), True),  # attributes -> prefixed with "_"
+            StructField("_format", StringType(), True),
+        ]
+    )
+
+    user_schema = StructType(
+        [
+            StructField('"Title"', StringType(), True),
+            StructField('"Author"', StringType(), True),
+            StructField('"Price"', StringType(), True),
+            StructField(
+                "reviews",
+                StructType(
+                    [
+                        StructField("review", ArrayType(review_schema), True),
+                    ]
+                ),
+                True,
+            ),
+            StructField(
+                "editions",
+                StructType(
+                    [
+                        StructField("edition", ArrayType(edition_schema), True),
+                    ]
+                ),
+                True,
+            ),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    print(res)
+
+
+def test_custom_schema_type():
+    pass

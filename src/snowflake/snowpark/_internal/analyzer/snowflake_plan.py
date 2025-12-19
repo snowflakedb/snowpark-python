@@ -1911,7 +1911,7 @@ class SnowflakePlanBuilder:
         schema_string = attribute_to_schema_string(schema)
         if xml_reader_udtf is not None:
             xml_query = self._create_xml_query(
-                xml_reader_udtf, path, options, schema_string
+                xml_reader_udtf, path, options, schema_string if use_user_schema else ""
             )
             return SnowflakePlan(
                 [Query(xml_query)],
