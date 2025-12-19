@@ -11749,7 +11749,7 @@ def regr_avgy(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Colum
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df = df.group_by("v").agg(regr_avgy(df["v"], df["v2"]).alias("regr_avgy"))
+        >>> df = df.group_by("v").agg(regr_avgy(df["v"], df["v2"]).alias("regr_avgy")).sort("v")
         >>> df.collect()
         [Row(V=10, REGR_AVGY=10.0), Row(V=20, REGR_AVGY=20.0), Row(V=25, REGR_AVGY=None), Row(V=30, REGR_AVGY=30.0)]
     """
@@ -11838,7 +11838,7 @@ def regr_sxx(y: ColumnOrName, x: ColumnOrName, _emit_ast: bool = True) -> Column
     Example::
 
         >>> df = session.create_dataframe([[10, 11], [20, 22], [25, None], [30, 35]], schema=["v", "v2"])
-        >>> df.group_by("v").agg(regr_sxx(col("v"), col("v2")).alias("regr_sxx")).collect()
+        >>> df.group_by("v").agg(regr_sxx(col("v"), col("v2")).alias("regr_sxx")).sort("v").collect()
         [Row(V=10, REGR_SXX=0.0), Row(V=20, REGR_SXX=0.0), Row(V=25, REGR_SXX=None), Row(V=30, REGR_SXX=0.0)]
     """
     y_col = _to_col_if_str(y, "regr_sxx")
@@ -13486,7 +13486,7 @@ def ai_transcribe(
         >>> len(result["segments"]) > 0
         True
         >>> result["segments"][0]["text"].lower()
-        'glad'
+        'the'
         >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
         True
 

@@ -8,10 +8,11 @@ import os
 import sys
 from textwrap import dedent
 from typing import Dict, List, Tuple
+from unittest import mock
 
 import pytest
 
-from snowflake.snowpark import Row, Table, context
+from snowflake.snowpark import Row, Table
 from snowflake.snowpark._internal.analyzer.analyzer_utils import unquote_if_quoted
 from snowflake.snowpark._internal.utils import TempObjectType
 from snowflake.snowpark.exceptions import SnowparkSQLException
@@ -557,100 +558,102 @@ def test_apply_in_pandas_snowpark_compatible(session):
         df._column_map.columns = [Column("id"), Column("v")]
         return df
 
-    context._is_snowpark_connect_compatible_mode = True
+    with mock.patch(
+        "snowflake.snowpark.context._is_snowpark_connect_compatible_mode", True
+    ):
 
-    df = create_snowpark_compatible_dataframe()
+        df = create_snowpark_compatible_dataframe()
 
-    def normalize(pdf):
-        v = pdf.v
-        return pdf.assign(v=(v - v.mean()) / v.std())
+        def normalize(pdf):
+            v = pdf.v
+            return pdf.assign(v=(v - v.mean()) / v.std())
 
-    df = (
-        df.group_by("id")
-        .applyInPandas(
-            normalize,
-            output_schema=StructType(
-                [
-                    StructField("id", IntegerType()),
-                    StructField("v", DoubleType()),
-                ]
-            ),
+        df = (
+            df.group_by("id")
+            .applyInPandas(
+                normalize,
+                output_schema=StructType(
+                    [
+                        StructField("id", IntegerType()),
+                        StructField("v", DoubleType()),
+                    ]
+                ),
+            )
+            .orderBy(["id", "v"])
         )
-        .orderBy(["id", "v"])
-    )
 
-    Utils.check_answer(
-        df,
-        [
-            Row(ID=1, V=-0.7071067811865475),
-            Row(ID=1, V=0.7071067811865475),
-            Row(ID=2, V=-0.8320502943378437),
-            Row(ID=2, V=-0.2773500981126146),
-            Row(ID=2, V=1.1094003924504583),
-        ],
-    )
-
-    df = create_snowpark_compatible_dataframe()
-
-    def sum_func(key, pdf):
-        # key is a tuple of two numpy.int64s, which is the values
-        # of 'id' and 'ceil(df.v / 2)' for the current group
-        return pd.DataFrame([key + (pdf.v.sum(),)])
-
-    df = (
-        df.group_by("id", ceil(df.v / 2).alias("newcol"))
-        .applyInPandas(
-            sum_func,
-            output_schema=StructType(
-                [
-                    StructField("id", IntegerType()),
-                    StructField("c", IntegerType()),
-                    StructField("v", DoubleType()),
-                ]
-            ),
+        Utils.check_answer(
+            df,
+            [
+                Row(ID=1, V=-0.7071067811865475),
+                Row(ID=1, V=0.7071067811865475),
+                Row(ID=2, V=-0.8320502943378437),
+                Row(ID=2, V=-0.2773500981126146),
+                Row(ID=2, V=1.1094003924504583),
+            ],
         )
-        .orderBy(["id", "v"])
-    )
 
-    Utils.check_answer(
-        df,
-        [
-            Row(ID=1, C=1, V=3.0),
-            Row(ID=2, C=2, V=3.0),
-            Row(ID=2, C=3, V=5.0),
-            Row(ID=2, C=5, V=10.0),
-        ],
-    )
+        df = create_snowpark_compatible_dataframe()
 
-    df = create_snowpark_compatible_dataframe()
+        def sum_func(key, pdf):
+            # key is a tuple of two numpy.int64s, which is the values
+            # of 'id' and 'ceil(df.v / 2)' for the current group
+            return pd.DataFrame([key + (pdf.v.sum(),)])
 
-    def sum_func_with_single_input(pdf):
-        # key is a tuple of two numpy.int64s, which is the values
-        # of 'id' and 'ceil(df.v / 2)' for the current group
-        return pd.DataFrame([(pdf.v.sum(),)])
-
-    df = (
-        df.group_by("id", ceil(df.v / 2))
-        .applyInPandas(
-            sum_func_with_single_input,
-            output_schema=StructType(
-                [
-                    StructField("v", DoubleType()),
-                ]
-            ),
+        df = (
+            df.group_by("id", ceil(df.v / 2).alias("newcol"))
+            .applyInPandas(
+                sum_func,
+                output_schema=StructType(
+                    [
+                        StructField("id", IntegerType()),
+                        StructField("c", IntegerType()),
+                        StructField("v", DoubleType()),
+                    ]
+                ),
+            )
+            .orderBy(["id", "v"])
         )
-        .orderBy(["v"])
-    )
 
-    Utils.check_answer(
-        df,
-        [
-            Row(V=3.0),
-            Row(V=3.0),
-            Row(V=5.0),
-            Row(V=10.0),
-        ],
-    )
+        Utils.check_answer(
+            df,
+            [
+                Row(ID=1, C=1, V=3.0),
+                Row(ID=2, C=2, V=3.0),
+                Row(ID=2, C=3, V=5.0),
+                Row(ID=2, C=5, V=10.0),
+            ],
+        )
+
+        df = create_snowpark_compatible_dataframe()
+
+        def sum_func_with_single_input(pdf):
+            # key is a tuple of two numpy.int64s, which is the values
+            # of 'id' and 'ceil(df.v / 2)' for the current group
+            return pd.DataFrame([(pdf.v.sum(),)])
+
+        df = (
+            df.group_by("id", ceil(df.v / 2))
+            .applyInPandas(
+                sum_func_with_single_input,
+                output_schema=StructType(
+                    [
+                        StructField("v", DoubleType()),
+                    ]
+                ),
+            )
+            .orderBy(["v"])
+        )
+
+        Utils.check_answer(
+            df,
+            [
+                Row(V=3.0),
+                Row(V=3.0),
+                Row(V=5.0),
+                Row(V=10.0),
+            ],
+        )
 
 
 @pytest.mark.skipif(IS_IN_STORED_PROC, reason="Cannot create session in SP")

@@ -4568,6 +4568,156 @@ def test_write_table_with_clustering_keys_and_comment(
 
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
+    reason="overwrite_condition is not supported in local testing mode",
+    run=False,
+)
+def test_write_table_with_overwrite_condition(session):
+    """Test overwrite_condition parameter for targeted delete + insert."""
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        # Setup and verify initial data
+        initial_df = session.create_dataframe(
+            [[1, "a"], [2, "b"], [3, "c"]],
+            schema=StructType(
+                [StructField("id", IntegerType()), StructField("val", StringType())]
+            ),
+        )
+        initial_df.write.mode("overwrite").save_as_table(table_name)
+        result = session.table(table_name).order_by("id").collect()
+        assert result == [
+            Row(ID=1, VAL="a"),
+            Row(ID=2, VAL="b"),
+            Row(ID=3, VAL="c"),
+        ]
+
+        # Test 1: overwrite_condition with SQL string expr
+        new_df1 = session.create_dataframe(
+            [[2, "updated2"], [5, "new5"]],
+            schema=StructType(
+                [StructField("id", IntegerType()), StructField("val", StringType())]
+            ),
+        )
+        new_df1.write.mode("overwrite").save_as_table(
+            table_name, overwrite_condition="id = 1 or val = 'b'"
+        )
+        result = session.table(table_name).order_by("id").collect()
+        # id=1 and id=2 (val='b') deleted, new rows inserted
+        assert result == [
+            Row(ID=2, VAL="updated2"),
+            Row(ID=3, VAL="c"),
+            Row(ID=5, VAL="new5"),
+        ]
+
+        # Test 2: overwrite_condition with Column expr
+        new_df2 = session.create_dataframe(
+            [[2, "replaced2"], [4, "new4"]],
+            schema=StructType(
+                [StructField("id", IntegerType()), StructField("val", StringType())]
+            ),
+        )
+        new_df2.write.mode("overwrite").save_as_table(
+            table_name, overwrite_condition=col("id") == 2
+        )
+        result = session.table(table_name).order_by("id").collect()
+        # id=2 deleted, new rows inserted
+        assert result == [
+            Row(ID=2, VAL="replaced2"),
+            Row(ID=3, VAL="c"),
+            Row(ID=4, VAL="new4"),
+            Row(ID=5, VAL="new5"),
+        ]
+
+        # Test 3: overwrite_condition with multiple Column expr
+        new_df3 = session.create_dataframe(
+            [[6, "new6"]],
+            schema=StructType(
+                [StructField("id", IntegerType()), StructField("val", StringType())]
+            ),
+        )
+        new_df3.write.mode("overwrite").save_as_table(
+            table_name, overwrite_condition=(col("id") > 4) | (col("val") == "c")
+        )
+        result = session.table(table_name).order_by("id").collect()
+        # id=3 (val='c') and id=5 (id > 4) deleted, id=4 remains (4 is not > 4), new row inserted
+        assert result == [
+            Row(ID=2, VAL="replaced2"),
+            Row(ID=4, VAL="new4"),
+            Row(ID=6, VAL="new6"),
+        ]
+
+        # Test 4: overwrite_condition that matches all rows
+        new_df4 = session.create_dataframe(
+            [[10, "new"]],
+            schema=StructType(
+                [StructField("id", IntegerType()), StructField("val", StringType())]
+            ),
+        )
+        new_df4.write.mode("overwrite").save_as_table(
+            table_name, overwrite_condition="id > 0"
+        )
+        result = session.table(table_name).collect()
+        assert result == [Row(ID=10, VAL="new")]
+
+        # Test 5: overwrite_condition that matches no rows
+        new_df5 = session.create_dataframe(
+            [[20, "another"]],
+            schema=StructType(
+                [StructField("id", IntegerType()), StructField("val", StringType())]
+            ),
+        )
+        new_df5.write.mode("overwrite").save_as_table(
+            table_name, overwrite_condition="id = 999"
+        )
+        result = session.table(table_name).order_by("id").collect()
+        assert result == [
+            Row(ID=10, VAL="new"),
+            Row(ID=20, VAL="another"),
+        ]
+
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
+    reason="overwrite_condition is a not supported in local testing mode",
+    run=False,
+)
+@pytest.mark.parametrize(
+    "invalid_mode", ["append", "truncate", "errorifexists", "ignore"]
+)
+def test_write_table_with_overwrite_condition_edge_cases(session, invalid_mode):
+    """Test overwrite_condition edge cases: table not exists, and invalid modes."""
+    table_name = Utils.random_name_for_temp_object(TempObjectType.TABLE)
+    try:
+        # Edge case 1: Table doesn't exist - overwrite_condition is no-op
+        df = session.create_dataframe(
+            [[1, "a"], [2, "b"]],
+            schema=StructType(
+                [StructField("id", IntegerType()), StructField("val", StringType())]
+            ),
+        )
+        df.write.mode("overwrite").save_as_table(
+            table_name, overwrite_condition="id = 999"
+        )
+        result = session.table(table_name).order_by("id").collect()
+        assert result == [Row(ID=1, VAL="a"), Row(ID=2, VAL="b")]
+
+        # Edge case 2: Invalid mode raises ValueError
+        with pytest.raises(
+            ValueError,
+            match="'overwrite_condition' is only supported with mode='overwrite'",
+        ):
+            df.write.mode(invalid_mode).save_as_table(
+                table_name, overwrite_condition="id = 1"
+            )
+
+    finally:
+        Utils.drop_table(session, table_name)
+
+
+@pytest.mark.xfail(
+    "config.getoption('local_testing_mode', default=False)",
     reason="Clustering is a SQL feature",
     run=False,
 )

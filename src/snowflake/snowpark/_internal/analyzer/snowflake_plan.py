@@ -1267,6 +1267,7 @@ class SnowflakePlanBuilder:
         child_attributes: Optional[List[Attribute]],
         iceberg_config: Optional[dict] = None,
         table_exists: Optional[bool] = None,
+        overwrite_condition: Optional[str] = None,
     ) -> SnowflakePlan:
         """Returns a SnowflakePlan to materialize the child plan into a table.
 
@@ -1417,6 +1418,47 @@ class SnowflakePlanBuilder:
                 referenced_ctes=child.referenced_ctes,
             )
 
+        def get_overwrite_delete_insert_plan(child: SnowflakePlan):
+            """Build a plan for targeted delete + insert with transaction.
+
+            Deletes rows matching the overwrite_condition condition, then inserts
+            all rows from the source DataFrame. Wrapped in a transaction for atomicity.
+            """
+            child = self.add_result_scan_if_not_select(child)
+
+            return SnowflakePlan(
+                [
+                    *child.queries[:-1],
+                    Query("BEGIN TRANSACTION"),
+                    Query(
+                        delete_statement(
+                            table_name=full_table_name,
+                            condition=overwrite_condition,
+                            source_data=None,
+                        ),
+                        params=child.queries[-1].params,
+                        is_ddl_on_temp_object=is_temp_table_type,
+                    ),
+                    Query(
+                        insert_into_statement(
+                            table_name=full_table_name,
+                            child=child.queries[-1].sql,
+                            column_names=column_names,
+                        ),
+                        params=child.queries[-1].params,
+                        is_ddl_on_temp_object=is_temp_table_type,
+                    ),
+                    Query("COMMIT"),
+                ],
+                schema_query=None,
+                post_actions=child.post_actions,
+                expr_to_alias={},
+                source_plan=source_plan,
+                api_calls=child.api_calls,
+                session=self.session,
+                referenced_ctes=child.referenced_ctes,
+            )
+
         if mode == SaveMode.APPEND:
             assert table_exists is not None
             if table_exists:
@@ -1446,7 +1488,12 @@ class SnowflakePlanBuilder:
                 return get_create_table_as_select_plan(child, replace=True, error=True)
 
         elif mode == SaveMode.OVERWRITE:
-            return get_create_table_as_select_plan(child, replace=True, error=True)
+            if overwrite_condition is not None and table_exists:
+                # Selective overwrite: delete matching rows, then insert
+                return get_overwrite_delete_insert_plan(child)
+            else:
+                # Default overwrite: drop and recreate table
+                return get_create_table_as_select_plan(child, replace=True, error=True)
 
         elif mode == SaveMode.IGNORE:
             return get_create_table_as_select_plan(child, replace=False, error=False)
