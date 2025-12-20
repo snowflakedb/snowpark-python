@@ -2715,7 +2715,6 @@ class Session:
         Example 1
             Query a table function by function name:
 
-            >>> import sys, pytest; _ = (sys.version_info[:2] != (3, 9)) or pytest.skip()
             >>> from snowflake.snowpark.functions import lit
             >>> session.table_function("split_to_table", lit("split words to table"), lit(" ")).collect()
             [Row(SEQ=1, INDEX=1, VALUE='split'), Row(SEQ=1, INDEX=2, VALUE='words'), Row(SEQ=1, INDEX=3, VALUE='to'), Row(SEQ=1, INDEX=4, VALUE='table')]
