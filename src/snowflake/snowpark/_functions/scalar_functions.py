@@ -4714,3 +4714,519 @@ def width_bucket(
     return builtin("width_bucket", _emit_ast=_emit_ast)(
         expr_col, min_val_col, max_val_col, num_buckets_col
     )
+
+
+@publicapi
+def hex_decode_string(input_expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Decodes a hexadecimal-encoded string into its original string representation.
+
+    Args:
+        input_expr (ColumnOrName): The column or string containing the hexadecimal-encoded string to decode.
+
+    Returns:
+        Column: The decoded string.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([["536E6F77666C616B65"], ["48454C4C4F"]], schema=["hex_string"])
+        >>> df.select(hex_decode_string(col("hex_string")).alias("decoded")).collect()
+        [Row(DECODED='Snowflake'), Row(DECODED='HELLO')]
+    """
+    c = _to_col_if_str(input_expr, "hex_decode_string")
+    return builtin("hex_decode_string", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def jarowinkler_similarity(
+    string_expr1: ColumnOrName, string_expr2: ColumnOrName, _emit_ast: bool = True
+) -> Column:
+    """
+    Computes the Jaro-Winkler similarity between two strings. The Jaro-Winkler similarity
+    is a string metric measuring an edit distance between two sequences. It is a variant
+    of the Jaro distance metric designed to give more favorable ratings to strings with
+    common prefixes.
+
+    Args:
+        string_expr1 (ColumnOrName): The first string expression to compare.
+        string_expr2 (ColumnOrName): The second string expression to compare.
+
+    Returns:
+        Column: The Jaro-Winkler similarity score as an integer between 0 and 100.
+
+    Examples::
+        >>> df = session.create_dataframe([
+        ...     ("Snowflake", "Oracle"),
+        ...     ("Ich weiß nicht", "Ich wei? nicht"),
+        ...     ("Gute nacht", "Ich weis nicht"),
+        ...     ("święta", "swieta"),
+        ...     ("", ""),
+        ...     ("test", "test")
+        ... ], schema=["s", "t"])
+        >>> df.select(jarowinkler_similarity(df["s"], df["t"]).alias("similarity")).collect()
+        [Row(SIMILARITY=61), Row(SIMILARITY=97), Row(SIMILARITY=56), Row(SIMILARITY=77), Row(SIMILARITY=0), Row(SIMILARITY=100)]
+    """
+    c1 = _to_col_if_str(string_expr1, "jarowinkler_similarity")
+    c2 = _to_col_if_str(string_expr2, "jarowinkler_similarity")
+    return builtin("jarowinkler_similarity", _emit_ast=_emit_ast)(c1, c2)
+
+
+@publicapi
+def parse_url(
+    string_expr: ColumnOrName, permissive: ColumnOrName = None, _emit_ast: bool = True
+) -> Column:
+    """
+    Parses a URL string and returns a JSON object containing the URL components.
+
+    Args:
+        string_expr (ColumnOrName): The URL string to parse.
+        permissive (ColumnOrName, optional): If 1, parsing errors are ignored and None is returned. If 0 or omitted, parsing errors raise an exception.
+
+    Returns:
+        Column: A JSON object containing the parsed URL components.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([
+        ...     ['https://www.snowflake.com/'],
+        ...     ['http://USER:PASS@EXAMPLE.INT:4345/HELLO.PHP?USER=1'],
+        ...     ['mailto:abc@xyz.com'],
+        ...     [None]
+        ... ], schema=["url"])
+        >>> df.select(parse_url(col("url"))).collect()
+        [Row(PARSE_URL("URL")='{\\n  "fragment": null,\\n  "host": "www.snowflake.com",\\n  "parameters": null,\\n  "path": "",\\n  "port": null,\\n  "query": null,\\n  "scheme": "https"\\n}'), Row(PARSE_URL("URL")='{\\n  "fragment": null,\\n  "host": "USER:PASS@EXAMPLE.INT",\\n  "parameters": {\\n    "USER": "1"\\n  },\\n  "path": "HELLO.PHP",\\n  "port": "4345",\\n  "query": "USER=1",\\n  "scheme": "http"\\n}'), Row(PARSE_URL("URL")='{\\n  "fragment": null,\\n  "host": null,\\n  "parameters": null,\\n  "path": "abc@xyz.com",\\n  "port": null,\\n  "query": null,\\n  "scheme": "mailto"\\n}'), Row(PARSE_URL("URL")=None)]
+
+        >>> df2 = session.create_dataframe([
+        ...     ['example.int/hello.php?user=12#nofragment']
+        ... ], schema=["invalid_url"])
+        >>> df2.select(parse_url(col("invalid_url"), lit(1))).collect()
+        [Row(PARSE_URL("INVALID_URL", 1)='{\\n  "error": "scheme not specified"\\n}')]
+    """
+    c = _to_col_if_str(string_expr, "parse_url")
+    if permissive is not None:
+        p = _to_col_if_str(permissive, "parse_url")
+        return builtin("parse_url", _emit_ast=_emit_ast)(c, p)
+    else:
+        return builtin("parse_url", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def regexp_instr(
+    subject: ColumnOrName,
+    pattern: ColumnOrName,
+    position: ColumnOrName = None,
+    occurrence: ColumnOrName = None,
+    option: ColumnOrName = None,
+    regexp_parameters: ColumnOrName = None,
+    group_num: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the position of the specified occurrence of the regular expression pattern in the string subject. If no match is found, returns 0.
+
+    Args:
+        subject (ColumnOrName): The string to search in.
+        pattern (ColumnOrName): The regular expression pattern to search for.
+        position (ColumnOrName, optional): The position in the string to start the search. Default is 1.
+        occurrence (ColumnOrName, optional): The occurrence of the pattern to find. Default is 1.
+        option (ColumnOrName, optional): Specifies whether to return the position of the first character of the match (0) or the position of the first character following the match (1). Default is 0.
+        regexp_parameters (ColumnOrName, optional): String of one or more characters that specifies the parameters for the regular expression. Default is 'c' (case-sensitive).
+        Supported values:
+            - `c`: Case-sensitive matching
+            - `i`: Case-insensitive matching
+            - `m`: Multi-line mode
+            - `e`: Extract submatches
+            - `s`: Single-line mode (POSIX wildcard character `.` matches `\\n`)
+        group_num (ColumnOrName, optional): Specifies which capture group to return the position for. Default is None, which returns the position of the entire match.
+
+    Returns:
+        Column: The position of the match, or 0 if no match is found
+
+    Examples::
+        # Basic usage - only subject and pattern
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d"]], schema=["subject", "pattern"])
+        >>> df.select(regexp_instr(col("subject"), col("pattern")).alias("basic_match")).collect()
+        [Row(BASIC_MATCH=1)]
+
+        # With position parameter
+        >>> df2 = session.create_dataframe([["Hello world", "world", 7]], schema=["subject", "pattern", "position"])
+        >>> df2.select(regexp_instr(col("subject"), col("pattern"), col("position")).alias("position_match")).collect()
+        [Row(POSITION_MATCH=7)]
+
+        # With position and occurrence parameters
+        >>> df3 = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d", 1, 2]], schema=["subject", "pattern", "position", "occurrence"])
+        >>> df3.select(regexp_instr(col("subject"), col("pattern"), col("position"), col("occurrence")).alias("second_occurrence")).collect()
+        [Row(SECOND_OCCURRENCE=13)]
+
+        # With position, occurrence, and option parameters
+        >>> df4 = session.create_dataframe([["Hello world", "world", 1, 1, 1]], schema=["subject", "pattern", "position", "occurrence", "option"])
+        >>> df4.select(regexp_instr(col("subject"), col("pattern"), col("position"), col("occurrence"), col("option")).alias("after_match")).collect()
+        [Row(AFTER_MATCH=12)]
+
+        # With position, occurrence, option, and regexp_parameters
+        >>> df5 = session.create_dataframe([["Hello world", "hello", 1, 1, 0, "i"]], schema=["subject", "pattern", "position", "occurrence", "option", "regexp_parameters"])
+        >>> df5.select(regexp_instr(col("subject"), col("pattern"), col("position"), col("occurrence"), col("option"), col("regexp_parameters")).alias("case_insensitive")).collect()
+        [Row(CASE_INSENSITIVE=1)]
+
+        # With all parameters including group_num
+        >>> df6 = session.create_dataframe([["Hello (World) (Test)", "(\\w+)", 1, 1, 0, "c", 1]], schema=["subject", "pattern", "position", "occurrence", "option", "regexp_parameters", "group_num"])
+        >>> df6.select(regexp_instr(col("subject"), col("pattern"), col("position"), col("occurrence"), col("option"), col("regexp_parameters"), col("group_num")).alias("first_group")).collect()
+        [Row(FIRST_GROUP=1)]
+
+        # Skipping position - with occurrence only
+        >>> df7 = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d", "2"]], schema=["subject", "pattern", "occurrence"])
+        >>> df7.select(regexp_instr(col("subject"), col("pattern"), occurrence=col("occurrence")).alias("skip_position")).collect()
+        [Row(SKIP_POSITION=13)]
+
+        # Skipping position and occurrence - with option only
+        >>> df8 = session.create_dataframe([["Hello world", "world", 1]], schema=["subject", "pattern", "option"])
+        >>> df8.select(regexp_instr(col("subject"), col("pattern"), option=col("option")).alias("skip_position_occurrence")).collect()
+        [Row(SKIP_POSITION_OCCURRENCE=12)]
+
+        # Skipping position, occurrence, and option - with regexp_parameters only
+        >>> df9 = session.create_dataframe([["Hello World", "hello", "i"]], schema=["subject", "pattern", "regexp_parameters"])
+        >>> df9.select(regexp_instr(col("subject"), col("pattern"), regexp_parameters=col("regexp_parameters")).alias("skip_to_regexp_params")).collect()
+        [Row(SKIP_TO_REGEXP_PARAMS=1)]
+
+        # Skipping position, occurrence, option, and regexp_parameters - with group_num only
+        >>> df10 = session.create_dataframe([["Hello (world) (Test)", "(\\w+)", 1]], schema=["subject", "pattern", "group_num"])
+        >>> df10.select(regexp_instr(col("subject"), col("pattern"), group_num=col("group_num")).alias("skip_to_group_num")).collect()
+        [Row(SKIP_TO_GROUP_NUM=1)]
+
+        # Skipping position and occurrence - with option and regexp_parameters
+        >>> df11 = session.create_dataframe([["Hello World", "Hello", 1, "i"]], schema=["subject", "pattern", "option", "regexp_parameters"])
+        >>> df11.select(regexp_instr(col("subject"), col("pattern"), option=col("option"), regexp_parameters=col("regexp_parameters")).alias("skip_position_occurrence_with_params")).collect()
+        [Row(SKIP_POSITION_OCCURRENCE_WITH_PARAMS=6)]
+
+        # Skipping position, occurrence, and option - with regexp_parameters and group_num
+        >>> df12 = session.create_dataframe([["Hello (World) (Test)", "(\\w+)", "c", 1]], schema=["subject", "pattern", "regexp_parameters", "group_num"])
+        >>> df12.select(regexp_instr(col("subject"), col("pattern"), regexp_parameters=col("regexp_parameters"), group_num=col("group_num")).alias("skip_to_params_and_group")).collect()
+        [Row(SKIP_TO_PARAMS_AND_GROUP=1)]
+    """
+    if position is None:
+        position = lit(1)
+    if occurrence is None:
+        occurrence = lit(1)
+    if option is None:
+        option = lit(0)
+    if regexp_parameters is None:
+        regexp_parameters = lit("c")
+    args = [
+        _to_col_if_str(subject, "regexp_instr"),
+        _to_col_if_str(pattern, "regexp_instr"),
+        _to_col_if_str(position, "regexp_instr"),
+        _to_col_if_str(occurrence, "regexp_instr"),
+        _to_col_if_str(option, "regexp_instr"),
+        _to_col_if_str(regexp_parameters, "regexp_instr"),
+    ]
+
+    if group_num is not None:
+        args.append(_to_col_if_str(group_num, "regexp_instr"))
+
+    return builtin("regexp_instr", _emit_ast=_emit_ast)(*args)
+
+
+@publicapi
+def regexp_like(
+    subject: ColumnOrName,
+    pattern: ColumnOrName,
+    parameters: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns true if the subject matches the specified pattern. Both inputs must be text expressions.
+
+    Args:
+        subject (ColumnOrName): A string expression to be matched against the pattern.
+        pattern (ColumnOrName): A string literal that will be used as a regular expression pattern.
+        parameters (ColumnOrName, optional): A string literal that specifies the parameters for the regular expression, defaults: c.
+        Supported values:
+            - `c`: Case-sensitive matching
+            - `i`: Case-insensitive matching
+            - `m`: Multi-line mode
+            - `e`: Extract submatches
+            - `s`: Single-line mode (POSIX wildcard character `.` matches `\\n`)
+    Returns:
+        Column: A boolean value indicating whether the subject matches the pattern.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import  col, lit
+        >>> df = session.create_dataframe([
+        ...     ('Sacramento',),
+        ...     ('San Francisco',),
+        ...     ('San Jose',),
+        ...     ('New York',),
+        ...     (None,)
+        ... ], schema=['city'])
+        >>> df.where(regexp_like(col('city'), lit('San.*'))).collect()
+        [Row(CITY='San Francisco'), Row(CITY='San Jose')]
+
+        >>> df.where(regexp_like(col('city'), lit('SAN.*'), lit('i'))).collect()
+        [Row(CITY='San Francisco'), Row(CITY='San Jose')]
+    """
+    subject_col = _to_col_if_str(subject, "regexp_like")
+    pattern_col = _to_col_if_str(pattern, "regexp_like")
+
+    if parameters is None:
+        return builtin("regexp_like", _emit_ast=_emit_ast)(subject_col, pattern_col)
+    else:
+        parameters_col = _to_col_if_str(parameters, "regexp_like")
+        return builtin("regexp_like", _emit_ast=_emit_ast)(
+            subject_col, pattern_col, parameters_col
+        )
+
+
+@publicapi
+def regexp_substr(
+    subject: ColumnOrName,
+    pattern: ColumnOrName,
+    position: ColumnOrName = None,
+    occurrence: ColumnOrName = None,
+    regex_parameters: ColumnOrName = None,
+    group_num: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns the portion of the subject that matches the regular expression pattern.
+
+    Args:
+        subject (ColumnOrName): The string to search for matches.
+        pattern (ColumnOrName): The regular expression pattern to match.
+        position (ColumnOrName, optional): The position in the string to start searching from (1-based). Defaults to 1.
+        occurrence (ColumnOrName, optional): Which occurrence of the pattern to return. Defaults to 1.
+        regex_parameters (ColumnOrName, optional): String of one or more characters that specifies the parameters for the regular expression. Default is 'c' (case-sensitive).
+        Supported values:
+            - `c`: Case-sensitive matching
+            - `i`: Case-insensitive matching
+            - `m`: Multi-line mode
+            - `e`: Extract submatches
+            - `s`: Single-line mode (POSIX wildcard character `.` matches `\\n`)
+        group_num (ColumnOrName, optional): The group number in the regular expression to extract. Defaults to None, which extracts the entire match.
+
+    Returns:
+        Column: The substring that matches the pattern, or None if no match is found.
+
+    Examples::
+        # Basic usage - only subject and pattern
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d"]], schema=["subject", "pattern"])
+        >>> df.select(regexp_substr(col("subject"), col("pattern")).alias("basic_match")).collect()
+        [Row(BASIC_MATCH='nevermore1')]
+
+        # With position parameter
+        >>> df2 = session.create_dataframe([["Hello world", "world", 7]], schema=["subject", "pattern", "position"])
+        >>> df2.select(regexp_substr(col("subject"), col("pattern"), col("position")).alias("position_match")).collect()
+        [Row(POSITION_MATCH='world')]
+
+        # With position and occurrence parameters
+        >>> df3 = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d", 1, 2]], schema=["subject", "pattern", "position", "occurrence"])
+        >>> df3.select(regexp_substr(col("subject"), col("pattern"), col("position"), col("occurrence")).alias("second_occurrence")).collect()
+        [Row(SECOND_OCCURRENCE='nevermore2')]
+
+        # With position, occurrence, and regex_parameters
+        >>> df5 = session.create_dataframe([["Hello world", "hello", 1, 1, "i"]], schema=["subject", "pattern", "position", "occurrence", "regex_parameters"])
+        >>> df5.select(regexp_substr(col("subject"), col("pattern"), col("position"), col("occurrence"), col("regex_parameters")).alias("case_insensitive")).collect()
+        [Row(CASE_INSENSITIVE='Hello')]
+
+        # With all parameters including group_num
+        >>> df6 = session.create_dataframe([["Hello (World) (Test)", "(\\w+)", 1, 1, "c", 1]], schema=["subject", "pattern", "position", "occurrence", "regex_parameters", "group_num"])
+        >>> df6.select(regexp_substr(col("subject"), col("pattern"), col("position"), col("occurrence"), col("regex_parameters"), col("group_num")).alias("first_group")).collect()
+        [Row(FIRST_GROUP='Hello')]
+
+        # Skipping position - with occurrence only
+        >>> df7 = session.create_dataframe([["nevermore1, nevermore2, nevermore3.", "nevermore\\d", "2"]], schema=["subject", "pattern", "occurrence"])
+        >>> df7.select(regexp_substr(col("subject"), col("pattern"), occurrence=col("occurrence")).alias("skip_position")).collect()
+        [Row(SKIP_POSITION='nevermore2')]
+
+        # Skipping position, occurrence - with regex_parameters only
+        >>> df9 = session.create_dataframe([["Hello World", "hello", "i"]], schema=["subject", "pattern", "regex_parameters"])
+        >>> df9.select(regexp_substr(col("subject"), col("pattern"), regex_parameters=col("regex_parameters")).alias("skip_to_regexp_params")).collect()
+        [Row(SKIP_TO_REGEXP_PARAMS='Hello')]
+
+        # Skipping position, occurrence, and regex_parameters - with group_num only
+        >>> df10 = session.create_dataframe([["Hello (world) (Test)", "(\\w+)", 1]], schema=["subject", "pattern", "group_num"])
+        >>> df10.select(regexp_substr(col("subject"), col("pattern"), group_num=col("group_num")).alias("skip_to_group_num")).collect()
+        [Row(SKIP_TO_GROUP_NUM='Hello')]
+
+        # Skipping position, occurrence - with regex_parameters and group_num
+        >>> df12 = session.create_dataframe([["Hello (World) (Test)", "(\\w+)", "c", 1]], schema=["subject", "pattern", "regex_parameters", "group_num"])
+        >>> df12.select(regexp_substr(col("subject"), col("pattern"), regex_parameters=col("regex_parameters"), group_num=col("group_num")).alias("skip_to_params_and_group")).collect()
+        [Row(SKIP_TO_PARAMS_AND_GROUP='Hello')]
+    """
+
+    if position is None:
+        position = lit(1)
+    if occurrence is None:
+        occurrence = lit(1)
+    if regex_parameters is None:
+        regex_parameters = lit("c")
+
+    args = [
+        _to_col_if_str(subject, "regexp_substr"),
+        _to_col_if_str(pattern, "regexp_substr"),
+        _to_col_if_str(position, "regexp_substr"),
+        _to_col_if_str(occurrence, "regexp_substr"),
+        _to_col_if_str(regex_parameters, "regexp_substr"),
+    ]
+
+    if group_num is not None:
+        args.append(_to_col_if_str(group_num, "regexp_substr"))
+
+    return builtin("regexp_substr", _emit_ast=_emit_ast)(*args)
+
+
+@publicapi
+def regexp_substr_all(
+    subject: ColumnOrName,
+    pattern: ColumnOrName,
+    position: ColumnOrName = None,
+    occurrence: ColumnOrName = None,
+    regex_parameters: ColumnOrName = None,
+    group_num: ColumnOrName = None,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Returns all substrings that match a regular expression within a string.
+
+    Args:
+        subject (ColumnOrName): The string to search for matches.
+        pattern (ColumnOrName): The regular expression pattern to match.
+        position (ColumnOrName, optional): The position in the string to start searching from (1-based). Defaults to 1.
+        occurrence (ColumnOrName, optional): Which occurrence of the pattern to return.
+        regex_parameters (ColumnOrName, optional): String of one or more characters that specifies the parameters for the regular expression. Default is 'c' (case-sensitive).
+        Supported values:
+            - `c`: Case-sensitive matching
+            - `i`: Case-insensitive matching
+            - `m`: Multi-line mode
+            - `e`: Extract submatches
+            - `s`: Single-line mode (POSIX wildcard character `.` matches `\\n`)
+        group_num (ColumnOrName, optional): The group number in the regular expression to extract. Defaults to None, which extracts the entire match.
+
+    Returns:
+        Column: An array containing all matching substrings.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col, lit
+        >>> df = session.create_dataframe([['a1_a2a3_a4A5a6']], schema=["subject"])
+        >>> df.select(regexp_substr_all(col("subject"), lit('a[[:digit:]]')).alias("result")).collect()
+        [Row(RESULT='[\\n  "a1",\\n  "a2",\\n  "a3",\\n  "a4",\\n  "a6"\\n]')]
+
+        >>> df.select(regexp_substr_all(col("subject"), lit('a[[:digit:]]'), lit(2)).alias("result")).collect()
+        [Row(RESULT='[\\n  "a2",\\n  "a3",\\n  "a4",\\n  "a6"\\n]')]
+
+        >>> df.select(regexp_substr_all(col("subject"), lit('a[[:digit:]]'), lit(1), lit(3)).alias("result")).collect()
+        [Row(RESULT='[\\n  "a3",\\n  "a4",\\n  "a6"\\n]')]
+
+        >>> df.select(regexp_substr_all(col("subject"), lit('a[[:digit:]]'), lit(1), lit(1), lit('i')).alias("result")).collect()
+        [Row(RESULT='[\\n  "a1",\\n  "a2",\\n  "a3",\\n  "a4",\\n  "A5",\\n  "a6"\\n]')]
+
+        >>> df.select(regexp_substr_all(col("subject"), lit('(a)([[:digit:]])'), lit(1), lit(1), lit('ie'), lit(1)).alias("result")).collect()
+        [Row(RESULT='[\\n  "a",\\n  "a",\\n  "a",\\n  "a",\\n  "A",\\n  "a"\\n]')]
+
+        >>> df.select(regexp_substr_all(col("subject"), lit('b')).alias("result")).collect()
+        [Row(RESULT='[]')]
+    """
+    if position is None:
+        position = lit(1)
+    if occurrence is None:
+        occurrence = lit(1)
+    if regex_parameters is None:
+        regex_parameters = lit("c")
+
+    args = [
+        _to_col_if_str(subject, "regexp_substr_all"),
+        _to_col_if_str(pattern, "regexp_substr_all"),
+        _to_col_if_str(position, "regexp_substr_all"),
+        _to_col_if_str(occurrence, "regexp_substr_all"),
+        _to_col_if_str(regex_parameters, "regexp_substr_all"),
+    ]
+
+    if group_num is not None:
+        args.append(_to_col_if_str(group_num, "regexp_substr_all"))
+
+    return builtin("regexp_substr_all", _emit_ast=_emit_ast)(*args)
+
+
+@publicapi
+def rtrimmed_length(string_expr: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns the length of the input string after removing trailing whitespace characters.
+
+    Args:
+        string_expr (ColumnOrName): The string expression to calculate the right-trimmed length for.
+
+    Returns:
+        Column: The length of the string after removing trailing whitespace.
+
+    Examples::
+        >>> df = session.create_dataframe([" ABCD ", "hello world   ", "   test", "no_spaces", ""], schema=["a"])
+        >>> df.select(rtrimmed_length(df["a"]).alias("result")).collect()
+        [Row(RESULT=5), Row(RESULT=11), Row(RESULT=7), Row(RESULT=9), Row(RESULT=0)]
+    """
+    c = _to_col_if_str(string_expr, "rtrimmed_length")
+    return builtin("rtrimmed_length", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def space(n: ColumnOrName, _emit_ast: bool = True) -> Column:
+    """
+    Returns a string consisting of n space characters.
+
+    Args:
+        n (ColumnOrName): The number of space characters to return.
+
+    Returns:
+        Column: A string consisting of the specified number of space characters.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([[3], [5], [0]], schema=["n"])
+        >>> df.select(space(col("n")).alias("result")).collect()
+        [Row(RESULT='   '), Row(RESULT='     '), Row(RESULT='')]
+    """
+    c = _to_col_if_str(n, "space")
+    return builtin("space", _emit_ast=_emit_ast)(c)
+
+
+@publicapi
+def split_part(
+    string: ColumnOrName,
+    delimiter: ColumnOrName,
+    part_number: ColumnOrName,
+    _emit_ast: bool = True,
+) -> Column:
+    """
+    Splits a given string at a specified character and returns the requested part.
+
+    Args:
+        string (ColumnOrName): The string to be split.
+        delimiter (ColumnOrName): The delimiter to split the string on.
+        part_number (ColumnOrName): The part number to return (1-based indexing). Negative numbers count from the end.
+
+    Returns:
+        Column: The specified part of the split string.
+
+    Examples::
+        >>> from snowflake.snowpark.functions import col
+        >>> df = session.create_dataframe([
+        ...     ("11.22.33", ".", 1),
+        ...     ("11.22.33", ".", 2),
+        ...     ("11.22.33", ".", 3),
+        ...     ("11.22.33", ".", -1),
+        ...     ("127.0.0.1", ".", 1),
+        ...     ("127.0.0.1", ".", -1),
+        ...     ("|a|b|c|", "|", 1),
+        ...     ("|a|b|c|", "|", 2),
+        ...     ("aaa--bbb-BBB--ccc", "--", 2)
+        ... ], schema=["string_col", "delimiter_col", "part_number_col"])
+        >>> result = df.select(split_part(col("string_col"), col("delimiter_col"), col("part_number_col")).alias("result"))
+        >>> result.collect()
+        [Row(RESULT='11'), Row(RESULT='22'), Row(RESULT='33'), Row(RESULT='33'), Row(RESULT='127'), Row(RESULT='1'), Row(RESULT=''), Row(RESULT='a'), Row(RESULT='bbb-BBB')]
+    """
+    string_col = _to_col_if_str(string, "split_part")
+    delimiter_col = _to_col_if_str(delimiter, "split_part")
+    part_number_col = _to_col_if_str(part_number, "split_part")
+    return builtin("split_part", _emit_ast=_emit_ast)(
+        string_col, delimiter_col, part_number_col
+    )
