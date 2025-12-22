@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2012-2025 Snowflake Computing Inc. All rights reserved.
 #
-
+import datetime
 import logging
 import json
 import pytest
@@ -12,6 +12,13 @@ from snowflake.snowpark.exceptions import (
     SnowparkSQLException,
 )
 from snowflake.snowpark.functions import col, lit
+from snowflake.snowpark.types import (
+    StructType,
+    StructField,
+    StringType,
+    DoubleType,
+    DateType,
+)
 from tests.utils import TestFiles, Utils
 
 
@@ -467,3 +474,138 @@ def test_read_xml_row_validation_xsd_path_failfast(session):
         session.read.option("rowTag", row_tag).option(
             "rowValidationXSDPath", f"@{tmp_stage_name}/{test_file_books_xsd}"
         ).option("mode", "failfast").xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+
+
+def test_read_xml_with_custom_schema(session):
+
+    # user input schema is missing description and adding 'extra_col',
+    # the output shall have the structure as input schema, which does not have description
+    # and have an 'extra_col' filled with null value
+    # the case of schema is also preserved
+    user_schema = StructType(
+        [
+            StructField("Author", StringType(), True),
+            StructField("Title", StringType(), True),
+            StructField("genre", StringType(), True),
+            StructField("PRICE", DoubleType(), True),
+            StructField("publish_Date", DateType(), True),
+            StructField("extra_col", StringType(), True),
+        ]
+    )
+    # case is preserved, same behavior as pyspark
+    expected_schema = StructType(
+        [
+            StructField('"Author"', StringType(), nullable=True),
+            StructField('"Title"', StringType(), nullable=True),
+            StructField('"genre"', StringType(), nullable=True),
+            StructField("PRICE", DoubleType(), nullable=True),
+            StructField('"publish_Date"', DateType(), nullable=True),
+            StructField('"extra_col"', StringType(), nullable=True),
+        ]
+    )
+
+    df = (
+        session.read.option("rowTag", "book")
+        .schema(user_schema)
+        .xml(f"@{tmp_stage_name}/{test_file_books_xml}")
+    )
+    expected_result = [
+        Row(
+            Author="Gambardella, Matthew",
+            Title="XML Developer's Guide",
+            genre="Computer",
+            PRICE=44.95,
+            publish_Date=datetime.date(2000, 10, 1),
+            extra_col=None,
+        ),
+        Row(
+            Author="Corets, Eva",
+            Title="Maeve Ascendant",
+            genre="Fantasy",
+            PRICE=5.95,
+            publish_Date=datetime.date(2000, 11, 17),
+            extra_col=None,
+        ),
+        Row(
+            Author="Kress, Peter",
+            Title="Paradox Lost",
+            genre="Science Fiction",
+            PRICE=6.95,
+            publish_Date=datetime.date(2000, 11, 2),
+            extra_col=None,
+        ),
+        Row(
+            Author="Ralls, Kim",
+            Title="Midnight Rain",
+            genre="Fantasy",
+            PRICE=5.95,
+            publish_Date=datetime.date(2000, 12, 16),
+            extra_col=None,
+        ),
+        Row(
+            Author="Knorr, Stefan",
+            Title="Creepy Crawlies",
+            genre="Horror",
+            PRICE=4.95,
+            publish_Date=datetime.date(2000, 12, 6),
+            extra_col=None,
+        ),
+        Row(
+            Author="Thurman, Paula",
+            Title="Splish Splash",
+            genre="Romance",
+            PRICE=4.95,
+            publish_Date=datetime.date(2000, 11, 2),
+            extra_col=None,
+        ),
+        Row(
+            Author="Randall, Cynthia",
+            Title="Lover Birds",
+            genre="Romance",
+            PRICE=4.95,
+            publish_Date=datetime.date(2000, 9, 2),
+            extra_col=None,
+        ),
+        Row(
+            Author="Corets, Eva",
+            Title="The Sundered Grail",
+            genre="Fantasy",
+            PRICE=5.95,
+            publish_Date=datetime.date(2001, 9, 10),
+            extra_col=None,
+        ),
+        Row(
+            Author="Corets, Eva",
+            Title="Oberon's Legacy",
+            genre="Fantasy",
+            PRICE=5.95,
+            publish_Date=datetime.date(2001, 3, 10),
+            extra_col=None,
+        ),
+        Row(
+            Author="O'Brien, Tim",
+            Title="Microsoft .NET: The Programming Bible",
+            genre="Computer",
+            PRICE=36.95,
+            publish_Date=datetime.date(2000, 12, 9),
+            extra_col=None,
+        ),
+        Row(
+            Author="O'Brien, Tim",
+            Title="MSXML3: A Comprehensive Guide",
+            genre="Computer",
+            PRICE=36.95,
+            publish_Date=datetime.date(2000, 12, 1),
+            extra_col=None,
+        ),
+        Row(
+            Author="Galos, Mike",
+            Title="Visual Studio 7: A Comprehensive Guide",
+            genre="Computer",
+            PRICE=49.95,
+            publish_Date=datetime.date(2001, 4, 16),
+            extra_col=None,
+        ),
+    ]
+    Utils.check_answer(df, expected_result)
+    assert df.schema == expected_schema

@@ -582,109 +582,118 @@ def test_process_xml_range_charset_decode_error():
     assert "Caf" in str(results[0])  # Should get "Caf" or similar
 
 
-def test_custom_schema():
-
+@pytest.mark.parametrize(
+    "user_schema, expected_result_template, expected_result",
+    [
+        (
+            StructType(  # matched schema
+                [
+                    StructField("author", StringType(), True),
+                    StructField("title", StringType(), True),
+                    StructField("genre", StringType(), True),
+                    StructField("price", DoubleType(), True),
+                    StructField("publish_date", DateType(), True),
+                    StructField("description", StringType(), True),
+                ]
+            ),
+            {
+                "AUTHOR": None,
+                "TITLE": None,
+                "GENRE": None,
+                "PRICE": None,
+                "PUBLISH_DATE": None,
+                "DESCRIPTION": None,
+            },
+            {
+                "AUTHOR": "Corets, Eva",
+                "TITLE": "Oberon's Legacy",
+                "GENRE": "Fantasy",
+                "PRICE": "5.95",
+                "PUBLISH_DATE": "2001-03-10",
+                "DESCRIPTION": "In post-apocalypse England, the mysterious\n          agent known only as Oberon helps to create a new life\n          for the inhabitants of London. Sequel to Maeve\n          Ascendant.",
+            },
+        ),
+        (
+            StructType(  # schema with extra column
+                [
+                    StructField("author", StringType(), True),
+                    StructField("title", StringType(), True),
+                    StructField("genre", StringType(), True),
+                    StructField("price", DoubleType(), True),
+                    StructField("publish_date", DateType(), True),
+                    StructField("description", StringType(), True),
+                    StructField("extra_col", StringType(), True),
+                ]
+            ),
+            {
+                "AUTHOR": None,
+                "TITLE": None,
+                "GENRE": None,
+                "PRICE": None,
+                "PUBLISH_DATE": None,
+                "DESCRIPTION": None,
+                "EXTRA_COL": None,
+            },
+            {
+                "AUTHOR": "Corets, Eva",
+                "TITLE": "Oberon's Legacy",
+                "GENRE": "Fantasy",
+                "PRICE": "5.95",
+                "PUBLISH_DATE": "2001-03-10",
+                "DESCRIPTION": "In post-apocalypse England, the mysterious\n          agent known only as Oberon helps to create a new life\n          for the inhabitants of London. Sequel to Maeve\n          Ascendant.",
+                "EXTRA_COL": None,
+            },
+        ),
+        (
+            StructType(  # schema with less column
+                [
+                    StructField("author", StringType(), True),
+                    StructField("title", StringType(), True),
+                    StructField("genre", StringType(), True),
+                    StructField("price", DoubleType(), True),
+                    StructField("publish_date", DateType(), True),
+                ]
+            ),
+            {
+                "AUTHOR": None,
+                "TITLE": None,
+                "GENRE": None,
+                "PRICE": None,
+                "PUBLISH_DATE": None,
+            },
+            {
+                "AUTHOR": "Corets, Eva",
+                "TITLE": "Oberon's Legacy",
+                "GENRE": "Fantasy",
+                "PRICE": "5.95",
+                "PUBLISH_DATE": "2001-03-10",
+            },
+        ),
+    ],
+)
+def test_flat_xml_custom_schema(user_schema, expected_result_template, expected_result):
     xml_string = """
-    <book id="bk104">
-      <author>Corets, Eva</author>
-      <title>Oberon's Legacy</title>
-      <genre>Fantasy</genre>
-      <price>5.95</price>
-      <publish_date>2001-03-10</publish_date>
-      <description>In post-apocalypse England, the mysterious
-      agent known only as Oberon helps to create a new life
-      for the inhabitants of London. Sequel to Maeve
-      Ascendant.</description>
-   </book>
-    """
-
-    user_schema = StructType(
-        [
-            StructField("author", StringType(), True),
-            StructField("title", StringType(), True),
-            StructField("genre", StringType(), True),
-            StructField("price", DoubleType(), True),
-            StructField("publish_date", DateType(), True),
-            StructField("description", StringType(), True),
-        ]
-    )
-
+        <book id="bk104">
+          <author>Corets, Eva</author>
+          <title>Oberon's Legacy</title>
+          <genre>Fantasy</genre>
+          <price>5.95</price>
+          <publish_date>2001-03-10</publish_date>
+          <description>In post-apocalypse England, the mysterious
+          agent known only as Oberon helps to create a new life
+          for the inhabitants of London. Sequel to Maeve
+          Ascendant.</description>
+       </book>
+        """
     result_template = struct_type_to_result_template(user_schema)
+    assert result_template == expected_result_template
 
     element = ET.fromstring(xml_string)
     res = element_to_dict_or_str(element, result_template=result_template)
-    print(res)
+    assert res == expected_result
 
 
-def test_custom_schema_less_column():
-
-    xml_string = """
-    <book id="bk104">
-      <author>Corets, Eva</author>
-      <title>Oberon's Legacy</title>
-      <genre>Fantasy</genre>
-      <price>5.95</price>
-      <publish_date>2001-03-10</publish_date>
-      <description>In post-apocalypse England, the mysterious
-      agent known only as Oberon helps to create a new life
-      for the inhabitants of London. Sequel to Maeve
-      Ascendant.</description>
-   </book>
-    """
-
-    user_schema = StructType(
-        [
-            StructField("author", StringType(), True),
-            StructField("title", StringType(), True),
-            StructField("genre", StringType(), True),
-            StructField("price", DoubleType(), True),
-            StructField("publish_date", DateType(), True),
-            StructField("description", StringType(), True),
-            StructField("extra_col", StringType(), True),
-        ]
-    )
-
-    result_template = struct_type_to_result_template(user_schema)
-
-    element = ET.fromstring(xml_string)
-    res = element_to_dict_or_str(element, result_template=result_template)
-    print(res)
-
-
-def test_custom_schema_more_column():
-
-    xml_string = """
-    <book id="bk104">
-      <author>Corets, Eva</author>
-      <title>Oberon's Legacy</title>
-      <genre>Fantasy</genre>
-      <price>5.95</price>
-      <publish_date>2001-03-10</publish_date>
-      <description>In post-apocalypse England, the mysterious
-      agent known only as Oberon helps to create a new life
-      for the inhabitants of London. Sequel to Maeve
-      Ascendant.</description>
-   </book>
-    """
-
-    user_schema = StructType(
-        [
-            StructField("author", StringType(), True),
-            StructField("title", StringType(), True),
-            StructField("genre", StringType(), True),
-            StructField("price", DoubleType(), True),
-            StructField("publish_date", DateType(), True),
-        ]
-    )
-
-    result_template = struct_type_to_result_template(user_schema)
-
-    element = ET.fromstring(xml_string)
-    res = element_to_dict_or_str(element, result_template=result_template)
-    print(res)
-
-
-def test_custom_schema_nested():
+def test_nested_xml_custom_schema():
     xml_string = """
   <book id="1">
     <title>The Art of Snowflake</title>
@@ -753,10 +762,85 @@ def test_custom_schema_nested():
     )
 
     result_template = struct_type_to_result_template(user_schema)
+    assert result_template == {
+        "Title": None,
+        "Author": None,
+        "Price": None,
+        "REVIEWS": {"REVIEW": {"User": None, "Rating": None, "comment": None}},
+        "EDITIONS": {"EDITION": {"_YEAR": None, "_FORMAT": None}},
+    }
     element = ET.fromstring(xml_string)
     res = element_to_dict_or_str(element, result_template=result_template)
-    print(res)
+    assert res == {
+        "Title": "The Art of Snowflake",
+        "Author": "Jane Doe",
+        "Price": "29.99",
+        "REVIEWS": {
+            "REVIEW": [
+                {
+                    "User": "tech_guru_87",
+                    "Rating": "5",
+                    "comment": "Very insightful and practical.",
+                },
+                {
+                    "User": "datawizard",
+                    "Rating": "4",
+                    "comment": "Great read for data engineers.",
+                },
+            ]
+        },
+        "EDITIONS": {
+            "EDITION": [
+                {"_YEAR": "2023", "_FORMAT": "Hardcover"},
+                {"_YEAR": "2024", "_FORMAT": "eBook"},
+            ]
+        },
+    }
 
 
-def test_custom_schema_type():
-    pass
+def test_case_sensitive_in_custom_schema():
+    xml_string = """
+    <book id="bk104">
+      <author>Corets, Eva</author>
+      <title>Oberon's Legacy</title>
+      <genre>Fantasy</genre>
+      <price>5.95</price>
+      <publish_date>2001-03-10</publish_date>
+      <description>In post-apocalypse England, the mysterious
+      agent known only as Oberon helps to create a new life
+      for the inhabitants of London. Sequel to Maeve
+      Ascendant.</description>
+   </book>
+    """
+
+    user_schema = StructType(  # matched schema
+        [
+            StructField('"Author"', StringType(), True),
+            StructField("title", StringType(), True),
+            StructField('"GENRE"', StringType(), True),
+            StructField('"Price"', DoubleType(), True),
+            StructField('"publish_Date"', DateType(), True),
+            StructField('"description"', StringType(), True),
+        ]
+    )
+
+    result_template = struct_type_to_result_template(user_schema)
+    assert result_template == {
+        "Author": None,
+        "TITLE": None,
+        "GENRE": None,
+        "Price": None,
+        "publish_Date": None,
+        "description": None,
+    }
+
+    element = ET.fromstring(xml_string)
+    res = element_to_dict_or_str(element, result_template=result_template)
+    assert res == {
+        "Author": "Corets, Eva",
+        "TITLE": "Oberon's Legacy",
+        "GENRE": "Fantasy",
+        "Price": "5.95",
+        "publish_Date": "2001-03-10",
+        "description": "In post-apocalypse England, the mysterious\n      agent known only as Oberon helps to create a new life\n      for the inhabitants of London. Sequel to Maeve\n      Ascendant.",
+    }

@@ -6,6 +6,8 @@
 
 #### New Features
 
+- Allow user input schema when reading XML file on stage.
+
 #### Bug Fixes
 
 #### Improvements
