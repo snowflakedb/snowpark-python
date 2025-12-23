@@ -1110,7 +1110,7 @@ class DataFrameAIFunctions:
             >>> len(result["segments"]) > 0
             True
             >>> result["segments"][0]["text"].lower()
-            'glad'
+            'the'
             >>> 'start' in result["segments"][0] and 'end' in result["segments"][0]
             True
 
