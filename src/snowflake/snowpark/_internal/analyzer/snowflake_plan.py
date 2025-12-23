@@ -1813,7 +1813,7 @@ class SnowflakePlanBuilder:
         xml_reader_udtf: "UserDefinedTableFunction",
         file_path: str,
         options: Dict[str, str],
-        schema: List[Attribute],
+        schema: Optional[List[Attribute]] = None,
     ) -> str:
         """
         Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
