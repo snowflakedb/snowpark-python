@@ -609,3 +609,19 @@ def test_read_xml_with_custom_schema(session):
     ]
     Utils.check_answer(df, expected_result)
     assert df.schema == expected_schema
+
+
+def test_user_schema_without_rowtag(session):
+    user_schema = StructType(
+        [
+            StructField("Author", StringType(), True),
+            StructField("Title", StringType(), True),
+            StructField("genre", StringType(), True),
+            StructField("PRICE", DoubleType(), True),
+            StructField("publish_Date", DateType(), True),
+        ]
+    )
+    with pytest.raises(
+        ValueError, match="When read XML with user schema, rowtag must be set."
+    ):
+        session.read.schema(user_schema).xml(f"@{tmp_stage_name}/{test_file_books_xml}")
