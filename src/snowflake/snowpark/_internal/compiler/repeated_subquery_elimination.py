@@ -173,7 +173,7 @@ class RepeatedSubqueryElimination:
                         self._query_generator.session.reduce_describe_query_enabled
                         and context._is_snowpark_connect_compatible_mode
                     ):
-                        # create a deterministic name using the first 16 chars of encoded_node_id_with_query (SHA256 hash)
+                        # create a deterministic name using the first 10 chars of encoded_node_id_with_query (SHA256 hash)
                         # It helps when DataFrame.queries is called multiple times.
                         # Consistent CTE names returned, reducing the number of describe queries from cached_analyze_attributes calls.
                         cte_name = f"{TEMP_OBJECT_NAME_PREFIX}{TempObjectType.CTE.value}_{node.encoded_node_id_with_query[:HASH_LENGTH].upper()}"
