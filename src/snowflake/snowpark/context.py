@@ -77,17 +77,14 @@ def configure_development_features(
     _debug_eager_schema_validation = enable_eager_schema_validation
 
     if enable_dataframe_trace_on_error or enable_trace_sql_errors_to_dataframe:
+        _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
+        _enable_trace_sql_errors_to_dataframe = enable_trace_sql_errors_to_dataframe
+        sessions = snowflake.snowpark.session._get_active_sessions(
+            require_at_least_one=False
+        )
         try:
-            session = get_active_session()
-            if session is None:
-                _logger.warning(
-                    "No active session found. Please create a session first and call "
-                    "`configure_development_features()` after creating the session.",
-                )
-                return
-            _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
-            _enable_trace_sql_errors_to_dataframe = enable_trace_sql_errors_to_dataframe
-            session.ast_enabled = True
+            for active_session in sessions:
+                active_session._set_ast_enabled_internal(True)
         except Exception as e:
             _logger.warning(
                 f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
