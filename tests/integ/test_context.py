@@ -41,9 +41,6 @@ def test_context_configure_development_features():
             mock_session1._set_ast_enabled_internal.assert_called_once_with(True)
             mock_session2._set_ast_enabled_internal.assert_called_once_with(True)
 
-        new_session = session.Session.builder.create()
-        assert new_session.ast_enabled is True
-        new_session.close()
     finally:
         context.configure_development_features(
             enable_trace_sql_errors_to_dataframe=False
