@@ -2460,18 +2460,20 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
         queue = mp.Queue()
 
         def worker_process(parquet_queue):
-
-            # Create a sample DataFrame
-            data = {
-                "id": [1, 2, 3, 4, 5],
-                "name": ["Alice", "Bob", "Charlie", "David", "Eve"],
-                "value": [100, 200, 300, 400, 500],
-            }
-            parquet_buffer = BytesIO()
-            df = pd.DataFrame(data)
-            df.to_parquet(parquet_buffer)
-            parquet_buffer.seek(0)
-            parquet_queue.put(parquet_buffer)
+            try:
+                # Create a sample DataFrame
+                data = {
+                    "id": [1, 2, 3, 4, 5],
+                    "name": ["Alice", "Bob", "Charlie", "David", "Eve"],
+                    "value": [100, 200, 300, 400, 500],
+                }
+                parquet_buffer = BytesIO()
+                df = pd.DataFrame(data)
+                df.to_parquet(parquet_buffer)
+                parquet_buffer.seek(0)
+                parquet_queue.put(parquet_buffer)
+            except Exception as e:
+                parquet_queue.put(("error", str(e)))
 
         process = mp.Process(target=worker_process, args=(queue,))
         process.start()
@@ -2481,6 +2483,11 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
 
         # Get the parquet buffer from the queue
         parquet_buffer = queue.get()
+
+        # exit if error happened
+        if isinstance(parquet_buffer, tuple):
+            return "failure"
+
         parquet_buffer.seek(0)
 
         # Create a temporary stage
