@@ -7,6 +7,18 @@
 #### New Features
 
 - Allow user input schema when reading XML file on stage.
+- Added support for the following functions in `functions.py`:
+    - String and Binary functions:
+      - `hex_decode_string`
+      - `jarowinkler_similarity`
+      - `parse_url`
+      - `regexp_instr`
+      - `regexp_like`
+      - `regexp_substr`
+      - `regexp_substr_all`
+      - `rtrimmed_length`
+      - `space`
+      - `split_part`
 
 #### Bug Fixes
 
