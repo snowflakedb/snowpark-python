@@ -2456,6 +2456,7 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
         import multiprocessing as mp
         from io import BytesIO
         import pandas as pd
+        import queue as queue_module
 
         queue = mp.Queue()
 
@@ -2482,10 +2483,9 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
         process.join()
 
         # Get the parquet buffer from the queue
-        parquet_buffer = queue.get()
-
-        # exit if error happened
-        if isinstance(parquet_buffer, tuple):
+        try:
+            parquet_buffer = queue.get(timeout=30)
+        except queue_module.Empty:
             return "failure"
 
         parquet_buffer.seek(0)
