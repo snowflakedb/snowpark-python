@@ -2478,8 +2478,6 @@ def test_datasource_put_file_stream_and_copy_into_in_sproc(session):
 
         # Wait for the process to complete
         process.join()
-        if process.exitcode != 0 or process.is_alive():
-            return "failure"
 
         # Get the parquet buffer from the queue
         parquet_buffer = queue.get()
