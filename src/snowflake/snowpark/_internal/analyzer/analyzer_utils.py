@@ -2004,7 +2004,7 @@ def attribute_to_schema_string(attributes: List[Attribute]) -> str:
 def attribute_to_schema_string_deep(attributes) -> str:
     from snowflake.snowpark.types import ArrayType, MapType, StructType
 
-    def dt_to_type_string(dt: DataType) -> str:
+    def dt_to_type_string(dt) -> str:
         if isinstance(dt, ArrayType):
             return f"array<{dt_to_type_string(dt.element_type)}>"
 
