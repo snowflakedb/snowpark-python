@@ -1073,21 +1073,13 @@ def test_transaction(session):
 
 def test_session_eanble_development_features(db_parameters):
     from snowflake.snowpark import context
-<<<<<<< HEAD
 
     with patch.object(
         context, "_enable_trace_sql_errors_to_dataframe", return_value=True
     ):
-=======
-    with patch.object(context, "_enable_trace_sql_errors_to_dataframe", return_value=True):
->>>>>>> ef19df0ef73f889b85f6c1f676b8cdbdf9fb7c43
         with Session.builder.configs(db_parameters).create() as new_session:
             assert new_session.ast_enabled is True
 
     with patch.object(context, "_enable_dataframe_trace_on_error", return_value=True):
         with Session.builder.configs(db_parameters).create() as new_session:
-<<<<<<< HEAD
             assert new_session.ast_enabled is True
-=======
-            assert new_session.ast_enabled is True
->>>>>>> ef19df0ef73f889b85f6c1f676b8cdbdf9fb7c43
