@@ -332,14 +332,16 @@ def _get_active_session() -> "Session":
             raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
 
 
-def _get_active_sessions() -> Set["Session"]:
+def _get_active_sessions(require_at_least_one: bool = True) -> Set["Session"]:
     with _session_management_lock:
         if len(_active_sessions) >= 1:
             # TODO: This function is allowing unsafe access to a mutex protected data
             #  structure, we should ONLY use it in tests
             return _active_sessions
         else:
-            raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
+            if require_at_least_one:
+                raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
+            return set()
 
 
 def _add_session(session: "Session") -> None:
@@ -736,6 +738,16 @@ class Session:
                     ast_enabled = False
 
         set_ast_state(AstFlagSource.SERVER, ast_enabled)
+
+        # development features require AST to be enabled
+        from snowflake.snowpark.context import (
+            _enable_trace_sql_errors_to_dataframe,
+            _enable_dataframe_trace_on_error,
+        )
+
+        if _enable_trace_sql_errors_to_dataframe or _enable_dataframe_trace_on_error:
+            self._set_ast_enabled_internal(True)
+
         # The complexity score lower bound is set to match COMPILATION_MEMORY_LIMIT
         # in Snowflake. This is the limit where we start seeing compilation errors.
         self._large_query_breakdown_complexity_bounds: Tuple[int, int] = (
@@ -973,9 +985,7 @@ class Session:
         """
         return is_ast_enabled()
 
-    @ast_enabled.setter
-    @experimental_parameter(version="1.33.0")
-    def ast_enabled(self, value: bool) -> None:
+    def _set_ast_enabled_internal(self, value: bool) -> None:
         # TODO: we could send here explicit telemetry if a user changes the behavior.
         # In addition, we could introduce a server-side parameter to enable AST capture or not.
         # self._conn._telemetry_client.send_ast_enabled_telemetry(
@@ -997,6 +1007,11 @@ class Session:
             )
             self._auto_clean_up_temp_table_enabled = False
         set_ast_state(AstFlagSource.USER, value)
+
+    @ast_enabled.setter
+    @experimental_parameter(version="1.33.0")
+    def ast_enabled(self, value: bool) -> None:
+        self._set_ast_enabled_internal(value)
 
     @property
     def cte_optimization_enabled(self) -> bool:
