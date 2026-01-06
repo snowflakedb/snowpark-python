@@ -341,7 +341,7 @@ def _get_active_sessions(require_at_least_one: bool = True) -> Set["Session"]:
         else:
             if require_at_least_one:
                 raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
-            return []
+            return set()
 
 
 def _add_session(session: "Session") -> None:
