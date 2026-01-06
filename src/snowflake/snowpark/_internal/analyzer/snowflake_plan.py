@@ -90,6 +90,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     table_function_statement,
     unpivot_statement,
     update_statement,
+    attribute_to_schema_string_deep,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
@@ -1813,6 +1814,7 @@ class SnowflakePlanBuilder:
         xml_reader_udtf: "UserDefinedTableFunction",
         file_path: str,
         options: Dict[str, str],
+        schema: Optional[List[Attribute]] = None,
     ) -> str:
         """
         Creates a DataFrame from a UserDefinedTableFunction that reads XML files.
@@ -1820,6 +1822,9 @@ class SnowflakePlanBuilder:
         from snowflake.snowpark.functions import lit, col, seq8, flatten
         from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
 
+        schema_string = (
+            attribute_to_schema_string_deep(schema) if schema is not None else ""
+        )
         worker_column_name = "WORKER"
         xml_row_number_column_name = "XML_ROW_NUMBER"
         row_tag = options[XML_ROW_TAG_STRING]
@@ -1875,6 +1880,7 @@ class SnowflakePlanBuilder:
                 lit(charset),
                 lit(ignore_surrounding_whitespace),
                 lit(row_validation_xsd_path),
+                lit(schema_string),
             ),
         )
 
@@ -1906,9 +1912,10 @@ class SnowflakePlanBuilder:
         source_plan: Optional[ReadFileNode] = None,
     ) -> SnowflakePlan:
         thread_safe_session_enabled = self.session._conn._thread_safe_session_enabled
-
         if xml_reader_udtf is not None:
-            xml_query = self._create_xml_query(xml_reader_udtf, path, options)
+            xml_query = self._create_xml_query(
+                xml_reader_udtf, path, options, schema if use_user_schema else None
+            )
             return SnowflakePlan(
                 [Query(xml_query)],
                 # the schema query of dynamic pivot must be the same as the original query

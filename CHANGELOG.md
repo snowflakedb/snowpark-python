@@ -6,6 +6,7 @@
 
 #### New Features
 
+- Allow user input schema when reading XML file on stage.
 - Added support for the following functions in `functions.py`:
     - String and Binary functions:
       - `hex_decode_string`

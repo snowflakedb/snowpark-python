@@ -19,6 +19,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     drop_file_format_if_exists_statement,
     infer_schema_statement,
     quote_name_without_upper_casing,
+    single_quote,
 )
 from snowflake.snowpark._internal.analyzer.expression import Attribute
 from snowflake.snowpark._internal.analyzer.snowflake_plan_node import ReadFileNode
@@ -630,10 +631,10 @@ class DataFrameReader:
 
     @publicapi
     def schema(self, schema: StructType, _emit_ast: bool = True) -> "DataFrameReader":
-        """Define the schema for CSV files that you want to read.
+        """Define the schema for CSV or XML files that you want to read.
 
         Args:
-            schema: Schema configuration for the CSV file to be read.
+            schema: Schema configuration for the CSV or XML file to be read.
 
         Returns:
             a :class:`DataFrameReader` instance with the specified schema configuration for the data to be read.
@@ -1069,7 +1070,18 @@ class DataFrameReader:
             ast.reader.CopyFrom(self._ast)
             df._ast_id = stmt.uid
 
-        return df
+        # cast to input custom schema type
+        # TODO: SNOW-2923003: remove single quote after server side BCR is done
+        if self._user_schema:
+            cols = [
+                df[single_quote(field._name)]
+                .cast(field.datatype)
+                .alias(quote_name_without_upper_casing(field._name))
+                for field in self._user_schema.fields
+            ]
+            return df.select(cols)
+        else:
+            return df
 
     @publicapi
     def option(self, key: str, value: Any, _emit_ast: bool = True) -> "DataFrameReader":
@@ -1371,8 +1383,14 @@ class DataFrameReader:
                     raise_error=NotImplementedError,
                 )
 
-        if self._user_schema and format.lower() != "json":
+        if self._user_schema and format.lower() not in ["json", "xml"]:
             raise ValueError(f"Read {format} does not support user schema")
+        if (
+            self._user_schema
+            and format.lower() == "xml"
+            and XML_ROW_TAG_STRING not in self._cur_options
+        ):
+            raise ValueError("When reading XML with user schema, rowtag must be set.")
         path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = format

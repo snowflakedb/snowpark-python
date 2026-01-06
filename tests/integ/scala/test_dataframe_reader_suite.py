@@ -1626,10 +1626,6 @@ def test_read_xml_with_no_schema(session, mode, resources_path):
     res = df1.where(sql_expr("xmlget($1, 'num', 0):\"$\"") > 1).collect()
     assert res == [Row("<test>\n  <num>2</num>\n  <str>str2</str>\n</test>")]
 
-    # assert user cannot input a schema to read json
-    with pytest.raises(ValueError):
-        get_reader(session, mode).schema(user_schema).xml(path)
-
     # assert local directory is invalid
     with pytest.raises(
         ValueError, match="DataFrameReader can only read files from stage locations."
