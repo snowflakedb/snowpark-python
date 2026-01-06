@@ -2001,6 +2001,37 @@ def attribute_to_schema_string(attributes: List[Attribute]) -> str:
     )
 
 
+def attribute_to_schema_string_deep(attributes) -> str:
+    from snowflake.snowpark.types import ArrayType, MapType, StructType
+
+    def dt_to_type_string(dt: DataType) -> str:
+        if isinstance(dt, ArrayType):
+            return f"array<{dt_to_type_string(dt.element_type)}>"
+
+        if isinstance(dt, MapType):
+
+            return f"map<{dt_to_type_string(dt.key_type)},{dt_to_type_string(dt.value_type)}>"
+
+        if isinstance(dt, StructType):
+            fields = []
+            for f in dt.fields:
+                field_type = dt_to_type_string(f.datatype)
+                field_nullable_suffix = "" if f.nullable else " not null"
+                fields.append(
+                    f"{quote_name(f._name, keep_case=True)}: {field_type}{field_nullable_suffix}"
+                )
+            return f"struct<{', '.join(fields)}>"
+
+        return dt.simple_string()
+
+    inner = ", ".join(
+        f"{a.name}: {dt_to_type_string(a.datatype)}"
+        + ("" if a.nullable else " not null")
+        for a in attributes
+    )
+    return f"struct<{inner}>"
+
+
 def schema_value_statement(output: List[Attribute]) -> str:
     return SELECT + COMMA.join(
         [

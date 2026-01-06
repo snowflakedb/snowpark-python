@@ -11,6 +11,9 @@ import html.entities
 from unittest.mock import patch
 import pytest
 
+from snowflake.snowpark._internal.analyzer.analyzer_utils import (
+    attribute_to_schema_string_deep,
+)
 from snowflake.snowpark._internal.xml_reader import (
     replace_entity,
     element_to_dict_or_str,
@@ -21,6 +24,7 @@ from snowflake.snowpark._internal.xml_reader import (
     process_xml_range,
     DEFAULT_CHUNK_SIZE,
     struct_type_to_result_template,
+    schema_string_to_result_dict_and_struct_type,
 )
 from snowflake.snowpark.types import (
     StructType,
@@ -29,6 +33,7 @@ from snowflake.snowpark.types import (
     DoubleType,
     DateType,
     ArrayType,
+    MapType,
 )
 
 
@@ -813,7 +818,7 @@ def test_case_sensitive_in_custom_schema():
    </book>
     """
 
-    user_schema = StructType(  # matched schema
+    user_schema = StructType(
         [
             StructField('"Author"', StringType(), True),
             StructField("title", StringType(), True),
@@ -843,4 +848,80 @@ def test_case_sensitive_in_custom_schema():
         "Price": "5.95",
         "publish_Date": "2001-03-10",
         "description": "In post-apocalypse England, the mysterious\n      agent known only as Oberon helps to create a new life\n      for the inhabitants of London. Sequel to Maeve\n      Ascendant.",
+    }
+
+
+def test_attribute_to_schema_string_deep(session):
+    review_schema = StructType(
+        [
+            StructField("User", StringType(), True),
+            StructField(
+                "Rating", StringType(), True
+            ),  # keep as StringType (XML reader returns strings)
+            StructField("comment", StringType(), True),
+        ]
+    )
+
+    edition_schema = StructType(
+        [
+            StructField("_year", StringType(), True),  # attributes -> prefixed with "_"
+            StructField("_format", StringType(), True),
+        ]
+    )
+
+    user_schema = StructType(
+        [
+            StructField("Title", StringType(), True),
+            StructField("Author", StringType(), True),
+            StructField("Price", StringType(), True),
+            StructField(
+                "reviews",
+                StructType(
+                    [
+                        StructField("review", ArrayType(review_schema), True),
+                    ]
+                ),
+                True,
+            ),
+            StructField(
+                "editions",
+                StructType(
+                    [
+                        StructField("edition", ArrayType(edition_schema), True),
+                    ]
+                ),
+                True,
+            ),
+        ]
+    )
+    attr, _, _ = session.read._get_schema_from_user_input(user_schema)
+    schema_string = attribute_to_schema_string_deep(attr)
+    assert (
+        schema_string
+        == """struct<"Title": string, "Author": string, "Price": string, "reviews": struct<"review": array<struct<"User": string, "Rating": string, "comment": string>>>, "editions": struct<"edition": array<struct<"_year": string, "_format": string>>>>"""
+    )
+
+
+def test_schema_string_to_result_dict_and_struct_type(session):
+    user_schema = StructType(
+        [
+            StructField("Author", StringType(), True),
+            StructField("TITLE", StringType(), True),
+            StructField("GENRE", StringType(), True),
+            StructField("Price", DoubleType(), True),
+            StructField("publish_Date", DateType(), True),
+            StructField("description", StringType(), True),
+            StructField("map_type", MapType(), True),
+        ]
+    )
+    attr, _, _ = session.read._get_schema_from_user_input(user_schema)
+    schema_string = attribute_to_schema_string_deep(attr)
+    assert schema_string_to_result_dict_and_struct_type(schema_string) == {
+        "Author": None,
+        "TITLE": None,
+        "GENRE": None,
+        "Price": None,
+        "publish_Date": None,
+        "description": None,
+        "map_type": None,
     }

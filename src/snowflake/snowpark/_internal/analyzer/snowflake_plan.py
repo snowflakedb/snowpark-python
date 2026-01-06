@@ -90,6 +90,7 @@ from snowflake.snowpark._internal.analyzer.analyzer_utils import (
     table_function_statement,
     unpivot_statement,
     update_statement,
+    attribute_to_schema_string_deep,
 )
 from snowflake.snowpark._internal.analyzer.binary_plan_node import (
     JoinType,
@@ -1821,7 +1822,9 @@ class SnowflakePlanBuilder:
         from snowflake.snowpark.functions import lit, col, seq8, flatten
         from snowflake.snowpark._internal.xml_reader import DEFAULT_CHUNK_SIZE
 
-        schema_string = attribute_to_schema_string(schema) if schema is not None else ""
+        schema_string = (
+            attribute_to_schema_string_deep(schema) if schema is not None else ""
+        )
         worker_column_name = "WORKER"
         xml_row_number_column_name = "XML_ROW_NUMBER"
         row_tag = options[XML_ROW_TAG_STRING]

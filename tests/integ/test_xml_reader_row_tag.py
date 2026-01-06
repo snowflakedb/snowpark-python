@@ -615,8 +615,8 @@ def test_read_xml_with_custom_schema(session):
 def test_xml_custom_schema_nested(session):
     review_schema = StructType(
         [
-            StructField("User", StringType(), True),
-            StructField("Rating", StringType(), True),
+            StructField('"User"', StringType(), True),
+            StructField('"Rating"', StringType(), True),
             StructField("comment", StringType(), True),
         ]
     )
@@ -663,14 +663,14 @@ def test_xml_custom_schema_nested(session):
             Title="XML for Data Engineers",
             Author="John Smith",
             Price="35.50",
-            reviews='{\n  "review": {\n    "comment": "Perfect for mastering XML parsing.",\n    "rating": "5",\n    "user": "xml_master"\n  }\n}',
+            reviews='{\n  "review": {\n    "Rating": "5",\n    "User": "xml_master",\n    "comment": "Perfect for mastering XML parsing."\n  }\n}',
             editions='{\n  "edition": {\n    "_format": "Paperback",\n    "_year": "2022"\n  }\n}',
         ),
         Row(
             Title="The Art of Snowflake",
             Author="Jane Doe",
             Price="29.99",
-            reviews='{\n  "review": [\n    {\n      "comment": "Very insightful and practical.",\n      "rating": "5",\n      "user": "tech_guru_87"\n    },\n    {\n      "comment": "Great read for data engineers.",\n      "rating": "4",\n      "user": "datawizard"\n    }\n  ]\n}',
+            reviews='{\n  "review": [\n    {\n      "Rating": "5",\n      "User": "tech_guru_87",\n      "comment": "Very insightful and practical."\n    },\n    {\n      "Rating": "4",\n      "User": "datawizard",\n      "comment": "Great read for data engineers."\n    }\n  ]\n}',
             editions='{\n  "edition": [\n    {\n      "_format": "Hardcover",\n      "_year": "2023"\n    },\n    {\n      "_format": "eBook",\n      "_year": "2024"\n    }\n  ]\n}',
         ),
     ]
