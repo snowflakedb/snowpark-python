@@ -1083,3 +1083,10 @@ def test_session_eanble_development_features(db_parameters):
     with patch.object(context, "_enable_dataframe_trace_on_error", return_value=True):
         with Session.builder.configs(db_parameters).create() as new_session:
             assert new_session.ast_enabled is True
+
+
+def test_get_active_sessions_empty():
+    from snowflake.snowpark import session as session_module
+
+    with patch.object(session_module, "_active_sessions", return_value=set()):
+        assert session_module._get_active_sessions(require_at_least_one=False) == set()

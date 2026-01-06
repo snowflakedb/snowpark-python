@@ -86,7 +86,7 @@ def configure_development_features(
             try:
                 for active_session in sessions:
                     active_session._set_ast_enabled_internal(True)
-            except Exception as e:
+            except Exception as e:  # pragma: no cover
                 _logger.warning(
                     f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
                 )
