@@ -79,16 +79,17 @@ def configure_development_features(
     if enable_dataframe_trace_on_error or enable_trace_sql_errors_to_dataframe:
         _enable_dataframe_trace_on_error = enable_dataframe_trace_on_error
         _enable_trace_sql_errors_to_dataframe = enable_trace_sql_errors_to_dataframe
-        sessions = snowflake.snowpark.session._get_active_sessions(
-            require_at_least_one=False
-        ).copy()
-        try:
-            for active_session in sessions:
-                active_session._set_ast_enabled_internal(True)
-        except Exception as e:
-            _logger.warning(
-                f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
+        with snowflake.snowpark.session._session_management_lock:
+            sessions = snowflake.snowpark.session._get_active_sessions(
+                require_at_least_one=False
             )
+            try:
+                for active_session in sessions:
+                    active_session._set_ast_enabled_internal(True)
+            except Exception as e:
+                _logger.warning(
+                    f"Cannot enable AST collection in the session due to {str(e)}. Some development features may not work as expected.",
+                )
     else:
         _enable_dataframe_trace_on_error = False
         _enable_trace_sql_errors_to_dataframe = False
