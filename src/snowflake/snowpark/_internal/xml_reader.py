@@ -61,8 +61,6 @@ def schema_string_to_result_dict_and_struct_type(schema_string: str) -> Optional
     if schema_string == "":
         return None
     schema = type_string_to_type_object(schema_string)
-    if not isinstance(schema, StructType):
-        return None
 
     return struct_type_to_result_template(schema)
 
@@ -81,10 +79,6 @@ def struct_type_to_result_template(dt: DataType) -> Optional[dict]:
         return struct_type_to_result_template(dt.value_type)
 
     return None
-
-
-def generate_norm_column_name_to_ori_column_name_dict(result: dict):
-    return {key.lower(): key for key in result.keys()}
 
 
 def get_file_size(filename: str) -> Optional[int]:
@@ -311,7 +305,7 @@ def element_to_dict_or_str(
     Recursively converts an XML Element to a dictionary.
     """
     norm_name_to_ori_name = (
-        generate_norm_column_name_to_ori_column_name_dict(result_template)
+        {key.lower(): key for key in result_template.keys()}
         if result_template is not None
         else None
     )

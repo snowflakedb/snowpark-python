@@ -1389,7 +1389,7 @@ class DataFrameReader:
             and format.lower() == "xml"
             and XML_ROW_TAG_STRING not in self._cur_options
         ):
-            raise ValueError("When read XML with user schema, rowtag must be set.")
+            raise ValueError("When reading XML with user schema, rowtag must be set.")
         path = _validate_stage_path(path)
         self._file_path = path
         self._file_type = format
