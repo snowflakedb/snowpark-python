@@ -16,7 +16,7 @@ def test_get_active_session(session):
 def test_context_configure_development_features():
     try:
         # Test when _get_active_sessions() returns None
-        with mock.patch.object(session, "_get_active_sessions", return_value=None):
+        with mock.patch.object(session, "_get_active_sessions", return_value=set()):
             context.configure_development_features(
                 enable_trace_sql_errors_to_dataframe=True
             )
