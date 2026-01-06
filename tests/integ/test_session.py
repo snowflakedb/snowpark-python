@@ -1069,3 +1069,17 @@ def test_transaction(session):
             session.sql(f"DROP TABLE IF EXISTS {temp_table_name}").collect()
         except Exception:
             pass
+
+
+def test_session_eanble_development_features(db_parameters):
+    from snowflake.snowpark import context
+
+    with patch.object(
+        context, "_enable_trace_sql_errors_to_dataframe", return_value=True
+    ):
+        with Session.builder.configs(db_parameters).create() as new_session:
+            assert new_session.ast_enabled is True
+
+    with patch.object(context, "_enable_dataframe_trace_on_error", return_value=True):
+        with Session.builder.configs(db_parameters).create() as new_session:
+            assert new_session.ast_enabled is True
