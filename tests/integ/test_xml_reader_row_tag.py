@@ -622,6 +622,6 @@ def test_user_schema_without_rowtag(session):
         ]
     )
     with pytest.raises(
-        ValueError, match="When read XML with user schema, rowtag must be set."
+        ValueError, match="When reading XML with user schema, rowtag must be set."
     ):
         session.read.schema(user_schema).xml(f"@{tmp_stage_name}/{test_file_books_xml}")
