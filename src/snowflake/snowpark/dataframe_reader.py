@@ -1071,6 +1071,7 @@ class DataFrameReader:
             df._ast_id = stmt.uid
 
         # cast to input custom schema type
+        # TODO: SNOW-2923003: remove single quote after server side BCR is done
         if self._user_schema:
             cols = [
                 df[single_quote(field._name)]
