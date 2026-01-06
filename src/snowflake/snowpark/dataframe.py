@@ -322,6 +322,8 @@ def _disambiguate(
         for n in lhs_names
         if n in set(rhs_names) and n not in normalized_using_columns
     ]
+    if not common_col_names:
+        return lhs, rhs
     all_names = [unquote_if_quoted(n) for n in lhs_names + rhs_names]
 
     if common_col_names:
