@@ -9,6 +9,7 @@
 #### Bug Fixes
 
 #### Improvements
+- `snowflake.snowpark.context.configure_development_features` is effective for multiple sessions including newly created sessions after the configuration. No duplicate experimental warning any more.
 
 ### Snowpark pandas API Updates
 
