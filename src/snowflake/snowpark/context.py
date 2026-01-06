@@ -81,7 +81,7 @@ def configure_development_features(
         _enable_trace_sql_errors_to_dataframe = enable_trace_sql_errors_to_dataframe
         sessions = snowflake.snowpark.session._get_active_sessions(
             require_at_least_one=False
-        )
+        ).copy()
         try:
             for active_session in sessions:
                 active_session._set_ast_enabled_internal(True)
