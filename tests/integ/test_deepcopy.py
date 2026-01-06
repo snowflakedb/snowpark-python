@@ -4,6 +4,7 @@
 
 import copy
 from typing import Callable, List, Optional
+from unittest import mock
 
 import pytest
 
@@ -415,3 +416,70 @@ def test_deepcopy_no_duplicate(session, generator):
             traverse_plan(child, plan_id_map)
 
     traverse_plan(copied_plan, {})
+
+
+def test_selectable_entity_deepcopy_attributes_with_flags_enabled(session):
+    """Verify _attributes is deepcopied in SelectableEntity when both flags are True."""
+    temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
+        temp_table_name, table_type="temp"
+    )
+
+    with mock.patch.object(
+        session, "_reduce_describe_query_enabled", True
+    ), mock.patch.object(session, "_cte_optimization_enabled", True):
+        # Apply a filter to get a SelectStatement with SelectableEntity as child
+        df = session.table(temp_table_name).filter(col("a") == 1)
+        # Access the SelectableEntity from the plan's children
+        if session.sql_simplifier_enabled:
+            assert len(df._plan.children_plan_nodes) == 1
+            assert isinstance(df._plan.children_plan_nodes[0], SelectableEntity)
+            selectable = df._plan.children_plan_nodes[0]
+            # Set _attributes to simulate cached attributes
+            selectable._attributes = selectable.snowflake_plan.attributes
+
+            copied_selectable = copy.deepcopy(selectable)
+
+            # Verify attributes were deepcopied
+            assert copied_selectable._attributes is not None
+            assert copied_selectable._attributes is not selectable._attributes
+            for copied_attr, original_attr in zip(
+                copied_selectable._attributes, selectable._attributes
+            ):
+                assert copied_attr is not original_attr
+                assert copied_attr.name == original_attr.name
+
+
+@pytest.mark.parametrize(
+    "reduce_describe_enabled,cte_enabled",
+    [
+        (False, False),
+        (True, False),
+        (False, True),
+    ],
+)
+def test_selectable_entity_deepcopy_attributes_with_flags_disabled(
+    session, reduce_describe_enabled, cte_enabled
+):
+    """Verify _attributes is NOT copied when either flag is False."""
+    temp_table_name = random_name_for_temp_object(TempObjectType.TABLE)
+    session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"]).write.save_as_table(
+        temp_table_name, table_type="temp"
+    )
+
+    with mock.patch.object(
+        session, "_reduce_describe_query_enabled", reduce_describe_enabled
+    ), mock.patch.object(session, "_cte_optimization_enabled", cte_enabled):
+        # Apply a filter to get a SelectStatement with SelectableEntity as child
+        df = session.table(temp_table_name).filter(col("a") == 1)
+        if session.sql_simplifier_enabled:
+            assert len(df._plan.children_plan_nodes) == 1
+            assert isinstance(df._plan.children_plan_nodes[0], SelectableEntity)
+            selectable = df._plan.children_plan_nodes[0]
+            # Set _attributes to simulate cached attributes
+            selectable._attributes = selectable.snowflake_plan.attributes
+
+            copied_selectable = copy.deepcopy(selectable)
+
+            # Verify attributes were NOT copied
+            assert copied_selectable._attributes is None

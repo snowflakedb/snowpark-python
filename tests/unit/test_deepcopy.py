@@ -3,7 +3,10 @@
 #
 import copy
 import uuid
+from typing import List
 from unittest import mock
+
+import pytest
 
 from snowflake.snowpark import Session, functions as F, types as T
 from snowflake.snowpark._internal.analyzer.analyzer_utils import UNION
@@ -232,3 +235,135 @@ def test_set_statement(mock_session, mock_analyzer):
         verify_copied_selectable(
             copied_operand, original_operand, expect_plan_copied=False
         )
+
+
+def init_attributes(node: Selectable) -> List[Attribute]:
+    """Initialize _attributes on a Selectable with test data."""
+    attrs = [Attribute("A", IntegerType()), Attribute("B", StringType())]
+    node._attributes = attrs
+    return attrs
+
+
+def verify_attributes_deepcopied(
+    copied_selectable: Selectable,
+    original_selectable: Selectable,
+) -> None:
+    """Verify that _attributes was deepcopied (new list with new Attribute objects)."""
+    assert copied_selectable._attributes is not None
+    assert original_selectable._attributes is not None
+    # List should be different object (deepcopy)
+    assert copied_selectable._attributes is not original_selectable._attributes
+    # Each Attribute object should be different (deepcopy)
+    for copied_attr, original_attr in zip(
+        copied_selectable._attributes, original_selectable._attributes
+    ):
+        assert copied_attr is not original_attr
+        assert copied_attr.name == original_attr.name
+        assert copied_attr.datatype == original_attr.datatype
+        assert copied_attr.nullable == original_attr.nullable
+
+
+def verify_attributes_shallow_copied(
+    copied_selectable: Selectable,
+    original_selectable: Selectable,
+) -> None:
+    """Verify that _attributes was shallow-copied (new list but same Attribute objects)."""
+    assert copied_selectable._attributes is not None
+    assert original_selectable._attributes is not None
+    # List should be different object (shallow copy creates new list)
+    assert copied_selectable._attributes is not original_selectable._attributes
+    # Each Attribute object should be the same (shallow copy)
+    for copied_attr, original_attr in zip(
+        copied_selectable._attributes, original_selectable._attributes
+    ):
+        assert copied_attr is original_attr
+
+
+def verify_attributes_not_copied(
+    copied_selectable: Selectable,
+) -> None:
+    """Verify that _attributes was NOT copied (should be None or default)."""
+    assert copied_selectable._attributes is None
+
+
+def _create_selectable_entity(mock_session, mock_analyzer):
+    """Helper to create a SelectableEntity for testing."""
+    return SelectableEntity(
+        SnowflakeTable("TEST_TABLE", session=mock_session), analyzer=mock_analyzer
+    )
+
+
+def _create_select_statement(mock_session, mock_analyzer):
+    """Helper to create a SelectStatement for testing."""
+    from_ = SelectableEntity(
+        SnowflakeTable("TEST_TABLE", session=mock_session), analyzer=mock_analyzer
+    )
+    return SelectStatement(from_=from_, analyzer=mock_analyzer)
+
+
+@pytest.mark.parametrize(
+    "selectable_factory,copy_func,reduce_describe_enabled,cte_enabled",
+    [
+        # SelectableEntity with deepcopy - flags enabled (should copy)
+        (_create_selectable_entity, copy.deepcopy, True, True),
+        # SelectableEntity with deepcopy - flags disabled (should NOT copy)
+        (_create_selectable_entity, copy.deepcopy, False, False),
+        (_create_selectable_entity, copy.deepcopy, True, False),
+        (_create_selectable_entity, copy.deepcopy, False, True),
+        # SelectStatement with copy (shallow) - flags enabled (should copy)
+        (_create_select_statement, copy.copy, True, True),
+        # SelectStatement with copy (shallow) - flags disabled (should NOT copy)
+        (_create_select_statement, copy.copy, False, False),
+        (_create_select_statement, copy.copy, True, False),
+        (_create_select_statement, copy.copy, False, True),
+        # SelectStatement with deepcopy - flags enabled (should copy)
+        (_create_select_statement, copy.deepcopy, True, True),
+        # SelectStatement with deepcopy - flags disabled (should NOT copy)
+        (_create_select_statement, copy.deepcopy, False, False),
+        (_create_select_statement, copy.deepcopy, True, False),
+        (_create_select_statement, copy.deepcopy, False, True),
+    ],
+)
+def test_attributes_copy_with_session_flags(
+    mock_session,
+    mock_analyzer,
+    selectable_factory,
+    copy_func,
+    reduce_describe_enabled,
+    cte_enabled,
+):
+    """Test _attributes copy behavior based on session flags and copy method.
+
+    When both reduce_describe_query_enabled and cte_optimization_enabled are True,
+    _attributes should be copied. Otherwise, _attributes should NOT be copied.
+
+    Note: SelectableEntity only has __deepcopy__ (no __copy__), so only deepcopy is tested.
+    SelectStatement has both __copy__ and __deepcopy__.
+    """
+    # Set session flags
+    mock_session.reduce_describe_query_enabled = reduce_describe_enabled
+    mock_session.cte_optimization_enabled = cte_enabled
+
+    # Create the selectable and initialize fields
+    selectable = selectable_factory(mock_session, mock_analyzer)
+    init_selectable_fields(selectable, init_plan=False)
+    init_attributes(selectable)
+
+    # Perform the copy
+    copied_selectable = copy_func(selectable)
+
+    # Verify based on flags
+    both_flags_enabled = reduce_describe_enabled and cte_enabled
+    if both_flags_enabled:
+        # _attributes should be copied
+        assert copied_selectable._attributes is not None
+        assert copied_selectable._attributes is not selectable._attributes
+        if copy_func == copy.deepcopy:
+            # Deep copy: new Attribute objects
+            verify_attributes_deepcopied(copied_selectable, selectable)
+        else:
+            # Shallow copy: same Attribute objects
+            verify_attributes_shallow_copied(copied_selectable, selectable)
+    else:
+        # _attributes should NOT be copied
+        verify_attributes_not_copied(copied_selectable)
