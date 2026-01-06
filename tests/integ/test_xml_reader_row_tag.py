@@ -18,6 +18,7 @@ from snowflake.snowpark.types import (
     StringType,
     DoubleType,
     DateType,
+    ArrayType,
 )
 from tests.utils import TestFiles, Utils
 
@@ -609,6 +610,71 @@ def test_read_xml_with_custom_schema(session):
     ]
     Utils.check_answer(df, expected_result)
     assert df.schema == expected_schema
+
+
+def test_xml_custom_schema_nested(session):
+    review_schema = StructType(
+        [
+            StructField("User", StringType(), True),
+            StructField("Rating", StringType(), True),
+            StructField("comment", StringType(), True),
+        ]
+    )
+
+    edition_schema = StructType(
+        [
+            StructField("_year", StringType(), True),
+            StructField("_format", StringType(), True),
+        ]
+    )
+
+    user_schema = StructType(
+        [
+            StructField("Title", StringType(), True),
+            StructField("Author", StringType(), True),
+            StructField("Price", StringType(), True),
+            StructField(
+                "reviews",
+                StructType(
+                    [
+                        StructField("review", ArrayType(review_schema), True),
+                    ]
+                ),
+                True,
+            ),
+            StructField(
+                "editions",
+                StructType(
+                    [
+                        StructField("edition", ArrayType(edition_schema), True),
+                    ]
+                ),
+                True,
+            ),
+        ]
+    )
+    df = (
+        session.read.option("rowTag", "book")
+        .schema(user_schema)
+        .xml(f"@{tmp_stage_name}/{test_file_books2_xml}")
+    )
+    expected_res = [
+        Row(
+            Title="XML for Data Engineers",
+            Author="John Smith",
+            Price="35.50",
+            reviews='{\n  "review": {\n    "comment": "Perfect for mastering XML parsing.",\n    "rating": "5",\n    "user": "xml_master"\n  }\n}',
+            editions='{\n  "edition": {\n    "_format": "Paperback",\n    "_year": "2022"\n  }\n}',
+        ),
+        Row(
+            Title="The Art of Snowflake",
+            Author="Jane Doe",
+            Price="29.99",
+            reviews='{\n  "review": [\n    {\n      "comment": "Very insightful and practical.",\n      "rating": "5",\n      "user": "tech_guru_87"\n    },\n    {\n      "comment": "Great read for data engineers.",\n      "rating": "4",\n      "user": "datawizard"\n    }\n  ]\n}',
+            editions='{\n  "edition": [\n    {\n      "_format": "Hardcover",\n      "_year": "2023"\n    },\n    {\n      "_format": "eBook",\n      "_year": "2024"\n    }\n  ]\n}',
+        ),
+    ]
+    Utils.check_answer(df, expected_res)
 
 
 def test_user_schema_without_rowtag(session):
