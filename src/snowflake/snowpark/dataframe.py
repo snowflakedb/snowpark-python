@@ -293,7 +293,12 @@ def _alias_if_needed(
             )
         return col.alias(f'"{prefix}{unquoted_col_name}"')
     else:
-        return col.alias(f'"{unquoted_col_name}"')
+        # No alias needed when source name equals destination name.
+        # Populate expr_to_alias directly instead of creating redundant Alias expression.
+        # This avoids generating "A" AS "A" in SQL while still maintaining column tracking.
+        quoted_name = quote_name(unquoted_col_name)
+        df._plan.expr_to_alias[col._expression.expr_id] = quoted_name
+        return col
 
 
 def _populate_expr_to_alias(df: "DataFrame") -> None:
