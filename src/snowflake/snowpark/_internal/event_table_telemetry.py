@@ -27,7 +27,11 @@ def _import_or_missing_opentelemetry() -> Tuple[ModuleLikeObject, bool]:
     try:
         opentelemetry = importlib.import_module("opentelemetry")
         importlib.import_module("opentelemetry.sdk")
+        importlib.import_module("opentelemetry.sdk._logs")
+        importlib.import_module("opentelemetry.sdk.resources")
         importlib.import_module("opentelemetry.exporter.otlp")
+        importlib.import_module("opentelemetry.exporter.otlp.proto.http.trace_exporter")
+        importlib.import_module("opentelemetry.exporter.otlp.proto.http._log_exporter")
         importlib.import_module("opentelemetry._logs")
         return opentelemetry, True
     except ImportError:

@@ -22,6 +22,8 @@
 
 #### Bug Fixes
 
+- Fixed a bug that opentelemetry is not correctly import when using `Session.client_telemetry.enable_event_table_telemetry_collection`.
+
 #### Improvements
 - `snowflake.snowpark.context.configure_development_features` is effective for multiple sessions including newly created sessions after the configuration. No duplicate experimental warning any more.
 
