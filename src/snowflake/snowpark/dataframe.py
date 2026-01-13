@@ -1213,7 +1213,6 @@ class DataFrame:
             **kwargs,
         )
 
-    @experimental(version="1.28.0")
     @df_collect_api_telemetry
     @publicapi
     def to_arrow(
@@ -1255,7 +1254,6 @@ class DataFrame:
             **kwargs,
         )
 
-    @experimental(version="1.28.0")
     @df_collect_api_telemetry
     @publicapi
     def to_arrow_batches(
