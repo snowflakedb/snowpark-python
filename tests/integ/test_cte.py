@@ -4,6 +4,7 @@
 
 import re
 import tracemalloc
+from unittest import mock
 
 import pytest
 
@@ -32,6 +33,7 @@ from snowflake.snowpark.types import (
     StringType,
     TimestampType,
 )
+import snowflake.snowpark.context as context
 from tests.integ.scala.test_dataframe_reader_suite import get_reader
 from tests.integ.utils.sql_counter import SqlCounter, sql_count_checker
 from tests.utils import IS_IN_STORED_PROC_LOCALFS, TestFiles, Utils
@@ -1313,3 +1315,40 @@ def test_table_select_cte(session):
         union_count=1,
         join_count=0,
     )
+
+
+@pytest.mark.parametrize(
+    "reduce_describe_enabled,expected_describe_counts",
+    [
+        (True, [1, 0]),  # With caching: first call misses, second call hits cache
+        (False, [1, 1]),  # Without caching: both calls issue describe queries
+    ],
+)
+def test_dataframe_queries_with_cte_reuses_schema_cache(
+    session, reduce_describe_enabled, expected_describe_counts
+):
+    """Test that calling dataframe.queries (not same dataframe but same operation) multiple times with CTE optimization
+    does not issue extra DESCRIBE queries when reduce_describe_query_enabled is True.
+
+    This tests the deterministic CTE naming feature: when CTE optimization is enabled
+    and reduce_describe_query is enabled, repeated calls to df.queries should produce
+    identical SQL (with same CTE names), allowing the schema cache to hit.
+    """
+
+    def create_cte_dataframe():
+        """Create a DataFrame that triggers CTE optimization (same df used twice)."""
+        df = session.create_dataframe([[1, 2], [3, 4]], schema=["a", "b"])
+        return df.union_all(df)
+
+    def access_queries_and_schema(df):
+        """Access both queries and schema properties."""
+        _ = df.queries
+        _ = df.schema
+
+    with mock.patch.object(
+        session, "_reduce_describe_query_enabled", reduce_describe_enabled
+    ), mock.patch.object(context, "_is_snowpark_connect_compatible_mode", True):
+        for expected_describe_count in expected_describe_counts:
+            df_union = create_cte_dataframe()
+            with SqlCounter(query_count=0, describe_count=expected_describe_count):
+                access_queries_and_schema(df_union)
