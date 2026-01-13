@@ -256,7 +256,7 @@ def test_iceberg(session, local_testing_mode):
         ddl = session._run_query(f"select get_ddl('table', '{table_name}')")
         assert (
             ddl[0][0] == f"create or replace ICEBERG TABLE {table_name} (\n\t"
-            f"A STRING,\n\tB LONG,\n\tTS TIMESTAMP_NTZ(6)\n)\n "
+            f"A STRING,\n\tB LONG,\n\tTS TIMESTAMP_NTZ(9)\n)\n "
             f"PARTITION BY (A, BUCKET(5, B), TRUNCATE(3, A), DAY(TS))\n "
             f"EXTERNAL_VOLUME = 'PYTHON_CONNECTOR_ICEBERG_EXVOL'\n CATALOG = 'SNOWFLAKE'\n "
             f"BASE_LOCATION = 'snowpark_python_tests/';"
