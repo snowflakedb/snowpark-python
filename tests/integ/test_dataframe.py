@@ -7117,7 +7117,16 @@ def test_create_dataframe_implicit_struct_not_null_mixed(session):
         StructField("TXT", StringType(2**24), nullable=False),
     ]
 
-    assert df.schema.fields == expected_fields
+    expected_fields_with_2025_07_BCR = [
+        StructField("FLAG", BooleanType(), nullable=False),
+        StructField("DT", df.schema.fields[1].datatype, nullable=True),
+        StructField("TXT", StringType(2**27), nullable=False),
+    ]
+
+    assert (
+        df.schema.fields == expected_fields
+        or df.schema.fields == expected_fields_with_2025_07_BCR
+    )
 
     # Verify rows
     result = df.collect()
