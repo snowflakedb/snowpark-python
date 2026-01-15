@@ -238,15 +238,11 @@ def test_basic_stored_procedure(session, local_testing_mode):
 
     pow_sp = sproc(
         sp_pow,
-        name="sp_pow",
         return_type=DoubleType(),
         input_types=[IntegerType(), IntegerType()],
-        preserve_parameter_names=True,
     )
     assert pow_sp(2, 10) == 1024
     assert pow_sp(2, 10, session=session) == 1024
-    # assert parameter names are preserved by issuing a SQL CALL with named parameters
-    assert session.sql("call sp_pow(y=>3, x=>2)").collect()[0][0] == 8
 
 
 def test_stored_procedure_with_basic_column_datatype(session, local_testing_mode):
@@ -522,6 +518,7 @@ def test_register_sp_from_file(session, resources_path, tmpdir):
     )
     assert isinstance(mod5_sp.func, tuple)
     assert mod5_sp(3) == 3
+    assert session.sql("call mod5(x=>3)").collect()[0][0] == 3
 
     # test zip file
     from zipfile import ZipFile
@@ -980,6 +977,40 @@ def return_all_datatypes(
         "{'coordinates': [-122.35, 37.55], 'type': 'Point'}, 2021-01-01 00:00:00, 2021-01-01, 00:00:00, "
         "b'123', True, 1.000000000000000000"
     )
+
+
+def test_register_sp_with_preserve_parameter_names(session, resources_path):
+    def sp_pow(session_, x, y):
+        return (
+            session_.create_dataframe([[x, y]])
+            .to_df(["a", "b"])
+            .select(pow(col("a"), col("b")))
+            .collect()[0][0]
+        )
+
+    pow_sp = sproc(
+        sp_pow,
+        name="sp_pow",
+        return_type=DoubleType(),
+        input_types=[IntegerType(), IntegerType()],
+        preserve_parameter_names=True,
+    )
+
+    test_files = TestFiles(resources_path)
+    mod5_sp = session.sproc.register_from_file(
+        test_files.test_sp_py_file,
+        "mod5",
+        name="mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        preserve_parameter_names=True,
+    )
+
+    assert pow_sp(2, 10) == 1024
+    assert mod5_sp(3) == 3
+    # assert parameter names preserved by issuing a SQL CALL with named arguments
+    assert session.sql("call sp_pow(y=>3, x=>2)").collect()[0][0] == 8
+    assert session.sql("call mod5(x=>3)").collect()[0][0] == 3
 
 
 @pytest.mark.xfail(

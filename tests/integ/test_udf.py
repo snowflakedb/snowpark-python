@@ -1213,6 +1213,55 @@ def return_all_datatypes(
     )
 
 
+def test_register_udf_with_preserve_parameter_names(session, resources_path):
+    pow_udf = udf(
+        lambda x, y: x**y,
+        name="pow_udf",
+        return_type=DoubleType(),
+        input_types=[IntegerType(), IntegerType()],
+        preserve_parameter_names=True,
+    )
+
+    test_files = TestFiles(resources_path)
+    df = session.create_dataframe([[3, 4], [5, 6]]).to_df("a", "b")
+
+    mod5_udf = session.udf.register_from_file(
+        test_files.test_udf_py_file,
+        "mod5",
+        name="mod5",
+        return_type=IntegerType(),
+        input_types=[IntegerType()],
+        preserve_parameter_names=True,
+    )
+
+    Utils.check_answer(
+        df.select(mod5_udf("a"), mod5_udf("b")).collect(),
+        [
+            Row(3, 4),
+            Row(0, 1),
+        ],
+    )
+    assert session.sql("select mod5(x=>2)").collect()[0][0] == 2
+
+    Utils.check_answer(
+        df.select(pow_udf(col("a"), "b"), "b"),
+        [
+            Row(81.0, 4),
+            Row(15625.0, 6),
+        ],
+    )
+    assert session.sql("select pow_udf(y=>3, x=>2)").collect()[0][0] == 8
+
+    # without preserve_parameter_names, it should use arg1 and arg2 as parameter names
+    udf(
+        lambda x, y: x**y,
+        name="pow_udf2",
+        return_type=DoubleType(),
+        input_types=[IntegerType(), IntegerType()],
+    )
+    assert session.sql("select pow_udf2(arg2=>3, arg1=>2)").collect()[0][0] == 8
+
+
 @pytest.mark.xfail(
     "config.getoption('local_testing_mode', default=False)",
     reason="Database objects are session scoped in Local Testing",

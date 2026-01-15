@@ -774,7 +774,7 @@ class StoredProcedureRegistration:
             resource_constraint: A dictionary containing a resource properties of a warehouse and then
                 constraints needed to run this function. Eg ``{"architecture": "x86"}`` requires an x86
                 warehouse be used for execution.
-            preserve_parameter_names: Whether to preserve the parameter names of ``func`` in the created stored procedure.
+            preserve_parameter_names: Whether to preserve the parameter names of the referenced function in the created stored procedure.
                 If ``False``, the parameters will be named as `arg1`, `arg2`, etc. The default is ``False``.
 
         Note::
